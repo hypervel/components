@@ -14,6 +14,7 @@ use Hypervel\Scout\Searchable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
 use Meilisearch\Client;
+use Meilisearch\Contracts\IndexesResults;
 use Meilisearch\Endpoints\Indexes;
 use Mockery as m;
 
@@ -445,6 +446,104 @@ class MeilisearchEngineTest extends TestCase
         $result = $engine->deleteIndex('test_index');
 
         $this->assertEquals(['taskUid' => 1], $result);
+    }
+
+    public function testDeleteAllIndexesWithPrefixScopesToPrefixedUids()
+    {
+        $client = m::mock(Client::class);
+
+        $testUsers = m::mock(Indexes::class);
+        $testUsers->shouldReceive('getUid')->andReturn('test_users');
+        $testUsers->shouldReceive('delete')->once()->andReturn(['taskUid' => 1]);
+
+        $testPosts = m::mock(Indexes::class);
+        $testPosts->shouldReceive('getUid')->andReturn('test_posts');
+        $testPosts->shouldReceive('delete')->once()->andReturn(['taskUid' => 2]);
+
+        $otherData = m::mock(Indexes::class);
+        $otherData->shouldReceive('getUid')->andReturn('other_data');
+        $otherData->shouldNotReceive('delete');
+
+        $results = m::mock(IndexesResults::class);
+        $results->shouldReceive('getResults')->andReturn([$testUsers, $testPosts, $otherData]);
+
+        $client->shouldReceive('getIndexes')->once()->andReturn($results);
+
+        $engine = new MeilisearchEngine($client);
+        $engine->deleteAllIndexes('test_');
+    }
+
+    public function testDeleteAllIndexesWithNullPrefixDeletesEverything()
+    {
+        $client = m::mock(Client::class);
+
+        $testUsers = m::mock(Indexes::class);
+        $testUsers->shouldReceive('getUid')->andReturn('test_users');
+        $testUsers->shouldReceive('delete')->once();
+
+        $testPosts = m::mock(Indexes::class);
+        $testPosts->shouldReceive('getUid')->andReturn('test_posts');
+        $testPosts->shouldReceive('delete')->once();
+
+        $otherData = m::mock(Indexes::class);
+        $otherData->shouldReceive('getUid')->andReturn('other_data');
+        $otherData->shouldReceive('delete')->once();
+
+        $results = m::mock(IndexesResults::class);
+        $results->shouldReceive('getResults')->andReturn([$testUsers, $testPosts, $otherData]);
+
+        $client->shouldReceive('getIndexes')->once()->andReturn($results);
+
+        $engine = new MeilisearchEngine($client);
+        $engine->deleteAllIndexes(null);
+    }
+
+    public function testDeleteAllIndexesWithEmptyStringPrefixDeletesEverything()
+    {
+        $client = m::mock(Client::class);
+
+        $testUsers = m::mock(Indexes::class);
+        $testUsers->shouldReceive('getUid')->andReturn('test_users');
+        $testUsers->shouldReceive('delete')->once();
+
+        $testPosts = m::mock(Indexes::class);
+        $testPosts->shouldReceive('getUid')->andReturn('test_posts');
+        $testPosts->shouldReceive('delete')->once();
+
+        $otherData = m::mock(Indexes::class);
+        $otherData->shouldReceive('getUid')->andReturn('other_data');
+        $otherData->shouldReceive('delete')->once();
+
+        $results = m::mock(IndexesResults::class);
+        $results->shouldReceive('getResults')->andReturn([$testUsers, $testPosts, $otherData]);
+
+        $client->shouldReceive('getIndexes')->once()->andReturn($results);
+
+        $engine = new MeilisearchEngine($client);
+        $engine->deleteAllIndexes('');
+    }
+
+    public function testDeleteAllIndexesReturnsTasks()
+    {
+        $client = m::mock(Client::class);
+
+        $testUsers = m::mock(Indexes::class);
+        $testUsers->shouldReceive('getUid')->andReturn('test_users');
+        $testUsers->shouldReceive('delete')->andReturn(['taskUid' => 1]);
+
+        $testPosts = m::mock(Indexes::class);
+        $testPosts->shouldReceive('getUid')->andReturn('test_posts');
+        $testPosts->shouldReceive('delete')->andReturn(['taskUid' => 2]);
+
+        $results = m::mock(IndexesResults::class);
+        $results->shouldReceive('getResults')->andReturn([$testUsers, $testPosts]);
+
+        $client->shouldReceive('getIndexes')->andReturn($results);
+
+        $engine = new MeilisearchEngine($client);
+        $tasks = $engine->deleteAllIndexes('test_');
+
+        $this->assertEquals([['taskUid' => 1], ['taskUid' => 2]], $tasks);
     }
 
     public function testUpdateIndexSettingsWithEmbedders()
