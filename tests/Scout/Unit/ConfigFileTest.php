@@ -33,4 +33,18 @@ class ConfigFileTest extends TestCase
         $this->assertArrayHasKey('index-settings', $config['algolia']);
         $this->assertIsArray($config['algolia']['index-settings']);
     }
+
+    public function testMeilisearchRetryDefaultsArePresentInConfigFile(): void
+    {
+        $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
+
+        $this->assertArrayHasKey('meilisearch', $config);
+        $this->assertIsArray($config['meilisearch']);
+
+        $this->assertArrayHasKey('retries', $config['meilisearch']);
+        $this->assertSame(3, $config['meilisearch']['retries']);
+
+        $this->assertArrayHasKey('initial_retry_delay_ms', $config['meilisearch']);
+        $this->assertSame(100, $config['meilisearch']['initial_retry_delay_ms']);
+    }
 }

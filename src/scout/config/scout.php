@@ -155,6 +155,12 @@ return [
     'meilisearch' => [
         'host' => env('MEILISEARCH_HOST', 'http://localhost:7700'),
         'key' => env('MEILISEARCH_KEY'),
+
+        // HTTP retries on connection errors and 5xx/429 responses, with exponential
+        // backoff starting at initial_retry_delay_ms. Set retries to 0 to disable.
+        'retries' => env('MEILISEARCH_RETRIES', 3),
+        'initial_retry_delay_ms' => env('MEILISEARCH_INITIAL_RETRY_DELAY_MS', 100),
+
         'index-settings' => [
             // Per-index settings can be defined here:
             // 'users' => [

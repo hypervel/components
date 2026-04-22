@@ -10,6 +10,7 @@ use Algolia\AlgoliaSearch\Configuration\SearchConfig as AlgoliaSearchConfig;
 use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use Algolia\AlgoliaSearch\Support\AlgoliaAgent;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\HandlerStack;
 use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Scout\Console\DeleteAllIndexesCommand;
@@ -18,6 +19,7 @@ use Hypervel\Scout\Console\FlushCommand;
 use Hypervel\Scout\Console\ImportCommand;
 use Hypervel\Scout\Console\IndexCommand;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
+use Hypervel\Scout\Engines\MeilisearchRetryPolicy;
 use Hypervel\Support\ServiceProvider;
 use Meilisearch\Client as MeilisearchClient;
 use Typesense\Client as TypesenseClient;
@@ -71,6 +73,24 @@ class ScoutServiceProvider extends ServiceProvider
         $this->app->singleton(MeilisearchClient::class, function () {
             $config = $this->app->make('config');
 
+            $guzzleOptions = [
+                'telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Meilisearch],
+            ];
+
+            // The meilisearch/meilisearch-php client has no built-in retry
+            // mechanism (unlike Algolia's PHP client which has host failover,
+            // and Typesense's which has num_retries). Add HTTP-level retry at
+            // the Guzzle layer for parity, using MeilisearchRetryPolicy to
+            // decide what to retry and how long to wait between attempts.
+            $maxRetries = (int) $config->get('scout.meilisearch.retries', 3);
+            $baseDelayMs = (int) $config->get('scout.meilisearch.initial_retry_delay_ms', 100);
+
+            if ($maxRetries > 0) {
+                $stack = HandlerStack::create();
+                $stack->push(MeilisearchRetryPolicy::middleware($maxRetries, $baseDelayMs));
+                $guzzleOptions['handler'] = $stack;
+            }
+
             // Inject Guzzle explicitly so the Meilisearch client never falls
             // back to Psr18ClientDiscovery::find(), which may resolve to a
             // Swoole-unsafe PSR-18 implementation (e.g. Symfony's
@@ -78,9 +98,7 @@ class ScoutServiceProvider extends ServiceProvider
             return new MeilisearchClient(
                 $config->get('scout.meilisearch.host', 'http://localhost:7700'),
                 $config->get('scout.meilisearch.key'),
-                new GuzzleClient([
-                    'telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Meilisearch],
-                ]),
+                new GuzzleClient($guzzleOptions),
             );
         });
 

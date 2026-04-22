@@ -8,6 +8,8 @@ use Algolia\AlgoliaSearch\Algolia;
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
 use Http\Client\Common\HttpMethodsClient;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Telescope\TelescopeTag;
@@ -15,8 +17,10 @@ use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 use Meilisearch\Client as MeilisearchClient;
+use Meilisearch\Http\Client as MeilisearchHttpClient;
 use Psr\Http\Client\ClientInterface;
 use ReflectionProperty;
+use stdClass;
 use Typesense\Client as TypesenseClient;
 
 class ScoutServiceProviderTest extends TestCase
@@ -161,6 +165,73 @@ class ScoutServiceProviderTest extends TestCase
             [TelescopeTag::Scout, TelescopeTag::Meilisearch],
             $psr18->getConfig('telescope_tags'),
         );
+    }
+
+    public function testMeilisearchClientAddsRetryMiddlewareWhenRetriesEnabled(): void
+    {
+        $this->app->make('config')->set('scout.meilisearch.retries', 1);
+        $this->app->make('config')->set('scout.meilisearch.initial_retry_delay_ms', 1);
+        $this->app->forgetInstance(MeilisearchClient::class);
+
+        /** @var MeilisearchClient $client */
+        $client = $this->app->make(MeilisearchClient::class);
+
+        /** @var MeilisearchHttpClient $adapter */
+        $adapter = (new ClassInvoker($client))->http;
+        /** @var GuzzleClient $psr18 */
+        $psr18 = (new ClassInvoker($adapter))->http;
+        /** @var HandlerStack $stack */
+        $stack = $psr18->getConfig('handler');
+
+        $this->assertInstanceOf(HandlerStack::class, $stack);
+
+        $mock = new MockHandler([
+            new \GuzzleHttp\Psr7\Response(500, ['Content-Type' => 'application/json'], '{"message":"server error"}'),
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/json'], '{}'),
+        ]);
+
+        $stack->setHandler($mock);
+
+        $result = $adapter->post('/test', new stdClass);
+
+        $this->assertSame([], $result);
+        $this->assertSame(0, $mock->count(), 'both queued responses should be consumed by one retry');
+    }
+
+    public function testMeilisearchClientOmitsRetryMiddlewareWhenRetriesDisabled(): void
+    {
+        $this->app->make('config')->set('scout.meilisearch.retries', 0);
+        $this->app->forgetInstance(MeilisearchClient::class);
+
+        /** @var MeilisearchClient $client */
+        $client = $this->app->make(MeilisearchClient::class);
+
+        /** @var MeilisearchHttpClient $adapter */
+        $adapter = (new ClassInvoker($client))->http;
+        /** @var GuzzleClient $psr18 */
+        $psr18 = (new ClassInvoker($adapter))->http;
+        /** @var HandlerStack $stack */
+        $stack = $psr18->getConfig('handler');
+
+        $this->assertInstanceOf(HandlerStack::class, $stack);
+
+        $mock = new MockHandler([
+            new \GuzzleHttp\Psr7\Response(500, ['Content-Type' => 'application/json'], '{"message":"server error"}'),
+            new \GuzzleHttp\Psr7\Response(200, ['Content-Type' => 'application/json'], '{}'),
+        ]);
+
+        $stack->setHandler($mock);
+
+        $thrown = null;
+
+        try {
+            $adapter->post('/test', new stdClass);
+        } catch (\Meilisearch\Exceptions\ApiException $e) {
+            $thrown = $e;
+        }
+
+        $this->assertNotNull($thrown);
+        $this->assertSame(1, $mock->count(), 'only the first response should be consumed when retries are disabled');
     }
 
     public function testTypesenseClientHasScoutTelescopeTags()
