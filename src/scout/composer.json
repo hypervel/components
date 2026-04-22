@@ -9,6 +9,7 @@
         "scout",
         "search",
         "full-text-search",
+        "algolia",
         "meilisearch",
         "typesense",
         "database"
@@ -51,6 +52,7 @@
         "symfony/console": "^8.0"
     },
     "suggest": {
+        "algolia/algoliasearch-client-php": "Required for Algolia driver (^4.0)",
         "meilisearch/meilisearch-php": "Required for Meilisearch driver (^1.16)",
         "typesense/typesense-php": "Required for Typesense driver (^5.2)"
     },

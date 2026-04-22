@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
+use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
+use Hypervel\Scout\Engines\AlgoliaEngine;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Scout\Engines\NullEngine;
 use Hypervel\Scout\Engines\TypesenseEngine;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
@@ -47,6 +50,65 @@ class EngineManagerTest extends TestCase
         $engine = $manager->engine('collection');
 
         $this->assertInstanceOf(CollectionEngine::class, $engine);
+    }
+
+    public function testResolveAlgoliaEngine()
+    {
+        $container = $this->createMockContainerWithAlgolia([
+            'driver' => 'algolia',
+            'soft_delete' => false,
+            'identify' => false,
+        ]);
+
+        $algoliaClient = m::mock(AlgoliaSearchClient::class);
+        $container->shouldReceive('make')
+            ->with(AlgoliaSearchClient::class)
+            ->andReturn($algoliaClient);
+
+        $manager = new EngineManager($container);
+        $engine = $manager->engine('algolia');
+
+        $this->assertInstanceOf(AlgoliaEngine::class, $engine);
+    }
+
+    public function testResolveAlgoliaEngineWithSoftDelete()
+    {
+        $container = $this->createMockContainerWithAlgolia([
+            'driver' => 'algolia',
+            'soft_delete' => true,
+            'identify' => false,
+        ]);
+
+        $algoliaClient = m::mock(AlgoliaSearchClient::class);
+        $container->shouldReceive('make')
+            ->with(AlgoliaSearchClient::class)
+            ->andReturn($algoliaClient);
+
+        $manager = new EngineManager($container);
+        $engine = $manager->engine('algolia');
+
+        $this->assertInstanceOf(AlgoliaEngine::class, $engine);
+        $this->assertTrue((new ClassInvoker($engine))->softDelete);
+    }
+
+    public function testResolveAlgoliaEngineWithIdentify()
+    {
+        $container = $this->createMockContainerWithAlgolia([
+            'driver' => 'algolia',
+            'soft_delete' => false,
+            'identify' => true,
+        ]);
+
+        $algoliaClient = m::mock(AlgoliaSearchClient::class);
+        $container->shouldReceive('make')
+            ->with(AlgoliaSearchClient::class)
+            ->andReturn($algoliaClient);
+
+        $manager = new EngineManager($container);
+        $engine = $manager->engine('algolia');
+
+        $this->assertInstanceOf(AlgoliaEngine::class, $engine);
+        $this->assertTrue((new ClassInvoker($engine))->identify);
     }
 
     public function testResolveMeilisearchEngine()
@@ -303,6 +365,28 @@ class EngineManagerTest extends TestCase
         $configService->shouldReceive('get')
             ->with('scout.typesense.max_total_results', m::any())
             ->andReturn($config['max_total_results'] ?? 1000);
+
+        $container->shouldReceive('make')
+            ->with('config')
+            ->andReturn($configService);
+
+        return $container;
+    }
+
+    protected function createMockContainerWithAlgolia(array $config): m\MockInterface&Container
+    {
+        $container = m::mock(Container::class);
+
+        $configService = m::mock(Repository::class);
+        $configService->shouldReceive('get')
+            ->with('scout.driver', m::any())
+            ->andReturn($config['driver'] ?? null);
+        $configService->shouldReceive('get')
+            ->with('scout.soft_delete', m::any())
+            ->andReturn($config['soft_delete'] ?? false);
+        $configService->shouldReceive('get')
+            ->with('scout.identify', m::any())
+            ->andReturn($config['identify'] ?? false);
 
         $container->shouldReceive('make')
             ->with('config')

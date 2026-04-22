@@ -258,6 +258,7 @@
     },
     "require-dev": {
         "ably/ably-php": "^1.0",
+        "algolia/algoliasearch-client-php": "^4.0",
         "brianium/paratest": "^7.19",
         "composer/semver": "^3.4",
         "fakerphp/faker": "^1.24",
