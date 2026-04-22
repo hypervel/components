@@ -305,60 +305,60 @@ Below you will find every facade and its underlying class. This is a useful tool
 
 | Facade | Class | Service Container Binding |
 | --- | --- | --- |
-| App | [Hypervel\Foundation\Application](https://api.laravel.com/docs/{{version}}/Illuminate/Foundation/Application.html) | `app` |
-| Artisan | [Hypervel\Contracts\Console\Kernel](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Console/Kernel.html) | `artisan` |
-| Auth (Instance) | [Hypervel\Contracts\Auth\Guard](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Auth/Guard.html) | `auth.driver` |
-| Auth | [Hypervel\Auth\AuthManager](https://api.laravel.com/docs/{{version}}/Illuminate/Auth/AuthManager.html) | `auth` |
-| Blade | [Hypervel\View\Compilers\BladeCompiler](https://api.laravel.com/docs/{{version}}/Illuminate/View/Compilers/BladeCompiler.html) | `blade.compiler` |
-| Broadcast (Instance) | [Hypervel\Contracts\Broadcasting\Broadcaster](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Broadcasting/Broadcaster.html) | &nbsp; |
-| Broadcast | [Hypervel\Contracts\Broadcasting\Factory](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Broadcasting/Factory.html) | &nbsp; |
-| Bus | [Hypervel\Contracts\Bus\Dispatcher](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Bus/Dispatcher.html) | &nbsp; |
-| Cache (Instance) | [Hypervel\Cache\Repository](https://api.laravel.com/docs/{{version}}/Illuminate/Cache/Repository.html) | `cache.store` |
-| Cache | [Hypervel\Cache\CacheManager](https://api.laravel.com/docs/{{version}}/Illuminate/Cache/CacheManager.html) | `cache` |
-| Config | [Hypervel\Config\Repository](https://api.laravel.com/docs/{{version}}/Illuminate/Config/Repository.html) | `config` |
-| Context | [Hypervel\Log\Context\Repository](https://api.laravel.com/docs/{{version}}/Illuminate/Log/Context/Repository.html) | &nbsp; |
-| Cookie | [Hypervel\Cookie\CookieJar](https://api.laravel.com/docs/{{version}}/Illuminate/Cookie/CookieJar.html) | `cookie` |
-| Crypt | [Hypervel\Encryption\Encrypter](https://api.laravel.com/docs/{{version}}/Illuminate/Encryption/Encrypter.html) | `encrypter` |
-| Date | [Hypervel\Support\DateFactory](https://api.laravel.com/docs/{{version}}/Illuminate/Support/DateFactory.html) | `date` |
-| DB (Instance) | [Hypervel\Database\Connection](https://api.laravel.com/docs/{{version}}/Illuminate/Database/Connection.html) | `db.connection` |
-| DB | [Hypervel\Database\DatabaseManager](https://api.laravel.com/docs/{{version}}/Illuminate/Database/DatabaseManager.html) | `db` |
-| Event | [Hypervel\Events\Dispatcher](https://api.laravel.com/docs/{{version}}/Illuminate/Events/Dispatcher.html) | `events` |
-| Exceptions (Instance) | [Hypervel\Contracts\Debug\ExceptionHandler](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Debug/ExceptionHandler.html) | &nbsp; |
-| Exceptions | [Hypervel\Foundation\Exceptions\Handler](https://api.laravel.com/docs/{{version}}/Illuminate/Foundation/Exceptions/Handler.html) | &nbsp; |
-| File | [Hypervel\Filesystem\Filesystem](https://api.laravel.com/docs/{{version}}/Illuminate/Filesystem/Filesystem.html) | `files` |
-| Gate | [Hypervel\Contracts\Auth\Access\Gate](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Auth/Access/Gate.html) | &nbsp; |
-| Hash | [Hypervel\Contracts\Hashing\Hasher](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Hashing/Hasher.html) | `hash` |
-| Http | [Hypervel\Http\Client\Factory](https://api.laravel.com/docs/{{version}}/Illuminate/Http/Client/Factory.html) | &nbsp; |
-| Lang | [Hypervel\Translation\Translator](https://api.laravel.com/docs/{{version}}/Illuminate/Translation/Translator.html) | `translator` |
-| Log | [Hypervel\Log\LogManager](https://api.laravel.com/docs/{{version}}/Illuminate/Log/LogManager.html) | `log` |
-| Mail | [Hypervel\Mail\Mailer](https://api.laravel.com/docs/{{version}}/Illuminate/Mail/Mailer.html) | `mailer` |
-| Notification | [Hypervel\Notifications\ChannelManager](https://api.laravel.com/docs/{{version}}/Illuminate/Notifications/ChannelManager.html) | &nbsp; |
-| Password (Instance) | [Hypervel\Auth\Passwords\PasswordBroker](https://api.laravel.com/docs/{{version}}/Illuminate/Auth/Passwords/PasswordBroker.html) | `auth.password.broker` |
-| Password | [Hypervel\Auth\Passwords\PasswordBrokerManager](https://api.laravel.com/docs/{{version}}/Illuminate/Auth/Passwords/PasswordBrokerManager.html) | `auth.password` |
-| Pipeline (Instance) | [Hypervel\Pipeline\Pipeline](https://api.laravel.com/docs/{{version}}/Illuminate/Pipeline/Pipeline.html) | &nbsp; |
-| Process | [Hypervel\Process\Factory](https://api.laravel.com/docs/{{version}}/Illuminate/Process/Factory.html) | &nbsp; |
-| Queue (Base Class) | [Hypervel\Queue\Queue](https://api.laravel.com/docs/{{version}}/Illuminate/Queue/Queue.html) | &nbsp; |
-| Queue (Instance) | [Hypervel\Contracts\Queue\Queue](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Queue/Queue.html) | `queue.connection` |
-| Queue | [Hypervel\Queue\QueueManager](https://api.laravel.com/docs/{{version}}/Illuminate/Queue/QueueManager.html) | `queue` |
-| RateLimiter | [Hypervel\Cache\RateLimiter](https://api.laravel.com/docs/{{version}}/Illuminate/Cache/RateLimiter.html) | &nbsp; |
-| Redirect | [Hypervel\Routing\Redirector](https://api.laravel.com/docs/{{version}}/Illuminate/Routing/Redirector.html) | `redirect` |
-| Redis (Instance) | [Hypervel\Redis\Connections\Connection](https://api.laravel.com/docs/{{version}}/Illuminate/Redis/Connections/Connection.html) | `redis.connection` |
-| Redis | [Hypervel\Redis\RedisManager](https://api.laravel.com/docs/{{version}}/Illuminate/Redis/RedisManager.html) | `redis` |
-| Request | [Hypervel\Http\Request](https://api.laravel.com/docs/{{version}}/Illuminate/Http/Request.html) | `request` |
-| Response (Instance) | [Hypervel\Http\Response](https://api.laravel.com/docs/{{version}}/Illuminate/Http/Response.html) | &nbsp; |
-| Response | [Hypervel\Contracts\Routing\ResponseFactory](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Routing/ResponseFactory.html) | &nbsp; |
-| Route | [Hypervel\Routing\Router](https://api.laravel.com/docs/{{version}}/Illuminate/Routing/Router.html) | `router` |
-| Schedule | [Hypervel\Console\Scheduling\Schedule](https://api.laravel.com/docs/{{version}}/Illuminate/Console/Scheduling/Schedule.html) | &nbsp; |
-| Schema | [Hypervel\Database\Schema\Builder](https://api.laravel.com/docs/{{version}}/Illuminate/Database/Schema/Builder.html) | &nbsp; |
-| Session (Instance) | [Hypervel\Session\Store](https://api.laravel.com/docs/{{version}}/Illuminate/Session/Store.html) | `session.store` |
-| Session | [Hypervel\Session\SessionManager](https://api.laravel.com/docs/{{version}}/Illuminate/Session/SessionManager.html) | `session` |
-| Storage (Instance) | [Hypervel\Contracts\Filesystem\Filesystem](https://api.laravel.com/docs/{{version}}/Illuminate/Contracts/Filesystem/Filesystem.html) | `filesystem.disk` |
-| Storage | [Hypervel\Filesystem\FilesystemManager](https://api.laravel.com/docs/{{version}}/Illuminate/Filesystem/FilesystemManager.html) | `filesystem` |
-| URL | [Hypervel\Routing\UrlGenerator](https://api.laravel.com/docs/{{version}}/Illuminate/Routing/UrlGenerator.html) | `url` |
-| Validator (Instance) | [Hypervel\Validation\Validator](https://api.laravel.com/docs/{{version}}/Illuminate/Validation/Validator.html) | &nbsp; |
-| Validator | [Hypervel\Validation\Factory](https://api.laravel.com/docs/{{version}}/Illuminate/Validation/Factory.html) | `validator` |
-| View (Instance) | [Hypervel\View\View](https://api.laravel.com/docs/{{version}}/Illuminate/View/View.html) | &nbsp; |
-| View | [Hypervel\View\Factory](https://api.laravel.com/docs/{{version}}/Illuminate/View/Factory.html) | `view` |
-| Vite | [Hypervel\Foundation\Vite](https://api.laravel.com/docs/{{version}}/Illuminate/Foundation/Vite.html) | &nbsp; |
+| App | [Hypervel\Foundation\Application](https://api.hypervel.org/docs/{{version}}/Illuminate/Foundation/Application.html) | `app` |
+| Artisan | [Hypervel\Contracts\Console\Kernel](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Console/Kernel.html) | `artisan` |
+| Auth (Instance) | [Hypervel\Contracts\Auth\Guard](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Auth/Guard.html) | `auth.driver` |
+| Auth | [Hypervel\Auth\AuthManager](https://api.hypervel.org/docs/{{version}}/Illuminate/Auth/AuthManager.html) | `auth` |
+| Blade | [Hypervel\View\Compilers\BladeCompiler](https://api.hypervel.org/docs/{{version}}/Illuminate/View/Compilers/BladeCompiler.html) | `blade.compiler` |
+| Broadcast (Instance) | [Hypervel\Contracts\Broadcasting\Broadcaster](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Broadcasting/Broadcaster.html) | &nbsp; |
+| Broadcast | [Hypervel\Contracts\Broadcasting\Factory](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Broadcasting/Factory.html) | &nbsp; |
+| Bus | [Hypervel\Contracts\Bus\Dispatcher](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Bus/Dispatcher.html) | &nbsp; |
+| Cache (Instance) | [Hypervel\Cache\Repository](https://api.hypervel.org/docs/{{version}}/Illuminate/Cache/Repository.html) | `cache.store` |
+| Cache | [Hypervel\Cache\CacheManager](https://api.hypervel.org/docs/{{version}}/Illuminate/Cache/CacheManager.html) | `cache` |
+| Config | [Hypervel\Config\Repository](https://api.hypervel.org/docs/{{version}}/Illuminate/Config/Repository.html) | `config` |
+| Context | [Hypervel\Log\Context\Repository](https://api.hypervel.org/docs/{{version}}/Illuminate/Log/Context/Repository.html) | &nbsp; |
+| Cookie | [Hypervel\Cookie\CookieJar](https://api.hypervel.org/docs/{{version}}/Illuminate/Cookie/CookieJar.html) | `cookie` |
+| Crypt | [Hypervel\Encryption\Encrypter](https://api.hypervel.org/docs/{{version}}/Illuminate/Encryption/Encrypter.html) | `encrypter` |
+| Date | [Hypervel\Support\DateFactory](https://api.hypervel.org/docs/{{version}}/Illuminate/Support/DateFactory.html) | `date` |
+| DB (Instance) | [Hypervel\Database\Connection](https://api.hypervel.org/docs/{{version}}/Illuminate/Database/Connection.html) | `db.connection` |
+| DB | [Hypervel\Database\DatabaseManager](https://api.hypervel.org/docs/{{version}}/Illuminate/Database/DatabaseManager.html) | `db` |
+| Event | [Hypervel\Events\Dispatcher](https://api.hypervel.org/docs/{{version}}/Illuminate/Events/Dispatcher.html) | `events` |
+| Exceptions (Instance) | [Hypervel\Contracts\Debug\ExceptionHandler](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Debug/ExceptionHandler.html) | &nbsp; |
+| Exceptions | [Hypervel\Foundation\Exceptions\Handler](https://api.hypervel.org/docs/{{version}}/Illuminate/Foundation/Exceptions/Handler.html) | &nbsp; |
+| File | [Hypervel\Filesystem\Filesystem](https://api.hypervel.org/docs/{{version}}/Illuminate/Filesystem/Filesystem.html) | `files` |
+| Gate | [Hypervel\Contracts\Auth\Access\Gate](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Auth/Access/Gate.html) | &nbsp; |
+| Hash | [Hypervel\Contracts\Hashing\Hasher](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Hashing/Hasher.html) | `hash` |
+| Http | [Hypervel\Http\Client\Factory](https://api.hypervel.org/docs/{{version}}/Illuminate/Http/Client/Factory.html) | &nbsp; |
+| Lang | [Hypervel\Translation\Translator](https://api.hypervel.org/docs/{{version}}/Illuminate/Translation/Translator.html) | `translator` |
+| Log | [Hypervel\Log\LogManager](https://api.hypervel.org/docs/{{version}}/Illuminate/Log/LogManager.html) | `log` |
+| Mail | [Hypervel\Mail\Mailer](https://api.hypervel.org/docs/{{version}}/Illuminate/Mail/Mailer.html) | `mailer` |
+| Notification | [Hypervel\Notifications\ChannelManager](https://api.hypervel.org/docs/{{version}}/Illuminate/Notifications/ChannelManager.html) | &nbsp; |
+| Password (Instance) | [Hypervel\Auth\Passwords\PasswordBroker](https://api.hypervel.org/docs/{{version}}/Illuminate/Auth/Passwords/PasswordBroker.html) | `auth.password.broker` |
+| Password | [Hypervel\Auth\Passwords\PasswordBrokerManager](https://api.hypervel.org/docs/{{version}}/Illuminate/Auth/Passwords/PasswordBrokerManager.html) | `auth.password` |
+| Pipeline (Instance) | [Hypervel\Pipeline\Pipeline](https://api.hypervel.org/docs/{{version}}/Illuminate/Pipeline/Pipeline.html) | &nbsp; |
+| Process | [Hypervel\Process\Factory](https://api.hypervel.org/docs/{{version}}/Illuminate/Process/Factory.html) | &nbsp; |
+| Queue (Base Class) | [Hypervel\Queue\Queue](https://api.hypervel.org/docs/{{version}}/Illuminate/Queue/Queue.html) | &nbsp; |
+| Queue (Instance) | [Hypervel\Contracts\Queue\Queue](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Queue/Queue.html) | `queue.connection` |
+| Queue | [Hypervel\Queue\QueueManager](https://api.hypervel.org/docs/{{version}}/Illuminate/Queue/QueueManager.html) | `queue` |
+| RateLimiter | [Hypervel\Cache\RateLimiter](https://api.hypervel.org/docs/{{version}}/Illuminate/Cache/RateLimiter.html) | &nbsp; |
+| Redirect | [Hypervel\Routing\Redirector](https://api.hypervel.org/docs/{{version}}/Illuminate/Routing/Redirector.html) | `redirect` |
+| Redis (Instance) | [Hypervel\Redis\Connections\Connection](https://api.hypervel.org/docs/{{version}}/Illuminate/Redis/Connections/Connection.html) | `redis.connection` |
+| Redis | [Hypervel\Redis\RedisManager](https://api.hypervel.org/docs/{{version}}/Illuminate/Redis/RedisManager.html) | `redis` |
+| Request | [Hypervel\Http\Request](https://api.hypervel.org/docs/{{version}}/Illuminate/Http/Request.html) | `request` |
+| Response (Instance) | [Hypervel\Http\Response](https://api.hypervel.org/docs/{{version}}/Illuminate/Http/Response.html) | &nbsp; |
+| Response | [Hypervel\Contracts\Routing\ResponseFactory](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Routing/ResponseFactory.html) | &nbsp; |
+| Route | [Hypervel\Routing\Router](https://api.hypervel.org/docs/{{version}}/Illuminate/Routing/Router.html) | `router` |
+| Schedule | [Hypervel\Console\Scheduling\Schedule](https://api.hypervel.org/docs/{{version}}/Illuminate/Console/Scheduling/Schedule.html) | &nbsp; |
+| Schema | [Hypervel\Database\Schema\Builder](https://api.hypervel.org/docs/{{version}}/Illuminate/Database/Schema/Builder.html) | &nbsp; |
+| Session (Instance) | [Hypervel\Session\Store](https://api.hypervel.org/docs/{{version}}/Illuminate/Session/Store.html) | `session.store` |
+| Session | [Hypervel\Session\SessionManager](https://api.hypervel.org/docs/{{version}}/Illuminate/Session/SessionManager.html) | `session` |
+| Storage (Instance) | [Hypervel\Contracts\Filesystem\Filesystem](https://api.hypervel.org/docs/{{version}}/Illuminate/Contracts/Filesystem/Filesystem.html) | `filesystem.disk` |
+| Storage | [Hypervel\Filesystem\FilesystemManager](https://api.hypervel.org/docs/{{version}}/Illuminate/Filesystem/FilesystemManager.html) | `filesystem` |
+| URL | [Hypervel\Routing\UrlGenerator](https://api.hypervel.org/docs/{{version}}/Illuminate/Routing/UrlGenerator.html) | `url` |
+| Validator (Instance) | [Hypervel\Validation\Validator](https://api.hypervel.org/docs/{{version}}/Illuminate/Validation/Validator.html) | &nbsp; |
+| Validator | [Hypervel\Validation\Factory](https://api.hypervel.org/docs/{{version}}/Illuminate/Validation/Factory.html) | `validator` |
+| View (Instance) | [Hypervel\View\View](https://api.hypervel.org/docs/{{version}}/Illuminate/View/View.html) | &nbsp; |
+| View | [Hypervel\View\Factory](https://api.hypervel.org/docs/{{version}}/Illuminate/View/Factory.html) | `view` |
+| Vite | [Hypervel\Foundation\Vite](https://api.hypervel.org/docs/{{version}}/Illuminate/Foundation/Vite.html) | &nbsp; |
 
 </div>

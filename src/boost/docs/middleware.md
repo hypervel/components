@@ -238,10 +238,10 @@ Route::middleware(['group-name'])->group(function () {
 });
 ```
 
-<a name="laravels-default-middleware-groups"></a>
-#### Laravel's Default Middleware Groups
+<a name="hypervels-default-middleware-groups"></a>
+#### Hypervel's Default Middleware Groups
 
-Laravel includes predefined `web` and `api` middleware groups that contain common middleware you may want to apply to your web and API routes. Remember, Laravel automatically applies these middleware groups to the corresponding `routes/web.php` and `routes/api.php` files:
+Hypervel includes predefined `web` and `api` middleware groups that contain common middleware you may want to apply to your web and API routes. Remember, Hypervel automatically applies these middleware groups to the corresponding `routes/web.php` and `routes/api.php` files:
 
 <div class="overflow-auto">
 
@@ -281,7 +281,7 @@ use App\Http\Middleware\EnsureUserIsSubscribed;
 })
 ```
 
-You may even replace one of Laravel's default middleware group entries with a custom middleware of your own:
+You may even replace one of Hypervel's default middleware group entries with a custom middleware of your own:
 
 ```php
 use App\Http\Middleware\StartCustomSession;
@@ -300,10 +300,10 @@ $middleware->web(remove: [
 ]);
 ```
 
-<a name="manually-managing-laravels-default-middleware-groups"></a>
-#### Manually Managing Laravel's Default Middleware Groups
+<a name="manually-managing-hypervels-default-middleware-groups"></a>
+#### Manually Managing Hypervel's Default Middleware Groups
 
-If you would like to manually manage all of the middleware within Laravel's default `web` and `api` middleware groups, you may redefine the groups entirely. The example below will define the `web` and `api` middleware groups with their default middleware, allowing you to customize them as necessary:
+If you would like to manually manage all of the middleware within Hypervel's default `web` and `api` middleware groups, you may redefine the groups entirely. The example below will define the `web` and `api` middleware groups with their default middleware, allowing you to customize them as necessary:
 
 ```php
 ->withMiddleware(function (Middleware $middleware): void {
