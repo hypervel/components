@@ -10,6 +10,7 @@ use Algolia\AlgoliaSearch\Configuration\SearchConfig as AlgoliaSearchConfig;
 use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use Algolia\AlgoliaSearch\Support\AlgoliaAgent;
 use GuzzleHttp\Client as GuzzleClient;
+use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Foundation\Application as HypervelApplication;
 use Hypervel\Scout\Console\DeleteAllIndexesCommand;
 use Hypervel\Scout\Console\DeleteIndexCommand;
@@ -43,7 +44,9 @@ class ScoutServiceProvider extends ServiceProvider
             // heuristic can change under ^4.0 minor releases (swap to PSR-18
             // discovery, reorder Guzzle detection, etc.) with no semver signal.
             // Explicit injection pins the HTTP client choice at our boundary.
-            Algolia::setHttpClient(new GuzzleHttpClient(new GuzzleClient));
+            Algolia::setHttpClient(new GuzzleHttpClient(new GuzzleClient([
+                'telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Algolia],
+            ])));
 
             AlgoliaAgent::addAlgoliaAgent('Hypervel Scout', 'Hypervel Scout', HypervelApplication::VERSION);
 
@@ -75,7 +78,9 @@ class ScoutServiceProvider extends ServiceProvider
             return new MeilisearchClient(
                 $config->get('scout.meilisearch.host', 'http://localhost:7700'),
                 $config->get('scout.meilisearch.key'),
-                new GuzzleClient,
+                new GuzzleClient([
+                    'telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Meilisearch],
+                ]),
             );
         });
 
@@ -86,7 +91,9 @@ class ScoutServiceProvider extends ServiceProvider
             // Explicitly inject Guzzle as the HTTP client so Typesense never
             // falls back to PSR-18 auto-discovery, which may resolve to
             // Symfony's CurlHttpClient (unsafe with Swoole coroutines).
-            $settings['client'] ??= new GuzzleClient;
+            $settings['client'] ??= new GuzzleClient([
+                'telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Typesense],
+            ]);
 
             return new TypesenseClient($settings);
         });

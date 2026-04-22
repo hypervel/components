@@ -10,6 +10,7 @@ use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use GuzzleHttp\Client as GuzzleClient;
 use Http\Client\Common\HttpMethodsClient;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
@@ -128,5 +129,65 @@ class ScoutServiceProviderTest extends TestCase
         // GuzzleHttpClient.php). Verify it's a real GuzzleHttp\Client.
         $inner = (new ClassInvoker($wrapper))->client;
         $this->assertInstanceOf(GuzzleClient::class, $inner);
+    }
+
+    public function testAlgoliaClientHasScoutTelescopeTags()
+    {
+        $this->app->make('config')->set('scout.algolia.id', 'test-app-id');
+        $this->app->make('config')->set('scout.algolia.secret', 'test-secret');
+        $this->app->forgetInstance(AlgoliaSearchClient::class);
+
+        $this->app->make(AlgoliaSearchClient::class);
+
+        /** @var GuzzleClient $inner */
+        $inner = (new ClassInvoker(Algolia::getHttpClient()))->client;
+
+        $this->assertSame(
+            [TelescopeTag::Scout, TelescopeTag::Algolia],
+            $inner->getConfig('telescope_tags'),
+        );
+    }
+
+    public function testMeilisearchClientHasScoutTelescopeTags()
+    {
+        /** @var MeilisearchClient $client */
+        $client = $this->app->make(MeilisearchClient::class);
+
+        $adapter = (new ClassInvoker($client))->http;
+        /** @var GuzzleClient $psr18 */
+        $psr18 = (new ClassInvoker($adapter))->http;
+
+        $this->assertSame(
+            [TelescopeTag::Scout, TelescopeTag::Meilisearch],
+            $psr18->getConfig('telescope_tags'),
+        );
+    }
+
+    public function testTypesenseClientHasScoutTelescopeTags()
+    {
+        $this->app->make('config')->set('scout.typesense.client-settings', [
+            'api_key' => 'test-key',
+            'nodes' => [
+                ['host' => 'localhost', 'port' => '8108', 'protocol' => 'http'],
+            ],
+        ]);
+        $this->app->forgetInstance(TypesenseClient::class);
+
+        $typesense = $this->app->make(TypesenseClient::class);
+
+        $config = (new ReflectionProperty($typesense, 'config'))->getValue($typesense);
+        $client = $config->getClient();
+
+        // Typesense wraps injected PSR-18 clients in HttpMethodsClient; the
+        // real Guzzle sits inside its $httpClient property.
+        if ($client instanceof HttpMethodsClient) {
+            /** @var GuzzleClient $client */
+            $client = (new ReflectionProperty(HttpMethodsClient::class, 'httpClient'))->getValue($client);
+        }
+
+        $this->assertSame(
+            [TelescopeTag::Scout, TelescopeTag::Typesense],
+            $client->getConfig('telescope_tags'),
+        );
     }
 }
