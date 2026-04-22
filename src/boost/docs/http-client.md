@@ -14,7 +14,8 @@
 - [Concurrent Requests](#concurrent-requests)
     - [Dispatching Concurrent Requests](#dispatching-concurrent-requests)
     - [Limiting Concurrency](#limiting-concurrency)
-    - [Request Batching](#request-batching)
+    - [Handling Failures](#handling-failures)
+    - [Per-Request Callbacks](#per-request-callbacks)
     - [Running Concurrent Requests After the Response](#running-concurrent-requests-after-the-response)
 - [Connections](#connections)
 - [Macros](#macros)
@@ -597,7 +598,7 @@ $responses = parallel([
 ], concurrent: 5);
 ```
 
-For finer control — such as collecting partial results when some requests fail without throwing — instantiate `Parallel` directly and call `wait(throw: false)`:
+For finer control — such as collecting partial results when some requests fail without throwing — instantiate `Parallel` directly and call `wait(throw: false)`. After the call, the returned array holds the successful results, and the failures may be inspected via `getThrowables()`, `hasFailures()`, and `failedCount()` on the same instance:
 
 ```php
 use Hypervel\Coroutine\Parallel;
@@ -610,81 +611,86 @@ foreach ($urls as $key => $url) {
 }
 
 $results = $parallel->wait(throw: false);
+
+if ($parallel->hasFailures()) {
+    foreach ($parallel->getThrowables() as $key => $error) {
+        $logger->error('Request failed', ['key' => $key, 'error' => $error->getMessage()]);
+    }
+}
 ```
 
-<a name="request-batching"></a>
-### Request Batching
+<a name="handling-failures"></a>
+### Handling Failures
 
-Another way of working with concurrent requests in Laravel is to use the `batch` method. Like the `pool` method, it accepts a closure which receives an `Hypervel\Http\Client\Batch` instance, allowing you to easily add requests to the request pool for dispatching, but it also allows you to define completion callbacks:
+When you dispatch concurrent requests with `parallel`, any closure may throw — typically a `ConnectionException` for a network failure, or a `RequestException` raised by calling `throw()` on the response. If at least one closure throws, `parallel` collects every failure and throws a single `Hypervel\Coroutine\Exceptions\ParallelExecutionException`. The exception exposes the successful results via `getResults()` and the failures via `getThrowables()`, both keyed by your closure keys:
 
 ```php
-use Hypervel\Http\Client\Batch;
-use Hypervel\Http\Client\ConnectionException;
-use Hypervel\Http\Client\RequestException;
-use Hypervel\Http\Client\Response;
+use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Support\Facades\Http;
 
-$responses = Http::batch(fn (Batch $batch) => [
-    $batch->get('http://localhost/first'),
-    $batch->get('http://localhost/second'),
-    $batch->get('http://localhost/third'),
-])->before(function (Batch $batch) {
-    // The batch has been created but no requests have been initialized...
-})->progress(function (Batch $batch, int|string $key, Response $response) {
-    // An individual request has completed successfully...
-})->then(function (Batch $batch, array $results) {
-    // All requests completed successfully...
-})->catch(function (Batch $batch, int|string $key, Response|RequestException|ConnectionException $response) {
-    // Batch request failure detected...
-})->finally(function (Batch $batch, array $results) {
-    // The batch has finished executing...
-})->send();
+use function Hypervel\Coroutine\parallel;
+
+try {
+    $responses = parallel([
+        'github' => fn () => Http::get('https://api.github.com/user'),
+        'gitlab' => fn () => Http::get('https://gitlab.com/api/v4/user'),
+    ]);
+} catch (ParallelExecutionException $e) {
+    foreach ($e->getThrowables() as $key => $error) {
+        $logger->error('Request failed', ['key' => $key, 'error' => $error->getMessage()]);
+    }
+
+    // Successful responses from the same call are still available...
+    $partial = $e->getResults();
+}
 ```
 
-Like the `pool` method, you can use the `as` method to name your requests:
+If you would rather always receive partial results without an exception being thrown, instantiate `Parallel` directly and call `wait(throw: false)`. The non-throwing path exposes failures via `getThrowables()` / `hasFailures()` / `failedCount()` on the `Parallel` instance, as shown in [Limiting Concurrency](#limiting-concurrency).
+
+<a name="per-request-callbacks"></a>
+### Per-Request Callbacks
+
+To run logic as each individual request completes — for example, to log progress or update a counter — place that logic at the end of the closure for that request:
 
 ```php
-$responses = Http::batch(fn (Batch $batch) => [
-    $batch->as('first')->get('http://localhost/first'),
-    $batch->as('second')->get('http://localhost/second'),
-    $batch->as('third')->get('http://localhost/third'),
-])->send();
+use Hypervel\Support\Facades\Http;
+
+use function Hypervel\Coroutine\parallel;
+
+$responses = parallel([
+    'github' => function () use ($logger) {
+        $response = Http::get('https://api.github.com/user');
+        $logger->info('Completed', ['key' => 'github', 'status' => $response->status()]);
+        return $response;
+    },
+    'gitlab' => function () use ($logger) {
+        $response = Http::get('https://gitlab.com/api/v4/user');
+        $logger->info('Completed', ['key' => 'gitlab', 'status' => $response->status()]);
+        return $response;
+    },
+]);
 ```
 
-After a `batch` is started by calling the `send` method, you can't add new requests to it. Trying to do so will result in a `Hypervel\Http\Client\BatchInProgressException` exception being thrown.
-
-The maximum concurrency of the request batch may be controlled via the `concurrency` method. This value determines the maximum number of HTTP requests that may be concurrently in-flight while processing the request batch:
+If the same logic should run after every request completes, factor it out into a wrapper closure that takes the request key and the underlying request callable:
 
 ```php
-$responses = Http::batch(fn (Batch $batch) => [
-    // ...
-])->concurrency(5)->send();
+use Closure;
+use Hypervel\Support\Facades\Http;
+
+use function Hypervel\Coroutine\parallel;
+
+$track = fn (string $key, Closure $request) => function () use ($key, $request, $logger) {
+    $response = $request();
+    $logger->info('Completed', ['key' => $key, 'status' => $response->status()]);
+    return $response;
+};
+
+$responses = parallel([
+    'github' => $track('github', fn () => Http::get('https://api.github.com/user')),
+    'gitlab' => $track('gitlab', fn () => Http::get('https://gitlab.com/api/v4/user')),
+]);
 ```
 
-<a name="inspecting-batches"></a>
-#### Inspecting Batches
-
-The `Hypervel\Http\Client\Batch` instance that is provided to batch completion callbacks has a variety of properties and methods to assist you in interacting with and inspecting a given batch of requests:
-
-```php
-// The number of requests assigned to the batch...
-$batch->totalRequests;
- 
-// The number of requests that have not been processed yet...
-$batch->pendingRequests;
- 
-// The number of requests that have failed...
-$batch->failedRequests;
-
-// The number of requests that have been processed thus far...
-$batch->processedRequests();
-
-// Indicates if the batch has finished executing...
-$batch->finished();
-
-// Indicates if the batch has request failures...
-$batch->hasFailures();
-```
 <a name="running-concurrent-requests-after-the-response"></a>
 ### Running Concurrent Requests After the Response
 
