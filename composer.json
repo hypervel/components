@@ -32,6 +32,7 @@
             "Hypervel\\ApiClient\\": "src/api-client/src/",
             "Hypervel\\Contracts\\": "src/contracts/src/",
             "Hypervel\\Auth\\": "src/auth/src/",
+            "Hypervel\\Boost\\": "src/boost/src/",
             "Hypervel\\Broadcasting\\": "src/broadcasting/src/",
             "Hypervel\\Bus\\": "src/bus/src/",
             "Hypervel\\Cache\\": "src/cache/src/",
@@ -190,6 +191,7 @@
     "replace": {
         "hypervel/api-client": "self.version",
         "hypervel/auth": "self.version",
+        "hypervel/boost": "self.version",
         "hypervel/broadcasting": "self.version",
         "hypervel/bus": "self.version",
         "hypervel/cache": "self.version",
