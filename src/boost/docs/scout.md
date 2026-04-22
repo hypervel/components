@@ -1,14 +1,15 @@
-# Laravel Scout
+# Hypervel Scout
 
 - [Introduction](#introduction)
 - [Installation](#installation)
-    - [Queueing](#queueing)
+    - [Indexing Mode](#queueing)
 - [Driver Prerequisites](#driver-prerequisites)
 - [Configuration](#configuration)
     - [Configuring Searchable Data](#configuring-searchable-data)
-- [Database / Collection Engines](#database-and-collection-engines)
+- [Database, Collection, and Null Engines](#database-and-collection-engines)
     - [Database Engine](#database-engine)
     - [Collection Engine](#collection-engine)
+    - [Null Engine](#null-engine)
 - [Third-Party Engine Configuration](#third-party-engine-configuration)
     - [Configuring Model Indexes](#configuring-model-indexes)
     - [Algolia](#algolia-configuration)
@@ -31,9 +32,9 @@
 <a name="introduction"></a>
 ## Introduction
 
-[Laravel Scout](https://github.com/laravel/scout) provides a simple, driver-based solution for adding full-text search to your [Eloquent models](/docs/{{version}}/eloquent). Using model observers, Scout will automatically keep your search indexes in sync with your Eloquent records.
+[Hypervel Scout](https://github.com/hypervel/scout) provides a simple, driver-based solution for adding full-text search to your [Eloquent models](/docs/{{version}}/eloquent). Using model observers, Scout will automatically keep your search indexes in sync with your Eloquent records.
 
-Scout ships with a built-in `database` engine that uses MySQL / PostgreSQL full-text indexes and `LIKE` clauses to search your existing database — no external service required. For most applications, this is all you need. For an overview of all search options available in Laravel, consult the [search documentation](/docs/{{version}}/search).
+Scout ships with a built-in `database` engine that uses MySQL / PostgreSQL full-text indexes and `LIKE` clauses to search your existing database — no external service required. For most applications, this is all you need. For an overview of all search options available in Hypervel, consult the [search documentation](/docs/{{version}}/search).
 
 Scout also includes drivers for [Algolia](https://www.algolia.com/), [Meilisearch](https://www.meilisearch.com), and [Typesense](https://typesense.org) when you need features like typo tolerance, faceted filtering, or geo-search at massive scale. A "collection" driver is also available for local development, and you are free to write [custom engines](#custom-engines) as well.
 
@@ -43,16 +44,16 @@ Scout also includes drivers for [Algolia](https://www.algolia.com/), [Meilisearc
 First, install Scout via the Composer package manager:
 
 ```shell
-composer require laravel/scout
+composer require hypervel/scout
 ```
 
 After installing Scout, you should publish the Scout configuration file using the `vendor:publish` Artisan command. This command will publish the `scout.php` configuration file to your application's `config` directory:
 
 ```shell
-php artisan vendor:publish --provider="Hypervel\Scout\ScoutServiceProvider"
+php artisan vendor:publish --tag=scout-config
 ```
 
-Finally, add the `Hypervel\Scout\Searchable` trait to the model you would like to make searchable. This trait will register a model observer that will automatically keep the model in sync with your search driver:
+Finally, add the `Hypervel\Scout\Searchable` trait and the `Hypervel\Scout\Contracts\SearchableInterface` contract to the model you would like to make searchable. The trait will register a model observer that will automatically keep the model in sync with your search driver:
 
 ```php
 <?php
@@ -60,41 +61,64 @@ Finally, add the `Hypervel\Scout\Searchable` trait to the model you would like t
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
-class Post extends Model
+class Post extends Model implements SearchableInterface
 {
     use Searchable;
 }
 ```
 
 <a name="queueing"></a>
-### Queueing
+### Indexing Mode
 
-When using an engine that is not the `database` or `collection` engine, you should strongly consider configuring a [queue driver](/docs/{{version}}/queues) before using the library. Running a queue worker will allow Scout to queue all operations that sync your model information to your search indexes, providing much better response times for your application's web interface.
+By default, Hypervel Scout indexes models asynchronously (without blocking the worker), meaning the worker can continue to handle other requests while indexing completes. Additionally, indexing is scheduled via `Coroutine::defer` and runs after the HTTP response has been sent to the user, meaning there's no delay in returning the response. This default mode works well for most applications and requires no queue worker or other infrastructure.
 
-Once you have configured a queue driver, set the value of the `queue` option in your `config/scout.php` configuration file to `true`:
-
-```php
-'queue' => true,
-```
-
-Even when the `queue` option is set to `false`, it's important to remember that some Scout drivers like Algolia and Meilisearch always index records asynchronously. In other words, even though the index operation has completed within your Laravel application, the search engine itself may not reflect the new and updated records immediately.
-
-To specify the connection and queue that your Scout jobs utilize, you may define the `queue` configuration option as an array:
+If you need indexing failures to be persistently tracked and retried, or to wait for a database transaction to commit, you can switch Scout to queue-based indexing by enabling the `queue.enabled` option in your `config/scout.php` configuration file:
 
 ```php
 'queue' => [
-    'connection' => 'redis',
-    'queue' => 'scout'
+    'enabled' => true,
 ],
 ```
+
+Once enabled, Scout dispatches indexing as [queued jobs](/docs/{{version}}/queues). The connection and queue those jobs run on are controlled by the `SCOUT_QUEUE_CONNECTION` and `SCOUT_QUEUE_NAME` environment variables, or by setting the `connection` and `queue` values directly under `queue` in `config/scout.php`.
 
 Of course, if you customize the connection and queue that Scout jobs utilize, you should run a queue worker to process jobs on that connection and queue:
 
 ```shell
 php artisan queue:work redis --queue=scout
 ```
+
+Each queue option may also be set via the `SCOUT_QUEUE`, `SCOUT_QUEUE_CONNECTION`, `SCOUT_QUEUE_NAME`, and `SCOUT_QUEUE_AFTER_COMMIT` environment variables.
+
+#### Transaction-Safe Dispatch
+
+If your indexing happens inside a database transaction, set `after_commit` so the queued job is only dispatched once the transaction commits:
+
+```php
+'queue' => [
+    'enabled' => true,
+    'after_commit' => true,
+],
+```
+
+This stops the queue worker from picking up an indexing job for a record that no longer exists because the transaction was rolled back.
+
+#### When to Use Each Mode
+
+The default coroutine-backed mode is the right choice for most applications. Stick with it when:
+
+- Best-effort indexing is acceptable. Transient failures are retried automatically at the HTTP layer, but if those retries are exhausted, the failure is logged and the change is dropped from the index until something else triggers a re-index — typically `php artisan scout:import` or a manual `$model->searchable()` call.
+- You're not indexing inside a database transaction that needs to commit first.
+
+Switch to queue mode when:
+
+- You need failed indexing operations to be persistently tracked. Failed jobs land in the `failed_jobs` table and can be inspected and retried via `php artisan queue:retry`.
+- You need indexing to wait for a database transaction to commit (use `after_commit` for this).
+
+Regardless of the chosen mode, some Scout drivers like Algolia and Meilisearch index records asynchronously on the engine side, so even though the indexing call has completed within your Hypervel application, the search engine itself may not reflect the new and updated records immediately.
 
 <a name="driver-prerequisites"></a>
 ## Driver Prerequisites
@@ -111,12 +135,12 @@ composer require algolia/algoliasearch-client-php
 <a name="meilisearch"></a>
 ### Meilisearch
 
-[Meilisearch](https://www.meilisearch.com) is a fast, open source search engine. If you aren't sure how to install Meilisearch on your local machine, you may use [Laravel Sail](/docs/{{version}}/sail#meilisearch), Laravel's officially supported Docker development environment.
+[Meilisearch](https://www.meilisearch.com) is a fast, open source search engine. If you aren't sure how to install Meilisearch on your local machine, you may use [Hypervel Sail](/docs/{{version}}/sail#meilisearch), Hypervel's officially supported Docker development environment.
 
 When using the Meilisearch driver you will need to install the Meilisearch PHP SDK via the Composer package manager:
 
 ```shell
-composer require meilisearch/meilisearch-php http-interop/http-factory-guzzle
+composer require meilisearch/meilisearch-php
 ```
 
 Then, set the `SCOUT_DRIVER` environment variable as well as your Meilisearch `host` and `key` credentials within your application's `.env` file:
@@ -155,7 +179,7 @@ TYPESENSE_API_KEY=masterKey
 TYPESENSE_HOST=localhost
 ```
 
-If you are using [Laravel Sail](/docs/{{version}}/sail), you may need to adjust the `TYPESENSE_HOST` environment variable to match the Docker container name. You may also optionally specify your installation's port, path, and protocol:
+If you are using [Hypervel Sail](/docs/{{version}}/sail), you may need to adjust the `TYPESENSE_HOST` environment variable to match the Docker container name. You may also optionally specify your installation's port, path, and protocol:
 
 ```ini
 TYPESENSE_PORT=8108
@@ -179,9 +203,10 @@ By default, the entire `toArray` form of a given model will be persisted to its 
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
-class Post extends Model
+class Post extends Model implements SearchableInterface
 {
     use Searchable;
 
@@ -212,11 +237,12 @@ When searching, Scout will typically use the default search engine specified in 
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Scout;
 use Hypervel\Scout\Searchable;
 
-class User extends Model
+class User extends Model implements SearchableInterface
 {
     use Searchable;
 
@@ -231,7 +257,7 @@ class User extends Model
 ```
 
 <a name="database-and-collection-engines"></a>
-## Database / Collection Engines
+## Database, Collection, and Null Engines
 
 <a name="database-engine"></a>
 ### Database Engine
@@ -283,7 +309,7 @@ public function toSearchableArray(): array
 <a name="collection-engine"></a>
 ### Collection Engine
 
-The "collection" engine is intended for quick prototypes, extremely small datasets (a few hundred records), or running tests. It retrieves all possible records from your database and uses Laravel's `Str::is` helper to filter them in PHP, so it does not require any indexing or database-specific features. For anything beyond trivial use cases, you should use the [database engine](#database-engine) instead.
+The "collection" engine is intended for quick prototypes, extremely small datasets (a few hundred records), or running tests. It retrieves all possible records from your database and uses Hypervel's `Str::is` helper to filter them in PHP, so it does not require any indexing or database-specific features. For anything beyond trivial use cases, you should use the [database engine](#database-engine) instead.
 
 To use the collection engine, you may simply set the value of the `SCOUT_DRIVER` environment variable to `collection`, or specify the `collection` driver directly in your application's `scout` configuration file:
 
@@ -295,7 +321,18 @@ Once you have specified the collection driver as your preferred driver, you may 
 
 #### Differences From Database Engine
 
-While the database engine uses full-text indexes and `LIKE` clauses to find matching records efficiently, the collection engine pulls all records and filters them in PHP. The collection engine is the most portable option as it works across all relational databases supported by Laravel (including SQLite and SQL Server); however, it is significantly less efficient than the database engine and should not be used with large datasets.
+While the database engine uses full-text indexes and `LIKE` clauses to find matching records efficiently, the collection engine pulls all records and filters them in PHP. The collection engine is the most portable option as it works across all relational databases supported by Hypervel (including SQLite); however, it is significantly less efficient than the database engine and should not be used with large datasets.
+
+<a name="null-engine"></a>
+### Null Engine
+
+The "null" engine is a no-op driver useful for tests or any scenario where you want to disable search entirely without removing the `Searchable` trait from your models. All indexing and search calls return immediately without dispatching any work.
+
+To use the null engine, set the `driver` value to `null` in your `config/scout.php` file:
+
+```php
+'driver' => 'null',
+```
 
 <a name="third-party-engine-configuration"></a>
 ## Third-Party Engine Configuration
@@ -313,9 +350,10 @@ When using a third-party engine, each Eloquent model is synced with a given sear
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
-class Post extends Model
+class Post extends Model implements SearchableInterface
 {
     use Searchable;
 
@@ -332,6 +370,15 @@ class Post extends Model
 > [!NOTE]
 > The `searchableAs` method has no effect when using the database engine, which always searches the model's database table directly.
 
+For more advanced use cases — such as zero-downtime index rebuilds via aliases — you may also override the `indexableAs` method to write to a different index name than the one used for searching. By default, `indexableAs` returns the same value as `searchableAs`:
+
+```php
+public function indexableAs(): string
+{
+    return 'posts_v2';
+}
+```
+
 <a name="configuring-the-model-id"></a>
 #### Configuring the Model ID
 
@@ -343,9 +390,10 @@ By default, Scout will use the primary key of the model as the model's unique ID
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
-class User extends Model
+class User extends Model implements SearchableInterface
 {
     use Searchable;
 
@@ -360,7 +408,7 @@ class User extends Model
     /**
      * Get the key name used to index the model.
      */
-    public function getScoutKeyName(): mixed
+    public function getScoutKeyName(): string
     {
         return 'email';
     }
@@ -398,6 +446,16 @@ use App\Models\Flight;
         Flight::class => [
             'searchableAttributes'=> ['id', 'destination'],
         ],
+    ],
+],
+```
+
+Entries may also be keyed by a literal index name string instead of a model class, which is useful when an index is not tied to a single model:
+
+```php
+'index-settings' => [
+    'flights_v2' => [
+        'searchableAttributes' => ['id', 'destination'],
     ],
 ],
 ```
@@ -458,6 +516,17 @@ use App\Models\Flight;
 ],
 ```
 
+Entries may also be keyed by a literal index name string instead of a model class, which is useful when an index is not tied to a single model:
+
+```php
+'index-settings' => [
+    'flights_v2' => [
+        'filterableAttributes' => ['id', 'destination'],
+        'sortableAttributes' => ['updated_at'],
+    ],
+],
+```
+
 If the model underlying a given index is soft deletable and is included in the `index-settings` array, Scout will automatically include support for filtering on soft deleted models on that index. If you have no other filterable or sortable attributes to define for a soft deletable model index, you may simply add an empty entry to the `index-settings` array for that model:
 
 ```php
@@ -511,7 +580,7 @@ public function toSearchableArray(): array
 }
 ```
 
-You should also define your Typesense collection schemas in your application's `config/scout.php` file. A collection schema describes the data types of each field that is searchable via Typesense. For more information on all available schema options, please consult the [Typesense documentation](https://typesense.org/docs/latest/api/collections.html#schema-parameters).
+You may define your Typesense collection schema in your application's `config/scout.php` file under `typesense.model-settings`, or directly on the model by defining a `typesenseCollectionSchema` method. A collection schema describes the data types of each field that is searchable via Typesense. For more information on all available schema options, please consult the [Typesense documentation](https://typesense.org/docs/latest/api/collections.html#schema-parameters).
 
 If you need to change your Typesense collection's schema after it has been defined, you may either run `scout:flush` and `scout:import`, which will delete all existing indexed data and recreate the schema. Or, you may use Typesense's API to modify the collection's schema without removing any indexed data.
 
@@ -535,7 +604,7 @@ User::class => [
 <a name="typesense-dynamic-search-parameters"></a>
 #### Dynamic Search Parameters
 
-Typesense allows you to modify your [search parameters](https://typesense.org/docs/latest/api/search.html#search-parameters) dynamically when performing a search operation via the `options` method:
+Default Typesense search parameters may be defined in `config/scout.php` under `typesense.model-settings`, or directly on the model by defining a `typesenseSearchParameters` method. In addition, Typesense allows you to modify your [search parameters](https://typesense.org/docs/latest/api/search.html#search-parameters) dynamically when performing a search operation via the `options` method:
 
 ```php
 use App\Models\Todo;
@@ -560,6 +629,12 @@ If you are installing Scout into an existing project, you may already have datab
 php artisan scout:import "App\Models\Post"
 ```
 
+You may pass the `--fresh` option to flush the index before importing. This is useful when re-importing a model whose `toSearchableArray` shape has changed, or when you simply want to rebuild the index from scratch:
+
+```shell
+php artisan scout:import "App\Models\Post" --fresh
+```
+
 The `scout:queue-import` command may be used to import all of your existing records using [queued jobs](/docs/{{version}}/queues):
 
 ```shell
@@ -571,6 +646,8 @@ The `flush` command may be used to remove all of a model's records from your sea
 ```shell
 php artisan scout:flush "App\Models\Post"
 ```
+
+By default, `scout:import` processes chunks in parallel using up to 50 concurrent coroutines. You may tune this by setting `command_concurrency` in your `config/scout.php` file or via the `SCOUT_COMMAND_CONCURRENCY` environment variable.
 
 <a name="modifying-the-import-query"></a>
 #### Modifying the Import Query
@@ -748,6 +825,20 @@ Order::withoutSyncingToSearch(function () {
 });
 ```
 
+The sync-disable state is scoped to the current coroutine, so disabling sync in one request or coroutine does not affect other concurrent coroutines.
+
+If you need to disable and re-enable syncing without wrapping operations in a closure, Scout also exposes lower-level helpers:
+
+```php
+Order::disableSearchSyncing();
+
+// Perform model actions without triggering search indexing...
+
+Order::enableSearchSyncing();
+```
+
+You may also check the current state via `Order::isSearchSyncingEnabled()`.
+
 <a name="conditionally-searchable-model-instances"></a>
 ### Conditionally Searchable Model Instances
 
@@ -767,6 +858,28 @@ The `shouldBeSearchable` method is only applied when manipulating models through
 
 > [!WARNING]
 > The `shouldBeSearchable` method is not applicable when using Scout's "database" engine, as all searchable data is always stored in the database. To achieve similar behavior when using the database engine, you should use [where clauses](#where-clauses) instead.
+
+<a name="customizing-scout-jobs"></a>
+### Customizing Scout Jobs
+
+When [queue mode](#queueing) is enabled, Scout dispatches `Hypervel\Scout\Jobs\MakeSearchable` and `Hypervel\Scout\Jobs\RemoveFromSearch` jobs to perform the actual indexing. If you need to override either job class — for example, to add custom logging or middleware — you may register your own job classes from your application's `App\Providers\AppServiceProvider`:
+
+```php
+use App\Jobs\MyMakeSearchable;
+use App\Jobs\MyRemoveFromSearch;
+use Hypervel\Scout\Scout;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Scout::makeSearchableUsing(MyMakeSearchable::class);
+    Scout::removeFromSearchUsing(MyRemoveFromSearch::class);
+}
+```
+
+Custom job classes should extend the corresponding default job and override only the methods you need to change. These overrides only affect queue-mode indexing — in the default mode, indexing runs inline via `Coroutine::defer` and does not pass through a job class.
 
 <a name="searching"></a>
 ## Searching
@@ -942,21 +1055,22 @@ $orders = Order::search('Star Trek')->onlyTrashed()->get();
 <a name="customizing-engine-searches"></a>
 ### Customizing Engine Searches
 
-If you need to perform advanced customization of the search behavior of an engine you may pass a closure as the second argument to the `search` method. For example, you could use this callback to add geo-location data to your search options before the search query is passed to Algolia:
+If you need to perform advanced customization of the search behavior of an engine you may pass a closure as the second argument to the `search` method. For example, you could use this callback to add geo-location data before the search query is sent to Algolia:
 
 ```php
-use Algolia\AlgoliaSearch\SearchIndex;
+use Algolia\AlgoliaSearch\Api\SearchClient;
 use App\Models\Order;
 
 Order::search(
     'Star Trek',
-    function (SearchIndex $algolia, string $query, array $options) {
-        $options['body']['query']['bool']['filter']['geo_distance'] = [
-            'distance' => '1000km',
-            'location' => ['lat' => 36, 'lon' => 111],
-        ];
+    function (SearchClient $algolia, string $query, array $options) {
+        $options['aroundLatLng'] = '36,111';
+        $options['aroundRadius'] = 1000000;
 
-        return $algolia->search($query, $options);
+        return $algolia->searchSingleIndex(
+            'orders',
+            array_merge(['query' => $query], $options),
+        );
     }
 )->get();
 ```
@@ -967,19 +1081,26 @@ Order::search(
 <a name="writing-the-engine"></a>
 #### Writing the Engine
 
-If one of the built-in Scout search engines doesn't fit your needs, you may write your own custom engine and register it with Scout. Your engine should extend the `Hypervel\Scout\Engines\Engine` abstract class. This abstract class contains eight methods your custom engine must implement:
+If one of the built-in Scout search engines doesn't fit your needs, you may write your own custom engine and register it with Scout. Your engine should extend the `Hypervel\Scout\Engines\Engine` abstract class. This abstract class contains eleven methods your custom engine must implement:
 
 ```php
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
+use Hypervel\Support\Collection;
+use Hypervel\Support\LazyCollection;
 
-abstract public function update($models);
-abstract public function delete($models);
-abstract public function search(Builder $builder);
-abstract public function paginate(Builder $builder, $perPage, $page);
-abstract public function mapIds($results);
-abstract public function map(Builder $builder, $results, $model);
-abstract public function getTotalCount($results);
-abstract public function flush($model);
+abstract public function update(EloquentCollection $models): void;
+abstract public function delete(EloquentCollection $models): void;
+abstract public function search(Builder $builder): mixed;
+abstract public function paginate(Builder $builder, int $perPage, int $page): mixed;
+abstract public function mapIds(mixed $results): Collection;
+abstract public function map(Builder $builder, mixed $results, Model $model): EloquentCollection;
+abstract public function lazyMap(Builder $builder, mixed $results, Model $model): LazyCollection;
+abstract public function getTotalCount(mixed $results): int;
+abstract public function flush(Model $model): void;
+abstract public function createIndex(string $name, array $options = []): mixed;
+abstract public function deleteIndex(string $name): mixed;
 ```
 
 You may find it helpful to review the implementations of these methods on the `Hypervel\Scout\Engines\AlgoliaEngine` class. This class will provide you with a good starting point for learning how to implement each of these methods in your own engine.
@@ -987,7 +1108,7 @@ You may find it helpful to review the implementations of these methods on the `H
 <a name="registering-the-engine"></a>
 #### Registering the Engine
 
-Once you have written your custom engine, you may register it with Scout using the `extend` method of the Scout engine manager. Scout's engine manager may be resolved from the Laravel service container. You should call the `extend` method from the `boot` method of your `App\Providers\AppServiceProvider` class or any other service provider used by your application:
+Once you have written your custom engine, you may register it with Scout using the `extend` method of the Scout engine manager. Scout's engine manager may be resolved from the Hypervel service container. You should call the `extend` method from the `boot` method of your `App\Providers\AppServiceProvider` class or any other service provider used by your application:
 
 ```php
 use App\ScoutExtensions\MySqlSearchEngine;
