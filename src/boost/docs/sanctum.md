@@ -71,7 +71,7 @@ Next, if you plan to utilize Sanctum to authenticate an SPA, please refer to the
 Although not typically required, you are free to extend the `PersonalAccessToken` model used internally by Sanctum:
 
 ```php
-use Laravel\Sanctum\PersonalAccessToken as SanctumPersonalAccessToken;
+use Hypervel\Sanctum\PersonalAccessToken as SanctumPersonalAccessToken;
 
 class PersonalAccessToken extends SanctumPersonalAccessToken
 {
@@ -83,7 +83,7 @@ Then, you may instruct Sanctum to use your custom model via the `usePersonalAcce
 
 ```php
 use App\Models\Sanctum\PersonalAccessToken;
-use Laravel\Sanctum\Sanctum;
+use Hypervel\Sanctum\Sanctum;
 
 /**
  * Bootstrap any application services.
@@ -105,10 +105,10 @@ public function boot(): void
 
 Sanctum allows you to issue API tokens / personal access tokens that may be used to authenticate API requests to your application. When making requests using API tokens, the token should be included in the `Authorization` header as a `Bearer` token.
 
-To begin issuing tokens for users, your User model should use the `Laravel\Sanctum\HasApiTokens` trait:
+To begin issuing tokens for users, your User model should use the `Hypervel\Sanctum\HasApiTokens` trait:
 
 ```php
-use Laravel\Sanctum\HasApiTokens;
+use Hypervel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
@@ -116,10 +116,10 @@ class User extends Authenticatable
 }
 ```
 
-To issue a token, you may use the `createToken` method. The `createToken` method returns a `Laravel\Sanctum\NewAccessToken` instance. API tokens are hashed using SHA-256 hashing before being stored in your database, but you may access the plain-text value of the token using the `plainTextToken` property of the `NewAccessToken` instance. You should display this value to the user immediately after the token has been created:
+To issue a token, you may use the `createToken` method. The `createToken` method returns a `Hypervel\Sanctum\NewAccessToken` instance. API tokens are hashed using SHA-256 hashing before being stored in your database, but you may access the plain-text value of the token using the `plainTextToken` property of the `NewAccessToken` instance. You should display this value to the user immediately after the token has been created:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::post('/tokens/create', function (Request $request) {
     $token = $request->user()->createToken($request->token_name);
@@ -163,8 +163,8 @@ if ($user->tokenCant('server:update')) {
 Sanctum also includes two middleware that may be used to verify that an incoming request is authenticated with a token that has been granted a given ability. To get started, define the following middleware aliases in your application's `bootstrap/app.php` file:
 
 ```php
-use Laravel\Sanctum\Http\Middleware\CheckAbilities;
-use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
+use Hypervel\Sanctum\Http\Middleware\CheckAbilities;
+use Hypervel\Sanctum\Http\Middleware\CheckForAnyAbility;
 
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->alias([
@@ -214,7 +214,7 @@ To protect routes so that all incoming requests must be authenticated, you shoul
 You may be wondering why we suggest that you authenticate the routes within your application's `routes/web.php` file using the `sanctum` guard. Remember, Sanctum will first attempt to authenticate incoming requests using Laravel's typical session authentication cookie. If that cookie is not present then Sanctum will attempt to authenticate the request using a token in the request's `Authorization` header. In addition, authenticating all requests using Sanctum ensures that we may always call the `tokenCan` method on the currently authenticated user instance:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -224,7 +224,7 @@ Route::get('/user', function (Request $request) {
 <a name="revoking-tokens"></a>
 ### Revoking Tokens
 
-You may "revoke" tokens by deleting them from your database using the `tokens` relationship that is provided by the `Laravel\Sanctum\HasApiTokens` trait:
+You may "revoke" tokens by deleting them from your database using the `tokens` relationship that is provided by the `Hypervel\Sanctum\HasApiTokens` trait:
 
 ```php
 // Revoke all tokens...
@@ -257,7 +257,7 @@ return $user->createToken(
 If you have configured a token expiration time for your application, you may also wish to [schedule a task](/docs/{{version}}/scheduling) to prune your application's expired tokens. Thankfully, Sanctum includes a `sanctum:prune-expired` Artisan command that you may use to accomplish this. For example, you may configure a scheduled task to delete all expired token database records that have been expired for at least 24 hours:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('sanctum:prune-expired --hours=24')->daily();
 ```
@@ -356,7 +356,7 @@ Of course, if your user's session expires due to lack of activity, subsequent re
 To protect routes so that all incoming requests must be authenticated, you should attach the `sanctum` authentication guard to your API routes within your `routes/api.php` file. This guard will ensure that incoming requests are authenticated as either stateful authenticated requests from your SPA or contain a valid API token header if the request is from a third party:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -421,9 +421,9 @@ Typically, you will make a request to the token endpoint from your mobile applic
 
 ```php
 use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Hash;
+use Hypervel\Validation\ValidationException;
 
 Route::post('/sanctum/token', function (Request $request) {
     $request->validate([
@@ -463,7 +463,7 @@ Route::get('/user', function (Request $request) {
 <a name="revoking-mobile-api-tokens"></a>
 ### Revoking Tokens
 
-To allow users to revoke API tokens issued to mobile devices, you may list them by name, along with a "Revoke" button, within an "account settings" portion of your web application's UI. When the user clicks the "Revoke" button, you can delete the token from the database. Remember, you can access a user's API tokens via the `tokens` relationship provided by the `Laravel\Sanctum\HasApiTokens` trait:
+To allow users to revoke API tokens issued to mobile devices, you may list them by name, along with a "Revoke" button, within an "account settings" portion of your web application's UI. When the user clicks the "Revoke" button, you can delete the token from the database. Remember, you can access a user's API tokens via the `tokens` relationship provided by the `Hypervel\Sanctum\HasApiTokens` trait:
 
 ```php
 // Revoke all tokens...
@@ -480,7 +480,7 @@ While testing, the `Sanctum::actingAs` method may be used to authenticate a user
 
 ```php tab=Pest
 use App\Models\User;
-use Laravel\Sanctum\Sanctum;
+use Hypervel\Sanctum\Sanctum;
 
 test('task list can be retrieved', function () {
     Sanctum::actingAs(
@@ -496,7 +496,7 @@ test('task list can be retrieved', function () {
 
 ```php tab=PHPUnit
 use App\Models\User;
-use Laravel\Sanctum\Sanctum;
+use Hypervel\Sanctum\Sanctum;
 
 public function test_task_list_can_be_retrieved(): void
 {

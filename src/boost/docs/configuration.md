@@ -109,7 +109,7 @@ The second value passed to the `env` function is the "default value". This value
 The current application environment is determined via the `APP_ENV` variable from your `.env` file. You may access this value via the `environment` method on the `App` [facade](/docs/{{version}}/facades):
 
 ```php
-use Illuminate\Support\Facades\App;
+use Hypervel\Support\Facades\App;
 
 $environment = App::environment();
 ```
@@ -225,7 +225,7 @@ php artisan env:decrypt --force
 You may easily access your configuration values using the `Config` facade or global `config` function from anywhere in your application. The configuration values may be accessed using "dot" syntax, which includes the name of the file and option you wish to access. A default value may also be specified and will be returned if the configuration option does not exist:
 
 ```php
-use Illuminate\Support\Facades\Config;
+use Hypervel\Support\Facades\Config;
 
 $value = Config::get('app.timezone');
 

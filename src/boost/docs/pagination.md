@@ -48,8 +48,8 @@ In this example, the only argument passed to the `paginate` method is the number
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\View\View;
+use Hypervel\Support\Facades\DB;
+use Hypervel\View\View;
 
 class UserController extends Controller
 {
@@ -129,7 +129,7 @@ Unlike offset based pagination, which includes a page number in the query string
 http://localhost/users?cursor=eyJpZCI6MTUsIl9wb2ludHNUb05leHRJdGVtcyI6dHJ1ZX0
 ```
 
-You may create a cursor-based paginator instance via the `cursorPaginate` method offered by the query builder. This method returns an instance of `Illuminate\Pagination\CursorPaginator`:
+You may create a cursor-based paginator instance via the `cursorPaginate` method offered by the query builder. This method returns an instance of `Hypervel\Pagination\CursorPaginator`:
 
 ```php
 $users = DB::table('users')->orderBy('id')->cursorPaginate(15);
@@ -168,7 +168,7 @@ However, cursor pagination has the following limitations:
 <a name="manually-creating-a-paginator"></a>
 ### Manually Creating a Paginator
 
-Sometimes you may wish to create a pagination instance manually, passing it an array of items that you already have in memory. You may do so by creating either an `Illuminate\Pagination\Paginator`, `Illuminate\Pagination\LengthAwarePaginator` or `Illuminate\Pagination\CursorPaginator` instance, depending on your needs.
+Sometimes you may wish to create a pagination instance manually, passing it an array of items that you already have in memory. You may do so by creating either an `Hypervel\Pagination\Paginator`, `Hypervel\Pagination\LengthAwarePaginator` or `Hypervel\Pagination\CursorPaginator` instance, depending on your needs.
 
 The `Paginator` and `CursorPaginator` classes do not need to know the total number of items in the result set; however, because of this, these classes do not have methods for retrieving the index of the last page. The `LengthAwarePaginator` accepts almost the same arguments as the `Paginator`; however, it requires a count of the total number of items in the result set.
 
@@ -229,7 +229,7 @@ $users = User::paginate(15)->fragment('users');
 <a name="displaying-pagination-results"></a>
 ## Displaying Pagination Results
 
-When calling the `paginate` method, you will receive an instance of `Illuminate\Pagination\LengthAwarePaginator`, while calling the `simplePaginate` method returns an instance of `Illuminate\Pagination\Paginator`. And, finally, calling the `cursorPaginate` method returns an instance of `Illuminate\Pagination\CursorPaginator`.
+When calling the `paginate` method, you will receive an instance of `Hypervel\Pagination\LengthAwarePaginator`, while calling the `simplePaginate` method returns an instance of `Hypervel\Pagination\Paginator`. And, finally, calling the `cursorPaginate` method returns an instance of `Hypervel\Pagination\CursorPaginator`.
 
 These objects provide several methods that describe the result set. In addition to these helper methods, the paginator instances are iterators and may be looped as an array. So, once you have retrieved the results, you may display the results and render the page links using [Blade](/docs/{{version}}/blade):
 
@@ -257,7 +257,7 @@ When the paginator displays pagination links, the current page number is display
 <a name="converting-results-to-json"></a>
 ### Converting Results to JSON
 
-The Laravel paginator classes implement the `Illuminate\Contracts\Support\Jsonable` Interface contract and expose the `toJson` method, so it's very easy to convert your pagination results to JSON. You may also convert a paginator instance to JSON by returning it from a route or controller action:
+The Laravel paginator classes implement the `Hypervel\Contracts\Support\Jsonable` Interface contract and expose the `toJson` method, so it's very easy to convert your pagination results to JSON. You may also convert a paginator instance to JSON by returning it from a route or controller action:
 
 ```php
 use App\Models\User;
@@ -321,8 +321,8 @@ If you would like to designate a different file as the default pagination view, 
 
 namespace App\Providers;
 
-use Illuminate\Pagination\Paginator;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Pagination\Paginator;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -344,7 +344,7 @@ class AppServiceProvider extends ServiceProvider
 Laravel includes pagination views built using [Bootstrap CSS](https://getbootstrap.com/). To use these views instead of the default Tailwind views, you may call the paginator's `useBootstrapFour` or `useBootstrapFive` methods within the `boot` method of your `App\Providers\AppServiceProvider` class:
 
 ```php
-use Illuminate\Pagination\Paginator;
+use Hypervel\Pagination\Paginator;
 
 /**
  * Bootstrap any application services.

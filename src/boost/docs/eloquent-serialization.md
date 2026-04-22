@@ -92,8 +92,8 @@ Sometimes you may wish to limit the attributes, such as passwords, that are incl
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Hidden;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Attributes\Hidden;
+use Hypervel\Database\Eloquent\Model;
 
 #[Hidden(['password'])]
 class User extends Model
@@ -113,8 +113,8 @@ Alternatively, you may use the `Visible` attribute to define an "allow list" of 
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Visible;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Attributes\Visible;
+use Hypervel\Database\Eloquent\Model;
 
 #[Visible(['first_name', 'last_name'])]
 class User extends Model
@@ -160,8 +160,8 @@ Occasionally, when converting models to arrays or JSON, you may wish to add attr
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
 {
@@ -184,8 +184,8 @@ If you would like the accessor to always be appended to your model's array and J
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Appends;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Attributes\Appends;
+use Hypervel\Database\Eloquent\Model;
 
 #[Appends(['is_admin'])]
 class User extends Model

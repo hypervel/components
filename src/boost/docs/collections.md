@@ -14,7 +14,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-The `Illuminate\Support\Collection` class provides a fluent, convenient wrapper for working with arrays of data. For example, check out the following code. We'll use the `collect` helper to create a new collection instance from the array, run the `strtoupper` function on each element, and then remove all empty elements:
+The `Hypervel\Support\Collection` class provides a fluent, convenient wrapper for working with arrays of data. For example, check out the following code. We'll use the `collect` helper to create a new collection instance from the array, run the `strtoupper` function on each element, and then remove all empty elements:
 
 ```php
 $collection = collect(['Taylor', 'Abigail', null])->map(function (?string $name) {
@@ -29,7 +29,7 @@ As you can see, the `Collection` class allows you to chain its methods to perfor
 <a name="creating-collections"></a>
 ### Creating Collections
 
-As mentioned above, the `collect` helper returns a new `Illuminate\Support\Collection` instance for the given array. So, creating a collection is as simple as:
+As mentioned above, the `collect` helper returns a new `Hypervel\Support\Collection` instance for the given array. So, creating a collection is as simple as:
 
 ```php
 $collection = collect([1, 2, 3]);
@@ -43,11 +43,11 @@ You may also create a collection using the [make](#method-make) and [fromJson](#
 <a name="extending-collections"></a>
 ### Extending Collections
 
-Collections are "macroable", which allows you to add additional methods to the `Collection` class at run time. The `Illuminate\Support\Collection` class' `macro` method accepts a closure that will be executed when your macro is called. The macro closure may access the collection's other methods via `$this`, just as if it were a real method of the collection class. For example, the following code adds a `toUpper` method to the `Collection` class:
+Collections are "macroable", which allows you to add additional methods to the `Collection` class at run time. The `Hypervel\Support\Collection` class' `macro` method accepts a closure that will be executed when your macro is called. The macro closure may access the collection's other methods via `$this`, just as if it were a real method of the collection class. For example, the following code adds a `toUpper` method to the `Collection` class:
 
 ```php
-use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 
 Collection::macro('toUpper', function () {
     return $this->map(function (string $value) {
@@ -70,8 +70,8 @@ Typically, you should declare collection macros in the `boot` method of a [servi
 If necessary, you may define macros that accept additional arguments:
 
 ```php
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Lang;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Lang;
 
 Collection::macro('toLocale', function (string $locale) {
     return $this->map(function (string $value) use ($locale) {
@@ -489,7 +489,7 @@ $collection = $lazyCollection->collect();
 
 $collection::class;
 
-// 'Illuminate\Support\Collection'
+// 'Hypervel\Support\Collection'
 
 $collection->all();
 
@@ -1059,7 +1059,7 @@ collect([1, 2, 3, 4])->first();
 <a name="method-first-or-fail"></a>
 #### `firstOrFail()` {.collection-method}
 
-The `firstOrFail` method is identical to the `first` method; however, if no result is found, an `Illuminate\Support\ItemNotFoundException` exception will be thrown:
+The `firstOrFail` method is identical to the `first` method; however, if no result is found, an `Hypervel\Support\ItemNotFoundException` exception will be thrown:
 
 ```php
 collect([1, 2, 3, 4])->firstOrFail(function (int $value, int $key) {
@@ -1069,7 +1069,7 @@ collect([1, 2, 3, 4])->firstOrFail(function (int $value, int $key) {
 // Throws ItemNotFoundException...
 ```
 
-You may also call the `firstOrFail` method with no arguments to get the first element in the collection. If the collection is empty, an `Illuminate\Support\ItemNotFoundException` exception will be thrown:
+You may also call the `firstOrFail` method with no arguments to get the first element in the collection. If the collection is empty, an `Hypervel\Support\ItemNotFoundException` exception will be thrown:
 
 ```php
 collect([])->firstOrFail();
@@ -1242,7 +1242,7 @@ $chunk->all();
 The static `fromJson` method creates a new collection instance by decoding a given JSON string using the `json_decode` PHP function:
 
 ```php
-use Illuminate\Support\Collection;
+use Hypervel\Support\Collection;
 
 $json = json_encode([
     'name' => 'Taylor Otwell',
@@ -1720,7 +1720,7 @@ $lazyCollection = collect([1, 2, 3, 4])->lazy();
 
 $lazyCollection::class;
 
-// Illuminate\Support\LazyCollection
+// Hypervel\Support\LazyCollection
 
 $lazyCollection->all();
 
@@ -1750,7 +1750,7 @@ The static `macro` method allows you to add methods to the `Collection` class at
 The static `make` method creates a new collection instance. See the [Creating Collections](#creating-collections) section.
 
 ```php
-use Illuminate\Support\Collection;
+use Hypervel\Support\Collection;
 
 $collection = Collection::make([1, 2, 3]);
 ```
@@ -2200,7 +2200,7 @@ $resource->collection->all();
 The `pipeThrough` method passes the collection to the given array of closures and returns the result of the executed closures:
 
 ```php
-use Illuminate\Support\Collection;
+use Hypervel\Support\Collection;
 
 $collection = collect([1, 2, 3]);
 
@@ -2431,7 +2431,7 @@ If the collection instance has fewer items than requested, the `random` method w
 The `random` method also accepts a closure, which will receive the current collection instance:
 
 ```php
-use Illuminate\Support\Collection;
+use Hypervel\Support\Collection;
 
 $random = $collection->random(fn (Collection $items) => min(10, count($items)));
 
@@ -2867,7 +2867,7 @@ $collection->sole();
 // ['product' => 'Desk', 'price' => 200]
 ```
 
-If there are no elements in the collection that should be returned by the `sole` method, an `\Illuminate\Collections\ItemNotFoundException` exception will be thrown. If there is more than one element that should be returned, an `\Illuminate\Collections\MultipleItemsFoundException` will be thrown.
+If there are no elements in the collection that should be returned by the `sole` method, an `\Hypervel\Collections\ItemNotFoundException` exception will be thrown. If there is more than one element that should be returned, an `\Hypervel\Collections\MultipleItemsFoundException` will be thrown.
 
 <a name="method-some"></a>
 #### `some()` {.collection-method}
@@ -3999,7 +3999,7 @@ $filtered->all();
 The static `wrap` method wraps the given value in a collection when applicable:
 
 ```php
-use Illuminate\Support\Collection;
+use Hypervel\Support\Collection;
 
 $collection = Collection::wrap('John Doe');
 
@@ -4073,7 +4073,7 @@ For example, imagine your application needs to process a multi-gigabyte log file
 
 ```php
 use App\Models\LogEntry;
-use Illuminate\Support\LazyCollection;
+use Hypervel\Support\LazyCollection;
 
 LazyCollection::make(function () {
     $handle = fopen('log.txt', 'r');
@@ -4120,7 +4120,7 @@ foreach ($users as $user) {
 To create a lazy collection instance, you should pass a PHP generator function to the collection's `make` method:
 
 ```php
-use Illuminate\Support\LazyCollection;
+use Hypervel\Support\LazyCollection;
 
 LazyCollection::make(function () {
     $handle = fopen('log.txt', 'r');
@@ -4136,7 +4136,7 @@ LazyCollection::make(function () {
 <a name="the-enumerable-contract"></a>
 ### The Enumerable Contract
 
-Almost all methods available on the `Collection` class are also available on the `LazyCollection` class. Both of these classes implement the `Illuminate\Support\Enumerable` contract, which defines the following methods:
+Almost all methods available on the `Collection` class are also available on the `LazyCollection` class. Both of these classes implement the `Hypervel\Support\Enumerable` contract, which defines the following methods:
 
 <style>
     .collection-method-list > p {
@@ -4301,7 +4301,7 @@ To illustrate the usage of this method, imagine an application that submits invo
 
 ```php
 use App\Models\Invoice;
-use Illuminate\Support\Carbon;
+use Hypervel\Support\Carbon;
 
 Invoice::pending()->cursor()
     ->takeUntilTimeout(
@@ -4370,7 +4370,7 @@ The `withHeartbeat` method allows you to execute a callback at regular time inte
 
 ```php
 use Carbon\CarbonInterval;
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 
 $lock = Cache::lock('generate-reports', seconds: 60 * 5);
 

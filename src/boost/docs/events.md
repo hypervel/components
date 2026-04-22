@@ -123,7 +123,7 @@ Using the `Event` facade, you may manually register events and their correspondi
 ```php
 use App\Domain\Orders\Events\PodcastProcessed;
 use App\Domain\Orders\Listeners\SendPodcastNotification;
-use Illuminate\Support\Facades\Event;
+use Hypervel\Support\Facades\Event;
 
 /**
  * Bootstrap any application services.
@@ -150,7 +150,7 @@ Typically, listeners are defined as classes; however, you may also manually regi
 
 ```php
 use App\Events\PodcastProcessed;
-use Illuminate\Support\Facades\Event;
+use Hypervel\Support\Facades\Event;
 
 /**
  * Bootstrap any application services.
@@ -166,12 +166,12 @@ public function boot(): void
 <a name="queueable-anonymous-event-listeners"></a>
 #### Queueable Anonymous Event Listeners
 
-When registering closure-based event listeners, you may wrap the listener closure within the `Illuminate\Events\queueable` function to instruct Laravel to execute the listener using the [queue](/docs/{{version}}/queues):
+When registering closure-based event listeners, you may wrap the listener closure within the `Hypervel\Events\queueable` function to instruct Laravel to execute the listener using the [queue](/docs/{{version}}/queues):
 
 ```php
 use App\Events\PodcastProcessed;
-use function Illuminate\Events\queueable;
-use Illuminate\Support\Facades\Event;
+use function Hypervel\Events\queueable;
+use Hypervel\Support\Facades\Event;
 
 /**
  * Bootstrap any application services.
@@ -196,8 +196,8 @@ If you would like to handle anonymous queued listener failures, you may provide 
 
 ```php
 use App\Events\PodcastProcessed;
-use function Illuminate\Events\queueable;
-use Illuminate\Support\Facades\Event;
+use function Hypervel\Events\queueable;
+use Hypervel\Support\Facades\Event;
 use Throwable;
 
 Event::listen(queueable(function (PodcastProcessed $event) {
@@ -229,9 +229,9 @@ An event class is essentially a data container which holds the information relat
 namespace App\Events;
 
 use App\Models\Order;
-use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
+use Hypervel\Broadcasting\InteractsWithSockets;
+use Hypervel\Foundation\Events\Dispatchable;
+use Hypervel\Queue\SerializesModels;
 
 class OrderShipped
 {
@@ -298,7 +298,7 @@ To specify that a listener should be queued, add the `ShouldQueue` interface to 
 namespace App\Listeners;
 
 use App\Events\OrderShipped;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 
 class SendShipmentNotification implements ShouldQueue
 {
@@ -319,10 +319,10 @@ If you would like to customize the queue connection, queue name, or queue delay 
 namespace App\Listeners;
 
 use App\Events\OrderShipped;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\Attributes\Connection;
-use Illuminate\Queue\Attributes\Delay;
-use Illuminate\Queue\Attributes\Queue;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\Queue;
 
 #[Connection('sqs')]
 #[Queue('listeners')]
@@ -371,7 +371,7 @@ Sometimes, you may need to determine whether a listener should be queued based o
 namespace App\Listeners;
 
 use App\Events\OrderCreated;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 
 class RewardGiftCard implements ShouldQueue
 {
@@ -396,7 +396,7 @@ class RewardGiftCard implements ShouldQueue
 <a name="manually-interacting-with-the-queue"></a>
 ### Manually Interacting With the Queue
 
-If you need to manually access the listener's underlying queue job's `delete` and `release` methods, you may do so using the `Illuminate\Queue\InteractsWithQueue` trait. This trait is imported by default on generated listeners and provides access to these methods:
+If you need to manually access the listener's underlying queue job's `delete` and `release` methods, you may do so using the `Hypervel\Queue\InteractsWithQueue` trait. This trait is imported by default on generated listeners and provides access to these methods:
 
 ```php
 <?php
@@ -404,8 +404,8 @@ If you need to manually access the listener's underlying queue job's `delete` an
 namespace App\Listeners;
 
 use App\Events\OrderShipped;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\InteractsWithQueue;
 
 class SendShipmentNotification implements ShouldQueue
 {
@@ -435,8 +435,8 @@ If your queue connection's `after_commit` configuration option is set to `false`
 
 namespace App\Listeners;
 
-use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
-use Illuminate\Queue\InteractsWithQueue;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Queue\InteractsWithQueue;
 
 class SendShipmentNotification implements ShouldQueueAfterCommit
 {
@@ -459,7 +459,7 @@ namespace App\Listeners;
 
 use App\Events\OrderShipped;
 use App\Jobs\Middleware\RateLimited;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 
 class SendShipmentNotification implements ShouldQueue
 {
@@ -494,8 +494,8 @@ Laravel allows you to ensure the privacy and integrity of a queued listener's da
 namespace App\Listeners;
 
 use App\Events\OrderShipped;
-use Illuminate\Contracts\Queue\ShouldBeEncrypted;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldBeEncrypted;
+use Hypervel\Contracts\Queue\ShouldQueue;
 
 class SendShipmentNotification implements ShouldQueue, ShouldBeEncrypted
 {
@@ -517,8 +517,8 @@ Sometimes, you may want to ensure that only one instance of a specific listener 
 namespace App\Listeners;
 
 use App\Events\LicenseSaved;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
 
 class AcquireProductKey implements ShouldQueue, ShouldBeUnique
 {
@@ -539,8 +539,8 @@ In certain cases, you may want to define a specific "key" that makes the listene
 namespace App\Listeners;
 
 use App\Events\LicenseSaved;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
 
 class AcquireProductKey implements ShouldQueue, ShouldBeUnique
 {
@@ -582,8 +582,8 @@ By default, unique listeners are "unlocked" after a listener completes processin
 namespace App\Listeners;
 
 use App\Events\LicenseSaved;
-use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
+use Hypervel\Contracts\Queue\ShouldQueue;
 
 class AcquireProductKey implements ShouldQueue, ShouldBeUniqueUntilProcessing
 {
@@ -602,8 +602,8 @@ Behind the scenes, when a `ShouldBeUnique` listener is dispatched, Laravel attem
 namespace App\Listeners;
 
 use App\Events\LicenseSaved;
-use Illuminate\Contracts\Cache\Repository;
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Support\Facades\Cache;
 
 class AcquireProductKey implements ShouldQueue, ShouldBeUnique
 {
@@ -633,8 +633,8 @@ Sometimes your queued event listeners may fail. If the queued listener exceeds t
 namespace App\Listeners;
 
 use App\Events\OrderShipped;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\InteractsWithQueue;
 use Throwable;
 
 class SendShipmentNotification implements ShouldQueue
@@ -672,9 +672,9 @@ You may use the `Tries` attribute on your listener class to specify how many tim
 namespace App\Listeners;
 
 use App\Events\OrderShipped;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\Attributes\Tries;
-use Illuminate\Queue\InteractsWithQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\Tries;
+use Hypervel\Queue\InteractsWithQueue;
 
 #[Tries(5)]
 class SendShipmentNotification implements ShouldQueue
@@ -711,8 +711,8 @@ If you would like to configure how many seconds Laravel should wait before retry
 
 namespace App\Listeners;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\Attributes\Backoff;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\Backoff;
 
 #[Backoff(3)]
 class SendShipmentNotification implements ShouldQueue
@@ -758,10 +758,10 @@ Sometimes you may wish to specify that a queued listener may be attempted many t
 namespace App\Listeners;
 
 use App\Events\OrderShipped;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\Attributes\MaxExceptions;
-use Illuminate\Queue\Attributes\Tries;
-use Illuminate\Queue\InteractsWithQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\MaxExceptions;
+use Hypervel\Queue\Attributes\Tries;
+use Hypervel\Queue\InteractsWithQueue;
 
 #[Tries(25)]
 #[MaxExceptions(3)]
@@ -792,8 +792,8 @@ Often, you know roughly how long you expect your queued listeners to take. For t
 namespace App\Listeners;
 
 use App\Events\OrderShipped;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\Attributes\Timeout;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\Timeout;
 
 #[Timeout(120)]
 class SendShipmentNotification implements ShouldQueue
@@ -810,8 +810,8 @@ If you would like to indicate that a listener should be marked as failed on time
 namespace App\Listeners;
 
 use App\Events\OrderShipped;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\Attributes\FailOnTimeout;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\FailOnTimeout;
 
 #[FailOnTimeout]
 class SendShipmentNotification implements ShouldQueue
@@ -823,7 +823,7 @@ class SendShipmentNotification implements ShouldQueue
 <a name="dispatching-events"></a>
 ## Dispatching Events
 
-To dispatch an event, you may call the static `dispatch` method on the event. This method is made available on the event by the `Illuminate\Foundation\Events\Dispatchable` trait. Any arguments passed to the `dispatch` method will be passed to the event's constructor:
+To dispatch an event, you may call the static `dispatch` method on the event. This method is made available on the event by the `Hypervel\Foundation\Events\Dispatchable` trait. Any arguments passed to the `dispatch` method will be passed to the event's constructor:
 
 ```php
 <?php
@@ -832,8 +832,8 @@ namespace App\Http\Controllers;
 
 use App\Events\OrderShipped;
 use App\Models\Order;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class OrderShipmentController extends Controller
 {
@@ -877,10 +877,10 @@ This interface instructs Laravel to not dispatch the event until the current dat
 namespace App\Events;
 
 use App\Models\Order;
-use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
-use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
+use Hypervel\Broadcasting\InteractsWithSockets;
+use Hypervel\Contracts\Events\ShouldDispatchAfterCommit;
+use Hypervel\Foundation\Events\Dispatchable;
+use Hypervel\Queue\SerializesModels;
 
 class OrderShipped implements ShouldDispatchAfterCommit
 {
@@ -904,7 +904,7 @@ To defer events, provide a closure to the `Event::defer()` method:
 
 ```php
 use App\Models\User;
-use Illuminate\Support\Facades\Event;
+use Hypervel\Support\Facades\Event;
 
 Event::defer(function () {
     $user = User::create(['name' => 'Victoria Otwell']);
@@ -919,7 +919,7 @@ To defer only specific events, pass an array of events as the second argument to
 
 ```php
 use App\Models\User;
-use Illuminate\Support\Facades\Event;
+use Hypervel\Support\Facades\Event;
 
 Event::defer(function () {
     $user = User::create(['name' => 'Victoria Otwell']);
@@ -941,9 +941,9 @@ Event subscribers are classes that may subscribe to multiple events from within 
 
 namespace App\Listeners;
 
-use Illuminate\Auth\Events\Login;
-use Illuminate\Auth\Events\Logout;
-use Illuminate\Events\Dispatcher;
+use Hypervel\Auth\Events\Login;
+use Hypervel\Auth\Events\Logout;
+use Hypervel\Events\Dispatcher;
 
 class UserEventSubscriber
 {
@@ -982,9 +982,9 @@ If your event listener methods are defined within the subscriber itself, you may
 
 namespace App\Listeners;
 
-use Illuminate\Auth\Events\Login;
-use Illuminate\Auth\Events\Logout;
-use Illuminate\Events\Dispatcher;
+use Hypervel\Auth\Events\Login;
+use Hypervel\Auth\Events\Logout;
+use Hypervel\Events\Dispatcher;
 
 class UserEventSubscriber
 {
@@ -1024,8 +1024,8 @@ After writing the subscriber, Laravel will automatically register handler method
 namespace App\Providers;
 
 use App\Listeners\UserEventSubscriber;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -1051,7 +1051,7 @@ Using the `Event` facade's `fake` method, you may prevent listeners from executi
 
 use App\Events\OrderFailedToShip;
 use App\Events\OrderShipped;
-use Illuminate\Support\Facades\Event;
+use Hypervel\Support\Facades\Event;
 
 test('orders can be shipped', function () {
     Event::fake();
@@ -1082,7 +1082,7 @@ namespace Tests\Feature;
 
 use App\Events\OrderFailedToShip;
 use App\Events\OrderShipped;
-use Illuminate\Support\Facades\Event;
+use Hypervel\Support\Facades\Event;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -1195,7 +1195,7 @@ If you only want to fake event listeners for a portion of your test, you may use
 
 use App\Events\OrderCreated;
 use App\Models\Order;
-use Illuminate\Support\Facades\Event;
+use Hypervel\Support\Facades\Event;
 
 test('orders can be processed', function () {
     $order = Event::fakeFor(function () {
@@ -1220,7 +1220,7 @@ namespace Tests\Feature;
 
 use App\Events\OrderCreated;
 use App\Models\Order;
-use Illuminate\Support\Facades\Event;
+use Hypervel\Support\Facades\Event;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase

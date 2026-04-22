@@ -81,8 +81,8 @@ Notifications may be sent in two ways: using the `notify` method of the `Notifia
 
 namespace App\Models;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Hypervel\Foundation\Auth\User as Authenticatable;
+use Hypervel\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
@@ -107,7 +107,7 @@ $user->notify(new InvoicePaid($invoice));
 Alternatively, you may send notifications via the `Notification` [facade](/docs/{{version}}/facades). This approach is useful when you need to send a notification to multiple notifiable entities such as a collection of users. To send notifications using the facade, pass all of the notifiable entities and the notification instance to the `send` method:
 
 ```php
-use Illuminate\Support\Facades\Notification;
+use Hypervel\Support\Facades\Notification;
 
 Notification::send($users, new InvoicePaid($invoice));
 ```
@@ -153,9 +153,9 @@ Sending notifications can take time, especially if the channel needs to make an 
 
 namespace App\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Notification;
+use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Notifications\Notification;
 
 class InvoicePaid extends Notification implements ShouldQueue
 {
@@ -199,7 +199,7 @@ Alternatively, you may define a `withDelay` method on the notification class its
 /**
  * Determine the notification's delivery delay.
  *
- * @return array<string, \Illuminate\Support\Carbon>
+ * @return array<string, \Hypervel\Support\Carbon>
  */
 public function withDelay(object $notifiable): array
 {
@@ -220,9 +220,9 @@ By default, queued notifications will be queued using your application's default
 
 namespace App\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Notification;
+use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Notifications\Notification;
 
 class InvoicePaid extends Notification implements ShouldQueue
 {
@@ -285,12 +285,12 @@ You may customize the behavior of the underlying queued job by defining queue at
 
 namespace App\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Notification;
-use Illuminate\Queue\Attributes\MaxExceptions;
-use Illuminate\Queue\Attributes\Timeout;
-use Illuminate\Queue\Attributes\Tries;
+use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Notifications\Notification;
+use Hypervel\Queue\Attributes\MaxExceptions;
+use Hypervel\Queue\Attributes\Timeout;
+use Hypervel\Queue\Attributes\Tries;
 
 #[Tries(5)]
 #[Timeout(120)]
@@ -310,10 +310,10 @@ If you would like to ensure the privacy and integrity of a queued notification's
 
 namespace App\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeEncrypted;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Notification;
+use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Queue\ShouldBeEncrypted;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Notifications\Notification;
 
 class InvoicePaid extends Notification implements ShouldQueue, ShouldBeEncrypted
 {
@@ -354,7 +354,7 @@ public function retryUntil(): DateTime
 Queued notifications may define middleware [just like queued jobs](/docs/{{version}}/queues#job-middleware). To get started, define a `middleware` method on your notification class. The `middleware` method will receive `$notifiable` and `$channel` variables, which allow you to customize the returned middleware based on the notification's destination:
 
 ```php
-use Illuminate\Queue\Middleware\RateLimited;
+use Hypervel\Queue\Middleware\RateLimited;
 
 /**
  * Get the middleware the notification job should pass through.
@@ -391,9 +391,9 @@ Alternatively, you may call the `afterCommit` method from your notification's co
 
 namespace App\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Notification;
+use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Notifications\Notification;
 
 class InvoicePaid extends Notification implements ShouldQueue
 {
@@ -450,8 +450,8 @@ public function afterSending(object $notifiable, string $channel, mixed $respons
 Sometimes you may need to send a notification to someone who is not stored as a "user" of your application. Using the `Notification` facade's `route` method, you may specify ad-hoc notification routing information before sending the notification:
 
 ```php
-use Illuminate\Broadcasting\Channel;
-use Illuminate\Support\Facades\Notification;
+use Hypervel\Broadcasting\Channel;
+use Hypervel\Support\Facades\Notification;
 
 Notification::route('mail', 'taylor@example.com')
     ->route('vonage', '5555555555')
@@ -483,7 +483,7 @@ Notification::routes([
 <a name="formatting-mail-messages"></a>
 ### Formatting Mail Messages
 
-If a notification supports being sent as an email, you should define a `toMail` method on the notification class. This method will receive a `$notifiable` entity and should return an `Illuminate\Notifications\Messages\MailMessage` instance.
+If a notification supports being sent as an email, you should define a `toMail` method on the notification class. This method will receive a `$notifiable` entity and should return an `Hypervel\Notifications\Messages\MailMessage` instance.
 
 The `MailMessage` class contains a few simple methods to help you build transactional email messages. Mail messages may contain lines of text as well as a "call to action". Let's take a look at an example `toMail` method:
 
@@ -605,9 +605,9 @@ When sending notifications via the `mail` channel, the notification system will 
 
 namespace App\Models;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Illuminate\Notifications\Notification;
+use Hypervel\Foundation\Auth\User as Authenticatable;
+use Hypervel\Notifications\Notifiable;
+use Hypervel\Notifications\Notification;
 
 class User extends Authenticatable
 {
@@ -815,7 +815,7 @@ If needed, you may return a full [mailable object](/docs/{{version}}/mail) from 
 
 ```php
 use App\Mail\InvoicePaid as InvoicePaidMailable;
-use Illuminate\Mail\Mailable;
+use Hypervel\Mail\Mailable;
 
 /**
  * Get the mail representation of the notification.
@@ -830,12 +830,12 @@ public function toMail(object $notifiable): Mailable
 <a name="mailables-and-on-demand-notifications"></a>
 #### Mailables and On-Demand Notifications
 
-If you are sending an [on-demand notification](#on-demand-notifications), the `$notifiable` instance given to the `toMail` method will be an instance of `Illuminate\Notifications\AnonymousNotifiable`, which offers a `routeNotificationFor` method that may be used to retrieve the email address the on-demand notification should be sent to:
+If you are sending an [on-demand notification](#on-demand-notifications), the `$notifiable` instance given to the `toMail` method will be an instance of `Hypervel\Notifications\AnonymousNotifiable`, which offers a `routeNotificationFor` method that may be used to retrieve the email address the on-demand notification should be sent to:
 
 ```php
 use App\Mail\InvoicePaid as InvoicePaidMailable;
-use Illuminate\Notifications\AnonymousNotifiable;
-use Illuminate\Mail\Mailable;
+use Hypervel\Notifications\AnonymousNotifiable;
+use Hypervel\Mail\Mailable;
 
 /**
  * Get the mail representation of the notification.
@@ -1032,7 +1032,7 @@ public function toArray(object $notifiable): array
 When a notification is stored in your application's database, the `type` column will be set to the notification's class name by default, and the `read_at` column will be `null`. However, you can customize this behavior by defining the `databaseType` and `initialDatabaseReadAtValue` methods in your notification class:
 
 ```php
-use Illuminate\Support\Carbon;
+use Hypervel\Support\Carbon;
 
 /**
  * Get the notification's database type.
@@ -1059,7 +1059,7 @@ The `toArray` method is also used by the `broadcast` channel to determine which 
 <a name="accessing-the-notifications"></a>
 ### Accessing the Notifications
 
-Once notifications are stored in the database, you need a convenient way to access them from your notifiable entities. The `Illuminate\Notifications\Notifiable` trait, which is included on Laravel's default `App\Models\User` model, includes a `notifications` [Eloquent relationship](/docs/{{version}}/eloquent-relationships) that returns the notifications for the entity. To fetch notifications, you may access this method like any other Eloquent relationship. By default, notifications will be sorted by the `created_at` timestamp with the most recent notifications at the beginning of the collection:
+Once notifications are stored in the database, you need a convenient way to access them from your notifiable entities. The `Hypervel\Notifications\Notifiable` trait, which is included on Laravel's default `App\Models\User` model, includes a `notifications` [Eloquent relationship](/docs/{{version}}/eloquent-relationships) that returns the notifications for the entity. To fetch notifications, you may access this method like any other Eloquent relationship. By default, notifications will be sorted by the `created_at` timestamp with the most recent notifications at the beginning of the collection:
 
 ```php
 $user = App\Models\User::find(1);
@@ -1095,7 +1095,7 @@ foreach ($user->readNotifications as $notification) {
 <a name="marking-notifications-as-read"></a>
 ### Marking Notifications as Read
 
-Typically, you will want to mark a notification as "read" when a user views it. The `Illuminate\Notifications\Notifiable` trait provides a `markAsRead` method, which updates the `read_at` column on the notification's database record:
+Typically, you will want to mark a notification as "read" when a user views it. The `Hypervel\Notifications\Notifiable` trait provides a `markAsRead` method, which updates the `read_at` column on the notification's database record:
 
 ```php
 $user = App\Models\User::find(1);
@@ -1139,7 +1139,7 @@ Before broadcasting notifications, you should configure and be familiar with Lar
 The `broadcast` channel broadcasts notifications using Laravel's [event broadcasting](/docs/{{version}}/broadcasting) services, allowing your JavaScript powered frontend to catch notifications in realtime. If a notification supports broadcasting, you can define a `toBroadcast` method on the notification class. This method will receive a `$notifiable` entity and should return a `BroadcastMessage` instance. If the `toBroadcast` method does not exist, the `toArray` method will be used to gather the data that should be broadcast. The returned data will be encoded as JSON and broadcast to your JavaScript powered frontend. Let's take a look at an example `toBroadcast` method:
 
 ```php
-use Illuminate\Notifications\Messages\BroadcastMessage;
+use Hypervel\Notifications\Messages\BroadcastMessage;
 
 /**
  * Get the broadcastable representation of the notification.
@@ -1304,9 +1304,9 @@ If you would like to customize which channel that an entity's broadcast notifica
 
 namespace App\Models;
 
-use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Hypervel\Broadcasting\PrivateChannel;
+use Hypervel\Foundation\Auth\User as Authenticatable;
+use Hypervel\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
@@ -1345,10 +1345,10 @@ VONAGE_SMS_FROM=15556666666
 <a name="formatting-sms-notifications"></a>
 ### Formatting SMS Notifications
 
-If a notification supports being sent as an SMS, you should define a `toVonage` method on the notification class. This method will receive a `$notifiable` entity and should return an `Illuminate\Notifications\Messages\VonageMessage` instance:
+If a notification supports being sent as an SMS, you should define a `toVonage` method on the notification class. This method will receive a `$notifiable` entity and should return an `Hypervel\Notifications\Messages\VonageMessage` instance:
 
 ```php
-use Illuminate\Notifications\Messages\VonageMessage;
+use Hypervel\Notifications\Messages\VonageMessage;
 
 /**
  * Get the Vonage / SMS representation of the notification.
@@ -1366,7 +1366,7 @@ public function toVonage(object $notifiable): VonageMessage
 If your SMS message will contain unicode characters, you should call the `unicode` method when constructing the `VonageMessage` instance:
 
 ```php
-use Illuminate\Notifications\Messages\VonageMessage;
+use Hypervel\Notifications\Messages\VonageMessage;
 
 /**
  * Get the Vonage / SMS representation of the notification.
@@ -1385,7 +1385,7 @@ public function toVonage(object $notifiable): VonageMessage
 If you would like to send some notifications from a phone number that is different from the phone number specified by your `VONAGE_SMS_FROM` environment variable, you may call the `from` method on a `VonageMessage` instance:
 
 ```php
-use Illuminate\Notifications\Messages\VonageMessage;
+use Hypervel\Notifications\Messages\VonageMessage;
 
 /**
  * Get the Vonage / SMS representation of the notification.
@@ -1404,7 +1404,7 @@ public function toVonage(object $notifiable): VonageMessage
 If you would like to keep track of costs per user, team, or client, you may add a "client reference" to the notification. Vonage will allow you to generate reports using this client reference so that you can better understand a particular customer's SMS usage. The client reference can be any string up to 40 characters:
 
 ```php
-use Illuminate\Notifications\Messages\VonageMessage;
+use Hypervel\Notifications\Messages\VonageMessage;
 
 /**
  * Get the Vonage / SMS representation of the notification.
@@ -1427,9 +1427,9 @@ To route Vonage notifications to the proper phone number, define a `routeNotific
 
 namespace App\Models;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Illuminate\Notifications\Notification;
+use Hypervel\Foundation\Auth\User as Authenticatable;
+use Hypervel\Notifications\Notifiable;
+use Hypervel\Notifications\Notification;
 
 class User extends Authenticatable
 {
@@ -1480,12 +1480,12 @@ If your application will be sending notifications to external Slack workspaces t
 <a name="formatting-slack-notifications"></a>
 ### Formatting Slack Notifications
 
-If a notification supports being sent as a Slack message, you should define a `toSlack` method on the notification class. This method will receive a `$notifiable` entity and should return an `Illuminate\Notifications\Slack\SlackMessage` instance. You can construct rich notifications using [Slack's Block Kit API](https://api.slack.com/block-kit). The following example may be previewed in [Slack's Block Kit builder](https://app.slack.com/block-kit-builder/T01KWS6K23Z#%7B%22blocks%22:%5B%7B%22type%22:%22header%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Invoice%20Paid%22%7D%7D,%7B%22type%22:%22context%22,%22elements%22:%5B%7B%22type%22:%22plain_text%22,%22text%22:%22Customer%20%231234%22%7D%5D%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22An%20invoice%20has%20been%20paid.%22%7D,%22fields%22:%5B%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20No:*%5Cn1000%22%7D,%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20Recipient:*%5Cntaylor@laravel.com%22%7D%5D%7D,%7B%22type%22:%22divider%22%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Congratulations!%22%7D%7D%5D%7D):
+If a notification supports being sent as a Slack message, you should define a `toSlack` method on the notification class. This method will receive a `$notifiable` entity and should return an `Hypervel\Notifications\Slack\SlackMessage` instance. You can construct rich notifications using [Slack's Block Kit API](https://api.slack.com/block-kit). The following example may be previewed in [Slack's Block Kit builder](https://app.slack.com/block-kit-builder/T01KWS6K23Z#%7B%22blocks%22:%5B%7B%22type%22:%22header%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Invoice%20Paid%22%7D%7D,%7B%22type%22:%22context%22,%22elements%22:%5B%7B%22type%22:%22plain_text%22,%22text%22:%22Customer%20%231234%22%7D%5D%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22An%20invoice%20has%20been%20paid.%22%7D,%22fields%22:%5B%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20No:*%5Cn1000%22%7D,%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20Recipient:*%5Cntaylor@laravel.com%22%7D%5D%7D,%7B%22type%22:%22divider%22%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Congratulations!%22%7D%7D%5D%7D):
 
 ```php
-use Illuminate\Notifications\Slack\BlockKit\Blocks\ContextBlock;
-use Illuminate\Notifications\Slack\BlockKit\Blocks\SectionBlock;
-use Illuminate\Notifications\Slack\SlackMessage;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
+use Hypervel\Notifications\Slack\SlackMessage;
 
 /**
  * Get the Slack representation of the notification.
@@ -1516,8 +1516,8 @@ public function toSlack(object $notifiable): SlackMessage
 Instead of using the fluent message builder methods to construct your Block Kit message, you may provide the raw JSON payload generated by Slack's Block Kit Builder to the `usingBlockKitTemplate` method:
 
 ```php
-use Illuminate\Notifications\Slack\SlackMessage;
-use Illuminate\Support\Str;
+use Hypervel\Notifications\Slack\SlackMessage;
+use Hypervel\Support\Str;
 
 /**
  * Get the Slack representation of the notification.
@@ -1558,10 +1558,10 @@ Slack's Block Kit notification system provides powerful features to [handle user
 In the following example, which utilizes the `actionsBlock` method, Slack will send a `POST` request to your "Request URL" with a payload containing the Slack user who clicked the button, the ID of the clicked button, and more. Your application can then determine the action to take based on the payload. You should also [verify the request](https://api.slack.com/authentication/verifying-requests-from-slack) was made by Slack:
 
 ```php
-use Illuminate\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
-use Illuminate\Notifications\Slack\BlockKit\Blocks\ContextBlock;
-use Illuminate\Notifications\Slack\BlockKit\Blocks\SectionBlock;
-use Illuminate\Notifications\Slack\SlackMessage;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
+use Hypervel\Notifications\Slack\SlackMessage;
 
 /**
  * Get the Slack representation of the notification.
@@ -1593,11 +1593,11 @@ public function toSlack(object $notifiable): SlackMessage
 If you would like users to be required to confirm an action before it is performed, you may invoke the `confirm` method when defining your button. The `confirm` method accepts a message and a closure which receives a `ConfirmObject` instance:
 
 ```php
-use Illuminate\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
-use Illuminate\Notifications\Slack\BlockKit\Blocks\ContextBlock;
-use Illuminate\Notifications\Slack\BlockKit\Blocks\SectionBlock;
-use Illuminate\Notifications\Slack\BlockKit\Composites\ConfirmObject;
-use Illuminate\Notifications\Slack\SlackMessage;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
+use Hypervel\Notifications\Slack\BlockKit\Composites\ConfirmObject;
+use Hypervel\Notifications\Slack\SlackMessage;
 
 /**
  * Get the Slack representation of the notification.
@@ -1655,9 +1655,9 @@ For instance, returning `#support-channel` from the `routeNotificationForSlack` 
 
 namespace App\Models;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Illuminate\Notifications\Notification;
+use Hypervel\Foundation\Auth\User as Authenticatable;
+use Hypervel\Notifications\Notifiable;
+use Hypervel\Notifications\Notification;
 
 class User extends Authenticatable
 {
@@ -1688,10 +1688,10 @@ Once you have obtained the bot token and stored it within your application's dat
 
 namespace App\Models;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
-use Illuminate\Notifications\Notification;
-use Illuminate\Notifications\Slack\SlackRoute;
+use Hypervel\Foundation\Auth\User as Authenticatable;
+use Hypervel\Notifications\Notifiable;
+use Hypervel\Notifications\Notification;
+use Hypervel\Notifications\Slack\SlackRoute;
 
 class User extends Authenticatable
 {
@@ -1712,7 +1712,7 @@ class User extends Authenticatable
 
 Laravel allows you to send notifications in a locale other than the HTTP request's current locale, and will even remember this locale if the notification is queued.
 
-To accomplish this, the `Illuminate\Notifications\Notification` class offers a `locale` method to set the desired language. The application will change into this locale when the notification is being evaluated and then revert back to the previous locale when evaluation is complete:
+To accomplish this, the `Hypervel\Notifications\Notification` class offers a `locale` method to set the desired language. The application will change into this locale when the notification is being evaluated and then revert back to the previous locale when evaluation is complete:
 
 ```php
 $user->notify((new InvoicePaid($invoice))->locale('es'));
@@ -1732,7 +1732,7 @@ Notification::locale('es')->send(
 Sometimes, applications store each user's preferred locale. By implementing the `HasLocalePreference` contract on your notifiable model, you may instruct Laravel to use this stored locale when sending a notification:
 
 ```php
-use Illuminate\Contracts\Translation\HasLocalePreference;
+use Hypervel\Contracts\Translation\HasLocalePreference;
 
 class User extends Model implements HasLocalePreference
 {
@@ -1763,7 +1763,7 @@ After calling the `Notification` facade's `fake` method, you may then assert tha
 <?php
 
 use App\Notifications\OrderShipped;
-use Illuminate\Support\Facades\Notification;
+use Hypervel\Support\Facades\Notification;
 
 test('orders can be shipped', function () {
     Notification::fake();
@@ -1797,7 +1797,7 @@ test('orders can be shipped', function () {
 namespace Tests\Feature;
 
 use App\Notifications\OrderShipped;
-use Illuminate\Support\Facades\Notification;
+use Hypervel\Support\Facades\Notification;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -1867,10 +1867,10 @@ Notification::assertSentOnDemand(
 <a name="notification-sending-event"></a>
 #### Notification Sending Event
 
-When a notification is sending, the `Illuminate\Notifications\Events\NotificationSending` event is dispatched by the notification system. This contains the "notifiable" entity and the notification instance itself. You may create [event listeners](/docs/{{version}}/events) for this event within your application:
+When a notification is sending, the `Hypervel\Notifications\Events\NotificationSending` event is dispatched by the notification system. This contains the "notifiable" entity and the notification instance itself. You may create [event listeners](/docs/{{version}}/events) for this event within your application:
 
 ```php
-use Illuminate\Notifications\Events\NotificationSending;
+use Hypervel\Notifications\Events\NotificationSending;
 
 class CheckNotificationStatus
 {
@@ -1913,10 +1913,10 @@ public function handle(NotificationSending $event): void
 <a name="notification-sent-event"></a>
 #### Notification Sent Event
 
-When a notification is sent, the `Illuminate\Notifications\Events\NotificationSent` [event](/docs/{{version}}/events) is dispatched by the notification system. This contains the "notifiable" entity and the notification instance itself. You may create [event listeners](/docs/{{version}}/events) for this event within your application:
+When a notification is sent, the `Hypervel\Notifications\Events\NotificationSent` [event](/docs/{{version}}/events) is dispatched by the notification system. This contains the "notifiable" entity and the notification instance itself. You may create [event listeners](/docs/{{version}}/events) for this event within your application:
 
 ```php
-use Illuminate\Notifications\Events\NotificationSent;
+use Hypervel\Notifications\Events\NotificationSent;
 
 class LogNotification
 {
@@ -1957,7 +1957,7 @@ Within the `send` method, you may call methods on the notification to retrieve a
 
 namespace App\Notifications;
 
-use Illuminate\Notifications\Notification;
+use Hypervel\Notifications\Notification;
 
 class VoiceChannel
 {
@@ -1982,9 +1982,9 @@ namespace App\Notifications;
 
 use App\Notifications\Messages\VoiceMessage;
 use App\Notifications\VoiceChannel;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Notification;
+use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Notifications\Notification;
 
 class InvoicePaid extends Notification
 {

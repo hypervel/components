@@ -60,8 +60,8 @@ You may use the `table` method provided by the `DB` facade to begin a query. The
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\View\View;
+use Hypervel\Support\Facades\DB;
+use Hypervel\View\View;
 
 class UserController extends Controller
 {
@@ -77,10 +77,10 @@ class UserController extends Controller
 }
 ```
 
-The `get` method returns an `Illuminate\Support\Collection` instance containing the results of the query where each result is an instance of the PHP `stdClass` object. You may access each column's value by accessing the column as a property of the object:
+The `get` method returns an `Hypervel\Support\Collection` instance containing the results of the query where each result is an instance of the PHP `stdClass` object. You may access each column's value by accessing the column as a property of the object:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 $users = DB::table('users')->get();
 
@@ -103,7 +103,7 @@ $user = DB::table('users')->where('name', 'John')->first();
 return $user->email;
 ```
 
-If you would like to retrieve a single row from a database table, but throw an `Illuminate\Database\RecordNotFoundException` if no matching row is found, you may use the `firstOrFail` method. If the `RecordNotFoundException` is not caught, a 404 HTTP response is automatically sent back to the client:
+If you would like to retrieve a single row from a database table, but throw an `Hypervel\Database\RecordNotFoundException` if no matching row is found, you may use the `firstOrFail` method. If the `RecordNotFoundException` is not caught, a 404 HTTP response is automatically sent back to the client:
 
 ```php
 $user = DB::table('users')->where('name', 'John')->firstOrFail();
@@ -124,10 +124,10 @@ $user = DB::table('users')->find(3);
 <a name="retrieving-a-list-of-column-values"></a>
 #### Retrieving a List of Column Values
 
-If you would like to retrieve an `Illuminate\Support\Collection` instance containing the values of a single column, you may use the `pluck` method. In this example, we'll retrieve a collection of user titles:
+If you would like to retrieve an `Hypervel\Support\Collection` instance containing the values of a single column, you may use the `pluck` method. In this example, we'll retrieve a collection of user titles:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 $titles = DB::table('users')->pluck('title');
 
@@ -152,8 +152,8 @@ foreach ($titles as $name => $title) {
 If you need to work with thousands of database records, consider using the `chunk` method provided by the `DB` facade. This method retrieves a small chunk of results at a time and feeds each chunk into a closure for processing. For example, let's retrieve the entire `users` table in chunks of 100 records at a time:
 
 ```php
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\DB;
 
 DB::table('users')->orderBy('id')->chunk(100, function (Collection $users) {
     foreach ($users as $user) {
@@ -208,7 +208,7 @@ DB::table('users')->where(function ($query) {
 The `lazy` method works similarly to [the chunk method](#chunking-results) in the sense that it executes the query in chunks. However, instead of passing each chunk into a callback, the `lazy()` method returns a [LazyCollection](/docs/{{version}}/collections#lazy-collections), which lets you interact with the results as a single stream:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 DB::table('users')->orderBy('id')->lazy()->each(function (object $user) {
     // ...
@@ -235,7 +235,7 @@ DB::table('users')->where('active', false)
 The query builder also provides a variety of methods for retrieving aggregate values like `count`, `max`, `min`, `avg`, and `sum`. You may call any of these methods after constructing your query:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 $users = DB::table('users')->count();
 
@@ -274,7 +274,7 @@ if (DB::table('orders')->where('finalized', 1)->doesntExist()) {
 You may not always want to select all columns from a database table. Using the `select` method, you can specify a custom "select" clause for the query:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 $users = DB::table('users')
     ->select('name', 'email as user_email')
@@ -383,7 +383,7 @@ $orders = DB::table('orders')
 The query builder may also be used to add join clauses to your queries. To perform a basic "inner join", you may use the `join` method on a query builder instance. The first argument passed to the `join` method is the name of the table you need to join to, while the remaining arguments specify the column constraints for the join. You may even join multiple tables in a single query:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 $users = DB::table('users')
     ->join('contacts', 'users.id', '=', 'contacts.user_id')
@@ -421,7 +421,7 @@ $sizes = DB::table('sizes')
 <a name="advanced-join-clauses"></a>
 #### Advanced Join Clauses
 
-You may also specify more advanced join clauses. To get started, pass a closure as the second argument to the `join` method. The closure will receive a `Illuminate\Database\Query\JoinClause` instance which allows you to specify constraints on the "join" clause:
+You may also specify more advanced join clauses. To get started, pass a closure as the second argument to the `join` method. The closure will receive a `Hypervel\Database\Query\JoinClause` instance which allows you to specify constraints on the "join" clause:
 
 ```php
 DB::table('users')
@@ -487,7 +487,7 @@ $users = DB::table('users')
 The query builder also provides a convenient method to "union" two or more queries together. For example, you may create an initial query and use the `union` method to union it with more queries:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 $usersWithoutFirstName = DB::table('users')
     ->whereNull('first_name');
@@ -578,7 +578,7 @@ $users = DB::table('users')
 If you need to group an "or" condition within parentheses, you may pass a closure as the first argument to the `orWhere` method:
 
 ```php
-use Illuminate\Database\Query\Builder; 
+use Hypervel\Database\Query\Builder; 
 
 $users = DB::table('users')
     ->where('votes', '>', 100)
@@ -1112,7 +1112,7 @@ Sometimes you may need to construct a "where" clause that compares the results o
 
 ```php
 use App\Models\User;
-use Illuminate\Database\Query\Builder;
+use Hypervel\Database\Query\Builder;
 
 $users = User::where(function (Builder $query) {
     $query->select('type')
@@ -1127,7 +1127,7 @@ Or, you may need to construct a "where" clause that compares a column to the res
 
 ```php
 use App\Models\Income;
-use Illuminate\Database\Query\Builder;
+use Hypervel\Database\Query\Builder;
 
 $incomes = Income::where('amount', '<', function (Builder $query) {
     $query->selectRaw('avg(i.amount)')->from('incomes as i');
@@ -1597,8 +1597,8 @@ DB::transaction(function () {
 If you have repeated query logic throughout your application, you may extract the logic into reusable objects using the query builder's `tap` and `pipe` methods. Imagine you have these two different queries in your application:
 
 ```php
-use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Facades\DB;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Support\Facades\DB;
 
 $destination = $request->query('destination');
 
@@ -1629,7 +1629,7 @@ You may like to extract the destination filtering that is common between the que
 
 namespace App\Scopes;
 
-use Illuminate\Database\Query\Builder;
+use Hypervel\Database\Query\Builder;
 
 class DestinationFilter
 {
@@ -1652,8 +1652,8 @@ Then, you can use the query builder's `tap` method to apply the object's logic t
 
 ```php
 use App\Scopes\DestinationFilter;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Facades\DB;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Support\Facades\DB;
 
 DB::table('flights')
     ->when($destination, function (Builder $query, string $destination) { // [tl! remove]
@@ -1687,8 +1687,8 @@ Consider the following query object that contains shared [pagination](/docs/{{ve
 
 namespace App\Scopes;
 
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Query\Builder;
+use Hypervel\Contracts\Pagination\LengthAwarePaginator;
+use Hypervel\Database\Query\Builder;
 
 class Paginate
 {

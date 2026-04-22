@@ -79,8 +79,8 @@ After running `telescope:install`, you should remove the `TelescopeServiceProvid
  */
 public function register(): void
 {
-    if ($this->app->environment('local') && class_exists(\Laravel\Telescope\TelescopeServiceProvider::class)) {
-        $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
+    if ($this->app->environment('local') && class_exists(\Hypervel\Telescope\TelescopeServiceProvider::class)) {
+        $this->app->register(\Hypervel\Telescope\TelescopeServiceProvider::class);
         $this->app->register(TelescopeServiceProvider::class);
     }
 }
@@ -115,7 +115,7 @@ If desired, you may disable Telescope's data collection entirely using the `enab
 Without pruning, the `telescope_entries` table can accumulate records very quickly. To mitigate this, you should [schedule](/docs/{{version}}/scheduling) the `telescope:prune` Artisan command to run daily:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('telescope:prune')->daily();
 ```
@@ -123,7 +123,7 @@ Schedule::command('telescope:prune')->daily();
 By default, all entries older than 24 hours will be pruned. You may use the `hours` option when calling the command to determine how long to retain Telescope data. For example, the following command will delete all records created over 48 hours ago:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('telescope:prune --hours=48')->daily();
 ```
@@ -186,8 +186,8 @@ To keep the assets up-to-date and avoid issues in future updates, you may add th
 You may filter the data that is recorded by Telescope via the `filter` closure that is defined in your `App\Providers\TelescopeServiceProvider` class. By default, this closure records all data in the `local` environment and exceptions, failed jobs, scheduled tasks, and data with monitored tags in all other environments:
 
 ```php
-use Laravel\Telescope\IncomingEntry;
-use Laravel\Telescope\Telescope;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 
 /**
  * Register any application services.
@@ -216,9 +216,9 @@ public function register(): void
 While the `filter` closure filters data for individual entries, you may use the `filterBatch` method to register a closure that filters all data for a given request or console command. If the closure returns `true`, all of the entries are recorded by Telescope:
 
 ```php
-use Illuminate\Support\Collection;
-use Laravel\Telescope\IncomingEntry;
-use Laravel\Telescope\Telescope;
+use Hypervel\Support\Collection;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 
 /**
  * Register any application services.
@@ -249,9 +249,9 @@ public function register(): void
 Telescope allows you to search entries by "tag". Often, tags are Eloquent model class names or authenticated user IDs which Telescope automatically adds to entries. Occasionally, you may want to attach your own custom tags to entries. To accomplish this, you may use the `Telescope::tag` method. The `tag` method accepts a closure which should return an array of tags. The tags returned by the closure will be merged with any tags Telescope would automatically attach to the entry. Typically, you should call the `tag` method within the `register` method of your `App\Providers\TelescopeServiceProvider` class:
 
 ```php
-use Laravel\Telescope\EntryType;
-use Laravel\Telescope\IncomingEntry;
-use Laravel\Telescope\Telescope;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 
 /**
  * Register any application services.
@@ -466,7 +466,7 @@ The Telescope dashboard displays the user avatar for the user that was authentic
 
 ```php
 use App\Models\User;
-use Laravel\Telescope\Telescope;
+use Hypervel\Telescope\Telescope;
 
 /**
  * Register any application services.

@@ -72,9 +72,9 @@ Next, let's take a look at a simple controller that handles incoming requests to
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
+use Hypervel\View\View;
 
 class PostController extends Controller
 {
@@ -103,7 +103,7 @@ class PostController extends Controller
 <a name="quick-writing-the-validation-logic"></a>
 ### Writing the Validation Logic
 
-Now we are ready to fill in our `store` method with the logic to validate the new blog post. To do this, we will use the `validate` method provided by the `Illuminate\Http\Request` object. If the validation rules pass, your code will keep executing normally; however, if validation fails, an `Illuminate\Validation\ValidationException` exception will be thrown and the proper error response will automatically be sent back to the user.
+Now we are ready to fill in our `store` method with the logic to validate the new blog post. To do this, we will use the `validate` method provided by the `Hypervel\Http\Request` object. If the validation rules pass, your code will keep executing normally; however, if validation fails, an `Hypervel\Validation\ValidationException` exception will be thrown and the proper error response will automatically be sent back to the user.
 
 If validation fails during a traditional HTTP request, a redirect response to the previous URL will be generated. If the incoming request is an XHR request, a [JSON response containing the validation error messages](#validation-error-response-format) will be returned.
 
@@ -187,7 +187,7 @@ $request->validate([
 
 So, what if the incoming request fields do not pass the given validation rules? As mentioned previously, Laravel will automatically redirect the user back to their previous location. In addition, all of the validation errors and [request input](/docs/{{version}}/requests#retrieving-old-input) will automatically be [flashed to the session](/docs/{{version}}/session#flash-data).
 
-An `$errors` variable is shared with all of your application's views by the `Illuminate\View\Middleware\ShareErrorsFromSession` middleware, which is provided by the `web` middleware group. When this middleware is applied an `$errors` variable will always be available in your views, allowing you to conveniently assume the `$errors` variable is always defined and can be safely used. The `$errors` variable will be an instance of `Illuminate\Support\MessageBag`. For more information on working with this object, [check out its documentation](#working-with-error-messages).
+An `$errors` variable is shared with all of your application's views by the `Hypervel\View\Middleware\ShareErrorsFromSession` middleware, which is provided by the `web` middleware group. When this middleware is applied an `$errors` variable will always be available in your views, allowing you to conveniently assume the `$errors` variable is always defined and can be safely used. The `$errors` variable will be an instance of `Hypervel\Support\MessageBag`. For more information on working with this object, [check out its documentation](#working-with-error-messages).
 
 So, in our example, the user will be redirected to our controller's `create` method when validation fails, allowing us to display the error messages in the view:
 
@@ -259,7 +259,7 @@ If you are using [named error bags](#named-error-bags), you may pass the name of
 
 When Laravel generates a redirect response due to a validation error, the framework will automatically [flash all of the request's input to the session](/docs/{{version}}/session#flash-data). This is done so that you may conveniently access the input during the next request and repopulate the form that the user attempted to submit.
 
-To retrieve flashed input from the previous request, invoke the `old` method on an instance of `Illuminate\Http\Request`. The `old` method will pull the previously flashed input data from the [session](/docs/{{version}}/session):
+To retrieve flashed input from the previous request, invoke the `old` method on an instance of `Hypervel\Http\Request`. The `old` method will pull the previously flashed input data from the [session](/docs/{{version}}/session):
 
 ```php
 $title = $request->old('title');
@@ -289,7 +289,7 @@ In this example, we are specifying that the `publish_at` field may be either `nu
 <a name="validation-error-response-format"></a>
 ### Validation Error Response Format
 
-When your application throws a `Illuminate\Validation\ValidationException` exception and the incoming HTTP request is expecting a JSON response, Laravel will automatically format the error messages for you and return a `422 Unprocessable Entity` HTTP response.
+When your application throws a `Hypervel\Validation\ValidationException` exception and the incoming HTTP request is expecting a JSON response, Laravel will automatically format the error messages for you and return a `422 Unprocessable Entity` HTTP response.
 
 Below, you can review an example of the JSON response format for validation errors. Note that nested error keys are flattened into "dot" notation format:
 
@@ -334,7 +334,7 @@ As you might have guessed, the `authorize` method is responsible for determining
 /**
  * Get the validation rules that apply to the request.
  *
- * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+ * @return array<string, \Hypervel\Contracts\Validation\ValidationRule|array<mixed>|string>
  */
 public function rules(): array
 {
@@ -381,10 +381,10 @@ If validation fails, a redirect response will be generated to send the user back
 
 Sometimes you need to perform additional validation after your initial validation is complete. You can accomplish this using the form request's `after` method.
 
-The `after` method should return an array of callables or closures which will be invoked after validation is complete. The given callables will receive an `Illuminate\Validation\Validator` instance, allowing you to raise additional error messages if necessary:
+The `after` method should return an array of callables or closures which will be invoked after validation is complete. The given callables will receive an `Hypervel\Validation\Validator` instance, allowing you to raise additional error messages if necessary:
 
 ```php
-use Illuminate\Validation\Validator;
+use Hypervel\Validation\Validator;
 
 /**
  * Get the "after" validation callables for the request.
@@ -404,12 +404,12 @@ public function after(): array
 }
 ```
 
-As noted, the array returned by the `after` method may also contain invokable classes. The `__invoke` method of these classes will receive an `Illuminate\Validation\Validator` instance:
+As noted, the array returned by the `after` method may also contain invokable classes. The `__invoke` method of these classes will receive an `Hypervel\Validation\Validator` instance:
 
 ```php
 use App\Validation\ValidateShippingTime;
 use App\Validation\ValidateUserStatus;
-use Illuminate\Validation\Validator;
+use Hypervel\Validation\Validator;
 
 /**
  * Get the "after" validation callables for the request.
@@ -436,8 +436,8 @@ By adding the `StopOnFirstFailure` attribute to your request class, you may info
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\Attributes\StopOnFirstFailure;
-use Illuminate\Foundation\Http\FormRequest;
+use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
+use Hypervel\Foundation\Http\FormRequest;
 
 #[StopOnFirstFailure]
 class StorePostRequest extends FormRequest
@@ -456,8 +456,8 @@ By adding the `FailOnUnknownFields` attribute to your request class, you may ins
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\Attributes\FailOnUnknownFields;
-use Illuminate\Foundation\Http\FormRequest;
+use Hypervel\Foundation\Http\Attributes\FailOnUnknownFields;
+use Hypervel\Foundation\Http\FormRequest;
 
 #[FailOnUnknownFields]
 class StorePostRequest extends FormRequest
@@ -475,7 +475,7 @@ class StorePostRequest extends FormRequest
 You may also enable this behavior globally for all form requests from your `AppServiceProvider`:
 
 ```php
-use Illuminate\Foundation\Http\FormRequest;
+use Hypervel\Foundation\Http\FormRequest;
 
 /**
  * Bootstrap any application services.
@@ -508,8 +508,8 @@ When form request validation fails, a redirect response will be generated to sen
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\Attributes\RedirectTo;
-use Illuminate\Foundation\Http\FormRequest;
+use Hypervel\Foundation\Http\Attributes\RedirectTo;
+use Hypervel\Foundation\Http\FormRequest;
 
 #[RedirectTo('/dashboard')]
 class StorePostRequest extends FormRequest
@@ -525,8 +525,8 @@ Or, if you would like to redirect users to a named route, you may use the `Redir
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\Attributes\RedirectToRoute;
-use Illuminate\Foundation\Http\FormRequest;
+use Hypervel\Foundation\Http\Attributes\RedirectToRoute;
+use Hypervel\Foundation\Http\FormRequest;
 
 #[RedirectToRoute('dashboard')]
 class StorePostRequest extends FormRequest
@@ -545,8 +545,8 @@ When form request validation fails, the errors are flashed to the `default` erro
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\Attributes\ErrorBag;
-use Illuminate\Foundation\Http\FormRequest;
+use Hypervel\Foundation\Http\Attributes\ErrorBag;
+use Hypervel\Foundation\Http\FormRequest;
 
 #[ErrorBag('login')]
 class LoginRequest extends FormRequest
@@ -648,7 +648,7 @@ public function attributes(): array
 If you need to prepare or sanitize any data from the request before you apply your validation rules, you may use the `prepareForValidation` method:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 /**
  * Prepare the data for validation.
@@ -683,9 +683,9 @@ If you do not want to use the `validate` method on the request, you may create a
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Validator;
 
 class PostController extends Controller
 {
@@ -816,10 +816,10 @@ $validator = Validator::make($input, $rules, $messages, [
 <a name="performing-additional-validation"></a>
 ### Performing Additional Validation
 
-Sometimes you need to perform additional validation after your initial validation is complete. You can accomplish this using the validator's `after` method. The `after` method accepts a closure or an array of callables which will be invoked after validation is complete. The given callables will receive an `Illuminate\Validation\Validator` instance, allowing you to raise additional error messages if necessary:
+Sometimes you need to perform additional validation after your initial validation is complete. You can accomplish this using the validator's `after` method. The `after` method accepts a closure or an array of callables which will be invoked after validation is complete. The given callables will receive an `Hypervel\Validation\Validator` instance, allowing you to raise additional error messages if necessary:
 
 ```php
-use Illuminate\Support\Facades\Validator;
+use Hypervel\Support\Facades\Validator;
 
 $validator = Validator::make(/* ... */);
 
@@ -836,7 +836,7 @@ if ($validator->fails()) {
 }
 ```
 
-As noted, the `after` method also accepts an array of callables, which is particularly convenient if your "after validation" logic is encapsulated in invokable classes, which will receive an `Illuminate\Validation\Validator` instance via their `__invoke` method:
+As noted, the `after` method also accepts an array of callables, which is particularly convenient if your "after validation" logic is encapsulated in invokable classes, which will receive an `Hypervel\Validation\Validator` instance via their `__invoke` method:
 
 ```php
 use App\Validation\ValidateShippingTime;
@@ -862,7 +862,7 @@ $validated = $request->validated();
 $validated = $validator->validated();
 ```
 
-Alternatively, you may call the `safe` method on a form request or validator instance. This method returns an instance of `Illuminate\Support\ValidatedInput`. This object exposes `only`, `except`, and `all` methods to retrieve a subset of the validated data or the entire array of validated data:
+Alternatively, you may call the `safe` method on a form request or validator instance. This method returns an instance of `Hypervel\Support\ValidatedInput`. This object exposes `only`, `except`, and `all` methods to retrieve a subset of the validated data or the entire array of validated data:
 
 ```php
 $validated = $request->safe()->only(['name', 'email']);
@@ -872,7 +872,7 @@ $validated = $request->safe()->except(['name', 'email']);
 $validated = $request->safe()->all();
 ```
 
-In addition, the `Illuminate\Support\ValidatedInput` instance may be iterated over and accessed like an array:
+In addition, the `Hypervel\Support\ValidatedInput` instance may be iterated over and accessed like an array:
 
 ```php
 // Validated data may be iterated...
@@ -901,7 +901,7 @@ $collection = $request->safe()->collect();
 <a name="working-with-error-messages"></a>
 ## Working With Error Messages
 
-After calling the `errors` method on a `Validator` instance, you will receive an `Illuminate\Support\MessageBag` instance, which has a variety of convenient methods for working with error messages. The `$errors` variable that is automatically made available to all views is also an instance of the `MessageBag` class.
+After calling the `errors` method on a `Validator` instance, you will receive an `Hypervel\Support\MessageBag` instance, which has a variety of convenient methods for working with error messages. The `$errors` variable that is automatically made available to all views is also an instance of the `MessageBag` class.
 
 <a name="retrieving-the-first-error-message-for-a-field"></a>
 #### Retrieving the First Error Message for a Field
@@ -1261,7 +1261,7 @@ Instead of passing a date string to be evaluated by `strtotime`, you may specify
 For convenience, date-based rules may be constructed using the fluent `date` rule builder:
 
 ```php
-use Illuminate\Validation\Rule;
+use Hypervel\Validation\Rule;
 
 'start_date' => [
     'required',
@@ -1286,7 +1286,7 @@ The field under validation must be a value after or equal to the given date. For
 For convenience, date-based rules may be constructed using the fluent `date` rule builder:
 
 ```php
-use Illuminate\Validation\Rule;
+use Hypervel\Validation\Rule;
 
 'start_date' => [
     'required',
@@ -1300,7 +1300,7 @@ use Illuminate\Validation\Rule;
 The `Rule::anyOf` validation rule allows you to specify that the field under validation must satisfy any of the given validation rulesets. For example, the following rule will validate that the `username` field is either an email address or an alpha-numeric string (including dashes) that is at least 6 characters long:
 
 ```php
-use Illuminate\Validation\Rule;
+use Hypervel\Validation\Rule;
 
 'username' => [
     'required',
@@ -1352,7 +1352,7 @@ The field under validation must be a PHP `array`.
 When additional values are provided to the `array` rule, each key in the input array must be present within the list of values provided to the rule. In the following example, the `admin` key in the input array is invalid since it is not contained in the list of values provided to the `array` rule:
 
 ```php
-use Illuminate\Support\Facades\Validator;
+use Hypervel\Support\Facades\Validator;
 
 $input = [
     'user' => [
@@ -1395,7 +1395,7 @@ The field under validation must be a value preceding the given date. The dates w
 For convenience, date-based rules may also be constructed using the fluent `date` rule builder:
 
 ```php
-use Illuminate\Validation\Rule;
+use Hypervel\Validation\Rule;
 
 'start_date' => [
     'required',
@@ -1420,7 +1420,7 @@ The field under validation must be a value preceding or equal to the given date.
 For convenience, date-based rules may also be constructed using the fluent `date` rule builder:
 
 ```php
-use Illuminate\Validation\Rule;
+use Hypervel\Validation\Rule;
 
 'start_date' => [
     'required',
@@ -1457,8 +1457,8 @@ You may also pass a custom confirmation field name. For example, `confirmed:repe
 The field under validation must be an array that contains all of the given parameter values. Since this rule often requires you to `implode` an array, the `Rule::contains` method may be used to fluently construct the rule:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($data, [
     'roles' => [
@@ -1475,8 +1475,8 @@ Validator::make($data, [
 The field under validation must be an array that does not contain any of the given parameter values. Since this rule often requires you to `implode` an array, the `Rule::doesntContain` method may be used to fluently construct the rule:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($data, [
     'roles' => [
@@ -1514,7 +1514,7 @@ The field under validation must match one of the given _formats_. You should use
 For convenience, date-based rules may be constructed using the fluent `date` rule builder:
 
 ```php
-use Illuminate\Validation\Rule;
+use Hypervel\Validation\Rule;
 
 'start_date' => [
     'required',
@@ -1580,8 +1580,8 @@ A _ratio_ constraint should be represented as width divided by height. This can 
 Since this rule requires several arguments, it is often more convenient to use the `Rule::dimensions` method to fluently construct the rule:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($data, [
     'avatar' => [
@@ -1650,7 +1650,7 @@ The example above will apply the `RFCValidation` and `DNSCheckValidation` valida
 For convenience, email validation rules may be built using the fluent rule builder:
 
 ```php
-use Illuminate\Validation\Rule;
+use Hypervel\Validation\Rule;
 
 $request->validate([
     'email' => [
@@ -1672,8 +1672,8 @@ $request->validate([
 The field under validation must match the specified character encoding. This rule uses PHP's `mb_check_encoding` function to verify the encoding of the given file or string value. For convenience, the `encoding` rule may be constructed using Laravel's fluent file rule builder:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rules\File;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rules\File;
 
 Validator::validate($input, [
     'attachment' => [
@@ -1696,7 +1696,7 @@ The `Enum` rule is a class-based rule that validates whether the field under val
 
 ```php
 use App\Enums\ServerStatus;
-use Illuminate\Validation\Rule;
+use Hypervel\Validation\Rule;
 
 $request->validate([
     'status' => [Rule::enum(ServerStatus::class)],
@@ -1716,8 +1716,8 @@ Rule::enum(ServerStatus::class)
 The `when` method may be used to conditionally modify the `Enum` rule:
 
 ```php
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Auth;
+use Hypervel\Validation\Rule;
 
 Rule::enum(ServerStatus::class)
     ->when(
@@ -1740,8 +1740,8 @@ The field under validation will be excluded from the request data returned by th
 If complex conditional exclusion logic is required, you may utilize the `Rule::excludeIf` method. This method accepts a boolean or a closure. When given a closure, the closure should return `true` or `false` to indicate if the field under validation should be excluded:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
     'role_id' => Rule::excludeIf($request->user()->is_admin),
@@ -1760,8 +1760,8 @@ The field under validation will be excluded from the request data returned by th
 If complex conditional exclusion logic is required, you may utilize the `Rule::excludeUnless` method. This method accepts a boolean or a closure. When given a closure, the closure should return `true` or `false` to indicate if the field under validation should not be excluded:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
     'role_id' => Rule::excludeUnless($request->user()->is_admin),
@@ -1820,9 +1820,9 @@ Instead of specifying the table name directly, you may specify the Eloquent mode
 If you would like to customize the query executed by the validation rule, you may use the `Rule` class to fluently define the rule. In this example, we'll also specify the validation rules as an array instead of using the `|` character to delimit them:
 
 ```php
-use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($data, [
     'email' => [
@@ -1899,8 +1899,8 @@ The file under validation must be an image (jpg, jpeg, png, bmp, gif, or webp).
 The field under validation must be included in the given list of values. Since this rule often requires you to `implode` an array, the `Rule::in` method may be used to fluently construct the rule:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($data, [
     'zones' => [
@@ -1913,8 +1913,8 @@ Validator::make($data, [
 When the `in` rule is combined with the `array` rule, each value in the input array must be present within the list of values provided to the `in` rule. In the following example, the `LAS` airport code in the input array is invalid since it is not contained in the list of airports provided to the `in` rule:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 $input = [
     'airports' => ['NYC', 'LAS'],
@@ -2089,7 +2089,7 @@ The field under validation must not be present _only if_ all of the other specif
 The field under validation must not be included in the given list of values. The `Rule::notIn` method may be used to fluently construct the rule:
 
 ```php
-use Illuminate\Validation\Rule;
+use Hypervel\Validation\Rule;
 
 Validator::make($data, [
     'toppings' => [
@@ -2181,8 +2181,8 @@ The field under validation must be missing or empty if the _anotherfield_ field 
 If complex conditional prohibition logic is required, you may utilize the `Rule::prohibitedIf` method. This method accepts a boolean or a closure. When given a closure, the closure should return `true` or `false` to indicate if the field under validation should be prohibited:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
     'role_id' => Rule::prohibitedIf($request->user()->is_admin),
@@ -2219,8 +2219,8 @@ The field under validation must be missing or empty unless the _anotherfield_ fi
 If complex conditional prohibition logic is required, you may utilize the `Rule::prohibitedUnless` method. This method accepts a boolean or a closure. When given a closure, the closure should return `true` or `false` to indicate if the field under validation should not be prohibited:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
     'role_id' => Rule::prohibitedUnless($request->user()->is_admin),
@@ -2277,8 +2277,8 @@ The field under validation must be present and not empty if the _anotherfield_ f
 If you would like to construct a more complex condition for the `required_if` rule, you may use the `Rule::requiredIf` method. This method accepts a boolean or a closure. When passed a closure, the closure should return `true` or `false` to indicate if the field under validation is required:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
     'role_id' => Rule::requiredIf($request->user()->is_admin),
@@ -2307,8 +2307,8 @@ The field under validation must be present and not empty unless the _anotherfiel
 If you would like to construct a more complex condition for the `required_unless` rule, you may use the `Rule::requiredUnless` method. This method accepts a boolean or a closure. When passed a closure, the closure should return `true` or `false` to indicate if the field under validation is not required:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($request->all(), [
     'role_id' => Rule::requiredUnless($request->user()->is_admin),
@@ -2381,7 +2381,7 @@ The field under validation must be a string. If you would like to allow the fiel
 For convenience, string validation rules may also be constructed using the fluent `Rule::string()` rule builder:
 
 ```php
-use Illuminate\Validation\Rule;
+use Hypervel\Validation\Rule;
 
 'title' => [
     'required',
@@ -2443,8 +2443,8 @@ Sometimes, you may wish to ignore a given ID during unique validation. For examp
 To instruct the validator to ignore the user's ID, we'll use the `Rule` class to fluently define the rule. In this example, we'll also specify the validation rules as an array instead of using the `|` character to delimit the rules:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 Validator::make($data, [
     'email' => [
@@ -2540,7 +2540,7 @@ You may also validate that the given UUID matches a UUID specification by versio
 You may occasionally wish to not validate a given field if another field has a given value. You may accomplish this using the `exclude_if` validation rule. In this example, the `appointment_date` and `doctor_name` fields will not be validated if the `has_appointment` field has a value of `false`:
 
 ```php
-use Illuminate\Support\Facades\Validator;
+use Hypervel\Support\Facades\Validator;
 
 $validator = Validator::make($data, [
     'has_appointment' => 'required|boolean',
@@ -2581,7 +2581,7 @@ In the example above, the `email` field will only be validated if it is present 
 Sometimes you may wish to add validation rules based on more complex conditional logic. For example, you may wish to require a given field only if another field has a greater value than 100. Or, you may need two fields to have a given value only when another field is present. Adding these validation rules doesn't have to be a pain. First, create a `Validator` instance with your _static rules_ that never change:
 
 ```php
-use Illuminate\Support\Facades\Validator;
+use Hypervel\Support\Facades\Validator;
 
 $validator = Validator::make($request->all(), [
     'email' => 'required|email',
@@ -2592,7 +2592,7 @@ $validator = Validator::make($request->all(), [
 Let's assume our web application is for game collectors. If a game collector registers with our application and they own more than 100 games, we want them to explain why they own so many games. For example, perhaps they run a game resale shop, or maybe they just enjoy collecting games. To conditionally add this requirement, we can use the `sometimes` method on the `Validator` instance.
 
 ```php
-use Illuminate\Support\Fluent;
+use Hypervel\Support\Fluent;
 
 $validator->sometimes('reason', 'required|max:500', function (Fluent $input) {
     return $input->games >= 100;
@@ -2608,7 +2608,7 @@ $validator->sometimes(['reason', 'cost'], 'required', function (Fluent $input) {
 ```
 
 > [!NOTE]
-> The `$input` parameter passed to your closure will be an instance of `Illuminate\Support\Fluent` and may be used to access your input and files under validation.
+> The `$input` parameter passed to your closure will be an instance of `Hypervel\Support\Fluent` and may be used to access your input and files under validation.
 
 <a name="complex-conditional-array-validation"></a>
 #### Complex Conditional Array Validation
@@ -2638,7 +2638,7 @@ $validator->sometimes('channels.*.address', 'url', function (Fluent $input, Flue
 });
 ```
 
-Like the `$input` parameter passed to the closure, the `$item` parameter is an instance of `Illuminate\Support\Fluent` when the attribute data is an array; otherwise, it is a string.
+Like the `$input` parameter passed to the closure, the `$item` parameter is an instance of `Hypervel\Support\Fluent` when the attribute data is an array; otherwise, it is a string.
 
 <a name="validating-arrays"></a>
 ## Validating Arrays
@@ -2646,7 +2646,7 @@ Like the `$input` parameter passed to the closure, the `$item` parameter is an i
 As discussed in the [array validation rule documentation](#rule-array), the `array` rule accepts a list of allowed array keys. If any additional keys are present within the array, validation will fail:
 
 ```php
-use Illuminate\Support\Facades\Validator;
+use Hypervel\Support\Facades\Validator;
 
 $input = [
     'user' => [
@@ -2669,7 +2669,7 @@ In general, you should always specify the array keys that are allowed to be pres
 Validating nested array-based form input fields doesn't have to be a pain. You may use "dot notation" to validate attributes within an array. For example, if the incoming HTTP request contains a `photos[profile]` field, you may validate it like so:
 
 ```php
-use Illuminate\Support\Facades\Validator;
+use Hypervel\Support\Facades\Validator;
 
 $validator = Validator::make($request->all(), [
     'photos.profile' => 'required|image',
@@ -2702,8 +2702,8 @@ Sometimes you may need to access the value for a given nested array element when
 
 ```php
 use App\Rules\HasPermission;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
 
 $validator = Validator::make($request->all(), [
     'companies.*.id' => Rule::forEach(function (string|null $value, string $attribute) {
@@ -2721,7 +2721,7 @@ $validator = Validator::make($request->all(), [
 When validating arrays, you may want to reference the index or position of a particular item that failed validation within the error message displayed by your application. To accomplish this, you may include the `:index` (starts from `0`), `:position` (starts from `1`), or `:ordinal-position` (starts from `1st`) placeholders within your [custom validation message](#manual-customizing-the-error-messages):
 
 ```php
-use Illuminate\Support\Facades\Validator;
+use Hypervel\Support\Facades\Validator;
 
 $input = [
     'photos' => [
@@ -2757,8 +2757,8 @@ If necessary, you may reference more deeply nested indexes and positions via `se
 Laravel provides a variety of validation rules that may be used to validate uploaded files, such as `mimes`, `image`, `min`, and `max`. While you are free to specify these rules individually when validating files, Laravel also offers a fluent file validation rule builder that you may find convenient:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rules\File;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rules\File;
 
 Validator::validate($input, [
     'attachment' => [
@@ -2796,9 +2796,9 @@ If your application accepts images uploaded by your users, you may use the `File
 In addition, the `dimensions` rule may be used to limit the dimensions of the image:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\File;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rule;
+use Hypervel\Validation\Rules\File;
 
 Validator::validate($input, [
     'photo' => [
@@ -2823,8 +2823,8 @@ Validator::validate($input, [
 You may also validate the dimensions of an image. For example, to validate that an uploaded image is at least 1000 pixels wide and 500 pixels tall, you may use the `dimensions` rule:
 
 ```php
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\File;
+use Hypervel\Validation\Rule;
+use Hypervel\Validation\Rules\File;
 
 File::image()->dimensions(
     Rule::dimensions()
@@ -2842,8 +2842,8 @@ File::image()->dimensions(
 To ensure that passwords have an adequate level of complexity, you may use Laravel's `Password` rule object:
 
 ```php
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rules\Password;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Rules\Password;
 
 $validator = Validator::make($request->all(), [
     'password' => ['required', 'confirmed', Password::min(8)],
@@ -2901,7 +2901,7 @@ Password::min(8)
 You may find it convenient to specify the default validation rules for passwords in a single location of your application. You can easily accomplish this using the `Password::defaults` method, which accepts a closure. The closure given to the `defaults` method should return the default configuration of the Password rule. Typically, the `defaults` rule should be called within the `boot` method of one of your application's service providers:
 
 ```php
-use Illuminate\Validation\Rules\Password;
+use Hypervel\Validation\Rules\Password;
 
 /**
  * Bootstrap any application services.
@@ -2956,7 +2956,7 @@ Once the rule has been created, we are ready to define its behavior. A rule obje
 namespace App\Rules;
 
 use Closure;
-use Illuminate\Contracts\Validation\ValidationRule;
+use Hypervel\Contracts\Validation\ValidationRule;
 
 class Uppercase implements ValidationRule
 {
@@ -3002,15 +3002,15 @@ $fail('validation.location')->translate([
 
 #### Accessing Additional Data
 
-If your custom validation rule class needs to access all of the other data undergoing validation, your rule class may implement the `Illuminate\Contracts\Validation\DataAwareRule` interface. This interface requires your class to define a `setData` method. This method will automatically be invoked by Laravel (before validation proceeds) with all of the data under validation:
+If your custom validation rule class needs to access all of the other data undergoing validation, your rule class may implement the `Hypervel\Contracts\Validation\DataAwareRule` interface. This interface requires your class to define a `setData` method. This method will automatically be invoked by Laravel (before validation proceeds) with all of the data under validation:
 
 ```php
 <?php
 
 namespace App\Rules;
 
-use Illuminate\Contracts\Validation\DataAwareRule;
-use Illuminate\Contracts\Validation\ValidationRule;
+use Hypervel\Contracts\Validation\DataAwareRule;
+use Hypervel\Contracts\Validation\ValidationRule;
 
 class Uppercase implements DataAwareRule, ValidationRule
 {
@@ -3044,16 +3044,16 @@ Or, if your validation rule requires access to the validator instance performing
 
 namespace App\Rules;
 
-use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Contracts\Validation\ValidatorAwareRule;
-use Illuminate\Validation\Validator;
+use Hypervel\Contracts\Validation\ValidationRule;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\Validation\Validator;
 
 class Uppercase implements ValidationRule, ValidatorAwareRule
 {
     /**
      * The validator instance.
      *
-     * @var \Illuminate\Validation\Validator
+     * @var \Hypervel\Validation\Validator
      */
     protected $validator;
 
@@ -3077,7 +3077,7 @@ class Uppercase implements ValidationRule, ValidatorAwareRule
 If you only need the functionality of a custom rule once throughout your application, you may use a closure instead of a rule object. The closure receives the attribute's name, the attribute's value, and a `$fail` callback that should be called if validation fails:
 
 ```php
-use Illuminate\Support\Facades\Validator;
+use Hypervel\Support\Facades\Validator;
 use Closure;
 
 $validator = Validator::make($request->all(), [
@@ -3099,7 +3099,7 @@ $validator = Validator::make($request->all(), [
 By default, when an attribute being validated is not present or contains an empty string, normal validation rules, including custom rules, are not run. For example, the [unique](#rule-unique) rule will not be run against an empty string:
 
 ```php
-use Illuminate\Support\Facades\Validator;
+use Hypervel\Support\Facades\Validator;
 
 $rules = ['name' => 'unique:users,name'];
 

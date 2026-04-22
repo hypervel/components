@@ -28,12 +28,12 @@ Typically, the rate limiter utilizes your default application cache as defined b
 <a name="basic-usage"></a>
 ## Basic Usage
 
-The `Illuminate\Support\Facades\RateLimiter` facade may be used to interact with the rate limiter. The simplest method offered by the rate limiter is the `attempt` method, which rate limits a given callback for a given number of seconds.
+The `Hypervel\Support\Facades\RateLimiter` facade may be used to interact with the rate limiter. The simplest method offered by the rate limiter is the `attempt` method, which rate limits a given callback for a given number of seconds.
 
 The `attempt` method returns `false` when the callback has no remaining attempts available; otherwise, the `attempt` method will return the callback's result or `true`. The first argument accepted by the `attempt` method is a rate limiter "key", which may be any string of your choosing that represents the action being rate limited:
 
 ```php
-use Illuminate\Support\Facades\RateLimiter;
+use Hypervel\Support\Facades\RateLimiter;
 
 $executed = RateLimiter::attempt(
     'send-message:'.$user->id,
@@ -67,7 +67,7 @@ $executed = RateLimiter::attempt(
 If you would like to manually interact with the rate limiter, a variety of other methods are available. For example, you may invoke the `tooManyAttempts` method to determine if a given rate limiter key has exceeded its maximum number of allowed attempts per minute:
 
 ```php
-use Illuminate\Support\Facades\RateLimiter;
+use Hypervel\Support\Facades\RateLimiter;
 
 if (RateLimiter::tooManyAttempts('send-message:'.$user->id, $perMinute = 5)) {
     return 'Too many attempts!';
@@ -81,7 +81,7 @@ RateLimiter::increment('send-message:'.$user->id);
 Alternatively, you may use the `remaining` method to retrieve the number of attempts remaining for a given key. If a given key has retries remaining, you may invoke the `increment` method to increment the number of total attempts:
 
 ```php
-use Illuminate\Support\Facades\RateLimiter;
+use Hypervel\Support\Facades\RateLimiter;
 
 if (RateLimiter::remaining('send-message:'.$user->id, $perMinute = 5)) {
     RateLimiter::increment('send-message:'.$user->id);
@@ -102,7 +102,7 @@ RateLimiter::increment('send-message:'.$user->id, amount: 5);
 When a key has no more attempts left, the `availableIn` method returns the number of seconds remaining until more attempts will be available:
 
 ```php
-use Illuminate\Support\Facades\RateLimiter;
+use Hypervel\Support\Facades\RateLimiter;
 
 if (RateLimiter::tooManyAttempts('send-message:'.$user->id, $perMinute = 5)) {
     $seconds = RateLimiter::availableIn('send-message:'.$user->id);
@@ -122,7 +122,7 @@ You may reset the number of attempts for a given rate limiter key using the `cle
 
 ```php
 use App\Models\Message;
-use Illuminate\Support\Facades\RateLimiter;
+use Hypervel\Support\Facades\RateLimiter;
 
 /**
  * Mark the message as read.

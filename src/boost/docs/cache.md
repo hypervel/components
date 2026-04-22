@@ -140,7 +140,7 @@ To obtain a cache store instance, you may use the `Cache` facade, which is what 
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 
 class UserController extends Controller
 {
@@ -359,7 +359,7 @@ Laravel's `memo` cache driver allows you to temporarily store resolved cache val
 To use the memoized cache, invoke the `memo` method:
 
 ```php
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 
 $value = Cache::memo()->get('key');
 ```
@@ -412,7 +412,7 @@ cache(['key' => 'value'], $seconds);
 cache(['key' => 'value'], now()->plus(minutes: 10));
 ```
 
-When the `cache` function is called without any arguments, it returns an instance of the `Illuminate\Contracts\Cache\Factory` implementation, allowing you to call other caching methods:
+When the `cache` function is called without any arguments, it returns an instance of the `Hypervel\Contracts\Cache\Factory` implementation, allowing you to call other caching methods:
 
 ```php
 cache()->remember('users', $seconds, function () {
@@ -435,7 +435,7 @@ cache()->remember('users', $seconds, function () {
 Cache tags allow you to tag related items in the cache and then flush all cached values that have been assigned a given tag. You may access a tagged cache by passing in an ordered array of tag names. For example, let's access a tagged cache and `put` a value into the cache:
 
 ```php
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 
 Cache::tags(['people', 'artists'])->put('John', $john, $seconds);
 Cache::tags(['people', 'authors'])->put('Anne', $anne, $seconds);
@@ -479,7 +479,7 @@ Cache::tags('authors')->flush();
 Atomic locks allow for the manipulation of distributed locks without worrying about race conditions. For example, [Laravel Cloud](https://cloud.laravel.com) uses atomic locks to ensure that only one remote task is being executed on a server at a time. You may create and manage locks using the `Cache::lock` method:
 
 ```php
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 
 $lock = Cache::lock('foo', 10);
 
@@ -498,10 +498,10 @@ Cache::lock('foo', 10)->get(function () {
 });
 ```
 
-If the lock is not available at the moment you request it, you may instruct Laravel to wait for a specified number of seconds. If the lock cannot be acquired within the specified time limit, an `Illuminate\Contracts\Cache\LockTimeoutException` will be thrown:
+If the lock is not available at the moment you request it, you may instruct Laravel to wait for a specified number of seconds. If the lock cannot be acquired within the specified time limit, an `Hypervel\Contracts\Cache\LockTimeoutException` will be thrown:
 
 ```php
-use Illuminate\Contracts\Cache\LockTimeoutException;
+use Hypervel\Contracts\Cache\LockTimeoutException;
 
 $lock = Cache::lock('foo', 10);
 
@@ -572,7 +572,7 @@ Cache::withoutOverlapping('foo', function () {
 }, lockFor: 120, waitFor: 5);
 ```
 
-If the lock cannot be acquired within the specified wait time, an `Illuminate\Contracts\Cache\LockTimeoutException` will be thrown.
+If the lock cannot be acquired within the specified wait time, an `Hypervel\Contracts\Cache\LockTimeoutException` will be thrown.
 
 If you want controlled parallelism, use the `funnel` method to set a maximum number of concurrent executions. The `funnel` method works with any cache driver that supports locks:
 
@@ -590,10 +590,10 @@ Cache::funnel('foo')
 
 The `funnel` key identifies the resource being limited. The `limit` method defines the maximum concurrent executions. The `releaseAfter` method sets a safety timeout in seconds before an acquired slot is automatically released. The `block` method sets how many seconds to wait for an available slot.
 
-If you prefer to handle the timeout via exceptions instead of providing a failure closure, you may omit the second closure. An `Illuminate\Cache\Limiters\LimiterTimeoutException` will be thrown if the lock cannot be acquired within the specified wait time:
+If you prefer to handle the timeout via exceptions instead of providing a failure closure, you may omit the second closure. An `Hypervel\Cache\Limiters\LimiterTimeoutException` will be thrown if the lock cannot be acquired within the specified wait time:
 
 ```php
-use Illuminate\Cache\Limiters\LimiterTimeoutException;
+use Hypervel\Cache\Limiters\LimiterTimeoutException;
 
 try {
     Cache::funnel('foo')
@@ -620,7 +620,7 @@ Cache::store('redis')->funnel('foo')
 ```
 
 > [!NOTE]
-> The `funnel` method requires the cache store to implement the `Illuminate\Contracts\Cache\LockProvider` interface. If you attempt to use `funnel` with a cache store that does not support locks, a `BadMethodCallException` will be thrown.
+> The `funnel` method requires the cache store to implement the `Hypervel\Contracts\Cache\LockProvider` interface. If you attempt to use `funnel` with a cache store that does not support locks, a `BadMethodCallException` will be thrown.
 
 <a name="cache-failover"></a>
 ## Cache Failover
@@ -645,7 +645,7 @@ Once you have configured a store that uses the `failover` driver, you will need 
 CACHE_STORE=failover
 ```
 
-When a cache store operation fails and failover is activated, Laravel will dispatch the `Illuminate\Cache\Events\CacheFailedOver` event, allowing you to report or log that a cache store has failed.
+When a cache store operation fails and failover is activated, Laravel will dispatch the `Hypervel\Cache\Events\CacheFailedOver` event, allowing you to report or log that a cache store has failed.
 
 <a name="adding-custom-cache-drivers"></a>
 ## Adding Custom Cache Drivers
@@ -653,14 +653,14 @@ When a cache store operation fails and failover is activated, Laravel will dispa
 <a name="writing-the-driver"></a>
 ### Writing the Driver
 
-To create our custom cache driver, we first need to implement the `Illuminate\Contracts\Cache\Store` [contract](/docs/{{version}}/contracts). So, a MongoDB cache implementation might look something like this:
+To create our custom cache driver, we first need to implement the `Hypervel\Contracts\Cache\Store` [contract](/docs/{{version}}/contracts). So, a MongoDB cache implementation might look something like this:
 
 ```php
 <?php
 
 namespace App\Extensions;
 
-use Illuminate\Contracts\Cache\Store;
+use Hypervel\Contracts\Cache\Store;
 
 class MongoStore implements Store
 {
@@ -677,7 +677,7 @@ class MongoStore implements Store
 }
 ```
 
-We just need to implement each of these methods using a MongoDB connection. For an example of how to implement each of these methods, take a look at the `Illuminate\Cache\MemcachedStore` in the [Laravel framework source code](https://github.com/laravel/framework). Once our implementation is complete, we can finish our custom driver registration by calling the `Cache` facade's `extend` method:
+We just need to implement each of these methods using a MongoDB connection. For an example of how to implement each of these methods, take a look at the `Hypervel\Cache\MemcachedStore` in the [Laravel framework source code](https://github.com/laravel/framework). Once our implementation is complete, we can finish our custom driver registration by calling the `Cache` facade's `extend` method:
 
 ```php
 Cache::extend('mongo', function (Application $app) {
@@ -699,9 +699,9 @@ To register the custom cache driver with Laravel, we will use the `extend` metho
 namespace App\Providers;
 
 use App\Extensions\MongoStore;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -727,7 +727,7 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
-The first argument passed to the `extend` method is the name of the driver. This will correspond to your `driver` option in the `config/cache.php` configuration file. The second argument is a closure that should return an `Illuminate\Cache\Repository` instance. The closure will be passed an `$app` instance, which is an instance of the [service container](/docs/{{version}}/container).
+The first argument passed to the `extend` method is the name of the driver. This will correspond to your `driver` option in the `config/cache.php` configuration file. The second argument is a closure that should return an `Hypervel\Cache\Repository` instance. The closure will be passed an `$app` instance, which is an instance of the [service container](/docs/{{version}}/container).
 
 Once your extension is registered, update the `CACHE_STORE` environment variable or `default` option within your application's `config/cache.php` configuration file to the name of your extension.
 
@@ -740,23 +740,23 @@ To execute code on every cache operation, you may listen for various [events](/d
 
 | Event Name                                      |
 |-------------------------------------------------|
-| `Illuminate\Cache\Events\CacheFlushed`          |
-| `Illuminate\Cache\Events\CacheFlushing`         |
-| `Illuminate\Cache\Events\CacheFlushFailed`      |
-| `Illuminate\Cache\Events\CacheLocksFlushed`     |
-| `Illuminate\Cache\Events\CacheLocksFlushing`    |
-| `Illuminate\Cache\Events\CacheLocksFlushFailed` |
-| `Illuminate\Cache\Events\CacheHit`              |
-| `Illuminate\Cache\Events\CacheMissed`           |
-| `Illuminate\Cache\Events\ForgettingKey`         |
-| `Illuminate\Cache\Events\KeyForgetFailed`       |
-| `Illuminate\Cache\Events\KeyForgotten`          |
-| `Illuminate\Cache\Events\KeyWriteFailed`        |
-| `Illuminate\Cache\Events\KeyWritten`            |
-| `Illuminate\Cache\Events\RetrievingKey`         |
-| `Illuminate\Cache\Events\RetrievingManyKeys`    |
-| `Illuminate\Cache\Events\WritingKey`            |
-| `Illuminate\Cache\Events\WritingManyKeys`       |
+| `Hypervel\Cache\Events\CacheFlushed`          |
+| `Hypervel\Cache\Events\CacheFlushing`         |
+| `Hypervel\Cache\Events\CacheFlushFailed`      |
+| `Hypervel\Cache\Events\CacheLocksFlushed`     |
+| `Hypervel\Cache\Events\CacheLocksFlushing`    |
+| `Hypervel\Cache\Events\CacheLocksFlushFailed` |
+| `Hypervel\Cache\Events\CacheHit`              |
+| `Hypervel\Cache\Events\CacheMissed`           |
+| `Hypervel\Cache\Events\ForgettingKey`         |
+| `Hypervel\Cache\Events\KeyForgetFailed`       |
+| `Hypervel\Cache\Events\KeyForgotten`          |
+| `Hypervel\Cache\Events\KeyWriteFailed`        |
+| `Hypervel\Cache\Events\KeyWritten`            |
+| `Hypervel\Cache\Events\RetrievingKey`         |
+| `Hypervel\Cache\Events\RetrievingManyKeys`    |
+| `Hypervel\Cache\Events\WritingKey`            |
+| `Hypervel\Cache\Events\WritingManyKeys`       |
 
 </div>
 

@@ -250,10 +250,10 @@ In addition to silencing individual job classes, Horizon also supports silencing
 ],
 ```
 
-Alternatively, the job you wish to silence can implement the `Laravel\Horizon\Contracts\Silenced` interface. If a job implements this interface, it will automatically be silenced, even if it is not present in the `silenced` configuration array:
+Alternatively, the job you wish to silence can implement the `Hypervel\Horizon\Contracts\Silenced` interface. If a job implements this interface, it will automatically be silenced, even if it is not present in the `silenced` configuration array:
 
 ```php
-use Laravel\Horizon\Contracts\Silenced;
+use Hypervel\Horizon\Contracts\Silenced;
 
 class ProcessPodcast implements ShouldQueue, Silenced
 {
@@ -588,8 +588,8 @@ Horizon allows you to assign "tags" to jobs, including mailables, broadcast even
 namespace App\Jobs;
 
 use App\Models\Video;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
 
 class RenderVideo implements ShouldQueue
 {
@@ -706,7 +706,7 @@ Setting a queue's threshold to `0` will disable long wait notifications for that
 Horizon includes a metrics dashboard which provides information regarding your job and queue wait times and throughput. In order to populate this dashboard, you should configure Horizon's `snapshot` Artisan command to run every five minutes in your application's `routes/console.php` file:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
 ```

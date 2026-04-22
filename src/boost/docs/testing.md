@@ -54,7 +54,7 @@ If you have a test class that mostly relies on Laravel's testing features, but a
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\Attributes\UnitTest;
+use Hypervel\Foundation\Testing\Attributes\UnitTest;
 use Tests\TestCase;
 
 class LocationServiceTest extends TestCase
@@ -175,9 +175,9 @@ Using the `ParallelTesting` facade, you may specify code to be executed on the `
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\ParallelTesting;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Facades\ParallelTesting;
+use Hypervel\Support\ServiceProvider;
 use PHPUnit\Framework\TestCase;
 
 class AppServiceProvider extends ServiceProvider
@@ -251,12 +251,12 @@ php artisan test --profile
 <a name="configuration-caching"></a>
 ## Configuration Caching
 
-When running tests, Laravel boots the application for each individual test method.  Without a cached configuration file, each configuration file in your application must be loaded at the start of a test. To build the configuration once and re-use it for all tests in a single run, you may use the `Illuminate\Foundation\Testing\WithCachedConfig` trait:
+When running tests, Laravel boots the application for each individual test method.  Without a cached configuration file, each configuration file in your application must be loaded at the start of a test. To build the configuration once and re-use it for all tests in a single run, you may use the `Hypervel\Foundation\Testing\WithCachedConfig` trait:
 
 ```php tab=Pest
 <?php
 
-use Illuminate\Foundation\Testing\WithCachedConfig;
+use Hypervel\Foundation\Testing\WithCachedConfig;
 
 pest()->use(WithCachedConfig::class);
 
@@ -268,7 +268,7 @@ pest()->use(WithCachedConfig::class);
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\WithCachedConfig;
+use Hypervel\Foundation\Testing\WithCachedConfig;
 use Tests\TestCase;
 
 class ConfigTest extends TestCase

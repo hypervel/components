@@ -165,8 +165,8 @@ Reverb may be monitored via an integration with [Laravel Pulse](/docs/{{version}
 To enable the integration, you should first ensure you have [installed Pulse](/docs/{{version}}/pulse#installation). Then, add any of Reverb's recorders to your application's `config/pulse.php` configuration file:
 
 ```php
-use Laravel\Reverb\Pulse\Recorders\ReverbConnections;
-use Laravel\Reverb\Pulse\Recorders\ReverbMessages;
+use Hypervel\Reverb\Pulse\Recorders\ReverbConnections;
+use Hypervel\Reverb\Pulse\Recorders\ReverbMessages;
 
 'recorders' => [
     ReverbConnections::class => [
@@ -325,22 +325,22 @@ Reverb dispatches internal events during the lifecycle of a connection and messa
 
 The following events are dispatched by Reverb:
 
-#### `Laravel\Reverb\Events\ChannelCreated`
+#### `Hypervel\Reverb\Events\ChannelCreated`
 
-Dispatched when a channel is created. This typically occurs when the first connection subscribes to a specific channel. The event receives the `Laravel\Reverb\Protocols\Pusher\Channel` instance.
+Dispatched when a channel is created. This typically occurs when the first connection subscribes to a specific channel. The event receives the `Hypervel\Reverb\Protocols\Pusher\Channel` instance.
 
-#### `Laravel\Reverb\Events\ChannelRemoved`
+#### `Hypervel\Reverb\Events\ChannelRemoved`
 
-Dispatched when a channel is removed. This typically occurs when the last connection unsubscribes from a channel. The event receives the `Laravel\Reverb\Protocols\Pusher\Channel` instance.
+Dispatched when a channel is removed. This typically occurs when the last connection unsubscribes from a channel. The event receives the `Hypervel\Reverb\Protocols\Pusher\Channel` instance.
 
-#### `Laravel\Reverb\Events\ConnectionPruned`
+#### `Hypervel\Reverb\Events\ConnectionPruned`
 
-Dispatched when a stale connection is pruned by the server. The event receives the `Laravel\Reverb\Contracts\Connection` instance.
+Dispatched when a stale connection is pruned by the server. The event receives the `Hypervel\Reverb\Contracts\Connection` instance.
 
-#### `Laravel\Reverb\Events\MessageReceived`
+#### `Hypervel\Reverb\Events\MessageReceived`
 
-Dispatched when a message is received from a client connection. The event receives the `Laravel\Reverb\Contracts\Connection` instance and the raw string `$message`.
+Dispatched when a message is received from a client connection. The event receives the `Hypervel\Reverb\Contracts\Connection` instance and the raw string `$message`.
 
-#### `Laravel\Reverb\Events\MessageSent`
+#### `Hypervel\Reverb\Events\MessageSent`
 
-Dispatched when a message is sent to a client connection. The event receives the `Laravel\Reverb\Contracts\Connection` instance and the raw string `$message`.
+Dispatched when a message is sent to a client connection. The event receives the `Hypervel\Reverb\Contracts\Connection` instance and the raw string `$message`.

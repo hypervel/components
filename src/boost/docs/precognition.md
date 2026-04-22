@@ -34,7 +34,7 @@ First, to enable Precognition for a route, the `HandlePrecognitiveRequests` midd
 
 ```php
 use App\Http\Requests\StoreUserRequest;
-use Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests;
+use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 
 Route::post('/users', function (StoreUserRequest $request) {
     // ...
@@ -198,7 +198,7 @@ First, to enable Precognition for a route, the `HandlePrecognitiveRequests` midd
 
 ```php
 use App\Http\Requests\StoreUserRequest;
-use Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests;
+use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 
 Route::post('/users', function (StoreUserRequest $request) {
     // ...
@@ -357,7 +357,7 @@ First, to enable Precognition for a route, the `HandlePrecognitiveRequests` midd
 
 ```php
 use App\Http\Requests\CreateUserRequest;
-use Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests;
+use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 
 Route::post('/users', function (CreateUserRequest $request) {
     // ...
@@ -580,8 +580,8 @@ For example, on a user creation form, we may want to validate that a password is
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
+use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\Validation\Rules\Password;
 
 class StoreUserRequest extends FormRequest
 {
@@ -652,7 +652,7 @@ namespace App\Http\Middleware;
 
 use App\Facades\Interaction;
 use Closure;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 class InteractionMiddleware
 {

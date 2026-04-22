@@ -74,15 +74,15 @@ But, before diving too deep into using relationships, let's learn how to define 
 <a name="one-to-one"></a>
 ### One to One / Has One
 
-A one-to-one relationship is a very basic type of database relationship. For example, a `User` model might be associated with one `Phone` model. To define this relationship, we will place a `phone` method on the `User` model. The `phone` method should call the `hasOne` method and return its result. The `hasOne` method is available to your model via the model's `Illuminate\Database\Eloquent\Model` base class:
+A one-to-one relationship is a very basic type of database relationship. For example, a `User` model might be associated with one `Phone` model. To define this relationship, we will place a `phone` method on the `User` model. The `phone` method should call the `hasOne` method and return its result. The `hasOne` method is available to your model via the model's `Hypervel\Database\Eloquent\Model` base class:
 
 ```php
 <?php
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasOne;
 
 class User extends Model
 {
@@ -124,8 +124,8 @@ So, we can access the `Phone` model from our `User` model. Next, let's define a 
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
 
 class Phone extends Model
 {
@@ -175,8 +175,8 @@ A one-to-many relationship is used to define relationships where a single model 
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 
 class Post extends Model
 {
@@ -244,8 +244,8 @@ If you would like Eloquent to automatically hydrate parent models onto their chi
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 
 class Post extends Model
 {
@@ -279,8 +279,8 @@ Now that we can access all of a post's comments, let's define a relationship to 
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
 
 class Comment extends Model
 {
@@ -530,8 +530,8 @@ Now that we have examined the table structure for the relationship, let's define
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasOneThrough;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasOneThrough;
 
 class Mechanic extends Model
 {
@@ -620,8 +620,8 @@ Now that we have examined the table structure for the relationship, let's define
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 
 class Application extends Model
 {
@@ -691,8 +691,8 @@ It's common to add additional methods to models that constrain relationships. Fo
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 
 class User extends Model
 {
@@ -769,15 +769,15 @@ role_user
 <a name="many-to-many-model-structure"></a>
 #### Model Structure
 
-Many-to-many relationships are defined by writing a method that returns the result of the `belongsToMany` method. The `belongsToMany` method is provided by the `Illuminate\Database\Eloquent\Model` base class that is used by all of your application's Eloquent models. For example, let's define a `roles` method on our `User` model. The first argument passed to this method is the name of the related model class:
+Many-to-many relationships are defined by writing a method that returns the result of the `belongsToMany` method. The `belongsToMany` method is provided by the `Hypervel\Database\Eloquent\Model` base class that is used by all of your application's Eloquent models. For example, let's define a `roles` method on our `User` model. The first argument passed to this method is the name of the related model class:
 
 ```php
 <?php
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 
 class User extends Model
 {
@@ -831,8 +831,8 @@ To define the "inverse" of a many-to-many relationship, you should define a meth
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 
 class Role extends Model
 {
@@ -958,15 +958,15 @@ return $this->belongsToMany(Badge::class)
 
 If you would like to define a custom model to represent the intermediate table of your many-to-many relationship, you may call the `using` method when defining the relationship. Custom pivot models give you the opportunity to define additional behavior on the pivot model, such as methods and casts.
 
-Custom many-to-many pivot models should extend the `Illuminate\Database\Eloquent\Relations\Pivot` class while custom polymorphic many-to-many pivot models should extend the `Illuminate\Database\Eloquent\Relations\MorphPivot` class. For example, we may define a `Role` model which uses a custom `RoleUser` pivot model:
+Custom many-to-many pivot models should extend the `Hypervel\Database\Eloquent\Relations\Pivot` class while custom polymorphic many-to-many pivot models should extend the `Hypervel\Database\Eloquent\Relations\MorphPivot` class. For example, we may define a `Role` model which uses a custom `RoleUser` pivot model:
 
 ```php
 <?php
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 
 class Role extends Model
 {
@@ -980,14 +980,14 @@ class Role extends Model
 }
 ```
 
-When defining the `RoleUser` model, you should extend the `Illuminate\Database\Eloquent\Relations\Pivot` class:
+When defining the `RoleUser` model, you should extend the `Hypervel\Database\Eloquent\Relations\Pivot` class:
 
 ```php
 <?php
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 
 class RoleUser extends Pivot
 {
@@ -1004,8 +1004,8 @@ class RoleUser extends Pivot
 If you have defined a many-to-many relationship that uses a custom pivot model, and that pivot model has an auto-incrementing primary key, you should ensure your custom pivot model class uses the `Table` attribute with `incrementing` set to `true`:
 
 ```php
-use Illuminate\Database\Eloquent\Attributes\Table;
-use Illuminate\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\Attributes\Table;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 
 #[Table(incrementing: true)]
 class RoleUser extends Pivot
@@ -1055,8 +1055,8 @@ Next, let's examine the model definitions needed to build this relationship:
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 
 class Image extends Model
 {
@@ -1069,8 +1069,8 @@ class Image extends Model
     }
 }
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphOne;
 
 class Post extends Model
 {
@@ -1083,8 +1083,8 @@ class Post extends Model
     }
 }
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphOne;
 
 class User extends Model
 {
@@ -1174,8 +1174,8 @@ Next, let's examine the model definitions needed to build this relationship:
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 
 class Comment extends Model
 {
@@ -1188,8 +1188,8 @@ class Comment extends Model
     }
 }
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
 
 class Post extends Model
 {
@@ -1202,8 +1202,8 @@ class Post extends Model
     }
 }
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
 
 class Video extends Model
 {
@@ -1372,8 +1372,8 @@ The `morphToMany` method accepts the name of the related model as well as the "r
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphToMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
 
 class Post extends Model
 {
@@ -1399,8 +1399,8 @@ The `morphedByMany` method accepts the name of the related model as well as the 
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphToMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
 
 class Tag extends Model
 {
@@ -1461,7 +1461,7 @@ By default, Laravel will use the fully qualified class name to store the "type" 
 For example, instead of using the model names as the "type", we may use simple strings such as `post` and `video`. By doing so, the polymorphic "type" column values in our database will remain valid even if the models are renamed:
 
 ```php
-use Illuminate\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Eloquent\Relations\Relation;
 
 Relation::enforceMorphMap([
     'post' => 'App\Models\Post',
@@ -1474,7 +1474,7 @@ You may call the `enforceMorphMap` method in the `boot` method of your `App\Prov
 You may determine the morph alias of a given model at runtime using the model's `getMorphClass` method. Conversely, you may determine the fully-qualified class name associated with a morph alias using the `Relation::getMorphedModel` method:
 
 ```php
-use Illuminate\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Eloquent\Relations\Relation;
 
 $alias = $post->getMorphClass();
 
@@ -1515,8 +1515,8 @@ For example, imagine a blog application in which a `User` model has many associa
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
 
 class User extends Model
 {
@@ -1565,7 +1565,7 @@ where user_id = ? and active = 1 or votes >= 100
 In most situations, you should use [logical groups](/docs/{{version}}/queries#logical-grouping) to group the conditional checks between parentheses:
 
 ```php
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 $user->posts()
     ->where(function (Builder $query) {
@@ -1629,7 +1629,7 @@ $posts = Post::has('comments.images')->get();
 If you need even more power, you may use the `whereHas` and `orWhereHas` methods to define additional query constraints on your `has` queries, such as inspecting the content of a comment:
 
 ```php
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 // Retrieve posts with at least one comment containing words like code%...
 $posts = Post::whereHas('comments', function (Builder $query) {
@@ -1695,7 +1695,7 @@ $posts = Post::doesntHave('comments')->get();
 If you need even more power, you may use the `whereDoesntHave` and `orWhereDoesntHave` methods to add additional query constraints to your `doesntHave` queries, such as inspecting the content of a comment:
 
 ```php
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 $posts = Post::whereDoesntHave('comments', function (Builder $query) {
     $query->where('content', 'like', 'code%');
@@ -1705,7 +1705,7 @@ $posts = Post::whereDoesntHave('comments', function (Builder $query) {
 You may use "dot" notation to execute a query against a nested relationship. For example, the following query will retrieve all posts that do not have comments as well as posts that have comments where none of the comments are from banned users:
 
 ```php
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 $posts = Post::whereDoesntHave('comments.author', function (Builder $query) {
     $query->where('banned', 1);
@@ -1721,7 +1721,7 @@ To query the existence of "morph to" relationships, you may use the `whereHasMor
 use App\Models\Comment;
 use App\Models\Post;
 use App\Models\Video;
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 // Retrieve comments associated to posts or videos with a title like code%...
 $comments = Comment::whereHasMorph(
@@ -1745,7 +1745,7 @@ $comments = Comment::whereDoesntHaveMorph(
 You may occasionally need to add query constraints based on the "type" of the related polymorphic model. The closure passed to the `whereHasMorph` method may receive a `$type` value as its second argument. This argument allows you to inspect the "type" of the query that is being built:
 
 ```php
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 $comments = Comment::whereHasMorph(
     'commentable',
@@ -1772,7 +1772,7 @@ $comments = Comment::whereMorphedTo('commentable', $post)
 Instead of passing an array of possible polymorphic models, you may provide `*` as a wildcard value. This will instruct Laravel to retrieve all of the possible polymorphic types from the database. Laravel will execute an additional query in order to perform this operation:
 
 ```php
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 $comments = Comment::whereHasMorph('commentable', '*', function (Builder $query) {
     $query->where('title', 'like', 'foo%');
@@ -1800,7 +1800,7 @@ foreach ($posts as $post) {
 By passing an array to the `withCount` method, you may add the "counts" for multiple relations as well as add additional constraints to the queries:
 
 ```php
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 $posts = Post::withCount(['votes', 'comments' => function (Builder $query) {
     $query->where('content', 'like', 'code%');
@@ -1813,7 +1813,7 @@ echo $posts[0]->comments_count;
 You may also alias the relationship count result, allowing multiple counts on the same relationship:
 
 ```php
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 $posts = Post::withCount([
     'comments',
@@ -1907,7 +1907,7 @@ In this example, let's assume that `Photo` and `Post` models may create `Activit
 Now, let's imagine we want to retrieve `ActivityFeed` instances and eager load the `parentable` parent models for each `ActivityFeed` instance. In addition, we want to retrieve the number of tags that are associated with each parent photo and the number of comments that are associated with each parent post:
 
 ```php
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 
 $activities = ActivityFeed::with([
     'parentable' => function (MorphTo $morphTo) {
@@ -1942,8 +1942,8 @@ When accessing Eloquent relationships as properties, the related models are "laz
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
 
 class Book extends Model
 {
@@ -2026,8 +2026,8 @@ If you would like to eager load a `morphTo` relationship, as well as nested rela
 ```php
 <?php
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 
 class ActivityFeed extends Model
 {
@@ -2046,7 +2046,7 @@ In this example, let's assume `Event`, `Photo`, and `Post` models may create `Ac
 Using these model definitions and relationships, we may retrieve `ActivityFeed` model instances and eager load all `parentable` models and their respective nested relationships:
 
 ```php
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 
 $activities = ActivityFeed::query()
     ->with(['parentable' => function (MorphTo $morphTo) {
@@ -2080,8 +2080,8 @@ Sometimes you might want to always load some relationships when retrieving a mod
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
 
 class Book extends Model
 {
@@ -2149,7 +2149,7 @@ $users = User::with(['posts' => function ($query) {
 If you are eager loading a `morphTo` relationship, Eloquent will run multiple queries to fetch each type of related model. You may add additional constraints to each of these queries using the `MorphTo` relation's `constrain` method:
 
 ```php
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 
 $comments = Comment::with(['commentable' => function (MorphTo $morphTo) {
     $morphTo->constrain([
@@ -2217,8 +2217,8 @@ This method accepts the name of the `morphTo` relationship as its first argument
 ```php
 <?php
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 
 class ActivityFeed extends Model
 {
@@ -2255,7 +2255,7 @@ $activities = ActivityFeed::with('parentable')
 In many cases, Laravel can automatically eager load the relationships you access. To enable automatic eager loading, you should invoke the `Model::automaticallyEagerLoadRelationships` method within the `boot` method of your application's `AppServiceProvider`:
 
 ```php
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model;
 
 /**
  * Bootstrap any application services.
@@ -2300,7 +2300,7 @@ As previously discussed, eager loading relationships can often provide significa
 The `preventLazyLoading` method accepts an optional boolean argument that indicates if lazy loading should be prevented. For example, you may wish to only disable lazy loading in non-production environments so that your production environment will continue to function normally even if a lazy loaded relationship is accidentally present in production code:
 
 ```php
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model;
 
 /**
  * Bootstrap any application services.
@@ -2311,7 +2311,7 @@ public function boot(): void
 }
 ```
 
-After preventing lazy loading, Eloquent will throw a `Illuminate\Database\LazyLoadingViolationException` exception when your application attempts to lazy load any Eloquent relationship.
+After preventing lazy loading, Eloquent will throw a `Hypervel\Database\LazyLoadingViolationException` exception when your application attempts to lazy load any Eloquent relationship.
 
 You may customize the behavior of lazy loading violations using the `handleLazyLoadingViolationsUsing` method. For example, using this method, you may instruct lazy loading violations to only be logged instead of interrupting the application's execution with exceptions:
 
@@ -2581,9 +2581,9 @@ For example, when a `Comment` model is updated, you may want to automatically "t
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Touches;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Attributes\Touches;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
 
 #[Touches(['post'])]
 class Comment extends Model

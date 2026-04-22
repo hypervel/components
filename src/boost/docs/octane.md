@@ -446,7 +446,7 @@ In general, you should avoid injecting the application service container or HTTP
 
 ```php
 use App\Service;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 
 /**
  * Register any application services.
@@ -465,8 +465,8 @@ As a work-around, you could either stop registering the binding as a singleton, 
 
 ```php
 use App\Service;
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
 
 $this->app->bind(Service::class, function (Application $app) {
     return new Service($app);
@@ -486,7 +486,7 @@ In general, you should avoid injecting the application service container or HTTP
 
 ```php
 use App\Service;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 
 /**
  * Register any application services.
@@ -505,7 +505,7 @@ As a work-around, you could either stop registering the binding as a singleton, 
 
 ```php
 use App\Service;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 
 $this->app->bind(Service::class, function (Application $app) {
     return new Service($app['request']);
@@ -523,7 +523,7 @@ $service->method($request->input('name'));
 The global `request` helper will always return the request the application is currently handling and is therefore safe to use within your application.
 
 > [!WARNING]
-> It is acceptable to type-hint the `Illuminate\Http\Request` instance on your controller methods and route closures.
+> It is acceptable to type-hint the `Hypervel\Http\Request` instance on your controller methods and route closures.
 
 <a name="configuration-repository-injection"></a>
 ### Configuration Repository Injection
@@ -532,7 +532,7 @@ In general, you should avoid injecting the configuration repository instance int
 
 ```php
 use App\Service;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 
 /**
  * Register any application services.
@@ -551,8 +551,8 @@ As a work-around, you could either stop registering the binding as a singleton, 
 
 ```php
 use App\Service;
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
 
 $this->app->bind(Service::class, function (Application $app) {
     return new Service($app->make('config'));
@@ -572,8 +572,8 @@ Remember, Octane keeps your application in memory between requests; therefore, a
 
 ```php
 use App\Service;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Hypervel\Http\Request;
+use Hypervel\Support\Str;
 
 /**
  * Handle an incoming request.
@@ -663,7 +663,7 @@ Cache::store('octane')->put('framework', 'Laravel', 30);
 In addition to the typical methods provided by Laravel's cache system, the Octane cache driver features interval based caches. These caches are automatically refreshed at the specified interval and should be registered within the `boot` method of one of your application's service providers. For example, the following cache will be refreshed every five seconds:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Cache::store('octane')->interval('random', function () {
     return Str::random(10);

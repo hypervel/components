@@ -227,7 +227,7 @@ If needed, you may also specify the build path of your compiled assets when invo
 Sometimes it may be necessary to include the raw content of assets rather than linking to the versioned URL of the asset. For example, you may need to include asset content directly into your page when passing HTML content to a PDF generator. You may output the content of Vite assets using the `content` method provided by the `Vite` facade:
 
 ```blade
-@use('Illuminate\Support\Facades\Vite')
+@use('Hypervel\Support\Facades\Vite')
 
 <!doctype html>
 <head>
@@ -567,7 +567,7 @@ export default defineConfig({
 <a name="blade-aliases"></a>
 ### Aliases
 
-It is common in JavaScript applications to [create aliases](#aliases) to regularly referenced directories. But, you may also create aliases to use in Blade by using the `macro` method on the `Illuminate\Support\Facades\Vite` class. Typically, "macros" should be defined within the `boot` method of a [service provider](/docs/{{version}}/providers):
+It is common in JavaScript applications to [create aliases](#aliases) to regularly referenced directories. But, you may also create aliases to use in Blade by using the `macro` method on the `Hypervel\Support\Facades\Vite` class. Typically, "macros" should be defined within the `boot` method of a [service provider](/docs/{{version}}/providers):
 
 ```php
 /**
@@ -597,8 +597,8 @@ You can instruct Laravel to eagerly prefetch your assets by invoking the `Vite::
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Vite;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Support\Facades\Vite;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -722,7 +722,7 @@ If you would like to disable Vite for all tests, you may call the `withoutVite` 
 
 namespace Tests;
 
-use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -794,8 +794,8 @@ If you wish to include a [nonce attribute](https://developer.mozilla.org/en-US/d
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Vite;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Vite;
 use Symfony\Component\HttpFoundation\Response;
 
 class AddContentSecurityPolicyHeaders
@@ -803,7 +803,7 @@ class AddContentSecurityPolicyHeaders
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  \Closure(\Hypervel\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -859,7 +859,7 @@ export default defineConfig({
 If required, you may also customize the manifest key where the integrity hash can be found:
 
 ```php
-use Illuminate\Support\Facades\Vite;
+use Hypervel\Support\Facades\Vite;
 
 Vite::useIntegrityKey('custom-integrity-key');
 ```
@@ -876,7 +876,7 @@ Vite::useIntegrityKey(false);
 If you need to include additional attributes on your script and style tags, such as the [data-turbo-track](https://turbo.hotwired.dev/handbook/drive#reloading-when-assets-change) attribute, you may specify them via the `useScriptTagAttributes` and `useStyleTagAttributes` methods. Typically, this methods should be invoked from a [service provider](/docs/{{version}}/providers):
 
 ```php
-use Illuminate\Support\Facades\Vite;
+use Hypervel\Support\Facades\Vite;
 
 Vite::useScriptTagAttributes([
     'data-turbo-track' => 'reload', // Specify a value for the attribute...
@@ -892,7 +892,7 @@ Vite::useStyleTagAttributes([
 If you need to conditionally add attributes, you may pass a callback that will receive the asset source path, its URL, its manifest chunk, and the entire manifest:
 
 ```php
-use Illuminate\Support\Facades\Vite;
+use Hypervel\Support\Facades\Vite;
 
 Vite::useScriptTagAttributes(fn (string $src, string $url, array|null $chunk, array|null $manifest) => [
     'data-turbo-track' => $src === 'resources/js/app.js' ? 'reload' : false,

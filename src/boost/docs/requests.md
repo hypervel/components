@@ -24,7 +24,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel's `Illuminate\Http\Request` class provides an object-oriented way to interact with the current HTTP request being handled by your application as well as retrieve the input, cookies, and files that were submitted with the request.
+Laravel's `Hypervel\Http\Request` class provides an object-oriented way to interact with the current HTTP request being handled by your application as well as retrieve the input, cookies, and files that were submitted with the request.
 
 <a name="interacting-with-the-request"></a>
 ## Interacting With The Request
@@ -32,15 +32,15 @@ Laravel's `Illuminate\Http\Request` class provides an object-oriented way to int
 <a name="accessing-the-request"></a>
 ### Accessing the Request
 
-To obtain an instance of the current HTTP request via dependency injection, you should type-hint the `Illuminate\Http\Request` class on your route closure or controller method. The incoming request instance will automatically be injected by the Laravel [service container](/docs/{{version}}/container):
+To obtain an instance of the current HTTP request via dependency injection, you should type-hint the `Hypervel\Http\Request` class on your route closure or controller method. The incoming request instance will automatically be injected by the Laravel [service container](/docs/{{version}}/container):
 
 ```php
 <?php
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class UserController extends Controller
 {
@@ -58,10 +58,10 @@ class UserController extends Controller
 }
 ```
 
-As mentioned, you may also type-hint the `Illuminate\Http\Request` class on a route closure. The service container will automatically inject the incoming request into the closure when it is executed:
+As mentioned, you may also type-hint the `Hypervel\Http\Request` class on a route closure. The service container will automatically inject the incoming request into the closure when it is executed:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::get('/', function (Request $request) {
     // ...
@@ -79,15 +79,15 @@ use App\Http\Controllers\UserController;
 Route::put('/user/{id}', [UserController::class, 'update']);
 ```
 
-You may still type-hint the `Illuminate\Http\Request` and access your `id` route parameter by defining your controller method as follows:
+You may still type-hint the `Hypervel\Http\Request` and access your `id` route parameter by defining your controller method as follows:
 
 ```php
 <?php
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class UserController extends Controller
 {
@@ -106,7 +106,7 @@ class UserController extends Controller
 <a name="request-path-and-method"></a>
 ### Request Path, Host, and Method
 
-The `Illuminate\Http\Request` instance provides a variety of methods for examining the incoming HTTP request and extends the `Symfony\Component\HttpFoundation\Request` class. We will discuss a few of the most important methods below.
+The `Hypervel\Http\Request` instance provides a variety of methods for examining the incoming HTTP request and extends the `Symfony\Component\HttpFoundation\Request` class. We will discuss a few of the most important methods below.
 
 <a name="retrieving-the-request-path"></a>
 #### Retrieving the Request Path
@@ -187,7 +187,7 @@ if ($request->isMethod('post')) {
 <a name="request-headers"></a>
 ### Request Headers
 
-You may retrieve a request header from the `Illuminate\Http\Request` instance using the `header` method. If the header is not present on the request, `null` will be returned. However, the `header` method accepts an optional second argument that will be returned if the header is not present on the request:
+You may retrieve a request header from the `Hypervel\Http\Request` instance using the `header` method. If the header is not present on the request, `null` will be returned. However, the `header` method accepts an optional second argument that will be returned if the header is not present on the request:
 
 ```php
 $value = $request->header('X-Header-Name');
@@ -324,7 +324,7 @@ $request->collect('users')->each(function (string $user) {
 <a name="retrieving-an-input-value"></a>
 #### Retrieving an Input Value
 
-Using a few simple methods, you may access all of the user input from your `Illuminate\Http\Request` instance without worrying about which HTTP verb was used for the request. Regardless of the HTTP verb, the `input` method may be used to retrieve user input:
+Using a few simple methods, you may access all of the user input from your `Hypervel\Http\Request` instance without worrying about which HTTP verb was used for the request. Regardless of the HTTP verb, the `input` method may be used to retrieve user input:
 
 ```php
 $name = $request->input('name');
@@ -383,7 +383,7 @@ $name = $request->input('user.name');
 <a name="retrieving-stringable-input-values"></a>
 #### Retrieving Stringable Input Values
 
-Instead of retrieving the request's input data as a primitive `string`, you may use the `string` method to retrieve the request data as an instance of [Illuminate\Support\Stringable](/docs/{{version}}/strings):
+Instead of retrieving the request's input data as a primitive `string`, you may use the `string` method to retrieve the request data as an instance of [Hypervel\Support\Stringable](/docs/{{version}}/strings):
 
 ```php
 $name = $request->string('name')->trim();
@@ -482,7 +482,7 @@ $products = $request->enums('products', Product::class);
 <a name="retrieving-input-via-dynamic-properties"></a>
 #### Retrieving Input via Dynamic Properties
 
-You may also access user input using dynamic properties on the `Illuminate\Http\Request` instance. For example, if one of your application's forms contains a `name` field, you may access the value of the field like so:
+You may also access user input using dynamic properties on the `Hypervel\Http\Request` instance. For example, if one of your application's forms contains a `name` field, you may access the value of the field like so:
 
 ```php
 $name = $request->name;
@@ -640,7 +640,7 @@ Laravel allows you to keep input from one request during the next request. This 
 <a name="flashing-input-to-the-session"></a>
 #### Flashing Input to the Session
 
-The `flash` method on the `Illuminate\Http\Request` class will flash the current input to the [session](/docs/{{version}}/session) so that it is available during the user's next request to the application:
+The `flash` method on the `Hypervel\Http\Request` class will flash the current input to the [session](/docs/{{version}}/session) so that it is available during the user's next request to the application:
 
 ```php
 $request->flash();
@@ -672,7 +672,7 @@ return redirect('/form')->withInput(
 <a name="retrieving-old-input"></a>
 #### Retrieving Old Input
 
-To retrieve flashed input from the previous request, invoke the `old` method on an instance of `Illuminate\Http\Request`. The `old` method will pull the previously flashed input data from the [session](/docs/{{version}}/session):
+To retrieve flashed input from the previous request, invoke the `old` method on an instance of `Hypervel\Http\Request`. The `old` method will pull the previously flashed input data from the [session](/docs/{{version}}/session):
 
 ```php
 $username = $request->old('username');
@@ -690,7 +690,7 @@ Laravel also provides a global `old` helper. If you are displaying old input wit
 <a name="retrieving-cookies-from-requests"></a>
 #### Retrieving Cookies From Requests
 
-All cookies created by the Laravel framework are encrypted and signed with an authentication code, meaning they will be considered invalid if they have been changed by the client. To retrieve a cookie value from the request, use the `cookie` method on an `Illuminate\Http\Request` instance:
+All cookies created by the Laravel framework are encrypted and signed with an authentication code, meaning they will be considered invalid if they have been changed by the client. To retrieve a cookie value from the request, use the `cookie` method on an `Hypervel\Http\Request` instance:
 
 ```php
 $value = $request->cookie('name');
@@ -699,15 +699,15 @@ $value = $request->cookie('name');
 <a name="input-trimming-and-normalization"></a>
 ## Input Trimming and Normalization
 
-By default, Laravel includes the `Illuminate\Foundation\Http\Middleware\TrimStrings` and `Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull` middleware in your application's global middleware stack. These middleware will automatically trim all incoming string fields on the request, as well as convert any empty string fields to `null`. This allows you to not have to worry about these normalization concerns in your routes and controllers.
+By default, Laravel includes the `Hypervel\Foundation\Http\Middleware\TrimStrings` and `Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull` middleware in your application's global middleware stack. These middleware will automatically trim all incoming string fields on the request, as well as convert any empty string fields to `null`. This allows you to not have to worry about these normalization concerns in your routes and controllers.
 
 #### Disabling Input Normalization
 
 If you would like to disable this behavior for all requests, you may remove the two middleware from your application's middleware stack by invoking the `$middleware->remove` method in your application's `bootstrap/app.php` file:
 
 ```php
-use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
-use Illuminate\Foundation\Http\Middleware\TrimStrings;
+use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
+use Hypervel\Foundation\Http\Middleware\TrimStrings;
 
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->remove([
@@ -737,7 +737,7 @@ If you would like to disable string trimming and empty string conversion for a s
 <a name="retrieving-uploaded-files"></a>
 ### Retrieving Uploaded Files
 
-You may retrieve uploaded files from an `Illuminate\Http\Request` instance using the `file` method or using dynamic properties. The `file` method returns an instance of the `Illuminate\Http\UploadedFile` class, which extends the PHP `SplFileInfo` class and provides a variety of methods for interacting with the file:
+You may retrieve uploaded files from an `Hypervel\Http\Request` instance using the `file` method or using dynamic properties. The `file` method returns an instance of the `Hypervel\Http\UploadedFile` class, which extends the PHP `SplFileInfo` class and provides a variety of methods for interacting with the file:
 
 ```php
 $file = $request->file('photo');
@@ -811,7 +811,7 @@ $path = $request->photo->storeAs('images', 'filename.jpg', 's3');
 
 When running your applications behind a load balancer that terminates TLS / SSL certificates, you may notice your application sometimes does not generate HTTPS links when using the `url` helper. Typically this is because your application is being forwarded traffic from your load balancer on port 80 and does not know it should generate secure links.
 
-To solve this, you may enable the `Illuminate\Http\Middleware\TrustProxies` middleware that is included in your Laravel application, which allows you to quickly customize the load balancers or proxies that should be trusted by your application. Your trusted proxies should be specified using the `trustProxies` middleware method in your application's `bootstrap/app.php` file:
+To solve this, you may enable the `Hypervel\Http\Middleware\TrustProxies` middleware that is included in your Laravel application, which allows you to quickly customize the load balancers or proxies that should be trusted by your application. Your trusted proxies should be specified using the `trustProxies` middleware method in your application's `bootstrap/app.php` file:
 
 ```php
 ->withMiddleware(function (Middleware $middleware): void {
@@ -854,7 +854,7 @@ If you are using Amazon AWS or another "cloud" load balancer provider, you may n
 
 By default, Laravel will respond to all requests it receives regardless of the content of the HTTP request's `Host` header. In addition, the `Host` header's value will be used when generating absolute URLs to your application during a web request.
 
-Typically, you should configure your web server, such as Nginx or Apache, to only send requests to your application that match a given hostname. However, if you do not have the ability to customize your web server directly and need to instruct Laravel to only respond to certain hostnames, you may do so by enabling the `Illuminate\Http\Middleware\TrustHosts` middleware for your application.
+Typically, you should configure your web server, such as Nginx or Apache, to only send requests to your application that match a given hostname. However, if you do not have the ability to customize your web server directly and need to instruct Laravel to only respond to certain hostnames, you may do so by enabling the `Hypervel\Http\Middleware\TrustHosts` middleware for your application.
 
 To enable the `TrustHosts` middleware, you should invoke the `trustHosts` middleware method in your application's `bootstrap/app.php` file. Using the `at` argument of this method, you may specify the hostnames that your application should respond to. The hostname string is treated as a regular expression. Incoming requests with other `Host` headers will be rejected:
 

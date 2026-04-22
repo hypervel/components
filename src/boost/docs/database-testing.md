@@ -14,12 +14,12 @@ Laravel provides a variety of helpful tools and assertions to make it easier to 
 <a name="resetting-the-database-after-each-test"></a>
 ### Resetting the Database After Each Test
 
-Before proceeding much further, let's discuss how to reset your database after each of your tests so that data from a previous test does not interfere with subsequent tests. Laravel's included `Illuminate\Foundation\Testing\RefreshDatabase` trait will take care of this for you. Simply use the trait on your test class:
+Before proceeding much further, let's discuss how to reset your database after each of your tests so that data from a previous test does not interfere with subsequent tests. Laravel's included `Hypervel\Foundation\Testing\RefreshDatabase` trait will take care of this for you. Simply use the trait on your test class:
 
 ```php tab=Pest
 <?php
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 
 pest()->use(RefreshDatabase::class);
 
@@ -35,7 +35,7 @@ test('basic example', function () {
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -54,9 +54,9 @@ class ExampleTest extends TestCase
 }
 ```
 
-The `Illuminate\Foundation\Testing\RefreshDatabase` trait does not migrate your database if your schema is up to date. Instead, it will only execute the test within a database transaction. Therefore, any records added to the database by test cases that do not use this trait may still exist in the database.
+The `Hypervel\Foundation\Testing\RefreshDatabase` trait does not migrate your database if your schema is up to date. Instead, it will only execute the test within a database transaction. Therefore, any records added to the database by test cases that do not use this trait may still exist in the database.
 
-If you would like to totally reset the database, you may use the `Illuminate\Foundation\Testing\DatabaseMigrations` or `Illuminate\Foundation\Testing\DatabaseTruncation` traits instead. However, both of these options are significantly slower than the `RefreshDatabase` trait.
+If you would like to totally reset the database, you may use the `Hypervel\Foundation\Testing\DatabaseMigrations` or `Hypervel\Foundation\Testing\DatabaseTruncation` traits instead. However, both of these options are significantly slower than the `RefreshDatabase` trait.
 
 <a name="model-factories"></a>
 ## Model Factories
@@ -96,7 +96,7 @@ If you would like to use [database seeders](/docs/{{version}}/seeding) to popula
 
 use Database\Seeders\OrderStatusSeeder;
 use Database\Seeders\TransactionStatusSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 
 pest()->use(RefreshDatabase::class);
 
@@ -125,7 +125,7 @@ namespace Tests\Feature;
 
 use Database\Seeders\OrderStatusSeeder;
 use Database\Seeders\TransactionStatusSeeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -162,8 +162,8 @@ Alternatively, you may instruct Laravel to automatically seed the database befor
 
 namespace Tests;
 
-use Illuminate\Foundation\Testing\Attributes\Seed;
-use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Hypervel\Foundation\Testing\Attributes\Seed;
+use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
 
 #[Seed]
 abstract class TestCase extends BaseTestCase
@@ -179,8 +179,8 @@ When the `Seed` attribute is present, the test will run the `Database\Seeders\Da
 namespace Tests\Feature;
 
 use Database\Seeders\OrderStatusSeeder;
-use Illuminate\Foundation\Testing\Attributes\Seeder;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Hypervel\Foundation\Testing\Attributes\Seeder;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 #[Seeder(OrderStatusSeeder::class)]

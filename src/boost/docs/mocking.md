@@ -93,7 +93,7 @@ Unlike traditional static method calls, [facades](/docs/{{version}}/facades) (in
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 
 class UserController extends Controller
 {
@@ -116,7 +116,7 @@ We can mock the call to the `Cache` facade by using the `expects` method, which 
 ```php tab=Pest
 <?php
 
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 
 test('get index', function () {
     Cache::expects('get')
@@ -134,7 +134,7 @@ test('get index', function () {
 
 namespace Tests\Feature;
 
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 use Tests\TestCase;
 
 class UserControllerTest extends TestCase
@@ -163,7 +163,7 @@ If you would like to [spy](http://docs.mockery.io/en/latest/reference/spies.html
 ```php tab=Pest
 <?php
 
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 
 test('values are stored in cache', function () {
     Cache::spy();
@@ -177,7 +177,7 @@ test('values are stored in cache', function () {
 ```
 
 ```php tab=PHPUnit
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 
 public function test_values_are_stored_in_cache(): void
 {
@@ -194,7 +194,7 @@ public function test_values_are_stored_in_cache(): void
 <a name="interacting-with-time"></a>
 ## Interacting With Time
 
-When testing, you may occasionally need to modify the time returned by helpers such as `now` or `Illuminate\Support\Carbon::now()`. Thankfully, Laravel's base feature test class includes helpers that allow you to manipulate the current time:
+When testing, you may occasionally need to modify the time returned by helpers such as `now` or `Hypervel\Support\Carbon::now()`. Thankfully, Laravel's base feature test class includes helpers that allow you to manipulate the current time:
 
 ```php tab=Pest
 test('time can be manipulated', function () {
@@ -256,7 +256,7 @@ $this->travelTo(now()->mins(days: 10), function () {
 The `freezeTime` method may be used to freeze the current time. Similarly, the `freezeSecond` method will freeze the current time but at the start of the current second:
 
 ```php
-use Illuminate\Support\Carbon;
+use Hypervel\Support\Carbon;
 
 // Freeze time and resume normal time after executing closure...
 $this->freezeTime(function (Carbon $time) {

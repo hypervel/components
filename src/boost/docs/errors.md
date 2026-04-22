@@ -17,7 +17,7 @@
 
 When you start a new Laravel project, error and exception handling is already configured for you; however, at any point, you may use the `withExceptions` method in your application's `bootstrap/app.php` to manage how exceptions are reported and rendered by your application.
 
-The `$exceptions` object provided to the `withExceptions` closure is an instance of `Illuminate\Foundation\Configuration\Exceptions` and is responsible for managing exception handling in your application. We'll dive deeper into this object throughout this documentation.
+The `$exceptions` object provided to the `withExceptions` closure is an instance of `Hypervel\Foundation\Configuration\Exceptions` and is responsible for managing exception handling in your application. We'll dive deeper into this object throughout this documentation.
 
 <a name="configuration"></a>
 ## Configuration
@@ -190,7 +190,7 @@ use App\Exceptions\InvalidOrderException;
 })
 ```
 
-Alternatively, you may simply "mark" an exception class with the `Illuminate\Contracts\Debug\ShouldntReport` interface. When an exception is marked with this interface, it will never be reported by Laravel's exception handler:
+Alternatively, you may simply "mark" an exception class with the `Hypervel\Contracts\Debug\ShouldntReport` interface. When an exception is marked with this interface, it will never be reported by Laravel's exception handler:
 
 ```php
 <?php
@@ -198,7 +198,7 @@ Alternatively, you may simply "mark" an exception class with the `Illuminate\Con
 namespace App\Exceptions;
 
 use Exception;
-use Illuminate\Contracts\Debug\ShouldntReport;
+use Hypervel\Contracts\Debug\ShouldntReport;
 
 class PodcastProcessingException extends Exception implements ShouldntReport
 {
@@ -235,11 +235,11 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 By default, the Laravel exception handler will convert exceptions into an HTTP response for you. However, you are free to register a custom rendering closure for exceptions of a given type. You may accomplish this by using the `render` exception method in your application's `bootstrap/app.php` file.
 
-The closure passed to the `render` method should return an instance of `Illuminate\Http\Response`, which may be generated via the `response` helper. Laravel will determine what type of exception the closure renders by examining the type-hint of the closure:
+The closure passed to the `render` method should return an instance of `Hypervel\Http\Response`, which may be generated via the `response` helper. Laravel will determine what type of exception the closure renders by examining the type-hint of the closure:
 
 ```php
 use App\Exceptions\InvalidOrderException;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 ->withExceptions(function (Exceptions $exceptions): void {
     $exceptions->render(function (InvalidOrderException $e, Request $request) {
@@ -251,7 +251,7 @@ use Illuminate\Http\Request;
 You may also use the `render` method to override the rendering behavior for built-in Laravel or Symfony exceptions such as `NotFoundHttpException`. If the closure given to the `render` method does not return a value, Laravel's default exception rendering will be utilized:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 ->withExceptions(function (Exceptions $exceptions): void {
@@ -271,7 +271,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 When rendering an exception, Laravel will automatically determine if the exception should be rendered as an HTML or JSON response based on the `Accept` header of the request. If you would like to customize how Laravel determines whether to render HTML or JSON exception responses, you may utilize the `shouldRenderJsonWhen` method:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 use Throwable;
 
 ->withExceptions(function (Exceptions $exceptions): void {
@@ -317,8 +317,8 @@ Instead of defining custom reporting and rendering behavior in your application'
 namespace App\Exceptions;
 
 use Exception;
-use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+use Hypervel\Http\Request;
+use Hypervel\Http\Response;
 
 class InvalidOrderException extends Exception
 {
@@ -387,7 +387,7 @@ If your application reports a very large number of exceptions, you may want to t
 To take a random sample rate of exceptions, you may use the `throttle` exception method in your application's `bootstrap/app.php` file. The `throttle` method receives a closure that should return a `Lottery` instance:
 
 ```php
-use Illuminate\Support\Lottery;
+use Hypervel\Support\Lottery;
 use Throwable;
 
 ->withExceptions(function (Exceptions $exceptions): void {
@@ -401,7 +401,7 @@ It is also possible to conditionally sample based on the exception type. If you 
 
 ```php
 use App\Exceptions\ApiMonitoringException;
-use Illuminate\Support\Lottery;
+use Hypervel\Support\Lottery;
 use Throwable;
 
 ->withExceptions(function (Exceptions $exceptions): void {
@@ -416,8 +416,8 @@ use Throwable;
 You may also rate limit exceptions logged or sent to an external error tracking service by returning a `Limit` instance instead of a `Lottery`. This is useful if you want to protect against sudden bursts of exceptions flooding your logs, for example, when a third-party service used by your application is down:
 
 ```php
-use Illuminate\Broadcasting\BroadcastException;
-use Illuminate\Cache\RateLimiting\Limit;
+use Hypervel\Broadcasting\BroadcastException;
+use Hypervel\Cache\RateLimiting\Limit;
 use Throwable;
 
 ->withExceptions(function (Exceptions $exceptions): void {
@@ -432,8 +432,8 @@ use Throwable;
 By default, limits will use the exception's class as the rate limit key. You can customize this by specifying your own key using the `by` method on the `Limit`:
 
 ```php
-use Illuminate\Broadcasting\BroadcastException;
-use Illuminate\Cache\RateLimiting\Limit;
+use Hypervel\Broadcasting\BroadcastException;
+use Hypervel\Cache\RateLimiting\Limit;
 use Throwable;
 
 ->withExceptions(function (Exceptions $exceptions): void {
@@ -449,9 +449,9 @@ Of course, you may return a mixture of `Lottery` and `Limit` instances for diffe
 
 ```php
 use App\Exceptions\ApiMonitoringException;
-use Illuminate\Broadcasting\BroadcastException;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Support\Lottery;
+use Hypervel\Broadcasting\BroadcastException;
+use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\Support\Lottery;
 use Throwable;
 
 ->withExceptions(function (Exceptions $exceptions): void {

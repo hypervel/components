@@ -31,14 +31,14 @@ Laravel provides an expressive, minimal API around the [Symfony Process componen
 To invoke a process, you may use the `run` and `start` methods offered by the `Process` facade. The `run` method will invoke a process and wait for the process to finish executing, while the `start` method is used for asynchronous process execution. We'll examine both approaches within this documentation. First, let's examine how to invoke a basic, synchronous process and inspect its result:
 
 ```php
-use Illuminate\Support\Facades\Process;
+use Hypervel\Support\Facades\Process;
 
 $result = Process::run('ls -la');
 
 return $result->output();
 ```
 
-Of course, the `Illuminate\Contracts\Process\ProcessResult` instance returned by the `run` method offers a variety of helpful methods that may be used to inspect the process result:
+Of course, the `Hypervel\Contracts\Process\ProcessResult` instance returned by the `run` method offers a variety of helpful methods that may be used to inspect the process result:
 
 ```php
 $result = Process::run('ls -la');
@@ -54,7 +54,7 @@ $result->exitCode();
 <a name="throwing-exceptions"></a>
 #### Throwing Exceptions
 
-If you have a process result and would like to throw an instance of `Illuminate\Process\Exceptions\ProcessFailedException` if the exit code is greater than zero (thus indicating failure), you may use the `throw` and `throwIf` methods. If the process did not fail, the `ProcessResult` instance will be returned:
+If you have a process result and would like to throw an instance of `Hypervel\Process\Exceptions\ProcessFailedException` if the exit code is greater than zero (thus indicating failure), you may use the `throw` and `throwIf` methods. If the process did not fail, the `ProcessResult` instance will be returned:
 
 ```php
 $result = Process::run('ls -la')->throw();
@@ -88,7 +88,7 @@ $result = Process::input('Hello World')->run('cat');
 <a name="timeouts"></a>
 #### Timeouts
 
-By default, processes will throw an instance of `Illuminate\Process\Exceptions\ProcessTimedOutException` after executing for more than 60 seconds. However, you can customize this behavior via the `timeout` method:
+By default, processes will throw an instance of `Hypervel\Process\Exceptions\ProcessTimedOutException` after executing for more than 60 seconds. However, you can customize this behavior via the `timeout` method:
 
 ```php
 $result = Process::timeout(120)->run('bash import.sh');
@@ -97,7 +97,7 @@ $result = Process::timeout(120)->run('bash import.sh');
 The `timeout` and `idleTimeout` methods also accept `CarbonInterval` instances:
 
 ```php
-use function Illuminate\Support\minutes;
+use function Hypervel\Support\minutes;
 
 $result = Process::timeout(minutes(2))->run('bash import.sh');
 ```
@@ -151,7 +151,7 @@ Process::forever()->tty()->run('vim');
 As previously discussed, process output may be accessed using the `output` (stdout) and `errorOutput` (stderr) methods on a process result:
 
 ```php
-use Illuminate\Support\Facades\Process;
+use Hypervel\Support\Facades\Process;
 
 $result = Process::run('ls -la');
 
@@ -181,7 +181,7 @@ if (Process::run('ls -la')->seeInOutput('laravel')) {
 If your process is writing a significant amount of output that you are not interested in, you can conserve memory by disabling output retrieval entirely. To accomplish this, invoke the `quietly` method while building the process:
 
 ```php
-use Illuminate\Support\Facades\Process;
+use Hypervel\Support\Facades\Process;
 
 $result = Process::quietly()->run('bash import.sh');
 ```
@@ -192,8 +192,8 @@ $result = Process::quietly()->run('bash import.sh');
 Sometimes you may want to make the output of one process the input of another process. This is often referred to as "piping" the output of a process into another. The `pipe` method provided by the `Process` facades makes this easy to accomplish. The `pipe` method will execute the piped processes synchronously and return the process result for the last process in the pipeline:
 
 ```php
-use Illuminate\Process\Pipe;
-use Illuminate\Support\Facades\Process;
+use Hypervel\Process\Pipe;
+use Hypervel\Support\Facades\Process;
 
 $result = Process::pipe(function (Pipe $pipe) {
     $pipe->command('cat example.txt');
@@ -334,13 +334,13 @@ while ($process->running()) {
 <a name="concurrent-processes"></a>
 ## Concurrent Processes
 
-Laravel also makes it a breeze to manage a pool of concurrent, asynchronous processes, allowing you to easily execute many tasks simultaneously. To get started, invoke the `pool` method, which accepts a closure that receives an instance of `Illuminate\Process\Pool`.
+Laravel also makes it a breeze to manage a pool of concurrent, asynchronous processes, allowing you to easily execute many tasks simultaneously. To get started, invoke the `pool` method, which accepts a closure that receives an instance of `Hypervel\Process\Pool`.
 
 Within this closure, you may define the processes that belong to the pool. Once a process pool is started via the `start` method, you may access the [collection](/docs/{{version}}/collections) of running processes via the `running` method:
 
 ```php
-use Illuminate\Process\Pool;
-use Illuminate\Support\Facades\Process;
+use Hypervel\Process\Pool;
+use Hypervel\Support\Facades\Process;
 
 $pool = Process::pool(function (Pool $pool) {
     $pool->path(__DIR__)->command('bash import-1.sh');
@@ -422,8 +422,8 @@ Many Laravel services provide functionality to help you easily and expressively 
 To explore Laravel's ability to fake processes, let's imagine a route that invokes a process:
 
 ```php
-use Illuminate\Support\Facades\Process;
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Process;
+use Hypervel\Support\Facades\Route;
 
 Route::get('/import', function () {
     Process::run('bash import.sh');
@@ -437,9 +437,9 @@ When testing this route, we can instruct Laravel to return a fake, successful pr
 ```php tab=Pest
 <?php
 
-use Illuminate\Contracts\Process\ProcessResult;
-use Illuminate\Process\PendingProcess;
-use Illuminate\Support\Facades\Process;
+use Hypervel\Contracts\Process\ProcessResult;
+use Hypervel\Process\PendingProcess;
+use Hypervel\Support\Facades\Process;
 
 test('process is invoked', function () {
     Process::fake();
@@ -462,9 +462,9 @@ test('process is invoked', function () {
 
 namespace Tests\Feature;
 
-use Illuminate\Contracts\Process\ProcessResult;
-use Illuminate\Process\PendingProcess;
-use Illuminate\Support\Facades\Process;
+use Hypervel\Contracts\Process\ProcessResult;
+use Hypervel\Process\PendingProcess;
+use Hypervel\Support\Facades\Process;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -547,8 +547,8 @@ Thus far, we have primarily discussed faking processes which are invoked synchro
 For example, let's imagine the following route which interacts with an asynchronous process:
 
 ```php
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Log;
+use Hypervel\Support\Facades\Route;
 
 Route::get('/import', function () {
     $process = Process::start('bash import.sh');
@@ -588,7 +588,7 @@ As [previously discussed](#faking-processes), Laravel provides several process a
 Assert that a given process was invoked:
 
 ```php
-use Illuminate\Support\Facades\Process;
+use Hypervel\Support\Facades\Process;
 
 Process::assertRan('ls -la');
 ```
@@ -603,7 +603,7 @@ Process::assertRan(fn ($process, $result) =>
 );
 ```
 
-The `$process` passed to the `assertRan` closure is an instance of `Illuminate\Process\PendingProcess`, while the `$result` is an instance of `Illuminate\Contracts\Process\ProcessResult`.
+The `$process` passed to the `assertRan` closure is an instance of `Hypervel\Process\PendingProcess`, while the `$result` is an instance of `Hypervel\Contracts\Process\ProcessResult`.
 
 <a name="assert-process-didnt-run"></a>
 #### assertDidntRun
@@ -611,7 +611,7 @@ The `$process` passed to the `assertRan` closure is an instance of `Illuminate\P
 Assert that a given process was not invoked:
 
 ```php
-use Illuminate\Support\Facades\Process;
+use Hypervel\Support\Facades\Process;
 
 Process::assertDidntRun('ls -la');
 ```
@@ -630,7 +630,7 @@ Process::assertDidntRun(fn (PendingProcess $process, ProcessResult $result) =>
 Assert that a given process was invoked a given number of times:
 
 ```php
-use Illuminate\Support\Facades\Process;
+use Hypervel\Support\Facades\Process;
 
 Process::assertRanTimes('ls -la', times: 3);
 ```
@@ -649,7 +649,7 @@ Process::assertRanTimes(function (PendingProcess $process, ProcessResult $result
 If you would like to ensure that all invoked processes have been faked throughout your individual test or complete test suite, you can call the `preventStrayProcesses` method. After calling this method, any processes that do not have a corresponding fake result will throw an exception rather than starting an actual process:
 
 ```php
-use Illuminate\Support\Facades\Process;
+use Hypervel\Support\Facades\Process;
 
 Process::preventStrayProcesses();
 

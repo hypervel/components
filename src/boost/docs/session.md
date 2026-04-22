@@ -78,8 +78,8 @@ There are two primary ways of working with session data in Laravel: the global `
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\View\View;
+use Hypervel\Http\Request;
+use Hypervel\View\View;
 
 class UserController extends Controller
 {
@@ -319,7 +319,7 @@ Route::post('/order', function () {
 
 The `block` method accepts two optional arguments. The first argument accepted by the `block` method is the maximum number of seconds the session lock should be held for before it is released. Of course, if the request finishes executing before this time the lock will be released earlier.
 
-The second argument accepted by the `block` method is the number of seconds a request should wait while attempting to obtain a session lock. An `Illuminate\Contracts\Cache\LockTimeoutException` will be thrown if the request is unable to obtain a session lock within the given number of seconds.
+The second argument accepted by the `block` method is the number of seconds a request should wait while attempting to obtain a session lock. An `Hypervel\Contracts\Cache\LockTimeoutException` will be thrown if the request is unable to obtain a session lock within the given number of seconds.
 
 If neither of these arguments is passed, the lock will be obtained for a maximum of 10 seconds and requests will wait a maximum of 10 seconds while attempting to obtain a lock:
 
@@ -379,9 +379,9 @@ Once your driver has been implemented, you are ready to register it with Laravel
 namespace App\Providers;
 
 use App\Extensions\MongoSessionHandler;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Support\Facades\Session;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Support\Facades\Session;
+use Hypervel\Support\ServiceProvider;
 
 class SessionServiceProvider extends ServiceProvider
 {

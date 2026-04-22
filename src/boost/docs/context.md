@@ -28,9 +28,9 @@ The best way to understand Laravel's context capabilities is to see it in action
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Context;
-use Illuminate\Support\Str;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class AddContext
@@ -108,7 +108,7 @@ Although we have focused on the built-in logging related features of Laravel's c
 You may store information in the current context using the `Context` facade's `add` method:
 
 ```php
-use Illuminate\Support\Facades\Context;
+use Hypervel\Support\Facades\Context;
 
 Context::add('key', 'value');
 ```
@@ -152,8 +152,8 @@ Context::decrement('records_added', 5);
 The `when` method may be used to add data to the context based on a given condition. The first closure provided to the `when` method will be invoked if the given condition evaluates to `true`, while the second closure will be invoked if the condition evaluates to `false`:
 
 ```php
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Context;
+use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Facades\Context;
 
 Context::when(
     Auth::user()->isAdmin(),
@@ -168,8 +168,8 @@ Context::when(
 The `scope` method provides a way to temporarily modify the context during the execution of a given callback and restore the context to its original state when the callback finishes executing. Additionally, you can pass extra data that should be merged into the context (as the second and third arguments) while the closure executes.
 
 ```php
-use Illuminate\Support\Facades\Context;
-use Illuminate\Support\Facades\Log;
+use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Facades\Log;
 
 Context::add('trace_id', 'abc-999');
 Context::addHidden('user_id', 123);
@@ -207,7 +207,7 @@ Context::allHidden();
 Context offers the ability to create "stacks", which are lists of data stored in the order that they were added. You can add information to a stack by invoking the `push` method:
 
 ```php
-use Illuminate\Support\Facades\Context;
+use Hypervel\Support\Facades\Context;
 
 Context::push('breadcrumbs', 'first_value');
 
@@ -224,8 +224,8 @@ Context::get('breadcrumbs');
 Stacks can be useful to capture historical information about a request, such as events that are happening throughout your application. For example, you could create an event listener to push to a stack every time a query is executed, capturing the query SQL and duration as a tuple:
 
 ```php
-use Illuminate\Support\Facades\Context;
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Facades\DB;
 
 // In AppServiceProvider.php...
 DB::listen(function ($event) {
@@ -248,8 +248,8 @@ if (Context::hiddenStackContains('secrets', 'first_value')) {
 The `stackContains` and `hiddenStackContains` methods also accept a closure as their second argument, allowing more control over the value comparison operation:
 
 ```php
-use Illuminate\Support\Facades\Context;
-use Illuminate\Support\Str;
+use Hypervel\Support\Facades\Context;
+use Hypervel\Support\Str;
 
 return Context::stackContains('breadcrumbs', function ($value) {
     return Str::startsWith($value, 'query_');
@@ -262,7 +262,7 @@ return Context::stackContains('breadcrumbs', function ($value) {
 You may retrieve information from the context using the `Context` facade's `get` method:
 
 ```php
-use Illuminate\Support\Facades\Context;
+use Hypervel\Support\Facades\Context;
 
 $value = Context::get('key');
 ```
@@ -314,7 +314,7 @@ $data = Context::all();
 You may use the `has` and `missing` methods to determine if the context has any value stored for the given key:
 
 ```php
-use Illuminate\Support\Facades\Context;
+use Hypervel\Support\Facades\Context;
 
 if (Context::has('key')) {
     // ...
@@ -340,7 +340,7 @@ Context::has('key');
 The `forget` method may be used to remove a key and its value from the current context:
 
 ```php
-use Illuminate\Support\Facades\Context;
+use Hypervel\Support\Facades\Context;
 
 Context::add(['first_key' => 1, 'second_key' => 2]);
 
@@ -363,7 +363,7 @@ Context::forget(['first_key', 'second_key']);
 Context offers the ability to store "hidden" data. This hidden information is not appended to logs, and is not accessible via the data retrieval methods documented above. Context provides a different set of methods to interact with hidden context information:
 
 ```php
-use Illuminate\Support\Facades\Context;
+use Hypervel\Support\Facades\Context;
 
 Context::addHidden('key', 'value');
 
@@ -406,9 +406,9 @@ Whenever a job is dispatched to the queue the data in the context is "dehydrated
 Typically, you should register `dehydrating` callbacks within the `boot` method of your application's `AppServiceProvider` class:
 
 ```php
-use Illuminate\Log\Context\Repository;
-use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Context;
+use Hypervel\Log\Context\Repository;
+use Hypervel\Support\Facades\Config;
+use Hypervel\Support\Facades\Context;
 
 /**
  * Bootstrap any application services.
@@ -432,9 +432,9 @@ Whenever a queued job begins executing on the queue, any context that was shared
 Typically, you should register `hydrated` callbacks within the `boot` method of your application's `AppServiceProvider` class:
 
 ```php
-use Illuminate\Log\Context\Repository;
-use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Context;
+use Hypervel\Log\Context\Repository;
+use Hypervel\Support\Facades\Config;
+use Hypervel\Support\Facades\Context;
 
 /**
  * Bootstrap any application services.

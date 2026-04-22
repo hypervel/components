@@ -31,18 +31,18 @@ Laravel provides an expressive, minimal API around the [Guzzle HTTP client](http
 To make requests, you may use the `head`, `get`, `post`, `put`, `patch`, and `delete` methods provided by the `Http` facade. First, let's examine how to make a basic `GET` request to another URL:
 
 ```php
-use Illuminate\Support\Facades\Http;
+use Hypervel\Support\Facades\Http;
 
 $response = Http::get('http://example.com');
 ```
 
-The `get` method returns an instance of `Illuminate\Http\Client\Response`, which provides a variety of methods that may be used to inspect the response:
+The `get` method returns an instance of `Hypervel\Http\Client\Response`, which provides a variety of methods that may be used to inspect the response:
 
 ```php
 $response->body() : string;
 $response->json($key = null, $default = null) : mixed;
 $response->object() : object;
-$response->collect($key = null) : Illuminate\Support\Collection;
+$response->collect($key = null) : Hypervel\Support\Collection;
 $response->resource() : resource;
 $response->status() : int;
 $response->successful() : bool;
@@ -53,7 +53,7 @@ $response->header($header) : string;
 $response->headers() : array;
 ```
 
-The `Illuminate\Http\Client\Response` object also implements the PHP `ArrayAccess` interface, allowing you to access JSON response data directly on the response:
+The `Hypervel\Http\Client\Response` object also implements the PHP `ArrayAccess` interface, allowing you to access JSON response data directly on the response:
 
 ```php
 return Http::get('http://example.com/users/1')['name'];
@@ -109,7 +109,7 @@ return Http::dd()->get('http://example.com');
 Of course, it is common when making `POST`, `PUT`, and `PATCH` requests to send additional data with your request, so these methods accept an array of data as their second argument. By default, data will be sent using the `application/json` content type:
 
 ```php
-use Illuminate\Support\Facades\Http;
+use Hypervel\Support\Facades\Http;
 
 $response = Http::post('http://example.com/users', [
     'name' => 'Steve',
@@ -251,7 +251,7 @@ The `timeout` method may be used to specify the maximum number of seconds to wai
 $response = Http::timeout(3)->get(/* ... */);
 ```
 
-If the given timeout is exceeded, an instance of `Illuminate\Http\Client\ConnectionException` will be thrown.
+If the given timeout is exceeded, an instance of `Hypervel\Http\Client\ConnectionException` will be thrown.
 
 You may specify the maximum number of seconds to wait while trying to connect to a server using the `connectTimeout` method. The default is 10 seconds:
 
@@ -287,7 +287,7 @@ $response = Http::retry([100, 200])->post(/* ... */);
 If needed, you may pass a third argument to the `retry` method. The third argument should be a callable that determines if the retries should actually be attempted. For example, you may wish to only retry the request if the initial request encounters an `ConnectionException`:
 
 ```php
-use Illuminate\Http\Client\PendingRequest;
+use Hypervel\Http\Client\PendingRequest;
 use Throwable;
 
 $response = Http::retry(3, 100, function (Throwable $exception, PendingRequest $request) {
@@ -298,8 +298,8 @@ $response = Http::retry(3, 100, function (Throwable $exception, PendingRequest $
 If a request attempt fails, you may wish to make a change to the request before a new attempt is made. You can achieve this by modifying the request argument provided to the callable you provided to the `retry` method. For example, you might want to retry the request with a new authorization token if the first attempt returned an authentication error:
 
 ```php
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Http\Client\RequestException;
+use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\RequestException;
 use Throwable;
 
 $response = Http::withToken($this->getToken())->retry(2, 0, function (Throwable $exception, PendingRequest $request) {
@@ -313,14 +313,14 @@ $response = Http::withToken($this->getToken())->retry(2, 0, function (Throwable 
 })->post(/* ... */);
 ```
 
-If all of the requests fail, an instance of `Illuminate\Http\Client\RequestException` will be thrown. If you would like to disable this behavior, you may provide a `throw` argument with a value of `false`. When disabled, the last response received by the client will be returned after all retries have been attempted:
+If all of the requests fail, an instance of `Hypervel\Http\Client\RequestException` will be thrown. If you would like to disable this behavior, you may provide a `throw` argument with a value of `false`. When disabled, the last response received by the client will be returned after all retries have been attempted:
 
 ```php
 $response = Http::retry(3, 100, throw: false)->post(/* ... */);
 ```
 
 > [!WARNING]
-> If all of the requests fail because of a connection issue, a `Illuminate\Http\Client\ConnectionException` will still be thrown even when the `throw` argument is set to `false`.
+> If all of the requests fail because of a connection issue, a `Hypervel\Http\Client\ConnectionException` will still be thrown even when the `throw` argument is set to `false`.
 
 <a name="error-handling"></a>
 ### Error Handling
@@ -347,10 +347,10 @@ $response->onError(callable $callback);
 <a name="throwing-exceptions"></a>
 #### Throwing Exceptions
 
-If you have a response instance and would like to throw an instance of `Illuminate\Http\Client\RequestException` if the response status code indicates a client or server error, you may use the `throw` or `throwIf` methods:
+If you have a response instance and would like to throw an instance of `Hypervel\Http\Client\RequestException` if the response status code indicates a client or server error, you may use the `throw` or `throwIf` methods:
 
 ```php
-use Illuminate\Http\Client\Response;
+use Hypervel\Http\Client\Response;
 
 $response = Http::post(/* ... */);
 
@@ -384,7 +384,7 @@ $response->throwIfClientError();
 return $response['user']['id'];
 ```
 
-The `Illuminate\Http\Client\RequestException` instance has a public `$response` property which will allow you to inspect the returned response.
+The `Hypervel\Http\Client\RequestException` instance has a public `$response` property which will allow you to inspect the returned response.
 
 The `throw` method returns the response instance if no error occurred, allowing you to chain other operations onto the `throw` method:
 
@@ -395,8 +395,8 @@ return Http::post(/* ... */)->throw()->json();
 If you would like to perform some additional logic before the exception is thrown, you may pass a closure to the `throw` method. The exception will be thrown automatically after the closure is invoked, so you do not need to re-throw the exception from within the closure:
 
 ```php
-use Illuminate\Http\Client\Response;
-use Illuminate\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
+use Hypervel\Http\Client\RequestException;
 
 return Http::post(/* ... */)->throw(function (Response $response, RequestException $e) {
     // ...
@@ -406,7 +406,7 @@ return Http::post(/* ... */)->throw(function (Response $response, RequestExcepti
 By default, `RequestException` messages are truncated to 120 characters when logged or reported. To customize or disable this behavior, you may utilize the `truncateAt` and `dontTruncate` methods when configuring your application's registered behavior in your `bootstrap/app.php` file:
 
 ```php
-use Illuminate\Http\Client\RequestException;
+use Hypervel\Http\Client\RequestException;
 
 ->registered(function (): void {
     // Truncate request exception messages to 240 characters...
@@ -429,7 +429,7 @@ return Http::truncateExceptionsAt(240)->post(/* ... */);
 Since Laravel's HTTP client is powered by Guzzle, you may take advantage of [Guzzle Middleware](https://docs.guzzlephp.org/en/stable/handlers-and-middleware.html) to manipulate the outgoing request or inspect the incoming response. To manipulate the outgoing request, register a Guzzle middleware via the `withRequestMiddleware` method:
 
 ```php
-use Illuminate\Support\Facades\Http;
+use Hypervel\Support\Facades\Http;
 use Psr\Http\Message\RequestInterface;
 
 $response = Http::withRequestMiddleware(
@@ -442,7 +442,7 @@ $response = Http::withRequestMiddleware(
 Likewise, you can inspect the incoming HTTP response by registering a middleware via the `withResponseMiddleware` method:
 
 ```php
-use Illuminate\Support\Facades\Http;
+use Hypervel\Support\Facades\Http;
 use Psr\Http\Message\ResponseInterface;
 
 $response = Http::withResponseMiddleware(
@@ -462,7 +462,7 @@ $response = Http::withResponseMiddleware(
 Sometimes, you may want to register a middleware that applies to every outgoing request and incoming response. To accomplish this, you may use the `globalRequestMiddleware` and `globalResponseMiddleware` methods. Typically, these methods should be invoked in the `boot` method of your application's `AppServiceProvider`:
 
 ```php
-use Illuminate\Support\Facades\Http;
+use Hypervel\Support\Facades\Http;
 
 Http::globalRequestMiddleware(fn ($request) => $request->withHeader(
     'User-Agent', 'Example Application/1.0'
@@ -490,7 +490,7 @@ $response = Http::withOptions([
 To configure default options for every outgoing request, you may utilize the `globalOptions` method. Typically, this method should be invoked from the `boot` method of your application's `AppServiceProvider`:
 
 ```php
-use Illuminate\Support\Facades\Http;
+use Hypervel\Support\Facades\Http;
 
 /**
  * Bootstrap any application services.
@@ -511,11 +511,11 @@ Sometimes, you may wish to make multiple HTTP requests concurrently. In other wo
 <a name="request-pooling"></a>
 ### Request Pooling
 
-Thankfully, you may accomplish this using the `pool` method. The `pool` method accepts a closure which receives an `Illuminate\Http\Client\Pool` instance, allowing you to easily add requests to the request pool for dispatching:
+Thankfully, you may accomplish this using the `pool` method. The `pool` method accepts a closure which receives an `Hypervel\Http\Client\Pool` instance, allowing you to easily add requests to the request pool for dispatching:
 
 ```php
-use Illuminate\Http\Client\Pool;
-use Illuminate\Support\Facades\Http;
+use Hypervel\Http\Client\Pool;
+use Hypervel\Support\Facades\Http;
 
 $responses = Http::pool(fn (Pool $pool) => [
     $pool->get('http://localhost/first'),
@@ -531,8 +531,8 @@ return $responses[0]->ok() &&
 As you can see, each response instance can be accessed based on the order it was added to the pool. If you wish, you can name the requests using the `as` method, which allows you to access the corresponding responses by name:
 
 ```php
-use Illuminate\Http\Client\Pool;
-use Illuminate\Support\Facades\Http;
+use Hypervel\Http\Client\Pool;
+use Hypervel\Support\Facades\Http;
 
 $responses = Http::pool(fn (Pool $pool) => [
     $pool->as('first')->get('http://localhost/first'),
@@ -557,8 +557,8 @@ $responses = Http::pool(fn (Pool $pool) => [
 The `pool` method cannot be chained with other HTTP client methods such as the `withHeaders` or `middleware` methods. If you want to apply custom headers or middleware to pooled requests, you should configure those options on each request in the pool:
 
 ```php
-use Illuminate\Http\Client\Pool;
-use Illuminate\Support\Facades\Http;
+use Hypervel\Http\Client\Pool;
+use Hypervel\Support\Facades\Http;
 
 $headers = [
     'X-Example' => 'example',
@@ -574,14 +574,14 @@ $responses = Http::pool(fn (Pool $pool) => [
 <a name="request-batching"></a>
 ### Request Batching
 
-Another way of working with concurrent requests in Laravel is to use the `batch` method. Like the `pool` method, it accepts a closure which receives an `Illuminate\Http\Client\Batch` instance, allowing you to easily add requests to the request pool for dispatching, but it also allows you to define completion callbacks:
+Another way of working with concurrent requests in Laravel is to use the `batch` method. Like the `pool` method, it accepts a closure which receives an `Hypervel\Http\Client\Batch` instance, allowing you to easily add requests to the request pool for dispatching, but it also allows you to define completion callbacks:
 
 ```php
-use Illuminate\Http\Client\Batch;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\RequestException;
-use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
+use Hypervel\Http\Client\Batch;
+use Hypervel\Http\Client\ConnectionException;
+use Hypervel\Http\Client\RequestException;
+use Hypervel\Http\Client\Response;
+use Hypervel\Support\Facades\Http;
 
 $responses = Http::batch(fn (Batch $batch) => [
     $batch->get('http://localhost/first'),
@@ -610,7 +610,7 @@ $responses = Http::batch(fn (Batch $batch) => [
 ])->send();
 ```
 
-After a `batch` is started by calling the `send` method, you can't add new requests to it. Trying to do so will result in a `Illuminate\Http\Client\BatchInProgressException` exception being thrown.
+After a `batch` is started by calling the `send` method, you can't add new requests to it. Trying to do so will result in a `Hypervel\Http\Client\BatchInProgressException` exception being thrown.
 
 The maximum concurrency of the request batch may be controlled via the `concurrency` method. This value determines the maximum number of HTTP requests that may be concurrently in-flight while processing the request batch:
 
@@ -623,7 +623,7 @@ $responses = Http::batch(fn (Batch $batch) => [
 <a name="inspecting-batches"></a>
 #### Inspecting Batches
 
-The `Illuminate\Http\Client\Batch` instance that is provided to batch completion callbacks has a variety of properties and methods to assist you in interacting with and inspecting a given batch of requests:
+The `Hypervel\Http\Client\Batch` instance that is provided to batch completion callbacks has a variety of properties and methods to assist you in interacting with and inspecting a given batch of requests:
 
 ```php
 // The number of requests assigned to the batch...
@@ -650,8 +650,8 @@ $batch->hasFailures();
 When the `defer` method is invoked, the batch of requests is not executed immediately. Instead, Laravel will execute the batch after the current application request's HTTP response has been sent to the user, keeping your application feeling fast and responsive:
 
 ```php
-use Illuminate\Http\Client\Batch;
-use Illuminate\Support\Facades\Http;
+use Hypervel\Http\Client\Batch;
+use Hypervel\Support\Facades\Http;
 
 $responses = Http::batch(fn (Batch $batch) => [
     $batch->get('http://localhost/first'),
@@ -668,7 +668,7 @@ $responses = Http::batch(fn (Batch $batch) => [
 The Laravel HTTP client allows you to define "macros", which can serve as a fluent, expressive mechanism to configure common request paths and headers when interacting with services throughout your application. To get started, you may define the macro within the `boot` method of your application's `App\Providers\AppServiceProvider` class:
 
 ```php
-use Illuminate\Support\Facades\Http;
+use Hypervel\Support\Facades\Http;
 
 /**
  * Bootstrap any application services.
@@ -700,7 +700,7 @@ Many Laravel services provide functionality to help you easily and expressively 
 For example, to instruct the HTTP client to return empty, `200` status code responses for every request, you may call the `fake` method with no arguments:
 
 ```php
-use Illuminate\Support\Facades\Http;
+use Hypervel\Support\Facades\Http;
 
 Http::fake();
 
@@ -747,7 +747,7 @@ Http::fake([
 <a name="faking-connection-exceptions"></a>
 #### Faking Exceptions
 
-Sometimes you may need to test your application's behavior if the HTTP client encounters an `Illuminate\Http\Client\ConnectionException` when attempting to make a request. You can instruct the HTTP client to throw a connection exception using the `failedConnection` method:
+Sometimes you may need to test your application's behavior if the HTTP client encounters an `Hypervel\Http\Client\ConnectionException` when attempting to make a request. You can instruct the HTTP client to throw a connection exception using the `failedConnection` method:
 
 ```php
 Http::fake([
@@ -755,7 +755,7 @@ Http::fake([
 ]);
 ```
 
-To test your application's behavior if a `Illuminate\Http\Client\RequestException` is thrown, you may use the `failedRequest` method:
+To test your application's behavior if a `Hypervel\Http\Client\RequestException` is thrown, you may use the `failedRequest` method:
 
 ```php
 $this->mock(GithubService::class);
@@ -803,10 +803,10 @@ Http::fakeSequence()
 <a name="fake-callback"></a>
 #### Fake Callback
 
-If you require more complicated logic to determine what responses to return for certain endpoints, you may pass a closure to the `fake` method. This closure will receive an instance of `Illuminate\Http\Client\Request` and should return a response instance. Within your closure, you may perform whatever logic is necessary to determine what type of response to return:
+If you require more complicated logic to determine what responses to return for certain endpoints, you may pass a closure to the `fake` method. This closure will receive an instance of `Hypervel\Http\Client\Request` and should return a response instance. Within your closure, you may perform whatever logic is necessary to determine what type of response to return:
 
 ```php
-use Illuminate\Http\Client\Request;
+use Hypervel\Http\Client\Request;
 
 Http::fake(function (Request $request) {
     return Http::response('Hello World', 200);
@@ -818,11 +818,11 @@ Http::fake(function (Request $request) {
 
 When faking responses, you may occasionally wish to inspect the requests the client receives in order to make sure your application is sending the correct data or headers. You may accomplish this by calling the `Http::assertSent` method after calling `Http::fake`.
 
-The `assertSent` method accepts a closure which will receive an `Illuminate\Http\Client\Request` instance and should return a boolean value indicating if the request matches your expectations. In order for the test to pass, at least one request must have been issued matching the given expectations:
+The `assertSent` method accepts a closure which will receive an `Hypervel\Http\Client\Request` instance and should return a boolean value indicating if the request matches your expectations. In order for the test to pass, at least one request must have been issued matching the given expectations:
 
 ```php
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
+use Hypervel\Http\Client\Request;
+use Hypervel\Support\Facades\Http;
 
 Http::fake();
 
@@ -844,8 +844,8 @@ Http::assertSent(function (Request $request) {
 If needed, you may assert that a specific request was not sent using the `assertNotSent` method:
 
 ```php
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
+use Hypervel\Http\Client\Request;
+use Hypervel\Support\Facades\Http;
 
 Http::fake();
 
@@ -878,7 +878,7 @@ Http::assertNothingSent();
 <a name="recording-requests-and-responses"></a>
 #### Recording Requests / Responses
 
-You may use the `recorded` method to gather all requests and their corresponding responses. The `recorded` method returns a collection of arrays that contains instances of `Illuminate\Http\Client\Request` and `Illuminate\Http\Client\Response`:
+You may use the `recorded` method to gather all requests and their corresponding responses. The `recorded` method returns a collection of arrays that contains instances of `Hypervel\Http\Client\Request` and `Hypervel\Http\Client\Response`:
 
 ```php
 Http::fake([
@@ -894,11 +894,11 @@ $recorded = Http::recorded();
 [$request, $response] = $recorded[0];
 ```
 
-Additionally, the `recorded` method accepts a closure which will receive an instance of `Illuminate\Http\Client\Request` and `Illuminate\Http\Client\Response` and may be used to filter request / response pairs based on your expectations:
+Additionally, the `recorded` method accepts a closure which will receive an instance of `Hypervel\Http\Client\Request` and `Hypervel\Http\Client\Response` and may be used to filter request / response pairs based on your expectations:
 
 ```php
-use Illuminate\Http\Client\Request;
-use Illuminate\Http\Client\Response;
+use Hypervel\Http\Client\Request;
+use Hypervel\Http\Client\Response;
 
 Http::fake([
     'https://laravel.com' => Http::response(status: 500),
@@ -920,7 +920,7 @@ $recorded = Http::recorded(function (Request $request, Response $response) {
 If you would like to ensure that all requests sent via the HTTP client have been faked throughout your individual test or complete test suite, you can call the `preventStrayRequests` method. After calling this method, any requests that do not have a corresponding fake response will throw an exception rather than making the actual HTTP request:
 
 ```php
-use Illuminate\Support\Facades\Http;
+use Hypervel\Support\Facades\Http;
 
 Http::preventStrayRequests();
 
@@ -938,7 +938,7 @@ Http::get('https://laravel.com');
 Sometimes, you may wish to prevent most stray requests while still allowing specific requests to execute. To accomplish this, you may pass an array of URL patterns to the `allowStrayRequests` method. Any request matching one of the given patterns will be allowed, while all other requests will continue to throw an exception:
 
 ```php
-use Illuminate\Support\Facades\Http;
+use Hypervel\Support\Facades\Http;
 
 Http::preventStrayRequests();
 
@@ -958,10 +958,10 @@ Http::get('https://laravel.com');
 
 Laravel fires three events during the process of sending HTTP requests. The `RequestSending` event is fired prior to a request being sent, while the `ResponseReceived` event is fired after a response is received for a given request. The `ConnectionFailed` event is fired if no response is received for a given request.
 
-The `RequestSending` and `ConnectionFailed` events both contain a public `$request` property that you may use to inspect the `Illuminate\Http\Client\Request` instance. Likewise, the `ResponseReceived` event contains a `$request` property as well as a `$response` property which may be used to inspect the `Illuminate\Http\Client\Response` instance. You may create [event listeners](/docs/{{version}}/events) for these events within your application:
+The `RequestSending` and `ConnectionFailed` events both contain a public `$request` property that you may use to inspect the `Hypervel\Http\Client\Request` instance. Likewise, the `ResponseReceived` event contains a `$request` property as well as a `$response` property which may be used to inspect the `Hypervel\Http\Client\Response` instance. You may create [event listeners](/docs/{{version}}/events) for these events within your application:
 
 ```php
-use Illuminate\Http\Client\Events\RequestSending;
+use Hypervel\Http\Client\Events\RequestSending;
 
 class LogRequest
 {

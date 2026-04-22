@@ -35,8 +35,8 @@ You may define all of your scheduled tasks in your application's `routes/console
 ```php
 <?php
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::call(function () {
     DB::table('recent_users')->delete();
@@ -52,7 +52,7 @@ Schedule::call(new DeleteRecentUsers)->daily();
 If you prefer to reserve your `routes/console.php` file for command definitions only, you may use the `withSchedule` method in your application's `bootstrap/app.php` file to define your scheduled tasks. This method accepts a closure that receives an instance of the scheduler:
 
 ```php
-use Illuminate\Console\Scheduling\Schedule;
+use Hypervel\Console\Scheduling\Schedule;
 
 ->withSchedule(function (Schedule $schedule) {
     $schedule->call(new DeleteRecentUsers)->daily();
@@ -74,7 +74,7 @@ When scheduling Artisan commands using the command's class name, you may pass an
 
 ```php
 use App\Console\Commands\SendEmailsCommand;
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('emails:send Taylor --force')->daily();
 
@@ -107,7 +107,7 @@ The `job` method may be used to schedule a [queued job](/docs/{{version}}/queues
 
 ```php
 use App\Jobs\Heartbeat;
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::job(new Heartbeat)->everyFiveMinutes();
 ```
@@ -116,7 +116,7 @@ Optional second and third arguments may be provided to the `job` method which sp
 
 ```php
 use App\Jobs\Heartbeat;
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 // Dispatch the job to the "heartbeats" queue on the "sqs" connection...
 Schedule::job(new Heartbeat, 'heartbeats', 'sqs')->everyFiveMinutes();
@@ -128,7 +128,7 @@ Schedule::job(new Heartbeat, 'heartbeats', 'sqs')->everyFiveMinutes();
 The `exec` method may be used to issue a command to the operating system:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::exec('node /home/forge/script.js')->daily();
 ```
@@ -187,7 +187,7 @@ We've already seen a few examples of how you may configure a task to run at spec
 These methods may be combined with additional constraints to create even more finely tuned schedules that only run on certain days of the week. For example, you may schedule a command to run weekly on Monday:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 // Run once per week on Monday at 1 PM...
 Schedule::call(function () {
@@ -231,18 +231,18 @@ A list of additional schedule constraints may be found below:
 The `days` method may be used to limit the execution of a task to specific days of the week. For example, you may schedule a command to run hourly on Sundays and Wednesdays:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('emails:send')
     ->hourly()
     ->days([0, 3]);
 ```
 
-Alternatively, you may use the constants available on the `Illuminate\Console\Scheduling\Schedule` class when defining the days on which a task should run:
+Alternatively, you may use the constants available on the `Hypervel\Console\Scheduling\Schedule` class when defining the days on which a task should run:
 
 ```php
-use Illuminate\Support\Facades;
-use Illuminate\Console\Scheduling\Schedule;
+use Hypervel\Support\Facades;
+use Hypervel\Console\Scheduling\Schedule;
 
 Facades\Schedule::command('emails:send')
     ->hourly()
@@ -306,7 +306,7 @@ Schedule::command('emails:send')
 Using the `timezone` method, you may specify that a scheduled task's time should be interpreted within a given timezone:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('report:generate')
     ->timezone('America/New_York')
@@ -330,7 +330,7 @@ If you are repeatedly assigning the same timezone to all of your scheduled tasks
 By default, scheduled tasks will be run even if the previous instance of the task is still running. To prevent this, you may use the `withoutOverlapping` method:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('emails:send')->withoutOverlapping();
 ```
@@ -356,7 +356,7 @@ If your application's scheduler is running on multiple servers, you may limit a 
 To indicate that the task should run on only one server, use the `onOneServer` method when defining the scheduled task. The first server to obtain the task will secure an atomic lock on the job to prevent other servers from running the same task at the same time:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('report:generate')
     ->fridays()
@@ -402,7 +402,7 @@ Schedule::call(fn () => User::resetApiRequestCount())
 By default, multiple tasks scheduled at the same time will execute sequentially based on the order they are defined in your `schedule` method. If you have long-running tasks, this may cause subsequent tasks to start much later than anticipated. If you would like to run tasks in the background so that they may all run simultaneously, you may use the `runInBackground` method:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('analytics:report')
     ->daily()
@@ -450,7 +450,7 @@ When defining multiple scheduled tasks with similar configurations, you can use 
 To create a group of scheduled tasks, invoke the desired task configuration methods, followed by the `group` method. The `group` method accepts a closure that is responsible for defining the tasks that share the specified configuration:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::daily()
     ->onOneServer()
@@ -478,7 +478,7 @@ So, when using Laravel's scheduler, we only need to add a single cron configurat
 On most operating systems, cron jobs are limited to running a maximum of once per minute. However, Laravel's scheduler allows you to schedule tasks to run at more frequent intervals, even as often as once per second:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::call(function () {
     DB::table('recent_users')->delete();
@@ -523,7 +523,7 @@ php artisan schedule:work
 The Laravel scheduler provides several convenient methods for working with the output generated by scheduled tasks. First, using the `sendOutputTo` method, you may send the output to a file for later inspection:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('emails:send')
     ->daily()
@@ -564,7 +564,7 @@ Schedule::command('report:generate')
 Using the `before` and `after` methods, you may specify code to be executed before and after the scheduled task is executed:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('emails:send')
     ->daily()
@@ -589,10 +589,10 @@ Schedule::command('emails:send')
     });
 ```
 
-If output is available from your command, you may access it in your `after`, `onSuccess` or `onFailure` hooks by type-hinting an `Illuminate\Support\Stringable` instance as the `$output` argument of your hook's closure definition:
+If output is available from your command, you may access it in your `after`, `onSuccess` or `onFailure` hooks by type-hinting an `Hypervel\Support\Stringable` instance as the `$output` argument of your hook's closure definition:
 
 ```php
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Stringable;
 
 Schedule::command('emails:send')
     ->daily()
@@ -648,10 +648,10 @@ Laravel dispatches a variety of [events](/docs/{{version}}/events) during the sc
 
 | Event Name                                                  |
 | ----------------------------------------------------------- |
-| `Illuminate\Console\Events\ScheduledTaskStarting`           |
-| `Illuminate\Console\Events\ScheduledTaskFinished`           |
-| `Illuminate\Console\Events\ScheduledBackgroundTaskFinished` |
-| `Illuminate\Console\Events\ScheduledTaskSkipped`            |
-| `Illuminate\Console\Events\ScheduledTaskFailed`             |
+| `Hypervel\Console\Events\ScheduledTaskStarting`           |
+| `Hypervel\Console\Events\ScheduledTaskFinished`           |
+| `Hypervel\Console\Events\ScheduledBackgroundTaskFinished` |
+| `Hypervel\Console\Events\ScheduledTaskSkipped`            |
+| `Hypervel\Console\Events\ScheduledTaskFailed`             |
 
 </div>

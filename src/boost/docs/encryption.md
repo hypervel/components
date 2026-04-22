@@ -44,9 +44,9 @@ You may encrypt a value using the `encryptString` method provided by the `Crypt`
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Crypt;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Crypt;
 
 class DigitalOceanTokenController extends Controller
 {
@@ -67,11 +67,11 @@ class DigitalOceanTokenController extends Controller
 <a name="decrypting-a-value"></a>
 #### Decrypting a Value
 
-You may decrypt values using the `decryptString` method provided by the `Crypt` facade. If the value cannot be properly decrypted, such as when the message authentication code is invalid, an `Illuminate\Contracts\Encryption\DecryptException` will be thrown:
+You may decrypt values using the `decryptString` method provided by the `Crypt` facade. If the value cannot be properly decrypted, such as when the message authentication code is invalid, an `Hypervel\Contracts\Encryption\DecryptException` will be thrown:
 
 ```php
-use Illuminate\Contracts\Encryption\DecryptException;
-use Illuminate\Support\Facades\Crypt;
+use Hypervel\Contracts\Encryption\DecryptException;
+use Hypervel\Support\Facades\Crypt;
 
 try {
     $decrypted = Crypt::decryptString($encryptedValue);

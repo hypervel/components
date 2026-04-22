@@ -27,12 +27,12 @@ To see an example of how to write a factory, take a look at the `database/factor
 ```php
 namespace Database\Factories;
 
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Support\Facades\Hash;
+use Hypervel\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
+ * @extends \Hypervel\Database\Eloquent\Factories\Factory<\App\Models\User>
  */
 class UserFactory extends Factory
 {
@@ -93,12 +93,12 @@ The new factory class will be placed in your `database/factories` directory.
 <a name="factory-and-model-discovery-conventions"></a>
 #### Model and Factory Discovery Conventions
 
-Once you have defined your factories, you may use the static `factory` method provided to your models by the `Illuminate\Database\Eloquent\Factories\HasFactory` trait in order to instantiate a factory instance for that model.
+Once you have defined your factories, you may use the static `factory` method provided to your models by the `Hypervel\Database\Eloquent\Factories\HasFactory` trait in order to instantiate a factory instance for that model.
 
 The `HasFactory` trait's `factory` method will use conventions to determine the proper factory for the model the trait is assigned to. Specifically, the method will look for a factory in the `Database\Factories` namespace that has a class name matching the model name and is suffixed with `Factory`. If these conventions do not apply to your particular application or factory, you may add the `UseFactory` attribute to the model to manually specify the model's factory:
 
 ```php
-use Illuminate\Database\Eloquent\Attributes\UseFactory;
+use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Database\Factories\Administration\FlightFactory;
 
 #[UseFactory(FlightFactory::class)]
@@ -126,8 +126,8 @@ Then, use the `UseModel` attribute on the corresponding factory to specify the m
 
 ```php
 use App\Administration\Flight;
-use Illuminate\Database\Eloquent\Factories\Attributes\UseModel;
-use Illuminate\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\Attributes\UseModel;
+use Hypervel\Database\Eloquent\Factories\Factory;
 
 #[UseModel(Flight::class)]
 class FlightFactory extends Factory
@@ -144,7 +144,7 @@ State manipulation methods allow you to define discrete modifications that can b
 State transformation methods typically call the `state` method provided by Laravel's base factory class. The `state` method accepts a closure which will receive the array of raw attributes defined for the factory and should return an array of attributes to modify:
 
 ```php
-use Illuminate\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\Factory;
 
 /**
  * Indicate that the user is suspended.
@@ -179,7 +179,7 @@ Factory callbacks are registered using the `afterMaking` and `afterCreating` met
 namespace Database\Factories;
 
 use App\Models\User;
-use Illuminate\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\Factory;
 
 class UserFactory extends Factory
 {
@@ -203,7 +203,7 @@ You may also register factory callbacks within state methods to perform addition
 
 ```php
 use App\Models\User;
-use Illuminate\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\Factory;
 
 /**
  * Indicate that the user is suspended.
@@ -228,7 +228,7 @@ public function suspended(): Factory
 <a name="instantiating-models"></a>
 ### Instantiating Models
 
-Once you have defined your factories, you may use the static `factory` method provided to your models by the `Illuminate\Database\Eloquent\Factories\HasFactory` trait in order to instantiate a factory instance for that model. Let's take a look at a few examples of creating models. First, we'll use the `make` method to create models without persisting them to the database:
+Once you have defined your factories, you may use the static `factory` method provided to your models by the `Hypervel\Database\Eloquent\Factories\HasFactory` trait in order to instantiate a factory instance for that model. Let's take a look at a few examples of creating models. First, we'll use the `make` method to create models without persisting them to the database:
 
 ```php
 use App\Models\User;
@@ -303,7 +303,7 @@ Sometimes you may wish to alternate the value of a given model attribute for eac
 
 ```php
 use App\Models\User;
-use Illuminate\Database\Eloquent\Factories\Sequence;
+use Hypervel\Database\Eloquent\Factories\Sequence;
 
 $users = User::factory()
     ->count(10)
@@ -319,7 +319,7 @@ In this example, five users will be created with an `admin` value of `Y` and fiv
 If necessary, you may include a closure as a sequence value. The closure will be invoked each time the sequence needs a new value:
 
 ```php
-use Illuminate\Database\Eloquent\Factories\Sequence;
+use Hypervel\Database\Eloquent\Factories\Sequence;
 
 $users = User::factory()
     ->count(10)

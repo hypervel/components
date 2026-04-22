@@ -196,12 +196,12 @@ $this->artisan('users:all')
 <a name="console-events"></a>
 ## Console Events
 
-By default, the `Illuminate\Console\Events\CommandStarting` and `Illuminate\Console\Events\CommandFinished` events are not dispatched while running your application's tests. However, you can enable these events for a given test class by adding the `Illuminate\Foundation\Testing\WithConsoleEvents` trait to the class:
+By default, the `Hypervel\Console\Events\CommandStarting` and `Hypervel\Console\Events\CommandFinished` events are not dispatched while running your application's tests. However, you can enable these events for a given test class by adding the `Hypervel\Foundation\Testing\WithConsoleEvents` trait to the class:
 
 ```php tab=Pest
 <?php
 
-use Illuminate\Foundation\Testing\WithConsoleEvents;
+use Hypervel\Foundation\Testing\WithConsoleEvents;
 
 pest()->use(WithConsoleEvents::class);
 
@@ -213,7 +213,7 @@ pest()->use(WithConsoleEvents::class);
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\WithConsoleEvents;
+use Hypervel\Foundation\Testing\WithConsoleEvents;
 use Tests\TestCase;
 
 class ConsoleEventTest extends TestCase

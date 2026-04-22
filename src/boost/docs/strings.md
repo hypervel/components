@@ -311,7 +311,7 @@ $replaced = preg_replace_array('/:[a-z_]+/', ['8:30', '9:00'], $string);
 The `Str::after` method returns everything after the given value in a string. The entire string will be returned if the value does not exist within the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::after('This is my name', 'This is');
 
@@ -324,7 +324,7 @@ $slice = Str::after('This is my name', 'This is');
 The `Str::afterLast` method returns everything after the last occurrence of the given value in a string. The entire string will be returned if the value does not exist within the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::afterLast('App\Http\Controllers\Controller', '\\');
 
@@ -337,7 +337,7 @@ $slice = Str::afterLast('App\Http\Controllers\Controller', '\\');
 The `Str::apa` method converts the given string to title case following the [APA guidelines](https://apastyle.apa.org/style-grammar-guidelines/capitalization/title-case):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $title = Str::apa('Creating A Project');
 
@@ -350,7 +350,7 @@ $title = Str::apa('Creating A Project');
 The `Str::ascii` method will attempt to transliterate the string into an ASCII value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::ascii('û');
 
@@ -363,7 +363,7 @@ $slice = Str::ascii('û');
 The `Str::before` method returns everything before the given value in a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::before('This is my name', 'my name');
 
@@ -376,7 +376,7 @@ $slice = Str::before('This is my name', 'my name');
 The `Str::beforeLast` method returns everything before the last occurrence of the given value in a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::beforeLast('This is my name', 'is');
 
@@ -389,7 +389,7 @@ $slice = Str::beforeLast('This is my name', 'is');
 The `Str::between` method returns the portion of a string between two values:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::between('This is my name', 'This', 'name');
 
@@ -402,7 +402,7 @@ $slice = Str::between('This is my name', 'This', 'name');
 The `Str::betweenFirst` method returns the smallest possible portion of a string between two values:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::betweenFirst('[a] bc [d]', '[', ']');
 
@@ -415,7 +415,7 @@ $slice = Str::betweenFirst('[a] bc [d]', '[', ']');
 The `Str::camel` method converts the given string to `camelCase`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::camel('foo_bar');
 
@@ -428,7 +428,7 @@ $converted = Str::camel('foo_bar');
 The `Str::charAt` method returns the character at the specified index. If the index is out of bounds, `false` is returned:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $character = Str::charAt('This is my name.', 6);
 
@@ -441,7 +441,7 @@ $character = Str::charAt('This is my name.', 6);
 The `Str::chopStart` method removes the first occurrence of the given value only if the value appears at the start of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $url = Str::chopStart('https://laravel.com', 'https://');
 
@@ -451,7 +451,7 @@ $url = Str::chopStart('https://laravel.com', 'https://');
 You may also pass an array as the second argument. If the string starts with any of the values in the array then that value will be removed from string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $url = Str::chopStart('http://laravel.com', ['https://', 'http://']);
 
@@ -464,7 +464,7 @@ $url = Str::chopStart('http://laravel.com', ['https://', 'http://']);
 The `Str::chopEnd` method removes the last occurrence of the given value only if the value appears at the end of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $url = Str::chopEnd('app/Models/Photograph.php', '.php');
 
@@ -474,7 +474,7 @@ $url = Str::chopEnd('app/Models/Photograph.php', '.php');
 You may also pass an array as the second argument. If the string ends with any of the values in the array then that value will be removed from string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $url = Str::chopEnd('laravel.com/index.php', ['/index.html', '/index.php']);
 
@@ -487,7 +487,7 @@ $url = Str::chopEnd('laravel.com/index.php', ['/index.html', '/index.php']);
 The `Str::contains` method determines if the given string contains the given value. By default, this method is case sensitive:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $contains = Str::contains('This is my name', 'my');
 
@@ -497,7 +497,7 @@ $contains = Str::contains('This is my name', 'my');
 You may also pass an array of values to determine if the given string contains any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $contains = Str::contains('This is my name', ['my', 'foo']);
 
@@ -507,7 +507,7 @@ $contains = Str::contains('This is my name', ['my', 'foo']);
 You may disable case sensitivity by setting the `ignoreCase` argument to `true`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $contains = Str::contains('This is my name', 'MY', ignoreCase: true);
 
@@ -520,7 +520,7 @@ $contains = Str::contains('This is my name', 'MY', ignoreCase: true);
 The `Str::containsAll` method determines if the given string contains all of the values in a given array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $containsAll = Str::containsAll('This is my name', ['my', 'name']);
 
@@ -530,7 +530,7 @@ $containsAll = Str::containsAll('This is my name', ['my', 'name']);
 You may disable case sensitivity by setting the `ignoreCase` argument to `true`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $containsAll = Str::containsAll('This is my name', ['MY', 'NAME'], ignoreCase: true);
 
@@ -543,7 +543,7 @@ $containsAll = Str::containsAll('This is my name', ['MY', 'NAME'], ignoreCase: t
 The `Str::doesntContain` method determines if the given string doesn't contain the given value. By default, this method is case sensitive:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $doesntContain = Str::doesntContain('This is name', 'my');
 
@@ -553,7 +553,7 @@ $doesntContain = Str::doesntContain('This is name', 'my');
 You may also pass an array of values to determine if the given string doesn't contain any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $doesntContain = Str::doesntContain('This is name', ['my', 'framework']);
 
@@ -563,7 +563,7 @@ $doesntContain = Str::doesntContain('This is name', ['my', 'framework']);
 You may disable case sensitivity by setting the `ignoreCase` argument to `true`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $doesntContain = Str::doesntContain('This is name', 'MY', ignoreCase: true);
 
@@ -576,7 +576,7 @@ $doesntContain = Str::doesntContain('This is name', 'MY', ignoreCase: true);
 The `Str::deduplicate` method replaces consecutive instances of a character with a single instance of that character in the given string. By default, the method deduplicates spaces:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::deduplicate('The   Laravel   Framework');
 
@@ -586,7 +586,7 @@ $result = Str::deduplicate('The   Laravel   Framework');
 You may specify a different character to deduplicate by passing it in as the second argument to the method:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::deduplicate('The---Laravel---Framework', '-');
 
@@ -599,7 +599,7 @@ $result = Str::deduplicate('The---Laravel---Framework', '-');
 The `Str::doesntEndWith` method determines if the given string doesn't end with the given value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::doesntEndWith('This is my name', 'dog');
 
@@ -609,7 +609,7 @@ $result = Str::doesntEndWith('This is my name', 'dog');
 You may also pass an array of values to determine if the given string doesn't end with any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::doesntEndWith('This is my name', ['this', 'foo']);
 
@@ -626,7 +626,7 @@ $result = Str::doesntEndWith('This is my name', ['name', 'foo']);
 The `Str::doesntStartWith` method determines if the given string doesn't begin with the given value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::doesntStartWith('This is my name', 'That');
 
@@ -647,7 +647,7 @@ $result = Str::doesntStartWith('This is my name', ['What', 'That', 'There']);
 The `Str::endsWith` method determines if the given string ends with the given value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::endsWith('This is my name', 'name');
 
@@ -657,7 +657,7 @@ $result = Str::endsWith('This is my name', 'name');
 You may also pass an array of values to determine if the given string ends with any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::endsWith('This is my name', ['name', 'foo']);
 
@@ -674,7 +674,7 @@ $result = Str::endsWith('This is my name', ['this', 'foo']);
 The `Str::excerpt` method extracts an excerpt from a given string that matches the first instance of a phrase within that string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $excerpt = Str::excerpt('This is my name', 'my', [
     'radius' => 3
@@ -688,7 +688,7 @@ The `radius` option, which defaults to `100`, allows you to define the number of
 In addition, you may use the `omission` option to define the string that will be prepended and appended to the truncated string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $excerpt = Str::excerpt('This is my name', 'name', [
     'radius' => 3,
@@ -704,7 +704,7 @@ $excerpt = Str::excerpt('This is my name', 'name', [
 The `Str::finish` method adds a single instance of the given value to a string if it does not already end with that value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $adjusted = Str::finish('this/string', '/');
 
@@ -721,7 +721,7 @@ $adjusted = Str::finish('this/string/', '/');
 The `Str::fromBase64` method decodes the given Base64 string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $decoded = Str::fromBase64('TGFyYXZlbA==');
 
@@ -734,7 +734,7 @@ $decoded = Str::fromBase64('TGFyYXZlbA==');
 The `Str::headline` method will convert strings delimited by casing, hyphens, or underscores into a space delimited string with each word's first letter capitalized:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $headline = Str::headline('steve_jobs');
 
@@ -751,7 +751,7 @@ $headline = Str::headline('EmailNotificationSent');
 The `Str::initials` method will return the initials of a given string, optionally capitalizing them:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $initials = Str::initials('taylor otwell');
 
@@ -768,7 +768,7 @@ $initials = Str::initials('taylor otwell', capitalize: true);
 The `Str::inlineMarkdown` method converts GitHub flavored Markdown into inline HTML using [CommonMark](https://commonmark.thephpleague.com/). However, unlike the `markdown` method, it does not wrap all generated HTML in a block-level element:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $html = Str::inlineMarkdown('**Laravel**');
 
@@ -780,7 +780,7 @@ $html = Str::inlineMarkdown('**Laravel**');
 By default, Markdown supports raw HTML, which will expose Cross-Site Scripting (XSS) vulnerabilities when used with raw user input. As per the [CommonMark Security documentation](https://commonmark.thephpleague.com/security/), you may use the `html_input` option to either escape or strip raw HTML, and the `allow_unsafe_links` option to specify whether to allow unsafe links. If you need to allow some raw HTML, you should pass your compiled Markdown through an HTML Purifier:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Str::inlineMarkdown('Inject: <script>alert("Hello XSS!");</script>', [
     'html_input' => 'strip',
@@ -796,7 +796,7 @@ Str::inlineMarkdown('Inject: <script>alert("Hello XSS!");</script>', [
 The `Str::is` method determines if a given string matches a given pattern. Asterisks may be used as wildcard values:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $matches = Str::is('foo*', 'foobar');
 
@@ -810,7 +810,7 @@ $matches = Str::is('baz*', 'foobar');
 You may disable case sensitivity by setting the `ignoreCase` argument to `true`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $matches = Str::is('*.jpg', 'photo.JPG', ignoreCase: true);
 
@@ -823,7 +823,7 @@ $matches = Str::is('*.jpg', 'photo.JPG', ignoreCase: true);
 The `Str::isAscii` method determines if a given string is 7 bit ASCII:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $isAscii = Str::isAscii('Taylor');
 
@@ -840,7 +840,7 @@ $isAscii = Str::isAscii('ü');
 The `Str::isJson` method determines if the given string is valid JSON:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::isJson('[1,2,3]');
 
@@ -861,7 +861,7 @@ $result = Str::isJson('{first: "John", last: "Doe"}');
 The `Str::isUrl` method determines if the given string is a valid URL:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $isUrl = Str::isUrl('http://example.com');
 
@@ -884,7 +884,7 @@ $isUrl = Str::isUrl('http://example.com', ['http', 'https']);
 The `Str::isUlid` method determines if the given string is a valid ULID:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $isUlid = Str::isUlid('01gd6r360bp37zj17nxb55yv40');
 
@@ -901,7 +901,7 @@ $isUlid = Str::isUlid('laravel');
 The `Str::isUuid` method determines if the given string is a valid UUID:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $isUuid = Str::isUuid('a0a2a2d2-0b87-4a18-83f2-2529882be2de');
 
@@ -915,7 +915,7 @@ $isUuid = Str::isUuid('laravel');
 You may also validate that the given UUID matches a UUID specification by version (1, 3, 4, 5, 6, 7, or 8):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $isUuid = Str::isUuid('a0a2a2d2-0b87-4a18-83f2-2529882be2de', version: 4);
 
@@ -932,7 +932,7 @@ $isUuid = Str::isUuid('a0a2a2d2-0b87-4a18-83f2-2529882be2de', version: 1);
 The `Str::kebab` method converts the given string to `kebab-case`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::kebab('fooBar');
 
@@ -945,7 +945,7 @@ $converted = Str::kebab('fooBar');
 The `Str::lcfirst` method returns the given string with the first character lowercased:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::lcfirst('Foo Bar');
 
@@ -958,7 +958,7 @@ $string = Str::lcfirst('Foo Bar');
 The `Str::length` method returns the length of the given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $length = Str::length('Laravel');
 
@@ -971,7 +971,7 @@ $length = Str::length('Laravel');
 The `Str::limit` method truncates the given string to the specified length:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $truncated = Str::limit('The quick brown fox jumps over the lazy dog', 20);
 
@@ -1000,7 +1000,7 @@ $truncated = Str::limit('The quick brown fox', 12, preserveWords: true);
 The `Str::lower` method converts the given string to lowercase:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::lower('LARAVEL');
 
@@ -1013,7 +1013,7 @@ $converted = Str::lower('LARAVEL');
 The `Str::markdown` method converts GitHub flavored Markdown into HTML using [CommonMark](https://commonmark.thephpleague.com/):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $html = Str::markdown('# Laravel');
 
@@ -1031,7 +1031,7 @@ $html = Str::markdown('# Taylor <b>Otwell</b>', [
 By default, Markdown supports raw HTML, which will expose Cross-Site Scripting (XSS) vulnerabilities when used with raw user input. As per the [CommonMark Security documentation](https://commonmark.thephpleague.com/security/), you may use the `html_input` option to either escape or strip raw HTML, and the `allow_unsafe_links` option to specify whether to allow unsafe links. If you need to allow some raw HTML, you should pass your compiled Markdown through an HTML Purifier:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Str::markdown('Inject: <script>alert("Hello XSS!");</script>', [
     'html_input' => 'strip',
@@ -1047,7 +1047,7 @@ Str::markdown('Inject: <script>alert("Hello XSS!");</script>', [
 The `Str::mask` method masks a portion of a string with a repeated character, and may be used to obfuscate segments of strings such as email addresses and phone numbers:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::mask('taylor@example.com', '*', 3);
 
@@ -1068,7 +1068,7 @@ $string = Str::mask('taylor@example.com', '*', -15, 3);
 The `Str::match` method will return the portion of a string that matches a given regular expression pattern:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::match('/bar/', 'foo bar');
 
@@ -1085,7 +1085,7 @@ $result = Str::match('/foo (.*)/', 'foo bar');
 The `Str::matchAll` method will return a collection containing the portions of a string that match a given regular expression pattern:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::matchAll('/bar/', 'bar foo bar');
 
@@ -1095,7 +1095,7 @@ $result = Str::matchAll('/bar/', 'bar foo bar');
 If you specify a matching group within the expression, Laravel will return a collection of the first matching group's matches:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::matchAll('/f(\w*)/', 'bar fun bar fly');
 
@@ -1110,7 +1110,7 @@ If no matches are found, an empty collection will be returned.
 The `Str::isMatch` method will return `true` if the string matches a given regular expression:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::isMatch('/foo (.*)/', 'foo bar');
 
@@ -1127,7 +1127,7 @@ $result = Str::isMatch('/foo (.*)/', 'laravel');
 The `Str::orderedUuid` method generates a "timestamp first" UUID that may be efficiently stored in an indexed database column. Each UUID that is generated using this method will be sorted after UUIDs previously generated using the method:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 return (string) Str::orderedUuid();
 ```
@@ -1138,7 +1138,7 @@ return (string) Str::orderedUuid();
 The `Str::padBoth` method wraps PHP's `str_pad` function, padding both sides of a string with another string until the final string reaches a desired length:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $padded = Str::padBoth('James', 10, '_');
 
@@ -1155,7 +1155,7 @@ $padded = Str::padBoth('James', 10);
 The `Str::padLeft` method wraps PHP's `str_pad` function, padding the left side of a string with another string until the final string reaches a desired length:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $padded = Str::padLeft('James', 10, '-=');
 
@@ -1172,7 +1172,7 @@ $padded = Str::padLeft('James', 10);
 The `Str::padRight` method wraps PHP's `str_pad` function, padding the right side of a string with another string until the final string reaches a desired length:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $padded = Str::padRight('James', 10, '-');
 
@@ -1189,7 +1189,7 @@ $padded = Str::padRight('James', 10);
 The `Str::password` method may be used to generate a secure, random password of a given length. The password will consist of a combination of letters, numbers, symbols, and spaces. By default, passwords are 32 characters long:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $password = Str::password();
 
@@ -1206,7 +1206,7 @@ $password = Str::password(12);
 The `Str::plural` method converts a singular word string to its plural form. This function supports [any of the languages supported by Laravel's pluralizer](/docs/{{version}}/localization#pluralization-language):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $plural = Str::plural('car');
 
@@ -1220,7 +1220,7 @@ $plural = Str::plural('child');
 You may provide an integer as a second argument to the function to retrieve the singular or plural form of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $plural = Str::plural('child', 2);
 
@@ -1234,7 +1234,7 @@ $singular = Str::plural('child', 1);
 The `prependCount` argument may be provided to prefix the pluralized string with the formatted `$count`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $label = Str::plural('car', 1000, prependCount: true);
 
@@ -1247,7 +1247,7 @@ $label = Str::plural('car', 1000, prependCount: true);
 The `Str::pluralStudly` method converts a singular word string formatted in studly caps case to its plural form. This function supports [any of the languages supported by Laravel's pluralizer](/docs/{{version}}/localization#pluralization-language):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $plural = Str::pluralStudly('VerifiedHuman');
 
@@ -1261,7 +1261,7 @@ $plural = Str::pluralStudly('UserFeedback');
 You may provide an integer as a second argument to the function to retrieve the singular or plural form of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $plural = Str::pluralStudly('VerifiedHuman', 2);
 
@@ -1278,7 +1278,7 @@ $singular = Str::pluralStudly('VerifiedHuman', 1);
 The `Str::position` method returns the position of the first occurrence of a substring in a string. If the substring does not exist in the given string, `false` is returned:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $position = Str::position('Hello, World!', 'Hello');
 
@@ -1295,7 +1295,7 @@ $position = Str::position('Hello, World!', 'W');
 The `Str::random` method generates a random string of the specified length. This function uses PHP's `random_bytes` function:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $random = Str::random(40);
 ```
@@ -1320,7 +1320,7 @@ Str::createRandomStringsNormally();
 The `Str::remove` method removes the given value or array of values from the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = 'Peter Piper picked a peck of pickled peppers.';
 
@@ -1337,7 +1337,7 @@ You may also pass `false` as a third argument to the `remove` method to ignore c
 The `Str::repeat` method repeats the given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = 'a';
 
@@ -1352,7 +1352,7 @@ $repeat = Str::repeat($string, 5);
 The `Str::replace` method replaces a given string within the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = 'Laravel 11.x';
 
@@ -1380,7 +1380,7 @@ $replaced = Str::replace(
 The `Str::replaceArray` method replaces a given value in the string sequentially using an array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = 'The event will take place between ? and ?';
 
@@ -1395,7 +1395,7 @@ $replaced = Str::replaceArray('?', ['8:30', '9:00'], $string);
 The `Str::replaceFirst` method replaces the first occurrence of a given value in a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::replaceFirst('the', 'a', 'the quick brown fox jumps over the lazy dog');
 
@@ -1408,7 +1408,7 @@ $replaced = Str::replaceFirst('the', 'a', 'the quick brown fox jumps over the la
 The `Str::replaceLast` method replaces the last occurrence of a given value in a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::replaceLast('the', 'a', 'the quick brown fox jumps over the lazy dog');
 
@@ -1421,7 +1421,7 @@ $replaced = Str::replaceLast('the', 'a', 'the quick brown fox jumps over the laz
 The `Str::replaceMatches` method replaces all portions of a string matching a pattern with the given replacement string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::replaceMatches(
     pattern: '/[^A-Za-z0-9]++/',
@@ -1435,7 +1435,7 @@ $replaced = Str::replaceMatches(
 The `replaceMatches` method also accepts a closure that will be invoked with each portion of the string matching the given pattern, allowing you to perform the replacement logic within the closure and return the replaced value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::replaceMatches('/\d/', function (array $matches) {
     return '['.$matches[0].']';
@@ -1450,7 +1450,7 @@ $replaced = Str::replaceMatches('/\d/', function (array $matches) {
 The `Str::replaceStart` method replaces the first occurrence of the given value only if the value appears at the start of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::replaceStart('Hello', 'Laravel', 'Hello World');
 
@@ -1467,7 +1467,7 @@ $replaced = Str::replaceStart('World', 'Laravel', 'Hello World');
 The `Str::replaceEnd` method replaces the last occurrence of the given value only if the value appears at the end of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::replaceEnd('World', 'Laravel', 'Hello World');
 
@@ -1484,7 +1484,7 @@ $replaced = Str::replaceEnd('Hello', 'Laravel', 'Hello World');
 The `Str::reverse` method reverses the given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $reversed = Str::reverse('Hello World');
 
@@ -1497,7 +1497,7 @@ $reversed = Str::reverse('Hello World');
 The `Str::singular` method converts a string to its singular form. This function supports [any of the languages supported by Laravel's pluralizer](/docs/{{version}}/localization#pluralization-language):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $singular = Str::singular('cars');
 
@@ -1514,7 +1514,7 @@ $singular = Str::singular('children');
 The `Str::slug` method generates a URL friendly "slug" from the given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slug = Str::slug('Laravel 5 Framework', '-');
 
@@ -1527,7 +1527,7 @@ $slug = Str::slug('Laravel 5 Framework', '-');
 The `Str::snake` method converts the given string to `snake_case`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::snake('fooBar');
 
@@ -1544,7 +1544,7 @@ $converted = Str::snake('fooBar', '-');
 The `Str::squish` method removes all extraneous white space from a string, including extraneous white space between words:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::squish('    laravel    framework    ');
 
@@ -1557,7 +1557,7 @@ $string = Str::squish('    laravel    framework    ');
 The `Str::start` method adds a single instance of the given value to a string if it does not already start with that value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $adjusted = Str::start('this/string', '/');
 
@@ -1574,7 +1574,7 @@ $adjusted = Str::start('/this/string', '/');
 The `Str::startsWith` method determines if the given string begins with the given value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::startsWith('This is my name', 'This');
 
@@ -1595,7 +1595,7 @@ $result = Str::startsWith('This is my name', ['This', 'That', 'There']);
 The `Str::studly` method converts the given string to `StudlyCase`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::studly('foo_bar');
 
@@ -1608,7 +1608,7 @@ $converted = Str::studly('foo_bar');
 The `Str::substr` method returns the portion of string specified by the start and length parameters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::substr('The Laravel Framework', 4, 7);
 
@@ -1621,7 +1621,7 @@ $converted = Str::substr('The Laravel Framework', 4, 7);
 The `Str::substrCount` method returns the number of occurrences of a given value in the given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $count = Str::substrCount('If you like ice cream, you will like snow cones.', 'like');
 
@@ -1634,7 +1634,7 @@ $count = Str::substrCount('If you like ice cream, you will like snow cones.', 'l
 The `Str::substrReplace` method replaces text within a portion of a string, starting at the position specified by the third argument and replacing the number of characters specified by the fourth argument. Passing `0` to the method's fourth argument will insert the string at the specified position without replacing any of the existing characters in the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::substrReplace('1300', ':', 2);
 // 13:
@@ -1649,7 +1649,7 @@ $result = Str::substrReplace('1300', ':', 2, 0);
 The `Str::swap` method replaces multiple values in the given string using PHP's `strtr` function:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::swap([
     'Tacos' => 'Burritos',
@@ -1665,7 +1665,7 @@ $string = Str::swap([
 The `Str::take` method returns a specified number of characters from the beginning of a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $taken = Str::take('Build something amazing!', 5);
 
@@ -1678,7 +1678,7 @@ $taken = Str::take('Build something amazing!', 5);
 The `Str::title` method converts the given string to `Title Case`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::title('a nice title uses the correct case');
 
@@ -1691,7 +1691,7 @@ $converted = Str::title('a nice title uses the correct case');
 The `Str::toBase64` method converts the given string to Base64:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $base64 = Str::toBase64('Laravel');
 
@@ -1704,7 +1704,7 @@ $base64 = Str::toBase64('Laravel');
 The `Str::transliterate` method will attempt to convert a given string into its closest ASCII representation:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $email = Str::transliterate('ⓣⓔⓢⓣ@ⓛⓐⓡⓐⓥⓔⓛ.ⓒⓞⓜ');
 
@@ -1717,7 +1717,7 @@ $email = Str::transliterate('ⓣⓔⓢⓣ@ⓛⓐⓡⓐⓥⓔⓛ.ⓒⓞⓜ');
 The `Str::trim` method strips whitespace (or other characters) from the beginning and end of the given string. Unlike PHP's native `trim` function, the `Str::trim` method also removes unicode whitespace characters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::trim(' foo bar ');
 
@@ -1730,7 +1730,7 @@ $string = Str::trim(' foo bar ');
 The `Str::ltrim` method strips whitespace (or other characters) from the beginning of the given string. Unlike PHP's native `ltrim` function, the `Str::ltrim` method also removes unicode whitespace characters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::ltrim('  foo bar  ');
 
@@ -1743,7 +1743,7 @@ $string = Str::ltrim('  foo bar  ');
 The `Str::rtrim` method strips whitespace (or other characters) from the end of the given string. Unlike PHP's native `rtrim` function, the `Str::rtrim` method also removes unicode whitespace characters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::rtrim('  foo bar  ');
 
@@ -1756,7 +1756,7 @@ $string = Str::rtrim('  foo bar  ');
 The `Str::ucfirst` method returns the given string with the first character capitalized:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::ucfirst('foo bar');
 
@@ -1769,7 +1769,7 @@ $string = Str::ucfirst('foo bar');
 The `Str::ucsplit` method splits the given string into an array by uppercase characters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $segments = Str::ucsplit('FooBar');
 
@@ -1782,7 +1782,7 @@ $segments = Str::ucsplit('FooBar');
 The `Str::ucwords` method converts the first character of each word in the given string to uppercase:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::ucwords('laravel framework');
 
@@ -1795,7 +1795,7 @@ $string = Str::ucwords('laravel framework');
 The `Str::upper` method converts the given string to uppercase:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::upper('laravel');
 
@@ -1808,18 +1808,18 @@ $string = Str::upper('laravel');
 The `Str::ulid` method generates a ULID, which is a compact, time-ordered unique identifier:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 return (string) Str::ulid();
 
 // 01gd6r360bp37zj17nxb55yv40
 ```
 
-If you would like to retrieve a `Illuminate\Support\Carbon` date instance representing the date and time that a given ULID was created, you may use the `createFromId` method provided by Laravel's Carbon integration:
+If you would like to retrieve a `Hypervel\Support\Carbon` date instance representing the date and time that a given ULID was created, you may use the `createFromId` method provided by Laravel's Carbon integration:
 
 ```php
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 
 $date = Carbon::createFromId((string) Str::ulid());
 ```
@@ -1846,7 +1846,7 @@ Str::createUlidsNormally();
 The `Str::unwrap` method removes the specified strings from the beginning and end of a given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Str::unwrap('-Laravel-', '-');
 
@@ -1863,7 +1863,7 @@ Str::unwrap('{framework: "Laravel"}', '{', '}');
 The `Str::uuid` method generates a UUID (version 4):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 return (string) Str::uuid();
 ```
@@ -1890,7 +1890,7 @@ Str::createUuidsNormally();
 The `Str::uuid7` method generates a UUID (version 7):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 return (string) Str::uuid7();
 ```
@@ -1907,7 +1907,7 @@ return (string) Str::uuid7(time: now());
 The `Str::wordCount` method returns the number of words that a string contains:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Str::wordCount('Hello, world!'); // 2
 ```
@@ -1918,7 +1918,7 @@ Str::wordCount('Hello, world!'); // 2
 The `Str::wordWrap` method wraps a string to a given number of characters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $text = "The quick brown fox jumped over the lazy dog."
 
@@ -1937,7 +1937,7 @@ dog.
 The `Str::words` method limits the number of words in a string. An additional string may be passed to this method via its third argument to specify which string should be appended to the end of the truncated string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 return Str::words('Perfectly balanced, as all things should be.', 3, ' >>>');
 
@@ -1950,7 +1950,7 @@ return Str::words('Perfectly balanced, as all things should be.', 3, ' >>>');
 The `Str::wrap` method wraps the given string with an additional string or pair of strings:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Str::wrap('Laravel', '"');
 
@@ -1964,7 +1964,7 @@ Str::wrap('is', before: 'This ', after: ' Laravel!');
 <a name="method-str"></a>
 #### `str()` {.collection-method}
 
-The `str` function returns a new `Illuminate\Support\Stringable` instance of the given string. This function is equivalent to the `Str::of` method:
+The `str` function returns a new `Hypervel\Support\Stringable` instance of the given string. This function is equivalent to the `Str::of` method:
 
 ```php
 $string = str('Taylor')->append(' Otwell');
@@ -1972,7 +1972,7 @@ $string = str('Taylor')->append(' Otwell');
 // 'Taylor Otwell'
 ```
 
-If no argument is provided to the `str` function, the function returns an instance of `Illuminate\Support\Str`:
+If no argument is provided to the `str` function, the function returns an instance of `Hypervel\Support\Str`:
 
 ```php
 $snake = str()->snake('FooBar');
@@ -2013,7 +2013,7 @@ Fluent strings provide a more fluent, object-oriented interface for working with
 The `after` method returns everything after the given value in a string. The entire string will be returned if the value does not exist within the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::of('This is my name')->after('This is');
 
@@ -2026,7 +2026,7 @@ $slice = Str::of('This is my name')->after('This is');
 The `afterLast` method returns everything after the last occurrence of the given value in a string. The entire string will be returned if the value does not exist within the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::of('App\Http\Controllers\Controller')->afterLast('\\');
 
@@ -2039,7 +2039,7 @@ $slice = Str::of('App\Http\Controllers\Controller')->afterLast('\\');
 The `apa` method converts the given string to title case following the [APA guidelines](https://apastyle.apa.org/style-grammar-guidelines/capitalization/title-case):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::of('a nice title uses the correct case')->apa();
 
@@ -2052,7 +2052,7 @@ $converted = Str::of('a nice title uses the correct case')->apa();
 The `append` method appends the given values to the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('Taylor')->append(' Otwell');
 
@@ -2065,7 +2065,7 @@ $string = Str::of('Taylor')->append(' Otwell');
 The `ascii` method will attempt to transliterate the string into an ASCII value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('ü')->ascii();
 
@@ -2078,7 +2078,7 @@ $string = Str::of('ü')->ascii();
 The `basename` method will return the trailing name component of the given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('/foo/bar/baz')->basename();
 
@@ -2088,7 +2088,7 @@ $string = Str::of('/foo/bar/baz')->basename();
 If needed, you may provide an "extension" that will be removed from the trailing component:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('/foo/bar/baz.jpg')->basename('.jpg');
 
@@ -2101,7 +2101,7 @@ $string = Str::of('/foo/bar/baz.jpg')->basename('.jpg');
 The `before` method returns everything before the given value in a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::of('This is my name')->before('my name');
 
@@ -2114,7 +2114,7 @@ $slice = Str::of('This is my name')->before('my name');
 The `beforeLast` method returns everything before the last occurrence of the given value in a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slice = Str::of('This is my name')->beforeLast('is');
 
@@ -2127,7 +2127,7 @@ $slice = Str::of('This is my name')->beforeLast('is');
 The `between` method returns the portion of a string between two values:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::of('This is my name')->between('This', 'name');
 
@@ -2140,7 +2140,7 @@ $converted = Str::of('This is my name')->between('This', 'name');
 The `betweenFirst` method returns the smallest possible portion of a string between two values:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::of('[a] bc [d]')->betweenFirst('[', ']');
 
@@ -2153,7 +2153,7 @@ $converted = Str::of('[a] bc [d]')->betweenFirst('[', ']');
 The `camel` method converts the given string to `camelCase`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::of('foo_bar')->camel();
 
@@ -2166,7 +2166,7 @@ $converted = Str::of('foo_bar')->camel();
 The `charAt` method returns the character at the specified index. If the index is out of bounds, `false` is returned:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $character = Str::of('This is my name.')->charAt(6);
 
@@ -2179,7 +2179,7 @@ $character = Str::of('This is my name.')->charAt(6);
 The `classBasename` method returns the class name of the given class with the class's namespace removed:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $class = Str::of('Foo\Bar\Baz')->classBasename();
 
@@ -2192,7 +2192,7 @@ $class = Str::of('Foo\Bar\Baz')->classBasename();
 The `chopStart` method removes the first occurrence of the given value only if the value appears at the start of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $url = Str::of('https://laravel.com')->chopStart('https://');
 
@@ -2202,7 +2202,7 @@ $url = Str::of('https://laravel.com')->chopStart('https://');
 You may also pass an array. If the string starts with any of the values in the array then that value will be removed from string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $url = Str::of('http://laravel.com')->chopStart(['https://', 'http://']);
 
@@ -2215,7 +2215,7 @@ $url = Str::of('http://laravel.com')->chopStart(['https://', 'http://']);
 The `chopEnd` method removes the last occurrence of the given value only if the value appears at the end of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $url = Str::of('https://laravel.com')->chopEnd('.com');
 
@@ -2225,7 +2225,7 @@ $url = Str::of('https://laravel.com')->chopEnd('.com');
 You may also pass an array. If the string ends with any of the values in the array then that value will be removed from string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $url = Str::of('http://laravel.com')->chopEnd(['.com', '.io']);
 
@@ -2238,7 +2238,7 @@ $url = Str::of('http://laravel.com')->chopEnd(['.com', '.io']);
 The `contains` method determines if the given string contains the given value. By default, this method is case sensitive:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $contains = Str::of('This is my name')->contains('my');
 
@@ -2248,7 +2248,7 @@ $contains = Str::of('This is my name')->contains('my');
 You may also pass an array of values to determine if the given string contains any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $contains = Str::of('This is my name')->contains(['my', 'foo']);
 
@@ -2258,7 +2258,7 @@ $contains = Str::of('This is my name')->contains(['my', 'foo']);
 You can disable case sensitivity by setting the `ignoreCase` argument to `true`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $contains = Str::of('This is my name')->contains('MY', ignoreCase: true);
 
@@ -2271,7 +2271,7 @@ $contains = Str::of('This is my name')->contains('MY', ignoreCase: true);
 The `containsAll` method determines if the given string contains all of the values in the given array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $containsAll = Str::of('This is my name')->containsAll(['my', 'name']);
 
@@ -2281,7 +2281,7 @@ $containsAll = Str::of('This is my name')->containsAll(['my', 'name']);
 You can disable case sensitivity by setting the `ignoreCase` argument to `true`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $containsAll = Str::of('This is my name')->containsAll(['MY', 'NAME'], ignoreCase: true);
 
@@ -2294,7 +2294,7 @@ $containsAll = Str::of('This is my name')->containsAll(['MY', 'NAME'], ignoreCas
 The `decrypt` method [decrypts](/docs/{{version}}/encryption) the encrypted string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $decrypted = $encrypted->decrypt();
 
@@ -2309,7 +2309,7 @@ For the inverse of `decrypt`, see the [encrypt](#method-fluent-str-encrypt) meth
 The `deduplicate` method replaces consecutive instances of a character with a single instance of that character in the given string. By default, the method deduplicates spaces:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('The   Laravel   Framework')->deduplicate();
 
@@ -2319,7 +2319,7 @@ $result = Str::of('The   Laravel   Framework')->deduplicate();
 You may specify a different character to deduplicate by passing it in as the second argument to the method:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('The---Laravel---Framework')->deduplicate('-');
 
@@ -2332,7 +2332,7 @@ $result = Str::of('The---Laravel---Framework')->deduplicate('-');
 The `dirname` method returns the parent directory portion of the given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('/foo/bar/baz')->dirname();
 
@@ -2342,7 +2342,7 @@ $string = Str::of('/foo/bar/baz')->dirname();
 If necessary, you may specify how many directory levels you wish to trim from the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('/foo/bar/baz')->dirname(2);
 
@@ -2355,7 +2355,7 @@ $string = Str::of('/foo/bar/baz')->dirname(2);
 The `doesntContain` method determines if the given string does not contain the given value. This method is the inverse of the [contains](#method-fluent-str-contains) method. By default, this method is case sensitive:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $doesntContain = Str::of('This is name')->doesntContain('my');
 
@@ -2365,7 +2365,7 @@ $doesntContain = Str::of('This is name')->doesntContain('my');
 You may also pass an array of values to determine if the given string does not contain any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $doesntContain = Str::of('This is name')->doesntContain(['my', 'framework']);
 
@@ -2375,7 +2375,7 @@ $doesntContain = Str::of('This is name')->doesntContain(['my', 'framework']);
 You may disable case sensitivity by setting the `ignoreCase` argument to `true`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $doesntContain = Str::of('This is my name')->doesntContain('MY', ignoreCase: true);
 
@@ -2388,7 +2388,7 @@ $doesntContain = Str::of('This is my name')->doesntContain('MY', ignoreCase: tru
 The `doesntEndWith` method determines if the given string doesn't end with the given value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('This is my name')->doesntEndWith('dog');
 
@@ -2398,7 +2398,7 @@ $result = Str::of('This is my name')->doesntEndWith('dog');
 You may also pass an array of values to determine if the given string doesn't end with any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('This is my name')->doesntEndWith(['this', 'foo']);
 
@@ -2415,7 +2415,7 @@ $result = Str::of('This is my name')->doesntEndWith(['name', 'foo']);
 The `doesntStartWith` method determines if the given string doesn't begin with the given value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('This is my name')->doesntStartWith('That');
 
@@ -2425,7 +2425,7 @@ $result = Str::of('This is my name')->doesntStartWith('That');
 You may also pass an array of values to determine if the given string doesn't start with any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('This is my name')->doesntStartWith(['What', 'That', 'There']);
 
@@ -2438,7 +2438,7 @@ $result = Str::of('This is my name')->doesntStartWith(['What', 'That', 'There'])
 The `encrypt` method [encrypts](/docs/{{version}}/encryption) the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $encrypted = Str::of('secret')->encrypt();
 ```
@@ -2451,7 +2451,7 @@ For the inverse of `encrypt`, see the [decrypt](#method-fluent-str-decrypt) meth
 The `endsWith` method determines if the given string ends with the given value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('This is my name')->endsWith('name');
 
@@ -2461,7 +2461,7 @@ $result = Str::of('This is my name')->endsWith('name');
 You may also pass an array of values to determine if the given string ends with any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('This is my name')->endsWith(['name', 'foo']);
 
@@ -2478,7 +2478,7 @@ $result = Str::of('This is my name')->endsWith(['this', 'foo']);
 The `exactly` method determines if the given string is an exact match with another string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('Laravel')->exactly('Laravel');
 
@@ -2491,7 +2491,7 @@ $result = Str::of('Laravel')->exactly('Laravel');
 The `excerpt` method extracts an excerpt from the string that matches the first instance of a phrase within that string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $excerpt = Str::of('This is my name')->excerpt('my', [
     'radius' => 3
@@ -2505,7 +2505,7 @@ The `radius` option, which defaults to `100`, allows you to define the number of
 In addition, you may use the `omission` option to change the string that will be prepended and appended to the truncated string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $excerpt = Str::of('This is my name')->excerpt('name', [
     'radius' => 3,
@@ -2521,7 +2521,7 @@ $excerpt = Str::of('This is my name')->excerpt('name', [
 The `explode` method splits the string by the given delimiter and returns a collection containing each section of the split string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $collection = Str::of('foo bar baz')->explode(' ');
 
@@ -2534,7 +2534,7 @@ $collection = Str::of('foo bar baz')->explode(' ');
 The `finish` method adds a single instance of the given value to a string if it does not already end with that value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $adjusted = Str::of('this/string')->finish('/');
 
@@ -2551,7 +2551,7 @@ $adjusted = Str::of('this/string/')->finish('/');
 The `fromBase64` method decodes the given Base64 string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $decoded = Str::of('TGFyYXZlbA==')->fromBase64();
 
@@ -2564,7 +2564,7 @@ $decoded = Str::of('TGFyYXZlbA==')->fromBase64();
 The `hash` method hashes the string using the given [algorithm](https://www.php.net/manual/en/function.hash-algos.php):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $hashed = Str::of('secret')->hash(algorithm: 'sha256');
 
@@ -2577,7 +2577,7 @@ $hashed = Str::of('secret')->hash(algorithm: 'sha256');
 The `headline` method will convert strings delimited by casing, hyphens, or underscores into a space delimited string with each word's first letter capitalized:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $headline = Str::of('taylor_otwell')->headline();
 
@@ -2594,7 +2594,7 @@ $headline = Str::of('EmailNotificationSent')->headline();
 The `initials` method will convert the string to its initials:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $initials = Str::of('Taylor Otwell')->initials()->upper();
 
@@ -2607,7 +2607,7 @@ $initials = Str::of('Taylor Otwell')->initials()->upper();
 The `inlineMarkdown` method converts GitHub flavored Markdown into inline HTML using [CommonMark](https://commonmark.thephpleague.com/). However, unlike the `markdown` method, it does not wrap all generated HTML in a block-level element:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $html = Str::of('**Laravel**')->inlineMarkdown();
 
@@ -2619,7 +2619,7 @@ $html = Str::of('**Laravel**')->inlineMarkdown();
 By default, Markdown supports raw HTML, which will expose Cross-Site Scripting (XSS) vulnerabilities when used with raw user input. As per the [CommonMark Security documentation](https://commonmark.thephpleague.com/security/), you may use the `html_input` option to either escape or strip raw HTML, and the `allow_unsafe_links` option to specify whether to allow unsafe links. If you need to allow some raw HTML, you should pass your compiled Markdown through an HTML Purifier:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Str::of('Inject: <script>alert("Hello XSS!");</script>')->inlineMarkdown([
     'html_input' => 'strip',
@@ -2635,7 +2635,7 @@ Str::of('Inject: <script>alert("Hello XSS!");</script>')->inlineMarkdown([
 The `is` method determines if a given string matches a given pattern. Asterisks may be used as wildcard values
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $matches = Str::of('foobar')->is('foo*');
 
@@ -2652,7 +2652,7 @@ $matches = Str::of('foobar')->is('baz*');
 The `isAscii` method determines if a given string is an ASCII string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('Taylor')->isAscii();
 
@@ -2669,7 +2669,7 @@ $result = Str::of('ü')->isAscii();
 The `isEmpty` method determines if the given string is empty:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('  ')->trim()->isEmpty();
 
@@ -2686,7 +2686,7 @@ $result = Str::of('Laravel')->trim()->isEmpty();
 The `isNotEmpty` method determines if the given string is not empty:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('  ')->trim()->isNotEmpty();
 
@@ -2703,7 +2703,7 @@ $result = Str::of('Laravel')->trim()->isNotEmpty();
 The `isJson` method determines if a given string is valid JSON:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('[1,2,3]')->isJson();
 
@@ -2724,7 +2724,7 @@ $result = Str::of('{first: "John", last: "Doe"}')->isJson();
 The `isUlid` method determines if a given string is a ULID:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('01gd6r360bp37zj17nxb55yv40')->isUlid();
 
@@ -2741,7 +2741,7 @@ $result = Str::of('Taylor')->isUlid();
 The `isUrl` method determines if a given string is a URL:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('http://example.com')->isUrl();
 
@@ -2764,7 +2764,7 @@ $result = Str::of('http://example.com')->isUrl(['http', 'https']);
 The `isUuid` method determines if a given string is a UUID:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('5ace9ab9-e9cf-4ec6-a19d-5881212a452c')->isUuid();
 
@@ -2778,7 +2778,7 @@ $result = Str::of('Taylor')->isUuid();
 You may also validate that the given UUID matches a UUID specification by version (1, 3, 4, 5, 6, 7, or 8):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $isUuid = Str::of('a0a2a2d2-0b87-4a18-83f2-2529882be2de')->isUuid(version: 4);
 
@@ -2795,7 +2795,7 @@ $isUuid = Str::of('a0a2a2d2-0b87-4a18-83f2-2529882be2de')->isUuid(version: 1);
 The `kebab` method converts the given string to `kebab-case`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::of('fooBar')->kebab();
 
@@ -2808,7 +2808,7 @@ $converted = Str::of('fooBar')->kebab();
 The `lcfirst` method returns the given string with the first character lowercased:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('Foo Bar')->lcfirst();
 
@@ -2821,7 +2821,7 @@ $string = Str::of('Foo Bar')->lcfirst();
 The `length` method returns the length of the given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $length = Str::of('Laravel')->length();
 
@@ -2834,7 +2834,7 @@ $length = Str::of('Laravel')->length();
 The `limit` method truncates the given string to the specified length:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $truncated = Str::of('The quick brown fox jumps over the lazy dog')->limit(20);
 
@@ -2863,7 +2863,7 @@ $truncated = Str::of('The quick brown fox')->limit(12, preserveWords: true);
 The `lower` method converts the given string to lowercase:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('LARAVEL')->lower();
 
@@ -2876,7 +2876,7 @@ $result = Str::of('LARAVEL')->lower();
 The `markdown` method converts GitHub flavored Markdown into HTML:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $html = Str::of('# Laravel')->markdown();
 
@@ -2894,7 +2894,7 @@ $html = Str::of('# Taylor <b>Otwell</b>')->markdown([
 By default, Markdown supports raw HTML, which will expose Cross-Site Scripting (XSS) vulnerabilities when used with raw user input. As per the [CommonMark Security documentation](https://commonmark.thephpleague.com/security/), you may use the `html_input` option to either escape or strip raw HTML, and the `allow_unsafe_links` option to specify whether to allow unsafe links. If you need to allow some raw HTML, you should pass your compiled Markdown through an HTML Purifier:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Str::of('Inject: <script>alert("Hello XSS!");</script>')->markdown([
     'html_input' => 'strip',
@@ -2910,7 +2910,7 @@ Str::of('Inject: <script>alert("Hello XSS!");</script>')->markdown([
 The `mask` method masks a portion of a string with a repeated character, and may be used to obfuscate segments of strings such as email addresses and phone numbers:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('taylor@example.com')->mask('*', 3);
 
@@ -2935,7 +2935,7 @@ $string = Str::of('taylor@example.com')->mask('*', 4, -4);
 The `match` method will return the portion of a string that matches a given regular expression pattern:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('foo bar')->match('/bar/');
 
@@ -2952,7 +2952,7 @@ $result = Str::of('foo bar')->match('/foo (.*)/');
 The `matchAll` method will return a collection containing the portions of a string that match a given regular expression pattern:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('bar foo bar')->matchAll('/bar/');
 
@@ -2962,7 +2962,7 @@ $result = Str::of('bar foo bar')->matchAll('/bar/');
 If you specify a matching group within the expression, Laravel will return a collection of the first matching group's matches:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('bar fun bar fly')->matchAll('/f(\w*)/');
 
@@ -2977,7 +2977,7 @@ If no matches are found, an empty collection will be returned.
 The `isMatch` method will return `true` if the string matches a given regular expression:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('foo bar')->isMatch('/foo (.*)/');
 
@@ -2994,7 +2994,7 @@ $result = Str::of('laravel')->isMatch('/foo (.*)/');
 The `newLine` method appends an "end of line" character to a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $padded = Str::of('Laravel')->newLine()->append('Framework');
 
@@ -3008,7 +3008,7 @@ $padded = Str::of('Laravel')->newLine()->append('Framework');
 The `padBoth` method wraps PHP's `str_pad` function, padding both sides of a string with another string until the final string reaches the desired length:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $padded = Str::of('James')->padBoth(10, '_');
 
@@ -3025,7 +3025,7 @@ $padded = Str::of('James')->padBoth(10);
 The `padLeft` method wraps PHP's `str_pad` function, padding the left side of a string with another string until the final string reaches the desired length:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $padded = Str::of('James')->padLeft(10, '-=');
 
@@ -3042,7 +3042,7 @@ $padded = Str::of('James')->padLeft(10);
 The `padRight` method wraps PHP's `str_pad` function, padding the right side of a string with another string until the final string reaches the desired length:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $padded = Str::of('James')->padRight(10, '-');
 
@@ -3059,8 +3059,8 @@ $padded = Str::of('James')->padRight(10);
 The `pipe` method allows you to transform the string by passing its current value to the given callable:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $hash = Str::of('Laravel')->pipe('md5')->prepend('Checksum: ');
 
@@ -3079,7 +3079,7 @@ $closure = Str::of('foo')->pipe(function (Stringable $str) {
 The `plural` method converts a singular word string to its plural form. This function supports [any of the languages supported by Laravel's pluralizer](/docs/{{version}}/localization#pluralization-language):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $plural = Str::of('car')->plural();
 
@@ -3093,7 +3093,7 @@ $plural = Str::of('child')->plural();
 You may provide an integer argument to the function to retrieve the singular or plural form of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $plural = Str::of('child')->plural(2);
 
@@ -3107,7 +3107,7 @@ $plural = Str::of('child')->plural(1);
 You may provide the `prependCount` argument to prefix the pluralized string with the formatted `$count`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $label = Str::of('car')->plural(1000, prependCount: true);
 
@@ -3120,7 +3120,7 @@ $label = Str::of('car')->plural(1000, prependCount: true);
 The `position` method returns the position of the first occurrence of a substring in a string. If the substring does not exist within the string, `false` is returned:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $position = Str::of('Hello, World!')->position('Hello');
 
@@ -3137,7 +3137,7 @@ $position = Str::of('Hello, World!')->position('W');
 The `prepend` method prepends the given values onto the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('Framework')->prepend('Laravel ');
 
@@ -3150,7 +3150,7 @@ $string = Str::of('Framework')->prepend('Laravel ');
 The `remove` method removes the given value or array of values from the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('Arkansas is quite beautiful!')->remove('quite ');
 
@@ -3165,7 +3165,7 @@ You may also pass `false` as a second parameter to ignore case when removing str
 The `repeat` method repeats the given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $repeated = Str::of('a')->repeat(5);
 
@@ -3178,7 +3178,7 @@ $repeated = Str::of('a')->repeat(5);
 The `replace` method replaces a given string within the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::of('Laravel 6.x')->replace('6.x', '7.x');
 
@@ -3199,7 +3199,7 @@ $replaced = Str::of('macOS 13.x')->replace(
 The `replaceArray` method replaces a given value in the string sequentially using an array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = 'The event will take place between ? and ?';
 
@@ -3214,7 +3214,7 @@ $replaced = Str::of($string)->replaceArray('?', ['8:30', '9:00']);
 The `replaceFirst` method replaces the first occurrence of a given value in a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::of('the quick brown fox jumps over the lazy dog')->replaceFirst('the', 'a');
 
@@ -3227,7 +3227,7 @@ $replaced = Str::of('the quick brown fox jumps over the lazy dog')->replaceFirst
 The `replaceLast` method replaces the last occurrence of a given value in a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::of('the quick brown fox jumps over the lazy dog')->replaceLast('the', 'a');
 
@@ -3240,7 +3240,7 @@ $replaced = Str::of('the quick brown fox jumps over the lazy dog')->replaceLast(
 The `replaceMatches` method replaces all portions of a string matching a pattern with the given replacement string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::of('(+1) 501-555-1000')->replaceMatches('/[^A-Za-z0-9]++/', '')
 
@@ -3250,7 +3250,7 @@ $replaced = Str::of('(+1) 501-555-1000')->replaceMatches('/[^A-Za-z0-9]++/', '')
 The `replaceMatches` method also accepts a closure that will be invoked with each portion of the string matching the given pattern, allowing you to perform the replacement logic within the closure and return the replaced value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::of('123')->replaceMatches('/\d/', function (array $matches) {
     return '['.$matches[0].']';
@@ -3265,7 +3265,7 @@ $replaced = Str::of('123')->replaceMatches('/\d/', function (array $matches) {
 The `replaceStart` method replaces the first occurrence of the given value only if the value appears at the start of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::of('Hello World')->replaceStart('Hello', 'Laravel');
 
@@ -3282,7 +3282,7 @@ $replaced = Str::of('Hello World')->replaceStart('World', 'Laravel');
 The `replaceEnd` method replaces the last occurrence of the given value only if the value appears at the end of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $replaced = Str::of('Hello World')->replaceEnd('World', 'Laravel');
 
@@ -3299,7 +3299,7 @@ $replaced = Str::of('Hello World')->replaceEnd('Hello', 'Laravel');
 The `scan` method parses input from a string into a collection according to a format supported by the [`sscanf` PHP function](https://www.php.net/manual/en/function.sscanf.php):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $collection = Str::of('filename.jpg')->scan('%[^.].%s');
 
@@ -3312,7 +3312,7 @@ $collection = Str::of('filename.jpg')->scan('%[^.].%s');
 The `singular` method converts a string to its singular form. This function supports [any of the languages supported by Laravel's pluralizer](/docs/{{version}}/localization#pluralization-language):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $singular = Str::of('cars')->singular();
 
@@ -3329,7 +3329,7 @@ $singular = Str::of('children')->singular();
 The `slug` method generates a URL friendly "slug" from the given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $slug = Str::of('Laravel Framework')->slug('-');
 
@@ -3342,7 +3342,7 @@ $slug = Str::of('Laravel Framework')->slug('-');
 The `snake` method converts the given string to `snake_case`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::of('fooBar')->snake();
 
@@ -3355,7 +3355,7 @@ $converted = Str::of('fooBar')->snake();
 The `split` method splits a string into a collection using a regular expression:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $segments = Str::of('one, two, three')->split('/[\s,]+/');
 
@@ -3368,7 +3368,7 @@ $segments = Str::of('one, two, three')->split('/[\s,]+/');
 The `squish` method removes all extraneous white space from a string, including extraneous white space between words:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('    laravel    framework    ')->squish();
 
@@ -3381,7 +3381,7 @@ $string = Str::of('    laravel    framework    ')->squish();
 The `start` method adds a single instance of the given value to a string if it does not already start with that value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $adjusted = Str::of('this/string')->start('/');
 
@@ -3398,7 +3398,7 @@ $adjusted = Str::of('/this/string')->start('/');
 The `startsWith` method determines if the given string begins with the given value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('This is my name')->startsWith('This');
 
@@ -3408,7 +3408,7 @@ $result = Str::of('This is my name')->startsWith('This');
 You may also pass an array of values to determine if the given string starts with any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('This is my name')->startsWith(['This', 'That']);
 
@@ -3421,7 +3421,7 @@ $result = Str::of('This is my name')->startsWith(['This', 'That']);
 The `stripTags` method removes all HTML and PHP tags from a string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('<a href="https://laravel.com">Taylor <b>Otwell</b></a>')->stripTags();
 
@@ -3438,7 +3438,7 @@ $result = Str::of('<a href="https://laravel.com">Taylor <b>Otwell</b></a>')->str
 The `studly` method converts the given string to `StudlyCase`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::of('foo_bar')->studly();
 
@@ -3451,7 +3451,7 @@ $converted = Str::of('foo_bar')->studly();
 The `substr` method returns the portion of the string specified by the given start and length parameters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('Laravel Framework')->substr(8);
 
@@ -3468,7 +3468,7 @@ $string = Str::of('Laravel Framework')->substr(8, 5);
 The `substrReplace` method replaces text within a portion of a string, starting at the position specified by the second argument and replacing the number of characters specified by the third argument. Passing `0` to the method's third argument will insert the string at the specified position without replacing any of the existing characters in the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('1300')->substrReplace(':', 2);
 
@@ -3485,7 +3485,7 @@ $string = Str::of('The Framework')->substrReplace(' Laravel', 3, 0);
 The `swap` method replaces multiple values in the string using PHP's `strtr` function:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('Tacos are great!')
     ->swap([
@@ -3502,7 +3502,7 @@ $string = Str::of('Tacos are great!')
 The `take` method returns a specified number of characters from the beginning of the string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $taken = Str::of('Build something amazing!')->take(5);
 
@@ -3515,8 +3515,8 @@ $taken = Str::of('Build something amazing!')->take(5);
 The `tap` method passes the string to the given closure, allowing you to examine and interact with the string while not affecting the string itself. The original string is returned by the `tap` method regardless of what is returned by the closure:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('Laravel')
     ->append(' Framework')
@@ -3534,7 +3534,7 @@ $string = Str::of('Laravel')
 The `test` method determines if a string matches the given regular expression pattern:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $result = Str::of('Laravel Framework')->test('/Laravel/');
 
@@ -3547,7 +3547,7 @@ $result = Str::of('Laravel Framework')->test('/Laravel/');
 The `title` method converts the given string to `Title Case`:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $converted = Str::of('a nice title uses the correct case')->title();
 
@@ -3560,7 +3560,7 @@ $converted = Str::of('a nice title uses the correct case')->title();
 The `toBase64` method converts the given string to Base64:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $base64 = Str::of('Laravel')->toBase64();
 
@@ -3570,10 +3570,10 @@ $base64 = Str::of('Laravel')->toBase64();
 <a name="method-fluent-str-to-html-string"></a>
 #### `toHtmlString` {.collection-method}
 
-The `toHtmlString` method converts the given string to an instance of `Illuminate\Support\HtmlString`, which will not be escaped when rendered in Blade templates:
+The `toHtmlString` method converts the given string to an instance of `Hypervel\Support\HtmlString`, which will not be escaped when rendered in Blade templates:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $htmlString = Str::of('Nuno Maduro')->toHtmlString();
 ```
@@ -3581,10 +3581,10 @@ $htmlString = Str::of('Nuno Maduro')->toHtmlString();
 <a name="method-fluent-str-to-uri"></a>
 #### `toUri` {.collection-method}
 
-The `toUri` method converts the given string to an instance of [Illuminate\Support\Uri](/docs/{{version}}/helpers#uri):
+The `toUri` method converts the given string to an instance of [Hypervel\Support\Uri](/docs/{{version}}/helpers#uri):
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $uri = Str::of('https://example.com')->toUri();
 ```
@@ -3595,7 +3595,7 @@ $uri = Str::of('https://example.com')->toUri();
 The `transliterate` method will attempt to convert a given string into its closest ASCII representation:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $email = Str::of('ⓣⓔⓢⓣ@ⓛⓐⓡⓐⓥⓔⓛ.ⓒⓞⓜ')->transliterate()
 
@@ -3608,7 +3608,7 @@ $email = Str::of('ⓣⓔⓢⓣ@ⓛⓐⓡⓐⓥⓔⓛ.ⓒⓞⓜ')->transliterate(
 The `trim` method trims the given string. Unlike PHP's native `trim` function, Laravel's `trim` method also removes unicode whitespace characters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('  Laravel  ')->trim();
 
@@ -3625,7 +3625,7 @@ $string = Str::of('/Laravel/')->trim('/');
 The `ltrim` method trims the left side of the string. Unlike PHP's native `ltrim` function, Laravel's `ltrim` method also removes unicode whitespace characters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('  Laravel  ')->ltrim();
 
@@ -3642,7 +3642,7 @@ $string = Str::of('/Laravel/')->ltrim('/');
 The `rtrim` method trims the right side of the given string. Unlike PHP's native `rtrim` function, Laravel's `rtrim` method also removes unicode whitespace characters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('  Laravel  ')->rtrim();
 
@@ -3659,7 +3659,7 @@ $string = Str::of('/Laravel/')->rtrim('/');
 The `ucfirst` method returns the given string with the first character capitalized:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('foo bar')->ucfirst();
 
@@ -3672,7 +3672,7 @@ $string = Str::of('foo bar')->ucfirst();
 The `ucsplit` method splits the given string into a collection by uppercase characters:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('Foo Bar')->ucsplit();
 
@@ -3685,7 +3685,7 @@ $string = Str::of('Foo Bar')->ucsplit();
 The `ucwords` method converts the first character of each word in the given string to uppercase:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('laravel framework')->ucwords();
 
@@ -3698,7 +3698,7 @@ $string = Str::of('laravel framework')->ucwords();
 The `unwrap` method removes the specified strings from the beginning and end of a given string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Str::of('-Laravel-')->unwrap('-');
 
@@ -3715,7 +3715,7 @@ Str::of('{framework: "Laravel"}')->unwrap('{', '}');
 The `upper` method converts the given string to uppercase:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $adjusted = Str::of('laravel')->upper();
 
@@ -3728,8 +3728,8 @@ $adjusted = Str::of('laravel')->upper();
 The `when` method invokes the given closure if a given condition is `true`. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('Taylor')
     ->when(true, function (Stringable $string) {
@@ -3747,8 +3747,8 @@ If necessary, you may pass another closure as the third parameter to the `when` 
 The `whenContains` method invokes the given closure if the string contains the given value. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('tony stark')
     ->whenContains('tony', function (Stringable $string) {
@@ -3763,8 +3763,8 @@ If necessary, you may pass another closure as the third parameter. The closure w
 You may also pass an array of values to determine if the given string contains any of the values in the array:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('tony stark')
     ->whenContains(['tony', 'hulk'], function (Stringable $string) {
@@ -3780,8 +3780,8 @@ $string = Str::of('tony stark')
 The `whenContainsAll` method invokes the given closure if the string contains all of the given sub-strings. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('tony stark')
     ->whenContainsAll(['tony', 'stark'], function (Stringable $string) {
@@ -3799,8 +3799,8 @@ If necessary, you may pass another closure as the third parameter. The closure w
 The `whenDoesntEndWith` method invokes the given closure if the string doesn't end with the given sub-string. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('disney world')->whenDoesntEndWith('land', function (Stringable $string) {
     return $string->title();
@@ -3815,8 +3815,8 @@ $string = Str::of('disney world')->whenDoesntEndWith('land', function (Stringabl
 The `whenDoesntStartWith` method invokes the given closure if the string doesn't start with the given sub-string. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('disney world')->whenDoesntStartWith('sea', function (Stringable $string) {
     return $string->title();
@@ -3831,8 +3831,8 @@ $string = Str::of('disney world')->whenDoesntStartWith('sea', function (Stringab
 The `whenEmpty` method invokes the given closure if the string is empty. If the closure returns a value, that value will also be returned by the `whenEmpty` method. If the closure does not return a value, the fluent string instance will be returned:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('  ')->trim()->whenEmpty(function (Stringable $string) {
     return $string->prepend('Laravel');
@@ -3847,8 +3847,8 @@ $string = Str::of('  ')->trim()->whenEmpty(function (Stringable $string) {
 The `whenNotEmpty` method invokes the given closure if the string is not empty. If the closure returns a value, that value will also be returned by the `whenNotEmpty` method. If the closure does not return a value, the fluent string instance will be returned:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('Framework')->whenNotEmpty(function (Stringable $string) {
     return $string->prepend('Laravel ');
@@ -3863,8 +3863,8 @@ $string = Str::of('Framework')->whenNotEmpty(function (Stringable $string) {
 The `whenStartsWith` method invokes the given closure if the string starts with the given sub-string. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('disney world')->whenStartsWith('disney', function (Stringable $string) {
     return $string->title();
@@ -3879,8 +3879,8 @@ $string = Str::of('disney world')->whenStartsWith('disney', function (Stringable
 The `whenEndsWith` method invokes the given closure if the string ends with the given sub-string. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('disney world')->whenEndsWith('world', function (Stringable $string) {
     return $string->title();
@@ -3895,8 +3895,8 @@ $string = Str::of('disney world')->whenEndsWith('world', function (Stringable $s
 The `whenExactly` method invokes the given closure if the string exactly matches the given string. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('laravel')->whenExactly('laravel', function (Stringable $string) {
     return $string->title();
@@ -3911,8 +3911,8 @@ $string = Str::of('laravel')->whenExactly('laravel', function (Stringable $strin
 The `whenNotExactly` method invokes the given closure if the string does not exactly match the given string. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('framework')->whenNotExactly('laravel', function (Stringable $string) {
     return $string->title();
@@ -3927,8 +3927,8 @@ $string = Str::of('framework')->whenNotExactly('laravel', function (Stringable $
 The `whenIs` method invokes the given closure if the string matches a given pattern. Asterisks may be used as wildcard values. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('foo/bar')->whenIs('foo/*', function (Stringable $string) {
     return $string->append('/baz');
@@ -3943,8 +3943,8 @@ $string = Str::of('foo/bar')->whenIs('foo/*', function (Stringable $string) {
 The `whenIsAscii` method invokes the given closure if the string is 7 bit ASCII. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('laravel')->whenIsAscii(function (Stringable $string) {
     return $string->title();
@@ -3959,7 +3959,7 @@ $string = Str::of('laravel')->whenIsAscii(function (Stringable $string) {
 The `whenIsUlid` method invokes the given closure if the string is a valid ULID. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('01gd6r360bp37zj17nxb55yv40')->whenIsUlid(function (Stringable $string) {
     return $string->substr(0, 8);
@@ -3974,8 +3974,8 @@ $string = Str::of('01gd6r360bp37zj17nxb55yv40')->whenIsUlid(function (Stringable
 The `whenIsUuid` method invokes the given closure if the string is a valid UUID. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('a0a2a2d2-0b87-4a18-83f2-2529882be2de')->whenIsUuid(function (Stringable $string) {
     return $string->substr(0, 8);
@@ -3990,8 +3990,8 @@ $string = Str::of('a0a2a2d2-0b87-4a18-83f2-2529882be2de')->whenIsUuid(function (
 The `whenTest` method invokes the given closure if the string matches the given regular expression. The closure will receive the fluent string instance:
 
 ```php
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 
 $string = Str::of('laravel framework')->whenTest('/laravel/', function (Stringable $string) {
     return $string->title();
@@ -4006,7 +4006,7 @@ $string = Str::of('laravel framework')->whenTest('/laravel/', function (Stringab
 The `wordCount` method returns the number of words that a string contains:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Str::of('Hello, world!')->wordCount(); // 2
 ```
@@ -4017,7 +4017,7 @@ Str::of('Hello, world!')->wordCount(); // 2
 The `words` method limits the number of words in a string. If necessary, you may specify an additional string that will be appended to the truncated string:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $string = Str::of('Perfectly balanced, as all things should be.')->words(3, ' >>>');
 
@@ -4030,7 +4030,7 @@ $string = Str::of('Perfectly balanced, as all things should be.')->words(3, ' >>
 The `wrap` method wraps the given string with an additional string or pair of strings:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 Str::of('Laravel')->wrap('"');
 

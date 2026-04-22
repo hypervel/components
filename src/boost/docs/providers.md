@@ -24,7 +24,7 @@ All user-defined service providers are registered in the `bootstrap/providers.ph
 <a name="writing-service-providers"></a>
 ## Writing Service Providers
 
-All service providers extend the `Illuminate\Support\ServiceProvider` class. Most service providers contain a `register` and a `boot` method. Within the `register` method, you should **only bind things into the [service container](/docs/{{version}}/container)**. You should never attempt to register any event listeners, routes, or any other piece of functionality within the `register` method.
+All service providers extend the `Hypervel\Support\ServiceProvider` class. Most service providers contain a `register` and a `boot` method. Within the `register` method, you should **only bind things into the [service container](/docs/{{version}}/container)**. You should never attempt to register any event listeners, routes, or any other piece of functionality within the `register` method.
 
 The Artisan CLI can generate a new provider via the `make:provider` command. Laravel will automatically register your new provider in your application's `bootstrap/providers.php` file:
 
@@ -45,8 +45,8 @@ Let's take a look at a basic service provider. Within any of your service provid
 namespace App\Providers;
 
 use App\Services\Riak\Connection;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Support\ServiceProvider;
 
 class RiakServiceProvider extends ServiceProvider
 {
@@ -79,7 +79,7 @@ use App\Contracts\ServerProvider;
 use App\Services\DigitalOceanServerProvider;
 use App\Services\PingdomDowntimeNotifier;
 use App\Services\ServerToolsProvider;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -114,8 +114,8 @@ So, what if we need to register a [view composer](/docs/{{version}}/views#view-c
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\View;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Support\Facades\View;
+use Hypervel\Support\ServiceProvider;
 
 class ComposerServiceProvider extends ServiceProvider
 {
@@ -137,7 +137,7 @@ class ComposerServiceProvider extends ServiceProvider
 You may type-hint dependencies for your service provider's `boot` method. The [service container](/docs/{{version}}/container) will automatically inject any dependencies you need:
 
 ```php
-use Illuminate\Contracts\Routing\ResponseFactory;
+use Hypervel\Contracts\Routing\ResponseFactory;
 
 /**
  * Bootstrap any application services.
@@ -181,7 +181,7 @@ If your provider is **only** registering bindings in the [service container](/do
 
 Laravel compiles and stores a list of all of the services supplied by deferred service providers, along with the name of its service provider class. Then, only when you attempt to resolve one of these services does Laravel load the service provider.
 
-To defer the loading of a provider, implement the `\Illuminate\Contracts\Support\DeferrableProvider` interface and define a `provides` method. The `provides` method should return the service container bindings registered by the provider:
+To defer the loading of a provider, implement the `\Hypervel\Contracts\Support\DeferrableProvider` interface and define a `provides` method. The `provides` method should return the service container bindings registered by the provider:
 
 ```php
 <?php
@@ -189,9 +189,9 @@ To defer the loading of a provider, implement the `\Illuminate\Contracts\Support
 namespace App\Providers;
 
 use App\Services\Riak\Connection;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Contracts\Support\DeferrableProvider;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\Support\DeferrableProvider;
+use Hypervel\Support\ServiceProvider;
 
 class RiakServiceProvider extends ServiceProvider implements DeferrableProvider
 {

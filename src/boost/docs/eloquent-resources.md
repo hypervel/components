@@ -29,7 +29,7 @@ Of course, you may always convert Eloquent models or collections to JSON using t
 <a name="generating-resources"></a>
 ## Generating Resources
 
-To generate a resource class, you may use the `make:resource` Artisan command. By default, resources will be placed in the `app/Http/Resources` directory of your application. Resources extend the `Illuminate\Http\Resources\Json\JsonResource` class:
+To generate a resource class, you may use the `make:resource` Artisan command. By default, resources will be placed in the `app/Http/Resources` directory of your application. Resources extend the `Hypervel\Http\Resources\Json\JsonResource` class:
 
 ```shell
 php artisan make:resource UserResource
@@ -40,7 +40,7 @@ php artisan make:resource UserResource
 
 In addition to generating resources that transform individual models, you may generate resources that are responsible for transforming collections of models. This allows your JSON responses to include links and other meta information that is relevant to an entire collection of a given resource.
 
-To create a resource collection, you should use the `--collection` flag when creating the resource. Or, including the word `Collection` in the resource name will indicate to Laravel that it should create a collection resource. Collection resources extend the `Illuminate\Http\Resources\Json\ResourceCollection` class:
+To create a resource collection, you should use the `--collection` flag when creating the resource. Or, including the word `Collection` in the resource name will indicate to Laravel that it should create a collection resource. Collection resources extend the `Hypervel\Http\Resources\Json\ResourceCollection` class:
 
 ```shell
 php artisan make:resource User --collection
@@ -61,8 +61,8 @@ Before diving into all of the options available to you when writing resources, l
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Json\JsonResource;
 
 class UserResource extends JsonResource
 {
@@ -113,8 +113,8 @@ If your resource class doesn't follow this naming convention or is located in a 
 namespace App\Models;
 
 use App\Http\Resources\CustomUserResource;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Attributes\UseResource;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Attributes\UseResource;
 
 #[UseResource(CustomUserResource::class)]
 class User extends Model
@@ -159,8 +159,8 @@ If your resource collection class doesn't follow this naming convention or is lo
 namespace App\Models;
 
 use App\Http\Resources\CustomUserCollection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Attributes\UseResourceCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Attributes\UseResourceCollection;
 
 #[UseResourceCollection(CustomUserCollection::class)]
 class User extends Model
@@ -191,8 +191,8 @@ Once the resource collection class has been generated, you may easily define any
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\ResourceCollection;
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Json\ResourceCollection;
 
 class UserCollection extends ResourceCollection
 {
@@ -242,8 +242,8 @@ When returning a resource collection from a route, Laravel resets the collection
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\Resources\Attributes\PreserveKeys;
-use Illuminate\Http\Resources\Json\JsonResource;
+use Hypervel\Http\Resources\Attributes\PreserveKeys;
+use Hypervel\Http\Resources\Json\JsonResource;
 
 #[PreserveKeys]
 class UserResource extends JsonResource
@@ -275,8 +275,8 @@ For example, `UserCollection` will attempt to map the given user instances into 
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\Resources\Attributes\Collects;
-use Illuminate\Http\Resources\Json\ResourceCollection;
+use Hypervel\Http\Resources\Attributes\Collects;
+use Hypervel\Http\Resources\Json\ResourceCollection;
 
 #[Collects(Member::class)]
 class UserCollection extends ResourceCollection
@@ -298,8 +298,8 @@ Resources only need to transform a given model into an array. So, each resource 
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Json\JsonResource;
 
 class UserResource extends JsonResource
 {
@@ -338,7 +338,7 @@ If you would like to include related resources in your response, you may add the
 
 ```php
 use App\Http\Resources\PostResource;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 /**
  * Transform the resource into an array.
@@ -381,8 +381,8 @@ However, if you need to customize the meta data returned with the collection, it
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\ResourceCollection;
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Json\ResourceCollection;
 
 class UserCollection extends ResourceCollection
 {
@@ -444,15 +444,15 @@ By default, your outermost resource is wrapped in a `data` key when the resource
 }
 ```
 
-If you would like to disable the wrapping of the outermost resource, you should invoke the `withoutWrapping` method on the base `Illuminate\Http\Resources\Json\JsonResource` class. Typically, you should call this method from your `AppServiceProvider` or another [service provider](/docs/{{version}}/providers) that is loaded on every request to your application:
+If you would like to disable the wrapping of the outermost resource, you should invoke the `withoutWrapping` method on the base `Hypervel\Http\Resources\Json\JsonResource` class. Typically, you should call this method from your `AppServiceProvider` or another [service provider](/docs/{{version}}/providers) that is loaded on every request to your application:
 
 ```php
 <?php
 
 namespace App\Providers;
 
-use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Http\Resources\Json\JsonResource;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -489,7 +489,7 @@ You may be wondering if this will cause your outermost resource to be wrapped in
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\Resources\Json\ResourceCollection;
+use Hypervel\Http\Resources\Json\ResourceCollection;
 
 class CommentsCollection extends ResourceCollection
 {
@@ -605,7 +605,7 @@ If you would like to customize the information included in the `links` or `meta`
 /**
  * Customize the pagination information for the resource.
  *
- * @param  \Illuminate\Http\Request  $request
+ * @param  \Hypervel\Http\Request  $request
  * @param  array  $paginated
  * @param  array  $default
  * @return array
@@ -852,7 +852,7 @@ Sometimes you may wish to only include certain meta data with a resource respons
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\Resources\Json\ResourceCollection;
+use Hypervel\Http\Resources\Json\ResourceCollection;
 
 class UserCollection extends ResourceCollection
 {
@@ -913,15 +913,15 @@ To generate a JSON:API resource, use the `make:resource` Artisan command with th
 php artisan make:resource PostResource --json-api
 ```
 
-The generated class will extend `Illuminate\Http\Resources\JsonApi\JsonApiResource` and include `$attributes` and `$relationships` properties for you to define:
+The generated class will extend `Hypervel\Http\Resources\JsonApi\JsonApiResource` and include `$attributes` and `$relationships` properties for you to define:
 
 ```php
 <?php
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\Resources\JsonApi\JsonApiResource;
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 
 class PostResource extends JsonApiResource
 {
@@ -1134,7 +1134,7 @@ GET /api/posts/1?include=comments.author
 By default, nested relationship includes are limited to a maximum depth. You may customize this limit using the `maxRelationshipDepth` method, typically in one of you application's service provider:
 
 ```php
-use Illuminate\Http\Resources\JsonApi\JsonApiResource;
+use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 
 JsonApiResource::maxRelationshipDepth(3);
 ```
@@ -1258,7 +1258,7 @@ Route::get('/user/{id}', function (string $id) {
 });
 ```
 
-However, sometimes you may need to customize the outgoing HTTP response before it is sent to the client. There are two ways to accomplish this. First, you may chain the `response` method onto the resource. This method will return an `Illuminate\Http\JsonResponse` instance, giving you full control over the response's headers:
+However, sometimes you may need to customize the outgoing HTTP response before it is sent to the client. There are two ways to accomplish this. First, you may chain the `response` method onto the resource. This method will return an `Hypervel\Http\JsonResponse` instance, giving you full control over the response's headers:
 
 ```php
 use App\Http\Resources\UserResource;
@@ -1279,9 +1279,9 @@ Alternatively, you may define a `withResponse` method within the resource itself
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\JsonResource;
+use Hypervel\Http\JsonResponse;
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Json\JsonResource;
 
 class UserResource extends JsonResource
 {

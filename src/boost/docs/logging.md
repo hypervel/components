@@ -194,7 +194,7 @@ Log::emergency('The system is down!');
 You may write information to the logs using the `Log` [facade](/docs/{{version}}/facades). As previously mentioned, the logger provides the eight logging levels defined in the [RFC 5424 specification](https://tools.ietf.org/html/rfc5424): **emergency**, **alert**, **critical**, **error**, **warning**, **notice**, **info** and **debug**:
 
 ```php
-use Illuminate\Support\Facades\Log;
+use Hypervel\Support\Facades\Log;
 
 Log::emergency($message);
 Log::alert($message);
@@ -214,8 +214,8 @@ You may call any of these methods to log a message for the corresponding level. 
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Log;
-use Illuminate\View\View;
+use Hypervel\Support\Facades\Log;
+use Hypervel\View\View;
 
 class UserController extends Controller
 {
@@ -239,7 +239,7 @@ class UserController extends Controller
 An array of contextual data may be passed to the log methods. This contextual data will be formatted and displayed with the log message:
 
 ```php
-use Illuminate\Support\Facades\Log;
+use Hypervel\Support\Facades\Log;
 
 Log::info('User {id} failed to login.', ['id' => $user->id]);
 ```
@@ -252,9 +252,9 @@ Occasionally, you may wish to specify some contextual information that should be
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Log;
+use Hypervel\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class AssignRequestId
@@ -262,7 +262,7 @@ class AssignRequestId
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  \Closure(\Hypervel\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -289,9 +289,9 @@ If you would like to share contextual information across _all_ logging channels,
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Log;
+use Hypervel\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class AssignRequestId
@@ -299,7 +299,7 @@ class AssignRequestId
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  \Closure(\Hypervel\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -323,7 +323,7 @@ class AssignRequestId
 Sometimes you may wish to log a message to a channel other than your application's default channel. You may use the `channel` method on the `Log` facade to retrieve and log to any channel defined in your configuration file:
 
 ```php
-use Illuminate\Support\Facades\Log;
+use Hypervel\Support\Facades\Log;
 
 Log::channel('slack')->info('Something happened!');
 ```
@@ -340,7 +340,7 @@ Log::stack(['single', 'slack'])->info('Something happened!');
 It is also possible to create an on-demand channel by providing the configuration at runtime without that configuration being present in your application's `logging` configuration file. To accomplish this, you may pass a configuration array to the `Log` facade's `build` method:
 
 ```php
-use Illuminate\Support\Facades\Log;
+use Hypervel\Support\Facades\Log;
 
 Log::build([
   'driver' => 'single',
@@ -351,7 +351,7 @@ Log::build([
 You may also wish to include an on-demand channel in an on-demand logging stack. This can be achieved by including your on-demand channel instance in the array passed to the `stack` method:
 
 ```php
-use Illuminate\Support\Facades\Log;
+use Hypervel\Support\Facades\Log;
 
 $channel = Log::build([
   'driver' => 'single',
@@ -381,14 +381,14 @@ To get started, define a `tap` array on the channel's configuration. The `tap` a
 ],
 ```
 
-Once you have configured the `tap` option on your channel, you're ready to define the class that will customize your Monolog instance. This class only needs a single method: `__invoke`, which receives an `Illuminate\Log\Logger` instance. The `Illuminate\Log\Logger` instance proxies all method calls to the underlying Monolog instance:
+Once you have configured the `tap` option on your channel, you're ready to define the class that will customize your Monolog instance. This class only needs a single method: `__invoke`, which receives an `Hypervel\Log\Logger` instance. The `Hypervel\Log\Logger` instance proxies all method calls to the underlying Monolog instance:
 
 ```php
 <?php
 
 namespace App\Logging;
 
-use Illuminate\Log\Logger;
+use Hypervel\Log\Logger;
 use Monolog\Formatter\LineFormatter;
 
 class CustomizeFormatter

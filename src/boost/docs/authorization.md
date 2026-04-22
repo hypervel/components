@@ -49,7 +49,7 @@ In this example, we'll define a gate to determine if a user can update a given `
 ```php
 use App\Models\Post;
 use App\Models\User;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Support\Facades\Gate;
 
 /**
  * Bootstrap any application services.
@@ -66,7 +66,7 @@ Like controllers, gates may also be defined using a class callback array:
 
 ```php
 use App\Policies\PostPolicy;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Support\Facades\Gate;
 
 /**
  * Bootstrap any application services.
@@ -88,9 +88,9 @@ To authorize an action using gates, you should use the `allows` or `denies` meth
 namespace App\Http\Controllers;
 
 use App\Models\Post;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Gate;
 
 class PostController extends Controller
 {
@@ -137,7 +137,7 @@ if (Gate::none(['update-post', 'delete-post'], $post)) {
 <a name="authorizing-or-throwing-exceptions"></a>
 #### Authorizing or Throwing Exceptions
 
-If you would like to attempt to authorize an action and automatically throw an `Illuminate\Auth\Access\AuthorizationException` if the user is not allowed to perform the given action, you may use the `Gate` facade's `authorize` method. Instances of `AuthorizationException` are automatically converted to a 403 HTTP response by Laravel:
+If you would like to attempt to authorize an action and automatically throw an `Hypervel\Auth\Access\AuthorizationException` if the user is not allowed to perform the given action, you may use the `Gate` facade's `authorize` method. Instances of `AuthorizationException` are automatically converted to a 403 HTTP response by Laravel:
 
 ```php
 Gate::authorize('update-post', $post);
@@ -153,7 +153,7 @@ The gate methods for authorizing abilities (`allows`, `denies`, `check`, `any`, 
 ```php
 use App\Models\Category;
 use App\Models\User;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Support\Facades\Gate;
 
 Gate::define('create-post', function (User $user, Category $category, bool $pinned) {
     if (! $user->canPublishToGroup($category->group)) {
@@ -173,12 +173,12 @@ if (Gate::check('create-post', [$category, $pinned])) {
 <a name="gate-responses"></a>
 ### Gate Responses
 
-So far, we have only examined gates that return simple boolean values. However, sometimes you may wish to return a more detailed response, including an error message. To do so, you may return an `Illuminate\Auth\Access\Response` from your gate:
+So far, we have only examined gates that return simple boolean values. However, sometimes you may wish to return a more detailed response, including an error message. To do so, you may return an `Hypervel\Auth\Access\Response` from your gate:
 
 ```php
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Auth\Access\Response;
+use Hypervel\Support\Facades\Gate;
 
 Gate::define('edit-settings', function (User $user) {
     return $user->isAdmin
@@ -210,12 +210,12 @@ Gate::authorize('edit-settings');
 <a name="customizing-gate-response-status"></a>
 #### Customizing The HTTP Response Status
 
-When an action is denied via a Gate, a `403` HTTP response is returned; however, it can sometimes be useful to return an alternative HTTP status code. You may customize the HTTP status code returned for a failed authorization check using the `denyWithStatus` static constructor on the `Illuminate\Auth\Access\Response` class:
+When an action is denied via a Gate, a `403` HTTP response is returned; however, it can sometimes be useful to return an alternative HTTP status code. You may customize the HTTP status code returned for a failed authorization check using the `denyWithStatus` static constructor on the `Hypervel\Auth\Access\Response` class:
 
 ```php
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Auth\Access\Response;
+use Hypervel\Support\Facades\Gate;
 
 Gate::define('edit-settings', function (User $user) {
     return $user->isAdmin
@@ -228,8 +228,8 @@ Because hiding resources via a `404` response is such a common pattern for web a
 
 ```php
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Auth\Access\Response;
+use Hypervel\Support\Facades\Gate;
 
 Gate::define('edit-settings', function (User $user) {
     return $user->isAdmin
@@ -245,7 +245,7 @@ Sometimes, you may wish to grant all abilities to a specific user. You may use t
 
 ```php
 use App\Models\User;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Support\Facades\Gate;
 
 Gate::before(function (User $user, string $ability) {
     if ($user->isAdministrator()) {
@@ -277,14 +277,14 @@ Occasionally, you may wish to determine if the currently authenticated user is a
 
 ```php
 use App\Models\User;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Support\Facades\Gate;
 
 Gate::allowIf(fn (User $user) => $user->isAdministrator());
 
 Gate::denyIf(fn (User $user) => $user->banned());
 ```
 
-If the action is not authorized or if no user is currently authenticated, Laravel will automatically throw an `Illuminate\Auth\Access\AuthorizationException` exception. Instances of `AuthorizationException` are automatically converted to a 403 HTTP response by Laravel's exception handler.
+If the action is not authorized or if no user is currently authenticated, Laravel will automatically throw an `Hypervel\Auth\Access\AuthorizationException` exception. Instances of `AuthorizationException` are automatically converted to a 403 HTTP response by Laravel's exception handler.
 
 <a name="creating-policies"></a>
 ## Creating Policies
@@ -317,7 +317,7 @@ By default, Laravel automatically discover policies as long as the model and pol
 If you would like to define your own policy discovery logic, you may register a custom policy discovery callback using the `Gate::guessPolicyNamesUsing` method. Typically, this method should be called from the `boot` method of your application's `AppServiceProvider`:
 
 ```php
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Support\Facades\Gate;
 
 Gate::guessPolicyNamesUsing(function (string $modelClass) {
     // Return the name of the policy class for the given model...
@@ -332,7 +332,7 @@ Using the `Gate` facade, you may manually register policies and their correspond
 ```php
 use App\Models\Order;
 use App\Policies\OrderPolicy;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Support\Facades\Gate;
 
 /**
  * Bootstrap any application services.
@@ -351,8 +351,8 @@ Alternatively, you may place the `UsePolicy` attribute on a model class to infor
 namespace App\Models;
 
 use App\Policies\OrderPolicy;
-use Illuminate\Database\Eloquent\Attributes\UsePolicy;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Attributes\UsePolicy;
+use Hypervel\Database\Eloquent\Model;
 
 #[UsePolicy(OrderPolicy::class)]
 class Order extends Model
@@ -401,12 +401,12 @@ If you used the `--model` option when generating your policy via the Artisan con
 <a name="policy-responses"></a>
 ### Policy Responses
 
-So far, we have only examined policy methods that return simple boolean values. However, sometimes you may wish to return a more detailed response, including an error message. To do so, you may return an `Illuminate\Auth\Access\Response` instance from your policy method:
+So far, we have only examined policy methods that return simple boolean values. However, sometimes you may wish to return a more detailed response, including an error message. To do so, you may return an `Hypervel\Auth\Access\Response` instance from your policy method:
 
 ```php
 use App\Models\Post;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
+use Hypervel\Auth\Access\Response;
 
 /**
  * Determine if the given post can be updated by the user.
@@ -422,7 +422,7 @@ public function update(User $user, Post $post): Response
 When returning an authorization response from your policy, the `Gate::allows` method will still return a simple boolean value; however, you may use the `Gate::inspect` method to get the full authorization response returned by the gate:
 
 ```php
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Support\Facades\Gate;
 
 $response = Gate::inspect('update', $post);
 
@@ -444,12 +444,12 @@ Gate::authorize('update', $post);
 <a name="customizing-policy-response-status"></a>
 #### Customizing the HTTP Response Status
 
-When an action is denied via a policy method, a `403` HTTP response is returned; however, it can sometimes be useful to return an alternative HTTP status code. You may customize the HTTP status code returned for a failed authorization check using the `denyWithStatus` static constructor on the `Illuminate\Auth\Access\Response` class:
+When an action is denied via a policy method, a `403` HTTP response is returned; however, it can sometimes be useful to return an alternative HTTP status code. You may customize the HTTP status code returned for a failed authorization check using the `denyWithStatus` static constructor on the `Hypervel\Auth\Access\Response` class:
 
 ```php
 use App\Models\Post;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
+use Hypervel\Auth\Access\Response;
 
 /**
  * Determine if the given post can be updated by the user.
@@ -467,7 +467,7 @@ Because hiding resources via a `404` response is such a common pattern for web a
 ```php
 use App\Models\Post;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
+use Hypervel\Auth\Access\Response;
 
 /**
  * Determine if the given post can be updated by the user.
@@ -560,8 +560,8 @@ The `App\Models\User` model that is included with your Laravel application inclu
 namespace App\Http\Controllers;
 
 use App\Models\Post;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class PostController extends Controller
 {
@@ -594,8 +594,8 @@ Remember, some actions may correspond to policy methods like `create` that do no
 namespace App\Http\Controllers;
 
 use App\Models\Post;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class PostController extends Controller
 {
@@ -620,7 +620,7 @@ class PostController extends Controller
 
 In addition to helpful methods provided to the `App\Models\User` model, you can always authorize actions via the `Gate` facade's `authorize` method.
 
-Like the `can` method, this method accepts the name of the action you wish to authorize and the relevant model. If the action is not authorized, the `authorize` method will throw an `Illuminate\Auth\Access\AuthorizationException` exception which the Laravel exception handler will automatically convert to an HTTP response with a 403 status code:
+Like the `can` method, this method accepts the name of the action you wish to authorize and the relevant model. If the action is not authorized, the `authorize` method will throw an `Hypervel\Auth\Access\AuthorizationException` exception which the Laravel exception handler will automatically convert to an HTTP response with a 403 status code:
 
 ```php
 <?php
@@ -628,16 +628,16 @@ Like the `can` method, this method accepts the name of the action you wish to au
 namespace App\Http\Controllers;
 
 use App\Models\Post;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Gate;
 
 class PostController extends Controller
 {
     /**
      * Update the given blog post.
      *
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws \Hypervel\Auth\Access\AuthorizationException
      */
     public function update(Request $request, Post $post): RedirectResponse
     {
@@ -657,14 +657,14 @@ As previously discussed, some policy methods like `create` do not require a mode
 
 ```php
 use App\Models\Post;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Gate;
 
 /**
  * Create a new blog post.
  *
- * @throws \Illuminate\Auth\Access\AuthorizationException
+ * @throws \Hypervel\Auth\Access\AuthorizationException
  */
 public function create(Request $request): RedirectResponse
 {
@@ -679,7 +679,7 @@ public function create(Request $request): RedirectResponse
 <a name="via-middleware"></a>
 ### Via Middleware
 
-Laravel includes a middleware that can authorize actions before the incoming request even reaches your routes or controllers. By default, the `Illuminate\Auth\Middleware\Authorize` middleware may be attached to a route using the `can` [middleware alias](/docs/{{version}}/middleware#middleware-aliases), which is automatically registered by Laravel. Let's explore an example of using the `can` middleware to authorize that a user can update a post:
+Laravel includes a middleware that can authorize actions before the incoming request even reaches your routes or controllers. By default, the `Hypervel\Auth\Middleware\Authorize` middleware may be attached to a route using the `can` [middleware alias](/docs/{{version}}/middleware#middleware-aliases), which is automatically registered by Laravel. Let's explore an example of using the `can` middleware to authorize that a user can update a post:
 
 ```php
 use App\Models\Post;
@@ -704,7 +704,7 @@ Route::put('/post/{post}', function (Post $post) {
 If you are using [controller middleware attributes](/docs/{{version}}/controllers#middleware-attributes), you may apply the `can` middleware via the `Authorize` attribute:
 
 ```php
-use Illuminate\Routing\Attributes\Controllers\Authorize;
+use Hypervel\Routing\Attributes\Controllers\Authorize;
 
 #[Authorize('update', 'post')]
 public function update(Post $post)
@@ -814,7 +814,7 @@ When attempting to determine if the authenticated user can update a given post, 
 /**
  * Update the given blog post.
  *
- * @throws \Illuminate\Auth\Access\AuthorizationException
+ * @throws \Hypervel\Auth\Access\AuthorizationException
  */
 public function update(Request $request, Post $post): RedirectResponse
 {
@@ -839,7 +839,7 @@ However, if you are using one of Laravel's Inertia-based [starter kits](/docs/{{
 namespace App\Http\Middleware;
 
 use App\Models\Post;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware

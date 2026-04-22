@@ -100,8 +100,8 @@ By default, Blade (and the Laravel `e` function) will double encode HTML entitie
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Blade;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Support\Facades\Blade;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -161,11 +161,11 @@ Sometimes you may pass an array to your view with the intention of rendering it 
 </script>
 ```
 
-However, instead of manually calling `json_encode`, you may use the `Illuminate\Support\Js::from` method. The `from` method accepts the same arguments as PHP's `json_encode` function; however, it will ensure that the resulting JSON has been properly escaped for inclusion within HTML quotes. The `from` method will return a string `JSON.parse` JavaScript statement that will convert the given object or array into a valid JavaScript object:
+However, instead of manually calling `json_encode`, you may use the `Hypervel\Support\Js::from` method. The `from` method accepts the same arguments as PHP's `json_encode` function; however, it will ensure that the resulting JSON has been properly escaped for inclusion within HTML quotes. The `from` method will return a string `JSON.parse` JavaScript statement that will convert the given object or array into a valid JavaScript object:
 
 ```blade
 <script>
-    var app = {{ Illuminate\Support\Js::from($array) }};
+    var app = {{ Hypervel\Support\Js::from($array) }};
 </script>
 ```
 
@@ -748,7 +748,7 @@ When writing components for your own application, components are automatically d
 However, if you are building a package that utilizes Blade components, you will need to manually register your component class and its HTML tag alias. You should typically register your components in the `boot` method of your package's service provider:
 
 ```php
-use Illuminate\Support\Facades\Blade;
+use Hypervel\Support\Facades\Blade;
 
 /**
  * Bootstrap your package's services.
@@ -768,7 +768,7 @@ Once your component has been registered, it may be rendered using its tag alias:
 Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Package\Views\Components` namespace:
 
 ```php
-use Illuminate\Support\Facades\Blade;
+use Hypervel\Support\Facades\Blade;
 
 /**
  * Bootstrap your package's services.
@@ -808,7 +808,7 @@ If the component class is nested deeper within the `app/View/Components` directo
 If you would like to conditionally render your component, you may define a `shouldRender` method on your component class. If the `shouldRender` method returns `false` the component will not be rendered:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 /**
  * Whether the component should be rendered
@@ -855,8 +855,8 @@ You should define all of the component's data attributes in its class constructo
 
 namespace App\View\Components;
 
-use Illuminate\View\Component;
-use Illuminate\View\View;
+use Hypervel\View\Component;
+use Hypervel\View\View;
 
 class Alert extends Component
 {
@@ -995,7 +995,7 @@ return function (array $data) {
 > [!WARNING]
 > The elements in the `$data` array should never be directly embedded into the Blade string returned by your `render` method, as doing so could allow remote code execution via malicious attribute content.
 
-The `componentName` is equal to the name used in the HTML tag after the `x-` prefix. So `<x-alert />`'s `componentName` will be `alert`. The `attributes` element will contain all of the attributes that were present on the HTML tag. The `slot` element is an `Illuminate\Support\HtmlString` instance with the contents of the component's slot.
+The `componentName` is equal to the name used in the HTML tag after the `x-` prefix. So `<x-alert />`'s `componentName` will be `alert`. The `attributes` element will contain all of the attributes that were present on the HTML tag. The `slot` element is an `Hypervel\Support\HtmlString` instance with the contents of the component's slot.
 
 The closure should return a string. If the returned string corresponds to an existing view, that view will be rendered; otherwise, the returned string will be evaluated as an inline Blade view.
 
@@ -1027,7 +1027,7 @@ If you would like to prevent some public methods or properties from being expose
 
 namespace App\View\Components;
 
-use Illuminate\View\Component;
+use Hypervel\View\Component;
 
 class Alert extends Component
 {
@@ -1408,7 +1408,7 @@ When writing components for your own application, components are automatically d
 However, if you are building a package that utilizes Blade components or placing components in non-conventional directories, you will need to manually register your component class and its HTML tag alias so that Laravel knows where to find the component. You should typically register your components in the `boot` method of your package's service provider:
 
 ```php
-use Illuminate\Support\Facades\Blade;
+use Hypervel\Support\Facades\Blade;
 use VendorPackage\View\Components\AlertComponent;
 
 /**
@@ -1431,7 +1431,7 @@ Once your component has been registered, it may be rendered using its tag alias:
 Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Package\Views\Components` namespace:
 
 ```php
-use Illuminate\Support\Facades\Blade;
+use Hypervel\Support\Facades\Blade;
 
 /**
  * Bootstrap your package's services.
@@ -1890,7 +1890,7 @@ The `@inject` directive may be used to retrieve a service from the Laravel [serv
 Sometimes you may need to transform a raw Blade template string into valid HTML. You may accomplish this using the `render` method provided by the `Blade` facade. The `render` method accepts the Blade template string and an optional array of data to provide to the template:
 
 ```php
-use Illuminate\Support\Facades\Blade;
+use Hypervel\Support\Facades\Blade;
 
 return Blade::render('Hello, {{ $name }}', ['name' => 'Julian Bashir']);
 ```
@@ -1958,8 +1958,8 @@ The following example creates a `@datetime($var)` directive which formats a give
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Blade;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Support\Facades\Blade;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -2000,7 +2000,7 @@ If you attempt to "echo" an object using Blade, the object's `__toString` method
 In these cases, Blade allows you to register a custom echo handler for that particular type of object. To accomplish this, you should invoke Blade's `stringable` method. The `stringable` method accepts a closure. This closure should type-hint the type of object that it is responsible for rendering. Typically, the `stringable` method should be invoked within the `boot` method of your application's `AppServiceProvider` class:
 
 ```php
-use Illuminate\Support\Facades\Blade;
+use Hypervel\Support\Facades\Blade;
 use Money\Money;
 
 /**
@@ -2026,7 +2026,7 @@ Cost: {{ $money }}
 Programming a custom directive is sometimes more complex than necessary when defining simple, custom conditional statements. For that reason, Blade provides a `Blade::if` method which allows you to quickly define custom conditional directives using closures. For example, let's define a custom conditional that checks the configured default "disk" for the application. We may do this in the `boot` method of our `AppServiceProvider`:
 
 ```php
-use Illuminate\Support\Facades\Blade;
+use Hypervel\Support\Facades\Blade;
 
 /**
  * Bootstrap any application services.

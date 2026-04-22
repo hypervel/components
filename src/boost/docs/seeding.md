@@ -33,10 +33,10 @@ As an example, let's modify the default `DatabaseSeeder` class and add a databas
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use Hypervel\Database\Seeder;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Hash;
+use Hypervel\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
@@ -108,8 +108,8 @@ While running seeds, you may want to prevent models from dispatching events. You
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Hypervel\Database\Seeder;
+use Hypervel\Database\Console\Seeds\WithoutModelEvents;
 
 class DatabaseSeeder extends Seeder
 {

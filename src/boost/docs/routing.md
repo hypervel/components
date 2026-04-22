@@ -36,7 +36,7 @@
 The most basic Laravel routes accept a URI and a closure, providing a very simple and expressive method of defining routes and behavior without complicated routing configuration files:
 
 ```php
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Route;
 
 Route::get('/greeting', function () {
     return 'Hello World';
@@ -117,10 +117,10 @@ Route::any('/', function () {
 <a name="dependency-injection"></a>
 #### Dependency Injection
 
-You may type-hint any dependencies required by your route in your route's callback signature. The declared dependencies will automatically be resolved and injected into the callback by the Laravel [service container](/docs/{{version}}/container). For example, you may type-hint the `Illuminate\Http\Request` class to have the current HTTP request automatically injected into your route callback:
+You may type-hint any dependencies required by your route in your route's callback signature. The declared dependencies will automatically be resolved and injected into the callback by the Laravel [service container](/docs/{{version}}/container). For example, you may type-hint the `Hypervel\Http\Request` class to have the current HTTP request automatically injected into your route callback:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::get('/users', function (Request $request) {
     // ...
@@ -221,7 +221,7 @@ By default, your application's routes are configured and loaded by the `bootstra
 ```php
 <?php
 
-use Illuminate\Foundation\Application;
+use Hypervel\Foundation\Application;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -234,7 +234,7 @@ return Application::configure(basePath: dirname(__DIR__))
 However, sometimes you may want to define an entirely new file to contain a subset of your application's routes. To accomplish this, you may provide a `then` closure to the `withRouting` method. Within this closure, you may register any additional routes that are necessary for your application:
 
 ```php
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Route;
 
 ->withRouting(
     web: __DIR__.'/../routes/web.php',
@@ -252,7 +252,7 @@ use Illuminate\Support\Facades\Route;
 Or, you may even take complete control over route registration by providing a `using` closure to the `withRouting` method. When this argument is passed, no HTTP routes will be registered by the framework and you are responsible for manually registering all routes:
 
 ```php
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Route;
 
 ->withRouting(
     commands: __DIR__.'/../routes/console.php',
@@ -297,7 +297,7 @@ Route parameters are always encased within `{}` braces and should consist of alp
 If your route has dependencies that you would like the Laravel service container to automatically inject into your route's callback, you should list your route parameters after your dependencies:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::get('/user/{id}', function (Request $request, string $id) {
     return 'User '.$id;
@@ -374,7 +374,7 @@ If the incoming request does not match the route pattern constraints, a 404 HTTP
 If you would like a route parameter to always be constrained by a given regular expression, you may use the `pattern` method. You should define these patterns in the `boot` method of your application's `App\Providers\AppServiceProvider` class:
 
 ```php
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Route;
 
 /**
  * Bootstrap any application services.
@@ -477,13 +477,13 @@ If you would like to determine if the current request was routed to a given name
 
 ```php
 use Closure;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Handle an incoming request.
  *
- * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+ * @param  \Closure(\Hypervel\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
  */
 public function handle(Request $request, Closure $next): Response
 {
@@ -698,8 +698,8 @@ Typically, a 404 HTTP response will be generated if an implicitly bound model is
 
 ```php
 use App\Http\Controllers\LocationsController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Redirect;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Redirect;
 
 Route::get('/locations/{location:slug}', [LocationsController::class, 'show'])
     ->name('locations.view')
@@ -729,7 +729,7 @@ You may define a route that will only be invoked if the `{category}` route segme
 
 ```php
 use App\Enums\Category;
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Route;
 
 Route::get('/categories/{category}', function (Category $category) {
     return $category->value;
@@ -743,7 +743,7 @@ You are not required to use Laravel's implicit, convention based model resolutio
 
 ```php
 use App\Models\User;
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Route;
 
 /**
  * Bootstrap any application services.
@@ -775,7 +775,7 @@ If you wish to define your own model binding resolution logic, you may use the `
 
 ```php
 use App\Models\User;
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Route;
 
 /**
  * Bootstrap any application services.
@@ -796,7 +796,7 @@ Alternatively, you may override the `resolveRouteBinding` method on your Eloquen
  *
  * @param  mixed  $value
  * @param  string|null  $field
- * @return \Illuminate\Database\Eloquent\Model|null
+ * @return \Hypervel\Database\Eloquent\Model|null
  */
 public function resolveRouteBinding($value, $field = null)
 {
@@ -813,7 +813,7 @@ If a route is utilizing [implicit binding scoping](#implicit-model-binding-scopi
  * @param  string  $childType
  * @param  mixed  $value
  * @param  string|null  $field
- * @return \Illuminate\Database\Eloquent\Model|null
+ * @return \Hypervel\Database\Eloquent\Model|null
  */
 public function resolveChildRouteBinding($childType, $value, $field)
 {
@@ -843,9 +843,9 @@ Laravel includes powerful and customizable rate limiting services that you may u
 Rate limiters may be defined within the `boot` method of your application's `App\Providers\AppServiceProvider` class:
 
 ```php
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
+use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\RateLimiter;
 
 /**
  * Bootstrap any application services.
@@ -858,12 +858,12 @@ public function boot(): void
 }
 ```
 
-Rate limiters are defined using the `RateLimiter` facade's `for` method. The `for` method accepts a rate limiter name and a closure that returns the limit configuration that should apply to routes that are assigned to the rate limiter. Limit configuration are instances of the `Illuminate\Cache\RateLimiting\Limit` class. This class contains helpful "builder" methods so that you can quickly define your limit. The rate limiter name may be any string you wish:
+Rate limiters are defined using the `RateLimiter` facade's `for` method. The `for` method accepts a rate limiter name and a closure that returns the limit configuration that should apply to routes that are assigned to the rate limiter. Limit configuration are instances of the `Hypervel\Cache\RateLimiting\Limit` class. This class contains helpful "builder" methods so that you can quickly define your limit. The rate limiter name may be any string you wish:
 
 ```php
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
+use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\RateLimiter;
 
 /**
  * Bootstrap any application services.
@@ -952,9 +952,9 @@ In addition to rate limiting incoming requests, Laravel allows you to rate limit
 The `after` method accepts a closure that receives the response and should return `true` if the response should be counted toward the rate limit, or `false` if it should be ignored. This is particularly useful for preventing enumeration attacks by limiting consecutive 404 responses, or allowing users to retry requests that fail validation without exhausting their rate limit on an endpoint that should only throttle successful operations:
 
 ```php
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\RateLimiter;
+use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\RateLimiter;
 use Symfony\Component\HttpFoundation\Response;
 
 RateLimiter::for('resource-not-found', function (Request $request) {
@@ -987,7 +987,7 @@ Route::middleware(['throttle:uploads'])->group(function () {
 <a name="throttling-with-redis"></a>
 #### Throttling With Redis
 
-By default, the `throttle` middleware is mapped to the `Illuminate\Routing\Middleware\ThrottleRequests` class. However, if you are using Redis as your application's cache driver, you may wish to instruct Laravel to use Redis to manage rate limiting. To do so, you should use the `throttleWithRedis` method in your application's `bootstrap/app.php` file. This method maps the `throttle` middleware to the `Illuminate\Routing\Middleware\ThrottleRequestsWithRedis` middleware class:
+By default, the `throttle` middleware is mapped to the `Hypervel\Routing\Middleware\ThrottleRequests` class. However, if you are using Redis as your application's cache driver, you may wish to instruct Laravel to use Redis to manage rate limiting. To do so, you should use the `throttleWithRedis` method in your application's `bootstrap/app.php` file. This method maps the `throttle` middleware to the `Hypervel\Routing\Middleware\ThrottleRequestsWithRedis` middleware class:
 
 ```php
 ->withMiddleware(function (Middleware $middleware): void {
@@ -1023,9 +1023,9 @@ For convenience, you may use the `@method` [Blade directive](/docs/{{version}}/b
 You may use the `current`, `currentRouteName`, and `currentRouteAction` methods on the `Route` facade to access information about the route handling the incoming request:
 
 ```php
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Route;
 
-$route = Route::current(); // Illuminate\Routing\Route
+$route = Route::current(); // Hypervel\Routing\Route
 $name = Route::currentRouteName(); // string
 $action = Route::currentRouteAction(); // string
 ```

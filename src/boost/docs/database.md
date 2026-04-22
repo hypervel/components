@@ -144,8 +144,8 @@ To run a basic SELECT query, you may use the `select` method on the `DB` facade:
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\View\View;
+use Hypervel\Support\Facades\DB;
+use Hypervel\View\View;
 
 class UserController extends Controller
 {
@@ -166,7 +166,7 @@ The first argument passed to the `select` method is the SQL query, while the sec
 The `select` method will always return an `array` of results. Each result within the array will be a PHP `stdClass` object representing a record from the database:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 $users = DB::select('select * from users');
 
@@ -212,7 +212,7 @@ $results = DB::select('select * from users where id = :id', ['id' => 1]);
 To execute an `insert` statement, you may use the `insert` method on the `DB` facade. Like `select`, this method accepts the SQL query as its first argument and bindings as its second argument:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 DB::insert('insert into users (id, name) values (?, ?)', [1, 'Marc']);
 ```
@@ -223,7 +223,7 @@ DB::insert('insert into users (id, name) values (?, ?)', [1, 'Marc']);
 The `update` method should be used to update existing records in the database. The number of rows affected by the statement is returned by the method:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 $affected = DB::update(
     'update users set votes = 100 where name = ?',
@@ -237,7 +237,7 @@ $affected = DB::update(
 The `delete` method should be used to delete records from the database. Like `update`, the number of rows affected will be returned by the method:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 $deleted = DB::delete('delete from users');
 ```
@@ -280,7 +280,7 @@ Please refer to the MySQL manual for [a list of all statements](https://dev.mysq
 If your application defines multiple connections in your `config/database.php` configuration file, you may access each connection via the `connection` method provided by the `DB` facade. The connection name passed to the `connection` method should correspond to one of the connections listed in your `config/database.php` configuration file or configured at runtime using the `config` helper:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 $users = DB::connection('sqlite')->select(/* ... */);
 ```
@@ -301,9 +301,9 @@ If you would like to specify a closure that is invoked for each SQL query execut
 
 namespace App\Providers;
 
-use Illuminate\Database\Events\QueryExecuted;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -340,10 +340,10 @@ A common performance bottleneck of modern web applications is the amount of time
 
 namespace App\Providers;
 
-use Illuminate\Database\Connection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Database\Events\QueryExecuted;
+use Hypervel\Database\Connection;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Database\Events\QueryExecuted;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -373,7 +373,7 @@ class AppServiceProvider extends ServiceProvider
 You may use the `transaction` method provided by the `DB` facade to run a set of operations within a database transaction. If an exception is thrown within the transaction closure, the transaction will automatically be rolled back and the exception is re-thrown. If the closure executes successfully, the transaction will automatically be committed. You don't need to worry about manually rolling back or committing while using the `transaction` method:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 DB::transaction(function () {
     DB::update('update users set votes = 1');
@@ -388,7 +388,7 @@ DB::transaction(function () {
 The `transaction` method accepts an optional second argument which defines the number of times a transaction should be retried when a deadlock occurs. Once these attempts have been exhausted, an exception will be thrown:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 DB::transaction(function () {
     DB::update('update users set votes = 1');
@@ -403,7 +403,7 @@ DB::transaction(function () {
 If you would like to begin a transaction manually and have complete control over rollbacks and commits, you may use the `beginTransaction` method provided by the `DB` facade:
 
 ```php
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\DB;
 
 DB::beginTransaction();
 ```
@@ -462,7 +462,7 @@ php artisan db:show --counts --views
 In addition, you may use the following `Schema` methods to inspect your database:
 
 ```php
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Support\Facades\Schema;
 
 $tables = Schema::getTables();
 $views = Schema::getViews();
@@ -489,7 +489,7 @@ php artisan db:table users
 <a name="monitoring-your-databases"></a>
 ## Monitoring Your Databases
 
-Using the `db:monitor` Artisan command, you can instruct Laravel to dispatch an `Illuminate\Database\Events\DatabaseBusy` event if your database is managing more than a specified number of open connections.
+Using the `db:monitor` Artisan command, you can instruct Laravel to dispatch an `Hypervel\Database\Events\DatabaseBusy` event if your database is managing more than a specified number of open connections.
 
 To get started, you should schedule the `db:monitor` command to [run every minute](/docs/{{version}}/scheduling). The command accepts the names of the database connection configurations that you wish to monitor as well as the maximum number of open connections that should be tolerated before dispatching an event:
 
@@ -501,9 +501,9 @@ Scheduling this command alone is not enough to trigger a notification alerting y
 
 ```php
 use App\Notifications\DatabaseApproachingMaxConnections;
-use Illuminate\Database\Events\DatabaseBusy;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Notification;
+use Hypervel\Database\Events\DatabaseBusy;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Notification;
 
 /**
  * Bootstrap any application services.

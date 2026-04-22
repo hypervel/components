@@ -46,7 +46,7 @@ The `local` driver interacts with files stored locally on the server running the
 When using the `local` driver, all file operations are relative to the `root` directory defined in your `filesystems` configuration file. By default, this value is set to the `storage/app/private` directory. Therefore, the following method would write to `storage/app/private/example.txt`:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 Storage::disk('local')->put('example.txt', 'Contents');
 ```
@@ -227,7 +227,7 @@ Typically, after updating the disk's credentials to match the credentials of the
 The `Storage` facade may be used to interact with any of your configured disks. For example, you may use the `put` method on the facade to store an avatar on the default disk. If you call methods on the `Storage` facade without first calling the `disk` method, the method will automatically be passed to the default disk:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 Storage::put('avatars/1', $content);
 ```
@@ -244,7 +244,7 @@ Storage::disk('s3')->put('avatars/1', $content);
 Sometimes you may wish to create a disk at runtime using a given configuration without that configuration actually being present in your application's `filesystems` configuration file. To accomplish this, you may pass a configuration array to the `Storage` facade's `build` method:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 $disk = Storage::build([
     'driver' => 'local',
@@ -302,7 +302,7 @@ return Storage::download('file.jpg', $name, $headers);
 You may use the `url` method to get the URL for a given file. If you are using the `local` driver, this will typically just prepend `/storage` to the given path and return a relative URL to the file. If you are using the `s3` driver, the fully qualified remote URL will be returned:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 $url = Storage::url('file.jpg');
 ```
@@ -333,7 +333,7 @@ If you would like to modify the host for URLs generated using the `Storage` faca
 Using the `temporaryUrl` method, you may create temporary URLs to files stored using the `local` and `s3` drivers. This method accepts a path and a `DateTime` instance specifying when the URL should expire:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 $url = Storage::temporaryUrl(
     'file.jpg', now()->plus(minutes: 5)
@@ -381,9 +381,9 @@ If you need to customize how temporary URLs are created for a specific storage d
 namespace App\Providers;
 
 use DateTime;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Support\Facades\Storage;
+use Hypervel\Support\Facades\URL;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -414,7 +414,7 @@ class AppServiceProvider extends ServiceProvider
 If you need to generate a temporary URL that can be used to upload a file directly from your client-side application, you may use the `temporaryUploadUrl` method. This method accepts a path and a `DateTime` instance specifying when the URL should expire. The `temporaryUploadUrl` method returns an associative array which may be destructured into the upload URL and the headers that should be included with the upload request:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 ['url' => $url, 'headers' => $headers] = Storage::temporaryUploadUrl(
     'file.jpg', now()->plus(minutes: 5)
@@ -429,7 +429,7 @@ This method is primarily useful in serverless environments that require the clie
 In addition to reading and writing files, Laravel can also provide information about the files themselves. For example, the `size` method may be used to get the size of a file in bytes:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 $size = Storage::size('file.jpg');
 ```
@@ -452,7 +452,7 @@ $mime = Storage::mimeType('file.jpg');
 You may use the `path` method to get the path for a given file. If you are using the `local` driver, this will return the absolute path to the file. If you are using the `s3` driver, this method will return the relative path to the file in the S3 bucket:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 $path = Storage::path('file.jpg');
 ```
@@ -463,7 +463,7 @@ $path = Storage::path('file.jpg');
 The `put` method may be used to store file contents on a disk. You may also pass a PHP `resource` to the `put` method, which will use Flysystem's underlying stream support. Remember, all file paths should be specified relative to the "root" location configured for the disk:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 Storage::put('file.jpg', $contents);
 
@@ -516,11 +516,11 @@ Storage::move('old/file.jpg', 'new/file.jpg');
 <a name="automatic-streaming"></a>
 ### Automatic Streaming
 
-Streaming files to storage offers significantly reduced memory usage. If you would like Laravel to automatically manage streaming a given file to your storage location, you may use the `putFile` or `putFileAs` method. This method accepts either an `Illuminate\Http\File` or `Illuminate\Http\UploadedFile` instance and will automatically stream the file to your desired location:
+Streaming files to storage offers significantly reduced memory usage. If you would like Laravel to automatically manage streaming a given file to your storage location, you may use the `putFile` or `putFileAs` method. This method accepts either an `Hypervel\Http\File` or `Hypervel\Http\UploadedFile` instance and will automatically stream the file to your desired location:
 
 ```php
-use Illuminate\Http\File;
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Http\File;
+use Hypervel\Support\Facades\Storage;
 
 // Automatically generate a unique ID for filename...
 $path = Storage::putFile('photos', new File('/path/to/photo'));
@@ -547,7 +547,7 @@ In web applications, one of the most common use-cases for storing files is stori
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 class UserAvatarController extends Controller
 {
@@ -643,7 +643,7 @@ In Laravel's Flysystem integration, "visibility" is an abstraction of file permi
 You can set the visibility when writing the file via the `put` method:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 Storage::put('file.jpg', $contents, 'public');
 ```
@@ -697,7 +697,7 @@ When using the `local` driver, `public` [visibility](#file-visibility) translate
 The `delete` method accepts a single filename or an array of files to delete:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 Storage::delete('file.jpg');
 
@@ -707,7 +707,7 @@ Storage::delete(['file.jpg', 'file2.jpg']);
 If necessary, you may specify the disk that the file should be deleted from:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 Storage::disk('s3')->delete('path/file.jpg');
 ```
@@ -721,7 +721,7 @@ Storage::disk('s3')->delete('path/file.jpg');
 The `files` method returns an array of all files within a given directory. If you would like to retrieve a list of all files within a given directory including subdirectories, you may use the `allFiles` method:
 
 ```php
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Support\Facades\Storage;
 
 $files = Storage::files($directory);
 
@@ -760,13 +760,13 @@ Storage::deleteDirectory($directory);
 <a name="testing"></a>
 ## Testing
 
-The `Storage` facade's `fake` method allows you to easily generate a fake disk that, combined with the file generation utilities of the `Illuminate\Http\UploadedFile` class, greatly simplifies the testing of file uploads. For example:
+The `Storage` facade's `fake` method allows you to easily generate a fake disk that, combined with the file generation utilities of the `Hypervel\Http\UploadedFile` class, greatly simplifies the testing of file uploads. For example:
 
 ```php tab=Pest
 <?php
 
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Facades\Storage;
 
 test('albums can be uploaded', function () {
     Storage::fake('photos');
@@ -797,8 +797,8 @@ test('albums can be uploaded', function () {
 
 namespace Tests\Feature;
 
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -852,10 +852,10 @@ Next, you can register the driver within the `boot` method of one of your applic
 
 namespace App\Providers;
 
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Filesystem\FilesystemAdapter;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Filesystem\FilesystemAdapter;
+use Hypervel\Support\Facades\Storage;
+use Hypervel\Support\ServiceProvider;
 use League\Flysystem\Filesystem;
 use Spatie\Dropbox\Client as DropboxClient;
 use Spatie\FlysystemDropbox\DropboxAdapter;
@@ -890,6 +890,6 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
-The first argument of the `extend` method is the name of the driver and the second is a closure that receives the `$app` and `$config` variables. The closure must return an instance of `Illuminate\Filesystem\FilesystemAdapter`. The `$config` variable contains the values defined in `config/filesystems.php` for the specified disk.
+The first argument of the `extend` method is the name of the driver and the second is a closure that receives the `$app` and `$config` variables. The closure must return an instance of `Hypervel\Filesystem\FilesystemAdapter`. The `$config` variable contains the values defined in `config/filesystems.php` for the specified disk.
 
 Once you have created and registered the extension's service provider, you may use the `dropbox` driver in your `config/filesystems.php` configuration file.

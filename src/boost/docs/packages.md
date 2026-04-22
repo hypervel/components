@@ -84,7 +84,7 @@ You may disable package discovery for all packages using the `*` character insid
 
 [Service providers](/docs/{{version}}/providers) are the connection point between your package and Laravel. A service provider is responsible for binding things into Laravel's [service container](/docs/{{version}}/container) and informing Laravel where to load package resources such as views, configuration, and language files.
 
-A service provider extends the `Illuminate\Support\ServiceProvider` class and contains two methods: `register` and `boot`. The base `ServiceProvider` class is located in the `illuminate/support` Composer package, which you should add to your own package's dependencies. To learn more about the structure and purpose of service providers, check out [their documentation](/docs/{{version}}/providers).
+A service provider extends the `Hypervel\Support\ServiceProvider` class and contains two methods: `register` and `boot`. The base `ServiceProvider` class is located in the `hypervel/support` Composer package, which you should add to your own package's dependencies. To learn more about the structure and purpose of service providers, check out [their documentation](/docs/{{version}}/providers).
 
 <a name="resources"></a>
 ## Resources
@@ -278,7 +278,7 @@ Now, when users of your package execute Laravel's `vendor:publish` Artisan comma
 If you are building a package that utilizes Blade components or placing components in non-conventional directories, you will need to manually register your component class and its HTML tag alias so that Laravel knows where to find the component. You should typically register your components in the `boot` method of your package's service provider:
 
 ```php
-use Illuminate\Support\Facades\Blade;
+use Hypervel\Support\Facades\Blade;
 use VendorPackage\View\Components\AlertComponent;
 
 /**
@@ -302,7 +302,7 @@ Once your component has been registered, it may be rendered using its tag alias:
 Alternatively, you may use the `componentNamespace` method to autoload component classes by convention. For example, a `Nightshade` package might have `Calendar` and `ColorPicker` components that reside within the `Nightshade\Views\Components` namespace:
 
 ```php
-use Illuminate\Support\Facades\Blade;
+use Hypervel\Support\Facades\Blade;
 
 /**
  * Bootstrap your package's services.
@@ -337,7 +337,7 @@ If your package contains anonymous components, they must be placed within a `com
 Laravel's built-in `about` Artisan command provides a synopsis of the application's environment and configuration. Packages may push additional information to this command's output via the `AboutCommand` class. Typically, this information may be added from your package service provider's `boot` method:
 
 ```php
-use Illuminate\Foundation\Console\AboutCommand;
+use Hypervel\Foundation\Console\AboutCommand;
 
 /**
  * Bootstrap any package services.

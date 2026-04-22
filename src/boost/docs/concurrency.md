@@ -30,8 +30,8 @@ The `sync` driver is primarily useful during testing when you want to disable al
 To run concurrent tasks, you may invoke the `Concurrency` facade's `run` method. The `run` method accepts an array of closures which should be executed simultaneously in child PHP processes:
 
 ```php
-use Illuminate\Support\Facades\Concurrency;
-use Illuminate\Support\Facades\DB;
+use Hypervel\Support\Facades\Concurrency;
+use Hypervel\Support\Facades\DB;
 
 [$userCount, $orderCount] = Concurrency::run([
     fn () => DB::table('users')->count(),
@@ -58,7 +58,7 @@ If you would like to execute an array of closures concurrently, but are not inte
 
 ```php
 use App\Services\Metrics;
-use Illuminate\Support\Facades\Concurrency;
+use Hypervel\Support\Facades\Concurrency;
 
 Concurrency::defer([
     fn () => Metrics::report('users'),

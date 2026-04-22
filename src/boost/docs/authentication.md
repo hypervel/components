@@ -124,7 +124,7 @@ First, you should [install a Laravel application starter kit](/docs/{{version}}/
 After creating an application from a starter kit and allowing users to register and authenticate with your application, you will often need to interact with the currently authenticated user. While handling an incoming request, you may access the authenticated user via the `Auth` facade's `user` method:
 
 ```php
-use Illuminate\Support\Facades\Auth;
+use Hypervel\Support\Facades\Auth;
 
 // Retrieve the currently authenticated user...
 $user = Auth::user();
@@ -133,15 +133,15 @@ $user = Auth::user();
 $id = Auth::id();
 ```
 
-Alternatively, once a user is authenticated, you may access the authenticated user via an `Illuminate\Http\Request` instance. Remember, type-hinted classes will automatically be injected into your controller methods. By type-hinting the `Illuminate\Http\Request` object, you may gain convenient access to the authenticated user from any controller method in your application via the request's `user` method:
+Alternatively, once a user is authenticated, you may access the authenticated user via an `Hypervel\Http\Request` instance. Remember, type-hinted classes will automatically be injected into your controller methods. By type-hinting the `Hypervel\Http\Request` object, you may gain convenient access to the authenticated user from any controller method in your application via the request's `user` method:
 
 ```php
 <?php
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class FlightController extends Controller
 {
@@ -165,7 +165,7 @@ class FlightController extends Controller
 To determine if the user making the incoming HTTP request is authenticated, you may use the `check` method on the `Auth` facade. This method will return `true` if the user is authenticated:
 
 ```php
-use Illuminate\Support\Facades\Auth;
+use Hypervel\Support\Facades\Auth;
 
 if (Auth::check()) {
     // The user is logged in...
@@ -178,7 +178,7 @@ if (Auth::check()) {
 <a name="protecting-routes"></a>
 ### Protecting Routes
 
-[Route middleware](/docs/{{version}}/middleware) can be used to only allow authenticated users to access a given route. Laravel ships with an `auth` middleware, which is a [middleware alias](/docs/{{version}}/middleware#middleware-aliases) for the `Illuminate\Auth\Middleware\Authenticate` class. Since this middleware is already aliased internally by Laravel, all you need to do is attach the middleware to a route definition:
+[Route middleware](/docs/{{version}}/middleware) can be used to only allow authenticated users to access a given route. Laravel ships with an `auth` middleware, which is a [middleware alias](/docs/{{version}}/middleware#middleware-aliases) for the `Hypervel\Auth\Middleware\Authenticate` class. Since this middleware is already aliased internally by Laravel, all you need to do is attach the middleware to a route definition:
 
 ```php
 Route::get('/flights', function () {
@@ -192,7 +192,7 @@ Route::get('/flights', function () {
 When the `auth` middleware detects an unauthenticated user, it will redirect the user to the `login` [named route](/docs/{{version}}/routing#named-routes). You may modify this behavior using the `redirectGuestsTo` method within your application's `bootstrap/app.php` file:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->redirectGuestsTo('/login');
@@ -208,7 +208,7 @@ use Illuminate\Http\Request;
 When the `guest` middleware detects an authenticated user, it will redirect the user to the `dashboard` or `home` named route. You may modify this behavior using the `redirectUsersTo` method within your application's `bootstrap/app.php` file:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->redirectUsersTo('/panel');
@@ -249,9 +249,9 @@ We will access Laravel's authentication services via the `Auth` [facade](/docs/{
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Auth;
+use Hypervel\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Support\Facades\Auth;
 
 class LoginController extends Controller
 {
@@ -300,7 +300,7 @@ if (Auth::attempt(['email' => $email, 'password' => $password, 'active' => 1])) 
 For complex query conditions, you may provide a closure in your array of credentials. This closure will be invoked with the query instance, allowing you to customize the query based on your application's needs:
 
 ```php
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 if (Auth::attempt([
     'email' => $email,
@@ -348,7 +348,7 @@ Many web applications provide a "remember me" checkbox on their login form. If y
 When this value is `true`, Laravel will keep the user authenticated indefinitely or until they manually logout. Your `users` table must include the string `remember_token` column, which will be used to store the "remember me" token. The `users` table migration included with new Laravel applications already includes this column:
 
 ```php
-use Illuminate\Support\Facades\Auth;
+use Hypervel\Support\Facades\Auth;
 
 if (Auth::attempt(['email' => $email, 'password' => $password], $remember)) {
     // The user is being remembered...
@@ -358,7 +358,7 @@ if (Auth::attempt(['email' => $email, 'password' => $password], $remember)) {
 If your application offers "remember me" functionality, you may use the `viaRemember`  method to determine if the currently authenticated user was authenticated using the "remember me" cookie:
 
 ```php
-use Illuminate\Support\Facades\Auth;
+use Hypervel\Support\Facades\Auth;
 
 if (Auth::viaRemember()) {
     // ...
@@ -371,10 +371,10 @@ if (Auth::viaRemember()) {
 <a name="authenticate-a-user-instance"></a>
 #### Authenticate a User Instance
 
-If you need to set an existing user instance as the currently authenticated user, you may pass the user instance to the `Auth` facade's `login` method. The given user instance must be an implementation of the `Illuminate\Contracts\Auth\Authenticatable` [contract](/docs/{{version}}/contracts). The `App\Models\User` model included with Laravel already implements this interface. This method of authentication is useful when you already have a valid user instance, such as directly after a user registers with your application:
+If you need to set an existing user instance as the currently authenticated user, you may pass the user instance to the `Auth` facade's `login` method. The given user instance must be an implementation of the `Hypervel\Contracts\Auth\Authenticatable` [contract](/docs/{{version}}/contracts). The `App\Models\User` model included with Laravel already implements this interface. This method of authentication is useful when you already have a valid user instance, such as directly after a user registers with your application:
 
 ```php
-use Illuminate\Support\Facades\Auth;
+use Hypervel\Support\Facades\Auth;
 
 Auth::login($user);
 ```
@@ -451,8 +451,8 @@ You may also use HTTP Basic Authentication without setting a user identifier coo
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthenticateOnceWithBasicAuth
@@ -460,7 +460,7 @@ class AuthenticateOnceWithBasicAuth
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  \Closure(\Hypervel\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -486,9 +486,9 @@ To manually log users out of your application, you may use the `logout` method p
 In addition to calling the `logout` method, it is recommended that you invalidate the user's session and regenerate their [CSRF token](/docs/{{version}}/csrf). After logging the user out, you would typically redirect the user to the root of your application:
 
 ```php
-use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Auth;
+use Hypervel\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Support\Facades\Auth;
 
 /**
  * Log the user out of the application.
@@ -510,7 +510,7 @@ public function logout(Request $request): RedirectResponse
 
 Laravel also provides a mechanism for invalidating and "logging out" a user's sessions that are active on other devices without invalidating the session on their current device. This feature is typically utilized when a user is changing or updating their password and you would like to invalidate sessions on other devices while keeping the current device authenticated.
 
-Before getting started, you should make sure that the `Illuminate\Session\Middleware\AuthenticateSession` middleware is included on the routes that should receive session authentication. Typically, you should place this middleware on a route group definition so that it can be applied to the majority of your application's routes. By default, the `AuthenticateSession` middleware may be attached to a route using the `auth.session` [middleware alias](/docs/{{version}}/middleware#middleware-aliases):
+Before getting started, you should make sure that the `Hypervel\Session\Middleware\AuthenticateSession` middleware is included on the routes that should receive session authentication. Typically, you should place this middleware on a route group definition so that it can be applied to the majority of your application's routes. By default, the `AuthenticateSession` middleware may be attached to a route using the `auth.session` [middleware alias](/docs/{{version}}/middleware#middleware-aliases):
 
 ```php
 Route::middleware(['auth', 'auth.session'])->group(function () {
@@ -523,7 +523,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
 Then, you may use the `logoutOtherDevices` method provided by the `Auth` facade. This method requires the user to confirm their current password, which your application should accept through an input form:
 
 ```php
-use Illuminate\Support\Facades\Auth;
+use Hypervel\Support\Facades\Auth;
 
 Auth::logoutOtherDevices($currentPassword);
 ```
@@ -565,8 +565,8 @@ As you might expect, the view that is returned by this route should have a form 
 Next, we will define a route that will handle the form request from the "confirm password" view. This route will be responsible for validating the password and redirecting the user to their intended destination:
 
 ```php
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Hash;
 
 Route::post('/confirm-password', function (Request $request) {
     if (! Hash::check($request->password, $request->user()->password)) {
@@ -609,9 +609,9 @@ You may define your own authentication guards using the `extend` method on the `
 namespace App\Providers;
 
 use App\Services\Auth\JwtGuard;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -623,7 +623,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Auth::extend('jwt', function (Application $app, string $name, array $config) {
-            // Return an instance of Illuminate\Contracts\Auth\Guard...
+            // Return an instance of Hypervel\Contracts\Auth\Guard...
 
             return new JwtGuard(Auth::createUserProvider($config['provider']));
         });
@@ -631,7 +631,7 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
-As you can see in the example above, the callback passed to the `extend` method should return an implementation of `Illuminate\Contracts\Auth\Guard`. This interface contains a few methods you will need to implement to define a custom guard. Once your custom guard has been defined, you may reference the guard in the `guards` configuration of your `auth.php` configuration file:
+As you can see in the example above, the callback passed to the `extend` method should return an implementation of `Hypervel\Contracts\Auth\Guard`. This interface contains a few methods you will need to implement to define a custom guard. Once your custom guard has been defined, you may reference the guard in the `guards` configuration of your `auth.php` configuration file:
 
 ```php
 'guards' => [
@@ -651,8 +651,8 @@ To get started, call the `Auth::viaRequest` method within the `boot` method of y
 
 ```php
 use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Auth;
 
 /**
  * Bootstrap any application services.
@@ -686,7 +686,7 @@ Route::middleware('auth:api')->group(function () {
 <a name="adding-custom-user-providers"></a>
 ## Adding Custom User Providers
 
-If you are not using a traditional relational database to store your users, you will need to extend Laravel with your own authentication user provider. We will use the `provider` method on the `Auth` facade to define a custom user provider. The user provider resolver should return an implementation of `Illuminate\Contracts\Auth\UserProvider`:
+If you are not using a traditional relational database to store your users, you will need to extend Laravel with your own authentication user provider. We will use the `provider` method on the `Auth` facade to define a custom user provider. The user provider resolver should return an implementation of `Hypervel\Contracts\Auth\UserProvider`:
 
 ```php
 <?php
@@ -694,9 +694,9 @@ If you are not using a traditional relational database to store your users, you 
 namespace App\Providers;
 
 use App\Extensions\MongoUserProvider;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\ServiceProvider;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -708,7 +708,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Auth::provider('mongo', function (Application $app, array $config) {
-            // Return an instance of Illuminate\Contracts\Auth\UserProvider...
+            // Return an instance of Hypervel\Contracts\Auth\UserProvider...
 
             return new MongoUserProvider($app->make('mongo.connection'));
         });
@@ -740,14 +740,14 @@ Finally, you may reference this provider in your `guards` configuration:
 <a name="the-user-provider-contract"></a>
 ### The User Provider Contract
 
-`Illuminate\Contracts\Auth\UserProvider` implementations are responsible for fetching an `Illuminate\Contracts\Auth\Authenticatable` implementation out of a persistent storage system, such as MySQL, MongoDB, etc. These two interfaces allow the Laravel authentication mechanisms to continue functioning regardless of how the user data is stored or what type of class is used to represent the authenticated user:
+`Hypervel\Contracts\Auth\UserProvider` implementations are responsible for fetching an `Hypervel\Contracts\Auth\Authenticatable` implementation out of a persistent storage system, such as MySQL, MongoDB, etc. These two interfaces allow the Laravel authentication mechanisms to continue functioning regardless of how the user data is stored or what type of class is used to represent the authenticated user:
 
-Let's take a look at the `Illuminate\Contracts\Auth\UserProvider` contract:
+Let's take a look at the `Hypervel\Contracts\Auth\UserProvider` contract:
 
 ```php
 <?php
 
-namespace Illuminate\Contracts\Auth;
+namespace Hypervel\Contracts\Auth;
 
 interface UserProvider
 {
@@ -780,7 +780,7 @@ Now that we have explored each of the methods on the `UserProvider`, let's take 
 ```php
 <?php
 
-namespace Illuminate\Contracts\Auth;
+namespace Hypervel\Contracts\Auth;
 
 interface Authenticatable
 {
@@ -826,18 +826,18 @@ Laravel dispatches a variety of [events](/docs/{{version}}/events) during the au
 
 | Event Name                                     |
 | ---------------------------------------------- |
-| `Illuminate\Auth\Events\Registered`            |
-| `Illuminate\Auth\Events\Attempting`            |
-| `Illuminate\Auth\Events\Authenticated`         |
-| `Illuminate\Auth\Events\Login`                 |
-| `Illuminate\Auth\Events\Failed`                |
-| `Illuminate\Auth\Events\Validated`             |
-| `Illuminate\Auth\Events\Verified`              |
-| `Illuminate\Auth\Events\Logout`                |
-| `Illuminate\Auth\Events\CurrentDeviceLogout`   |
-| `Illuminate\Auth\Events\OtherDeviceLogout`     |
-| `Illuminate\Auth\Events\Lockout`               |
-| `Illuminate\Auth\Events\PasswordReset`         |
-| `Illuminate\Auth\Events\PasswordResetLinkSent` |
+| `Hypervel\Auth\Events\Registered`            |
+| `Hypervel\Auth\Events\Attempting`            |
+| `Hypervel\Auth\Events\Authenticated`         |
+| `Hypervel\Auth\Events\Login`                 |
+| `Hypervel\Auth\Events\Failed`                |
+| `Hypervel\Auth\Events\Validated`             |
+| `Hypervel\Auth\Events\Verified`              |
+| `Hypervel\Auth\Events\Logout`                |
+| `Hypervel\Auth\Events\CurrentDeviceLogout`   |
+| `Hypervel\Auth\Events\OtherDeviceLogout`     |
+| `Hypervel\Auth\Events\Lockout`               |
+| `Hypervel\Auth\Events\PasswordReset`         |
+| `Hypervel\Auth\Events\PasswordResetLinkSent` |
 
 </div>

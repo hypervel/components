@@ -44,7 +44,7 @@ Let's take a look at an example of a basic controller. A controller may have any
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\View\View;
+use Hypervel\View\View;
 
 class UserController extends Controller
 {
@@ -128,8 +128,8 @@ Or, you may find it convenient to specify middleware within your controller clas
 
 namespace App\Http\Controllers;
 
-use Illuminate\Routing\Controllers\HasMiddleware;
-use Illuminate\Routing\Controllers\Middleware;
+use Hypervel\Routing\Controllers\HasMiddleware;
+use Hypervel\Routing\Controllers\Middleware;
 
 class UserController implements HasMiddleware
 {
@@ -153,7 +153,7 @@ You may also define controller middleware as closures, which provides a convenie
 
 ```php
 use Closure;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 /**
  * Get the middleware that should be assigned to the controller.
@@ -178,7 +178,7 @@ You may also assign middleware to controllers using PHP attributes:
 
 namespace App\Http\Controllers;
 
-use Illuminate\Routing\Attributes\Controllers\Middleware;
+use Hypervel\Routing\Attributes\Controllers\Middleware;
 
 #[Middleware('auth')]
 #[Middleware('log', only: ['index'])]
@@ -197,8 +197,8 @@ You may place middleware attributes on individual controller methods as well. Mi
 namespace App\Http\Controllers;
 
 use Closure;
-use Illuminate\Http\Request;
-use Illuminate\Routing\Attributes\Controllers\Middleware;
+use Hypervel\Http\Request;
+use Hypervel\Routing\Attributes\Controllers\Middleware;
 
 #[Middleware('auth')]
 class UserController
@@ -234,7 +234,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Comment;
 use App\Models\Post;
-use Illuminate\Routing\Attributes\Controllers\Authorize;
+use Hypervel\Routing\Attributes\Controllers\Authorize;
 
 class CommentController
 {
@@ -317,8 +317,8 @@ Typically, a 404 HTTP response will be generated if an implicitly bound resource
 
 ```php
 use App\Http\Controllers\PhotoController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Redirect;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Redirect;
 
 Route::resource('photos', PhotoController::class)
     ->missing(function (Request $request) {
@@ -557,7 +557,7 @@ Sometimes, your application will have resources that may only have a single inst
 
 ```php
 use App\Http\Controllers\ProfileController;
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Route;
 
 Route::singleton('profile', ProfileController::class);
 ```
@@ -724,15 +724,15 @@ class UserController extends Controller
 <a name="method-injection"></a>
 #### Method Injection
 
-In addition to constructor injection, you may also type-hint dependencies on your controller's methods. A common use-case for method injection is injecting the `Illuminate\Http\Request` instance into your controller methods:
+In addition to constructor injection, you may also type-hint dependencies on your controller's methods. A common use-case for method injection is injecting the `Hypervel\Http\Request` instance into your controller methods:
 
 ```php
 <?php
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class UserController extends Controller
 {
@@ -758,15 +758,15 @@ use App\Http\Controllers\UserController;
 Route::put('/user/{id}', [UserController::class, 'update']);
 ```
 
-You may still type-hint the `Illuminate\Http\Request` and access your `id` parameter by defining your controller method as follows:
+You may still type-hint the `Hypervel\Http\Request` and access your `id` parameter by defining your controller method as follows:
 
 ```php
 <?php
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class UserController extends Controller
 {

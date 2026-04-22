@@ -66,7 +66,7 @@ echo urldecode($url);
 <a name="accessing-the-current-url"></a>
 ### Accessing the Current URL
 
-If no path is provided to the `url` helper, an `Illuminate\Routing\UrlGenerator` instance is returned, allowing you to access information about the current URL:
+If no path is provided to the `url` helper, an `Hypervel\Routing\UrlGenerator` instance is returned, allowing you to access information about the current URL:
 
 ```php
 // Get the current URL without the query string...
@@ -79,7 +79,7 @@ echo url()->full();
 Each of these methods may also be accessed via the `URL` [facade](/docs/{{version}}/facades):
 
 ```php
-use Illuminate\Support\Facades\URL;
+use Hypervel\Support\Facades\URL;
 
 echo URL::current();
 ```
@@ -100,7 +100,7 @@ echo url()->previousPath();
 Or, via the [session](/docs/{{version}}/session), you may access the previous URL as a [fluent URI](#fluent-uri-objects) instance:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::post('/users', function (Request $request) {
     $previousUri = $request->session()->previousUri();
@@ -171,7 +171,7 @@ Laravel allows you to easily create "signed" URLs to named routes. These URLs ha
 For example, you might use signed URLs to implement a public "unsubscribe" link that is emailed to your customers. To create a signed URL to a named route, use the `signedRoute` method of the `URL` facade:
 
 ```php
-use Illuminate\Support\Facades\URL;
+use Hypervel\Support\Facades\URL;
 
 return URL::signedRoute('unsubscribe', ['user' => 1]);
 ```
@@ -185,7 +185,7 @@ return URL::signedRoute('unsubscribe', ['user' => 1], absolute: false);
 If you would like to generate a temporary signed route URL that expires after a specified amount of time, you may use the `temporarySignedRoute` method. When Laravel validates a temporary signed route URL, it will ensure that the expiration timestamp that is encoded into the signed URL has not elapsed:
 
 ```php
-use Illuminate\Support\Facades\URL;
+use Hypervel\Support\Facades\URL;
 
 return URL::temporarySignedRoute(
     'unsubscribe', now()->plus(minutes: 30), ['user' => 1]
@@ -195,10 +195,10 @@ return URL::temporarySignedRoute(
 <a name="validating-signed-route-requests"></a>
 #### Validating Signed Route Requests
 
-To verify that an incoming request has a valid signature, you should call the `hasValidSignature` method on the incoming `Illuminate\Http\Request` instance:
+To verify that an incoming request has a valid signature, you should call the `hasValidSignature` method on the incoming `Hypervel\Http\Request` instance:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::get('/unsubscribe/{user}', function (Request $request) {
     if (! $request->hasValidSignature()) {
@@ -217,7 +217,7 @@ if (! $request->hasValidSignatureWhileIgnoring(['page', 'order'])) {
 }
 ```
 
-Instead of validating signed URLs using the incoming request instance, you may assign the `signed` (`Illuminate\Routing\Middleware\ValidateSignature`) [middleware](/docs/{{version}}/middleware) to the route. If the incoming request does not have a valid signature, the middleware will automatically return a `403` HTTP response:
+Instead of validating signed URLs using the incoming request instance, you may assign the `signed` (`Hypervel\Routing\Middleware\ValidateSignature`) [middleware](/docs/{{version}}/middleware) to the route. If the incoming request does not have a valid signature, the middleware will automatically return a `403` HTTP response:
 
 ```php
 Route::post('/unsubscribe/{user}', function (Request $request) {
@@ -239,7 +239,7 @@ Route::post('/unsubscribe/{user}', function (Request $request) {
 When someone visits a signed URL that has expired, they will receive a generic error page for the `403` HTTP status code. However, you can customize this behavior by defining a custom "render" closure for the `InvalidSignatureException` exception in your application's `bootstrap/app.php` file:
 
 ```php
-use Illuminate\Routing\Exceptions\InvalidSignatureException;
+use Hypervel\Routing\Exceptions\InvalidSignatureException;
 
 ->withExceptions(function (Exceptions $exceptions): void {
     $exceptions->render(function (InvalidSignatureException $e) {
@@ -275,7 +275,7 @@ You can create a `Uri` instance easily using static methods:
 ```php
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\InvokableController;
-use Illuminate\Support\Uri;
+use Hypervel\Support\Uri;
 
 // Generate a URI instance from the given string...
 $uri = Uri::of('https://example.com/path');
@@ -328,8 +328,8 @@ It is cumbersome to always pass the `locale` every time you call the `route` hel
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\URL;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\URL;
 use Symfony\Component\HttpFoundation\Response;
 
 class SetDefaultLocaleForUrls
@@ -337,7 +337,7 @@ class SetDefaultLocaleForUrls
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  \Closure(\Hypervel\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -358,7 +358,7 @@ Setting URL default values can interfere with Laravel's handling of implicit mod
 ```php
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->prependToPriorityList(
-        before: \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        before: \Hypervel\Routing\Middleware\SubstituteBindings::class,
         prepend: \App\Http\Middleware\SetDefaultLocaleForUrls::class,
     );
 })

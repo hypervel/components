@@ -77,7 +77,7 @@ php artisan tinker
 You can publish Tinker's configuration file using the `vendor:publish` command:
 
 ```shell
-php artisan vendor:publish --provider="Laravel\Tinker\TinkerServiceProvider"
+php artisan vendor:publish --provider="Hypervel\Tinker\TinkerServiceProvider"
 ```
 
 > [!WARNING]
@@ -133,9 +133,9 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Support\DripEmailer;
-use Illuminate\Console\Attributes\Description;
-use Illuminate\Console\Attributes\Signature;
-use Illuminate\Console\Command;
+use Hypervel\Console\Attributes\Description;
+use Hypervel\Console\Attributes\Signature;
+use Hypervel\Console\Command;
 
 #[Signature('mail:send {user}')]
 #[Description('Send a marketing email to a user')]
@@ -194,7 +194,7 @@ In addition to receiving your command's arguments and options, command closures 
 ```php
 use App\Models\User;
 use App\Support\DripEmailer;
-use Illuminate\Support\Facades\Artisan;
+use Hypervel\Support\Facades\Artisan;
 
 Artisan::command('mail:send {user}', function (DripEmailer $drip, string $user) {
     $drip->send(User::find($user));
@@ -218,15 +218,15 @@ Artisan::command('mail:send {user}', function (string $user) {
 > [!WARNING]
 > To utilize this feature, your application must be using the `memcached`, `redis`, `dynamodb`, `database`, `file`, or `array` cache driver as your application's default cache driver. In addition, all servers must be communicating with the same central cache server.
 
-Sometimes you may wish to ensure that only one instance of a command can run at a time. To accomplish this, you may implement the `Illuminate\Contracts\Console\Isolatable` interface on your command class:
+Sometimes you may wish to ensure that only one instance of a command can run at a time. To accomplish this, you may implement the `Hypervel\Contracts\Console\Isolatable` interface on your command class:
 
 ```php
 <?php
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use Illuminate\Contracts\Console\Isolatable;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Console\Isolatable;
 
 class SendEmails extends Command implements Isolatable
 {
@@ -431,8 +431,8 @@ If your command contains required arguments, the user will receive an error mess
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use Illuminate\Contracts\Console\PromptsForMissingInput;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Console\PromptsForMissingInput;
 
 class SendEmails extends Command implements PromptsForMissingInput
 {
@@ -475,7 +475,7 @@ If you would like complete control over the prompt, you may provide a closure th
 
 ```php
 use App\Models\User;
-use function Laravel\Prompts\search;
+use function Hypervel\Prompts\search;
 
 // ...
 
@@ -498,7 +498,7 @@ If you wish to prompt the user to select or enter [options](#options), you may i
 ```php
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use function Laravel\Prompts\confirm;
+use function Hypervel\Prompts\confirm;
 
 // ...
 
@@ -762,8 +762,8 @@ When Artisan boots, all the commands in your application will be resolved by the
 Sometimes you may wish to execute an Artisan command outside of the CLI. For example, you may wish to execute an Artisan command from a route or controller. You may use the `call` method on the `Artisan` facade to accomplish this. The `call` method accepts either the command's signature name or class name as its first argument, and an array of command parameters as the second argument. The exit code will be returned:
 
 ```php
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Facades\Route;
 
 Route::post('/user/{user}/mail', function (string $user) {
     $exitCode = Artisan::call('mail:send', [
@@ -786,8 +786,8 @@ Artisan::call('mail:send 1 --queue=default');
 If your command defines an option that accepts an array, you may pass an array of values to that option:
 
 ```php
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Facades\Route;
 
 Route::post('/mail', function () {
     $exitCode = Artisan::call('mail:send', [
@@ -813,8 +813,8 @@ $exitCode = Artisan::call('migrate:refresh', [
 Using the `queue` method on the `Artisan` facade, you may even queue Artisan commands so they are processed in the background by your [queue workers](/docs/{{version}}/queues). Before using this method, make sure you have configured your queue and are running a queue listener:
 
 ```php
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Facades\Route;
 
 Route::post('/user/{user}/mail', function (string $user) {
     Artisan::queue('mail:send', [
@@ -903,4 +903,4 @@ The published stubs will be located within a `stubs` directory in the root of yo
 <a name="events"></a>
 ## Events
 
-Artisan dispatches three events when running commands: `Illuminate\Console\Events\ArtisanStarting`, `Illuminate\Console\Events\CommandStarting`, and `Illuminate\Console\Events\CommandFinished`. The `ArtisanStarting` event is dispatched immediately when Artisan starts running. Next, the `CommandStarting` event is dispatched immediately before a command runs. Finally, the `CommandFinished` event is dispatched once a command finishes executing.
+Artisan dispatches three events when running commands: `Hypervel\Console\Events\ArtisanStarting`, `Hypervel\Console\Events\CommandStarting`, and `Hypervel\Console\Events\CommandFinished`. The `ArtisanStarting` event is dispatched immediately when Artisan starts running. Next, the `CommandStarting` event is dispatched immediately before a command runs. Finally, the `CommandFinished` event is dispatched once a command finishes executing.

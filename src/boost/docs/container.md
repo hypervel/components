@@ -33,7 +33,7 @@ Let's look at a simple example:
 namespace App\Http\Controllers;
 
 use App\Services\AppleMusic;
-use Illuminate\View\View;
+use Hypervel\View\View;
 
 class PodcastController extends Controller
 {
@@ -85,10 +85,10 @@ Thankfully, many of the classes you will be writing when building a Laravel appl
 <a name="when-to-use-the-container"></a>
 ### When to Utilize the Container
 
-Thanks to zero configuration resolution, you will often type-hint dependencies on routes, controllers, event listeners, and elsewhere without ever manually interacting with the container. For example, you might type-hint the `Illuminate\Http\Request` object on your route definition so that you can easily access the current request. Even though we never have to interact with the container to write this code, it is managing the injection of these dependencies behind the scenes:
+Thanks to zero configuration resolution, you will often type-hint dependencies on routes, controllers, event listeners, and elsewhere without ever manually interacting with the container. For example, you might type-hint the `Hypervel\Http\Request` object on your route definition so that you can easily access the current request. Even though we never have to interact with the container to write this code, it is managing the injection of these dependencies behind the scenes:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::get('/', function (Request $request) {
     // ...
@@ -115,7 +115,7 @@ Within a service provider, you always have access to the container via the `$thi
 ```php
 use App\Services\Transistor;
 use App\Services\PodcastParser;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 
 $this->app->bind(Transistor::class, function (Application $app) {
     return new Transistor($app->make(PodcastParser::class));
@@ -128,8 +128,8 @@ As mentioned, you will typically be interacting with the container within servic
 
 ```php
 use App\Services\Transistor;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Support\Facades\App;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Support\Facades\App;
 
 App::bind(Transistor::class, function (Application $app) {
     // ...
@@ -163,7 +163,7 @@ The `singleton` method binds a class or interface into the container that should
 ```php
 use App\Services\Transistor;
 use App\Services\PodcastParser;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 
 $this->app->singleton(Transistor::class, function (Application $app) {
     return new Transistor($app->make(PodcastParser::class));
@@ -188,7 +188,7 @@ Alternatively, you may mark an interface or class with the `#[Singleton]` attrib
 
 namespace App\Services;
 
-use Illuminate\Container\Attributes\Singleton;
+use Hypervel\Container\Attributes\Singleton;
 
 #[Singleton]
 class Transistor
@@ -205,7 +205,7 @@ The `scoped` method binds a class or interface into the container that should on
 ```php
 use App\Services\Transistor;
 use App\Services\PodcastParser;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 
 $this->app->scoped(Transistor::class, function (Application $app) {
     return new Transistor($app->make(PodcastParser::class));
@@ -230,7 +230,7 @@ Alternatively, you may mark an interface or class with the `#[Scoped]` attribute
 
 namespace App\Services;
 
-use Illuminate\Container\Attributes\Scoped;
+use Hypervel\Container\Attributes\Scoped;
 
 #[Scoped]
 class Transistor
@@ -292,7 +292,7 @@ namespace App\Contracts;
 
 use App\Services\FakeEventPusher;
 use App\Services\RedisEventPusher;
-use Illuminate\Container\Attributes\Bind;
+use Hypervel\Container\Attributes\Bind;
 
 #[Bind(RedisEventPusher::class)]
 #[Bind(FakeEventPusher::class, environments: ['local', 'testing'])]
@@ -306,8 +306,8 @@ Furthermore, [Singleton](#singleton-attribute) and [Scoped](#scoped-attribute) a
 
 ```php
 use App\Services\RedisEventPusher;
-use Illuminate\Container\Attributes\Bind;
-use Illuminate\Container\Attributes\Singleton;
+use Hypervel\Container\Attributes\Bind;
+use Hypervel\Container\Attributes\Singleton;
 
 #[Bind(RedisEventPusher::class)]
 #[Singleton]
@@ -320,14 +320,14 @@ interface EventPusher
 <a name="contextual-binding"></a>
 ### Contextual Binding
 
-Sometimes you may have two classes that utilize the same interface, but you wish to inject different implementations into each class. For example, two controllers may depend on different implementations of the `Illuminate\Contracts\Filesystem\Filesystem` [contract](/docs/{{version}}/contracts). Laravel provides a simple, fluent interface for defining this behavior:
+Sometimes you may have two classes that utilize the same interface, but you wish to inject different implementations into each class. For example, two controllers may depend on different implementations of the `Hypervel\Contracts\Filesystem\Filesystem` [contract](/docs/{{version}}/contracts). Laravel provides a simple, fluent interface for defining this behavior:
 
 ```php
 use App\Http\Controllers\PhotoController;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\VideoController;
-use Illuminate\Contracts\Filesystem\Filesystem;
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\Support\Facades\Storage;
 
 $this->app->when(PhotoController::class)
     ->needs(Filesystem::class)
@@ -354,8 +354,8 @@ For example, the `Storage` attribute may be used to inject a specific [storage d
 
 namespace App\Http\Controllers;
 
-use Illuminate\Container\Attributes\Storage;
-use Illuminate\Contracts\Filesystem\Filesystem;
+use Hypervel\Container\Attributes\Storage;
+use Hypervel\Contracts\Filesystem\Filesystem;
 
 class PhotoController extends Controller
 {
@@ -377,18 +377,18 @@ namespace App\Http\Controllers;
 use App\Contracts\UserRepository;
 use App\Models\Photo;
 use App\Repositories\DatabaseRepository;
-use Illuminate\Container\Attributes\Auth;
-use Illuminate\Container\Attributes\Cache;
-use Illuminate\Container\Attributes\Config;
-use Illuminate\Container\Attributes\Context;
-use Illuminate\Container\Attributes\DB;
-use Illuminate\Container\Attributes\Give;
-use Illuminate\Container\Attributes\Log;
-use Illuminate\Container\Attributes\RouteParameter;
-use Illuminate\Container\Attributes\Tag;
-use Illuminate\Contracts\Auth\Guard;
-use Illuminate\Contracts\Cache\Repository;
-use Illuminate\Database\Connection;
+use Hypervel\Container\Attributes\Auth;
+use Hypervel\Container\Attributes\Cache;
+use Hypervel\Container\Attributes\Config;
+use Hypervel\Container\Attributes\Context;
+use Hypervel\Container\Attributes\DB;
+use Hypervel\Container\Attributes\Give;
+use Hypervel\Container\Attributes\Log;
+use Hypervel\Container\Attributes\RouteParameter;
+use Hypervel\Container\Attributes\Tag;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Database\Connection;
 use Psr\Log\LoggerInterface;
 
 class PhotoController extends Controller
@@ -414,7 +414,7 @@ Furthermore, Laravel provides a `CurrentUser` attribute for injecting the curren
 
 ```php
 use App\Models\User;
-use Illuminate\Container\Attributes\CurrentUser;
+use Hypervel\Container\Attributes\CurrentUser;
 
 Route::get('/user', function (#[CurrentUser] User $user) {
     return $user;
@@ -424,7 +424,7 @@ Route::get('/user', function (#[CurrentUser] User $user) {
 <a name="defining-custom-attributes"></a>
 #### Defining Custom Attributes
 
-You can create your own contextual attributes by implementing the `Illuminate\Contracts\Container\ContextualAttribute` contract. The container will call your attribute's `resolve` method, which should resolve the value that should be injected into the class utilizing the attribute. In the example below, we will re-implement Laravel's built-in `Config` attribute:
+You can create your own contextual attributes by implementing the `Hypervel\Contracts\Container\ContextualAttribute` contract. The container will call your attribute's `resolve` method, which should resolve the value that should be injected into the class utilizing the attribute. In the example below, we will re-implement Laravel's built-in `Config` attribute:
 
 ```php
 <?php
@@ -432,8 +432,8 @@ You can create your own contextual attributes by implementing the `Illuminate\Co
 namespace App\Attributes;
 
 use Attribute;
-use Illuminate\Contracts\Container\Container;
-use Illuminate\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\ContextualAttribute;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
 class Config implements ContextualAttribute
@@ -449,7 +449,7 @@ class Config implements ContextualAttribute
      * Resolve the configuration value.
      *
      * @param  self  $attribute
-     * @param  \Illuminate\Contracts\Container\Container  $container
+     * @param  \Hypervel\Contracts\Container\Container  $container
      * @return mixed
      */
     public static function resolve(self $attribute, Container $container)
@@ -627,17 +627,17 @@ If you are outside of a service provider in a location of your code that does no
 
 ```php
 use App\Services\Transistor;
-use Illuminate\Support\Facades\App;
+use Hypervel\Support\Facades\App;
 
 $transistor = App::make(Transistor::class);
 
 $transistor = app(Transistor::class);
 ```
 
-If you would like to have the Laravel container instance itself injected into a class that is being resolved by the container, you may type-hint the `Illuminate\Container\Container` class on your class's constructor:
+If you would like to have the Laravel container instance itself injected into a class that is being resolved by the container, you may type-hint the `Hypervel\Container\Container` class on your class's constructor:
 
 ```php
-use Illuminate\Container\Container;
+use Hypervel\Container\Container;
 
 /**
  * Create a new class instance.
@@ -710,7 +710,7 @@ You may invoke the `generate` method via the container like so:
 
 ```php
 use App\PodcastStats;
-use Illuminate\Support\Facades\App;
+use Hypervel\Support\Facades\App;
 
 $stats = App::call([new PodcastStats, 'generate']);
 ```
@@ -719,7 +719,7 @@ The `call` method accepts any PHP callable. The container's `call` method may ev
 
 ```php
 use App\Services\AppleMusic;
-use Illuminate\Support\Facades\App;
+use Hypervel\Support\Facades\App;
 
 $result = App::call(function (AppleMusic $apple) {
     // ...
@@ -733,7 +733,7 @@ The service container fires an event each time it resolves an object. You may li
 
 ```php
 use App\Services\Transistor;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 
 $this->app->resolving(Transistor::class, function (Transistor $transistor, Application $app) {
     // Called when container resolves objects of type "Transistor"...
@@ -755,7 +755,7 @@ The `rebinding` method allows you to listen for when a service is re-bound to th
 use App\Contracts\PodcastPublisher;
 use App\Services\SpotifyPublisher;
 use App\Services\TransistorPublisher;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 
 $this->app->bind(PodcastPublisher::class, SpotifyPublisher::class);
 

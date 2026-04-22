@@ -240,8 +240,8 @@ Laravel includes a variety of global "helper" PHP functions. Many of these funct
 The `Arr::accessible` method determines if the given value is array accessible:
 
 ```php
-use Illuminate\Support\Arr;
-use Illuminate\Support\Collection;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 
 $isAccessible = Arr::accessible(['a' => 1, 'b' => 2]);
 
@@ -266,7 +266,7 @@ $isAccessible = Arr::accessible(new stdClass);
 The `Arr::add` method adds a given key / value pair to an array if the given key doesn't already exist in the array or is set to `null`:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = Arr::add(['name' => 'Desk'], 'price', 100);
 
@@ -283,7 +283,7 @@ $array = Arr::add(['name' => 'Desk', 'price' => null], 'price', 100);
 The `Arr::array` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not an `array`:
 
 ```
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'languages' => ['PHP', 'Ruby']];
 
@@ -302,7 +302,7 @@ $value = Arr::array($array, 'name');
 The `Arr::boolean` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not a `boolean`:
 
 ```
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'available' => true];
 
@@ -322,7 +322,7 @@ $value = Arr::boolean($array, 'name');
 The `Arr::collapse` method collapses an array of arrays or collections into a single array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = Arr::collapse([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
 
@@ -335,7 +335,7 @@ $array = Arr::collapse([[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
 The `Arr::crossJoin` method cross joins the given arrays, returning a Cartesian product with all possible permutations:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $matrix = Arr::crossJoin([1, 2], ['a', 'b']);
 
@@ -370,7 +370,7 @@ $matrix = Arr::crossJoin([1, 2], ['a', 'b'], ['I', 'II']);
 The `Arr::divide` method returns two arrays: one containing the keys and the other containing the values of the given array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 [$keys, $values] = Arr::divide(['name' => 'Desk']);
 
@@ -385,7 +385,7 @@ use Illuminate\Support\Arr;
 The `Arr::dot` method flattens a multi-dimensional array into a single level array that uses "dot" notation to indicate depth:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['products' => ['desk' => ['price' => 100]]];
 
@@ -400,7 +400,7 @@ $flattened = Arr::dot($array);
 The `Arr::every` method ensures that all values in the array pass a given truth test:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [1, 2, 3];
 
@@ -419,7 +419,7 @@ Arr::every($array, fn ($i) => $i > 2);
 The `Arr::except` method removes the given key / value pairs from an array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'Desk', 'price' => 100];
 
@@ -434,7 +434,7 @@ $filtered = Arr::except($array, ['price']);
 The `Arr::exceptValues` method removes the specified values from an array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['foo', 'bar', 'baz', 'qux'];
 
@@ -446,7 +446,7 @@ $filtered = Arr::exceptValues($array, ['foo', 'baz']);
 You may also pass `true` to the `strict` argument to use strict type comparisons when filtering:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [1, '1', 2, '2'];
 
@@ -461,7 +461,7 @@ $filtered = Arr::exceptValues($array, [1, 2], strict: true);
 The `Arr::exists` method checks that the given key exists in the provided array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'John Doe', 'age' => 17];
 
@@ -480,7 +480,7 @@ $exists = Arr::exists($array, 'salary');
 The `Arr::first` method returns the first element of an array passing a given truth test:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [100, 200, 300];
 
@@ -494,7 +494,7 @@ $first = Arr::first($array, function (int $value, int $key) {
 A default value may also be passed as the third parameter to the method. This value will be returned if no value passes the truth test:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $first = Arr::first($array, $callback, $default);
 ```
@@ -505,7 +505,7 @@ $first = Arr::first($array, $callback, $default);
 The `Arr::flatten` method flattens a multi-dimensional array into a single level array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'languages' => ['PHP', 'Ruby']];
 
@@ -520,7 +520,7 @@ $flattened = Arr::flatten($array);
 The `Arr::float` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not a `float`:
 
 ```
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'balance' => 123.45];
 
@@ -539,7 +539,7 @@ $value = Arr::float($array, 'name');
 The `Arr::forget` method removes a given key / value pairs from a deeply nested array using "dot" notation:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['products' => ['desk' => ['price' => 100]]];
 
@@ -554,7 +554,7 @@ Arr::forget($array, 'products.desk');
 The `Arr::from` method converts various input types into a plain PHP array. It supports a range of input types, including arrays, objects, and several common Laravel interfaces, such as `Arrayable`, `Enumerable`, `Jsonable`, and `JsonSerializable`. Additionally, it handles `Traversable` and `WeakMap` instances:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 Arr::from((object) ['foo' => 'bar']); // ['foo' => 'bar']
 
@@ -575,7 +575,7 @@ Arr::from(new TestJsonableObject); // ['foo' => 'bar']
 The `Arr::get` method retrieves a value from a deeply nested array using "dot" notation:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['products' => ['desk' => ['price' => 100]]];
 
@@ -587,7 +587,7 @@ $price = Arr::get($array, 'products.desk.price');
 The `Arr::get` method also accepts a default value, which will be returned if the specified key is not present in the array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $discount = Arr::get($array, 'products.desk.discount', 0);
 
@@ -600,7 +600,7 @@ $discount = Arr::get($array, 'products.desk.discount', 0);
 The `Arr::has` method checks whether a given item or items exists in an array using "dot" notation:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['product' => ['name' => 'Desk', 'price' => 100]];
 
@@ -619,7 +619,7 @@ $contains = Arr::has($array, ['product.price', 'product.discount']);
 The `Arr::hasAll` method determines if all of the specified keys exist in the given array using "dot" notation:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'Taylor', 'language' => 'PHP'];
 
@@ -634,7 +634,7 @@ Arr::hasAll($array, ['name', 'IDE']); // false
 The `Arr::hasAny` method checks whether any item in a given set exists in an array using "dot" notation:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['product' => ['name' => 'Desk', 'price' => 100]];
 
@@ -657,7 +657,7 @@ $contains = Arr::hasAny($array, ['category', 'product.discount']);
 The `Arr::integer` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not an `int`:
 
 ```
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'age' => 42];
 
@@ -676,7 +676,7 @@ $value = Arr::integer($array, 'name');
 The `Arr::isAssoc` method returns `true` if the given array is an associative array. An array is considered "associative" if it doesn't have sequential numerical keys beginning with zero:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $isAssoc = Arr::isAssoc(['product' => ['name' => 'Desk', 'price' => 100]]);
 
@@ -693,7 +693,7 @@ $isAssoc = Arr::isAssoc([1, 2, 3]);
 The `Arr::isList` method returns `true` if the given array's keys are sequential integers beginning from zero:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $isList = Arr::isList(['foo', 'bar', 'baz']);
 
@@ -710,7 +710,7 @@ $isList = Arr::isList(['product' => ['name' => 'Desk', 'price' => 100]]);
 The `Arr::join` method joins array elements with a string. Using this method's third argument, you may also specify the joining string for the final element of the array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['Tailwind', 'Alpine', 'Laravel', 'Livewire'];
 
@@ -729,7 +729,7 @@ $joined = Arr::join($array, ', ', ', and ');
 The `Arr::keyBy` method keys the array by the given key. If multiple items have the same key, only the last one will appear in the new array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     ['product_id' => 'prod-100', 'name' => 'Desk'],
@@ -752,7 +752,7 @@ $keyed = Arr::keyBy($array, 'product_id');
 The `Arr::last` method returns the last element of an array passing a given truth test:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [100, 200, 300, 110];
 
@@ -766,7 +766,7 @@ $last = Arr::last($array, function (int $value, int $key) {
 A default value may be passed as the third argument to the method. This value will be returned if no value passes the truth test:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $last = Arr::last($array, $callback, $default);
 ```
@@ -777,7 +777,7 @@ $last = Arr::last($array, $callback, $default);
 The `Arr::map` method iterates through the array and passes each value and key to the given callback. The array value is replaced by the value returned by the callback:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['first' => 'james', 'last' => 'kirk'];
 
@@ -794,7 +794,7 @@ $mapped = Arr::map($array, function (string $value, string $key) {
 The `Arr::mapSpread` method iterates over the array, passing each nested item value into the given closure. The closure is free to modify the item and return it, thus forming a new array of modified items:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     [0, 1],
@@ -819,7 +819,7 @@ $mapped = Arr::mapSpread($array, function (int $even, int $odd) {
 The `Arr::mapWithKeys` method iterates through the array and passes each value to the given callback. The callback should return an associative array containing a single key / value pair:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     [
@@ -852,7 +852,7 @@ $mapped = Arr::mapWithKeys($array, function (array $item, int $key) {
 The `Arr::only` method returns only the specified key / value pairs from the given array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'Desk', 'price' => 100, 'orders' => 10];
 
@@ -867,7 +867,7 @@ $slice = Arr::only($array, ['name', 'price']);
 The `Arr::onlyValues` method returns only the specified values from an array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['foo', 'bar', 'baz', 'qux'];
 
@@ -879,7 +879,7 @@ $filtered = Arr::onlyValues($array, ['foo', 'baz']);
 You may also pass `true` to the `strict` argument to use strict type comparisons when filtering:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [1, '1', 2, '2'];
 
@@ -896,7 +896,7 @@ The `Arr::partition` method may be combined with PHP array destructuring to sepa
 ```php
 <?php
 
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $numbers = [1, 2, 3, 4, 5, 6];
 
@@ -919,7 +919,7 @@ dump($equalOrAboveThree);
 The `Arr::pluck` method retrieves all of the values for a given key from an array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     ['developer' => ['id' => 1, 'name' => 'Taylor']],
@@ -934,7 +934,7 @@ $names = Arr::pluck($array, 'developer.name');
 You may also specify how you wish the resulting list to be keyed:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $names = Arr::pluck($array, 'developer.name', 'developer.id');
 
@@ -947,7 +947,7 @@ $names = Arr::pluck($array, 'developer.name', 'developer.id');
 The `Arr::prepend` method will push an item onto the beginning of an array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['one', 'two', 'three', 'four'];
 
@@ -959,7 +959,7 @@ $array = Arr::prepend($array, 'zero');
 If needed, you may specify the key that should be used for the value:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['price' => 100];
 
@@ -974,7 +974,7 @@ $array = Arr::prepend($array, 'Desk', 'name');
 The `Arr::prependKeysWith` prepends all key names of an associative array with the given prefix:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     'name' => 'Desk',
@@ -997,7 +997,7 @@ $keyed = Arr::prependKeysWith($array, 'product.');
 The `Arr::pull` method returns and removes a key / value pair from an array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'Desk', 'price' => 100];
 
@@ -1011,7 +1011,7 @@ $name = Arr::pull($array, 'name');
 A default value may be passed as the third argument to the method. This value will be returned if the key doesn't exist:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $value = Arr::pull($array, $key, $default);
 ```
@@ -1022,7 +1022,7 @@ $value = Arr::pull($array, $key, $default);
 The `Arr::push` method pushes an item into an array using "dot" notation. If an array does not exist at the given key, it will be created:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [];
 
@@ -1037,7 +1037,7 @@ Arr::push($array, 'office.furniture', 'Desk');
 The `Arr::query` method converts the array into a query string:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     'name' => 'Taylor',
@@ -1058,7 +1058,7 @@ Arr::query($array);
 The `Arr::random` method returns a random value from an array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [1, 2, 3, 4, 5];
 
@@ -1070,7 +1070,7 @@ $random = Arr::random($array);
 You may also specify the number of items to return as an optional second argument. Note that providing this argument will return an array even if only one item is desired:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $items = Arr::random($array, 2);
 
@@ -1083,7 +1083,7 @@ $items = Arr::random($array, 2);
 The `Arr::reject` method removes items from an array using the given closure:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [100, '200', 300, '400', 500];
 
@@ -1100,7 +1100,7 @@ $filtered = Arr::reject($array, function (string|int $value, int $key) {
 The `Arr::select` method selects an array of values from an array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     ['id' => 1, 'name' => 'Desk', 'price' => 200],
@@ -1119,7 +1119,7 @@ Arr::select($array, ['name', 'price']);
 The `Arr::set` method sets a value within a deeply nested array using "dot" notation:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['products' => ['desk' => ['price' => 100]]];
 
@@ -1134,7 +1134,7 @@ Arr::set($array, 'products.desk.price', 200);
 The `Arr::shuffle` method randomly shuffles the items in the array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = Arr::shuffle([1, 2, 3, 4, 5]);
 
@@ -1144,10 +1144,10 @@ $array = Arr::shuffle([1, 2, 3, 4, 5]);
 <a name="method-array-sole"></a>
 #### `Arr::sole()` {.collection-method}
 
-The `Arr::sole` method retrieves a single value from an array using the given closure. If more than one value within the array matches the given truth test, an `Illuminate\Support\MultipleItemsFoundException` exception will be thrown. If no values match the truth test, an `Illuminate\Support\ItemNotFoundException` exception will be thrown:
+The `Arr::sole` method retrieves a single value from an array using the given closure. If more than one value within the array matches the given truth test, an `Hypervel\Support\MultipleItemsFoundException` exception will be thrown. If no values match the truth test, an `Hypervel\Support\ItemNotFoundException` exception will be thrown:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['Desk', 'Table', 'Chair'];
 
@@ -1162,7 +1162,7 @@ $value = Arr::sole($array, fn (string $value) => $value === 'Desk');
 The `Arr::some` method ensures that at least one of the values in the array passes a given truth test:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [1, 2, 3];
 
@@ -1177,7 +1177,7 @@ Arr::some($array, fn ($i) => $i > 2);
 The `Arr::sort` method sorts an array by its values:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['Desk', 'Table', 'Chair'];
 
@@ -1189,7 +1189,7 @@ $sorted = Arr::sort($array);
 You may also sort the array by the results of a given closure:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     ['name' => 'Desk'],
@@ -1216,7 +1216,7 @@ $sorted = array_values(Arr::sort($array, function (array $value) {
 The `Arr::sortDesc` method sorts an array in descending order by its values:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['Desk', 'Table', 'Chair'];
 
@@ -1228,7 +1228,7 @@ $sorted = Arr::sortDesc($array);
 You may also sort the array by the results of a given closure:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     ['name' => 'Desk'],
@@ -1255,7 +1255,7 @@ $sorted = array_values(Arr::sortDesc($array, function (array $value) {
 The `Arr::sortRecursive` method recursively sorts an array using the `sort` function for numerically indexed sub-arrays and the `ksort` function for associative sub-arrays:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     ['Roman', 'Taylor', 'Li'],
@@ -1286,7 +1286,7 @@ $sorted = Arr::sortRecursiveDesc($array);
 The `Arr::string` method retrieves a value from a deeply nested array using "dot" notation (just as [Arr::get()](#method-array-get) does), but throws an `InvalidArgumentException` if the requested value is not a `string`:
 
 ```
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = ['name' => 'Joe', 'languages' => ['PHP', 'Ruby']];
 
@@ -1305,7 +1305,7 @@ $value = Arr::string($array, 'languages');
 The `Arr::take` method returns a new array with the specified number of items:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [0, 1, 2, 3, 4, 5];
 
@@ -1330,7 +1330,7 @@ $chunk = Arr::take($array, -2);
 The `Arr::toCssClasses` method conditionally compiles a CSS class string. The method accepts an array of classes where the array key contains the class or classes you wish to add, while the value is a boolean expression. If the array element has a numeric key, it will always be included in the rendered class list:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $isActive = false;
 $hasError = true;
@@ -1350,7 +1350,7 @@ $classes = Arr::toCssClasses($array);
 The `Arr::toCssStyles` method conditionally compiles a CSS style string. The method accepts an array of CSS declarations where the array key contains the CSS declaration you wish to add, while the value is a boolean expression. If the array element has a numeric key, it will always be included in the compiled CSS style string:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $hasColor = true;
 
@@ -1371,7 +1371,7 @@ This method powers Laravel's functionality allowing [merging classes with a Blad
 The `Arr::undot` method expands a single-dimensional array that uses "dot" notation into a multi-dimensional array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [
     'user.name' => 'Kevin Malone',
@@ -1389,7 +1389,7 @@ $array = Arr::undot($array);
 The `Arr::where` method filters an array using the given closure:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [100, '200', 300, '400', 500];
 
@@ -1406,7 +1406,7 @@ $filtered = Arr::where($array, function (string|int $value, int $key) {
 The `Arr::whereNotNull` method removes all `null` values from the given array:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = [0, null];
 
@@ -1421,7 +1421,7 @@ $filtered = Arr::whereNotNull($array);
 The `Arr::wrap` method wraps the given value in an array. If the given value is already an array it will be returned without modification:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $string = 'Laravel';
 
@@ -1433,7 +1433,7 @@ $array = Arr::wrap($string);
 If the given value is `null`, an empty array will be returned:
 
 ```php
-use Illuminate\Support\Arr;
+use Hypervel\Support\Arr;
 
 $array = Arr::wrap(null);
 
@@ -1643,7 +1643,7 @@ $last = last($array);
 The `Number::abbreviate` method returns the human-readable format of the provided numerical value, with an abbreviation for the units:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $number = Number::abbreviate(1000);
 
@@ -1664,7 +1664,7 @@ $number = Number::abbreviate(1230000, precision: 2);
 The `Number::clamp` method ensures a given number stays within a specified range. If the number is lower than the minimum, the minimum value is returned. If the number is higher than the maximum, the maximum value is returned:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $number = Number::clamp(105, min: 10, max: 100);
 
@@ -1689,7 +1689,7 @@ $number = Number::clamp(20, min: 10, max: 100);
 The `Number::currency` method returns the currency representation of the given value as a string:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $currency = Number::currency(1000);
 
@@ -1714,7 +1714,7 @@ $currency = Number::currency(1000, in: 'EUR', locale: 'de', precision: 0);
 The `Number::defaultCurrency` method returns the default currency being used by the `Number` class:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $currency = Number::defaultCurrency();
 
@@ -1727,7 +1727,7 @@ $currency = Number::defaultCurrency();
 The `Number::defaultLocale` method returns the default locale being used by the `Number` class:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $locale = Number::defaultLocale();
 
@@ -1740,7 +1740,7 @@ $locale = Number::defaultLocale();
 The `Number::fileSize` method returns the file size representation of the given byte value as a string:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $size = Number::fileSize(1024);
 
@@ -1761,7 +1761,7 @@ $size = Number::fileSize(1024, precision: 2);
 The `Number::forHumans` method returns the human-readable format of the provided numerical value:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $number = Number::forHumans(1000);
 
@@ -1782,7 +1782,7 @@ $number = Number::forHumans(1230000, precision: 2);
 The `Number::format` method formats the given number into a locale specific string:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $number = Number::format(100000);
 
@@ -1807,7 +1807,7 @@ $number = Number::format(100000, locale: 'de');
 The `Number::ordinal` method returns a number's ordinal representation:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $number = Number::ordinal(1);
 
@@ -1828,7 +1828,7 @@ $number = Number::ordinal(21);
 The `Number::pairs` method generates an array of number pairs (sub-ranges) based on a specified range and step value. This method can be useful for dividing a larger range of numbers into smaller, manageable sub-ranges for things like pagination or batching tasks. The `pairs` method returns an array of arrays, where each inner array represents a pair (sub-range) of numbers:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $result = Number::pairs(25, 10);
 
@@ -1845,7 +1845,7 @@ $result = Number::pairs(25, 10, offset: 0);
 The `Number::parseInt` method parse a string into an integer according to the specified locale:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $result = Number::parseInt('10.123');
 
@@ -1862,7 +1862,7 @@ $result = Number::parseInt('10,123', locale: 'fr');
 The `Number::parseFloat` method parse a string into a float according to the specified locale:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $result = Number::parseFloat('10');
 
@@ -1879,7 +1879,7 @@ $result = Number::parseFloat('10', locale: 'fr');
 The `Number::percentage` method returns the percentage representation of the given value as a string:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $percentage = Number::percentage(10);
 
@@ -1904,7 +1904,7 @@ $percentage = Number::percentage(10, precision: 2, locale: 'de');
 The `Number::spell` method transforms the given number into a string of words:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $number = Number::spell(102);
 
@@ -1945,7 +1945,7 @@ $number = Number::spell(10, until: 10);
 The `Number::spellOrdinal` method returns the number's ordinal representation as a string of words:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $number = Number::spellOrdinal(1);
 
@@ -1966,7 +1966,7 @@ $number = Number::spellOrdinal(21);
 The `Number::trim` method removes any trailing zero digits after the decimal point of the given number:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $number = Number::trim(12.0);
 
@@ -1983,7 +1983,7 @@ $number = Number::trim(12.30);
 The `Number::useLocale` method sets the default number locale globally, which affects how numbers and currency are formatted by subsequent invocations to the `Number` class's methods:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 /**
  * Bootstrap any application services.
@@ -2000,7 +2000,7 @@ public function boot(): void
 The `Number::withLocale` method executes the given closure using the specified locale and then restores the original locale after the callback has executed:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $number = Number::withLocale('de', function () {
     return Number::format(1500);
@@ -2013,7 +2013,7 @@ $number = Number::withLocale('de', function () {
 The `Number::useCurrency` method sets the default number currency globally, which affects how the currency is formatted by subsequent invocations to the `Number` class's methods:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 /**
  * Bootstrap any application services.
@@ -2030,7 +2030,7 @@ public function boot(): void
 The `Number::withCurrency` method executes the given closure using the specified currency and then restores the original currency after the callback has executed:
 
 ```php
-use Illuminate\Support\Number;
+use Hypervel\Support\Number;
 
 $number = Number::withCurrency('GBP', function () {
     // ...
@@ -2290,7 +2290,7 @@ $url = url('user/profile');
 $url = url('user/profile', [1]);
 ```
 
-If no path is provided, an `Illuminate\Routing\UrlGenerator` instance is returned:
+If no path is provided, an `Hypervel\Routing\UrlGenerator` instance is returned:
 
 ```php
 $current = url()->current();
@@ -2515,7 +2515,7 @@ $value = context('trace_id', $default);
 You may set context values by passing an array of key / value pairs:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 context(['trace_id' => Str::uuid()->toString()]);
 ```
@@ -2746,7 +2746,7 @@ The `method_field` function generates an HTML `hidden` input field containing th
 <a name="method-now"></a>
 #### `now()` {.collection-method}
 
-The `now` function creates a new `Illuminate\Support\Carbon` instance for the current time:
+The `now` function creates a new `Hypervel\Support\Carbon` instance for the current time:
 
 ```php
 $now = now();
@@ -2972,7 +2972,7 @@ return retry(5, function () {
 The sleep duration also accepts a `CarbonInterval` instance:
 
 ```php
-use function Illuminate\Support\seconds;
+use function Hypervel\Support\seconds;
 
 return retry(5, function () {
     // Attempt 5 times while resting 5 seconds between attempts...
@@ -3057,7 +3057,7 @@ $user = tap($user)->update([
 ]);
 ```
 
-To add a `tap` method to a class, you may add the `Illuminate\Support\Traits\Tappable` trait to the class. The `tap` method of this trait accepts a Closure as its only argument. The object instance itself will be passed to the Closure and then be returned by the `tap` method:
+To add a `tap` method to a class, you may add the `Hypervel\Support\Traits\Tappable` trait to the class. The `tap` method of this trait accepts a Closure as its only argument. The object instance itself will be passed to the Closure and then be returned by the `tap` method:
 
 ```php
 return $user->tap(function (User $user) {
@@ -3098,7 +3098,7 @@ throw_unless(
 <a name="method-today"></a>
 #### `today()` {.collection-method}
 
-The `today` function creates a new `Illuminate\Support\Carbon` instance for the current date:
+The `today` function creates a new `Hypervel\Support\Carbon` instance for the current date:
 
 ```php
 $today = today();
@@ -3110,7 +3110,7 @@ $today = today();
 The `trait_uses_recursive` function returns all traits used by a trait:
 
 ```php
-$traits = trait_uses_recursive(\Illuminate\Notifications\Notifiable::class);
+$traits = trait_uses_recursive(\Hypervel\Notifications\Notifiable::class);
 ```
 
 <a name="method-transform"></a>
@@ -3235,7 +3235,7 @@ Sometimes you may wish to quickly test the performance of certain parts of your 
 <?php
 
 use App\Models\User;
-use Illuminate\Support\Benchmark;
+use Hypervel\Support\Benchmark;
 
 Benchmark::dd(fn () => User::find(1)); // 0.1 ms
 
@@ -3268,10 +3268,10 @@ Laravel includes [Carbon](https://carbon.nesbot.com/guide/getting-started/introd
 $now = now();
 ```
 
-Or, you may create a new `Carbon` instance using the `Illuminate\Support\Carbon` class:
+Or, you may create a new `Carbon` instance using the `Hypervel\Support\Carbon` class:
 
 ```php
-use Illuminate\Support\Carbon;
+use Hypervel\Support\Carbon;
 
 $now = Carbon::now();
 ```
@@ -3296,9 +3296,9 @@ For a thorough discussion of Carbon and its features, please consult the [offici
 Laravel also offers `milliseconds`, `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, and `years` functions that return `CarbonInterval` instances, which extend PHP's [DateInterval](https://www.php.net/manual/en/class.dateinterval.php) class. These functions may be used anywhere that Laravel accepts a `DateInterval` instance:
 
 ```php
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Support\Facades\Cache;
 
-use function Illuminate\Support\{minutes};
+use function Hypervel\Support\{minutes};
 
 Cache::put('metrics', $metrics, minutes(10));
 ```
@@ -3308,13 +3308,13 @@ Cache::put('metrics', $metrics, minutes(10));
 
 While Laravel's [queued jobs](/docs/{{version}}/queues) allow you to queue tasks for background processing, sometimes you may have simple tasks you would like to defer without configuring or maintaining a long-running queue worker.
 
-Deferred functions allow you to defer the execution of a closure until after the HTTP response has been sent to the user, keeping your application feeling fast and responsive. To defer the execution of a closure, simply pass the closure to the `Illuminate\Support\defer` function:
+Deferred functions allow you to defer the execution of a closure until after the HTTP response has been sent to the user, keeping your application feeling fast and responsive. To defer the execution of a closure, simply pass the closure to the `Hypervel\Support\defer` function:
 
 ```php
 use App\Services\Metrics;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use function Illuminate\Support\defer;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Route;
+use function Hypervel\Support\defer;
 
 Route::post('/orders', function (Request $request) {
     // Create order...
@@ -3325,19 +3325,19 @@ Route::post('/orders', function (Request $request) {
 });
 ```
 
-By default, deferred functions will only be executed if the HTTP response, Artisan command, or queued job from which `Illuminate\Support\defer` is invoked completes successfully. This means that deferred functions will not be executed if a request results in a `4xx` or `5xx` HTTP response. If you would like a deferred function to always execute, you may chain the `always` method onto your deferred function:
+By default, deferred functions will only be executed if the HTTP response, Artisan command, or queued job from which `Hypervel\Support\defer` is invoked completes successfully. This means that deferred functions will not be executed if a request results in a `4xx` or `5xx` HTTP response. If you would like a deferred function to always execute, you may chain the `always` method onto your deferred function:
 
 ```php
 defer(fn () => Metrics::reportOrder($order))->always();
 ```
 
 > [!WARNING]
-> If you have the [Swoole PHP extension](https://www.php.net/manual/en/book.swoole.php) installed, Laravel's `defer` function may conflict with Swoole's own global `defer` function, leading to web server errors. Make sure you call Laravel's `defer` helper by explicitly namespacing it: `use function Illuminate\Support\defer;`
+> If you have the [Swoole PHP extension](https://www.php.net/manual/en/book.swoole.php) installed, Laravel's `defer` function may conflict with Swoole's own global `defer` function, leading to web server errors. Make sure you call Laravel's `defer` helper by explicitly namespacing it: `use function Hypervel\Support\defer;`
 
 <a name="cancelling-deferred-functions"></a>
 #### Cancelling Deferred Functions
 
-If you need to cancel a deferred function before it is executed, you can use the `forget` method to cancel the function by its name. To name a deferred function, provide a second argument to the `Illuminate\Support\defer` function:
+If you need to cancel a deferred function before it is executed, you can use the `forget` method to cancel the function by its name. To name a deferred function, provide a second argument to the `Hypervel\Support\defer` function:
 
 ```php
 defer(fn () => Metrics::report(), 'reportMetrics');
@@ -3379,7 +3379,7 @@ If you would like to disable deferred functions for all tests within a test case
 
 namespace Tests;
 
-use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -3398,7 +3398,7 @@ abstract class TestCase extends BaseTestCase
 Laravel's lottery class may be used to execute callbacks based on a set of given odds. This can be particularly useful when you only want to execute code for a percentage of your incoming requests:
 
 ```php
-use Illuminate\Support\Lottery;
+use Hypervel\Support\Lottery;
 
 Lottery::odds(1, 20)
     ->winner(fn () => $user->won())
@@ -3410,8 +3410,8 @@ You may combine Laravel's lottery class with other Laravel features. For example
 
 ```php
 use Carbon\CarbonInterval;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Lottery;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Lottery;
 
 DB::whenQueryingForLongerThan(
     CarbonInterval::seconds(2),
@@ -3446,7 +3446,7 @@ Laravel's `Pipeline` facade provides a convenient way to "pipe" a given input th
 ```php
 use Closure;
 use App\Models\User;
-use Illuminate\Support\Facades\Pipeline;
+use Hypervel\Support\Facades\Pipeline;
 
 $user = Pipeline::send($user)
     ->through([
@@ -3499,7 +3499,7 @@ $user = Pipeline::send($user)
 Laravel's `Sleep` class is a light-weight wrapper around PHP's native `sleep` and `usleep` functions, offering greater testability while also exposing a developer friendly API for working with time:
 
 ```php
-use Illuminate\Support\Sleep;
+use Hypervel\Support\Sleep;
 
 $waiting = true;
 
@@ -3620,7 +3620,7 @@ Of course, the `Sleep` class offers a variety of other assertions you may use wh
 
 ```php
 use Carbon\CarbonInterval as Duration;
-use Illuminate\Support\Sleep;
+use Hypervel\Support\Sleep;
 
 // Assert that sleep was called 3 times...
 Sleep::assertSleptTimes(3);
@@ -3676,7 +3676,7 @@ If the execution exceeds the fixed duration, `Timebox` has no effect. It is up t
 The call method accepts a closure and a time limit in microseconds, and then executes the closure and waits until the time limit is reached:
 
 ```php
-use Illuminate\Support\Timebox;
+use Hypervel\Support\Timebox;
 
 (new Timebox)->call(function ($timebox) {
     // ...
@@ -3695,7 +3695,7 @@ You can create a `Uri` instance easily using static methods:
 ```php
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\InvokableController;
-use Illuminate\Support\Uri;
+use Hypervel\Support\Uri;
 
 // Generate a URI instance from the given string...
 $uri = Uri::of('https://example.com/path');
@@ -3787,8 +3787,8 @@ return $uri->redirect();
 Or, you may simply return the `Uri` instance from a route or controller action, which will automatically generate a redirect response to the returned URI:
 
 ```php
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Uri;
+use Hypervel\Support\Facades\Route;
+use Hypervel\Support\Uri;
 
 Route::get('/redirect', function () {
     return Uri::to('/index')

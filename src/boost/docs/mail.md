@@ -311,7 +311,7 @@ php artisan make:mail OrderShipped
 
 Once you have generated a mailable class, open it up so we can explore its contents. Mailable class configuration is done in several methods, including the `envelope`, `content`, and `attachments` methods.
 
-The `envelope` method returns an `Illuminate\Mail\Mailables\Envelope` object that defines the subject and, sometimes, the recipients of the message. The `content` method returns an `Illuminate\Mail\Mailables\Content` object that defines the [Blade template](/docs/{{version}}/blade) that will be used to generate the message content.
+The `envelope` method returns an `Hypervel\Mail\Mailables\Envelope` object that defines the subject and, sometimes, the recipients of the message. The `content` method returns an `Hypervel\Mail\Mailables\Content` object that defines the [Blade template](/docs/{{version}}/blade) that will be used to generate the message content.
 
 <a name="configuring-the-sender"></a>
 ### Configuring the Sender
@@ -322,8 +322,8 @@ The `envelope` method returns an `Illuminate\Mail\Mailables\Envelope` object tha
 First, let's explore configuring the sender of the email. Or, in other words, who the email is going to be "from". There are two ways to configure the sender. First, you may specify the "from" address on your message's envelope:
 
 ```php
-use Illuminate\Mail\Mailables\Address;
-use Illuminate\Mail\Mailables\Envelope;
+use Hypervel\Mail\Mailables\Address;
+use Hypervel\Mail\Mailables\Envelope;
 
 /**
  * Get the message envelope.
@@ -431,10 +431,10 @@ Typically, you will want to pass some data to your view that you can utilize whe
 namespace App\Mail;
 
 use App\Models\Order;
-use Illuminate\Bus\Queueable;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Queue\SerializesModels;
+use Hypervel\Bus\Queueable;
+use Hypervel\Mail\Mailable;
+use Hypervel\Mail\Mailables\Content;
+use Hypervel\Queue\SerializesModels;
 
 class OrderShipped extends Mailable
 {
@@ -478,10 +478,10 @@ If you would like to customize the format of your email's data before it is sent
 namespace App\Mail;
 
 use App\Models\Order;
-use Illuminate\Bus\Queueable;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Queue\SerializesModels;
+use Hypervel\Bus\Queueable;
+use Hypervel\Mail\Mailable;
+use Hypervel\Mail\Mailables\Content;
+use Hypervel\Queue\SerializesModels;
 
 class OrderShipped extends Mailable
 {
@@ -524,12 +524,12 @@ Once the data has been passed via the `with` parameter, it will automatically be
 To add attachments to an email, you will add attachments to the array returned by the message's `attachments` method. First, you may add an attachment by providing a file path to the `fromPath` method provided by the `Attachment` class:
 
 ```php
-use Illuminate\Mail\Mailables\Attachment;
+use Hypervel\Mail\Mailables\Attachment;
 
 /**
  * Get the attachments for the message.
  *
- * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+ * @return array<int, \Hypervel\Mail\Mailables\Attachment>
  */
 public function attachments(): array
 {
@@ -545,7 +545,7 @@ When attaching files to a message, you may also specify the display name and / o
 /**
  * Get the attachments for the message.
  *
- * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+ * @return array<int, \Hypervel\Mail\Mailables\Attachment>
  */
 public function attachments(): array
 {
@@ -566,7 +566,7 @@ If you have stored a file on one of your [filesystem disks](/docs/{{version}}/fi
 /**
  * Get the attachments for the message.
  *
- * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+ * @return array<int, \Hypervel\Mail\Mailables\Attachment>
  */
 public function attachments(): array
 {
@@ -582,7 +582,7 @@ Of course, you may also specify the attachment's name and MIME type:
 /**
  * Get the attachments for the message.
  *
- * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+ * @return array<int, \Hypervel\Mail\Mailables\Attachment>
  */
 public function attachments(): array
 {
@@ -600,7 +600,7 @@ The `fromStorageDisk` method may be used if you need to specify a storage disk o
 /**
  * Get the attachments for the message.
  *
- * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+ * @return array<int, \Hypervel\Mail\Mailables\Attachment>
  */
 public function attachments(): array
 {
@@ -621,7 +621,7 @@ The `fromData` attachment method may be used to attach a raw string of bytes as 
 /**
  * Get the attachments for the message.
  *
- * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+ * @return array<int, \Hypervel\Mail\Mailables\Attachment>
  */
 public function attachments(): array
 {
@@ -666,16 +666,16 @@ If you already have a raw image data string you wish to embed into an email temp
 
 While attaching files to messages via simple string paths is often sufficient, in many cases the attachable entities within your application are represented by classes. For example, if your application is attaching a photo to a message, your application may also have a `Photo` model that represents that photo. When that is the case, wouldn't it be convenient to simply pass the `Photo` model to the `attach` method? Attachable objects allow you to do just that.
 
-To get started, implement the `Illuminate\Contracts\Mail\Attachable` interface on the object that will be attachable to messages. This interface dictates that your class defines a `toMailAttachment` method that returns an `Illuminate\Mail\Attachment` instance:
+To get started, implement the `Hypervel\Contracts\Mail\Attachable` interface on the object that will be attachable to messages. This interface dictates that your class defines a `toMailAttachment` method that returns an `Hypervel\Mail\Attachment` instance:
 
 ```php
 <?php
 
 namespace App\Models;
 
-use Illuminate\Contracts\Mail\Attachable;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Mail\Attachment;
+use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Mail\Attachment;
 
 class Photo extends Model implements Attachable
 {
@@ -695,7 +695,7 @@ Once you have defined your attachable object, you may return an instance of that
 /**
  * Get the attachments for the message.
  *
- * @return array<int, \Illuminate\Mail\Mailables\Attachment>
+ * @return array<int, \Hypervel\Mail\Mailables\Attachment>
  */
 public function attachments(): array
 {
@@ -732,10 +732,10 @@ return Attachment::fromPath('/path/to/file')
 
 Sometimes you may need to attach additional headers to the outgoing message. For instance, you may need to set a custom `Message-Id` or other arbitrary text headers.
 
-To accomplish this, define a `headers` method on your mailable. The `headers` method should return an `Illuminate\Mail\Mailables\Headers` instance. This class accepts `messageId`, `references`, and `text` parameters. Of course, you may provide only the parameters you need for your particular message:
+To accomplish this, define a `headers` method on your mailable. The `headers` method should return an `Hypervel\Mail\Mailables\Headers` instance. This class accepts `messageId`, `references`, and `text` parameters. Of course, you may provide only the parameters you need for your particular message:
 
 ```php
-use Illuminate\Mail\Mailables\Headers;
+use Hypervel\Mail\Mailables\Headers;
 
 /**
  * Get the message headers.
@@ -758,12 +758,12 @@ public function headers(): Headers
 Some third-party email providers such as Mailgun and Postmark support message "tags" and "metadata", which may be used to group and track emails sent by your application. You may add tags and metadata to an email message via your `Envelope` definition:
 
 ```php
-use Illuminate\Mail\Mailables\Envelope;
+use Hypervel\Mail\Mailables\Envelope;
 
 /**
  * Get the message envelope.
  *
- * @return \Illuminate\Mail\Mailables\Envelope
+ * @return \Hypervel\Mail\Mailables\Envelope
  */
 public function envelope(): Envelope
 {
@@ -787,7 +787,7 @@ If your application is using Amazon SES to send emails, you should use the `meta
 Laravel's mail capabilities are powered by Symfony Mailer. Laravel allows you to register custom callbacks that will be invoked with the Symfony Message instance before sending the message. This gives you an opportunity to deeply customize the message before it is sent. To accomplish this, define a `using` parameter on your `Envelope` definition:
 
 ```php
-use Illuminate\Mail\Mailables\Envelope;
+use Hypervel\Mail\Mailables\Envelope;
 use Symfony\Component\Mime\Email;
 
 /**
@@ -823,7 +823,7 @@ php artisan make:mail OrderShipped --markdown=mail.orders.shipped
 Then, when configuring the mailable `Content` definition within its `content` method, use the `markdown` parameter instead of the `view` parameter:
 
 ```php
-use Illuminate\Mail\Mailables\Content;
+use Hypervel\Mail\Mailables\Content;
 
 /**
  * Get the message content definition.
@@ -930,9 +930,9 @@ namespace App\Http\Controllers;
 
 use App\Mail\OrderShipped;
 use App\Models\Order;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Mail;
 
 class OrderShipmentController extends Controller
 {
@@ -1015,7 +1015,7 @@ Mail::to($request->user())
 <a name="pushing-to-specific-queues"></a>
 #### Pushing to Specific Queues
 
-Since all mailable classes generated using the `make:mail` command make use of the `Illuminate\Bus\Queueable` trait, you may call the `onQueue` and `onConnection` methods on any mailable class instance, allowing you to specify the connection and queue name for the message:
+Since all mailable classes generated using the `make:mail` command make use of the `Hypervel\Bus\Queueable` trait, you may call the `onQueue` and `onConnection` methods on any mailable class instance, allowing you to specify the connection and queue name for the message:
 
 ```php
 $message = (new OrderShipped($order))
@@ -1034,7 +1034,7 @@ Mail::to($request->user())
 If you have mailable classes that you want to always be queued, you may implement the `ShouldQueue` contract on the class. Now, even if you call the `send` method when mailing, the mailable will still be queued since it implements the contract:
 
 ```php
-use Illuminate\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 
 class OrderShipped extends Mailable implements ShouldQueue
 {
@@ -1062,10 +1062,10 @@ Alternatively, you may call the `afterCommit` method from your mailable's constr
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
-use Illuminate\Queue\SerializesModels;
+use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Mail\Mailable;
+use Hypervel\Queue\SerializesModels;
 
 class OrderShipped extends Mailable implements ShouldQueue
 {
@@ -1094,9 +1094,9 @@ When a queued email fails, the `failed` method on the queued mailable class will
 
 namespace App\Mail;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Mail\Mailable;
-use Illuminate\Queue\SerializesModels;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Mail\Mailable;
+use Hypervel\Queue\SerializesModels;
 use Throwable;
 
 class OrderDelayed extends Mailable implements ShouldQueue
@@ -1159,7 +1159,7 @@ Mail::to($request->user())->locale('es')->send(
 Sometimes, applications store each user's preferred locale. By implementing the `HasLocalePreference` contract on one or more of your models, you may instruct Laravel to use this stored locale when sending mail:
 
 ```php
-use Illuminate\Contracts\Translation\HasLocalePreference;
+use Hypervel\Contracts\Translation\HasLocalePreference;
 
 class User extends Model implements HasLocalePreference
 {
@@ -1269,7 +1269,7 @@ You may use the `Mail` facade's `fake` method to prevent mail from being sent. A
 <?php
 
 use App\Mail\OrderShipped;
-use Illuminate\Support\Facades\Mail;
+use Hypervel\Support\Facades\Mail;
 
 test('orders can be shipped', function () {
     Mail::fake();
@@ -1308,7 +1308,7 @@ test('orders can be shipped', function () {
 namespace Tests\Feature;
 
 use App\Mail\OrderShipped;
-use Illuminate\Support\Facades\Mail;
+use Hypervel\Support\Facades\Mail;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -1387,7 +1387,7 @@ Mail::assertSent(OrderShipped::class, function (OrderShipped $mail) use ($user) 
 The mailable instance also includes several helpful methods for examining the attachments on a mailable:
 
 ```php
-use Illuminate\Mail\Mailables\Attachment;
+use Hypervel\Mail\Mailables\Attachment;
 
 Mail::assertSent(OrderShipped::class, function (OrderShipped $mail) {
     return $mail->hasAttachment(
@@ -1443,7 +1443,7 @@ If you are using [Laravel Sail](/docs/{{version}}/sail), you may preview your me
 Finally, you may specify a global "to" address by invoking the `alwaysTo` method offered by the `Mail` facade. Typically, this method should be called from the `boot` method of one of your application's service providers:
 
 ```php
-use Illuminate\Support\Facades\Mail;
+use Hypervel\Support\Facades\Mail;
 
 /**
  * Bootstrap any application services.
@@ -1464,8 +1464,8 @@ When using the `alwaysTo` method, any additional "cc" or "bcc" addresses on mail
 Laravel dispatches two events while sending mail messages. The `MessageSending` event is dispatched prior to a message being sent, while the `MessageSent` event is dispatched after a message has been sent. Remember, these events are dispatched when the mail is being *sent*, not when it is queued. You may create [event listeners](/docs/{{version}}/events) for these events within your application:
 
 ```php
-use Illuminate\Mail\Events\MessageSending;
-// use Illuminate\Mail\Events\MessageSent;
+use Hypervel\Mail\Events\MessageSending;
+// use Hypervel\Mail\Events\MessageSent;
 
 class LogMessage
 {
@@ -1537,7 +1537,7 @@ Once you've defined your custom transport, you may register it via the `extend` 
 
 ```php
 use App\Mail\MailchimpTransport;
-use Illuminate\Support\Facades\Mail;
+use Hypervel\Support\Facades\Mail;
 use MailchimpTransactional\ApiClient;
 
 /**
@@ -1585,7 +1585,7 @@ Once the Brevo mailer package has been installed, you may add an entry for your 
 Next, you may use the `Mail` facade's `extend` method to register the transport with Laravel. Typically, this should be done within the `boot` method of a service provider:
 
 ```php
-use Illuminate\Support\Facades\Mail;
+use Hypervel\Support\Facades\Mail;
 use Symfony\Component\Mailer\Bridge\Brevo\Transport\BrevoTransportFactory;
 use Symfony\Component\Mailer\Transport\Dsn;
 

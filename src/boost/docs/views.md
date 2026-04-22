@@ -69,7 +69,7 @@ Route::get('/', function () {
 Views may also be returned using the `View` facade:
 
 ```php
-use Illuminate\Support\Facades\View;
+use Hypervel\Support\Facades\View;
 
 return View::make('greeting', ['name' => 'James']);
 ```
@@ -94,7 +94,7 @@ return view('admin.profile', $data);
 Using the `View` facade's `first` method, you may create the first view that exists in a given array of views. This may be useful if your application or package allows views to be customized or overwritten:
 
 ```php
-use Illuminate\Support\Facades\View;
+use Hypervel\Support\Facades\View;
 
 return View::first(['custom.admin', 'admin'], $data);
 ```
@@ -105,7 +105,7 @@ return View::first(['custom.admin', 'admin'], $data);
 If you need to determine if a view exists, you may use the `View` facade. The `exists` method will return `true` if the view exists:
 
 ```php
-use Illuminate\Support\Facades\View;
+use Hypervel\Support\Facades\View;
 
 if (View::exists('admin.profile')) {
     // ...
@@ -141,7 +141,7 @@ Occasionally, you may need to share data with all views that are rendered by you
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\View;
+use Hypervel\Support\Facades\View;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -178,9 +178,9 @@ We'll use the `View` facade's `composer` method to register the view composer. L
 namespace App\Providers;
 
 use App\View\Composers\ProfileComposer;
-use Illuminate\Support\Facades;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\View\View;
+use Hypervel\Support\Facades;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\View\View;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -220,7 +220,7 @@ Now that we have registered the composer, the `compose` method of the `App\View\
 namespace App\View\Composers;
 
 use App\Repositories\UserRepository;
-use Illuminate\View\View;
+use Hypervel\View\View;
 
 class ProfileComposer
 {
@@ -250,7 +250,7 @@ You may attach a view composer to multiple views at once by passing an array of 
 
 ```php
 use App\Views\Composers\MultiComposer;
-use Illuminate\Support\Facades\View;
+use Hypervel\Support\Facades\View;
 
 View::composer(
     ['profile', 'dashboard'],
@@ -261,8 +261,8 @@ View::composer(
 The `composer` method also accepts the `*` character as a wildcard, allowing you to attach a composer to all views:
 
 ```php
-use Illuminate\Support\Facades;
-use Illuminate\View\View;
+use Hypervel\Support\Facades;
+use Hypervel\View\View;
 
 Facades\View::composer('*', function (View $view) {
     // ...
@@ -276,7 +276,7 @@ View "creators" are very similar to view composers; however, they are executed i
 
 ```php
 use App\View\Creators\ProfileCreator;
-use Illuminate\Support\Facades\View;
+use Hypervel\Support\Facades\View;
 
 View::creator('profile', ProfileCreator::class);
 ```

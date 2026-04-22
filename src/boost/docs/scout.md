@@ -49,18 +49,18 @@ composer require laravel/scout
 After installing Scout, you should publish the Scout configuration file using the `vendor:publish` Artisan command. This command will publish the `scout.php` configuration file to your application's `config` directory:
 
 ```shell
-php artisan vendor:publish --provider="Laravel\Scout\ScoutServiceProvider"
+php artisan vendor:publish --provider="Hypervel\Scout\ScoutServiceProvider"
 ```
 
-Finally, add the `Laravel\Scout\Searchable` trait to the model you would like to make searchable. This trait will register a model observer that will automatically keep the model in sync with your search driver:
+Finally, add the `Hypervel\Scout\Searchable` trait to the model you would like to make searchable. This trait will register a model observer that will automatically keep the model in sync with your search driver:
 
 ```php
 <?php
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Laravel\Scout\Searchable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Searchable;
 
 class Post extends Model
 {
@@ -178,8 +178,8 @@ By default, the entire `toArray` form of a given model will be persisted to its 
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Laravel\Scout\Searchable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Searchable;
 
 class Post extends Model
 {
@@ -211,10 +211,10 @@ When searching, Scout will typically use the default search engine specified in 
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Laravel\Scout\Engines\Engine;
-use Laravel\Scout\Scout;
-use Laravel\Scout\Searchable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Engines\Engine;
+use Hypervel\Scout\Scout;
+use Hypervel\Scout\Searchable;
 
 class User extends Model
 {
@@ -256,8 +256,8 @@ By default, the database engine will execute a `LIKE` query against every model 
 To define this behavior, assign PHP attributes to your model's `toSearchableArray` method. Any columns without an attribute will continue to use the default `LIKE` strategy:
 
 ```php
-use Laravel\Scout\Attributes\SearchUsingFullText;
-use Laravel\Scout\Attributes\SearchUsingPrefix;
+use Hypervel\Scout\Attributes\SearchUsingFullText;
+use Hypervel\Scout\Attributes\SearchUsingPrefix;
 
 /**
  * Get the indexable data array for the model.
@@ -312,8 +312,8 @@ When using a third-party engine, each Eloquent model is synced with a given sear
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Laravel\Scout\Searchable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Searchable;
 
 class Post extends Model
 {
@@ -342,8 +342,8 @@ By default, Scout will use the primary key of the model as the model's unique ID
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Laravel\Scout\Searchable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Searchable;
 
 class User extends Model
 {
@@ -578,7 +578,7 @@ php artisan scout:flush "App\Models\Post"
 If you would like to modify the query that is used to retrieve all of your models for batch importing, you may define a `makeAllSearchableUsing` method on your model. This is a great place to add any eager relationship loading that may be necessary before importing your models:
 
 ```php
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 /**
  * Modify the query used to retrieve models when making all of the models searchable.
@@ -595,7 +595,7 @@ protected function makeAllSearchableUsing(Builder $query): Builder
 <a name="adding-records"></a>
 ### Adding Records
 
-Once you have added the `Laravel\Scout\Searchable` trait to a model, all you need to do is `save` or `create` a model instance and it will automatically be added to your search index. If you have configured Scout to [use queues](#queueing) this operation will be performed in the background by your queue worker:
+Once you have added the `Hypervel\Scout\Searchable` trait to a model, all you need to do is `save` or `create` a model instance and it will automatically be added to your search index. If you have configured Scout to [use queues](#queueing) this operation will be performed in the background by your queue worker:
 
 ```php
 use App\Models\Order;
@@ -672,7 +672,7 @@ $orders->searchable();
 Sometimes you may need to prepare the collection of models before they are made searchable. For instance, you may want to eager load a relationship so that the relationship data can be efficiently added to your search index. To accomplish this, define a `makeSearchableUsing` method on the corresponding model:
 
 ```php
-use Illuminate\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Collection;
 
 /**
  * Modify the collection of models being made searchable.
@@ -783,7 +783,7 @@ Since Scout searches return a collection of Eloquent models, you may even return
 
 ```php
 use App\Models\Order;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::get('/search', function (Request $request) {
     return Order::search($request->search)->get();
@@ -857,7 +857,7 @@ After Scout retrieves a list of matching Eloquent models from your application's
 
 ```php
 use App\Models\Order;
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 $orders = Order::search('Star Trek')
     ->query(fn (Builder $query) => $query->with('invoices'))
@@ -869,7 +869,7 @@ When using a third-party engine, this callback is invoked after the relevant mod
 <a name="pagination"></a>
 ### Pagination
 
-In addition to retrieving a collection of models, you may paginate your search results using the `paginate` method. This method will return an `Illuminate\Pagination\LengthAwarePaginator` instance just as if you had [paginated a traditional Eloquent query](/docs/{{version}}/pagination):
+In addition to retrieving a collection of models, you may paginate your search results using the `paginate` method. This method will return an `Hypervel\Pagination\LengthAwarePaginator` instance just as if you had [paginated a traditional Eloquent query](/docs/{{version}}/pagination):
 
 ```php
 use App\Models\Order;
@@ -905,7 +905,7 @@ Of course, if you would like to retrieve the pagination results as JSON, you may
 
 ```php
 use App\Models\Order;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::get('/orders', function (Request $request) {
     return Order::search($request->input('query'))->paginate(15);
@@ -967,10 +967,10 @@ Order::search(
 <a name="writing-the-engine"></a>
 #### Writing the Engine
 
-If one of the built-in Scout search engines doesn't fit your needs, you may write your own custom engine and register it with Scout. Your engine should extend the `Laravel\Scout\Engines\Engine` abstract class. This abstract class contains eight methods your custom engine must implement:
+If one of the built-in Scout search engines doesn't fit your needs, you may write your own custom engine and register it with Scout. Your engine should extend the `Hypervel\Scout\Engines\Engine` abstract class. This abstract class contains eight methods your custom engine must implement:
 
 ```php
-use Laravel\Scout\Builder;
+use Hypervel\Scout\Builder;
 
 abstract public function update($models);
 abstract public function delete($models);
@@ -982,7 +982,7 @@ abstract public function getTotalCount($results);
 abstract public function flush($model);
 ```
 
-You may find it helpful to review the implementations of these methods on the `Laravel\Scout\Engines\AlgoliaEngine` class. This class will provide you with a good starting point for learning how to implement each of these methods in your own engine.
+You may find it helpful to review the implementations of these methods on the `Hypervel\Scout\Engines\AlgoliaEngine` class. This class will provide you with a good starting point for learning how to implement each of these methods in your own engine.
 
 <a name="registering-the-engine"></a>
 #### Registering the Engine
@@ -991,7 +991,7 @@ Once you have written your custom engine, you may register it with Scout using t
 
 ```php
 use App\ScoutExtensions\MySqlSearchEngine;
-use Laravel\Scout\EngineManager;
+use Hypervel\Scout\EngineManager;
 
 /**
  * Bootstrap any application services.

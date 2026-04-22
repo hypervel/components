@@ -32,15 +32,15 @@ Accessors, mutators, and attribute casting allow you to transform Eloquent attri
 
 An accessor transforms an Eloquent attribute value when it is accessed. To define an accessor, create a protected method on your model to represent the accessible attribute. This method name should correspond to the "camel case" representation of the true underlying model attribute / database column when applicable.
 
-In this example, we'll define an accessor for the `first_name` attribute. The accessor will automatically be called by Eloquent when attempting to retrieve the value of the `first_name` attribute. All attribute accessor / mutator methods must declare a return type-hint of `Illuminate\Database\Eloquent\Casts\Attribute`:
+In this example, we'll define an accessor for the `first_name` attribute. The accessor will automatically be called by Eloquent when attempting to retrieve the value of the `first_name` attribute. All attribute accessor / mutator methods must declare a return type-hint of `Hypervel\Database\Eloquent\Casts\Attribute`:
 
 ```php
 <?php
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
 {
@@ -78,7 +78,7 @@ Sometimes your accessor may need to transform multiple model attributes into a s
 
 ```php
 use App\Support\Address;
-use Illuminate\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Casts\Attribute;
 
 /**
  * Interact with the user's address.
@@ -148,8 +148,8 @@ A mutator transforms an Eloquent attribute value when it is set. To define a mut
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
 {
@@ -185,7 +185,7 @@ Sometimes your mutator may need to set multiple attributes on the underlying mod
 
 ```php
 use App\Support\Address;
-use Illuminate\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Casts\Attribute;
 
 /**
  * Interact with the user's address.
@@ -247,7 +247,7 @@ To demonstrate attribute casting, let's cast the `is_admin` attribute, which is 
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
 {
@@ -290,15 +290,15 @@ $user->mergeCasts([
 <a name="stringable-casting"></a>
 #### Stringable Casting
 
-You may use the `Illuminate\Database\Eloquent\Casts\AsStringable` cast class to cast a model attribute to a [fluent Illuminate\Support\Stringable object](/docs/{{version}}/strings#fluent-strings-method-list):
+You may use the `Hypervel\Database\Eloquent\Casts\AsStringable` cast class to cast a model attribute to a [fluent Hypervel\Support\Stringable object](/docs/{{version}}/strings#fluent-strings-method-list):
 
 ```php
 <?php
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Casts\AsStringable;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Casts\AsStringable;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
 {
@@ -326,7 +326,7 @@ The `array` cast is particularly useful when working with columns that are store
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
 {
@@ -401,7 +401,7 @@ $user->options['key'] = $value;
 To solve this, Laravel offers an `AsArrayObject` cast that casts your JSON attribute to an [ArrayObject](https://www.php.net/manual/en/class.arrayobject.php) class. This feature is implemented using Laravel's [custom cast](#custom-casts) implementation, which allows Laravel to intelligently cache and transform the mutated object such that individual offsets may be modified without triggering a PHP error. To use the `AsArrayObject` cast, simply assign it to an attribute:
 
 ```php
-use Illuminate\Database\Eloquent\Casts\AsArrayObject;
+use Hypervel\Database\Eloquent\Casts\AsArrayObject;
 
 /**
  * Get the attributes that should be cast.
@@ -419,7 +419,7 @@ protected function casts(): array
 Similarly, Laravel offers an `AsCollection` cast that casts your JSON attribute to a Laravel [Collection](/docs/{{version}}/collections) instance:
 
 ```php
-use Illuminate\Database\Eloquent\Casts\AsCollection;
+use Hypervel\Database\Eloquent\Casts\AsCollection;
 
 /**
  * Get the attributes that should be cast.
@@ -438,7 +438,7 @@ If you would like the `AsCollection` cast to instantiate a custom collection cla
 
 ```php
 use App\Collections\OptionCollection;
-use Illuminate\Database\Eloquent\Casts\AsCollection;
+use Hypervel\Database\Eloquent\Casts\AsCollection;
 
 /**
  * Get the attributes that should be cast.
@@ -457,7 +457,7 @@ The `of` method may be used to indicate collection items should be mapped into a
 
 ```php
 use App\ValueObjects\Option;
-use Illuminate\Database\Eloquent\Casts\AsCollection;
+use Hypervel\Database\Eloquent\Casts\AsCollection;
 
 /**
  * Get the attributes that should be cast.
@@ -472,14 +472,14 @@ protected function casts(): array
 }
 ```
 
-When mapping collections to objects, the object should implement the `Illuminate\Contracts\Support\Arrayable` and `JsonSerializable` interfaces to define how their instances should be serialized into the database as JSON:
+When mapping collections to objects, the object should implement the `Hypervel\Contracts\Support\Arrayable` and `JsonSerializable` interfaces to define how their instances should be serialized into the database as JSON:
 
 ```php
 <?php
 
 namespace App\ValueObjects;
 
-use Illuminate\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use JsonSerializable;
 
 class Option implements Arrayable, JsonSerializable
@@ -530,7 +530,7 @@ class Option implements Arrayable, JsonSerializable
 If your Eloquent model has a [binary type](/docs/{{version}}/migrations#column-method-binary) `uuid` or `ulid` column in addition to your model's auto-incrementing ID column, you may use the `AsBinary` cast to automatically cast the value to and from its binary representation:
 
 ```php
-use Illuminate\Database\Eloquent\Casts\AsBinary;
+use Hypervel\Database\Eloquent\Casts\AsBinary;
 
 /**
  * Get the attributes that should be cast.
@@ -549,7 +549,7 @@ protected function casts(): array
 Once the cast has been defined on the model, you may set the UUID / ULID attribute value to an object instance or a string. Eloquent will automatically cast the value to its binary representation. When retrieving the attribute's value, you will always receive a plain-text string value:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $user->uuid = Str::uuid();
 
@@ -596,7 +596,7 @@ protected function serializeDate(DateTimeInterface $date): string
 To specify the format that should be used when actually storing a model's dates within your database, you should use the `dateFormat` argument on your model's `Table` attribute:
 
 ```php
-use Illuminate\Database\Eloquent\Attributes\Table;
+use Hypervel\Database\Eloquent\Attributes\Table;
 
 #[Table(dateFormat: 'U')]
 class Flight extends Model
@@ -650,7 +650,7 @@ Sometimes you may need your model to store an array of enum values within a sing
 
 ```php
 use App\Enums\ServerStatus;
-use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
+use Hypervel\Database\Eloquent\Casts\AsEnumCollection;
 
 /**
  * Get the attributes that should be cast.
@@ -721,8 +721,8 @@ All custom cast classes implement the `CastsAttributes` interface. Classes that 
 
 namespace App\Casts;
 
-use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\Model;
 
 class AsJson implements CastsAttributes
 {
@@ -765,7 +765,7 @@ Once you have defined a custom cast type, you may attach it to a model attribute
 namespace App\Models;
 
 use App\Casts\AsJson;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
 {
@@ -796,8 +796,8 @@ As an example, we will define a custom cast class that casts multiple model valu
 namespace App\Casts;
 
 use App\ValueObjects\Address;
-use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\Model;
 use InvalidArgumentException;
 
 class AsAddress implements CastsAttributes
@@ -856,7 +856,7 @@ $user->save();
 ```
 
 > [!NOTE]
-> If you plan to serialize your Eloquent models containing value objects to JSON or arrays, you should implement the `Illuminate\Contracts\Support\Arrayable` and `JsonSerializable` interfaces on the value object.
+> If you plan to serialize your Eloquent models containing value objects to JSON or arrays, you should implement the `Hypervel\Contracts\Support\Arrayable` and `JsonSerializable` interfaces on the value object.
 
 <a name="value-object-caching"></a>
 #### Value Object Caching
@@ -877,9 +877,9 @@ class AsAddress implements CastsAttributes
 <a name="array-json-serialization"></a>
 ### Array / JSON Serialization
 
-When an Eloquent model is converted to an array or JSON using the `toArray` and `toJson` methods, your custom cast value objects will typically be serialized as well as long as they implement the `Illuminate\Contracts\Support\Arrayable` and `JsonSerializable` interfaces. However, when using value objects provided by third-party libraries, you may not have the ability to add these interfaces to the object.
+When an Eloquent model is converted to an array or JSON using the `toArray` and `toJson` methods, your custom cast value objects will typically be serialized as well as long as they implement the `Hypervel\Contracts\Support\Arrayable` and `JsonSerializable` interfaces. However, when using value objects provided by third-party libraries, you may not have the ability to add these interfaces to the object.
 
-Therefore, you may specify that your custom cast class will be responsible for serializing the value object. To do so, your custom cast class should implement the `Illuminate\Contracts\Database\Eloquent\SerializesCastableAttributes` interface. This interface states that your class should contain a `serialize` method which should return the serialized form of your value object:
+Therefore, you may specify that your custom cast class will be responsible for serializing the value object. To do so, your custom cast class should implement the `Hypervel\Contracts\Database\Eloquent\SerializesCastableAttributes` interface. This interface states that your class should contain a `serialize` method which should return the serialized form of your value object:
 
 ```php
 /**
@@ -915,8 +915,8 @@ A classic example of an inbound only cast is a "hashing" cast. For example, we m
 
 namespace App\Casts;
 
-use Illuminate\Contracts\Database\Eloquent\CastsInboundAttributes;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
+use Hypervel\Database\Eloquent\Model;
 
 class AsHash implements CastsInboundAttributes
 {
@@ -967,7 +967,7 @@ protected function casts(): array
 <a name="comparing-cast-values"></a>
 ### Comparing Cast Values
 
-If you would like to define how two given cast values should be compared to determine if they have been changed, your custom cast class may implement the `Illuminate\Contracts\Database\Eloquent\ComparesCastableAttributes` interface. This allows you to have fine-grained control over which values Eloquent considers changed and thus saves to the database when a model is updated.
+If you would like to define how two given cast values should be compared to determine if they have been changed, your custom cast class may implement the `Hypervel\Contracts\Database\Eloquent\ComparesCastableAttributes` interface. This allows you to have fine-grained control over which values Eloquent considers changed and thus saves to the database when a model is updated.
 
 This interface states that your class should contain a `compare` method which should return `true` if the given values are considered equal:
 
@@ -975,7 +975,7 @@ This interface states that your class should contain a `compare` method which sh
 /**
  * Determine if the given values are equal.
  *
- * @param  \Illuminate\Database\Eloquent\Model  $model
+ * @param  \Hypervel\Database\Eloquent\Model  $model
  * @param  string  $key
  * @param  mixed  $firstValue
  * @param  mixed  $secondValue
@@ -994,7 +994,7 @@ public function compare(
 <a name="castables"></a>
 ### Castables
 
-You may want to allow your application's value objects to define their own custom cast classes. Instead of attaching the custom cast class to your model, you may alternatively attach a value object class that implements the `Illuminate\Contracts\Database\Eloquent\Castable` interface:
+You may want to allow your application's value objects to define their own custom cast classes. Instead of attaching the custom cast class to your model, you may alternatively attach a value object class that implements the `Hypervel\Contracts\Database\Eloquent\Castable` interface:
 
 ```php
 use App\ValueObjects\Address;
@@ -1014,7 +1014,7 @@ Objects that implement the `Castable` interface must define a `castUsing` method
 
 namespace App\ValueObjects;
 
-use Illuminate\Contracts\Database\Eloquent\Castable;
+use Hypervel\Contracts\Database\Eloquent\Castable;
 use App\Casts\AsAddress;
 
 class Address implements Castable
@@ -1054,8 +1054,8 @@ By combining "castables" with PHP's [anonymous classes](https://www.php.net/manu
 
 namespace App\ValueObjects;
 
-use Illuminate\Contracts\Database\Eloquent\Castable;
-use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Contracts\Database\Eloquent\Castable;
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 
 class Address implements Castable
 {

@@ -61,7 +61,7 @@ composer require laravel/prompts
 The `text` function will prompt the user with the given question, accept their input, and then return it:
 
 ```php
-use function Laravel\Prompts\text;
+use function Hypervel\Prompts\text;
 
 $name = text('What is your name?');
 ```
@@ -131,7 +131,7 @@ $name = text(
 The `textarea` function will prompt the user with the given question, accept their input via a multi-line textarea, and then return it:
 
 ```php
-use function Laravel\Prompts\textarea;
+use function Hypervel\Prompts\textarea;
 
 $story = textarea('Tell me a story.');
 ```
@@ -200,7 +200,7 @@ $story = textarea(
 The `number` function will prompt the user with the given question, accept their numeric input, and then return it. The `number` function allows the user to use the up and down arrow keys to manipulate the number:
 
 ```php
-use function Laravel\Prompts\number;
+use function Hypervel\Prompts\number;
 
 $number = number('How many copies would you like?');
 ```
@@ -270,7 +270,7 @@ $copies = number(
 The `password` function is similar to the `text` function, but the user's input will be masked as they type in the console. This is useful when asking for sensitive information such as passwords:
 
 ```php
-use function Laravel\Prompts\password;
+use function Hypervel\Prompts\password;
 
 $password = password('What is your password?');
 ```
@@ -338,7 +338,7 @@ $password = password(
 If you need to ask the user for a "yes or no" confirmation, you may use the `confirm` function. Users may use the arrow keys or press `y` or `n` to select their response. This function will return either `true` or `false`.
 
 ```php
-use function Laravel\Prompts\confirm;
+use function Hypervel\Prompts\confirm;
 
 $confirmed = confirm('Do you accept the terms?');
 ```
@@ -382,7 +382,7 @@ $confirmed = confirm(
 If you need the user to select from a predefined set of choices, you may use the `select` function:
 
 ```php
-use function Laravel\Prompts\select;
+use function Hypervel\Prompts\select;
 
 $role = select(
     label: 'What role should the user have?',
@@ -485,7 +485,7 @@ If the `options` argument is an associative array, then the closure will receive
 If you need the user to be able to select multiple options, you may use the `multiselect` function:
 
 ```php
-use function Laravel\Prompts\multiselect;
+use function Hypervel\Prompts\multiselect;
 
 $permissions = multiselect(
     label: 'What permissions should be assigned?',
@@ -496,7 +496,7 @@ $permissions = multiselect(
 You may also specify default choices and an informational hint:
 
 ```php
-use function Laravel\Prompts\multiselect;
+use function Hypervel\Prompts\multiselect;
 
 $permissions = multiselect(
     label: 'What permissions should be assigned?',
@@ -606,7 +606,7 @@ If the `options` argument is an associative array then the closure will receive 
 The `suggest` function can be used to provide auto-completion for possible choices. The user can still provide any answer, regardless of the auto-completion hints:
 
 ```php
-use function Laravel\Prompts\suggest;
+use function Hypervel\Prompts\suggest;
 
 $name = suggest('What is your name?', ['Taylor', 'Dayle']);
 ```
@@ -708,7 +708,7 @@ $name = suggest(
 If you have a lot of options for the user to select from, the `search` function allows the user to type a search query to filter the results before using the arrow keys to select an option:
 
 ```php
-use function Laravel\Prompts\search;
+use function Hypervel\Prompts\search;
 
 $id = search(
     label: 'Search for the user that should receive the mail',
@@ -803,7 +803,7 @@ If the `options` closure returns an associative array, then the closure will rec
 If you have a lot of searchable options and need the user to be able to select multiple items, the `multisearch` function allows the user to type a search query to filter the results before using the arrow keys and space-bar to select options:
 
 ```php
-use function Laravel\Prompts\multisearch;
+use function Hypervel\Prompts\multisearch;
 
 $ids = multisearch(
     'Search for the users that should receive the mail',
@@ -925,7 +925,7 @@ If the `options` closure returns an associative array, then the closure will rec
 The `pause` function may be used to display informational text to the user and wait for them to confirm their desire to proceed by pressing the Enter / Return key:
 
 ```php
-use function Laravel\Prompts\pause;
+use function Hypervel\Prompts\pause;
 
 pause('Press ENTER to continue.');
 ```
@@ -936,7 +936,7 @@ pause('Press ENTER to continue.');
 The `autocomplete` function can be used to provide inline auto-completion for possible choices. As the user types, suggestions that match their input will appear as ghost text that can be accepted by pressing `Tab` or the right arrow key:
 
 ```php
-use function Laravel\Prompts\autocomplete;
+use function Hypervel\Prompts\autocomplete;
 
 $name = autocomplete(
     label: 'What is your name?',
@@ -1036,7 +1036,7 @@ $name = text(
 Often, you will have multiple prompts that will be displayed in sequence to collect information before performing additional actions. You may use the `form` function to create a grouped set of prompts for the user to complete:
 
 ```php
-use function Laravel\Prompts\form;
+use function Hypervel\Prompts\form;
 
 $responses = form()
     ->text('What is your name?', required: true)
@@ -1049,7 +1049,7 @@ The `submit` method will return a numerically indexed array containing all of th
 
 ```php
 use App\Models\User;
-use function Laravel\Prompts\form;
+use function Hypervel\Prompts\form;
 
 $responses = form()
     ->text('What is your name?', required: true, name: 'name')
@@ -1072,9 +1072,9 @@ The primary benefit of using the `form` function is the ability for the user to 
 If you need more granular control over a prompt in a form, you may invoke the `add` method instead of calling one of the prompt functions directly. The `add` method is passed all previous responses provided by the user:
 
 ```php
-use function Laravel\Prompts\form;
-use function Laravel\Prompts\outro;
-use function Laravel\Prompts\text;
+use function Hypervel\Prompts\form;
+use function Hypervel\Prompts\outro;
+use function Hypervel\Prompts\text;
 
 $responses = form()
     ->text('What is your name?', required: true, name: 'name')
@@ -1092,7 +1092,7 @@ outro("Your name is {$responses['name']} and you are {$responses['age']} years o
 The `note`, `info`, `warning`, `error`, and `alert` functions may be used to display informational messages:
 
 ```php
-use function Laravel\Prompts\info;
+use function Hypervel\Prompts\info;
 
 info('Package installed successfully.');
 ```
@@ -1103,7 +1103,7 @@ info('Package installed successfully.');
 The `table` function makes it easy to display multiple rows and columns of data. All you need to do is provide the column names and the data for the table:
 
 ```php
-use function Laravel\Prompts\table;
+use function Hypervel\Prompts\table;
 
 table(
     headers: ['Name', 'Email'],
@@ -1117,7 +1117,7 @@ table(
 The `spin` function displays a spinner along with an optional message while executing a specified callback. It serves to indicate ongoing processes and returns the callback's results upon completion:
 
 ```php
-use function Laravel\Prompts\spin;
+use function Hypervel\Prompts\spin;
 
 $response = spin(
     callback: fn () => Http::get('http://example.com'),
@@ -1134,7 +1134,7 @@ $response = spin(
 For long running tasks, it can be helpful to show a progress bar that informs users how complete the task is. Using the `progress` function, Laravel will display a progress bar and advance its progress for each iteration over a given iterable value:
 
 ```php
-use function Laravel\Prompts\progress;
+use function Hypervel\Prompts\progress;
 
 $users = progress(
     label: 'Updating users',
@@ -1145,7 +1145,7 @@ $users = progress(
 
 The `progress` function acts like a map function and will return an array containing the return value of each iteration of your callback.
 
-The callback may also accept the `Laravel\Prompts\Progress` instance, allowing you to modify the label and hint on each iteration:
+The callback may also accept the `Hypervel\Prompts\Progress` instance, allowing you to modify the label and hint on each iteration:
 
 ```php
 $users = progress(
@@ -1186,7 +1186,7 @@ $progress->finish();
 The `task` function displays a labeled task with a spinner and a scrolling live output area while a given callback is executing. It is ideal for wrapping long-running processes such as dependency installation or deployment scripts, providing real-time visibility into what is happening:
 
 ```php
-use function Laravel\Prompts\task;
+use function Hypervel\Prompts\task;
 
 task(
     label: 'Installing dependencies',
@@ -1347,7 +1347,7 @@ task(
 The `stream` function displays text that streams into the terminal, ideal for displaying AI-generated content or any text that arrives incrementally:
 
 ```php
-use function Laravel\Prompts\stream;
+use function Hypervel\Prompts\stream;
 
 $stream = stream();
 
@@ -1367,7 +1367,7 @@ The `append` method adds text to the stream, rendering it with a gradual fade-in
 The `title` function updates the title of the user's terminal window or tab:
 
 ```php
-use function Laravel\Prompts\title;
+use function Hypervel\Prompts\title;
 
 title('Installing Dependencies');
 ```
@@ -1384,7 +1384,7 @@ title('');
 The `clear` function may be used to clear the user's terminal:
 
 ```php
-use function Laravel\Prompts\clear;
+use function Hypervel\Prompts\clear;
 
 clear();
 ```
@@ -1418,7 +1418,7 @@ For this reason, Laravel Prompts supports falling back to an alternative impleme
 If you are not using Laravel or need to customize when the fallback behavior is used, you may pass a boolean to the `fallbackWhen` static method on the `Prompt` class:
 
 ```php
-use Laravel\Prompts\Prompt;
+use Hypervel\Prompts\Prompt;
 
 Prompt::fallbackWhen(
     ! $input->isInteractive() || windows_os() || app()->runningUnitTests()
@@ -1431,7 +1431,7 @@ Prompt::fallbackWhen(
 If you are not using Laravel or need to customize the fallback behavior, you may pass a closure to the `fallbackUsing` static method on each prompt class:
 
 ```php
-use Laravel\Prompts\TextPrompt;
+use Hypervel\Prompts\TextPrompt;
 use Symfony\Component\Console\Question\Question;
 use Symfony\Component\Console\Style\SymfonyStyle;
 

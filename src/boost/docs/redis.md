@@ -295,8 +295,8 @@ You may interact with Redis by calling various methods on the `Redis` [facade](/
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Redis;
-use Illuminate\View\View;
+use Hypervel\Support\Facades\Redis;
+use Hypervel\View\View;
 
 class UserController extends Controller
 {
@@ -315,7 +315,7 @@ class UserController extends Controller
 As mentioned above, you may call any of Redis' commands on the `Redis` facade. Laravel uses magic methods to pass the commands to the Redis server. If a Redis command expects arguments, you should pass those to the facade's corresponding method:
 
 ```php
-use Illuminate\Support\Facades\Redis;
+use Hypervel\Support\Facades\Redis;
 
 Redis::set('name', 'Taylor');
 
@@ -350,7 +350,7 @@ The `Redis` facade's `transaction` method provides a convenient wrapper around R
 
 ```php
 use Redis;
-use Illuminate\Support\Facades;
+use Hypervel\Support\Facades;
 
 Facades\Redis::transaction(function (Redis $redis) {
     $redis->incr('user_visits', 1);
@@ -391,7 +391,7 @@ Sometimes you may need to execute dozens of Redis commands. Instead of making a 
 
 ```php
 use Redis;
-use Illuminate\Support\Facades;
+use Hypervel\Support\Facades;
 
 Facades\Redis::pipeline(function (Redis $pipe) {
     for ($i = 0; $i < 1000; $i++) {
@@ -412,8 +412,8 @@ First, let's set up a channel listener using the `subscribe` method. We'll place
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Redis;
+use Hypervel\Console\Command;
+use Hypervel\Support\Facades\Redis;
 
 class RedisSubscribe extends Command
 {
@@ -446,7 +446,7 @@ class RedisSubscribe extends Command
 Now we may publish messages to the channel using the `publish` method:
 
 ```php
-use Illuminate\Support\Facades\Redis;
+use Hypervel\Support\Facades\Redis;
 
 Route::get('/publish', function () {
     // ...

@@ -59,7 +59,7 @@ You may also configure a "fallback language", which will be used when the defaul
 You may modify the default language for a single HTTP request at runtime using the `setLocale` method provided by the `App` facade:
 
 ```php
-use Illuminate\Support\Facades\App;
+use Hypervel\Support\Facades\App;
 
 Route::get('/greeting/{locale}', function (string $locale) {
     if (! in_array($locale, ['en', 'es', 'fr'])) {
@@ -78,7 +78,7 @@ Route::get('/greeting/{locale}', function (string $locale) {
 You may use the `currentLocale` and `isLocale` methods on the `App` facade to determine the current locale or check if the locale is a given value:
 
 ```php
-use Illuminate\Support\Facades\App;
+use Hypervel\Support\Facades\App;
 
 $locale = App::currentLocale();
 
@@ -103,7 +103,7 @@ You may instruct Laravel's "pluralizer", which is used by Eloquent and other por
 </div>
 
 ```php
-use Illuminate\Support\Pluralizer;
+use Hypervel\Support\Pluralizer;
 
 /**
  * Bootstrap any application services.
@@ -222,7 +222,7 @@ If you attempt to provide an object as a translation placeholder, the object's `
 In these cases, Laravel allows you to register a custom formatting handler for that particular type of object. To accomplish this, you should invoke the translator's `stringable` method. The `stringable` method accepts a closure, which should type-hint the type of object that it is responsible for formatting. Typically, the `stringable` method should be invoked within the `boot` method of your application's `AppServiceProvider` class:
 
 ```php
-use Illuminate\Support\Facades\Lang;
+use Hypervel\Support\Facades\Lang;
 use Money\Money;
 
 /**

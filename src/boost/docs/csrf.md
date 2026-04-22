@@ -36,7 +36,7 @@ To prevent this vulnerability, we need to inspect every incoming `POST`, `PUT`, 
 <a name="preventing-csrf-requests"></a>
 ## Preventing CSRF Requests
 
-The `Illuminate\Foundation\Http\Middleware\PreventRequestForgery` [middleware](/docs/{{version}}/middleware), which is included in the `web` middleware group by default, protects your application from cross-site request forgeries using a two-layer approach.
+The `Hypervel\Foundation\Http\Middleware\PreventRequestForgery` [middleware](/docs/{{version}}/middleware), which is included in the `web` middleware group by default, protects your application from cross-site request forgeries using a two-layer approach.
 
 First, the middleware checks the browser's `Sec-Fetch-Site` header. Modern browsers automatically set this header on every request, indicating whether it originated from the same origin, the same site, or a cross-site source. If the header indicates the request came from the same origin, the request is allowed immediately without any token verification.
 
@@ -47,7 +47,7 @@ Laravel automatically generates a CSRF "token" for each active [user session](/d
 The current session's CSRF token can be accessed via the request's session or via the `csrf_token` helper function:
 
 ```php
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 
 Route::get('/token', function (Request $request) {
     $token = $request->session()->token();

@@ -61,7 +61,7 @@ The `get` method makes a `GET` request into the application, while the `assertSt
 
 To make a request to your application, you may invoke the `get`, `post`, `put`, `patch`, or `delete` methods within your test. These methods do not actually issue a "real" HTTP request to your application. Instead, the entire network request is simulated internally.
 
-Instead of returning an `Illuminate\Http\Response` instance, test request methods return an instance of `Illuminate\Testing\TestResponse`, which provides a [variety of helpful assertions](#available-assertions) that allow you to inspect your application's responses:
+Instead of returning an `Hypervel\Http\Response` instance, test request methods return an instance of `Hypervel\Testing\TestResponse`, which provides a [variety of helpful assertions](#available-assertions) that allow you to inspect your application's responses:
 
 ```php tab=Pest
 <?php
@@ -358,7 +358,7 @@ Sometimes you may need to test that your application is throwing a specific exce
 <?php
 
 use App\Exceptions\InvalidOrderException;
-use Illuminate\Support\Facades\Exceptions;
+use Hypervel\Support\Facades\Exceptions;
 
 test('exception is thrown', function () {
     Exceptions::fake();
@@ -381,7 +381,7 @@ test('exception is thrown', function () {
 namespace Tests\Feature;
 
 use App\Exceptions\InvalidOrderException;
-use Illuminate\Support\Facades\Exceptions;
+use Hypervel\Support\Facades\Exceptions;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -600,10 +600,10 @@ $response->assertJsonPath('team.owner.name', fn (string $name) => strlen($name) 
 <a name="fluent-json-testing"></a>
 ### Fluent JSON Testing
 
-Laravel also offers a beautiful way to fluently test your application's JSON responses. To get started, pass a closure to the `assertJson` method. This closure will be invoked with an instance of `Illuminate\Testing\Fluent\AssertableJson` which can be used to make assertions against the JSON that was returned by your application. The `where` method may be used to make assertions against a particular attribute of the JSON, while the `missing` method may be used to assert that a particular attribute is missing from the JSON:
+Laravel also offers a beautiful way to fluently test your application's JSON responses. To get started, pass a closure to the `assertJson` method. This closure will be invoked with an instance of `Hypervel\Testing\Fluent\AssertableJson` which can be used to make assertions against the JSON that was returned by your application. The `where` method may be used to make assertions against a particular attribute of the JSON, while the `missing` method may be used to assert that a particular attribute is missing from the JSON:
 
 ```php tab=Pest
-use Illuminate\Testing\Fluent\AssertableJson;
+use Hypervel\Testing\Fluent\AssertableJson;
 
 test('fluent json', function () {
     $response = $this->getJson('/users/1');
@@ -621,7 +621,7 @@ test('fluent json', function () {
 ```
 
 ```php tab=PHPUnit
-use Illuminate\Testing\Fluent\AssertableJson;
+use Hypervel\Testing\Fluent\AssertableJson;
 
 /**
  * A basic functional test example.
@@ -773,7 +773,7 @@ $response
 <a name="asserting-json-types"></a>
 #### Asserting JSON Types
 
-You may only want to assert that the properties in the JSON response are of a certain type. The `Illuminate\Testing\Fluent\AssertableJson` class provides the `whereType` and `whereAllType` methods for doing just that:
+You may only want to assert that the properties in the JSON response are of a certain type. The `Hypervel\Testing\Fluent\AssertableJson` class provides the `whereType` and `whereAllType` methods for doing just that:
 
 ```php
 $response->assertJson(fn (AssertableJson $json) =>
@@ -799,13 +799,13 @@ The `whereType` and `whereAllType` methods recognize the following types: `strin
 <a name="testing-file-uploads"></a>
 ## Testing File Uploads
 
-The `Illuminate\Http\UploadedFile` class provides a `fake` method which may be used to generate dummy files or images for testing. This, combined with the `Storage` facade's `fake` method, greatly simplifies the testing of file uploads. For example, you may combine these two features to easily test an avatar upload form:
+The `Hypervel\Http\UploadedFile` class provides a `fake` method which may be used to generate dummy files or images for testing. This, combined with the `Storage` facade's `fake` method, greatly simplifies the testing of file uploads. For example, you may combine these two features to easily test an avatar upload form:
 
 ```php tab=Pest
 <?php
 
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Facades\Storage;
 
 test('avatars can be uploaded', function () {
     Storage::fake('avatars');
@@ -825,8 +825,8 @@ test('avatars can be uploaded', function () {
 
 namespace Tests\Feature;
 
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
+use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -882,7 +882,7 @@ UploadedFile::fake()->create(
 <a name="testing-views"></a>
 ## Testing Views
 
-Laravel also allows you to render a view without making a simulated HTTP request to the application. To accomplish this, you may call the `view` method within your test. The `view` method accepts the view name and an optional array of data. The method returns an instance of `Illuminate\Testing\TestView`, which offers several methods to conveniently make assertions about the view's contents:
+Laravel also allows you to render a view without making a simulated HTTP request to the application. To accomplish this, you may call the `view` method within your test. The `view` method accepts the view name and an optional array of data. The method returns an instance of `Hypervel\Testing\TestView`, which offers several methods to conveniently make assertions about the view's contents:
 
 ```php tab=Pest
 <?php
@@ -936,7 +936,7 @@ $view->assertSee('Please provide a valid name.');
 <a name="rendering-blade-and-components"></a>
 ### Rendering Blade and Components
 
-If necessary, you may use the `blade` method to evaluate and render a raw [Blade](/docs/{{version}}/blade) string. Like the `view` method, the `blade` method returns an instance of `Illuminate\Testing\TestView`:
+If necessary, you may use the `blade` method to evaluate and render a raw [Blade](/docs/{{version}}/blade) string. Like the `view` method, the `blade` method returns an instance of `Hypervel\Testing\TestView`:
 
 ```php
 $view = $this->blade(
@@ -947,7 +947,7 @@ $view = $this->blade(
 $view->assertSee('Taylor');
 ```
 
-You may use the `component` method to evaluate and render a [Blade component](/docs/{{version}}/blade#components). The `component` method returns an instance of `Illuminate\Testing\TestComponent`:
+You may use the `component` method to evaluate and render a [Blade component](/docs/{{version}}/blade#components). The `component` method returns an instance of `Hypervel\Testing\TestComponent`:
 
 ```php
 $view = $this->component(Profile::class, ['name' => 'Taylor']);
@@ -958,13 +958,13 @@ $view->assertSee('Taylor');
 <a name="caching-routes"></a>
 ## Caching Routes
 
-Before a test runs, Laravel boots a fresh instance of the application, including collecting all defined routes. If your applications have many route files, you may wish to add the `Illuminate\Foundation\Testing\WithCachedRoutes` trait to your test cases. On tests which use this trait, routes are built once and stored in memory, meaning the route collection process is only run once for all tests in your suite:
+Before a test runs, Laravel boots a fresh instance of the application, including collecting all defined routes. If your applications have many route files, you may wish to add the `Hypervel\Foundation\Testing\WithCachedRoutes` trait to your test cases. On tests which use this trait, routes are built once and stored in memory, meaning the route collection process is only run once for all tests in your suite:
 
 ```php tab=Pest
 <?php
 
 use App\Http\Controllers\UserController;
-use Illuminate\Foundation\Testing\WithCachedRoutes;
+use Hypervel\Foundation\Testing\WithCachedRoutes;
 
 pest()->use(WithCachedRoutes::class);
 
@@ -981,7 +981,7 @@ test('basic example', function () {
 namespace Tests\Feature;
 
 use App\Http\Controllers\UserController;
-use Illuminate\Foundation\Testing\WithCachedRoutes;
+use Hypervel\Foundation\Testing\WithCachedRoutes;
 use Tests\TestCase;
 
 class BasicTest extends TestCase
@@ -1006,7 +1006,7 @@ class BasicTest extends TestCase
 <a name="response-assertions"></a>
 ### Response Assertions
 
-Laravel's `Illuminate\Testing\TestResponse` class provides a variety of custom assertion methods that you may utilize when testing your application. These assertions may be accessed on the response that is returned by the `json`, `get`, `post`, `put`, and `delete` test methods:
+Laravel's `Hypervel\Testing\TestResponse` class provides a variety of custom assertion methods that you may utilize when testing your application. These assertions may be accessed on the response that is returned by the `json`, `get`, `post`, `put`, and `delete` test methods:
 
 <style>
     .collection-method-list > p {
@@ -1776,7 +1776,7 @@ $response->assertSessionHasInput($key, $value = null);
 If needed, a closure can be provided as the second argument to the `assertSessionHasInput` method. The assertion will pass if the closure returns `true`:
 
 ```php
-use Illuminate\Support\Facades\Crypt;
+use Hypervel\Support\Facades\Crypt;
 
 $response->assertSessionHasInput($key, function (string $value) {
     return Crypt::decryptString($value) === 'secret';
@@ -2034,7 +2034,7 @@ $response->assertViewMissing($key);
 <a name="authentication-assertions"></a>
 ### Authentication Assertions
 
-Laravel also provides a variety of authentication related assertions that you may utilize within your application's feature tests. Note that these methods are invoked on the test class itself and not the `Illuminate\Testing\TestResponse` instance returned by methods such as `get` and `post`.
+Laravel also provides a variety of authentication related assertions that you may utilize within your application's feature tests. Note that these methods are invoked on the test class itself and not the `Hypervel\Testing\TestResponse` instance returned by methods such as `get` and `post`.
 
 <a name="assert-authenticated"></a>
 #### assertAuthenticated

@@ -179,7 +179,7 @@ By default, all of the queueable jobs for your application are stored in the `ap
 php artisan make:job ProcessPodcast
 ```
 
-The generated class will implement the `Illuminate\Contracts\Queue\ShouldQueue` interface, indicating to Laravel that the job should be pushed onto the queue to run asynchronously.
+The generated class will implement the `Hypervel\Contracts\Queue\ShouldQueue` interface, indicating to Laravel that the job should be pushed onto the queue to run asynchronously.
 
 > [!NOTE]
 > Job stubs may be customized using [stub publishing](/docs/{{version}}/artisan#stub-customization).
@@ -196,8 +196,8 @@ namespace App\Jobs;
 
 use App\Models\Podcast;
 use App\Services\AudioProcessor;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
 
 class ProcessPodcast implements ShouldQueue
 {
@@ -234,7 +234,7 @@ If you would like to take total control over how the container injects dependenc
 ```php
 use App\Jobs\ProcessPodcast;
 use App\Services\AudioProcessor;
-use Illuminate\Contracts\Foundation\Application;
+use Hypervel\Contracts\Foundation\Application;
 
 $this->app->bindMethod([ProcessPodcast::class, 'handle'], function (ProcessPodcast $job, Application $app) {
     return $job->handle($app->make(AudioProcessor::class));
@@ -271,7 +271,7 @@ $this->podcast = $podcast->withoutRelation('comments');
 If you are using [PHP constructor property promotion](https://www.php.net/manual/en/language.oop5.decon.php#language.oop5.decon.constructor.promotion) and would like to indicate that an Eloquent model should not have its relations serialized, you may use the `WithoutRelations` attribute:
 
 ```php
-use Illuminate\Queue\Attributes\WithoutRelations;
+use Hypervel\Queue\Attributes\WithoutRelations;
 
 /**
  * Create a new job instance.
@@ -291,9 +291,9 @@ namespace App\Jobs;
 
 use App\Models\DistributionPlatform;
 use App\Models\Podcast;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Queue\Attributes\WithoutRelations;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
+use Hypervel\Queue\Attributes\WithoutRelations;
 
 #[WithoutRelations]
 class ProcessPodcast implements ShouldQueue
@@ -326,8 +326,8 @@ Sometimes, you may want to ensure that only one instance of a specific job is on
 ```php
 <?php
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
 
 class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
 {
@@ -344,9 +344,9 @@ In certain cases, you may want to define a specific "key" that makes the job uni
 
 namespace App\Jobs;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
-use Illuminate\Queue\Attributes\UniqueFor;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Queue\Attributes\UniqueFor;
 
 #[UniqueFor(3600)]
 class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
@@ -380,8 +380,8 @@ By default, unique jobs are "unlocked" after a job completes processing or fails
 ```php
 <?php
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 
 class UpdateSearchIndex implements ShouldQueue, ShouldBeUniqueUntilProcessing
 {
@@ -395,8 +395,8 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeUniqueUntilProcessing
 Behind the scenes, when a `ShouldBeUnique` job is dispatched, Laravel attempts to acquire a [lock](/docs/{{version}}/cache#atomic-locks) with the `uniqueId` key. If the lock is already held, the job is not dispatched. This lock is released when the job completes processing or fails all of its retry attempts. By default, Laravel will use the default cache driver to obtain this lock. However, if you wish to use another driver for acquiring the lock, you may define a `uniqueVia` method that returns the cache driver that should be used:
 
 ```php
-use Illuminate\Contracts\Cache\Repository;
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Support\Facades\Cache;
 
 class UpdateSearchIndex implements ShouldQueue, ShouldBeUnique
 {
@@ -425,9 +425,9 @@ Sometimes, you may want to ensure that when the same job is dispatched many time
 
 namespace App\Jobs;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Queue\Attributes\DebounceFor;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
+use Hypervel\Queue\Attributes\DebounceFor;
 
 #[DebounceFor(30)]
 class UpdateSearchIndex implements ShouldQueue
@@ -468,8 +468,8 @@ class UpdateSearchIndex implements ShouldQueue
 You may customize the cache store used for debounce tracking by defining a `debounceVia` method on your job:
 
 ```php
-use Illuminate\Contracts\Cache\Repository;
-use Illuminate\Support\Facades\Cache;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Support\Facades\Cache;
 
 public function debounceVia(): Repository
 {
@@ -477,7 +477,7 @@ public function debounceVia(): Repository
 }
 ```
 
-If a debounced job is superseded by a newer dispatch, Laravel will dispatch the `Illuminate\Queue\Events\JobDebounced` event and remove the superseded job from the queue.
+If a debounced job is superseded by a newer dispatch, Laravel will dispatch the `Hypervel\Queue\Events\JobDebounced` event and remove the superseded job from the queue.
 
 > [!WARNING]
 > Debounced jobs and unique jobs are mutually exclusive. A job using the `DebounceFor` attribute should not implement `ShouldBeUnique`.
@@ -493,8 +493,8 @@ Laravel allows you to ensure the privacy and integrity of a job's data via [encr
 ```php
 <?php
 
-use Illuminate\Contracts\Queue\ShouldBeEncrypted;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldBeEncrypted;
+use Hypervel\Contracts\Queue\ShouldQueue;
 
 class UpdateSearchIndex implements ShouldQueue, ShouldBeEncrypted
 {
@@ -508,7 +508,7 @@ class UpdateSearchIndex implements ShouldQueue, ShouldBeEncrypted
 Job middleware allow you to wrap custom logic around the execution of queued jobs, reducing boilerplate in the jobs themselves. For example, consider the following `handle` method which leverages Laravel's Redis rate limiting features to allow only one job to process every five seconds:
 
 ```php
-use Illuminate\Support\Facades\Redis;
+use Hypervel\Support\Facades\Redis;
 
 /**
  * Execute the job.
@@ -535,7 +535,7 @@ While this code is valid, the implementation of the `handle` method becomes nois
 namespace App\Jobs\Middleware;
 
 use Closure;
-use Illuminate\Support\Facades\Redis;
+use Hypervel\Support\Facades\Redis;
 
 class RateLimited
 {
@@ -590,8 +590,8 @@ Although we just demonstrated how to write your own rate limiting job middleware
 For example, you may wish to allow users to backup their data once per hour while imposing no such limit on premium customers. To accomplish this, you may define a `RateLimiter` in the `boot` method of your `AppServiceProvider`:
 
 ```php
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Support\Facades\RateLimiter;
+use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\Support\Facades\RateLimiter;
 
 /**
  * Bootstrap any application services.
@@ -612,10 +612,10 @@ In the example above, we defined an hourly rate limit; however, you may easily d
 return Limit::perMinute(50)->by($job->user->id);
 ```
 
-Once you have defined your rate limit, you may attach the rate limiter to your job using the `Illuminate\Queue\Middleware\RateLimited` middleware. Each time the job exceeds the rate limit, this middleware will release the job back to the queue with an appropriate delay based on the rate limit duration:
+Once you have defined your rate limit, you may attach the rate limiter to your job using the `Hypervel\Queue\Middleware\RateLimited` middleware. Each time the job exceeds the rate limit, this middleware will release the job back to the queue with an appropriate delay based on the rate limit duration:
 
 ```php
-use Illuminate\Queue\Middleware\RateLimited;
+use Hypervel\Queue\Middleware\RateLimited;
 
 /**
  * Get the middleware the job should pass through.
@@ -661,10 +661,10 @@ public function middleware(): array
 <a name="rate-limiting-with-redis"></a>
 #### Rate Limiting With Redis
 
-If you are using Redis, you may use the `Illuminate\Queue\Middleware\RateLimitedWithRedis` middleware, which is fine-tuned for Redis and more efficient than the basic rate limiting middleware:
+If you are using Redis, you may use the `Hypervel\Queue\Middleware\RateLimitedWithRedis` middleware, which is fine-tuned for Redis and more efficient than the basic rate limiting middleware:
 
 ```php
-use Illuminate\Queue\Middleware\RateLimitedWithRedis;
+use Hypervel\Queue\Middleware\RateLimitedWithRedis;
 
 public function middleware(): array
 {
@@ -681,12 +681,12 @@ return [(new RateLimitedWithRedis('backups'))->connection('limiter')];
 <a name="preventing-job-overlaps"></a>
 ### Preventing Job Overlaps
 
-Laravel includes an `Illuminate\Queue\Middleware\WithoutOverlapping` middleware that allows you to prevent job overlaps based on an arbitrary key. This can be helpful when a queued job is modifying a resource that should only be modified by one job at a time.
+Laravel includes an `Hypervel\Queue\Middleware\WithoutOverlapping` middleware that allows you to prevent job overlaps based on an arbitrary key. This can be helpful when a queued job is modifying a resource that should only be modified by one job at a time.
 
 For example, let's imagine you have a queued job that updates a user's credit score and you want to prevent credit score update job overlaps for the same user ID. To accomplish this, you can return the `WithoutOverlapping` middleware from your job's `middleware` method:
 
 ```php
-use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Hypervel\Queue\Middleware\WithoutOverlapping;
 
 /**
  * Get the middleware the job should pass through.
@@ -752,7 +752,7 @@ public function middleware(): array
 By default, the `WithoutOverlapping` middleware will only prevent overlapping jobs of the same class. So, although two different job classes may use the same lock key, they will not be prevented from overlapping. However, you can instruct Laravel to apply the key across job classes using the `shared` method:
 
 ```php
-use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Hypervel\Queue\Middleware\WithoutOverlapping;
 
 class ProviderIsDown
 {
@@ -782,13 +782,13 @@ class ProviderIsUp
 <a name="throttling-exceptions"></a>
 ### Throttling Exceptions
 
-Laravel includes a `Illuminate\Queue\Middleware\ThrottlesExceptions` middleware that allows you to throttle exceptions. Once the job throws a given number of exceptions, all further attempts to execute the job are delayed until a specified time interval lapses. This middleware is particularly useful for jobs that interact with third-party services that are unstable.
+Laravel includes a `Hypervel\Queue\Middleware\ThrottlesExceptions` middleware that allows you to throttle exceptions. Once the job throws a given number of exceptions, all further attempts to execute the job are delayed until a specified time interval lapses. This middleware is particularly useful for jobs that interact with third-party services that are unstable.
 
 For example, let's imagine a queued job that interacts with a third-party API that begins throwing exceptions. To throttle exceptions, you can return the `ThrottlesExceptions` middleware from your job's `middleware` method. Typically, this middleware should be paired with a job that implements [time based attempts](#time-based-attempts):
 
 ```php
 use DateTime;
-use Illuminate\Queue\Middleware\ThrottlesExceptions;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 
 /**
  * Get the middleware the job should pass through.
@@ -814,7 +814,7 @@ The first constructor argument accepted by the middleware is the number of excep
 When a job throws an exception but the exception threshold has not yet been reached, the job will typically be retried immediately. However, you may specify the number of minutes such a job should be delayed by calling the `backoff` method when attaching the middleware to the job:
 
 ```php
-use Illuminate\Queue\Middleware\ThrottlesExceptions;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 
 /**
  * Get the middleware the job should pass through.
@@ -830,7 +830,7 @@ public function middleware(): array
 Internally, this middleware uses Laravel's cache system to implement rate limiting, and the job's class name is utilized as the cache "key". You may override this key by calling the `by` method when attaching the middleware to your job. This may be useful if you have multiple jobs interacting with the same third-party service and you would like them to share a common throttling "bucket" ensuring they respect a single shared limit:
 
 ```php
-use Illuminate\Queue\Middleware\ThrottlesExceptions;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 
 /**
  * Get the middleware the job should pass through.
@@ -846,8 +846,8 @@ public function middleware(): array
 By default, this middleware will throttle every exception. You can modify this behavior by invoking the `when` method when attaching the middleware to your job. The exception will then only be throttled if the closure provided to the `when` method returns `true`:
 
 ```php
-use Illuminate\Http\Client\HttpClientException;
-use Illuminate\Queue\Middleware\ThrottlesExceptions;
+use Hypervel\Http\Client\HttpClientException;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 
 /**
  * Get the middleware the job should pass through.
@@ -866,7 +866,7 @@ Unlike the `when` method, which releases the job back onto the queue or throws a
 
 ```php
 use App\Exceptions\CustomerDeletedException;
-use Illuminate\Queue\Middleware\ThrottlesExceptions;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 
 /**
  * Get the middleware the job should pass through.
@@ -882,8 +882,8 @@ public function middleware(): array
 If you would like to have the throttled exceptions reported to your application's exception handler, you can do so by invoking the `report` method when attaching the middleware to your job. Optionally, you may provide a closure to the `report` method and the exception will only be reported if the given closure returns `true`:
 
 ```php
-use Illuminate\Http\Client\HttpClientException;
-use Illuminate\Queue\Middleware\ThrottlesExceptions;
+use Hypervel\Http\Client\HttpClientException;
+use Hypervel\Queue\Middleware\ThrottlesExceptions;
 
 /**
  * Get the middleware the job should pass through.
@@ -901,10 +901,10 @@ public function middleware(): array
 <a name="throttling-exceptions-with-redis"></a>
 #### Throttling Exceptions With Redis
 
-If you are using Redis, you may use the `Illuminate\Queue\Middleware\ThrottlesExceptionsWithRedis` middleware, which is fine-tuned for Redis and more efficient than the basic exception throttling middleware:
+If you are using Redis, you may use the `Hypervel\Queue\Middleware\ThrottlesExceptionsWithRedis` middleware, which is fine-tuned for Redis and more efficient than the basic exception throttling middleware:
 
 ```php
-use Illuminate\Queue\Middleware\ThrottlesExceptionsWithRedis;
+use Hypervel\Queue\Middleware\ThrottlesExceptionsWithRedis;
 
 public function middleware(): array
 {
@@ -924,7 +924,7 @@ return [(new ThrottlesExceptionsWithRedis(10, 10 * 60))->connection('limiter')];
 The `Skip` middleware allows you to specify that a job should be skipped / deleted without needing to modify the job's logic. The `Skip::when` method will delete the job if the given condition evaluates to `true`, while the `Skip::unless` method will delete the job if the condition evaluates to `false`:
 
 ```php
-use Illuminate\Queue\Middleware\Skip;
+use Hypervel\Queue\Middleware\Skip;
 
 /**
  * Get the middleware the job should pass through.
@@ -940,7 +940,7 @@ public function middleware(): array
 You can also pass a `Closure` to the `when` and `unless` methods for more complex conditional evaluation:
 
 ```php
-use Illuminate\Queue\Middleware\Skip;
+use Hypervel\Queue\Middleware\Skip;
 
 /**
  * Get the middleware the job should pass through.
@@ -967,8 +967,8 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessPodcast;
 use App\Models\Podcast;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class PodcastController extends Controller
 {
@@ -1010,8 +1010,8 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessPodcast;
 use App\Models\Podcast;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class PodcastController extends Controller
 {
@@ -1053,8 +1053,8 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessPodcast;
 use App\Models\Podcast;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class PodcastController extends Controller
 {
@@ -1139,7 +1139,7 @@ Job chaining allows you to specify a list of queued jobs that should be run in s
 use App\Jobs\OptimizePodcast;
 use App\Jobs\ProcessPodcast;
 use App\Jobs\ReleasePodcast;
-use Illuminate\Support\Facades\Bus;
+use Hypervel\Support\Facades\Bus;
 
 Bus::chain([
     new ProcessPodcast,
@@ -1203,7 +1203,7 @@ public function handle(): void
 When chaining jobs, you may use the `catch` method to specify a closure that should be invoked if a job within the chain fails. The given callback will receive the `Throwable` instance that caused the job failure:
 
 ```php
-use Illuminate\Support\Facades\Bus;
+use Hypervel\Support\Facades\Bus;
 use Throwable;
 
 Bus::chain([
@@ -1233,8 +1233,8 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessPodcast;
 use App\Models\Podcast;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class PodcastController extends Controller
 {
@@ -1261,8 +1261,8 @@ Alternatively, you may specify the job's queue by calling the `onQueue` method w
 
 namespace App\Jobs;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
 
 class ProcessPodcast implements ShouldQueue
 {
@@ -1290,8 +1290,8 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessPodcast;
 use App\Models\Podcast;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
 
 class PodcastController extends Controller
 {
@@ -1326,8 +1326,8 @@ Alternatively, you may specify the job's connection by calling the `onConnection
 
 namespace App\Jobs;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
 
 class ProcessPodcast implements ShouldQueue
 {
@@ -1356,7 +1356,7 @@ Typically, you should call the `route` method from the `boot` method of a servic
 use App\Concerns\RequiresVideo;
 use App\Jobs\ProcessPodcast;
 use App\Jobs\ProcessVideo;
-use Illuminate\Support\Facades\Queue;
+use Hypervel\Support\Facades\Queue;
 
 /**
  * Bootstrap any application services.
@@ -1428,7 +1428,7 @@ You may take a more granular approach by defining the maximum number of times a 
 
 namespace App\Jobs;
 
-use Illuminate\Queue\Attributes\Tries;
+use Hypervel\Queue\Attributes\Tries;
 
 #[Tries(5)]
 class ProcessPodcast implements ShouldQueue
@@ -1481,11 +1481,11 @@ Sometimes you may wish to specify that a job may be attempted many times, but sh
 
 namespace App\Jobs;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Queue\Attributes\MaxExceptions;
-use Illuminate\Queue\Attributes\Tries;
-use Illuminate\Support\Facades\Redis;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
+use Hypervel\Queue\Attributes\MaxExceptions;
+use Hypervel\Queue\Attributes\Tries;
+use Hypervel\Support\Facades\Redis;
 
 #[Tries(25)]
 #[MaxExceptions(3)]
@@ -1530,7 +1530,7 @@ You may also define the maximum number of seconds a job should be allowed to run
 
 namespace App\Jobs;
 
-use Illuminate\Queue\Attributes\Timeout;
+use Hypervel\Queue\Attributes\Timeout;
 
 #[Timeout(120)]
 class ProcessPodcast implements ShouldQueue
@@ -1554,7 +1554,7 @@ If you would like to indicate that a job should be marked as [failed](#dealing-w
 
 namespace App\Jobs;
 
-use Illuminate\Queue\Attributes\FailOnTimeout;
+use Hypervel\Queue\Attributes\FailOnTimeout;
 
 #[FailOnTimeout]
 class ProcessPodcast implements ShouldQueue
@@ -1587,8 +1587,8 @@ SQS FIFO queues support message deduplication to ensure exactly-once processing.
 
 namespace App\Jobs;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
 
 class ProcessSubscriptionRenewal implements ShouldQueue
 {
@@ -1618,8 +1618,8 @@ Instead of calling `onGroup` at dispatch time, you may also define a `messageGro
 
 namespace App\Jobs;
 
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
 
 class ProcessOrder implements ShouldQueue
 {
@@ -1675,7 +1675,7 @@ When sending a [mail message](/docs/{{version}}/mail) that is going to be queued
 
 ```php
 use App\Mail\InvoicePaid;
-use Illuminate\Support\Facades\Mail;
+use Hypervel\Support\Facades\Mail;
 
 $invoicePaid = (new InvoicePaid($invoice))
     ->onGroup('invoices')
@@ -1730,7 +1730,7 @@ php artisan queue:work database
 > [!NOTE]
 > You do not need to run a worker for connections using the `sync`, `background`, or `deferred` queue drivers since those drivers process jobs within the current PHP process.
 
-When a queue connection operation fails and failover is activated, Laravel will dispatch the `Illuminate\Queue\Events\QueueFailedOver` event, allowing you to report or log that a queue connection has failed.
+When a queue connection operation fails and failover is activated, Laravel will dispatch the `Hypervel\Queue\Events\QueueFailedOver` event, allowing you to report or log that a queue connection has failed.
 
 > [!NOTE]
 > If you use Laravel Horizon, remember that Horizon manages Redis queues only. If your failover list includes `database`, you should run a regular `php artisan queue:work database` process alongside Horizon.
@@ -1804,12 +1804,12 @@ The `FailOnException` [job middleware](#job-middleware) allows you to short-circ
 namespace App\Jobs;
 
 use App\Models\User;
-use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Queue\Attributes\Tries;
-use Illuminate\Queue\Middleware\FailOnException;
-use Illuminate\Support\Facades\Http;
+use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
+use Hypervel\Queue\Attributes\Tries;
+use Hypervel\Queue\Middleware\FailOnException;
+use Hypervel\Support\Facades\Http;
 
 #[Tries(3)]
 class SyncChatHistory implements ShouldQueue
@@ -1865,16 +1865,16 @@ php artisan migrate
 <a name="defining-batchable-jobs"></a>
 ### Defining Batchable Jobs
 
-To define a batchable job, you should [create a queueable job](#creating-jobs) as normal; however, you should add the `Illuminate\Bus\Batchable` trait to the job class. This trait provides access to a `batch` method which may be used to retrieve the current batch that the job is executing within:
+To define a batchable job, you should [create a queueable job](#creating-jobs) as normal; however, you should add the `Hypervel\Bus\Batchable` trait to the job class. This trait provides access to a `batch` method which may be used to retrieve the current batch that the job is executing within:
 
 ```php
 <?php
 
 namespace App\Jobs;
 
-use Illuminate\Bus\Batchable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Hypervel\Bus\Batchable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
 
 class ImportCsv implements ShouldQueue
 {
@@ -1899,7 +1899,7 @@ class ImportCsv implements ShouldQueue
 <a name="dispatching-batches"></a>
 ### Dispatching Batches
 
-To dispatch a batch of jobs, you should use the `batch` method of the `Bus` facade. Of course, batching is primarily useful when combined with completion callbacks. So, you may use the `then`, `catch`, and `finally` methods to define completion callbacks for the batch. Each of these callbacks will receive an `Illuminate\Bus\Batch` instance when they are invoked.
+To dispatch a batch of jobs, you should use the `batch` method of the `Bus` facade. Of course, batching is primarily useful when combined with completion callbacks. So, you may use the `then`, `catch`, and `finally` methods to define completion callbacks for the batch. Each of these callbacks will receive an `Hypervel\Bus\Batch` instance when they are invoked.
 
 When running multiple queue workers, the jobs in the batch will be processed in parallel. Therefore, the order in which the jobs complete may not be the same as the order in which they were added to the batch. Consult our documentation on [job chains and batches](#chains-and-batches) for information on how to run a series of jobs in sequence.
 
@@ -1907,8 +1907,8 @@ In this example, we will imagine we are queueing a batch of jobs that each proce
 
 ```php
 use App\Jobs\ImportCsv;
-use Illuminate\Bus\Batch;
-use Illuminate\Support\Facades\Bus;
+use Hypervel\Bus\Batch;
+use Hypervel\Support\Facades\Bus;
 use Throwable;
 
 $batch = Bus::batch([
@@ -1971,8 +1971,8 @@ You may define a set of [chained jobs](#job-chaining) within a batch by placing 
 ```php
 use App\Jobs\ReleasePodcast;
 use App\Jobs\SendPodcastReleaseNotification;
-use Illuminate\Bus\Batch;
-use Illuminate\Support\Facades\Bus;
+use Hypervel\Bus\Batch;
+use Hypervel\Support\Facades\Bus;
 
 Bus::batch([
     [
@@ -1994,7 +1994,7 @@ Conversely, you may run batches of jobs within a [chain](#job-chaining) by defin
 use App\Jobs\FlushPodcastCache;
 use App\Jobs\ReleasePodcast;
 use App\Jobs\SendPodcastReleaseNotification;
-use Illuminate\Support\Facades\Bus;
+use Hypervel\Support\Facades\Bus;
 
 Bus::chain([
     new FlushPodcastCache,
@@ -2028,7 +2028,7 @@ In this example, we will use the `LoadImportBatch` job to hydrate the batch with
 
 ```php
 use App\Jobs\ImportContacts;
-use Illuminate\Support\Collection;
+use Hypervel\Support\Collection;
 
 /**
  * Execute the job.
@@ -2051,7 +2051,7 @@ public function handle(): void
 <a name="inspecting-batches"></a>
 ### Inspecting Batches
 
-The `Illuminate\Bus\Batch` instance that is provided to batch completion callbacks has a variety of properties and methods to assist you in interacting with and inspecting a given batch of jobs:
+The `Hypervel\Bus\Batch` instance that is provided to batch completion callbacks has a variety of properties and methods to assist you in interacting with and inspecting a given batch of jobs:
 
 ```php
 // The UUID of the batch...
@@ -2088,13 +2088,13 @@ $batch->cancelled();
 <a name="returning-batches-from-routes"></a>
 #### Returning Batches From Routes
 
-All `Illuminate\Bus\Batch` instances are JSON serializable, meaning you can return them directly from one of your application's routes to retrieve a JSON payload containing information about the batch, including its completion progress. This makes it convenient to display information about the batch's completion progress in your application's UI.
+All `Hypervel\Bus\Batch` instances are JSON serializable, meaning you can return them directly from one of your application's routes to retrieve a JSON payload containing information about the batch, including its completion progress. This makes it convenient to display information about the batch's completion progress in your application's UI.
 
 To retrieve a batch by its ID, you may use the `Bus` facade's `findBatch` method:
 
 ```php
-use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Route;
+use Hypervel\Support\Facades\Bus;
+use Hypervel\Support\Facades\Route;
 
 Route::get('/batch/{batchId}', function (string $batchId) {
     return Bus::findBatch($batchId);
@@ -2104,7 +2104,7 @@ Route::get('/batch/{batchId}', function (string $batchId) {
 <a name="cancelling-batches"></a>
 ### Cancelling Batches
 
-Sometimes you may need to cancel a given batch's execution. This can be accomplished by calling the `cancel` method on the `Illuminate\Bus\Batch` instance:
+Sometimes you may need to cancel a given batch's execution. This can be accomplished by calling the `cancel` method on the `Hypervel\Bus\Batch` instance:
 
 ```php
 /**
@@ -2127,7 +2127,7 @@ public function handle(): void
 As you may have noticed in the previous examples, batched jobs should typically determine if their corresponding batch has been cancelled before continuing execution. However, for convenience, you may assign the `SkipIfBatchCancelled` [middleware](#job-middleware) to the job instead. As its name indicates, this middleware will instruct Laravel to not process the job if its corresponding batch has been cancelled:
 
 ```php
-use Illuminate\Queue\Middleware\SkipIfBatchCancelled;
+use Hypervel\Queue\Middleware\SkipIfBatchCancelled;
 
 /**
  * Get the middleware the job should pass through.
@@ -2181,7 +2181,7 @@ php artisan queue:retry-batch 32dbc76c-4f82-4749-b610-a639fe0099b5
 Without pruning, the `job_batches` table can accumulate records very quickly. To mitigate this, you should [schedule](/docs/{{version}}/scheduling) the `queue:prune-batches` Artisan command to run daily:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('queue:prune-batches')->daily();
 ```
@@ -2189,7 +2189,7 @@ Schedule::command('queue:prune-batches')->daily();
 By default, all finished batches that are more than 24 hours old will be pruned. You may use the `hours` option when calling the command to determine how long to retain batch data. For example, the following command will delete all batches that finished over 48 hours ago:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('queue:prune-batches --hours=48')->daily();
 ```
@@ -2197,7 +2197,7 @@ Schedule::command('queue:prune-batches --hours=48')->daily();
 Sometimes, your `job_batches` table may accumulate batch records for batches that never completed successfully, such as batches where a job failed and that job was never retried successfully. You may instruct the `queue:prune-batches` command to prune these unfinished batch records using the `unfinished` option:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('queue:prune-batches --hours=48 --unfinished=72')->daily();
 ```
@@ -2205,7 +2205,7 @@ Schedule::command('queue:prune-batches --hours=48 --unfinished=72')->daily();
 Likewise, your `job_batches` table may also accumulate batch records for cancelled batches. You may instruct the `queue:prune-batches` command to prune these cancelled batch records using the `cancelled` option:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('queue:prune-batches --hours=48 --cancelled=72')->daily();
 ```
@@ -2493,7 +2493,7 @@ By default, queue workers poll the cache driver for restart and pause signals on
 If you need to optimize performance and don't require these interruption features, you may disable this polling globally by calling the `withoutInterruptionPolling` method on the `Queue` facade. This should typically be done in the `boot` method of your `AppServiceProvider`:
 
 ```php
-use Illuminate\Support\Facades\Queue;
+use Hypervel\Support\Facades\Queue;
 
 /**
  * Bootstrap any application services.
@@ -2504,10 +2504,10 @@ public function boot(): void
 }
 ```
 
-Alternatively, you may disable restart or pause polling individually by setting the static `$restartable` or `$pausable` properties on the `Illuminate\Queue\Worker` class:
+Alternatively, you may disable restart or pause polling individually by setting the static `$restartable` or `$pausable` properties on the `Hypervel\Queue\Worker` class:
 
 ```php
-use Illuminate\Queue\Worker;
+use Hypervel\Queue\Worker;
 
 /**
  * Bootstrap any application services.
@@ -2613,7 +2613,7 @@ If you would like to configure how many seconds Laravel should wait before retry
 
 namespace App\Jobs;
 
-use Illuminate\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\Backoff;
 
 #[Backoff(3)]
 class ProcessPodcast implements ShouldQueue
@@ -2641,7 +2641,7 @@ You may easily configure "exponential" backoffs by defining an array of backoff 
 
 namespace App\Jobs;
 
-use Illuminate\Queue\Attributes\Backoff;
+use Hypervel\Queue\Attributes\Backoff;
 
 #[Backoff([1, 5, 10])]
 class ProcessPodcast implements ShouldQueue
@@ -2662,8 +2662,8 @@ namespace App\Jobs;
 
 use App\Models\Podcast;
 use App\Services\AudioProcessor;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
 use Throwable;
 
 class ProcessPodcast implements ShouldQueue
@@ -2708,7 +2708,7 @@ A failed job is not necessarily one that encountered an unhandled exception. A j
 
 </div>
 
-If the final attempt fails due to an exception thrown during job execution, that exception will be passed to the job's `failed` method. However, if the job fails because it has reached the maximum number of allowed attempts, the `$exception` will be an instance of `Illuminate\Queue\MaxAttemptsExceededException`. Similarly, if the job fails due to exceeding the configured timeout, the `$exception` will be an instance of `Illuminate\Queue\TimeoutExceededException`.
+If the final attempt fails due to an exception thrown during job execution, that exception will be passed to the job's `failed` method. However, if the job fails because it has reached the maximum number of allowed attempts, the `$exception` will be an instance of `Hypervel\Queue\MaxAttemptsExceededException`. Similarly, if the job fails due to exceeding the configured timeout, the `$exception` will be an instance of `Hypervel\Queue\TimeoutExceededException`.
 
 <a name="retrying-failed-jobs"></a>
 ### Retrying Failed Jobs
@@ -2776,7 +2776,7 @@ For convenience, you may choose to automatically delete jobs with missing models
 
 namespace App\Jobs;
 
-use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
+use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 
 #[DeleteWhenMissingModels]
 class ProcessPodcast implements ShouldQueue
@@ -2844,9 +2844,9 @@ If you would like to register an event listener that will be invoked when a job 
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Queue\Events\JobFailed;
+use Hypervel\Support\Facades\Queue;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Queue\Events\JobFailed;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -2904,13 +2904,13 @@ To get started, you should schedule the `queue:monitor` command to [run every mi
 php artisan queue:monitor redis:default,redis:deployments --max=100
 ```
 
-Scheduling this command alone is not enough to trigger a notification alerting you of the queue's overwhelmed status. When the command encounters a queue that has a job count exceeding your threshold, an `Illuminate\Queue\Events\QueueBusy` event will be dispatched. You may listen for this event within your application's `AppServiceProvider` in order to send a notification to you or your development team:
+Scheduling this command alone is not enough to trigger a notification alerting you of the queue's overwhelmed status. When the command encounters a queue that has a job count exceeding your threshold, an `Hypervel\Queue\Events\QueueBusy` event will be dispatched. You may listen for this event within your application's `AppServiceProvider` in order to send a notification to you or your development team:
 
 ```php
 use App\Notifications\QueueHasLongWaitTime;
-use Illuminate\Queue\Events\QueueBusy;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Notification;
+use Hypervel\Queue\Events\QueueBusy;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Notification;
 
 /**
  * Bootstrap any application services.
@@ -2940,7 +2940,7 @@ You may use the `Queue` facade's `fake` method to prevent queued jobs from actua
 
 use App\Jobs\AnotherJob;
 use App\Jobs\ShipOrder;
-use Illuminate\Support\Facades\Queue;
+use Hypervel\Support\Facades\Queue;
 
 test('orders can be shipped', function () {
     Queue::fake();
@@ -2980,7 +2980,7 @@ namespace Tests\Feature;
 
 use App\Jobs\AnotherJob;
 use App\Jobs\ShipOrder;
-use Illuminate\Support\Facades\Queue;
+use Hypervel\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -3021,7 +3021,7 @@ class ExampleTest extends TestCase
 You may pass a closure to the `assertPushed`, `assertNotPushed`, `assertClosurePushed`, or `assertClosureNotPushed` methods in order to assert that a job was pushed that passes a given "truth test". If at least one job was pushed that passes the given truth test then the assertion will be successful:
 
 ```php
-use Illuminate\Queue\CallQueuedClosure;
+use Hypervel\Queue\CallQueuedClosure;
 
 Queue::assertPushed(function (ShipOrder $job) use ($order) {
     return $job->order->id === $order->id;
@@ -3081,7 +3081,7 @@ To test job chains, you will need to utilize the `Bus` facade's faking capabilit
 use App\Jobs\RecordShipment;
 use App\Jobs\ShipOrder;
 use App\Jobs\UpdateInventory;
-use Illuminate\Support\Facades\Bus;
+use Hypervel\Support\Facades\Bus;
 
 Bus::fake();
 
@@ -3141,8 +3141,8 @@ If your job chain [contains a batch of jobs](#chains-and-batches), you may asser
 ```php
 use App\Jobs\ShipOrder;
 use App\Jobs\UpdateInventory;
-use Illuminate\Bus\PendingBatch;
-use Illuminate\Support\Facades\Bus;
+use Hypervel\Bus\PendingBatch;
+use Hypervel\Support\Facades\Bus;
 
 Bus::assertChained([
     new ShipOrder,
@@ -3156,11 +3156,11 @@ Bus::assertChained([
 <a name="testing-job-batches"></a>
 ### Testing Job Batches
 
-The `Bus` facade's `assertBatched` method may be used to assert that a [batch of jobs](/docs/{{version}}/queues#job-batching) was dispatched. The closure given to the `assertBatched` method receives an instance of `Illuminate\Bus\PendingBatch`, which may be used to inspect the jobs within the batch:
+The `Bus` facade's `assertBatched` method may be used to assert that a [batch of jobs](/docs/{{version}}/queues#job-batching) was dispatched. The closure given to the `assertBatched` method receives an instance of `Hypervel\Bus\PendingBatch`, which may be used to inspect the jobs within the batch:
 
 ```php
-use Illuminate\Bus\PendingBatch;
-use Illuminate\Support\Facades\Bus;
+use Hypervel\Bus\PendingBatch;
+use Hypervel\Support\Facades\Bus;
 
 Bus::fake();
 
@@ -3255,10 +3255,10 @@ Using the `before` and `after` methods on the `Queue` [facade](/docs/{{version}}
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Queue\Events\JobProcessed;
-use Illuminate\Queue\Events\JobProcessing;
+use Hypervel\Support\Facades\Queue;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -3293,8 +3293,8 @@ class AppServiceProvider extends ServiceProvider
 Using the `looping` method on the `Queue` [facade](/docs/{{version}}/facades), you may specify callbacks that execute before the worker attempts to fetch a job from a queue. For example, you might register a closure to rollback any transactions that were left open by a previously failed job:
 
 ```php
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Queue;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Queue;
 
 Queue::looping(function () {
     while (DB::transactionLevel() > 0) {

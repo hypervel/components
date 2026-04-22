@@ -7,7 +7,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-All Eloquent methods that return more than one model result will return instances of the `Illuminate\Database\Eloquent\Collection` class, including results retrieved via the `get` method or accessed via a relationship. The Eloquent collection object extends Laravel's [base collection](/docs/{{version}}/collections), so it naturally inherits dozens of methods used to fluently work with the underlying array of Eloquent models. Be sure to review the Laravel collection documentation to learn all about these helpful methods!
+All Eloquent methods that return more than one model result will return instances of the `Hypervel\Database\Eloquent\Collection` class, including results retrieved via the `get` method or accessed via a relationship. The Eloquent collection object extends Laravel's [base collection](/docs/{{version}}/collections), so it naturally inherits dozens of methods used to fluently work with the underlying array of Eloquent models. Be sure to review the Laravel collection documentation to learn all about these helpful methods!
 
 All collections also serve as iterators, allowing you to loop over them as if they were simple PHP arrays:
 
@@ -41,7 +41,7 @@ While most Eloquent collection methods return a new instance of an Eloquent coll
 
 All Eloquent collections extend the base [Laravel collection](/docs/{{version}}/collections#available-methods) object; therefore, they inherit all of the powerful methods provided by the base collection class.
 
-In addition, the `Illuminate\Database\Eloquent\Collection` class provides a superset of methods to aid with managing your model collections. Most methods return `Illuminate\Database\Eloquent\Collection` instances; however, some methods, like `modelKeys`, return an `Illuminate\Support\Collection` instance.
+In addition, the `Hypervel\Database\Eloquent\Collection` class provides a superset of methods to aid with managing your model collections. Most methods return `Hypervel\Database\Eloquent\Collection` instances; however, some methods, like `modelKeys`, return an `Hypervel\Support\Collection` instance.
 
 <style>
     .collection-method-list > p {
@@ -148,7 +148,7 @@ $user = $users->find(1);
 <a name="method-find-or-fail"></a>
 #### `findOrFail($key)` {.collection-method}
 
-The `findOrFail` method returns the model that has a primary key matching the given key or throws an `Illuminate\Database\Eloquent\ModelNotFoundException` exception if no matching model can be found in the collection:
+The `findOrFail` method returns the model that has a primary key matching the given key or throws an `Hypervel\Database\Eloquent\ModelNotFoundException` exception if no matching model can be found in the collection:
 
 ```php
 $users = User::all();
@@ -263,14 +263,14 @@ $users = $users->only([1, 2, 3]);
 <a name="method-partition"></a>
 #### `partition` {.collection-method}
 
-The `partition` method returns an instance of `Illuminate\Support\Collection` containing `Illuminate\Database\Eloquent\Collection` collection instances:
+The `partition` method returns an instance of `Hypervel\Support\Collection` containing `Hypervel\Database\Eloquent\Collection` collection instances:
 
 ```php
 $partition = $users->partition(fn ($user) => $user->age > 18);
 
-dump($partition::class);    // Illuminate\Support\Collection
-dump($partition[0]::class); // Illuminate\Database\Eloquent\Collection
-dump($partition[1]::class); // Illuminate\Database\Eloquent\Collection
+dump($partition::class);    // Hypervel\Support\Collection
+dump($partition[0]::class); // Hypervel\Database\Eloquent\Collection
+dump($partition[1]::class); // Hypervel\Database\Eloquent\Collection
 ```
 
 <a name="method-setAppends"></a>
@@ -344,8 +344,8 @@ If you would like to use a custom `Collection` object when interacting with a gi
 namespace App\Models;
 
 use App\Support\UserCollection;
-use Illuminate\Database\Eloquent\Attributes\CollectedBy;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Attributes\CollectedBy;
+use Hypervel\Database\Eloquent\Model;
 
 #[CollectedBy(UserCollection::class)]
 class User extends Model
@@ -362,16 +362,16 @@ Alternatively, you may define a `newCollection` method on your model:
 namespace App\Models;
 
 use App\Support\UserCollection;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
 {
     /**
      * Create a new Eloquent Collection instance.
      *
-     * @param  array<int, \Illuminate\Database\Eloquent\Model>  $models
-     * @return \Illuminate\Database\Eloquent\Collection<int, \Illuminate\Database\Eloquent\Model>
+     * @param  array<int, \Hypervel\Database\Eloquent\Model>  $models
+     * @return \Hypervel\Database\Eloquent\Collection<int, \Hypervel\Database\Eloquent\Model>
      */
     public function newCollection(array $models = []): Collection
     {
@@ -386,6 +386,6 @@ class User extends Model
 }
 ```
 
-Once you have defined a `newCollection` method or added the `CollectedBy` attribute to your model, you will receive an instance of your custom collection anytime Eloquent would normally return an `Illuminate\Database\Eloquent\Collection` instance.
+Once you have defined a `newCollection` method or added the `CollectedBy` attribute to your model, you will receive an instance of your custom collection anytime Eloquent would normally return an `Hypervel\Database\Eloquent\Collection` instance.
 
 If you would like to use a custom collection for every model in your application, you should define the `newCollection` method on a base model class that is extended by all of your application's models.

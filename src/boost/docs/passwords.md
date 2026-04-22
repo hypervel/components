@@ -63,9 +63,9 @@ To prevent a call to `artisan cache:clear` from flushing your password reset dat
 <a name="model-preparation"></a>
 ### Model Preparation
 
-Before using the password reset features of Laravel, your application's `App\Models\User` model must use the `Illuminate\Notifications\Notifiable` trait. Typically, this trait is already included on the default `App\Models\User` model that is created with new Laravel applications.
+Before using the password reset features of Laravel, your application's `App\Models\User` model must use the `Hypervel\Notifications\Notifiable` trait. Typically, this trait is already included on the default `App\Models\User` model that is created with new Laravel applications.
 
-Next, verify that your `App\Models\User` model implements the `Illuminate\Contracts\Auth\CanResetPassword` contract. The `App\Models\User` model included with the framework already implements this interface, and uses the `Illuminate\Auth\Passwords\CanResetPassword` trait to include the methods needed to implement the interface.
+Next, verify that your `App\Models\User` model implements the `Hypervel\Contracts\Auth\CanResetPassword` contract. The `App\Models\User` model included with the framework already implements this interface, and uses the `Hypervel\Auth\Passwords\CanResetPassword` trait to include the methods needed to implement the interface.
 
 <a name="configuring-trusted-hosts"></a>
 ### Configuring Trusted Hosts
@@ -103,8 +103,8 @@ The view that is returned by this route should have a form containing an `email`
 Next, we will define a route that handles the form submission request from the "forgot password" view. This route will be responsible for validating the email address and sending the password reset request to the corresponding user:
 
 ```php
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Password;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Password;
 
 Route::post('/forgot-password', function (Request $request) {
     $request->validate(['email' => 'required|email']);
@@ -154,11 +154,11 @@ Of course, we need to define a route to actually handle the password reset form 
 
 ```php
 use App\Models\User;
-use Illuminate\Auth\Events\PasswordReset;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Str;
+use Hypervel\Auth\Events\PasswordReset;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Hash;
+use Hypervel\Support\Facades\Password;
+use Hypervel\Support\Str;
 
 Route::post('/reset-password', function (Request $request) {
     $request->validate([
@@ -206,7 +206,7 @@ php artisan auth:clear-resets
 If you would like to automate this process, consider adding the command to your application's [scheduler](/docs/{{version}}/scheduling):
 
 ```php
-use Illuminate\Support\Facades\Schedule;
+use Hypervel\Support\Facades\Schedule;
 
 Schedule::command('auth:clear-resets')->everyFifteenMinutes();
 ```
@@ -221,7 +221,7 @@ You may customize the password reset link URL using the `createUrlUsing` method 
 
 ```php
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
+use Hypervel\Auth\Notifications\ResetPassword;
 
 /**
  * Bootstrap any application services.

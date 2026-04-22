@@ -83,9 +83,9 @@ Within both of these methods, you may use the Laravel schema builder to expressi
 ```php
 <?php
 
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Migrations\Migration;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -282,8 +282,8 @@ php artisan migrate:fresh --database=admin
 To create a new database table, use the `create` method on the `Schema` facade. The `create` method accepts two arguments: the first is the name of the table, while the second is a closure which receives a `Blueprint` object that may be used to define the new table:
 
 ```php
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
 
 Schema::create('users', function (Blueprint $table) {
     $table->id();
@@ -372,8 +372,8 @@ Schema::create('calculations', function (Blueprint $table) {
 The `table` method on the `Schema` facade may be used to update existing tables. Like the `create` method, the `table` method accepts two arguments: the name of the table and a closure that receives a `Blueprint` instance you may use to add columns or indexes to the table:
 
 ```php
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
 
 Schema::table('users', function (Blueprint $table) {
     $table->integer('votes');
@@ -386,7 +386,7 @@ Schema::table('users', function (Blueprint $table) {
 To rename an existing database table, use the `rename` method:
 
 ```php
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Support\Facades\Schema;
 
 Schema::rename($from, $to);
 ```
@@ -410,11 +410,11 @@ Before renaming a table, you should verify that any foreign key constraints on t
 <a name="creating-columns"></a>
 ### Creating Columns
 
-The `table` method on the `Schema` facade may be used to update existing tables. Like the `create` method, the `table` method accepts two arguments: the name of the table and a closure that receives an `Illuminate\Database\Schema\Blueprint` instance you may use to add columns to the table:
+The `table` method on the `Schema` facade may be used to update existing tables. Like the `create` method, the `table` method accepts two arguments: the name of the table and a closure that receives an `Hypervel\Database\Schema\Blueprint` instance you may use to add columns to the table:
 
 ```php
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
 
 Schema::table('users', function (Blueprint $table) {
     $table->integer('votes');
@@ -1206,8 +1206,8 @@ $table->year('birth_year');
 In addition to the column types listed above, there are several column "modifiers" you may use when adding a column to a database table. For example, to make the column "nullable", you may use the `nullable` method:
 
 ```php
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
 
 Schema::table('users', function (Blueprint $table) {
     $table->string('email')->nullable();
@@ -1245,15 +1245,15 @@ The following table contains all of the available column modifiers. This list do
 <a name="default-expressions"></a>
 #### Default Expressions
 
-The `default` modifier accepts a value or an `Illuminate\Database\Query\Expression` instance. Using an `Expression` instance will prevent Laravel from wrapping the value in quotes and allow you to use database specific functions. One situation where this is particularly useful is when you need to assign default values to JSON columns:
+The `default` modifier accepts a value or an `Hypervel\Database\Query\Expression` instance. Using an `Expression` instance will prevent Laravel from wrapping the value in quotes and allow you to use database specific functions. One situation where this is particularly useful is when you need to assign default values to JSON columns:
 
 ```php
 <?php
 
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\Query\Expression;
-use Illuminate\Database\Migrations\Migration;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Migrations\Migration;
 
 return new class extends Migration
 {
@@ -1403,8 +1403,8 @@ Laravel provides several convenient methods related to dropping common types of 
 The Laravel schema builder supports several types of indexes. The following example creates a new `email` column and specifies that its values should be unique. To create the index, we can chain the `unique` method onto the column definition:
 
 ```php
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
 
 Schema::table('users', function (Blueprint $table) {
     $table->string('email')->unique();
@@ -1499,8 +1499,8 @@ Schema::table('geo', function (Blueprint $table) {
 Laravel also provides support for creating foreign key constraints, which are used to force referential integrity at the database level. For example, let's define a `user_id` column on the `posts` table that references the `id` column on a `users` table:
 
 ```php
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
 
 Schema::table('posts', function (Blueprint $table) {
     $table->unsignedBigInteger('user_id');
@@ -1597,18 +1597,18 @@ Schema::withoutForeignKeyConstraints(function () {
 <a name="events"></a>
 ## Events
 
-For convenience, each migration operation will dispatch an [event](/docs/{{version}}/events). All of the following events extend the base `Illuminate\Database\Events\MigrationEvent` class:
+For convenience, each migration operation will dispatch an [event](/docs/{{version}}/events). All of the following events extend the base `Hypervel\Database\Events\MigrationEvent` class:
 
 <div class="overflow-auto">
 
 | Class                                            | Description                                      |
 | ------------------------------------------------ | ------------------------------------------------ |
-| `Illuminate\Database\Events\MigrationsStarted`   | A batch of migrations is about to be executed.   |
-| `Illuminate\Database\Events\MigrationsEnded`     | A batch of migrations has finished executing.    |
-| `Illuminate\Database\Events\MigrationStarted`    | A single migration is about to be executed.      |
-| `Illuminate\Database\Events\MigrationEnded`      | A single migration has finished executing.       |
-| `Illuminate\Database\Events\NoPendingMigrations` | A migration command found no pending migrations. |
-| `Illuminate\Database\Events\SchemaDumped`        | A database schema dump has completed.            |
-| `Illuminate\Database\Events\SchemaLoaded`        | An existing database schema dump has loaded.     |
+| `Hypervel\Database\Events\MigrationsStarted`   | A batch of migrations is about to be executed.   |
+| `Hypervel\Database\Events\MigrationsEnded`     | A batch of migrations has finished executing.    |
+| `Hypervel\Database\Events\MigrationStarted`    | A single migration is about to be executed.      |
+| `Hypervel\Database\Events\MigrationEnded`      | A single migration has finished executing.       |
+| `Hypervel\Database\Events\NoPendingMigrations` | A migration command found no pending migrations. |
+| `Hypervel\Database\Events\SchemaDumped`        | A database schema dump has completed.            |
+| `Hypervel\Database\Events\SchemaLoaded`        | An existing database schema dump has loaded.     |
 
 </div>

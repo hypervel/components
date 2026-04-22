@@ -35,7 +35,7 @@ This command will place a new `EnsureTokenIsValid` class within your `app/Http/M
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureTokenIsValid
@@ -43,7 +43,7 @@ class EnsureTokenIsValid
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  \Closure(\Hypervel\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -74,7 +74,7 @@ Of course, a middleware can perform tasks before or after passing the request de
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class BeforeMiddleware
@@ -96,7 +96,7 @@ However, this middleware would perform its task **after** the request is handled
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class AfterMiddleware
@@ -128,7 +128,7 @@ use App\Http\Middleware\EnsureTokenIsValid;
 })
 ```
 
-The `$middleware` object provided to the `withMiddleware` closure is an instance of `Illuminate\Foundation\Configuration\Middleware` and is responsible for managing the middleware assigned to your application's routes. The `append` method adds the middleware to the end of the list of global middleware. If you would like to add a middleware to the beginning of the list, you should use the `prepend` method.
+The `$middleware` object provided to the `withMiddleware` closure is an instance of `Hypervel\Foundation\Configuration\Middleware` and is responsible for managing the middleware assigned to your application's routes. The `append` method adds the middleware to the end of the list of global middleware. If you would like to add a middleware to the beginning of the list, you should use the `prepend` method.
 
 <a name="manually-managing-laravels-default-global-middleware"></a>
 #### Manually Managing Laravel's Default Global Middleware
@@ -138,14 +138,14 @@ If you would like to manage Laravel's global middleware stack manually, you may 
 ```php
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->use([
-        \Illuminate\Foundation\Http\Middleware\InvokeDeferredCallbacks::class,
-        // \Illuminate\Http\Middleware\TrustHosts::class,
-        \Illuminate\Http\Middleware\TrustProxies::class,
-        \Illuminate\Http\Middleware\HandleCors::class,
-        \Illuminate\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class,
-        \Illuminate\Http\Middleware\ValidatePostSize::class,
-        \Illuminate\Foundation\Http\Middleware\TrimStrings::class,
-        \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+        \Hypervel\Foundation\Http\Middleware\InvokeDeferredCallbacks::class,
+        // \Hypervel\Http\Middleware\TrustHosts::class,
+        \Hypervel\Http\Middleware\TrustProxies::class,
+        \Hypervel\Http\Middleware\HandleCors::class,
+        \Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class,
+        \Hypervel\Http\Middleware\ValidatePostSize::class,
+        \Hypervel\Foundation\Http\Middleware\TrimStrings::class,
+        \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
     ]);
 })
 ```
@@ -247,12 +247,12 @@ Laravel includes predefined `web` and `api` middleware groups that contain commo
 
 | The `web` Middleware Group                                |
 | --------------------------------------------------------- |
-| `Illuminate\Cookie\Middleware\EncryptCookies`             |
-| `Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse` |
-| `Illuminate\Session\Middleware\StartSession`              |
-| `Illuminate\View\Middleware\ShareErrorsFromSession`       |
-| `Illuminate\Foundation\Http\Middleware\PreventRequestForgery` |
-| `Illuminate\Routing\Middleware\SubstituteBindings`        |
+| `Hypervel\Cookie\Middleware\EncryptCookies`             |
+| `Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse` |
+| `Hypervel\Session\Middleware\StartSession`              |
+| `Hypervel\View\Middleware\ShareErrorsFromSession`       |
+| `Hypervel\Foundation\Http\Middleware\PreventRequestForgery` |
+| `Hypervel\Routing\Middleware\SubstituteBindings`        |
 
 </div>
 
@@ -260,7 +260,7 @@ Laravel includes predefined `web` and `api` middleware groups that contain commo
 
 | The `api` Middleware Group                         |
 | -------------------------------------------------- |
-| `Illuminate\Routing\Middleware\SubstituteBindings` |
+| `Hypervel\Routing\Middleware\SubstituteBindings` |
 
 </div>
 
@@ -285,7 +285,7 @@ You may even replace one of Laravel's default middleware group entries with a cu
 
 ```php
 use App\Http\Middleware\StartCustomSession;
-use Illuminate\Session\Middleware\StartSession;
+use Hypervel\Session\Middleware\StartSession;
 
 $middleware->web(replace: [
     StartSession::class => StartCustomSession::class,
@@ -308,19 +308,19 @@ If you would like to manually manage all of the middleware within Laravel's defa
 ```php
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->group('web', [
-        \Illuminate\Cookie\Middleware\EncryptCookies::class,
-        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-        \Illuminate\Session\Middleware\StartSession::class,
-        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-        \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
-        \Illuminate\Routing\Middleware\SubstituteBindings::class,
-        // \Illuminate\Session\Middleware\AuthenticateSession::class,
+        \Hypervel\Cookie\Middleware\EncryptCookies::class,
+        \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+        \Hypervel\Session\Middleware\StartSession::class,
+        \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+        \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::class,
+        \Hypervel\Routing\Middleware\SubstituteBindings::class,
+        // \Hypervel\Session\Middleware\AuthenticateSession::class,
     ]);
 
     $middleware->group('api', [
-        // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        // \Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         // 'throttle:api',
-        \Illuminate\Routing\Middleware\SubstituteBindings::class,
+        \Hypervel\Routing\Middleware\SubstituteBindings::class,
     ]);
 })
 ```
@@ -351,24 +351,24 @@ Route::get('/profile', function () {
 })->middleware('subscribed');
 ```
 
-For convenience, some of Laravel's built-in middleware are aliased by default. For example, the `auth` middleware is an alias for the `Illuminate\Auth\Middleware\Authenticate` middleware. Below is a list of the default middleware aliases:
+For convenience, some of Laravel's built-in middleware are aliased by default. For example, the `auth` middleware is an alias for the `Hypervel\Auth\Middleware\Authenticate` middleware. Below is a list of the default middleware aliases:
 
 <div class="overflow-auto">
 
 | Alias              | Middleware                                                                                                    |
 | ------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `auth`             | `Illuminate\Auth\Middleware\Authenticate`                                                                     |
-| `auth.basic`       | `Illuminate\Auth\Middleware\AuthenticateWithBasicAuth`                                                        |
-| `auth.session`     | `Illuminate\Session\Middleware\AuthenticateSession`                                                           |
-| `cache.headers`    | `Illuminate\Http\Middleware\SetCacheHeaders`                                                                  |
-| `can`              | `Illuminate\Auth\Middleware\Authorize`                                                                        |
-| `guest`            | `Illuminate\Auth\Middleware\RedirectIfAuthenticated`                                                          |
-| `password.confirm` | `Illuminate\Auth\Middleware\RequirePassword`                                                                  |
-| `precognitive`     | `Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests`                                            |
-| `signed`           | `Illuminate\Routing\Middleware\ValidateSignature`                                                             |
+| `auth`             | `Hypervel\Auth\Middleware\Authenticate`                                                                     |
+| `auth.basic`       | `Hypervel\Auth\Middleware\AuthenticateWithBasicAuth`                                                        |
+| `auth.session`     | `Hypervel\Session\Middleware\AuthenticateSession`                                                           |
+| `cache.headers`    | `Hypervel\Http\Middleware\SetCacheHeaders`                                                                  |
+| `can`              | `Hypervel\Auth\Middleware\Authorize`                                                                        |
+| `guest`            | `Hypervel\Auth\Middleware\RedirectIfAuthenticated`                                                          |
+| `password.confirm` | `Hypervel\Auth\Middleware\RequirePassword`                                                                  |
+| `precognitive`     | `Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests`                                            |
+| `signed`           | `Hypervel\Routing\Middleware\ValidateSignature`                                                             |
 | `subscribed`       | `\Spark\Http\Middleware\VerifyBillableIsSubscribed`                                                           |
-| `throttle`         | `Illuminate\Routing\Middleware\ThrottleRequests` or `Illuminate\Routing\Middleware\ThrottleRequestsWithRedis` |
-| `verified`         | `Illuminate\Auth\Middleware\EnsureEmailIsVerified`                                                            |
+| `throttle`         | `Hypervel\Routing\Middleware\ThrottleRequests` or `Hypervel\Routing\Middleware\ThrottleRequestsWithRedis` |
+| `verified`         | `Hypervel\Auth\Middleware\EnsureEmailIsVerified`                                                            |
 
 </div>
 
@@ -380,18 +380,18 @@ Rarely, you may need your middleware to execute in a specific order but not have
 ```php
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->priority([
-        \Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
-        \Illuminate\Cookie\Middleware\EncryptCookies::class,
-        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-        \Illuminate\Session\Middleware\StartSession::class,
-        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-        \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
-        \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        \Illuminate\Routing\Middleware\ThrottleRequests::class,
-        \Illuminate\Routing\Middleware\ThrottleRequestsWithRedis::class,
-        \Illuminate\Routing\Middleware\SubstituteBindings::class,
-        \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
-        \Illuminate\Auth\Middleware\Authorize::class,
+        \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+        \Hypervel\Cookie\Middleware\EncryptCookies::class,
+        \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+        \Hypervel\Session\Middleware\StartSession::class,
+        \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+        \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::class,
+        \Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        \Hypervel\Routing\Middleware\ThrottleRequests::class,
+        \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
+        \Hypervel\Routing\Middleware\SubstituteBindings::class,
+        \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+        \Hypervel\Auth\Middleware\Authorize::class,
     ]);
 })
 ```
@@ -409,7 +409,7 @@ Additional middleware parameters will be passed to the middleware after the `$ne
 namespace App\Http\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureUserHasRole
@@ -417,7 +417,7 @@ class EnsureUserHasRole
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  \Closure(\Hypervel\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next, string $role): Response
     {
@@ -456,10 +456,10 @@ Sometimes a middleware may need to do some work after the HTTP response has been
 ```php
 <?php
 
-namespace Illuminate\Session\Middleware;
+namespace Hypervel\Session\Middleware;
 
 use Closure;
-use Illuminate\Http\Request;
+use Hypervel\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class TerminatingMiddleware
@@ -467,7 +467,7 @@ class TerminatingMiddleware
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  \Closure(\Hypervel\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {

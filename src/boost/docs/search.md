@@ -116,7 +116,7 @@ The basic workflow for vector search is: generate an embedding (a numeric array)
 An embedding is a high-dimensional numeric array (typically hundreds or thousands of numbers) that represents the semantic meaning of a piece of text. You may generate embeddings for a string using the `toEmbeddings` method available on Laravel's `Stringable` class:
 
 ```php
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 $embedding = Str::of('Napa Valley has great wine.')->toEmbeddings();
 ```
@@ -238,10 +238,10 @@ You may use PHP attributes to control the search strategy for each column. `Sear
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Laravel\Scout\Attributes\SearchUsingFullText;
-use Laravel\Scout\Attributes\SearchUsingPrefix;
-use Laravel\Scout\Searchable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Attributes\SearchUsingFullText;
+use Hypervel\Scout\Attributes\SearchUsingPrefix;
+use Hypervel\Scout\Searchable;
 
 class Article extends Model
 {
