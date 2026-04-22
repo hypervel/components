@@ -26,7 +26,7 @@ class AlgoliaConnectionTest extends AlgoliaIntegrationTestCase
 
     public function testCanCreateAndDeleteIndex(): void
     {
-        $indexName = $this->algoliaIndex('connection_test');
+        $indexName = $this->prefixedIndexName('connection_test');
 
         // Algolia indexes are created implicitly on first write. Save a
         // single object to materialise the index, then assert it appears in

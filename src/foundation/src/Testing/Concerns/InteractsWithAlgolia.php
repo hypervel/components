@@ -8,7 +8,6 @@ use Algolia\AlgoliaSearch\Algolia;
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
 use GuzzleHttp\Client as GuzzleClient;
-use Hypervel\Config\Repository;
 use Throwable;
 
 /**
@@ -26,8 +25,7 @@ use Throwable;
  * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
  * - Auto-cleanup: Removes test indexes in teardown
  *
- * Usage: Add `use InteractsWithAlgolia;` to your test case and call
- * configureAlgoliaForTesting() from defineEnvironment().
+ * Usage: Add `use InteractsWithAlgolia;` to your test case.
  *
  * Environment Variables:
  * - ALGOLIA_APP_ID: Application ID (required)
@@ -106,21 +104,6 @@ trait InteractsWithAlgolia
     }
 
     /**
-     * Configure Algolia for testing.
-     *
-     * Call from defineEnvironment() to set up Scout config.
-     */
-    protected function configureAlgoliaForTesting(Repository $config): void
-    {
-        $this->computeAlgoliaTestPrefix();
-
-        $config->set('scout.driver', 'algolia');
-        $config->set('scout.prefix', $this->algoliaTestPrefix);
-        $config->set('scout.algolia.id', env('ALGOLIA_APP_ID', ''));
-        $config->set('scout.algolia.secret', env('ALGOLIA_SECRET', ''));
-    }
-
-    /**
      * Compute the test prefix for parallel-safe index names.
      */
     protected function computeAlgoliaTestPrefix(): void
@@ -129,14 +112,6 @@ trait InteractsWithAlgolia
         $token = env('TEST_TOKEN', '');
 
         $this->algoliaTestPrefix = $token !== '' ? "{$base}{$token}_" : $base;
-    }
-
-    /**
-     * Get a prefixed index name.
-     */
-    protected function algoliaIndex(string $name): string
-    {
-        return $this->algoliaTestPrefix . $name;
     }
 
     /**
