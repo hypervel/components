@@ -10,9 +10,13 @@
     - [Error Handling](#error-handling)
     - [Guzzle Middleware](#guzzle-middleware)
     - [Guzzle Options](#guzzle-options)
+    - [Telescope Recording](#telescope-recording)
 - [Concurrent Requests](#concurrent-requests)
-    - [Request Pooling](#request-pooling)
+    - [Dispatching Concurrent Requests](#dispatching-concurrent-requests)
+    - [Limiting Concurrency](#limiting-concurrency)
     - [Request Batching](#request-batching)
+    - [Running Concurrent Requests After the Response](#running-concurrent-requests-after-the-response)
+- [Connections](#connections)
 - [Macros](#macros)
 - [Testing](#testing)
     - [Faking Responses](#faking-responses)
@@ -23,7 +27,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel provides an expressive, minimal API around the [Guzzle HTTP client](http://docs.guzzlephp.org/en/stable/), allowing you to quickly make outgoing HTTP requests to communicate with other web applications. Laravel's wrapper around Guzzle is focused on its most common use cases and a wonderful developer experience.
+Hypervel provides an expressive, minimal API around the [Guzzle HTTP client](http://docs.guzzlephp.org/en/stable/), allowing you to quickly make outgoing HTTP requests to communicate with other web applications. Hypervel's wrapper around Guzzle is focused on its most common use cases and a wonderful developer experience.
 
 <a name="making-requests"></a>
 ## Making Requests
@@ -68,6 +72,7 @@ $response->accepted() : bool;            // 202 Accepted
 $response->noContent() : bool;           // 204 No Content
 $response->movedPermanently() : bool;    // 301 Moved Permanently
 $response->found() : bool;               // 302 Found
+$response->notModified() : bool;         // 304 Not Modified
 $response->badRequest() : bool;          // 400 Bad Request
 $response->unauthorized() : bool;        // 401 Unauthorized
 $response->paymentRequired() : bool;     // 402 Payment Required
@@ -87,7 +92,7 @@ The HTTP client also allows you to construct request URLs using the [URI templat
 
 ```php
 Http::withUrlParameters([
-    'endpoint' => 'https://laravel.com',
+    'endpoint' => 'https://hypervel.org',
     'page' => 'docs',
     'version' => '13.x',
     'topic' => 'validation',
@@ -227,10 +232,10 @@ You may specify basic and digest authentication credentials using the `withBasic
 
 ```php
 // Basic authentication...
-$response = Http::withBasicAuth('taylor@laravel.com', 'secret')->post(/* ... */);
+$response = Http::withBasicAuth('johndoe@example.com', 'secret')->post(/* ... */);
 
 // Digest authentication...
-$response = Http::withDigestAuth('taylor@laravel.com', 'secret')->post(/* ... */);
+$response = Http::withDigestAuth('johndoe@example.com', 'secret')->post(/* ... */);
 ```
 
 <a name="bearer-tokens"></a>
@@ -262,7 +267,7 @@ $response = Http::connectTimeout(3)->get(/* ... */);
 <a name="retries"></a>
 ### Retries
 
-If you would like the HTTP client to automatically retry the request if a client or server error occurs, you may use the `retry` method. The `retry` method accepts the maximum number of times the request should be attempted and the number of milliseconds that Laravel should wait in between attempts:
+If you would like the HTTP client to automatically retry the request if a client or server error occurs, you may use the `retry` method. The `retry` method accepts the maximum number of times the request should be attempted and the number of milliseconds that Hypervel should wait in between attempts:
 
 ```php
 $response = Http::retry(3, 100)->post(/* ... */);
@@ -325,7 +330,7 @@ $response = Http::retry(3, 100, throw: false)->post(/* ... */);
 <a name="error-handling"></a>
 ### Error Handling
 
-Unlike Guzzle's default behavior, Laravel's HTTP client wrapper does not throw exceptions on client or server errors (`400` and `500` level responses from servers). You may determine if one of these errors was returned using the `successful`, `clientError`, or `serverError` methods:
+Unlike Guzzle's default behavior, Hypervel's HTTP client wrapper does not throw exceptions on client or server errors (`400` and `500` level responses from servers). You may determine if one of these errors was returned using the `successful`, `clientError`, or `serverError` methods:
 
 ```php
 // Determine if the status code is >= 200 and < 300...
@@ -426,7 +431,7 @@ return Http::truncateExceptionsAt(240)->post(/* ... */);
 <a name="guzzle-middleware"></a>
 ### Guzzle Middleware
 
-Since Laravel's HTTP client is powered by Guzzle, you may take advantage of [Guzzle Middleware](https://docs.guzzlephp.org/en/stable/handlers-and-middleware.html) to manipulate the outgoing request or inspect the incoming response. To manipulate the outgoing request, register a Guzzle middleware via the `withRequestMiddleware` method:
+Since Hypervel's HTTP client is powered by Guzzle, you may take advantage of [Guzzle Middleware](https://docs.guzzlephp.org/en/stable/handlers-and-middleware.html) to manipulate the outgoing request or inspect the incoming response. To manipulate the outgoing request, register a Guzzle middleware via the `withRequestMiddleware` method:
 
 ```php
 use Hypervel\Support\Facades\Http;
@@ -503,24 +508,42 @@ public function boot(): void
 }
 ```
 
+<a name="telescope-recording"></a>
+### Telescope Recording
+
+If your application uses [Telescope](/docs/{{version}}/telescope), HTTP client requests are automatically recorded by the HTTP client watcher. You may exclude an individual request from being recorded by chaining the `withoutTelescope` method:
+
+```php
+$response = Http::withoutTelescope()->get('http://example.com');
+```
+
+To attach tags to a recorded request — for example, to identify which downstream service or feature initiated the call — use the `withTelescopeTags` method:
+
+```php
+$response = Http::withTelescopeTags(['billing', 'stripe'])->get('http://example.com');
+```
+
+These methods are safe to call regardless of Telescope's state. They simply set Guzzle option keys that the Telescope watcher reads when present; if Telescope is disabled or not installed, the keys are ignored and the request runs as normal with no overhead.
+
 <a name="concurrent-requests"></a>
 ## Concurrent Requests
 
 Sometimes, you may wish to make multiple HTTP requests concurrently. In other words, you want several requests to be dispatched at the same time instead of issuing the requests sequentially. This can lead to substantial performance improvements when interacting with slow HTTP APIs.
 
-<a name="request-pooling"></a>
-### Request Pooling
+<a name="dispatching-concurrent-requests"></a>
+### Dispatching Concurrent Requests
 
-Thankfully, you may accomplish this using the `pool` method. The `pool` method accepts a closure which receives an `Hypervel\Http\Client\Pool` instance, allowing you to easily add requests to the request pool for dispatching:
+In Hypervel, the simplest way to dispatch multiple HTTP requests concurrently is the `parallel` helper from `Hypervel\Coroutine`. It accepts an array of closures, runs each in its own coroutine, and returns the results once all of them have completed:
 
 ```php
-use Hypervel\Http\Client\Pool;
 use Hypervel\Support\Facades\Http;
 
-$responses = Http::pool(fn (Pool $pool) => [
-    $pool->get('http://localhost/first'),
-    $pool->get('http://localhost/second'),
-    $pool->get('http://localhost/third'),
+use function Hypervel\Coroutine\parallel;
+
+$responses = parallel([
+    fn () => Http::get('http://localhost/first'),
+    fn () => Http::get('http://localhost/second'),
+    fn () => Http::get('http://localhost/third'),
 ]);
 
 return $responses[0]->ok() &&
@@ -528,47 +551,65 @@ return $responses[0]->ok() &&
        $responses[2]->ok();
 ```
 
-As you can see, each response instance can be accessed based on the order it was added to the pool. If you wish, you can name the requests using the `as` method, which allows you to access the corresponding responses by name:
+Each response can be accessed based on the order it was added to the array. If you wish, you can name the requests using array keys, which allows you to access the corresponding responses by name:
 
 ```php
-use Hypervel\Http\Client\Pool;
 use Hypervel\Support\Facades\Http;
 
-$responses = Http::pool(fn (Pool $pool) => [
-    $pool->as('first')->get('http://localhost/first'),
-    $pool->as('second')->get('http://localhost/second'),
-    $pool->as('third')->get('http://localhost/third'),
+use function Hypervel\Coroutine\parallel;
+
+$responses = parallel([
+    'first' => fn () => Http::get('http://localhost/first'),
+    'second' => fn () => Http::get('http://localhost/second'),
+    'third' => fn () => Http::get('http://localhost/third'),
 ]);
 
 return $responses['first']->ok();
 ```
 
-The maximum concurrency of the request pool may be controlled by providing the `concurrency` argument to the `pool` method. This value determines the maximum number of HTTP requests that may be concurrently in-flight while processing the request pool:
+Each closure may use the full `Http` API, including chained methods like `withHeaders`, `withToken`, and `timeout`:
 
 ```php
-$responses = Http::pool(fn (Pool $pool) => [
-    // ...
-], concurrency: 5);
-```
-
-<a name="customizing-concurrent-requests"></a>
-#### Customizing Concurrent Requests
-
-The `pool` method cannot be chained with other HTTP client methods such as the `withHeaders` or `middleware` methods. If you want to apply custom headers or middleware to pooled requests, you should configure those options on each request in the pool:
-
-```php
-use Hypervel\Http\Client\Pool;
 use Hypervel\Support\Facades\Http;
 
-$headers = [
-    'X-Example' => 'example',
-];
+use function Hypervel\Coroutine\parallel;
 
-$responses = Http::pool(fn (Pool $pool) => [
-    $pool->withHeaders($headers)->get('http://hypervel.test/test'),
-    $pool->withHeaders($headers)->get('http://hypervel.test/test'),
-    $pool->withHeaders($headers)->get('http://hypervel.test/test'),
+$responses = parallel([
+    fn () => Http::withToken($token)->get('http://localhost/first'),
+    fn () => Http::withHeaders(['X-Trace' => $id])->get('http://localhost/second'),
 ]);
+```
+
+<a name="limiting-concurrency"></a>
+### Limiting Concurrency
+
+By default, `parallel` dispatches every closure simultaneously. If you need to cap how many requests are in flight at once — for example, to avoid overwhelming a downstream service — pass a maximum to the second argument:
+
+```php
+use Hypervel\Support\Facades\Http;
+
+use function Hypervel\Coroutine\parallel;
+
+$responses = parallel([
+    fn () => Http::get('http://localhost/first'),
+    fn () => Http::get('http://localhost/second'),
+    // ...
+], concurrent: 5);
+```
+
+For finer control — such as collecting partial results when some requests fail without throwing — instantiate `Parallel` directly and call `wait(throw: false)`:
+
+```php
+use Hypervel\Coroutine\Parallel;
+use Hypervel\Support\Facades\Http;
+
+$parallel = new Parallel(concurrent: 5);
+
+foreach ($urls as $key => $url) {
+    $parallel->add(fn () => Http::get($url), $key);
+}
+
+$results = $parallel->wait(throw: false);
 ```
 
 <a name="request-batching"></a>
@@ -644,28 +685,74 @@ $batch->finished();
 // Indicates if the batch has request failures...
 $batch->hasFailures();
 ```
-<a name="deferring-batches"></a>
-#### Deferring Batches
+<a name="running-concurrent-requests-after-the-response"></a>
+### Running Concurrent Requests After the Response
 
-When the `defer` method is invoked, the batch of requests is not executed immediately. Instead, Laravel will execute the batch after the current application request's HTTP response has been sent to the user, keeping your application feeling fast and responsive:
+To dispatch a batch of HTTP requests after the current HTTP response has been sent to the user, wrap the call in Hypervel's `defer` helper. This keeps the response feeling fast while the requests run in the background:
 
 ```php
-use Hypervel\Http\Client\Batch;
 use Hypervel\Support\Facades\Http;
 
-$responses = Http::batch(fn (Batch $batch) => [
-    $batch->get('http://localhost/first'),
-    $batch->get('http://localhost/second'),
-    $batch->get('http://localhost/third'),
-])->then(function (Batch $batch, array $results) {
-    // All requests completed successfully...
-})->defer();
+use function Hypervel\Coroutine\parallel;
+
+defer(function () {
+    parallel([
+        fn () => Http::get('http://localhost/first'),
+        fn () => Http::get('http://localhost/second'),
+        fn () => Http::get('http://localhost/third'),
+    ]);
+});
 ```
+
+By default, deferred callbacks only run when the response is successful (a status code below 400). If you want the requests to run even when the response indicates an error, chain the `always` method:
+
+```php
+defer(function () {
+    parallel([
+        fn () => Http::get('http://localhost/first'),
+        fn () => Http::get('http://localhost/second'),
+    ]);
+})->always();
+```
+
+<a name="connections"></a>
+## Connections
+
+Hypervel's HTTP client can maintain named, pooled Guzzle clients for the services your application talks to most often. Connections let Hypervel reuse the same HTTP client for repeated calls to the same service, reducing per-request setup work and improving performance. This means Hypervel does not need to rebuild the client and its request pipeline every time your application calls that API, and repeated calls can also reuse an existing keep-alive connection instead of opening a new TCP / TLS connection each time if the remote server supports it.
+
+To register a connection, typically in the `boot` method of your application's `AppServiceProvider`, call the `registerConnection` method:
+
+```php
+use Hypervel\Support\Facades\Http;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    Http::registerConnection('github', [
+        'min_objects' => 1,
+        'max_objects' => 10,
+    ]);
+}
+```
+
+The second argument accepts pool options such as `min_objects`, `max_objects`, `wait_timeout`, and `max_lifetime`. Defaults are sensible, so the array may be omitted entirely. See the [object pool documentation](/docs/{{version}}/object-pool) for the full list of options.
+
+Once registered, select a connection for a request by chaining the `connection` method:
+
+```php
+$response = Http::connection('github')
+    ->withToken($token)
+    ->get('https://api.github.com/user');
+```
+
+Requests made without `connection(...)` continue to use a fresh, non-pooled Guzzle client — there is no pooling unless you opt in by registering and selecting a connection.
 
 <a name="macros"></a>
 ## Macros
 
-The Laravel HTTP client allows you to define "macros", which can serve as a fluent, expressive mechanism to configure common request paths and headers when interacting with services throughout your application. To get started, you may define the macro within the `boot` method of your application's `App\Providers\AppServiceProvider` class:
+The Hypervel HTTP client allows you to define "macros", which can serve as a fluent, expressive mechanism to configure common request paths and headers when interacting with services throughout your application. To get started, you may define the macro within the `boot` method of your application's `App\Providers\AppServiceProvider` class:
 
 ```php
 use Hypervel\Support\Facades\Http;
@@ -692,7 +779,7 @@ $response = Http::github()->get('/');
 <a name="testing"></a>
 ## Testing
 
-Many Laravel services provide functionality to help you easily and expressively write tests, and Laravel's HTTP client is no exception. The `Http` facade's `fake` method allows you to instruct the HTTP client to return stubbed / dummy responses when requests are made.
+Many Hypervel services provide functionality to help you easily and expressively write tests, and Hypervel's HTTP client is no exception. The `Http` facade's `fake` method allows you to instruct the HTTP client to return stubbed / dummy responses when requests are made.
 
 <a name="faking-responses"></a>
 ### Faking Responses
@@ -882,12 +969,12 @@ You may use the `recorded` method to gather all requests and their corresponding
 
 ```php
 Http::fake([
-    'https://laravel.com' => Http::response(status: 500),
-    'https://nova.laravel.com/' => Http::response(),
+    'https://hypervel.org' => Http::response(status: 500),
+    'https://api.hypervel.org/' => Http::response(),
 ]);
 
-Http::get('https://laravel.com');
-Http::get('https://nova.laravel.com/');
+Http::get('https://hypervel.org');
+Http::get('https://api.hypervel.org/');
 
 $recorded = Http::recorded();
 
@@ -901,15 +988,15 @@ use Hypervel\Http\Client\Request;
 use Hypervel\Http\Client\Response;
 
 Http::fake([
-    'https://laravel.com' => Http::response(status: 500),
-    'https://nova.laravel.com/' => Http::response(),
+    'https://hypervel.org' => Http::response(status: 500),
+    'https://api.hypervel.org/' => Http::response(),
 ]);
 
-Http::get('https://laravel.com');
-Http::get('https://nova.laravel.com/');
+Http::get('https://hypervel.org');
+Http::get('https://api.hypervel.org/');
 
 $recorded = Http::recorded(function (Request $request, Response $response) {
-    return $request->url() !== 'https://laravel.com' &&
+    return $request->url() !== 'https://hypervel.org' &&
            $response->successful();
 });
 ```
@@ -929,10 +1016,10 @@ Http::fake([
 ]);
 
 // An "ok" response is returned...
-Http::get('https://github.com/laravel/framework');
+Http::get('https://github.com/hypervel/components');
 
 // An exception is thrown...
-Http::get('https://laravel.com');
+Http::get('https://hypervel.org');
 ```
 
 Sometimes, you may wish to prevent most stray requests while still allowing specific requests to execute. To accomplish this, you may pass an array of URL patterns to the `allowStrayRequests` method. Any request matching one of the given patterns will be allowed, while all other requests will continue to throw an exception:
@@ -950,13 +1037,13 @@ Http::allowStrayRequests([
 Http::get('http://127.0.0.1:5000/generate');
 
 // An exception is thrown...
-Http::get('https://laravel.com');
+Http::get('https://hypervel.org');
 ```
 
 <a name="events"></a>
 ## Events
 
-Laravel fires three events during the process of sending HTTP requests. The `RequestSending` event is fired prior to a request being sent, while the `ResponseReceived` event is fired after a response is received for a given request. The `ConnectionFailed` event is fired if no response is received for a given request.
+Hypervel fires three events during the process of sending HTTP requests. The `RequestSending` event is fired prior to a request being sent, while the `ResponseReceived` event is fired after a response is received for a given request. The `ConnectionFailed` event is fired if no response is received for a given request.
 
 The `RequestSending` and `ConnectionFailed` events both contain a public `$request` property that you may use to inspect the `Hypervel\Http\Client\Request` instance. Likewise, the `ResponseReceived` event contains a `$request` property as well as a `$response` property which may be used to inspect the `Hypervel\Http\Client\Response` instance. You may create [event listeners](/docs/{{version}}/events) for these events within your application:
 
