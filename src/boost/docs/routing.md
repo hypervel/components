@@ -68,6 +68,8 @@ php artisan install:api
 The `install:api` command installs [Hypervel Sanctum](/docs/{{version}}/sanctum), which provides a robust, yet simple API token authentication guard which can be used to authenticate third-party API consumers, SPAs, or mobile applications. In addition, the `install:api` command creates the `routes/api.php` file:
 
 ```php
+use Hypervel\Http\Request;
+
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
@@ -793,12 +795,8 @@ Alternatively, you may override the `resolveRouteBinding` method on your Eloquen
 ```php
 /**
  * Retrieve the model for a bound value.
- *
- * @param  mixed  $value
- * @param  string|null  $field
- * @return \Hypervel\Database\Eloquent\Model|null
  */
-public function resolveRouteBinding($value, $field = null)
+public function resolveRouteBinding(mixed $value, ?string $field = null): mixed
 {
     return $this->where('name', $value)->firstOrFail();
 }
@@ -809,13 +807,8 @@ If a route is utilizing [implicit binding scoping](#implicit-model-binding-scopi
 ```php
 /**
  * Retrieve the child model for a bound value.
- *
- * @param  string  $childType
- * @param  mixed  $value
- * @param  string|null  $field
- * @return \Hypervel\Database\Eloquent\Model|null
  */
-public function resolveChildRouteBinding($childType, $value, $field)
+public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field): mixed
 {
     return parent::resolveChildRouteBinding($childType, $value, $field);
 }
@@ -990,6 +983,8 @@ Route::middleware(['throttle:uploads'])->group(function () {
 By default, the `throttle` middleware is mapped to the `Hypervel\Routing\Middleware\ThrottleRequests` class. However, if you are using Redis as your application's cache driver, you may wish to instruct Hypervel to use Redis to manage rate limiting. To do so, you should use the `throttleWithRedis` method in your application's `bootstrap/app.php` file. This method maps the `throttle` middleware to the `Hypervel\Routing\Middleware\ThrottleRequestsWithRedis` middleware class:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->throttleWithRedis();
     // ...
@@ -1030,7 +1025,7 @@ $name = Route::currentRouteName(); // string
 $action = Route::currentRouteAction(); // string
 ```
 
-You may refer to the API documentation for both the [underlying class of the Route facade](https://api.hypervel.org/docs/{{version}}/Illuminate/Routing/Router.html) and [Route instance](https://api.hypervel.org/docs/{{version}}/Illuminate/Routing/Route.html) to review all of the methods that are available on the router and route classes.
+You may refer to the API documentation for both the [underlying class of the Route facade](https://api.hypervel.org/docs/{{version}}/Hypervel/Routing/Router.html) and [Route instance](https://api.hypervel.org/docs/{{version}}/Hypervel/Routing/Route.html) to review all of the methods that are available on the router and route classes.
 
 <a name="cors"></a>
 ## Cross-Origin Resource Sharing (CORS)

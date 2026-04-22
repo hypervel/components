@@ -565,9 +565,9 @@ $headers = [
 ];
 
 $responses = Http::pool(fn (Pool $pool) => [
-    $pool->withHeaders($headers)->get('http://laravel.test/test'),
-    $pool->withHeaders($headers)->get('http://laravel.test/test'),
-    $pool->withHeaders($headers)->get('http://laravel.test/test'),
+    $pool->withHeaders($headers)->get('http://hypervel.test/test'),
+    $pool->withHeaders($headers)->get('http://hypervel.test/test'),
+    $pool->withHeaders($headers)->get('http://hypervel.test/test'),
 ]);
 ```
 

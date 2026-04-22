@@ -24,7 +24,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel's `Hypervel\Http\Request` class provides an object-oriented way to interact with the current HTTP request being handled by your application as well as retrieve the input, cookies, and files that were submitted with the request.
+Hypervel's `Hypervel\Http\Request` class provides an object-oriented way to interact with the current HTTP request being handled by your application as well as retrieve the input, cookies, and files that were submitted with the request.
 
 <a name="interacting-with-the-request"></a>
 ## Interacting With The Request
@@ -32,7 +32,7 @@ Laravel's `Hypervel\Http\Request` class provides an object-oriented way to inter
 <a name="accessing-the-request"></a>
 ### Accessing the Request
 
-To obtain an instance of the current HTTP request via dependency injection, you should type-hint the `Hypervel\Http\Request` class on your route closure or controller method. The incoming request instance will automatically be injected by the Laravel [service container](/docs/{{version}}/container):
+To obtain an instance of the current HTTP request via dependency injection, you should type-hint the `Hypervel\Http\Request` class on your route closure or controller method. The incoming request instance will automatically be injected by the Hypervel [service container](/docs/{{version}}/container):
 
 ```php
 <?php
@@ -203,7 +203,7 @@ if ($request->hasHeader('X-Header-Name')) {
 }
 ```
 
-For convenience, the `bearerToken` method may be used to retrieve a bearer token from the `Authorization` header. If no such header is present, an empty string will be returned:
+For convenience, the `bearerToken` method may be used to retrieve a bearer token from the `Authorization` header. If no such header is present, `null` will be returned:
 
 ```php
 $token = $request->bearerToken();
@@ -229,7 +229,7 @@ In general, IP addresses should be considered untrusted, user-controlled input a
 <a name="content-negotiation"></a>
 ### Content Negotiation
 
-Laravel provides several methods for inspecting the incoming request's requested content types via the `Accept` header. First, the `getAcceptableContentTypes` method will return an array containing all of the content types accepted by the request:
+Hypervel provides several methods for inspecting the incoming request's requested content types via the `Accept` header. First, the `getAcceptableContentTypes` method will return an array containing all of the content types accepted by the request:
 
 ```php
 $contentTypes = $request->getAcceptableContentTypes();
@@ -272,14 +272,13 @@ if ($request->acceptsMarkdown()) {
 <a name="psr7-requests"></a>
 ### PSR-7 Requests
 
-The [PSR-7 standard](https://www.php-fig.org/psr/psr-7/) specifies interfaces for HTTP messages, including requests and responses. If you would like to obtain an instance of a PSR-7 request instead of a Laravel request, you will first need to install a few libraries. Laravel uses the *Symfony HTTP Message Bridge* component to convert typical Laravel requests and responses into PSR-7 compatible implementations:
+The [PSR-7 standard](https://www.php-fig.org/psr/psr-7/) specifies interfaces for HTTP messages, including requests and responses. If you would like to obtain an instance of a PSR-7 request instead of a `Hypervel\Http\Request`, Hypervel can resolve it directly. Hypervel includes the required bridge packages by default. If you have removed them, you may reinstall them via Composer:
 
 ```shell
-composer require symfony/psr-http-message-bridge
-composer require nyholm/psr7
+composer require symfony/psr-http-message-bridge nyholm/psr7
 ```
 
-Once you have installed these libraries, you may obtain a PSR-7 request by type-hinting the request interface on your route closure or controller method:
+You may obtain a PSR-7 request by type-hinting the request interface on your route closure or controller method:
 
 ```php
 use Psr\Http\Message\ServerRequestInterface;
@@ -290,7 +289,7 @@ Route::get('/', function (ServerRequestInterface $request) {
 ```
 
 > [!NOTE]
-> If you return a PSR-7 response instance from a route or controller, it will automatically be converted back to a Laravel response instance and be displayed by the framework.
+> If you return a PSR-7 response instance from a route or controller, it will automatically be converted back to a Hypervel response instance and be displayed by the framework.
 
 <a name="input"></a>
 ## Input
@@ -392,7 +391,7 @@ $name = $request->string('name')->trim();
 <a name="retrieving-integer-input-values"></a>
 #### Retrieving Integer Input Values
 
-To retrieve input values as integers, you may use the `integer` method. This method will attempt to cast the input value to an integer. If the input is not present or the cast fails, it will return the default value you specify. This is particularly useful for pagination or other numeric inputs:
+To retrieve input values as integers, you may use the `integer` method. This method casts the input value to an integer. If the input is not present, it will return the default value you specify. This is particularly useful for pagination or other numeric inputs:
 
 ```php
 $perPage = $request->integer('per_page');
@@ -431,7 +430,7 @@ The second and third arguments accepted by the `date` method may be used to spec
 $elapsed = $request->date('elapsed', '!H:i', 'Europe/Madrid');
 ```
 
-If the input value is present but has an invalid format, an `InvalidArgumentException` will be thrown; therefore, it is recommended that you validate the input before invoking the `date` method.
+If the input value is present but has an invalid format, a `Carbon\Exceptions\InvalidFormatException` will be thrown; therefore, it is recommended that you validate the input before invoking the `date` method.
 
 <a name="retrieving-interval-input-values"></a>
 #### Retrieving Interval Input Values
@@ -488,7 +487,7 @@ You may also access user input using dynamic properties on the `Hypervel\Http\Re
 $name = $request->name;
 ```
 
-When using dynamic properties, Laravel will first look for the parameter's value in the request payload. If it is not present, Laravel will search for the field in the matched route's parameters.
+When using dynamic properties, Hypervel will first look for the parameter's value in the request payload. If it is not present, Hypervel will search for the field in the matched route's parameters.
 
 <a name="retrieving-a-portion-of-the-input-data"></a>
 #### Retrieving a Portion of the Input Data
@@ -635,7 +634,7 @@ $request->mergeIfMissing(['votes' => 0]);
 <a name="old-input"></a>
 ### Old Input
 
-Laravel allows you to keep input from one request during the next request. This feature is particularly useful for re-populating forms after detecting validation errors. However, if you are using Laravel's included [validation features](/docs/{{version}}/validation), it is possible that you will not need to manually use these session input flashing methods directly, as some of Laravel's built-in validation facilities will call them automatically.
+Hypervel allows you to keep input from one request during the next request. This feature is particularly useful for re-populating forms after detecting validation errors. However, if you are using Hypervel's included [validation features](/docs/{{version}}/validation), it is possible that you will not need to manually use these session input flashing methods directly, as some of Hypervel's built-in validation facilities will call them automatically.
 
 <a name="flashing-input-to-the-session"></a>
 #### Flashing Input to the Session
@@ -678,7 +677,7 @@ To retrieve flashed input from the previous request, invoke the `old` method on 
 $username = $request->old('username');
 ```
 
-Laravel also provides a global `old` helper. If you are displaying old input within a [Blade template](/docs/{{version}}/blade), it is more convenient to use the `old` helper to repopulate the form. If no old input exists for the given field, `null` will be returned:
+Hypervel also provides a global `old` helper. If you are displaying old input within a [Blade template](/docs/{{version}}/blade), it is more convenient to use the `old` helper to repopulate the form. If no old input exists for the given field, `null` will be returned:
 
 ```blade
 <input type="text" name="username" value="{{ old('username') }}">
@@ -690,7 +689,7 @@ Laravel also provides a global `old` helper. If you are displaying old input wit
 <a name="retrieving-cookies-from-requests"></a>
 #### Retrieving Cookies From Requests
 
-All cookies created by the Laravel framework are encrypted and signed with an authentication code, meaning they will be considered invalid if they have been changed by the client. To retrieve a cookie value from the request, use the `cookie` method on an `Hypervel\Http\Request` instance:
+Cookies created by the Hypervel framework on routes that use the `web` middleware group are encrypted and signed with an authentication code, meaning they will be considered invalid if they have been changed by the client. To retrieve a cookie value from the request, use the `cookie` method on an `Hypervel\Http\Request` instance:
 
 ```php
 $value = $request->cookie('name');
@@ -699,13 +698,14 @@ $value = $request->cookie('name');
 <a name="input-trimming-and-normalization"></a>
 ## Input Trimming and Normalization
 
-By default, Laravel includes the `Hypervel\Foundation\Http\Middleware\TrimStrings` and `Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull` middleware in your application's global middleware stack. These middleware will automatically trim all incoming string fields on the request, as well as convert any empty string fields to `null`. This allows you to not have to worry about these normalization concerns in your routes and controllers.
+By default, Hypervel includes the `Hypervel\Foundation\Http\Middleware\TrimStrings` and `Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull` middleware in your application's global middleware stack. These middleware will automatically trim all incoming string fields on the request, as well as convert any empty string fields to `null`. This allows you to not have to worry about these normalization concerns in your routes and controllers.
 
 #### Disabling Input Normalization
 
 If you would like to disable this behavior for all requests, you may remove the two middleware from your application's middleware stack by invoking the `$middleware->remove` method in your application's `bootstrap/app.php` file:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
 use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Hypervel\Foundation\Http\Middleware\TrimStrings;
 
@@ -720,6 +720,9 @@ use Hypervel\Foundation\Http\Middleware\TrimStrings;
 If you would like to disable string trimming and empty string conversion for a subset of requests to your application, you may use the `trimStrings` and `convertEmptyStringsToNull` middleware methods within your application's `bootstrap/app.php` file. Both methods accept an array of closures, which should return `true` or `false` to indicate whether input normalization should be skipped:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+use Hypervel\Http\Request;
+
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->convertEmptyStringsToNull(except: [
         fn (Request $request) => $request->is('admin/*'),
@@ -737,7 +740,7 @@ If you would like to disable string trimming and empty string conversion for a s
 <a name="retrieving-uploaded-files"></a>
 ### Retrieving Uploaded Files
 
-You may retrieve uploaded files from an `Hypervel\Http\Request` instance using the `file` method or using dynamic properties. The `file` method returns an instance of the `Hypervel\Http\UploadedFile` class, which extends the PHP `SplFileInfo` class and provides a variety of methods for interacting with the file:
+You may retrieve uploaded files from a `Hypervel\Http\Request` instance using the `file` method or using dynamic properties. The `file` method returns an instance of the `Hypervel\Http\UploadedFile` class, which extends the PHP `SplFileInfo` class and provides a variety of methods for interacting with the file:
 
 ```php
 $file = $request->file('photo');
@@ -778,7 +781,7 @@ $extension = $request->photo->extension();
 <a name="other-file-methods"></a>
 #### Other File Methods
 
-There are a variety of other methods available on `UploadedFile` instances. Check out the [API documentation for the class](https://github.com/symfony/symfony/blob/6.0/src/Symfony/Component/HttpFoundation/File/UploadedFile.php) for more information regarding these methods.
+There are a variety of other methods available on `UploadedFile` instances. Check out the [API documentation for the class](https://github.com/symfony/symfony/blob/8.0/src/Symfony/Component/HttpFoundation/File/UploadedFile.php) for more information regarding these methods.
 
 <a name="storing-uploaded-files"></a>
 ### Storing Uploaded Files
@@ -804,16 +807,18 @@ $path = $request->photo->storeAs('images', 'filename.jpg', 's3');
 ```
 
 > [!NOTE]
-> For more information about file storage in Laravel, check out the complete [file storage documentation](/docs/{{version}}/filesystem).
+> For more information about file storage in Hypervel, check out the complete [file storage documentation](/docs/{{version}}/filesystem).
 
 <a name="configuring-trusted-proxies"></a>
 ## Configuring Trusted Proxies
 
 When running your applications behind a load balancer that terminates TLS / SSL certificates, you may notice your application sometimes does not generate HTTPS links when using the `url` helper. Typically this is because your application is being forwarded traffic from your load balancer on port 80 and does not know it should generate secure links.
 
-To solve this, you may enable the `Hypervel\Http\Middleware\TrustProxies` middleware that is included in your Laravel application, which allows you to quickly customize the load balancers or proxies that should be trusted by your application. Your trusted proxies should be specified using the `trustProxies` middleware method in your application's `bootstrap/app.php` file:
+To solve this, you may enable the `Hypervel\Http\Middleware\TrustProxies` middleware that is included in your Hypervel application, which allows you to quickly customize the load balancers or proxies that should be trusted by your application. Your trusted proxies should be specified using the `trustProxies` middleware method in your application's `bootstrap/app.php` file:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->trustProxies(at: [
         '192.168.1.1',
@@ -825,6 +830,9 @@ To solve this, you may enable the `Hypervel\Http\Middleware\TrustProxies` middle
 In addition to configuring the trusted proxies, you may also configure the proxy headers that should be trusted:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+use Hypervel\Http\Request;
+
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR |
         Request::HEADER_X_FORWARDED_HOST |
@@ -844,6 +852,8 @@ In addition to configuring the trusted proxies, you may also configure the proxy
 If you are using Amazon AWS or another "cloud" load balancer provider, you may not know the IP addresses of your actual balancers. In this case, you may use `*` to trust all proxies:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->trustProxies(at: '*');
 })
@@ -852,29 +862,35 @@ If you are using Amazon AWS or another "cloud" load balancer provider, you may n
 <a name="configuring-trusted-hosts"></a>
 ## Configuring Trusted Hosts
 
-By default, Laravel will respond to all requests it receives regardless of the content of the HTTP request's `Host` header. In addition, the `Host` header's value will be used when generating absolute URLs to your application during a web request.
+By default, Hypervel will respond to all requests it receives regardless of the content of the HTTP request's `Host` header. In addition, the `Host` header's value will be used when generating absolute URLs to your application during a web request.
 
-Typically, you should configure your web server, such as Nginx or Apache, to only send requests to your application that match a given hostname. However, if you do not have the ability to customize your web server directly and need to instruct Laravel to only respond to certain hostnames, you may do so by enabling the `Hypervel\Http\Middleware\TrustHosts` middleware for your application.
+Typically, you should configure your web server, such as Nginx or Apache, to only send requests to your application that match a given hostname. However, if you do not have the ability to customize your web server directly and need to instruct Hypervel to only respond to certain hostnames, you may do so by enabling the `Hypervel\Http\Middleware\TrustHosts` middleware for your application.
 
 To enable the `TrustHosts` middleware, you should invoke the `trustHosts` middleware method in your application's `bootstrap/app.php` file. Using the `at` argument of this method, you may specify the hostnames that your application should respond to. The hostname string is treated as a regular expression. Incoming requests with other `Host` headers will be rejected:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+
 ->withMiddleware(function (Middleware $middleware): void {
-    $middleware->trustHosts(at: ['^laravel\.test$']);
+    $middleware->trustHosts(at: ['^hypervel\.test$']);
 })
 ```
 
 By default, requests coming from subdomains of the application's URL are also automatically trusted. If you would like to disable this behavior, you may use the `subdomains` argument:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+
 ->withMiddleware(function (Middleware $middleware): void {
-    $middleware->trustHosts(at: ['^laravel\.test$'], subdomains: false);
+    $middleware->trustHosts(at: ['^hypervel\.test$'], subdomains: false);
 })
 ```
 
 If you need to access your application's configuration files or database to determine your trusted hosts, you may provide a closure to the `at` argument:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->trustHosts(at: fn () => config('app.trusted_hosts'));
 })

@@ -70,11 +70,11 @@ Next, you should use the `octane:install` Artisan command to install the Franken
 ./vendor/bin/sail artisan octane:install --server=frankenphp
 ```
 
-Finally, add a `SUPERVISOR_PHP_COMMAND` environment variable to the `laravel.test` service definition in your application's `docker-compose.yml` file. This environment variable will contain the command that Sail will use to serve your application using Octane instead of the PHP development server:
+Finally, add a `SUPERVISOR_PHP_COMMAND` environment variable to the `hypervel.test` service definition in your application's `docker-compose.yml` file. This environment variable will contain the command that Sail will use to serve your application using Octane instead of the PHP development server:
 
 ```yaml
 services:
-  laravel.test:
+  hypervel.test:
     environment:
       SUPERVISOR_PHP_COMMAND: "/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan octane:start --server=frankenphp --host=0.0.0.0 --admin-port=2019 --port='${APP_PORT:-80}'" # [tl! add]
       XDG_CONFIG_HOME:  /var/www/html/config # [tl! add]
@@ -85,7 +85,7 @@ To enable HTTPS, HTTP/2, and HTTP/3, apply these modifications instead:
 
 ```yaml
 services:
-  laravel.test:
+  hypervel.test:
     ports:
         - '${APP_PORT:-80}:80'
         - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
@@ -173,11 +173,11 @@ Next, you should start a Sail shell and use the `rr` executable to retrieve the 
 ./vendor/bin/rr get-binary
 ```
 
-Then, add a `SUPERVISOR_PHP_COMMAND` environment variable to the `laravel.test` service definition in your application's `docker-compose.yml` file. This environment variable will contain the command that Sail will use to serve your application using Octane instead of the PHP development server:
+Then, add a `SUPERVISOR_PHP_COMMAND` environment variable to the `hypervel.test` service definition in your application's `docker-compose.yml` file. This environment variable will contain the command that Sail will use to serve your application using Octane instead of the PHP development server:
 
 ```yaml
 services:
-  laravel.test:
+  hypervel.test:
     environment:
       SUPERVISOR_PHP_COMMAND: "/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan octane:start --server=roadrunner --host=0.0.0.0 --rpc-port=6001 --port='${APP_PORT:-80}'" # [tl! add]
 ```
@@ -218,11 +218,11 @@ Using Laravel Octane with Open Swoole grants the same functionality provided by 
 
 Alternatively, you may develop your Swoole based Octane application using [Laravel Sail](/docs/{{version}}/sail), the official Docker based development environment for Laravel. Laravel Sail includes the Swoole extension by default. However, you will still need to adjust the `docker-compose.yml` file used by Sail.
 
-To get started, add a `SUPERVISOR_PHP_COMMAND` environment variable to the `laravel.test` service definition in your application's `docker-compose.yml` file. This environment variable will contain the command that Sail will use to serve your application using Octane instead of the PHP development server:
+To get started, add a `SUPERVISOR_PHP_COMMAND` environment variable to the `hypervel.test` service definition in your application's `docker-compose.yml` file. This environment variable will contain the command that Sail will use to serve your application using Octane instead of the PHP development server:
 
 ```yaml
 services:
-  laravel.test:
+  hypervel.test:
     environment:
       SUPERVISOR_PHP_COMMAND: "/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan octane:start --server=swoole --host=0.0.0.0 --port='${APP_PORT:-80}'" # [tl! add]
 ```
