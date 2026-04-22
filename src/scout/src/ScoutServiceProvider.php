@@ -38,6 +38,27 @@ class ScoutServiceProvider extends ServiceProvider
 
         $this->app->singleton(EngineManager::class, EngineManager::class);
 
+        $this->registerAlgoliaClient();
+        $this->registerMeilisearchClient();
+        $this->registerTypesenseClient();
+    }
+
+    /**
+     * Bootstrap Scout services.
+     */
+    public function boot(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->registerPublishing();
+            $this->registerCommands();
+        }
+    }
+
+    /**
+     * Register the Algolia search client.
+     */
+    protected function registerAlgoliaClient(): void
+    {
         $this->app->singleton(AlgoliaSearchClient::class, function () {
             $config = $this->app->make('config');
 
@@ -69,7 +90,13 @@ class ScoutServiceProvider extends ServiceProvider
 
             return AlgoliaSearchClient::createWithConfig($algoliaConfig);
         });
+    }
 
+    /**
+     * Register the Meilisearch client.
+     */
+    protected function registerMeilisearchClient(): void
+    {
         $this->app->singleton(MeilisearchClient::class, function () {
             $config = $this->app->make('config');
 
@@ -101,7 +128,13 @@ class ScoutServiceProvider extends ServiceProvider
                 new GuzzleClient($guzzleOptions),
             );
         });
+    }
 
+    /**
+     * Register the Typesense client.
+     */
+    protected function registerTypesenseClient(): void
+    {
         $this->app->singleton(TypesenseClient::class, function () {
             $config = $this->app->make('config');
             $settings = $config->get('scout.typesense.client-settings', []);
@@ -115,17 +148,6 @@ class ScoutServiceProvider extends ServiceProvider
 
             return new TypesenseClient($settings);
         });
-    }
-
-    /**
-     * Bootstrap Scout services.
-     */
-    public function boot(): void
-    {
-        if ($this->app->runningInConsole()) {
-            $this->registerPublishing();
-            $this->registerCommands();
-        }
     }
 
     /**
