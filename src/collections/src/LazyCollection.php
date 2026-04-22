@@ -1771,13 +1771,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
         // Only callable remains at this point
         $maybeTraversable = $source();
 
-        // @phpstan-ignore instanceof.alwaysTrue (PHPDoc says Generator but runtime callable could return anything)
         if ($maybeTraversable instanceof Iterator) {
             return $maybeTraversable;
         }
 
-        // @phpstan-ignore deadCode.unreachable (defensive - handles non-Iterator Traversables)
         if ($maybeTraversable instanceof Traversable) {
+            /** @var Traversable<TIteratorKey, TIteratorValue> $maybeTraversable */
             return new IteratorIterator($maybeTraversable);
         }
 
