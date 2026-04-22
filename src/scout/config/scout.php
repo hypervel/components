@@ -12,7 +12,7 @@ return [
     | using Scout. This connection is used when syncing all models to the
     | search service. You should adjust this based on your needs.
     |
-    | Supported: "meilisearch", "typesense", "database", "collection", "null"
+    | Supported: "algolia", "meilisearch", "typesense", "database", "collection", "null"
     |
     */
 
@@ -100,6 +100,44 @@ return [
     */
 
     'soft_delete' => env('SCOUT_SOFT_DELETE', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Identify User
+    |--------------------------------------------------------------------------
+    |
+    | This option allows you to control whether to notify the search engine
+    | of the user performing the search. This is sometimes useful if the
+    | engine supports any analytics based on this application's users.
+    |
+    | Supported engines: "algolia"
+    |
+    */
+
+    'identify' => env('SCOUT_IDENTIFY', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Algolia Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Here you may configure your Algolia settings. Algolia is a cloud hosted
+    | search engine which works great with Scout out of the box. Just plug
+    | in your application ID and admin API key to get started searching.
+    |
+    */
+
+    'algolia' => [
+        'id' => env('ALGOLIA_APP_ID', ''),
+        'secret' => env('ALGOLIA_SECRET', ''),
+        'index-settings' => [
+            // Per-index settings can be defined here:
+            // 'users' => [
+            //     'searchableAttributes' => ['id', 'name', 'email'],
+            //     'attributesForFaceting' => ['filterOnly(email)'],
+            // ],
+        ],
+    ],
 
     /*
     |--------------------------------------------------------------------------
