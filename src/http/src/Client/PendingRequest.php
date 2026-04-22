@@ -32,6 +32,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
+use UnitEnum;
 
 class PendingRequest
 {
@@ -600,6 +601,8 @@ class PendingRequest
 
     /**
      * Set Telescope tags for this request.
+     *
+     * @param array<int, string|UnitEnum> $tags
      */
     public function withTelescopeTags(array $tags): static
     {

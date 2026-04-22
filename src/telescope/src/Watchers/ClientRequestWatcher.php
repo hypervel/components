@@ -18,6 +18,8 @@ use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Throwable;
 
+use function Hypervel\Support\enum_value;
+
 class ClientRequestWatcher extends Watcher
 {
     /**
@@ -57,7 +59,14 @@ class ClientRequestWatcher extends Watcher
             return $proceedingJoinPoint->process();
         }
 
-        $customTags = $options['telescope_tags'] ?? [];
+        // Normalize enum cases (e.g. Hypervel\Contracts\Telescope\TelescopeTag)
+        // to their string values. Uses enum_value() for consistency with the
+        // framework's existing enum-handling idiom (Queueable, Translator, etc.);
+        // backed enums resolve to ->value, unit enums fall through to ->name.
+        $customTags = array_map(
+            fn ($tag) => enum_value($tag),
+            $options['telescope_tags'] ?? [],
+        );
         $recorded = false;
 
         $onStats = $options['on_stats'] ?? null;

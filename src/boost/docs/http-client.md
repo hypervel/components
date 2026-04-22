@@ -518,11 +518,24 @@ If your application uses [Telescope](/docs/{{version}}/telescope), HTTP client r
 $response = Http::withoutTelescope()->get('http://example.com');
 ```
 
-To attach tags to a recorded request — for example, to identify which downstream service or feature initiated the call — use the `withTelescopeTags` method:
+To attach tags to a recorded request — for example, to identify which downstream service or feature initiated the call — use the `withTelescopeTags` method. You can pass raw strings, or enum cases:
 
 ```php
 $response = Http::withTelescopeTags(['billing', 'stripe'])->get('http://example.com');
 ```
+
+```php
+enum BillingTag: string
+{
+    case Billing = 'billing';
+    case Stripe = 'stripe';
+}
+
+$response = Http::withTelescopeTags([BillingTag::Billing, BillingTag::Stripe])
+    ->get('http://example.com');
+```
+
+Enum cases are normalized to strings before storage — backed enums use their `->value`, unit enums use their `->name`.
 
 These methods are safe to call regardless of Telescope's state. They simply set Guzzle option keys that the Telescope watcher reads when present; if Telescope is disabled or not installed, the keys are ignored and the request runs as normal with no overhead.
 
