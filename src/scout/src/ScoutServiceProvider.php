@@ -36,8 +36,6 @@ class ScoutServiceProvider extends ServiceProvider
             'scout'
         );
 
-        $this->app->singleton(EngineManager::class, EngineManager::class);
-
         $this->registerAlgoliaClient();
         $this->registerMeilisearchClient();
         $this->registerTypesenseClient();
