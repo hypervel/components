@@ -118,6 +118,38 @@ class QueueDispatchTest extends ScoutTestCase
         Bus::assertNotDispatched(RemoveFromSearch::class);
     }
 
+    public function testQueueMakeSearchableBypassesQueueWhileImporting(): void
+    {
+        $this->app->make('config')->set('scout.queue.enabled', true);
+
+        Bus::fake([MakeSearchable::class]);
+
+        $model = new SearchableModel(['title' => 'Test', 'body' => 'Content']);
+        $model->id = 1;
+
+        Scout::whileImporting(function () use ($model): void {
+            $model->queueMakeSearchable(new Collection([$model]));
+        });
+
+        Bus::assertNotDispatched(MakeSearchable::class);
+    }
+
+    public function testQueueRemoveFromSearchBypassesQueueWhileImporting(): void
+    {
+        $this->app->make('config')->set('scout.queue.enabled', true);
+
+        Bus::fake([RemoveFromSearch::class]);
+
+        $model = new SearchableModel(['title' => 'Test', 'body' => 'Content']);
+        $model->id = 1;
+
+        Scout::whileImporting(function () use ($model): void {
+            $model->queueRemoveFromSearch(new Collection([$model]));
+        });
+
+        Bus::assertNotDispatched(RemoveFromSearch::class);
+    }
+
     public function testEmptyCollectionDoesNotDispatchMakeSearchableJob(): void
     {
         $this->app->make('config')->set('scout.queue.enabled', true);
