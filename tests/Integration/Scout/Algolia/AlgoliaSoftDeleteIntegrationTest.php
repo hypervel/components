@@ -43,7 +43,9 @@ class AlgoliaSoftDeleteIntegrationTest extends AlgoliaScoutIntegrationTestCase
 
     public function testSoftDeletedModelsArePushedWithSoftDeleteMetadata(): void
     {
-        $model = SoftDeleteSearchableModel::create(['title' => 'Active', 'body' => 'Content']);
+        $model = SoftDeleteSearchableModel::withoutSyncingToSearch(function () {
+            return SoftDeleteSearchableModel::create(['title' => 'Active', 'body' => 'Content']);
+        });
 
         $this->engine->update(new EloquentCollection([$model]));
         $hits = $this->pollSearch($model->searchableAs(), '', 1);
@@ -52,7 +54,9 @@ class AlgoliaSoftDeleteIntegrationTest extends AlgoliaScoutIntegrationTestCase
         $this->assertArrayHasKey('__soft_deleted', $hits[0]);
         $this->assertSame(0, $hits[0]['__soft_deleted']);
 
-        $model->delete();
+        SoftDeleteSearchableModel::withoutSyncingToSearch(function () use ($model): void {
+            $model->delete();
+        });
         $this->engine->update(new EloquentCollection([$model->fresh()]));
         $hits = $this->pollSearchFor(
             $model->searchableAs(),
