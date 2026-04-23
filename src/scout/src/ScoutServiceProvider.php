@@ -18,6 +18,7 @@ use Hypervel\Scout\Console\DeleteIndexCommand;
 use Hypervel\Scout\Console\FlushCommand;
 use Hypervel\Scout\Console\ImportCommand;
 use Hypervel\Scout\Console\IndexCommand;
+use Hypervel\Scout\Console\QueueImportCommand;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
 use Hypervel\Scout\Engines\MeilisearchRetryPolicy;
 use Hypervel\Support\ServiceProvider;
@@ -169,6 +170,7 @@ class ScoutServiceProvider extends ServiceProvider
             FlushCommand::class,
             ImportCommand::class,
             IndexCommand::class,
+            QueueImportCommand::class,
             SyncIndexSettingsCommand::class,
         ]);
     }
