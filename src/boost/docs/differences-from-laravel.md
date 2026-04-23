@@ -5,3 +5,7 @@ If you know Laravel, this page lists the places where Hypervel intentionally doe
 ## HTTP Client
 
 - **`Http::pool` / `Http::batch`** — use `parallel()` from `Hypervel\Coroutine` instead. Hypervel's coroutine architecture makes dedicated pool and batch methods unnecessary. → [Concurrent Requests](/docs/{{version}}/http-client#concurrent-requests)
+
+## Scout
+
+- **`Searchable` trait requires `SearchableInterface`** — searchable models must declare `implements SearchableInterface` alongside `use Searchable`. → [Installation](/docs/{{version}}/scout#installation)
