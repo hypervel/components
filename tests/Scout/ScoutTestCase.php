@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -17,11 +18,16 @@ class ScoutTestCase extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            ScoutServiceProvider::class,
+        ];
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->app->register(ScoutServiceProvider::class);
 
         $this->app->make('config')
             ->set('scout', [
