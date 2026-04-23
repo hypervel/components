@@ -32,6 +32,29 @@ class AlgoliaCommandsIntegrationTest extends AlgoliaScoutIntegrationTestCase
         $this->assertCount(3, $hits);
     }
 
+    public function testQueueImportCommandIndexesModels(): void
+    {
+        // Sync queue driver (testbench default) means MakeRangeSearchable
+        // and the MakeSearchable jobs it dispatches both run inline, so by
+        // the time the artisan call returns the writes have been issued.
+        SearchableModel::withoutSyncingToSearch(function (): void {
+            SearchableModel::create(['title' => 'First Document', 'body' => 'Content']);
+            SearchableModel::create(['title' => 'Second Document', 'body' => 'Content']);
+            SearchableModel::create(['title' => 'Third Document', 'body' => 'Content']);
+        });
+
+        $this->assertCount(3, SearchableModel::all());
+
+        $this->artisan('scout:queue-import', ['model' => SearchableModel::class])
+            ->expectsOutputToContain('have been queued')
+            ->assertOk();
+
+        $index = (new SearchableModel)->searchableAs();
+        $hits = $this->pollSearch($index, 'Document', 3);
+
+        $this->assertCount(3, $hits);
+    }
+
     public function testFlushCommandRemovesModels(): void
     {
         SearchableModel::withoutSyncingToSearch(function (): void {
