@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Scout\Algolia;
 
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Throwable;
 
@@ -34,11 +35,14 @@ class AlgoliaFilteringIntegrationTest extends AlgoliaScoutIntegrationTestCase
 
     public function testWhereFiltersResultsByExactMatch(): void
     {
-        $first = SearchableModel::create(['title' => 'PHP Guide', 'body' => 'Learn PHP']);
-        SearchableModel::create(['title' => 'JavaScript Guide', 'body' => 'Learn JS']);
-        SearchableModel::create(['title' => 'PHP Advanced', 'body' => 'Advanced PHP']);
+        $models = SearchableModel::withoutSyncingToSearch(fn () => new EloquentCollection([
+            SearchableModel::create(['title' => 'PHP Guide', 'body' => 'Learn PHP']),
+            SearchableModel::create(['title' => 'JavaScript Guide', 'body' => 'Learn JS']),
+            SearchableModel::create(['title' => 'PHP Advanced', 'body' => 'Advanced PHP']),
+        ]));
+        $first = $models->first();
 
-        $this->engine->update(SearchableModel::all());
+        $this->engine->update($models);
         $this->pollSearch($first->searchableAs(), '', 3);
 
         $results = SearchableModel::search('')
@@ -51,11 +55,14 @@ class AlgoliaFilteringIntegrationTest extends AlgoliaScoutIntegrationTestCase
 
     public function testWhereInFiltersResultsByMultipleValues(): void
     {
-        $first = SearchableModel::create(['title' => 'First', 'body' => 'Body']);
-        $second = SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
-        $third = SearchableModel::create(['title' => 'Third', 'body' => 'Body']);
+        $models = SearchableModel::withoutSyncingToSearch(fn () => [
+            SearchableModel::create(['title' => 'First', 'body' => 'Body']),
+            SearchableModel::create(['title' => 'Second', 'body' => 'Body']),
+            SearchableModel::create(['title' => 'Third', 'body' => 'Body']),
+        ]);
+        [$first, $second, $third] = $models;
 
-        $this->engine->update(SearchableModel::all());
+        $this->engine->update(new EloquentCollection($models));
         $this->pollSearch($first->searchableAs(), '', 3);
 
         $results = SearchableModel::search('')
@@ -70,11 +77,14 @@ class AlgoliaFilteringIntegrationTest extends AlgoliaScoutIntegrationTestCase
 
     public function testWhereNotInExcludesSpecifiedValues(): void
     {
-        $first = SearchableModel::create(['title' => 'First', 'body' => 'Body']);
-        $second = SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
-        $third = SearchableModel::create(['title' => 'Third', 'body' => 'Body']);
+        $models = SearchableModel::withoutSyncingToSearch(fn () => [
+            SearchableModel::create(['title' => 'First', 'body' => 'Body']),
+            SearchableModel::create(['title' => 'Second', 'body' => 'Body']),
+            SearchableModel::create(['title' => 'Third', 'body' => 'Body']),
+        ]);
+        [$first, $second, $third] = $models;
 
-        $this->engine->update(SearchableModel::all());
+        $this->engine->update(new EloquentCollection($models));
         $this->pollSearch($first->searchableAs(), '', 3);
 
         $results = SearchableModel::search('')
