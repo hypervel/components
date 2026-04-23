@@ -15,7 +15,9 @@ class AlgoliaEngineIntegrationTest extends AlgoliaScoutIntegrationTestCase
 {
     public function testUpdateIndexesModelsInAlgolia(): void
     {
-        $model = SearchableModel::create(['title' => 'Test Document', 'body' => 'Content here']);
+        $model = SearchableModel::withoutSyncingToSearch(function () {
+            return SearchableModel::create(['title' => 'Test Document', 'body' => 'Content here']);
+        });
 
         $this->engine->update(new EloquentCollection([$model]));
 
@@ -27,11 +29,11 @@ class AlgoliaEngineIntegrationTest extends AlgoliaScoutIntegrationTestCase
 
     public function testUpdateWithMultipleModels(): void
     {
-        $models = new EloquentCollection([
+        $models = SearchableModel::withoutSyncingToSearch(fn () => new EloquentCollection([
             SearchableModel::create(['title' => 'First', 'body' => 'Body 1']),
             SearchableModel::create(['title' => 'Second', 'body' => 'Body 2']),
             SearchableModel::create(['title' => 'Third', 'body' => 'Body 3']),
-        ]);
+        ]));
 
         $this->engine->update($models);
 
@@ -42,7 +44,9 @@ class AlgoliaEngineIntegrationTest extends AlgoliaScoutIntegrationTestCase
 
     public function testDeleteRemovesModelsFromAlgolia(): void
     {
-        $model = SearchableModel::create(['title' => 'To Delete', 'body' => 'Content']);
+        $model = SearchableModel::withoutSyncingToSearch(function () {
+            return SearchableModel::create(['title' => 'To Delete', 'body' => 'Content']);
+        });
 
         $this->engine->update(new EloquentCollection([$model]));
         $this->pollSearch($model->searchableAs(), 'Delete', expectedCount: 1);
@@ -55,10 +59,11 @@ class AlgoliaEngineIntegrationTest extends AlgoliaScoutIntegrationTestCase
 
     public function testFlushClearsEntireIndex(): void
     {
-        SearchableModel::create(['title' => 'First', 'body' => 'Body']);
-        SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
+        $models = SearchableModel::withoutSyncingToSearch(fn () => new EloquentCollection([
+            SearchableModel::create(['title' => 'First', 'body' => 'Body']),
+            SearchableModel::create(['title' => 'Second', 'body' => 'Body']),
+        ]));
 
-        $models = SearchableModel::all();
         $this->engine->update($models);
         $this->pollSearch($models->first()->searchableAs(), '', expectedCount: 2);
 
