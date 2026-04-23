@@ -120,6 +120,9 @@ Switch to queue mode when:
 
 Regardless of the chosen mode, some Scout drivers like Algolia and Meilisearch index records asynchronously on the engine side, so even though the indexing call has completed within your Hypervel application, the search engine itself may not reflect the new and updated records immediately.
 
+> [!NOTE]
+> This section is about how Scout indexes models when your application saves or deletes them. It does not affect the `scout:import` and `scout:queue-import` Artisan commands — see [Batch Import](#batch-import) for those.
+
 <a name="driver-prerequisites"></a>
 ## Driver Prerequisites
 
@@ -635,11 +638,19 @@ You may pass the `--fresh` option to flush the index before importing. This is u
 php artisan scout:import "App\Models\Post" --fresh
 ```
 
-The `scout:queue-import` command may be used to import all of your existing records using [queued jobs](/docs/{{version}}/queues):
+Alternatively, the `scout:queue-import` command imports your existing records via [queued jobs](/docs/{{version}}/queues). The work is processed in parallel by your queue workers:
 
 ```shell
-php artisan scout:queue-import "App\Models\Post" --chunk=500
+php artisan scout:queue-import "App\Models\Post"
 ```
+
+You may optionally control the chunk size, the ID range, and the destination queue:
+
+```shell
+php artisan scout:queue-import "App\Models\Post" --chunk=500 --min=1000 --max=50000 --queue=imports
+```
+
+The `--min` and `--max` options are useful for resuming a partial import, or for running several imports in parallel against different ranges. There is no `--fresh` option — to rebuild the index from scratch, run `scout:flush` first.
 
 The `flush` command may be used to remove all of a model's records from your search indexes:
 
