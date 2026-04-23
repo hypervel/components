@@ -53,6 +53,16 @@ interface SearchableInterface
     public function searchableUsing(): Engine;
 
     /**
+     * Get the queue connection that should be used when syncing.
+     */
+    public function syncWithSearchUsing(): ?string;
+
+    /**
+     * Get the queue that should be used with syncing.
+     */
+    public function syncWithSearchUsingQueue(): ?string;
+
+    /**
      * Make the given model instance searchable.
      */
     public function searchable(): void;
