@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Scout\Console\Traits\ResolvesScoutModelClass;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -14,6 +15,8 @@ use Symfony\Component\Console\Attribute\AsCommand;
 #[AsCommand(name: 'scout:flush')]
 class FlushCommand extends Command
 {
+    use ResolvesScoutModelClass;
+
     /**
      * The name and signature of the console command.
      */
@@ -32,33 +35,10 @@ class FlushCommand extends Command
      */
     public function handle(): void
     {
-        defined('SCOUT_COMMAND') || define('SCOUT_COMMAND', true);
-
         $class = $this->resolveModelClass((string) $this->argument('model'));
 
         $class::removeAllFromSearch();
 
         $this->info("All [{$class}] records have been flushed.");
-    }
-
-    /**
-     * Resolve the fully-qualified model class name.
-     *
-     * @throws ScoutException
-     */
-    protected function resolveModelClass(string $class): string
-    {
-        if (class_exists($class)) {
-            return $class;
-        }
-
-        // Try the conventional App\Models namespace
-        $namespacedClass = "App\\Models\\{$class}";
-
-        if (class_exists($namespacedClass)) {
-            return $namespacedClass;
-        }
-
-        throw new ScoutException("Model [{$class}] not found.");
     }
 }
