@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAlgolia;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -34,6 +35,13 @@ abstract class AlgoliaIntegrationTestCase extends TestCase
      */
     protected string $testPrefix;
 
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            ScoutServiceProvider::class,
+        ];
+    }
+
     protected function setUp(): void
     {
         $this->computeTestPrefix();
@@ -41,7 +49,6 @@ abstract class AlgoliaIntegrationTestCase extends TestCase
 
         parent::setUp();
 
-        $this->app->register(ScoutServiceProvider::class);
         $this->configureAlgolia();
     }
 
