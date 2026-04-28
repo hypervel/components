@@ -7,8 +7,8 @@ namespace Hypervel\Horizon;
 use Carbon\CarbonImmutable;
 use Closure;
 use Exception;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\Pausable;
@@ -19,6 +19,8 @@ use Hypervel\Horizon\Events\MasterSupervisorLooped;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Throwable;
+
+use function Hypervel\Coroutine\go;
 
 class MasterSupervisor implements Pausable, Restartable, Terminable
 {
@@ -223,7 +225,23 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
                 $this->monitorSupervisors();
             }
 
-            go(fn () => $this->persist());
+            // Persistence is dispatched in a detached coroutine. Under Swoole
+            // the coroutine-hooked Redis write yields to the event loop; without
+            // this go() wrapper every loop iteration would block on that yield,
+            // which shifts supervisor lifecycle pacing enough to cause tearDown
+            // to exceed its retry budget in parallel tests. Callers that read
+            // persisted state immediately after loop() must retry for it (see
+            // the $this->wait(...) pattern in MasterSupervisorTest) — a
+            // synchronous read can miss an uncommitted persist.
+            go(function (): void {
+                // Exceptions thrown inside a spawned coroutine are not caught by
+                // the parent loop() try/catch, so report them in this coroutine.
+                try {
+                    $this->persist();
+                } catch (Throwable $e) {
+                    app(ExceptionHandler::class)->report($e);
+                }
+            });
 
             event(new MasterSupervisorLooped($this));
         } catch (Throwable $e) {

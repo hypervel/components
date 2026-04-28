@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
-use Hypervel\Process\Contracts\InvokedProcess as InvokedProcessContract;
-use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
+use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
 
 class FakeInvokedProcess implements InvokedProcessContract
 {
@@ -57,6 +57,14 @@ class FakeInvokedProcess implements InvokedProcessContract
     }
 
     /**
+     * Get the command line for the process.
+     */
+    public function command(): string
+    {
+        return $this->command;
+    }
+
+    /**
      * Send a signal to the process.
      */
     public function signal(int $signal): static
@@ -66,6 +74,16 @@ class FakeInvokedProcess implements InvokedProcessContract
         $this->receivedSignals[] = $signal;
 
         return $this;
+    }
+
+    /**
+     * Stop the process if it is still running.
+     */
+    public function stop(float $timeout = 10, ?int $signal = null): ?int
+    {
+        $this->remainingRunIterations = 0;
+
+        return null;
     }
 
     /**
@@ -188,7 +206,7 @@ class FakeInvokedProcess implements InvokedProcessContract
             $this->nextOutputIndex = $i + 1;
         }
 
-        return isset($output) ? $output : '';
+        return $output ?? '';
     }
 
     /**
@@ -209,7 +227,7 @@ class FakeInvokedProcess implements InvokedProcessContract
             $this->nextErrorOutputIndex = $i + 1;
         }
 
-        return isset($output) ? $output : '';
+        return $output ?? '';
     }
 
     /**
@@ -226,6 +244,32 @@ class FakeInvokedProcess implements InvokedProcessContract
         }
 
         while ($this->invokeOutputHandlerWithNextLineOfOutput());
+
+        $this->remainingRunIterations = 0;
+
+        return $this->process->toProcessResult($this->command);
+    }
+
+    /**
+     * Wait until the given callback returns true.
+     */
+    public function waitUntil(?callable $output = null): ProcessResultContract
+    {
+        $shouldStop = false;
+
+        $this->outputHandler = $output
+            ? function ($type, $buffer) use ($output, &$shouldStop) {
+                $shouldStop = call_user_func($output, $type, $buffer);
+            }
+        : $this->outputHandler;
+
+        if (! $this->outputHandler) {
+            $this->remainingRunIterations = 0;
+
+            return $this->predictProcessResult();
+        }
+
+        while ($this->running() && ! $shouldStop);
 
         $this->remainingRunIterations = 0;
 

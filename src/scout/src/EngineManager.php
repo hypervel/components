@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout;
 
+use Algolia\AlgoliaSearch\Algolia;
+use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Scout\Engines\AlgoliaEngine;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\DatabaseEngine;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Scout\Engines\NullEngine;
 use Hypervel\Scout\Engines\TypesenseEngine;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Meilisearch;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 use Typesense\Client as TypesenseClient;
 
@@ -44,7 +47,7 @@ class EngineManager
      * Create a new engine manager instance.
      */
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 
@@ -87,6 +90,38 @@ class EngineManager
     }
 
     /**
+     * Create an Algolia engine instance.
+     *
+     * @throws RuntimeException
+     */
+    public function createAlgoliaDriver(): AlgoliaEngine
+    {
+        $this->ensureAlgoliaClientIsInstalled();
+
+        return new AlgoliaEngine(
+            $this->container->make(AlgoliaSearchClient::class),
+            $this->getConfig('soft_delete', false),
+            $this->getConfig('identify', false),
+        );
+    }
+
+    /**
+     * Ensure the Algolia client is installed.
+     *
+     * @throws RuntimeException
+     */
+    protected function ensureAlgoliaClientIsInstalled(): void
+    {
+        if (class_exists(Algolia::class) && version_compare(Algolia::VERSION, '4.0.0', '>=')) {
+            return;
+        }
+
+        throw new RuntimeException(
+            'Please install the Algolia client: algolia/algoliasearch-client-php (^4.0).'
+        );
+    }
+
+    /**
      * Create a Meilisearch engine instance.
      */
     public function createMeilisearchDriver(): MeilisearchEngine
@@ -94,7 +129,7 @@ class EngineManager
         $this->ensureMeilisearchClientIsInstalled();
 
         return new MeilisearchEngine(
-            $this->container->get(MeilisearchClient::class),
+            $this->container->make(MeilisearchClient::class),
             $this->getConfig('soft_delete', false)
         );
     }
@@ -125,7 +160,7 @@ class EngineManager
         $this->ensureTypesenseClientIsInstalled();
 
         return new TypesenseEngine(
-            $this->container->get(TypesenseClient::class),
+            $this->container->make(TypesenseClient::class),
             (int) $this->getConfig('typesense.max_total_results', 1000)
         );
     }
@@ -151,7 +186,7 @@ class EngineManager
      */
     public function createCollectionDriver(): CollectionEngine
     {
-        return new CollectionEngine();
+        return new CollectionEngine;
     }
 
     /**
@@ -159,7 +194,7 @@ class EngineManager
      */
     public function createDatabaseDriver(): DatabaseEngine
     {
-        return new DatabaseEngine();
+        return new DatabaseEngine;
     }
 
     /**
@@ -167,7 +202,7 @@ class EngineManager
      */
     public function createNullDriver(): NullEngine
     {
-        return new NullEngine();
+        return new NullEngine;
     }
 
     /**
@@ -217,6 +252,6 @@ class EngineManager
      */
     protected function getConfig(string $key, mixed $default = null): mixed
     {
-        return $this->container->get(ConfigInterface::class)->get("scout.{$key}", $default);
+        return $this->container->make('config')->get("scout.{$key}", $default);
     }
 }

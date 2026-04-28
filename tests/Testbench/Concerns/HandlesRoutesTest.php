@@ -4,18 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Concerns;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Router\Router;
+use Hypervel\Routing\Router;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class HandlesRoutesTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected bool $defineRoutesCalled = false;
 
     protected bool $defineWebRoutesCalled = false;
@@ -67,7 +60,7 @@ class HandlesRoutesTest extends TestCase
 
     public function testRouterIsPassedToDefineRoutes(): void
     {
-        $router = $this->app->get(Router::class);
+        $router = $this->app->make(Router::class);
 
         $this->assertInstanceOf(Router::class, $router);
     }

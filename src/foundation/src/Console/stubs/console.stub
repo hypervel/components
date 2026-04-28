@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Console\Attributes\Description;
+use Hypervel\Console\Attributes\Signature;
+use Hypervel\Console\Command;
+
+#[Signature('{{ command }}')]
+#[Description('Command description')]
+class {{ class }} extends Command
+{
+    /**
+     * Execute the console command.
+     */
+    public function handle()
+    {
+        //
+    }
+}

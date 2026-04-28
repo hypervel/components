@@ -4,37 +4,49 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Coordinator\Constants;
-use Hyperf\Coordinator\CoordinatorManager;
-use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Foundation\Testing\Concerns\HandlesAttributes;
-use Hypervel\Foundation\Testing\Concerns\InteractsWithTestCase;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Foundation\Testing\DatabaseTransactions;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
-use Hypervel\Queue\Queue;
+use Hypervel\Testbench\Pest\WithPest;
 use Swoole\Timer;
-use Workbench\App\Exceptions\ExceptionHandler;
 
 /**
  * Base test case for package testing with testbench features.
  *
+ * Methods below are provided by traits that child test classes may use.
+ * The setUpTraits() method checks for trait usage before calling these.
+ *
+ * @method void refreshDatabase()
+ * @method void runDatabaseMigrations()
+ * @method void beginDatabaseTransaction()
+ * @method void disableMiddlewareForAllTests()
+ * @method void disableEventsForAllTests()
+ *
  * @internal
  * @coversNothing
  */
-class TestCase extends BaseTestCase
+class TestCase extends BaseTestCase implements Contracts\TestCase
 {
-    use Concerns\CreatesApplication;
-    use Concerns\HandlesDatabases;
-    use Concerns\HandlesRoutes;
-    use HandlesAttributes;
-    use InteractsWithTestCase;
+    use Concerns\Testing;
+
+    /**
+     * The base URL to use while testing the application.
+     */
+    protected string $baseUrl = 'http://localhost';
+
+    /**
+     * Automatically loads environment variables when available.
+     */
+    protected bool $loadEnvironmentVariables = true;
 
     protected static bool $hasBootstrappedTestbench = false;
 
+    /**
+     * Setup the test environment.
+     */
     protected function setUp(): void
     {
         if (! static::$hasBootstrappedTestbench) {
@@ -45,6 +57,7 @@ class TestCase extends BaseTestCase
         $this->afterApplicationCreated(function () {
             Timer::clearAll();
             CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
+            CoordinatorManager::clear(Constants::WORKER_EXIT);
 
             // Setup routes after application is created (providers are booted)
             $this->setUpApplicationRoutes($this->app);
@@ -52,59 +65,85 @@ class TestCase extends BaseTestCase
 
         parent::setUp();
 
+        $this->baseUrl = config('app.url', 'http://localhost');
+
         // Execute BeforeEach attributes INSIDE coroutine context
         // (matches where setUpTraits runs in Foundation TestCase)
         $this->runInCoroutine(fn () => $this->setUpTheTestEnvironmentUsingTestCase());
     }
 
     /**
-     * Define environment setup.
+     * Set up database-related testing traits.
+     *
+     * Wraps migration traits in setUpDatabaseRequirements() so that
+     * testbench attributes (RequiresDatabase, WithConfig, WithMigration)
+     * are processed before migrations run.
      */
-    protected function defineEnvironment(ApplicationContract $app): void
+    protected function setUpDatabaseTraits(array $uses): void
     {
-        $this->registerPackageProviders($app);
-        $this->registerPackageAliases($app);
+        $this->setUpDatabaseRequirements(function () use ($uses): void {
+            if (isset($uses[RefreshDatabase::class])) {
+                $this->refreshDatabase();
+            }
+
+            if (isset($uses[DatabaseMigrations::class])) {
+                $this->runDatabaseMigrations();
+            }
+        });
+
+        if (isset($uses[DatabaseTransactions::class])) {
+            $this->beginDatabaseTransaction();
+        }
     }
 
-    protected function createApplication(): ApplicationContract
+    /**
+     * Refresh the application instance.
+     */
+    protected function refreshApplication(): void
     {
-        $app = new Application();
-        $app->bind(KernelContract::class, ConsoleKernel::class);
-        $app->bind(ExceptionHandlerContract::class, ExceptionHandler::class);
-
-        ApplicationContext::setContainer($app);
-
-        return $app;
+        $this->app = $this->createApplication();
     }
 
+    /**
+     * Clean up the testing environment before the next test.
+     */
     protected function tearDown(): void
     {
         // Execute AfterEach attributes INSIDE coroutine context
         $this->runInCoroutine(fn () => $this->tearDownTheTestEnvironmentUsingTestCase());
 
         parent::tearDown();
-
-        Queue::createPayloadUsing(null);
     }
 
     /**
-     * Reload the application instance.
+     * Prepare the testing environment before the running the test case.
      */
-    protected function reloadApplication(): void
-    {
-        $this->tearDown();
-        $this->setUp();
-    }
-
     public static function setUpBeforeClass(): void
     {
-        parent::setUpBeforeClass();
+        static::setUpBeforeClassUsingPHPUnit();
+
+        /* @phpstan-ignore class.notFound */
+        if (static::usesTestingConcern(WithPest::class)) {
+            static::setUpBeforeClassUsingPest(); /* @phpstan-ignore staticMethod.notFound */
+        }
+
         static::setUpBeforeClassUsingTestCase();
+        static::setUpBeforeClassUsingWorkbench();
     }
 
+    /**
+     * Clean up the testing environment before the next test case.
+     */
     public static function tearDownAfterClass(): void
     {
+        static::tearDownAfterClassUsingWorkbench();
         static::tearDownAfterClassUsingTestCase();
-        parent::tearDownAfterClass();
+
+        /* @phpstan-ignore class.notFound */
+        if (static::usesTestingConcern(WithPest::class)) {
+            static::tearDownAfterClassUsingPest(); /* @phpstan-ignore staticMethod.notFound */
+        }
+
+        static::tearDownAfterClassUsingPHPUnit();
     }
 }

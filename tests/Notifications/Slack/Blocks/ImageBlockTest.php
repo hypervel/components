@@ -8,10 +8,6 @@ use Hypervel\Notifications\Slack\BlockKit\Blocks\ImageBlock;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ImageBlockTest extends TestCase
 {
     public function testArrayable(): void

@@ -9,10 +9,6 @@ use Hypervel\Permission\Models\Role;
 use Hypervel\Permission\PermissionManager;
 use Hypervel\Tests\Permission\Models\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class PermissionManagerTest extends PermissionTestCase
 {
     protected PermissionManager $manager;
@@ -31,7 +27,7 @@ class PermissionManagerTest extends PermissionTestCase
     {
         parent::setUp();
 
-        $this->manager = $this->app->get(PermissionManager::class);
+        $this->manager = $this->app->make(PermissionManager::class);
 
         // Create test user
         $this->user = User::create([
@@ -43,13 +39,11 @@ class PermissionManagerTest extends PermissionTestCase
         $this->viewPermission = Permission::create([
             'name' => 'view',
             'guard_name' => 'web',
-            'is_forbidden' => false,
         ]);
 
         $this->editPermission = Permission::create([
             'name' => 'edit',
             'guard_name' => 'web',
-            'is_forbidden' => false,
         ]);
 
         // Create test roles

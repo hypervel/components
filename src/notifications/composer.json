@@ -5,7 +5,6 @@
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
         "notifications",
         "swoole",
         "hypervel"
@@ -14,6 +13,10 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "support": {
@@ -26,34 +29,37 @@
         }
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/config": "~3.1.0",
-        "hyperf/stringable": "~3.1.0",
-        "hyperf/contract": "~3.1.0",
-        "hyperf/collection": "~3.1.0",
-        "hyperf/context": "~3.1.0",
-        "hyperf/database": "~3.1.0",
-        "hyperf/di": "~3.1.0",
-        "hypervel/broadcasting": "^0.3",
-        "hypervel/support": "^0.3",
-        "hypervel/mail": "^0.3",
-        "hypervel/queue": "^0.3",
-        "hypervel/object-pool": "^0.3"
+        "php": "^8.4",
+        "guzzlehttp/guzzle": "^7.8.2",
+        "psr/http-message": "^2.0",
+        "symfony/mailer": "^8.0",
+        "hypervel/broadcasting": "^0.4",
+        "hypervel/bus": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/config": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/mail": "^0.4",
+        "hypervel/object-pool": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Notifications\\ConfigProvider"
-        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Notifications\\NotificationServiceProvider"
             ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

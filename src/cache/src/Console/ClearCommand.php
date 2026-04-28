@@ -4,19 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Console;
 
-use Hyperf\Command\Command;
-use Hyperf\Support\Filesystem\Filesystem;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
-use Hypervel\Cache\Contracts\Repository;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use BadMethodCallException;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Filesystem\Filesystem;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 
+#[AsCommand(name: 'cache:clear')]
 class ClearCommand extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command name.
      */
@@ -28,26 +27,79 @@ class ClearCommand extends Command
     protected string $description = 'Flush the application cache';
 
     /**
+     * Create a new cache clear command instance.
+     */
+    public function __construct(
+        protected CacheManager $cache,
+        protected Filesystem $files,
+    ) {
+        parent::__construct();
+    }
+
+    /**
      * Execute the console command.
      */
-    public function handle(): ?int
+    public function handle(): int
     {
-        $this->app->get(EventDispatcherInterface::class)
-            ->dispatch('cache:clearing', [$this->argument('store'), $this->tags()]);
-
-        if (! $this->cache()->getStore()->flush()) {
-            $this->error('Failed to clear cache. Make sure you have the appropriate permissions.');
-            return 1;
+        if ($this->option('locks')) {
+            return $this->clearLocks();
         }
 
-        $this->flushRuntime();
+        $this->hypervel['events']->dispatch(
+            'cache:clearing',
+            [$this->argument('store'), $this->tags()]
+        );
 
-        $this->app->get(EventDispatcherInterface::class)
-            ->dispatch('cache:cleared', [$this->argument('store'), $this->tags()]);
+        /** @phpstan-ignore method.notFound (flush() is on TaggedCache or via __call to the store) */
+        $successful = $this->cache()->flush();
 
-        $this->info('Application cache cleared successfully.');
+        $this->flushProxies();
 
-        return 0;
+        if (! $successful) {
+            $this->components->error('Failed to clear cache. Make sure you have the appropriate permissions.');
+
+            return self::FAILURE;
+        }
+
+        $this->hypervel['events']->dispatch(
+            'cache:cleared',
+            [$this->argument('store'), $this->tags()]
+        );
+
+        $this->components->info('Application cache cleared successfully.');
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Clear all locks from the cache store.
+     */
+    protected function clearLocks(): int
+    {
+        if (! empty($this->tags())) {
+            $this->components->error('Cache tags cannot be used when clearing locks.');
+
+            return self::FAILURE;
+        }
+
+        try {
+            /** @phpstan-ignore method.notFound (flushLocks() is on the concrete Repository, not the contract) */
+            $successful = $this->cache()->flushLocks();
+        } catch (BadMethodCallException) {
+            $this->components->error('This cache store does not support clearing locks.');
+
+            return self::FAILURE;
+        }
+
+        if (! $successful) {
+            $this->components->error('Failed to clear cache locks. Make sure you have the appropriate permissions.');
+
+            return self::FAILURE;
+        }
+
+        $this->components->info('Application cache locks cleared successfully.');
+
+        return self::SUCCESS;
     }
 
     /**
@@ -55,19 +107,18 @@ class ClearCommand extends Command
      */
     protected function cache(): Repository
     {
-        $cache = $this->app->get(CacheContract::class)
-            ->store($this->argument('store'));
+        $cache = $this->cache->store($this->argument('store'));
 
+        /* @phpstan-ignore method.notFound (tags() is on TaggableStore, not the contract) */
         return empty($this->tags()) ? $cache : $cache->tags($this->tags());
     }
 
     /**
-     * Flush the runtime cache directory.
+     * Flush the AOP proxy cache directory.
      */
-    protected function flushRuntime(): void
+    public function flushProxies(): void
     {
-        $this->app->get(Filesystem::class)
-            ->deleteDirectory(BASE_PATH . '/runtime/container');
+        $this->files->deleteDirectory(storage_path('framework/aop'));
     }
 
     /**
@@ -79,7 +130,7 @@ class ClearCommand extends Command
     }
 
     /**
-     *  Get the console command arguments.
+     * Get the console command arguments.
      */
     protected function getArguments(): array
     {
@@ -95,6 +146,7 @@ class ClearCommand extends Command
     {
         return [
             ['tags', null, InputOption::VALUE_OPTIONAL, 'The cache tags you would like to clear', null],
+            ['locks', null, InputOption::VALUE_NONE, 'Only clear cache locks'],
         ];
     }
 }

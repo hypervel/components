@@ -6,8 +6,7 @@ namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\Socialite\Fixtures\GoogleTestProviderStub;
 use Hypervel\Tests\TestCase;
@@ -15,17 +14,12 @@ use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class GoogleProviderTest extends TestCase
 {
     public function testMapUserFromAccessToken()
     {
         $provider = new GoogleTestProviderStub(
-            m::mock(RequestContract::class),
-            m::mock(ResponseContract::class),
+            m::mock(Request::class),
             'client_id',
             'client_secret',
             'redirect_uri'

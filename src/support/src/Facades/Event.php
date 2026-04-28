@@ -4,37 +4,47 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hyperf\Database\Model\Register;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Testing\Fakes\EventFake;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
- * @method static object|string dispatch(object|string $event, mixed $payload = [], bool $halt = false)
- * @method static void listen(\Closure|\Hypervel\Event\QueuedClosure|array|string $events, \Closure|\Hypervel\Event\QueuedClosure|array|string|int|null $listener = null, int $priority = 0)
- * @method static object|string until(object|string $event, mixed $payload = [])
- * @method static iterable getListeners(object|string $eventName)
- * @method static void push(string $event, mixed $payload = [])
- * @method static void flush(string $event)
- * @method static void forgetPushed()
- * @method static void forget(string $event)
+ * @method static void listen(\Closure|\Hypervel\Events\QueuedClosure|array|string $events, object|array|string|null $listener = null)
+ * @method static void observe(array|string $events, object|array|string $observer)
  * @method static bool hasListeners(string $eventName)
  * @method static bool hasWildcardListeners(string $eventName)
- * @method static \Hypervel\Event\EventDispatcher setQueueResolver(callable $resolver)
- * @method static \Hypervel\Event\EventDispatcher setTransactionManagerResolver(callable $resolver)
+ * @method static void push(string $event, mixed $payload = [])
+ * @method static void flush(string $event)
  * @method static void subscribe(object|string $subscriber)
+ * @method static mixed until(object|string $event, mixed $payload = [])
+ * @method static mixed dispatch(object|string $event, mixed $payload = [], bool $halt = false)
+ * @method static array getListeners(string $eventName)
+ * @method static array getObservers(string $eventName)
+ * @method static \Closure makeListener(object|array|string $listener, bool $wildcard = false)
+ * @method static \Closure createClassListener(array|string $listener, bool $wildcard = false)
+ * @method static void forget(string $event)
+ * @method static void forgetPushed()
+ * @method static \Hypervel\Events\Dispatcher setQueueResolver(callable $resolver)
+ * @method static \Hypervel\Events\Dispatcher setTransactionManagerResolver(callable $resolver)
+ * @method static mixed defer(callable $callback, null|string[] $events = null)
  * @method static array getRawListeners()
- * @method static mixed defer(callable $callback, array|null $events = null)
+ * @method static void macro(string $name, callable|object $macro)
+ * @method static void mixin(object $mixin, bool $replace = true)
+ * @method static bool hasMacro(string $name)
+ * @method static void flushMacros()
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
+ * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static \Hypervel\Support\Testing\Fakes\EventFake except(array|string $eventsToDispatch)
- * @method static void assertListening(string $expectedEvent, string $expectedListener)
+ * @method static void assertListening(string $expectedEvent, array|string $expectedListener)
  * @method static void assertDispatched(\Closure|string $event, callable|int|null $callback = null)
+ * @method static void assertDispatchedOnce(string $event)
  * @method static void assertDispatchedTimes(string $event, int $times = 1)
  * @method static void assertNotDispatched(\Closure|string $event, callable|null $callback = null)
  * @method static void assertNothingDispatched()
- * @method static \Hyperf\Collection\Collection dispatched(string $event, callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection dispatched(string $event, callable|null $callback = null)
  * @method static bool hasDispatched(string $event)
  * @method static array dispatchedEvents()
  *
- * @see \Hypervel\Event\EventDispatcher
+ * @see \Hypervel\Events\Dispatcher
  * @see \Hypervel\Support\Testing\Fakes\EventFake
  */
 class Event extends Facade
@@ -44,12 +54,16 @@ class Event extends Facade
      */
     public static function fake(array|string $eventsToFake = []): EventFake
     {
-        static::swap($fake = new EventFake(static::getFacadeRoot(), $eventsToFake));
+        $actualDispatcher = static::isFake()
+            ? static::getFacadeRoot()->dispatcher
+            : static::getFacadeRoot();
 
-        Register::setEventDispatcher($fake);
-        Cache::refreshEventDispatcher();
+        return tap(new EventFake($actualDispatcher, $eventsToFake), function ($fake) {
+            static::swap($fake);
 
-        return $fake;
+            Model::setEventDispatcher($fake);
+            Cache::refreshEventDispatcher();
+        });
     }
 
     /**
@@ -73,12 +87,14 @@ class Event extends Facade
 
         static::fake($eventsToFake);
 
-        return tap($callable(), function () use ($originalDispatcher) {
+        try {
+            return $callable();
+        } finally {
             static::swap($originalDispatcher);
 
-            Register::setEventDispatcher($originalDispatcher);
+            Model::setEventDispatcher($originalDispatcher);
             Cache::refreshEventDispatcher();
-        });
+        }
     }
 
     /**
@@ -90,16 +106,18 @@ class Event extends Facade
 
         static::fakeExcept($eventsToAllow);
 
-        return tap($callable(), function () use ($originalDispatcher) {
+        try {
+            return $callable();
+        } finally {
             static::swap($originalDispatcher);
 
-            Register::setEventDispatcher($originalDispatcher);
+            Model::setEventDispatcher($originalDispatcher);
             Cache::refreshEventDispatcher();
-        });
+        }
     }
 
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return EventDispatcherInterface::class;
+        return 'events';
     }
 }

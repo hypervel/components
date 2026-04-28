@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hyperf\Support\Traits\ForwardsCalls;
-use Hypervel\Mail\Contracts\Attachable;
+use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Support\Traits\ForwardsCalls;
 
 /**
  * @mixin Message
@@ -43,11 +43,6 @@ class TextMessage
      */
     public function __call(string $method, array $parameters)
     {
-        $result = $this->forwardCallTo($this->message, $method, $parameters);
-        if ($result === $this->message) {
-            return $this;
-        }
-
-        return $result;
+        return $this->forwardDecoratedCallTo($this->message, $method, $parameters);
     }
 }

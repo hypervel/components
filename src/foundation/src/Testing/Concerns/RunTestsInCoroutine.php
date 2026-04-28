@@ -4,48 +4,61 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hyperf\Coordinator\Constants;
-use Hyperf\Coordinator\CoordinatorManager;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\Eloquent\Model;
 use Swoole\Coroutine;
 use Swoole\Timer;
 use Throwable;
 
 use function Hypervel\Coroutine\run;
 
-/**
- * @method string name()
- */
 trait RunTestsInCoroutine
 {
-    protected bool $enableCoroutine = true;
+    protected bool $runTestsInCoroutine = true;
 
     protected bool $copyNonCoroutineContext = true;
 
-    protected string $realTestName = '';
-
-    final protected function runTestsInCoroutine(...$arguments)
+    /**
+     * Invoke the test method inside a Swoole coroutine container.
+     *
+     * Uses PHPUnit 13's official extension point for customizing test method
+     * invocation. When coroutines are enabled and we're not already inside one,
+     * the test method runs inside Hypervel's coroutine container with full
+     * lifecycle management (context copying, setup/teardown hooks, cleanup).
+     *
+     * @param array<mixed> $testArguments
+     */
+    protected function invokeTestMethod(string $methodName, array $testArguments): mixed
     {
-        parent::setName($this->realTestName);
+        if (Coroutine::getCid() !== -1 || ! $this->runTestsInCoroutine) {
+            return parent::invokeTestMethod($methodName, $testArguments);
+        }
 
         $testResult = null;
         $exception = null;
 
         /* @phpstan-ignore-next-line */
-        run(function () use (&$testResult, &$exception, $arguments) {
+        run(function () use (&$testResult, &$exception, $methodName, $testArguments) {
+            $this->clearNonCoroutineTransactionContext();
+
             if ($this->copyNonCoroutineContext) {
-                Context::copyFromNonCoroutine();
+                CoroutineContext::copyFromNonCoroutine();
             }
 
             try {
                 $this->invokeSetupInCoroutine();
-                $testResult = $this->{$this->realTestName}(...$arguments);
+                $testResult = $this->{$methodName}(...$testArguments);
             } catch (Throwable $e) {
                 $exception = $e;
             } finally {
                 $this->invokeTearDownInCoroutine();
+                $this->cleanupTestContext();
                 Timer::clearAll();
                 CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
+                CoordinatorManager::clear(Constants::WORKER_EXIT);
             }
         });
 
@@ -56,18 +69,16 @@ trait RunTestsInCoroutine
         return $testResult;
     }
 
-    final protected function runTest(): mixed
-    {
-        if (Coroutine::getCid() === -1 && $this->enableCoroutine) {
-            $this->realTestName = $this->name();
-            parent::setName('runTestsInCoroutine');
-        }
-
-        return parent::runTest();
-    }
-
     protected function invokeSetupInCoroutine(): void
     {
+        // Call trait-specific coroutine setup methods (e.g., setUpDatabaseTransactionsInCoroutine)
+        foreach (class_uses_recursive(static::class) as $trait) {
+            $method = 'setUp' . class_basename($trait) . 'InCoroutine';
+            if (method_exists($this, $method)) {
+                $this->{$method}();
+            }
+        }
+
         if (method_exists($this, 'setUpInCoroutine')) {
             call_user_func([$this, 'setUpInCoroutine']);
         }
@@ -78,5 +89,45 @@ trait RunTestsInCoroutine
         if (method_exists($this, 'tearDownInCoroutine')) {
             call_user_func([$this, 'tearDownInCoroutine']);
         }
+
+        // Call trait-specific coroutine teardown methods (e.g., tearDownDatabaseTransactionsInCoroutine)
+        foreach (class_uses_recursive(static::class) as $trait) {
+            $method = 'tearDown' . class_basename($trait) . 'InCoroutine';
+            if (method_exists($this, $method)) {
+                $this->{$method}();
+            }
+        }
+    }
+
+    /**
+     * Clear transaction context from non-coroutine storage before test starts.
+     *
+     * RefreshDatabase starts its wrapper transaction in setUp() (outside coroutine),
+     * storing it in nonCoroutineContext. We must preserve this data for copying into the
+     * coroutine. Only clear if there are no pending transactions (meaning any data
+     * is stale from a previous test that didn't clean up properly).
+     */
+    protected function clearNonCoroutineTransactionContext(): void
+    {
+        if (DatabaseTransactionsManager::hasNonCoroutinePendingTransactions()) {
+            return;
+        }
+
+        DatabaseTransactionsManager::clearNonCoroutineState();
+    }
+
+    /**
+     * Clean up Context keys that cause test pollution.
+     *
+     * Only forgets specific keys known to leak between tests. Does not use
+     * CoroutineContext::flush() because that would flush data needed by defer
+     * callbacks (e.g., Redis connections waiting to be released).
+     */
+    protected function cleanupTestContext(): void
+    {
+        DatabaseTransactionsManager::flushState();
+
+        // Model guard state
+        CoroutineContext::forget(Model::UNGUARDED_CONTEXT_KEY);
     }
 }

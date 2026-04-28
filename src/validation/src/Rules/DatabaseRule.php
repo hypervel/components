@@ -6,8 +6,8 @@ namespace Hypervel\Validation\Rules;
 
 use BackedEnum;
 use Closure;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Database\Model\Model;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 
 use function Hypervel\Support\enum_value;
@@ -54,7 +54,7 @@ trait DatabaseRule
         }
 
         if (is_subclass_of($table, Model::class)) {
-            $model = new $table();
+            $model = new $table;
 
             if (str_contains($model->getTable(), '.')) {
                 return $table;
@@ -178,6 +178,21 @@ trait DatabaseRule
     public function queryCallbacks(): array
     {
         return $this->using;
+    }
+
+    /**
+     * Get the database presence rule metadata.
+     *
+     * @return array{table: string, column: string, wheres: array<int, array<string, mixed>>, using: array<int, mixed>}
+     */
+    public function presenceMetadata(): array
+    {
+        return [
+            'table' => $this->table,
+            'column' => $this->column,
+            'wheres' => $this->wheres,
+            'using' => $this->using,
+        ];
     }
 
     /**

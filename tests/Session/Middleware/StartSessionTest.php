@@ -8,10 +8,6 @@ use Hypervel\Session\Middleware\StartSession;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class StartSessionTest extends TestCase
 {
     public function testGetSessionCookieConfigReturnsDefaults(): void
@@ -22,7 +18,7 @@ class StartSessionTest extends TestCase
 
         $this->assertSame('/', $config['path']);
         $this->assertSame('', $config['domain']);
-        $this->assertFalse($config['secure']);
+        $this->assertNull($config['secure']);
         $this->assertTrue($config['http_only']);
         $this->assertNull($config['same_site']);
         $this->assertFalse($config['partitioned']);
@@ -51,7 +47,7 @@ class StartSessionTest extends TestCase
 
     public function testGetSessionCookieConfigCanBeOverridden(): void
     {
-        $middleware = new CustomStartSession();
+        $middleware = new CustomStartSession;
 
         $config = $this->invokeGetSessionCookieConfig($middleware, [
             'path' => '/',
@@ -66,9 +62,7 @@ class StartSessionTest extends TestCase
 
     private function createStartSessionMock(): StartSession
     {
-        return $this->getMockBuilder(StartSession::class)
-            ->disableOriginalConstructor()
-            ->getMock();
+        return new TestStartSession;
     }
 
     private function invokeGetSessionCookieConfig(StartSession $middleware, array $config): array
@@ -98,5 +92,13 @@ class CustomStartSession extends StartSession
         $cookieConfig['domain'] = '.custom.example.com';
 
         return $cookieConfig;
+    }
+}
+
+class TestStartSession extends StartSession
+{
+    public function __construct()
+    {
+        // Skip parent constructor for testing.
     }
 }

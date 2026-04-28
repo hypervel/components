@@ -8,9 +8,6 @@ use Hypervel\Http\Request;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Storage\EntryQueryOptions;
 
-use function Hypervel\Cache\cache;
-use function Hypervel\Config\config;
-
 abstract class EntryController
 {
     /**

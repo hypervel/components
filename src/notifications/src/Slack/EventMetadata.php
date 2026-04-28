@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Slack;
 
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 
 class EventMetadata implements Arrayable
 {

@@ -4,27 +4,28 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
-use Hypervel\Bus\PendingChain;
-use Hypervel\Bus\PendingDispatch;
+use Hypervel\Bus\BatchRepository;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Foundation\Bus\PendingChain;
 use Hypervel\Support\Testing\Fakes\BusFake;
-
-use function Hyperf\Tappable\tap;
 
 /**
  * @method static mixed dispatch(mixed $command)
  * @method static mixed dispatchSync(mixed $command, mixed $handler = null)
  * @method static mixed dispatchNow(mixed $command, mixed $handler = null)
  * @method static \Hypervel\Bus\Batch|null findBatch(string $batchId)
- * @method static \Hypervel\Bus\PendingBatch batch(array|\Hyperf\Collection\Collection|mixed $jobs)
- * @method static \Hypervel\Bus\PendingChain chain(\Hyperf\Collection\Collection|array $jobs)
+ * @method static \Hypervel\Bus\PendingBatch batch(mixed $jobs)
+ * @method static \Hypervel\Foundation\Bus\PendingChain chain(mixed $jobs = null)
  * @method static bool hasCommandHandler(mixed $command)
  * @method static bool|mixed getCommandHandler(mixed $command)
  * @method static mixed dispatchToQueue(mixed $command)
  * @method static void dispatchAfterResponse(mixed $command, mixed $handler = null)
  * @method static \Hypervel\Bus\Dispatcher pipeThrough(array $pipes)
  * @method static \Hypervel\Bus\Dispatcher map(array $map)
+ * @method static \Hypervel\Bus\Dispatcher withDispatchingAfterResponses()
+ * @method static \Hypervel\Bus\Dispatcher withoutDispatchingAfterResponses()
+ * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
+ * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static \Hypervel\Support\Testing\Fakes\BusFake except(array|string $jobsToDispatch)
  * @method static void assertDispatched(\Closure|string $command, callable|int|null $callback = null)
  * @method static void assertDispatchedTimes(\Closure|string $command, int $times = 1)
@@ -44,10 +45,10 @@ use function Hyperf\Tappable\tap;
  * @method static void assertBatchCount(int $count)
  * @method static void assertNothingBatched()
  * @method static void assertNothingPlaced()
- * @method static \Hyperf\Collection\Collection dispatched(string $command, callable|null $callback = null)
- * @method static \Hyperf\Collection\Collection dispatchedSync(string $command, callable|null $callback = null)
- * @method static \Hyperf\Collection\Collection dispatchedAfterResponse(string $command, callable|null $callback = null)
- * @method static \Hyperf\Collection\Collection batched(callable $callback)
+ * @method static \Hypervel\Support\Collection dispatched(string $command, callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection dispatchedSync(string $command, callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection dispatchedAfterResponse(string $command, callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection batched(callable $callback)
  * @method static bool hasDispatched(string $command)
  * @method static bool hasDispatchedSync(string $command)
  * @method static bool hasDispatchedAfterResponse(string $command)
@@ -80,7 +81,7 @@ class Bus extends Facade
      *
      * @param array|mixed $jobs
      */
-    public static function dispatchChain(mixed $jobs): PendingDispatch
+    public static function dispatchChain(mixed $jobs): mixed
     {
         $jobs = is_array($jobs) ? $jobs : func_get_args();
 
@@ -90,10 +91,8 @@ class Bus extends Facade
 
     /**
      * Get the registered name of the component.
-     *
-     * @return string
      */
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return BusDispatcherContract::class;
     }

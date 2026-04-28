@@ -13,10 +13,6 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class DataObjectTest extends TestCase
 {
     /**
@@ -30,7 +26,7 @@ class DataObjectTest extends TestCase
             'float_value' => '3.14', // String that should be converted to float
             'bool_value' => 1, // Int that should be converted to bool
             'array_value' => ['item1', 'item2'],
-            'object_value' => new stdClass(),
+            'object_value' => new stdClass,
         ];
 
         $object = TestDataObject::make($data);
@@ -57,7 +53,7 @@ class DataObjectTest extends TestCase
             'float_value' => '3.14', // String that should be converted to float
             'bool_value' => 1, // Int that should be converted to bool
             'array_value' => ['item1', 'item2'],
-            'object_value' => new stdClass(),
+            'object_value' => new stdClass,
         ];
 
         $object = TestDataObject::make($data);
@@ -91,7 +87,7 @@ class DataObjectTest extends TestCase
             'float_value' => '3.14', // String that should be converted to float
             'bool_value' => 1, // Int that should be converted to bool
             'array_value' => ['item1', 'item2'],
-            'object_value' => new stdClass(),
+            'object_value' => new stdClass,
         ];
 
         $object = TestDataObject::make($data);
@@ -390,7 +386,7 @@ class DataObjectTest extends TestCase
             'float_value' => 3.14,
             'bool_value' => true,
             'array_value' => ['item1', 'item2'],
-            'object_value' => new stdClass(),
+            'object_value' => new stdClass,
         ];
     }
 }

@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Hyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 use stdClass;
 
+/**
+ * @property int $id
+ * @property string $payload
+ * @property int $attempts
+ */
 class DatabaseJobRecord
 {
     use InteractsWithTime;

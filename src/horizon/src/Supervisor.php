@@ -7,8 +7,8 @@ namespace Hypervel\Horizon;
 use Carbon\CarbonImmutable;
 use Closure;
 use Exception;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
 use Hypervel\Horizon\Contracts\Pausable;
 use Hypervel\Horizon\Contracts\Restartable;
@@ -17,6 +17,8 @@ use Hypervel\Horizon\Contracts\Terminable;
 use Hypervel\Horizon\Events\SupervisorLooped;
 use Hypervel\Support\Collection;
 use Throwable;
+
+use function Hypervel\Coroutine\go;
 
 class Supervisor implements Pausable, Restartable, Terminable
 {
@@ -262,7 +264,24 @@ class Supervisor implements Pausable, Restartable, Terminable
             // Next, we'll persist the supervisor state to storage so that it can be read by a
             // user interface. This contains information on the specific options for it and
             // the current number of worker processes per queue for easy load monitoring.
-            go(fn () => $this->persist());
+            //
+            // Persistence is dispatched in a detached coroutine. Under Swoole
+            // the coroutine-hooked Redis write yields to the event loop; without
+            // this go() wrapper every loop iteration would block on that yield,
+            // which shifts worker lifecycle pacing enough to cause tearDown to
+            // exceed its retry budget in parallel tests. Callers that read
+            // persisted state immediately after loop() must retry for it (see
+            // the $this->wait(...) pattern in SupervisorTest) — a synchronous
+            // read can miss an uncommitted persist.
+            go(function (): void {
+                // Exceptions thrown inside a spawned coroutine are not caught by
+                // the parent loop() try/catch, so report them in this coroutine.
+                try {
+                    $this->persist();
+                } catch (Throwable $e) {
+                    app(ExceptionHandler::class)->report($e);
+                }
+            });
 
             event(new SupervisorLooped($this));
         } catch (Throwable $e) {

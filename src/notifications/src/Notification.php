@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
+use Hypervel\Queue\SerializesModels;
+
 class Notification
 {
+    use SerializesModels;
+
     /**
      * The unique identifier for the notification.
      */

@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Queue\Worker;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 class CacheWatcher extends Watcher
 {
@@ -25,13 +25,13 @@ class CacheWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Application $app): void
     {
         if (! static::$eventsEnabled) {
             return;
         }
 
-        $event = $app->get(EventDispatcherInterface::class);
+        $event = $app->make(Dispatcher::class);
 
         $event->listen(CacheHit::class, [$this, 'recordCacheHit']);
         $event->listen(CacheMissed::class, [$this, 'recordCacheMissed']);
@@ -43,9 +43,9 @@ class CacheWatcher extends Watcher
      * Enable Cache events.
      * This function needs to be called before the Cache is initialized.
      */
-    public static function enableCacheEvents(ContainerInterface $app): void
+    public static function enableCacheEvents(Application $app): void
     {
-        $config = $app->get(ConfigInterface::class);
+        $config = $app->make('config');
         foreach (array_keys($config->get('cache.stores', [])) as $store) {
             $config->set("cache.stores.{$store}.events", true);
         }
@@ -147,9 +147,10 @@ class CacheWatcher extends Watcher
      */
     private function shouldIgnore(mixed $event): bool
     {
-        return Str::is([
-            'illuminate:queue:restart',
+        return Str::is(array_merge($this->options['ignore'] ?? [], [
+            Worker::RESTART_SIGNAL_CACHE_KEY,
+            'framework/schedule*',
             'telescope:*',
-        ], $event->key);
+        ]), $event->key);
     }
 }

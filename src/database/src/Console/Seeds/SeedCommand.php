@@ -1,0 +1,141 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Database\Console\Seeds;
+
+use Hypervel\Console\Command;
+use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Console\Prohibitable;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\ConnectionResolver;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Seeder;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputOption;
+
+#[AsCommand(name: 'db:seed')]
+class SeedCommand extends Command
+{
+    use ConfirmableTrait;
+    use Prohibitable;
+
+    /**
+     * The console command name.
+     */
+    protected ?string $name = 'db:seed';
+
+    /**
+     * The console command description.
+     */
+    protected string $description = 'Seed the database with records';
+
+    /**
+     * The connection resolver instance.
+     */
+    protected ConnectionResolverInterface $resolver;
+
+    /**
+     * Create a new database seed command instance.
+     */
+    public function __construct(ConnectionResolverInterface $resolver)
+    {
+        parent::__construct();
+
+        $this->resolver = $resolver;
+    }
+
+    /**
+     * Execute the console command.
+     *
+     * The seed connection is applied via coroutine Context, mirroring the
+     * pattern used by Migrator and DatabaseManager::usingConnection(). No
+     * worker-global state is mutated; concurrent coroutines are unaffected.
+     */
+    public function handle(): int
+    {
+        if ($this->isProhibited()
+            || ! $this->confirmToProceed()) {
+            return Command::FAILURE;
+        }
+
+        $this->components->info('Seeding database.');
+
+        $previousContext = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+
+        try {
+            CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $this->getDatabase());
+
+            Model::unguarded(function () {
+                $this->getSeeder()->__invoke();
+            });
+        } finally {
+            if ($previousContext === null) {
+                CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
+            } else {
+                CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previousContext);
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * Get a seeder instance from the container.
+     */
+    protected function getSeeder(): Seeder
+    {
+        $class = $this->input->getArgument('class') ?? $this->input->getOption('class');
+
+        if (! str_contains($class, '\\')) {
+            $class = 'Database\Seeders\\' . $class;
+        }
+
+        if ($class === 'Database\Seeders\DatabaseSeeder'
+            && ! class_exists($class)) {
+            $class = 'DatabaseSeeder';
+        }
+
+        return $this->hypervel->make($class)
+            ->setContainer($this->hypervel)
+            ->setCommand($this);
+    }
+
+    /**
+     * Get the name of the database connection to use.
+     *
+     * Reads the current default via the resolver (which respects any active
+     * Context override) rather than going straight to config, so seeding
+     * honors scoped overrides applied by callers like Migrator::usingConnection().
+     */
+    protected function getDatabase(): string
+    {
+        $database = $this->input->getOption('database');
+
+        return $database ?: $this->resolver->getDefaultConnection();
+    }
+
+    /**
+     * Get the console command arguments.
+     */
+    protected function getArguments(): array
+    {
+        return [
+            ['class', InputArgument::OPTIONAL, 'The class name of the root seeder', null],
+        ];
+    }
+
+    /**
+     * Get the console command options.
+     */
+    protected function getOptions(): array
+    {
+        return [
+            ['class', null, InputOption::VALUE_OPTIONAL, 'The class name of the root seeder', 'Database\Seeders\DatabaseSeeder'],
+            ['database', null, InputOption::VALUE_OPTIONAL, 'The database connection to seed'],
+            ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],
+        ];
+    }
+}

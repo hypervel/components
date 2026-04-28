@@ -10,8 +10,11 @@ trait EventMap
      * All of the Horizon event / listener mappings.
      */
     protected array $events = [
-        Events\JobPushed::class => [
+        Events\JobPending::class => [
             Listeners\StoreJob::class,
+        ],
+
+        Events\JobPushed::class => [
             Listeners\StoreMonitoredTags::class,
         ],
 

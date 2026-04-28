@@ -4,35 +4,32 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
 
 /**
  * Base test case for Scout feature tests.
- *
- * @internal
- * @coversNothing
  */
 class ScoutTestCase extends TestCase
 {
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     protected bool $migrateRefresh = true;
 
-    protected ?ApplicationContract $app = null;
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            ScoutServiceProvider::class,
+        ];
+    }
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->app->register(ScoutServiceProvider::class);
-
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('scout', [
                 'driver' => 'collection',
                 'prefix' => '',

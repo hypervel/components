@@ -4,25 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Http;
 
-use Hypervel\Auth\Access\Gate;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Gate as GateContract;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Auth\Access\Gate as GateContract;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Http\Request;
 use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\TelescopeApplicationServiceProvider;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class AuthorizationTest extends FeatureTestCase
 {
-    protected function setUp(): void
+    protected function getPackageProviders(ApplicationContract $app): array
     {
-        parent::setUp();
-
-        $this->mockGate();
-        $this->loadServiceProviders();
+        return array_merge(
+            parent::getPackageProviders($app),
+            [TelescopeApplicationServiceProvider::class]
+        );
     }
 
     protected function tearDown(): void
@@ -40,7 +37,7 @@ class AuthorizationTest extends FeatureTestCase
 
     public function testCleanTelescopeInstallationDeniesAccessByDefaultForAnyAuthUser()
     {
-        $this->actingAs(new Authenticated());
+        $this->actingAs(new Authenticated);
 
         $this->post('/telescope/telescope-api/requests')
             ->assertStatus(403);
@@ -48,12 +45,12 @@ class AuthorizationTest extends FeatureTestCase
 
     public function testGuestsGetsUnauthorizedByGate()
     {
-        Telescope::auth(function (RequestContract $request) {
-            return $this->app->get(GateContract::class)
+        Telescope::auth(function (Request $request) {
+            return $this->app->make(GateContract::class)
                 ->check('viewTelescope', [$request->user()]);
         });
 
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->define('viewTelescope', function ($user) {
                 return false;
             });
@@ -64,14 +61,14 @@ class AuthorizationTest extends FeatureTestCase
 
     public function testAuthenticatedUserGetsAuthorizedByGate()
     {
-        $this->actingAs(new Authenticated());
+        $this->actingAs(new Authenticated);
 
-        Telescope::auth(function (RequestContract $request) {
-            return $this->app->get(GateContract::class)
+        Telescope::auth(function (Request $request) {
+            return $this->app->make(GateContract::class)
                 ->check('viewTelescope', [$request->user()]);
         });
 
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->define('viewTelescope', function (Authenticatable $user) {
                 return $user->getAuthIdentifier() === 'telescope-test';
             });
@@ -82,12 +79,12 @@ class AuthorizationTest extends FeatureTestCase
 
     public function testGuestsCanBeAuthorized()
     {
-        Telescope::auth(function (RequestContract $request) {
-            return $this->app->get(GateContract::class)
+        Telescope::auth(function (Request $request) {
+            return $this->app->make(GateContract::class)
                 ->check('viewTelescope', [$request->user()]);
         });
 
-        $this->app->get(GateContract::class)
+        $this->app->make(GateContract::class)
             ->define('viewTelescope', function (?Authenticatable $user) {
                 return true;
             });
@@ -115,15 +112,6 @@ class AuthorizationTest extends FeatureTestCase
         $this->post('/telescope/telescope-api/requests')
             ->assertSuccessful();
     }
-
-    protected function mockGate(): void
-    {
-        $gate = new Gate($this->app, function () {
-            return new Authenticated('email@foo.bar');
-        });
-
-        $this->app->set(GateContract::class, $gate);
-    }
 }
 
 class Authenticated implements Authenticatable
@@ -143,5 +131,24 @@ class Authenticated implements Authenticatable
     public function getAuthPassword(): string
     {
         return 'secret';
+    }
+
+    public function getAuthPasswordName(): string
+    {
+        return 'password';
+    }
+
+    public function getRememberToken(): ?string
+    {
+        return null;
+    }
+
+    public function setRememberToken(string $value): void
+    {
+    }
+
+    public function getRememberTokenName(): string
+    {
+        return 'remember_token';
     }
 }

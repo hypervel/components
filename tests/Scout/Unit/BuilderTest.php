@@ -4,22 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
-use Hyperf\Paginator\LengthAwarePaginator;
-use Hyperf\Paginator\Paginator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Pagination\Paginator;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\PaginatesEloquentModels;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
-use Hypervel\Scout\Engine;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class BuilderTest extends TestCase
 {
     public function testBuilderStoresQueryAndModel()

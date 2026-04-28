@@ -7,44 +7,27 @@ namespace Hypervel\Tests\Foundation\Http;
 use ArrayObject;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\Context;
 use Hypervel\Foundation\Http\Casts\AsDataObjectArray;
 use Hypervel\Foundation\Http\Casts\AsDataObjectCollection;
 use Hypervel\Foundation\Http\Casts\AsEnumArrayObject;
 use Hypervel\Foundation\Http\Casts\AsEnumCollection;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
 use Hypervel\Foundation\Http\FormRequest;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Support\Collection;
 use Hypervel\Support\DataObject;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Rule;
-use Mockery;
-use Psr\Http\Message\ServerRequestInterface;
-use Swow\Psr7\Message\ServerRequestPlusInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class CustomCastingTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     /**
      * Test enum casting.
      */
     public function testEnumCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'status' => 'active',
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new EnumCastingRequest($this->app);
+        $request = EnumCastingRequest::create('/', 'POST', ['status' => 'active']);
+        $request->setContainer($this->app);
+        $request->validateResolved();
 
         $status = $request->casted('status');
         $this->assertInstanceOf(UserStatus::class, $status);
@@ -56,16 +39,8 @@ class CustomCastingTest extends TestCase
      */
     public function testEnumCastingAll()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'status' => 'active',
-            'name' => 'Test',
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new EnumCastingRequest($this->app);
+        $request = EnumCastingRequest::create('/', 'POST', ['status' => 'active', 'name' => 'Test']);
+        $request->setContainer($this->app);
 
         // Use validate = false to avoid validation issues
         $data = $request->casted(null, false);
@@ -82,15 +57,8 @@ class CustomCastingTest extends TestCase
      */
     public function testCustomClassCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'price' => '1000',
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new CustomClassCastingRequest($this->app);
+        $request = CustomClassCastingRequest::create('/', 'POST', ['price' => '1000']);
+        $request->setContainer($this->app);
 
         $price = $request->casted('price', false);
         $this->assertInstanceOf(Money::class, $price);
@@ -103,15 +71,8 @@ class CustomCastingTest extends TestCase
      */
     public function testNullValueHandling()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'status' => null,
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new NullableEnumCastingRequest($this->app);
+        $request = NullableEnumCastingRequest::create('/', 'POST', ['status' => null]);
+        $request->setContainer($this->app);
 
         $status = $request->casted('status', false);
         $this->assertNull($status);
@@ -122,16 +83,9 @@ class CustomCastingTest extends TestCase
      */
     public function testNonExistentField()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'status' => 'active',
-            'name' => 'Test',
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new EnumCastingRequest($this->app);
+        $request = EnumCastingRequest::create('/', 'POST', ['status' => 'active', 'name' => 'Test']);
+        $request->setContainer($this->app);
+        $request->validateResolved();
 
         $nonExistent = $request->casted('non_existent');
         $this->assertNull($nonExistent);
@@ -142,15 +96,8 @@ class CustomCastingTest extends TestCase
      */
     public function testAsEnumArrayObjectCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'statuses' => ['active', 'inactive'],
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new EnumArrayObjectCastingRequest($this->app);
+        $request = EnumArrayObjectCastingRequest::create('/', 'POST', ['statuses' => ['active', 'inactive']]);
+        $request->setContainer($this->app);
 
         $statuses = $request->casted('statuses', false);
         $this->assertInstanceOf(ArrayObject::class, $statuses);
@@ -164,15 +111,8 @@ class CustomCastingTest extends TestCase
      */
     public function testAsEnumCollectionCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'statuses' => ['active', 'inactive', 'pending'],
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new EnumCollectionCastingRequest($this->app);
+        $request = EnumCollectionCastingRequest::create('/', 'POST', ['statuses' => ['active', 'inactive', 'pending']]);
+        $request->setContainer($this->app);
 
         $statuses = $request->casted('statuses', false);
         $this->assertInstanceOf(Collection::class, $statuses);
@@ -187,16 +127,8 @@ class CustomCastingTest extends TestCase
      */
     public function testCastedWithoutValidation()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'status' => 'active',
-            'extra_field' => 'extra_value',
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new EnumCastingRequest($this->app);
+        $request = EnumCastingRequest::create('/', 'POST', ['status' => 'active', 'extra_field' => 'extra_value']);
+        $request->setContainer($this->app);
 
         // Using validate = false should get data from raw input
         $status = $request->casted('status', false);
@@ -214,15 +146,8 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveIntCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'age' => '25',
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new PrimitiveCastingRequest($this->app);
+        $request = PrimitiveCastingRequest::create('/', 'POST', ['age' => '25']);
+        $request->setContainer($this->app);
 
         $age = $request->casted('age', false);
         $this->assertIsInt($age);
@@ -234,15 +159,8 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveFloatCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'price' => '19.99',
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new PrimitiveCastingRequest($this->app);
+        $request = PrimitiveCastingRequest::create('/', 'POST', ['price' => '19.99']);
+        $request->setContainer($this->app);
 
         $price = $request->casted('price', false);
         $this->assertIsFloat($price);
@@ -254,15 +172,8 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveBoolCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'is_active' => '1',
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new PrimitiveCastingRequest($this->app);
+        $request = PrimitiveCastingRequest::create('/', 'POST', ['is_active' => '1']);
+        $request->setContainer($this->app);
 
         $isActive = $request->casted('is_active', false);
         $this->assertIsBool($isActive);
@@ -274,15 +185,8 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveArrayCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'tags' => '["tag1","tag2"]',
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new PrimitiveCastingRequest($this->app);
+        $request = PrimitiveCastingRequest::create('/', 'POST', ['tags' => '["tag1","tag2"]']);
+        $request->setContainer($this->app);
 
         $tags = $request->casted('tags', false);
         $this->assertIsArray($tags);
@@ -294,15 +198,8 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveCollectionCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
-            'items' => json_encode(['item1', 'item2']),
-        ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new PrimitiveCastingRequest($this->app);
+        $request = PrimitiveCastingRequest::create('/', 'POST', ['items' => json_encode(['item1', 'item2'])]);
+        $request->setContainer($this->app);
 
         $items = $request->casted('items', false);
         $this->assertInstanceOf(Collection::class, $items);
@@ -314,17 +211,12 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveDatetimeCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
+        $request = DatetimeCastingRequest::create('/', 'POST', [
             'created_at' => 1705315800, // 2024-01-15 10:50:00 UTC
             'published_date' => '2024-01-15',
             'updated_timestamp' => '2024-01-15 10:50:00',
         ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new DatetimeCastingRequest($this->app);
+        $request->setContainer($this->app);
 
         // Test datetime casting
         $createdAt = $request->casted('created_at', false);
@@ -344,19 +236,39 @@ class CustomCastingTest extends TestCase
     }
 
     /**
+     * Test datetime casting preserves app timezone for Unix timestamps.
+     */
+    public function testDatetimeCastingPreservesAppTimezone()
+    {
+        $originalTimezone = date_default_timezone_get();
+        date_default_timezone_set('America/New_York');
+
+        try {
+            $request = DatetimeCastingRequest::create('/', 'POST', [
+                'created_at' => 1705315800,
+                'published_date' => '2024-01-15',
+                'updated_timestamp' => '2024-01-15 10:50:00',
+            ]);
+            $request->setContainer($this->app);
+
+            $createdAt = $request->casted('created_at', false);
+            $this->assertInstanceOf(CarbonInterface::class, $createdAt);
+            $this->assertSame('America/New_York', $createdAt->getTimezone()->getName());
+        } finally {
+            date_default_timezone_set($originalTimezone);
+        }
+    }
+
+    /**
      * Test DataObject casting with DataObject.
      */
     public function testDataObjectCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
+        $request = DataObjectCastingRequest::create('/', 'POST', [
             'contact' => ['name' => 'Jane', 'email' => 'jane@example.com'],
         ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new DataObjectCastingRequest($this->app);
+        $request->setContainer($this->app);
+        $request->validateResolved();
 
         $contact = $request->casted('contact');
         $this->assertInstanceOf(Contact::class, $contact);
@@ -369,18 +281,13 @@ class CustomCastingTest extends TestCase
      */
     public function testAsArrayObjectCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
+        $request = DataObjectArrayCastingRequest::create('/', 'POST', [
             'contacts' => [
                 ['name' => 'John', 'email' => 'john@example.com'],
                 ['name' => 'Jane', 'email' => 'jane@example.com'],
             ],
         ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new DataObjectArrayCastingRequest($this->app);
+        $request->setContainer($this->app);
 
         $contacts = $request->casted('contacts', false);
         $this->assertInstanceOf(ArrayObject::class, $contacts);
@@ -395,19 +302,14 @@ class CustomCastingTest extends TestCase
      */
     public function testAsCollectionCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getParsedBody')->andReturn([
+        $request = DataObjectCollectionCastingRequest::create('/', 'POST', [
             'products' => [
                 ['sku' => 'ABC123', 'name' => 'Product A', 'price' => 100],
                 ['sku' => 'DEF456', 'name' => 'Product B', 'price' => 200],
                 ['sku' => 'GHI789', 'name' => 'Product C', 'price' => 150],
             ],
         ]);
-        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
-        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
-        Context::set(ServerRequestInterface::class, $psrRequest);
-
-        $request = new DataObjectCollectionCastingRequest($this->app);
+        $request->setContainer($this->app);
 
         $products = $request->casted('products', false);
         $this->assertInstanceOf(Collection::class, $products);

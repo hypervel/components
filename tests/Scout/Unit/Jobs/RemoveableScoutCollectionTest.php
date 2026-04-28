@@ -7,15 +7,12 @@ namespace Hypervel\Tests\Scout\Unit\Jobs;
 use Hypervel\Scout\Jobs\RemoveableScoutCollection;
 use Hypervel\Tests\Scout\Models\CustomScoutKeyModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
-use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Scout\ScoutTestCase;
 
 /**
  * Tests for RemoveableScoutCollection.
- *
- * @internal
- * @coversNothing
  */
-class RemoveableScoutCollectionTest extends TestCase
+class RemoveableScoutCollectionTest extends ScoutTestCase
 {
     public function testGetQueueableIdsReturnsScoutKeys(): void
     {

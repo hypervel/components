@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Auth\Contracts\Authenticatable as UserContract;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Authenticatable as UserContract;
 
 trait InteractsWithAuthentication
 {
@@ -18,6 +17,18 @@ trait InteractsWithAuthentication
     }
 
     /**
+     * Clear the currently logged in user for the application.
+     */
+    public function actingAsGuest(?string $guard = null): static
+    {
+        $this->app['auth']->guard($guard)->forgetUser();
+
+        $this->app['auth']->shouldUse($guard);
+
+        return $this;
+    }
+
+    /**
      * Set the currently logged in user for the application.
      */
     public function be(UserContract $user, ?string $guard = null): static
@@ -26,12 +37,9 @@ trait InteractsWithAuthentication
             $user->wasRecentlyCreated = false;
         }
 
-        $this->app->get(AuthFactoryContract::class)
-            ->guard($guard)
-            ->setUser($user);
+        $this->app['auth']->guard($guard)->setUser($user);
 
-        $this->app->get(AuthFactoryContract::class)
-            ->shouldUse($guard);
+        $this->app['auth']->shouldUse($guard);
 
         return $this;
     }
@@ -61,10 +69,7 @@ trait InteractsWithAuthentication
      */
     protected function isAuthenticated(?string $guard = null): bool
     {
-        return $this->app
-            ->get(AuthFactoryContract::class)
-            ->guard($guard)
-            ->check();
+        return $this->app->make('auth')->guard($guard)->check();
     }
 
     /**
@@ -72,10 +77,7 @@ trait InteractsWithAuthentication
      */
     public function assertAuthenticatedAs(UserContract $user, ?string $guard = null): static
     {
-        $expected = $this->app
-            ->get(AuthFactoryContract::class)
-            ->guard($guard)
-            ->user();
+        $expected = $this->app->make('auth')->guard($guard)->user();
 
         $this->assertNotNull($expected, 'The current user is not authenticated.');
 
@@ -125,10 +127,7 @@ trait InteractsWithAuthentication
      */
     protected function hasCredentials(array $credentials, ?string $guard = null): bool
     {
-        $provider = $this->app
-            ->get(AuthFactoryContract::class)
-            ->guard($guard)
-            ->getProvider();
+        $provider = $this->app->make('auth')->guard($guard)->getProvider();
 
         $user = $provider->retrieveByCredentials($credentials);
 

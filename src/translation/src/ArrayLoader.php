@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Translation;
 
-use Hypervel\Translation\Contracts\Loader;
+use Hypervel\Contracts\Translation\Loader;
 
 class ArrayLoader implements Loader
 {

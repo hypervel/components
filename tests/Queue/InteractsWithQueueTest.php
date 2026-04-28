@@ -5,15 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
-use Hypervel\Queue\Contracts\Job;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\InteractsWithQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class InteractsWithQueueTest extends TestCase
 {
     public function testCreatesAnExceptionFromString()

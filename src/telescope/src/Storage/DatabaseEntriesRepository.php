@@ -5,11 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Storage;
 
 use DateTimeInterface;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\Context;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Exception\UniqueConstraintViolationException;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;
@@ -20,25 +19,33 @@ use Hypervel\Telescope\EntryUpdate;
 use Hypervel\Telescope\IncomingEntry;
 use Throwable;
 
-use function Hypervel\Config\config;
-
 class DatabaseEntriesRepository implements EntriesRepository, ClearableRepository, PrunableRepository, TerminableRepository
 {
     /**
-     * Create a new database repository.
-     *
-     * @param ConnectionResolverInterface $resolver the database connection resolver instance
-     * @param string $connection the database connection name that should be used
+     * Context key for the per-request monitored tags cache.
      */
-    public function __construct(
-        protected ConnectionResolverInterface $resolver,
-        protected ?string $connection = null,
-        protected ?int $chunkSize = null
-    ) {
-        $this->connection = $connection
-            ?? config('telescope.storage.database.connection', null);
-        $this->chunkSize = $chunkSize
-            ?? config('telescope.storage.database.chunk', 1000);
+    protected const MONITORED_TAGS_CONTEXT_KEY = '__telescope.monitored_tags';
+
+    /**
+     * The database connection name that should be used.
+     */
+    protected string $connection;
+
+    /**
+     * The number of entries that will be inserted at once into the database.
+     */
+    protected int $chunkSize = 1000;
+
+    /**
+     * Create a new database repository.
+     */
+    public function __construct(string $connection, ?int $chunkSize = null)
+    {
+        $this->connection = $connection;
+
+        if ($chunkSize) {
+            $this->chunkSize = $chunkSize;
+        }
     }
 
     /**
@@ -46,9 +53,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function find(mixed $id): EntryResult
     {
-        $entry = EntryModel::on($this->connection)
-            ->where('uuid', $id)
-            ->firstOrFail();
+        $entry = EntryModel::on($this->connection)->whereUuid($id)->firstOrFail(); // @phpstan-ignore method.notFound
 
         $tags = $this->table('telescope_entries_tags')
             ->where('entry_uuid', $id)
@@ -73,7 +78,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     public function get(?string $type, EntryQueryOptions $options): Collection
     {
         return EntryModel::on($this->connection)
-            ->withTelescopeOptions($type, $options) // @phpstan-ignore method.notFound
+            ->withTelescopeOptions($type, $options) // @phpstan-ignore method.notFound (scope method registered at runtime)
             ->take($options->limit)
             ->orderByDesc('sequence')
             ->get()->reject(function ($entry) {
@@ -141,14 +146,15 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
                 $this->table('telescope_entries')
                     ->where('type', EntryType::EXCEPTION)
                     ->where('family_hash', $exception->familyHash())
+                    ->where('should_display_on_index', true)
                     ->update(['should_display_on_index' => false]);
 
                 return array_merge($exception->toArray(), [
                     'family_hash' => $exception->familyHash(),
-                    'content' => json_encode(array_merge(
-                        $exception->content,
-                        ['occurrences' => $occurrences + 1]
-                    )),
+                    'content' => json_encode(
+                        array_merge($exception->content, ['occurrences' => $occurrences + 1]),
+                        JSON_INVALID_UTF8_SUBSTITUTE
+                    ),
                 ]);
             })->toArray());
         });
@@ -161,20 +167,37 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     protected function storeTags(Collection $results): void
     {
-        $results->chunk($this->chunkSize)->each(function ($chunked) {
-            try {
-                $this->table('telescope_entries_tags')->insert($chunked->flatMap(function ($tags, $uuid) {
-                    return Collection::make($tags)->map(function ($tag) use ($uuid) {
-                        return [
-                            'entry_uuid' => $uuid,
-                            'tag' => $tag,
-                        ];
-                    });
-                })->all());
-            } catch (UniqueConstraintViolationException $e) {
-                // Ignore tags that already exist...
+        $toInsert = [];
+
+        foreach ($results as $uuid => $tags) {
+            foreach ($tags as $tag) {
+                $toInsert[] = [
+                    'entry_uuid' => $uuid,
+                    'tag' => $tag,
+                ];
+
+                if (count($toInsert) >= $this->chunkSize) {
+                    $this->insertChunkOfTags($toInsert);
+                    $toInsert = [];
+                }
             }
-        });
+        }
+
+        if ($toInsert !== []) {
+            $this->insertChunkOfTags($toInsert);
+        }
+    }
+
+    /**
+     * Insert a chunk of tags, ignoring unique constraint violations.
+     */
+    protected function insertChunkOfTags(array $tags): void
+    {
+        try {
+            $this->table('telescope_entries_tags')->insert($tags);
+        } catch (UniqueConstraintViolationException $e) {
+            // Ignore tags that already exist...
+        }
     }
 
     /**
@@ -245,7 +268,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function getMonitorTags(): ?array
     {
-        return Context::get('telescope.monitored_tags', null);
+        return CoroutineContext::get(self::MONITORED_TAGS_CONTEXT_KEY, null);
     }
 
     /**
@@ -253,7 +276,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function setMonitorTags(?array $tags): void
     {
-        Context::set('telescope.monitored_tags', $tags);
+        CoroutineContext::set(self::MONITORED_TAGS_CONTEXT_KEY, $tags);
     }
 
     /**
@@ -364,10 +387,8 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
     /**
      * Get a query builder instance for the given table.
      */
-    protected function table(string $table): Builder
+    protected function table(string $table)
     {
-        return $this->resolver
-            ->connection($this->connection)
-            ->table($table);
+        return DB::connection($this->connection)->table($table);
     }
 }

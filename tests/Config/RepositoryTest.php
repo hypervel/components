@@ -5,13 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Config;
 
 use Hypervel\Config\Repository;
+use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class RepositoryTest extends TestCase
 {
     protected Repository $repository;
@@ -336,6 +333,14 @@ class RepositoryTest extends TestCase
         $this->expectExceptionMessageMatches('#Configuration value for key \[a.b\] must be an array, (.*) given.#');
 
         $this->repository->array('a.b');
+    }
+
+    public function testItGetsAsCollection(): void
+    {
+        $this->assertEquals(
+            new Collection(['aaa', 'zzz']),
+            $this->repository->collection('array')
+        );
     }
 
     public function testItGetsAsBoolean(): void

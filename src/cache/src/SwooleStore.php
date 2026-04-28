@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Carbon\Carbon;
 use Closure;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Support\Carbon;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use Swoole\Table;
@@ -156,6 +156,22 @@ class SwooleStore implements Store
     }
 
     /**
+     * Adjust the expiration time of a cached item.
+     */
+    public function touch(string $key, int $seconds): bool
+    {
+        $record = $this->getRecord($key);
+
+        if ($this->recordIsFalseOrExpired($record)) {
+            return false;
+        }
+
+        $record['expiration'] = $this->getCurrentTimestamp() + $seconds;
+
+        return $this->table->set($key, $record);
+    }
+
+    /**
      * Register a cache key that should be refreshed at a given interval (in minutes).
      */
     public function interval(string $key, Closure $resolver, int $seconds): void
@@ -302,15 +318,15 @@ class SwooleStore implements Store
         }
 
         if ($this->evictionPolicy === static::EVICTION_POLICY_LRU) {
-            return $this->removeRecordsByLRU();
+            return $this->removeRecordsByLRU(); // @phpstan-ignore method.void
         }
 
         if ($this->evictionPolicy === static::EVICTION_POLICY_LFU) {
-            return $this->removeRecordsByLFU();
+            return $this->removeRecordsByLFU(); // @phpstan-ignore method.void
         }
 
         if ($this->evictionPolicy === static::EVICTION_POLICY_TTL) {
-            return $this->removeRecordsByTTL();
+            return $this->removeRecordsByTTL(); // @phpstan-ignore method.void
         }
 
         throw new InvalidArgumentException("Eviction policy [{$this->evictionPolicy}] is not supported.");

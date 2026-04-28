@@ -23,16 +23,16 @@ You may configure your application's Redis settings via the `config/database.php
 
     'default' => [
         'host' => env('REDIS_HOST', 'localhost'),
-        'auth' => env('REDIS_AUTH', null),
+        'password' => env('REDIS_PASSWORD'),
         'port' => (int) env('REDIS_PORT', 6379),
-        'db' => (int) env('REDIS_DB', 0),
+        'database' => (int) env('REDIS_DB', 0),
     ],
 
     'queue' => [
         'host' => env('REDIS_HOST', 'localhost'),
-        'auth' => env('REDIS_AUTH', null),
+        'password' => env('REDIS_PASSWORD'),
         'port' => (int) env('REDIS_PORT', 6379),
-        'db' => (int) env('REDIS_DB', 0),
+        'database' => (int) env('REDIS_DB', 0),
     ],
 ],
 ```
@@ -47,9 +47,9 @@ If your application is utilizing a cluster of Redis servers, you should define t
 'redis' => [
     'default' => [
         'host' => env('REDIS_HOST', 'localhost'),
-        'auth' => env('REDIS_AUTH', null),
+        'password' => env('REDIS_PASSWORD'),
         'port' => (int) env('REDIS_PORT', 6379),
-        'db' => (int) env('REDIS_DB', 0),
+        'database' => (int) env('REDIS_DB', 0),
         'cluster' => [
             'enable' => true,
             'name' => 'mycluster',

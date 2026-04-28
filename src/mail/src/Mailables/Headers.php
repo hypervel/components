@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail\Mailables;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Conditionable\Conditionable;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Conditionable;
 
 class Headers
 {
@@ -61,8 +61,8 @@ class Headers
      */
     public function referencesString(): string
     {
-        return Collection::make($this->references)->map(function ($messageId) {
-            return Str::finish(Str::start($messageId, '<'), '>');
-        })->implode(' ');
+        return (new Collection($this->references))
+            ->map(fn ($messageId) => Str::of($messageId)->start('<')->finish('>')->value())
+            ->implode(' ');
     }
 }

@@ -5,18 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Queue\FailoverQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\RedisQueue;
 use Hypervel\Queue\SyncQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface as Dispatcher;
 
-/**
- * @internal
- * @coversNothing
- */
 class FailoverQueueTest extends TestCase
 {
     public function testPushFailsOverOnException()

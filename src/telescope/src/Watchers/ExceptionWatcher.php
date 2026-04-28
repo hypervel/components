@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Telescope\ExceptionContext;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingExceptionEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
 class ExceptionWatcher extends Watcher
@@ -20,9 +20,9 @@ class ExceptionWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Application $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->make(Dispatcher::class)
             ->listen(MessageLogged::class, [$this, 'recordException']);
     }
 
@@ -41,18 +41,24 @@ class ExceptionWatcher extends Watcher
             return Arr::only($item, ['file', 'line']);
         })->toArray();
 
+        $content = [
+            'class' => get_class($exception),
+            'file' => $exception->getFile(),
+            'line' => $exception->getLine(),
+            'message' => $exception->getMessage(),
+            'context' => transform(Arr::except($event->context, ['exception', 'telescope']), function ($context) {
+                return ! empty($context) ? $context : null;
+            }),
+            'trace' => $trace,
+            'line_preview' => ExceptionContext::get($exception),
+        ];
+
+        if ($event->extra) {
+            $content['extra'] = $event->extra;
+        }
+
         Telescope::recordException(
-            IncomingExceptionEntry::make($exception, [
-                'class' => get_class($exception),
-                'file' => $exception->getFile(),
-                'line' => $exception->getLine(),
-                'message' => $exception->getMessage(),
-                'context' => transform(Arr::except($event->context, ['exception', 'telescope']), function ($context) {
-                    return ! empty($context) ? $context : null;
-                }),
-                'trace' => $trace,
-                'line_preview' => ExceptionContext::get($exception),
-            ])->tags($this->tags($event))
+            IncomingExceptionEntry::make($exception, $content)->tags($this->tags($event))
         );
     }
 

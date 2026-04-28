@@ -7,45 +7,33 @@ namespace Hypervel\Tests\Mail;
 use Aws\Command;
 use Aws\Exception\AwsException;
 use Aws\SesV2\SesV2Client;
-use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
+use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\SesV2Transport;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailSesV2TransportTest extends TestCase
 {
-    protected function tearDown(): void
+    protected function setUp(): void
     {
-        m::close();
-
-        parent::tearDown();
+        parent::setUp();
+        $this->app->instance('view', m::mock(ViewFactory::class));
     }
 
     public function testGetTransport()
     {
-        $container = $this->mockContainer();
-        $container->get(ConfigInterface::class)->set('services.ses', [
+        $this->app->make('config')->set('services.ses', [
             'key' => 'foo',
             'secret' => 'bar',
             'region' => 'us-east-1',
         ]);
 
-        $manager = new MailManager($container);
+        $manager = new MailManager($this->app);
 
         /** @var \Hypervel\Mail\Transport\SesV2Transport $transport */
         $transport = $manager->createSymfonyTransport(['transport' => 'ses-v2']);
@@ -59,7 +47,7 @@ class MailSesV2TransportTest extends TestCase
 
     public function testSend()
     {
-        $message = new Email();
+        $message = new Email;
         $message->subject('Foo subject');
         $message->text('Bar body');
         $message->sender('myself@example.com');
@@ -67,6 +55,7 @@ class MailSesV2TransportTest extends TestCase
         $message->bcc('you@example.com');
         $message->replyTo(new Address('taylor@example.com', 'Taylor Otwell'));
         $message->getHeaders()->add(new MetadataHeader('FooTag', 'TagValue'));
+        $message->getHeaders()->addTextHeader('X-SES-LIST-MANAGEMENT-OPTIONS', 'contactListName=TestList;topicName=TestTopic');
 
         $client = m::mock(SesV2Client::class);
         $sesResult = m::mock();
@@ -78,8 +67,9 @@ class MailSesV2TransportTest extends TestCase
             ->with(m::on(function ($arg) {
                 return $arg['Source'] === 'myself@example.com'
                     && $arg['Destination']['ToAddresses'] === ['me@example.com', 'you@example.com']
+                    && $arg['ListManagementOptions'] === ['ContactListName' => 'TestList', 'TopicName' => 'TestTopic']
                     && $arg['EmailTags'] === [['Name' => 'FooTag', 'Value' => 'TagValue']]
-                    && strpos($arg['Content']['Raw']['Data'], 'Reply-To: Taylor Otwell <taylor@example.com>') !== false;
+                    && str_contains($arg['Content']['Raw']['Data'], 'Reply-To: Taylor Otwell <taylor@example.com>');
             }))
             ->andReturn($sesResult);
 
@@ -88,7 +78,7 @@ class MailSesV2TransportTest extends TestCase
 
     public function testSendError()
     {
-        $message = new Email();
+        $message = new Email;
         $message->subject('Foo subject');
         $message->text('Bar body');
         $message->sender('myself@example.com');
@@ -105,8 +95,7 @@ class MailSesV2TransportTest extends TestCase
 
     public function testSesV2LocalConfiguration()
     {
-        $container = $this->mockContainer();
-        $container->get(ConfigInterface::class)->set('mail', [
+        $this->app->make('config')->set('mail', [
             'mailers' => [
                 'ses' => [
                     'transport' => 'ses-v2',
@@ -120,13 +109,13 @@ class MailSesV2TransportTest extends TestCase
                 ],
             ],
         ]);
-        $container->get(ConfigInterface::class)->set('services', [
+        $this->app->make('config')->set('services', [
             'ses' => [
                 'region' => 'us-east-1',
             ],
         ]);
 
-        $manager = new MailManager($container);
+        $manager = new MailManager($this->app);
 
         /** @var \Hypervel\Mail\Mailer $mailer */
         $mailer = $manager->mailer('ses');
@@ -142,20 +131,5 @@ class MailSesV2TransportTest extends TestCase
                 ['Name' => 'Hypervel', 'Value' => 'Framework'],
             ],
         ], $transport->getOptions());
-    }
-
-    protected function mockContainer(): Container
-    {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => new Config([]),
-                ViewFactory::class => fn () => m::mock(ViewFactory::class),
-                EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
-            ])
-        );
-
-        ApplicationContext::setContainer($container);
-
-        return $container;
     }
 }

@@ -11,7 +11,6 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
-use Hypervel\Scout\Engine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
@@ -172,7 +171,7 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
 
                 return is_numeric($value)
                     ? sprintf('%s=%s', $key, $value)
-                    : sprintf('%s="%s"', $key, $value);
+                    : sprintf('%s="%s"', $key, addcslashes((string) $value, '"\\'));
             });
 
         $whereInOperators = [
@@ -271,7 +270,7 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
         /** @var EloquentCollection<int, Model&SearchableInterface> $scoutModels */
         $scoutModels = $model->getScoutModelsByIds($builder, $objectIds);
 
-        return $scoutModels
+        $mapped = $scoutModels
             ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds))
             ->map(function ($m) use ($results, $objectIdPositions) {
                 /** @var Model&SearchableInterface $m */
@@ -287,6 +286,8 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
             })
             ->sortBy(fn ($m) => $objectIdPositions[$m->getScoutKey()])
             ->values();
+
+        return $model->newCollection($mapped->all());
     }
 
     /**
@@ -406,22 +407,35 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
     }
 
     /**
-     * Delete all search indexes.
+     * Delete all search indexes, optionally scoped by uid prefix.
+     *
+     * When $prefix is non-empty, only indexes whose uid starts with $prefix
+     * are deleted. When $prefix is null (or empty string, which str_starts_with
+     * matches against every string), every index on the Meilisearch server
+     * is deleted.
      *
      * @return array<mixed>
      */
-    public function deleteAllIndexes(): array
+    public function deleteAllIndexes(?string $prefix = null): array
     {
         $tasks = [];
         $limit = 1000000;
 
-        $query = new IndexesQuery();
+        $query = new IndexesQuery;
         $query->setLimit($limit);
 
         $indexes = $this->meilisearch->getIndexes($query);
 
         foreach ($indexes->getResults() as $index) {
-            $tasks[] = $index->delete();
+            $uid = $index->getUid();
+
+            if ($uid === null) {
+                continue;
+            }
+
+            if ($prefix === null || str_starts_with($uid, $prefix)) {
+                $tasks[] = $index->delete();
+            }
         }
 
         return $tasks;

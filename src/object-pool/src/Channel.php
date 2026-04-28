@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
-use Hyperf\Coroutine\Coroutine;
-use Hyperf\Engine\Channel as CoChannel;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Channel as EngineChannel;
 use SplQueue;
 
 class Channel
@@ -13,7 +13,7 @@ class Channel
     /**
      * Coroutine channel for handling objects in coroutine mode.
      */
-    protected CoChannel $channel;
+    protected EngineChannel $channel;
 
     /**
      * Queue for handling objects in non-coroutine mode.
@@ -28,8 +28,8 @@ class Channel
     public function __construct(
         protected int $size
     ) {
-        $this->channel = new CoChannel($size);
-        $this->queue = new SplQueue();
+        $this->channel = new EngineChannel($size);
+        $this->queue = new SplQueue;
     }
 
     /**

@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hyperf\Stringable\Str;
-use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cache\Contracts\Lock as LockContract;
-use Hypervel\Cache\Exceptions\LockTimeoutException;
+use Hypervel\Contracts\Cache\Lock as LockContract;
+use Hypervel\Contracts\Cache\LockTimeoutException;
+use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Sleep;
+use Hypervel\Support\Str;
 
 abstract class Lock implements LockContract
 {
@@ -53,6 +54,16 @@ abstract class Lock implements LockContract
     abstract public function acquire(): bool;
 
     /**
+     * Release the lock.
+     */
+    abstract public function release(): bool;
+
+    /**
+     * Return the owner value written into the driver for this lock.
+     */
+    abstract protected function getCurrentOwner(): ?string;
+
+    /**
      * Attempt to acquire the lock.
      */
     public function get(?callable $callback = null): mixed
@@ -77,14 +88,18 @@ abstract class Lock implements LockContract
      */
     public function block(int $seconds, ?callable $callback = null): mixed
     {
-        $starting = $this->currentTime();
+        $starting = ((int) now()->format('Uu')) / 1000;
+
+        $milliseconds = $seconds * 1000;
 
         while (! $this->acquire()) {
-            usleep($this->sleepMilliseconds * 1000);
+            $now = ((int) now()->format('Uu')) / 1000;
 
-            if ($this->currentTime() - $seconds >= $starting) {
-                throw new LockTimeoutException();
+            if (($now + $this->sleepMilliseconds - $milliseconds) >= $starting) {
+                throw new LockTimeoutException;
             }
+
+            Sleep::usleep($this->sleepMilliseconds * 1000);
         }
 
         if (is_callable($callback)) {
@@ -99,11 +114,27 @@ abstract class Lock implements LockContract
     }
 
     /**
-     * Returns the current owner of the lock.
+     * Return the current owner of the lock.
      */
     public function owner(): string
     {
         return $this->owner;
+    }
+
+    /**
+     * Determine whether this lock is allowed to release the lock in the driver.
+     */
+    public function isOwnedByCurrentProcess(): bool
+    {
+        return $this->isOwnedBy($this->owner);
+    }
+
+    /**
+     * Determine whether this lock is owned by the given identifier.
+     */
+    public function isOwnedBy(?string $owner): bool
+    {
+        return $this->getCurrentOwner() === $owner;
     }
 
     /**
@@ -114,18 +145,5 @@ abstract class Lock implements LockContract
         $this->sleepMilliseconds = $milliseconds;
 
         return $this;
-    }
-
-    /**
-     * Returns the owner value written into the driver for this lock.
-     */
-    abstract protected function getCurrentOwner(): string;
-
-    /**
-     * Determines whether this lock is allowed to release the lock in the driver.
-     */
-    protected function isOwnedByCurrentProcess(): bool
-    {
-        return $this->getCurrentOwner() === $this->owner;
     }
 }

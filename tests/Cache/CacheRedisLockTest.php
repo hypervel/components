@@ -4,17 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Hyperf\Redis\Redis;
-use Hypervel\Cache\Contracts\RefreshableLock;
 use Hypervel\Cache\RedisLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Redis\PhpRedisConnection;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class CacheRedisLockTest extends TestCase
 {
     public function testLockImplementsRefreshableLock()
@@ -30,7 +27,7 @@ class CacheRedisLockTest extends TestCase
 
         $redis->shouldReceive('set')
             ->once()
-            ->with('foo', m::type('string'), ['EX' => 10, 'NX'])
+            ->with('foo', m::type('string'), 'EX', 10, 'NX')
             ->andReturn(true);
 
         $this->assertTrue($lock->acquire());
@@ -52,10 +49,19 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $redis->shouldReceive('eval')
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('pack')
             ->once()
-            ->with(m::type('string'), ['foo', $lock->owner()], 1)
+            ->with([$lock->owner()])
+            ->andReturn(['packed-owner']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), 1, 'foo', 'packed-owner')
             ->andReturn(1);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $this->assertTrue($lock->release());
     }
@@ -76,10 +82,19 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $redis->shouldReceive('eval')
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('pack')
             ->once()
-            ->with(m::type('string'), ['foo', $lock->owner(), 10], 1)
+            ->with([$lock->owner()])
+            ->andReturn(['packed-owner']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), 1, 'foo', 'packed-owner', 10)
             ->andReturn(1);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $this->assertTrue($lock->refresh());
     }
@@ -88,10 +103,19 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $redis->shouldReceive('eval')
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('pack')
             ->once()
-            ->with(m::type('string'), ['foo', $lock->owner(), 30], 1)
+            ->with([$lock->owner()])
+            ->andReturn(['packed-owner']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), 1, 'foo', 'packed-owner', 30)
             ->andReturn(1);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $this->assertTrue($lock->refresh(30));
     }
@@ -100,10 +124,19 @@ class CacheRedisLockTest extends TestCase
     {
         [$lock, $redis] = $this->getLock();
 
-        $redis->shouldReceive('eval')
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('pack')
             ->once()
-            ->with(m::type('string'), ['foo', $lock->owner(), 10], 1)
+            ->with([$lock->owner()])
+            ->andReturn(['packed-owner']);
+        $connection->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), 1, 'foo', 'packed-owner', 10)
             ->andReturn(0);
+
+        $redis->shouldReceive('withConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
         $this->assertFalse($lock->refresh());
     }
@@ -189,7 +222,7 @@ class CacheRedisLockTest extends TestCase
      */
     protected function getLock(int $seconds = 10): array
     {
-        $redis = m::mock(Redis::class);
+        $redis = m::mock(RedisProxy::class);
 
         $lock = new RedisLock($redis, 'foo', $seconds);
 

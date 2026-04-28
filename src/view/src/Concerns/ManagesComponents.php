@@ -1,0 +1,259 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\View\Concerns;
+
+use Closure;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\View;
+use Hypervel\Support\Arr;
+use Hypervel\View\ComponentSlot;
+
+trait ManagesComponents
+{
+    /**
+     * Context key for the components being rendered.
+     */
+    protected const COMPONENT_STACK_CONTEXT_KEY = '__view.component_stack';
+
+    /**
+     * Context key for the original data passed to the component.
+     */
+    protected const COMPONENT_DATA_CONTEXT_KEY = '__view.component_data';
+
+    /**
+     * Context key for the component data for the component that is currently being rendered.
+     */
+    protected const CURRENT_COMPONENT_DATA_CONTEXT_KEY = '__view.current_component_data';
+
+    /**
+     * Context key for the slot contents for the component.
+     */
+    protected const SLOTS_CONTEXT_KEY = '__view.slots';
+
+    /**
+     * Context key for the names of the slots being rendered.
+     */
+    protected const SLOT_STACK_CONTEXT_KEY = '__view.slot_stack';
+
+    /**
+     * Start a component rendering process.
+     */
+    public function startComponent(View|Htmlable|Closure|string $view, array $data = []): void
+    {
+        if (ob_start()) {
+            $this->pushComponentStack($view);
+
+            $this->appendComponentData($data);
+
+            $this->createSlotContext();
+        }
+    }
+
+    protected function pushComponentStack(View|Htmlable|Closure|string $view): int
+    {
+        $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $componentStack[] = $view;
+        CoroutineContext::set(static::COMPONENT_STACK_CONTEXT_KEY, $componentStack);
+
+        return count($componentStack);
+    }
+
+    protected function popComponentStack(): View|Htmlable|Closure|string|null
+    {
+        $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $view = array_pop($componentStack);
+        CoroutineContext::set(static::COMPONENT_STACK_CONTEXT_KEY, $componentStack);
+
+        return $view;
+    }
+
+    protected function appendComponentData(array $data): void
+    {
+        $componentData = CoroutineContext::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
+        $componentData[$this->currentComponent()] = $data;
+        CoroutineContext::set(static::COMPONENT_DATA_CONTEXT_KEY, $componentData);
+    }
+
+    protected function createSlotContext()
+    {
+        $slots = CoroutineContext::get(static::SLOTS_CONTEXT_KEY, []);
+        $slots[$this->currentComponent()] = [];
+        CoroutineContext::set(static::SLOTS_CONTEXT_KEY, $slots);
+    }
+
+    /**
+     * Get the first view that actually exists from the given list, and start a component.
+     */
+    public function startComponentFirst(array $names, array $data = []): void
+    {
+        $name = Arr::first($names, function ($item) {
+            return $this->exists($item);
+        });
+
+        $this->startComponent($name, $data);
+    }
+
+    /**
+     * Render the current component.
+     */
+    public function renderComponent(): string
+    {
+        $view = $this->popComponentStack();
+
+        $previousComponentData = CoroutineContext::get(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
+        $data = $this->componentData();
+
+        $currentComponentData = array_merge($previousComponentData, $data);
+        CoroutineContext::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, $currentComponentData);
+
+        try {
+            $view = value($view, $data);
+
+            if ($view instanceof View) {
+                return $view->with($data)->render();
+            }
+            if ($view instanceof Htmlable) {
+                return $view->toHtml();
+            }
+            return $this->make($view, $data)->render();
+        } finally {
+            CoroutineContext::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, $previousComponentData);
+        }
+    }
+
+    /**
+     * Get the data for the given component.
+     */
+    protected function componentData(): array
+    {
+        $defaultSlot = new ComponentSlot(trim(ob_get_clean()));
+
+        $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $componentData = CoroutineContext::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
+        $slotsData = CoroutineContext::get(static::SLOTS_CONTEXT_KEY, []);
+
+        $stackCount = count($componentStack);
+
+        $slots = array_merge([
+            '__default' => $defaultSlot,
+        ], $slotsData[$stackCount] ?? []);
+
+        return array_merge(
+            $componentData[$stackCount] ?? [],
+            ['slot' => $defaultSlot],
+            $slotsData[$stackCount] ?? [],
+            ['__hypervel_slots' => $slots]
+        );
+    }
+
+    /**
+     * Get an item from the component data that exists above the current component.
+     */
+    public function getConsumableComponentData(string $key, mixed $default = null): mixed
+    {
+        $currentComponentData = CoroutineContext::get(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
+
+        if (array_key_exists($key, $currentComponentData)) {
+            return $currentComponentData[$key];
+        }
+
+        $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $currentComponent = count($componentStack);
+
+        if ($currentComponent === 0) {
+            return value($default);
+        }
+
+        $componentData = CoroutineContext::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
+
+        for ($i = $currentComponent - 1; $i >= 0; --$i) {
+            $data = $componentData[$i] ?? [];
+
+            if (array_key_exists($key, $data)) {
+                return $data[$key];
+            }
+        }
+
+        return value($default);
+    }
+
+    /**
+     * Start the slot rendering process.
+     */
+    public function slot(string $name, ?string $content = null, array $attributes = []): void
+    {
+        if (func_num_args() === 2 || $content !== null) {
+            $this->setSlotData($name, $content);
+        } elseif (ob_start()) {
+            $this->setSlotData($name, '');
+
+            $this->pushSlotStack([$name, $attributes]);
+        }
+    }
+
+    protected function setSlotData(string $name, string|ComponentSlot|null $content): void
+    {
+        $currentComponent = $this->currentComponent();
+
+        $slots = CoroutineContext::get(static::SLOTS_CONTEXT_KEY, []);
+        $slots[$currentComponent][$name] = $content;
+        CoroutineContext::set(static::SLOTS_CONTEXT_KEY, $slots);
+    }
+
+    protected function pushSlotStack(array $value): void
+    {
+        $currentComponent = $this->currentComponent();
+
+        $slotStack = CoroutineContext::get(static::SLOT_STACK_CONTEXT_KEY, []);
+        $slotStack[$currentComponent][] = $value;
+        CoroutineContext::set(static::SLOT_STACK_CONTEXT_KEY, $slotStack);
+    }
+
+    protected function popSlotStack(): array
+    {
+        $currentComponent = $this->currentComponent();
+
+        $slotStack = CoroutineContext::get(static::SLOT_STACK_CONTEXT_KEY, []);
+        $value = array_pop($slotStack[$currentComponent]);
+        CoroutineContext::set(static::SLOT_STACK_CONTEXT_KEY, $slotStack);
+
+        return $value;
+    }
+
+    /**
+     * Save the slot content for rendering.
+     */
+    public function endSlot(): void
+    {
+        $currentSlot = $this->popSlotStack();
+
+        [$currentName, $currentAttributes] = $currentSlot;
+
+        $this->setSlotData($currentName, new ComponentSlot(
+            trim(ob_get_clean()),
+            $currentAttributes
+        ));
+    }
+
+    /**
+     * Get the index for the current component.
+     */
+    protected function currentComponent(): int
+    {
+        $componentStack = CoroutineContext::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        return count($componentStack) - 1;
+    }
+
+    /**
+     * Flush all of the component state.
+     */
+    protected function flushComponents(): void
+    {
+        CoroutineContext::set(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        CoroutineContext::set(static::COMPONENT_DATA_CONTEXT_KEY, []);
+        CoroutineContext::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
+    }
+}

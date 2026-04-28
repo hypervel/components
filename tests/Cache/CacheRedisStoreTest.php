@@ -4,39 +4,36 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Hyperf\Redis\RedisFactory as Factory;
-use Hyperf\Redis\RedisProxy;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Tests\TestCase;
+use Hypervel\Contracts\Redis\Factory;
+use Hypervel\Redis\RedisProxy;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
-class CacheRedisStoreTest extends TestCase
+class CacheRedisStoreTest extends RedisCacheTestCase
 {
     public function testGetReturnsNullWhenNotFound()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('get')->once()->with('prefix:foo')->andReturn(null);
-        $this->assertNull($redis->get('foo'));
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('get')->once()->with('prefix:foo')->andReturn(null);
+
+        $store = $this->createStore($connection);
+        $this->assertNull($store->get('foo'));
     }
 
     public function testRedisValueIsReturned()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('get')->once()->with('prefix:foo')->andReturn(serialize('foo'));
-        $this->assertSame('foo', $redis->get('foo'));
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('get')->once()->with('prefix:foo')->andReturn(serialize('foo'));
+
+        $store = $this->createStore($connection);
+        $this->assertSame('foo', $store->get('foo'));
     }
 
     public function testRedisMultipleValuesAreReturned()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('mget')->once()->with(['prefix:foo', 'prefix:fizz', 'prefix:norf', 'prefix:null'])
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('mget')->once()->with(['prefix:foo', 'prefix:fizz', 'prefix:norf', 'prefix:null'])
             ->andReturn([
                 serialize('bar'),
                 serialize('buzz'),
@@ -44,7 +41,8 @@ class CacheRedisStoreTest extends TestCase
                 null,
             ]);
 
-        $results = $redis->many(['foo', 'fizz', 'norf', 'null']);
+        $store = $this->createStore($connection);
+        $results = $store->many(['foo', 'fizz', 'norf', 'null']);
 
         $this->assertSame('bar', $results['foo']);
         $this->assertSame('buzz', $results['fizz']);
@@ -54,32 +52,32 @@ class CacheRedisStoreTest extends TestCase
 
     public function testRedisValueIsReturnedForNumerics()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('get')->once()->with('prefix:foo')->andReturn(1);
-        $this->assertEquals(1, $redis->get('foo'));
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('get')->once()->with('prefix:foo')->andReturn(1);
+
+        $store = $this->createStore($connection);
+        $this->assertEquals(1, $store->get('foo'));
     }
 
     public function testSetMethodProperlyCallsRedis()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('foo'))->andReturn('OK');
-        $result = $redis->put('foo', 'foo', 60);
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('foo'))->andReturn('OK');
+
+        $store = $this->createStore($connection);
+        $result = $store->put('foo', 'foo', 60);
         $this->assertTrue($result);
     }
 
     public function testSetMultipleMethodProperlyCallsRedis()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('multi')->once();
-        $proxy->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('bar'))->andReturn('OK');
-        $proxy->shouldReceive('setex')->once()->with('prefix:baz', 60, serialize('qux'))->andReturn('OK');
-        $proxy->shouldReceive('setex')->once()->with('prefix:bar', 60, serialize('norf'))->andReturn('OK');
-        $proxy->shouldReceive('exec')->once();
+        $connection = $this->mockConnection();
+        // Hypervel uses a Lua script for putMany in standard mode (more performant than multi/exec).
+        // The Lua script receives all keys and serialized values in a single EVALSHA call.
+        $connection->shouldReceive('evalWithShaCache')->once()->andReturn(true);
 
-        $result = $redis->putMany([
+        $store = $this->createStore($connection);
+        $result = $store->putMany([
             'foo' => 'bar',
             'baz' => 'qux',
             'bar' => 'norf',
@@ -89,75 +87,97 @@ class CacheRedisStoreTest extends TestCase
 
     public function testSetMethodProperlyCallsRedisForNumerics()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('setex')->once()->with('prefix:foo', 60, 1);
-        $result = $redis->put('foo', 1, 60);
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, 1);
+
+        $store = $this->createStore($connection);
+        $result = $store->put('foo', 1, 60);
         $this->assertFalse($result);
     }
 
     public function testIncrementMethodProperlyCallsRedis()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('incrby')->once()->with('prefix:foo', 5)->andReturn(6);
-        $result = $redis->increment('foo', 5);
-        $this->assertEquals(6, $result);
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('incrBy')->once()->with('prefix:foo', 5)->andReturn(5);
+
+        $store = $this->createStore($connection);
+        $store->increment('foo', 5);
     }
 
     public function testDecrementMethodProperlyCallsRedis()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('decrby')->once()->with('prefix:foo', 5)->andReturn(4);
-        $result = $redis->decrement('foo', 5);
-        $this->assertEquals(4, $result);
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('decrBy')->once()->with('prefix:foo', 5)->andReturn(-5);
+
+        $store = $this->createStore($connection);
+        $store->decrement('foo', 5);
     }
 
     public function testStoreItemForeverProperlyCallsRedis()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('set')->once()->with('prefix:foo', serialize('foo'))->andReturn('OK');
-        $result = $redis->forever('foo', 'foo', 60);
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('set')->once()->with('prefix:foo', serialize('foo'))->andReturn('OK');
+
+        $store = $this->createStore($connection);
+        $result = $store->forever('foo', 'foo');
         $this->assertTrue($result);
+    }
+
+    public function testTouchMethodProperlyCallsRedis()
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('expire')->once()->with('prefix:key', 60)->andReturn(true);
+
+        $store = $this->createStore($connection);
+        $this->assertTrue($store->touch('key', 60));
     }
 
     public function testForgetMethodProperlyCallsRedis()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('del')->once()->with('prefix:foo');
-        $redis->forget('foo');
-        $this->assertTrue(true);
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('del')->once()->with('prefix:foo');
+
+        $store = $this->createStore($connection);
+        $store->forget('foo');
     }
 
     public function testFlushesCached()
     {
-        $redis = $this->getRedis();
-        $redis->getRedis()->shouldReceive('get')->once()->with('default')->andReturn($proxy = $this->getRedisProxy());
-        $proxy->shouldReceive('flushdb')->once()->andReturn('ok');
-        $result = $redis->flush();
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('flushdb')->once()->andReturn('ok');
+
+        $store = $this->createStore($connection);
+        $result = $store->flush();
+        $this->assertTrue($result);
+    }
+
+    public function testFlushesCachedLocks()
+    {
+        $lockProxy = m::mock(RedisProxy::class);
+        $lockProxy->shouldReceive('flushdb')->once()->andReturn('ok');
+
+        $redis = m::mock(Factory::class);
+        $redis->shouldReceive('connection')->with('locks')->once()->andReturn($lockProxy);
+
+        $store = new RedisStore(
+            $redis,
+            'prefix:',
+            'default',
+            $this->createPoolFactory($this->mockConnection())
+        );
+        $store->setLockConnection('locks');
+
+        $result = $store->flushLocks();
         $this->assertTrue($result);
     }
 
     public function testGetAndSetPrefix()
     {
-        $redis = $this->getRedis();
-        $this->assertSame('prefix:', $redis->getPrefix());
-        $redis->setPrefix('foo');
-        $this->assertSame('foo:', $redis->getPrefix());
-        $redis->setPrefix('');
-        $this->assertEmpty($redis->getPrefix());
-    }
-
-    protected function getRedis()
-    {
-        return new RedisStore(m::mock(Factory::class), 'prefix');
-    }
-
-    protected function getRedisProxy()
-    {
-        return m::mock(RedisProxy::class);
+        $store = $this->createStore($this->mockConnection());
+        $this->assertSame('prefix:', $store->getPrefix());
+        $store->setPrefix('foo');
+        $this->assertSame('foo', $store->getPrefix());
+        $store->setPrefix(null);
+        $this->assertEmpty($store->getPrefix());
     }
 }

@@ -7,7 +7,7 @@ namespace Hypervel\Horizon\Http\Controllers;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Support\Collection;
 
-class QueueMetricsController
+class QueueMetricsController extends Controller
 {
     /**
      * Create a new controller instance.
@@ -15,6 +15,7 @@ class QueueMetricsController
     public function __construct(
         public MetricsRepository $metrics
     ) {
+        parent::__construct();
     }
 
     /**

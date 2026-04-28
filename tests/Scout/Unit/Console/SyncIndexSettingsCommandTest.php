@@ -4,25 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit\Console;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
-use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\CollectionEngine;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class SyncIndexSettingsCommandTest extends TestCase
 {
     public function testFailsWhenEngineDoesNotSupportUpdatingIndexSettings(): void
     {
-        $engine = new CollectionEngine();
+        $engine = new CollectionEngine;
 
         $manager = m::mock(EngineManager::class);
         $manager->shouldReceive('engine')
@@ -30,7 +26,7 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->once()
             ->andReturn($engine);
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')
             ->with('scout.driver')
             ->andReturn('collection');
@@ -58,7 +54,7 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->once()
             ->andReturn($engine);
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')
             ->with('scout.driver')
             ->andReturn('meilisearch');
@@ -92,7 +88,7 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->once()
             ->andReturn($engine);
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')
             ->with('scout.driver')
             ->andReturn('meilisearch');
@@ -128,7 +124,7 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->once()
             ->andReturn($engine);
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         // Note: scout.driver should NOT be called when driver option is provided
         $config->shouldReceive('get')
             ->with('scout.typesense.index-settings', [])
@@ -154,7 +150,7 @@ class SyncIndexSettingsCommandTest extends TestCase
         $method = new ReflectionMethod(SyncIndexSettingsCommand::class, 'indexName');
         $method->setAccessible(true);
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')
             ->with('scout.prefix', '')
             ->andReturn('prod_');
@@ -171,7 +167,7 @@ class SyncIndexSettingsCommandTest extends TestCase
         $method = new ReflectionMethod(SyncIndexSettingsCommand::class, 'indexName');
         $method->setAccessible(true);
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')
             ->with('scout.prefix', '')
             ->andReturn('prod_');

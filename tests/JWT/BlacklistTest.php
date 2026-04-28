@@ -9,14 +9,10 @@ use Hypervel\JWT\Blacklist;
 use Hypervel\JWT\Contracts\StorageContract;
 use Hypervel\JWT\Exceptions\TokenInvalidException;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * @internal
- * @coversNothing
- */
 class BlacklistTest extends TestCase
 {
     /**
@@ -33,7 +29,7 @@ class BlacklistTest extends TestCase
         Carbon::setTestNow('2000-01-01T00:00:00.000000Z');
 
         $this->testNowTimestamp = Carbon::now()->timestamp;
-        $this->storage = Mockery::mock(StorageContract::class);
+        $this->storage = m::mock(StorageContract::class);
         $this->blacklist = new Blacklist($this->storage);
     }
 

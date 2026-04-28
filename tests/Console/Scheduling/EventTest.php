@@ -4,43 +4,50 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Stringable\Str;
-use Hyperf\Support\Filesystem\Filesystem;
-use Hypervel\Console\Contracts\EventMutex;
+use DateTimeZone;
 use Hypervel\Console\Scheduling\Event;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Console\Scheduling\EventMutex;
+use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Application;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
+use TypeError;
 
-/**
- * @internal
- * @coversNothing
- */
+enum EventTestTimezoneStringEnum: string
+{
+    case NewYork = 'America/New_York';
+    case London = 'Europe/London';
+}
+
+enum EventTestTimezoneIntEnum: int
+{
+    case Zone1 = 1;
+    case Zone2 = 2;
+}
+
+enum EventTestTimezoneUnitEnum
+{
+    case UTC;
+    case EST;
+}
+
 class EventTest extends TestCase
 {
-    use HasMockedApplication;
-
     protected ?Container $container = null;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        ApplicationContext::setContainer(
-            $this->container = $this->getApplication()
-        );
-    }
-
-    protected function tearDown(): void
-    {
-        m::close();
-
-        parent::tearDown();
+        $this->container = new Application;
+        Container::setInstance($this->container);
     }
 
     public function testSendOutputToWithIsNotFile()
@@ -54,7 +61,7 @@ class EventTest extends TestCase
             ->with($output)
             ->andReturn(false);
 
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(Filesystem::class, $filesystem);
         $event->writeOutput($this->container);
     }
 
@@ -78,8 +85,8 @@ class EventTest extends TestCase
             ->once()
             ->with($output, $result);
 
-        $this->container->set(KernelContract::class, $kernel);
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(KernelContract::class, $kernel);
+        $this->container->instance(Filesystem::class, $filesystem);
 
         $event->writeOutput($this->container);
     }
@@ -95,18 +102,30 @@ class EventTest extends TestCase
         $process->shouldReceive('getOutput')
             ->once()
             ->andReturn($result = 'PHP 8.3.17 (cli) (built: Feb 11 2025 22:03:03) (NTS)');
-        Context::set($key = "scheduling_process:{$event->mutexName()}", $process);
+        CoroutineContext::set($key = "__console.scheduling_process.{$event->mutexName()}", $process);
 
         $filesystem = m::mock(Filesystem::class);
         $filesystem->shouldReceive('put')
             ->once()
             ->with($output, $result);
 
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(Filesystem::class, $filesystem);
 
         $event->writeOutput($this->container);
 
-        Context::destroy($key);
+        CoroutineContext::forget($key);
+    }
+
+    public function testDaysOfMonthMethod()
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        $event->daysOfMonth(1, 15);
+        $this->assertSame('0 0 1,15 * *', $event->getExpression());
+
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event->daysOfMonth([1, 10, 20, 30]);
+        $this->assertSame('0 0 1,10,20,30 * *', $event->getExpression());
     }
 
     public function testAppendOutput()
@@ -129,8 +148,8 @@ class EventTest extends TestCase
             ->once()
             ->with($output, $result);
 
-        $this->container->set(KernelContract::class, $kernel);
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(KernelContract::class, $kernel);
+        $this->container->instance(Filesystem::class, $filesystem);
 
         $event->writeOutput($this->container);
     }
@@ -155,5 +174,164 @@ class EventTest extends TestCase
         });
 
         $this->assertSame('fancy-command-description', $event->mutexName());
+    }
+
+    public function testTimezoneAcceptsStringBackedEnum(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        $event->timezone(EventTestTimezoneStringEnum::NewYork);
+
+        // String-backed enum value should be used
+        $this->assertSame('America/New_York', $event->timezone);
+    }
+
+    public function testTimezoneAcceptsUnitEnum(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        $event->timezone(EventTestTimezoneUnitEnum::UTC);
+
+        // Unit enum name should be used
+        $this->assertSame('UTC', $event->timezone);
+    }
+
+    public function testTimezoneWithIntBackedEnumThrowsTypeError(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        // Int-backed enum causes TypeError because $timezone property is DateTimeZone|string|null
+        $this->expectException(TypeError::class);
+        $event->timezone(EventTestTimezoneIntEnum::Zone1);
+    }
+
+    public function testTimezoneAcceptsDateTimeZoneObject(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        $tz = new DateTimeZone('UTC');
+        $event->timezone($tz);
+
+        // DateTimeZone object should be preserved
+        $this->assertSame($tz, $event->timezone);
+    }
+
+    public function testBasicCronCompilation()
+    {
+        $app = m::mock(ApplicationContract::class);
+        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
+        $app->shouldReceive('environment')->andReturn('production');
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $this->assertSame('* * * * *', $event->getExpression());
+        $this->assertTrue($event->isDue($app));
+        $this->assertTrue($event->skip(function () {
+            return true;
+        })->isDue($app));
+        $this->assertFalse($event->skip(function () {
+            return true;
+        })->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $this->assertSame('* * * * *', $event->getExpression());
+        $this->assertFalse($event->environments('local')->isDue($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $this->assertSame('* * * * *', $event->getExpression());
+        $this->assertFalse($event->when(function () {
+            return false;
+        })->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $this->assertSame('* * * * *', $event->getExpression());
+        $this->assertFalse($event->when(false)->filtersPass($app));
+
+        // chained rules should be commutative
+        $eventA = new Event(m::mock(EventMutex::class), 'php foo');
+        $eventB = new Event(m::mock(EventMutex::class), 'php foo');
+        $this->assertEquals(
+            $eventA->daily()->hourly()->getExpression(),
+            $eventB->hourly()->daily()->getExpression()
+        );
+
+        $eventA = new Event(m::mock(EventMutex::class), 'php foo');
+        $eventB = new Event(m::mock(EventMutex::class), 'php foo');
+        $this->assertEquals(
+            $eventA->weekdays()->hourly()->getExpression(),
+            $eventB->hourly()->weekdays()->getExpression()
+        );
+    }
+
+    public function testEventIsDueCheck()
+    {
+        $app = m::mock(ApplicationContract::class);
+        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
+        $app->shouldReceive('environment')->andReturn('production');
+        Carbon::setTestNow(Carbon::create(2015, 1, 1, 0, 0, 0));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $this->assertSame('* * * * 4', $event->thursdays()->getExpression());
+        $this->assertTrue($event->isDue($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $this->assertSame('0 19 * * 3', $event->wednesdays()->at('19:00')->timezone('EST')->getExpression());
+        $this->assertTrue($event->isDue($app));
+    }
+
+    public function testTimeBetweenChecks()
+    {
+        $app = m::mock(ApplicationContract::class);
+        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
+        $app->shouldReceive('environment')->andReturn('production');
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+
+        Carbon::setTestNow(Carbon::now()->startOfDay()->addHours(9));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertTrue($event->between('8:00', '10:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertTrue($event->between('9:00', '9:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertTrue($event->between('23:00', '10:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertTrue($event->between('8:00', '6:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertFalse($event->between('10:00', '11:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertFalse($event->between('10:00', '8:00')->filtersPass($app));
+    }
+
+    public function testTimeUnlessBetweenChecks()
+    {
+        $app = m::mock(ApplicationContract::class);
+        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
+        $app->shouldReceive('environment')->andReturn('production');
+        $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
+
+        Carbon::setTestNow(Carbon::now()->startOfDay()->addHours(9));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertFalse($event->unlessBetween('8:00', '10:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertFalse($event->unlessBetween('9:00', '9:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertFalse($event->unlessBetween('23:00', '10:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertFalse($event->unlessBetween('8:00', '6:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertTrue($event->unlessBetween('10:00', '11:00')->filtersPass($app));
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
+        $this->assertTrue($event->unlessBetween('10:00', '8:00')->filtersPass($app));
     }
 }

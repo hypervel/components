@@ -10,9 +10,13 @@ class Key
 
     public const SHIFT_UP = "\e[1;2A";
 
+    public const PAGE_UP = "\e[5~";
+
     public const DOWN = "\e[B";
 
     public const SHIFT_DOWN = "\e[1;2B";
+
+    public const PAGE_DOWN = "\e[6~";
 
     public const RIGHT = "\e[C";
 
@@ -93,6 +97,8 @@ class Key
      * Negative affirmation.
      */
     public const CTRL_U = "\x15";
+
+    public const OPTION_BACKSPACE = "\e\177";
 
     /**
      * Checks for the constant values for the given match and returns the match.

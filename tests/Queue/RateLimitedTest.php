@@ -1,0 +1,95 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Queue;
+
+use Hypervel\Cache\RateLimiter;
+use Hypervel\Container\Container;
+use Hypervel\Queue\Middleware\RateLimited;
+use Mockery as m;
+use Mockery\MockInterface;
+use PHPUnit\Framework\TestCase;
+
+enum RateLimitedTestStringEnum: string
+{
+    case Default = 'default';
+}
+
+enum RateLimitedTestIntEnum: int
+{
+    case Primary = 1;
+}
+
+enum RateLimitedTestUnitEnum
+{
+    case uploads;
+}
+
+class RateLimitedTest extends TestCase
+{
+    public function testConstructorAcceptsString(): void
+    {
+        $this->mockRateLimiter();
+
+        new RateLimited('default');
+
+        $this->assertTrue(true);
+    }
+
+    public function testConstructorAcceptsStringBackedEnum(): void
+    {
+        $this->mockRateLimiter();
+
+        new RateLimited(RateLimitedTestStringEnum::Default);
+
+        $this->assertTrue(true);
+    }
+
+    public function testConstructorAcceptsUnitEnum(): void
+    {
+        $this->mockRateLimiter();
+
+        new RateLimited(RateLimitedTestUnitEnum::uploads);
+
+        $this->assertTrue(true);
+    }
+
+    public function testConstructorAcceptsIntBackedEnum(): void
+    {
+        $this->mockRateLimiter();
+
+        new RateLimited(RateLimitedTestIntEnum::Primary);
+
+        $this->assertTrue(true);
+    }
+
+    public function testDontReleaseSetsShouldReleaseToFalse(): void
+    {
+        $this->mockRateLimiter();
+
+        $middleware = new RateLimited('default');
+
+        $this->assertTrue($middleware->shouldRelease);
+
+        $result = $middleware->dontRelease();
+
+        $this->assertFalse($middleware->shouldRelease);
+        $this->assertSame($middleware, $result);
+    }
+
+    /**
+     * Create a mock RateLimiter and set up the container.
+     */
+    protected function mockRateLimiter(): RateLimiter&MockInterface
+    {
+        $limiter = m::mock(RateLimiter::class);
+
+        $container = new Container;
+        $container->instance(RateLimiter::class, $limiter);
+
+        Container::setInstance($container);
+
+        return $limiter;
+    }
+}

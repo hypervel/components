@@ -4,22 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
-use Hyperf\Collection\Collection;
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Support\Collection;
+use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Prompts\table;
 
-/**
- * @backupStaticProperties enabled
- * @internal
- * @coversNothing
- */
 class TableTest extends TestCase
 {
-    /**
-     * @dataProvider tableWithHeadersProvider
-     */
+    #[DataProvider('tableWithHeadersProvider')]
     public function testRendersTableWithHeaders(array|Collection $headers, array|Collection $rows): void
     {
         Prompt::fake();
@@ -77,9 +71,7 @@ class TableTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider tableWithoutHeadersProvider
-     */
+    #[DataProvider('tableWithoutHeadersProvider')]
     public function testRendersTableWithoutHeaders(array|Collection $rows): void
     {
         Prompt::fake();

@@ -4,33 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hypervel\Support\Once;
 use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
 
-/**
- * @internal
- * @coversNothing
- */
 class OnceTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        Once::flush();
-        Once::enable();
-    }
-
-    protected function tearDown(): void
-    {
-        Once::flush();
-        Once::enable();
-
-        parent::tearDown();
-    }
+    protected bool $runTestsInCoroutine = false;
 
     public function testOnceCachesWithinCoroutine(): void
     {

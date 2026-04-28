@@ -6,23 +6,21 @@ namespace Hypervel\Tests\NestedSet;
 
 use BadMethodCallException;
 use Carbon\Carbon;
-use Hyperf\Collection\Collection as HyperfCollection;
-use Hyperf\Database\Exception\QueryException;
-use Hyperf\Database\Model\ModelNotFoundException;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\QueryException;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\NestedSet\Eloquent\Collection;
+use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\NestedSet\Models\Category;
 use LogicException;
 
-/**
- * @internal
- * @coversNothing
- */
 class NodeTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected bool $migrateRefresh = true;
 
     protected function migrateFreshUsing(): array
     {
@@ -42,6 +40,11 @@ class NodeTest extends TestCase
 
         DB::table('categories')
             ->insert($this->getMockCategories());
+
+        // Reset Postgres sequence after inserting with explicit IDs
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement("SELECT setval('categories_id_seq', (SELECT MAX(id) FROM categories))");
+        }
     }
 
     protected function getMockCategories(): array
@@ -63,10 +66,10 @@ class NodeTest extends TestCase
 
     public function tearDown(): void
     {
-        parent::tearDown();
-
         DB::flushQueryLog();
         DB::disableQueryLog();
+
+        parent::tearDown();
     }
 
     protected function assertTreeNotBroken(string $table = 'categories'): void
@@ -127,7 +130,7 @@ class NodeTest extends TestCase
 
     public function findCategory(string $name, bool $withTrashed = false): ?Category
     {
-        $category = new Category();
+        $category = new Category;
         $query = $withTrashed ? $category->withTrashed() : $category->newQuery();
 
         return $query->whereName($name)->first();
@@ -354,7 +357,7 @@ class NodeTest extends TestCase
     {
         $this->expectException(QueryException::class);
 
-        $node = new Category();
+        $node = new Category;
         $node->save();
     }
 
@@ -420,8 +423,8 @@ class NodeTest extends TestCase
     {
         $this->expectException(BadMethodCallException::class);
 
-        $node = new Category(['title' => 'Node']);
-        $parent = new Category(['title' => 'Parent']);
+        $node = new Category(['name' => 'Node']);
+        $parent = new Category(['name' => 'Parent']);
 
         $node->appendTo($parent)->save();
     }
@@ -474,7 +477,7 @@ class NodeTest extends TestCase
     public function testToTreeBuildsWithCustomOrder(): void
     {
         $tree = Category::whereBetween('_lft', [8, 17])
-            ->orderBy('title')
+            ->orderBy('name')
             ->get()
             ->toTree();
 
@@ -648,7 +651,7 @@ class NodeTest extends TestCase
 
     public function testDescendantsOfNonExistingNode(): void
     {
-        $node = new Category();
+        $node = new Category;
 
         $this->assertTrue($node->getDescendants()->isEmpty());
     }
@@ -994,7 +997,7 @@ class NodeTest extends TestCase
         $this->assertEquals(1, $category->getParentId());
     }
 
-    protected function getAll(array|HyperfCollection $items): array
+    protected function getAll(array|BaseCollection $items): array
     {
         return is_array($items) ? $items : $items->all();
     }

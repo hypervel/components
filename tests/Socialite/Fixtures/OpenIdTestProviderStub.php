@@ -55,7 +55,7 @@ class OpenIdTestProviderStub extends OpenIdProvider
 
     protected function mapUserToObject(array $user): User
     {
-        return (new User())->map(['id' => $user['sub']]);
+        return (new User)->map(['id' => $user['sub']]);
     }
 
     /**

@@ -4,11 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Process;
 
-use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
 use OutOfBoundsException;
 
 class FakeProcessSequence
 {
+    /**
+     * Indicates that invoking this sequence when it is empty should throw an exception.
+     *
+     * Not a constructor parameter — controlled exclusively via whenEmpty()/dontFailWhenEmpty()
+     * to match Laravel's public API contract.
+     */
+    protected bool $failWhenEmpty = true;
+
     /**
      * The response that should be returned when the sequence is empty.
      */
@@ -17,13 +25,10 @@ class FakeProcessSequence
     /**
      * Create a new fake process sequence instance.
      *
-     * @param array<int, mixed> $processes initial processes to add to the sequence
-     * @param bool $failWhenEmpty indicates that invoking this sequence when it is empty should throw an exception
+     * @param array<int, mixed> $processes
      */
-    public function __construct(
-        protected array $processes = [],
-        protected bool $failWhenEmpty = true
-    ) {
+    public function __construct(protected array $processes = [])
+    {
     }
 
     /**
@@ -62,7 +67,7 @@ class FakeProcessSequence
      */
     public function dontFailWhenEmpty(): static
     {
-        return $this->whenEmpty(new FakeProcessResult());
+        return $this->whenEmpty(new FakeProcessResult);
     }
 
     /**
@@ -85,7 +90,7 @@ class FakeProcessSequence
         }
 
         if (! $this->failWhenEmpty && count($this->processes) === 0) {
-            return $this->emptyProcess ?? new FakeProcessResult();
+            return value($this->emptyProcess ?? new FakeProcessResult);
         }
 
         return array_shift($this->processes);

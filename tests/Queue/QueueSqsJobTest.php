@@ -5,17 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Aws\Sqs\SqsClient;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\SqsQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueSqsJobTest extends TestCase
 {
     protected $key;
@@ -70,7 +66,7 @@ class QueueSqsJobTest extends TestCase
         $this->mockedSqsClient = m::mock(SqsClient::class)->makePartial();
 
         // Use Mockery to mock the IoC Container
-        $this->mockedContainer = m::mock(ContainerInterface::class);
+        $this->mockedContainer = m::mock(Container::class);
 
         $this->mockedJob = 'foo';
         $this->mockedData = ['data'];
@@ -87,15 +83,10 @@ class QueueSqsJobTest extends TestCase
         ];
     }
 
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testFireProperlyCallsTheJobHandler()
     {
         $job = $this->getJob();
-        $job->getContainer()->shouldReceive('get')->once()->with('foo')->andReturn($handler = m::mock(stdClass::class));
+        $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(stdClass::class));
         $handler->shouldReceive('fire')->once()->with($job, ['data']);
         $job->fire();
     }

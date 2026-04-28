@@ -7,9 +7,7 @@ namespace Hypervel\Socialite\Contracts;
 interface Factory
 {
     /**
-     * Get an OAuth provider implementation.
-     *
-     * @return Provider $driver
+     * Get a provider implementation.
      */
     public function driver(?string $driver = null): mixed;
 }

@@ -5,38 +5,24 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Redis\RedisFactory;
+use DateInterval;
+use DateTimeInterface;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Factory as FactoryContract;
+use Hypervel\Contracts\Queue\Monitor as MonitorContract;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
-use Hypervel\Queue\Connectors\BeanstalkdConnector;
 use Hypervel\Queue\Connectors\ConnectorInterface;
-use Hypervel\Queue\Connectors\CoroutineConnector;
-use Hypervel\Queue\Connectors\DatabaseConnector;
-use Hypervel\Queue\Connectors\DeferConnector;
-use Hypervel\Queue\Connectors\FailoverConnector;
-use Hypervel\Queue\Connectors\NullConnector;
-use Hypervel\Queue\Connectors\RedisConnector;
-use Hypervel\Queue\Connectors\SqsConnector;
-use Hypervel\Queue\Connectors\SyncConnector;
-use Hypervel\Queue\Contracts\Factory as FactoryContract;
-use Hypervel\Queue\Contracts\Monitor as MonitorContract;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
- * @mixin \Hypervel\Queue\Contracts\Queue
+ * @mixin \Hypervel\Contracts\Queue\Queue
  */
 class QueueManager implements FactoryContract, MonitorContract
 {
     use HasPoolProxy;
-
-    /**
-     * The config instance.
-     */
-    protected ConfigInterface $config;
+    use ResolvesQueueRoutes;
 
     /**
      * The array of resolved queue connections.
@@ -62,11 +48,8 @@ class QueueManager implements FactoryContract, MonitorContract
      * Create a new queue manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
-        $this->config = $app->get(ConfigInterface::class);
-
-        $this->registerConnectors();
     }
 
     /**
@@ -74,7 +57,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function before(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app['events']
             ->listen(Events\JobProcessing::class, $callback);
     }
 
@@ -83,7 +66,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function after(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app['events']
             ->listen(Events\JobProcessed::class, $callback);
     }
 
@@ -92,7 +75,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function exceptionOccurred(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app['events']
             ->listen(Events\JobExceptionOccurred::class, $callback);
     }
 
@@ -101,7 +84,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function looping(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app['events']
             ->listen(Events\Looping::class, $callback);
     }
 
@@ -110,8 +93,17 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function failing(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app['events']
             ->listen(Events\JobFailed::class, $callback);
+    }
+
+    /**
+     * Register an event listener for the daemon queue starting.
+     */
+    public function starting(mixed $callback): void
+    {
+        $this->app['events']
+            ->listen(Events\WorkerStarting::class, $callback);
     }
 
     /**
@@ -119,8 +111,83 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function stopping(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app['events']
             ->listen(Events\WorkerStopping::class, $callback);
+    }
+
+    /**
+     * Register the default queue route for a given class.
+     *
+     * @param array|class-string $class
+     */
+    public function route(array|string $class, ?string $queue = null, ?string $connection = null): void
+    {
+        $this->queueRoutes()->set($class, $queue, $connection);
+    }
+
+    /**
+     * Pause a queue by its connection and name.
+     */
+    public function pause(string $connection, string $queue): void
+    {
+        // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
+        $this->app['cache']
+            ->store()
+            ->forever("illuminate:queue:paused:{$connection}:{$queue}", true);
+
+        $this->app['events']->dispatch(
+            new Events\QueuePaused($connection, $queue)
+        );
+    }
+
+    /**
+     * Pause a queue by its connection and name for a given amount of time.
+     */
+    public function pauseFor(string $connection, string $queue, DateInterval|DateTimeInterface|int $ttl): void
+    {
+        // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
+        $this->app['cache']
+            ->store()
+            ->put("illuminate:queue:paused:{$connection}:{$queue}", true, $ttl);
+
+        $this->app['events']->dispatch(
+            new Events\QueuePaused($connection, $queue, $ttl)
+        );
+    }
+
+    /**
+     * Resume a paused queue by its connection and name.
+     */
+    public function resume(string $connection, string $queue): void
+    {
+        // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
+        $this->app['cache']
+            ->store()
+            ->forget("illuminate:queue:paused:{$connection}:{$queue}");
+
+        $this->app['events']->dispatch(
+            new Events\QueueResumed($connection, $queue)
+        );
+    }
+
+    /**
+     * Determine if a queue is paused.
+     */
+    public function isPaused(string $connection, string $queue): bool
+    {
+        // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
+        return (bool) $this->app['cache']
+            ->store()
+            ->get("illuminate:queue:paused:{$connection}:{$queue}", false);
+    }
+
+    /**
+     * Indicate that queue workers should not poll for restart or pause signals.
+     */
+    public function withoutInterruptionPolling(): void
+    {
+        Worker::$restartable = false;
+        Worker::$pausable = false;
     }
 
     /**
@@ -164,7 +231,7 @@ class QueueManager implements FactoryContract, MonitorContract
         $resolver = fn () => $this->getConnector($config['driver'])
             ->connect($config)
             ->setConnectionName($name)
-            ->setContainer($this->app) // @phpstan-ignore method.notFound
+            ->setContainer($this->app) // @phpstan-ignore method.notFound (setContainer is on concrete Queue, not contract)
             ->setConfig($config);
 
         if (in_array($config['driver'], $this->poolables)) {
@@ -214,7 +281,7 @@ class QueueManager implements FactoryContract, MonitorContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->config->get("queue.connections.{$name}");
+            return $this->app['config']["queue.connections.{$name}"];
         }
 
         return ['driver' => 'null'];
@@ -225,15 +292,17 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->config->get('queue.default');
+        return $this->app['config']['queue.default'];
     }
 
     /**
      * Set the name of the default queue connection.
+     *
+     * WARNING: Mutates process-global config. Not safe for per-request use under Swoole.
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->config->set('queue.default', $name);
+        $this->app['config']['queue.default'] = $name;
     }
 
     /**
@@ -247,7 +316,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Get the application instance used by the manager.
      */
-    public function getApplication(): ContainerInterface
+    public function getApplication(): Container
     {
         return $this->app;
     }
@@ -255,7 +324,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 
@@ -272,118 +341,5 @@ class QueueManager implements FactoryContract, MonitorContract
     public function __call(string $method, array $parameters)
     {
         return $this->connection()->{$method}(...$parameters);
-    }
-
-    /**
-     * Register the connectors on the queue manager.
-     */
-    protected function registerConnectors(): void
-    {
-        $this->registerNullConnector();
-        $this->registerSyncConnector();
-        $this->registerDatabaseConnector();
-        $this->registerRedisConnector();
-        $this->registerBeanstalkdConnector();
-        $this->registerSqsConnector();
-        $this->registerDeferConnector();
-        $this->registerCoroutineConnector();
-        $this->registerFailoverConnector();
-    }
-
-    /**
-     * Register the Null queue connector.
-     */
-    protected function registerNullConnector(): void
-    {
-        $this->addConnector('null', function () {
-            return new NullConnector();
-        });
-    }
-
-    /**
-     * Register the Sync queue connector.
-     */
-    protected function registerSyncConnector(): void
-    {
-        $this->addConnector('sync', function () {
-            return new SyncConnector();
-        });
-    }
-
-    /**
-     * Register the database queue connector.
-     */
-    protected function registerDatabaseConnector(): void
-    {
-        $this->addConnector('database', function () {
-            return new DatabaseConnector(
-                $this->app->get(ConnectionResolverInterface::class)
-            );
-        });
-    }
-
-    /**
-     * Register the Redis queue connector.
-     */
-    protected function registerRedisConnector(): void
-    {
-        $this->addConnector('redis', function () {
-            return new RedisConnector(
-                $this->app->get(RedisFactory::class)
-            );
-        });
-    }
-
-    /**
-     * Register the Beanstalkd queue connector.
-     */
-    protected function registerBeanstalkdConnector(): void
-    {
-        $this->addConnector('beanstalkd', function () {
-            return new BeanstalkdConnector();
-        });
-    }
-
-    /**
-     * Register the Amazon SQS queue connector.
-     */
-    protected function registerSqsConnector(): void
-    {
-        $this->addConnector('sqs', function () {
-            return new SqsConnector();
-        });
-    }
-
-    /**
-     * Register the Coroutine defer queue connector.
-     */
-    protected function registerDeferConnector(): void
-    {
-        $this->addConnector('defer', function () {
-            return new DeferConnector();
-        });
-    }
-
-    /**
-     * Register the Coroutine queue connector.
-     */
-    protected function registerCoroutineConnector(): void
-    {
-        $this->addConnector('coroutine', function () {
-            return new CoroutineConnector();
-        });
-    }
-
-    /**
-     * Register the Failover queue connector.
-     */
-    protected function registerFailoverConnector(): void
-    {
-        $this->addConnector('failover', function () {
-            return new FailoverConnector(
-                $this,
-                $this->app->get(EventDispatcherInterface::class)
-            );
-        });
     }
 }

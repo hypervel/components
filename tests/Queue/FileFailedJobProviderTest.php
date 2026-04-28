@@ -5,14 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
-use Hyperf\Stringable\Str;
 use Hypervel\Queue\Failed\FileFailedJobProvider;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FileFailedJobProviderTest extends TestCase
 {
     protected $path;
@@ -46,31 +43,37 @@ class FileFailedJobProviderTest extends TestCase
 
     public function testCanRetrieveAllFailedJobs()
     {
-        [$uuidOne, $exceptionOne] = $this->logFailedJob();
-        [$uuidTwo, $exceptionTwo] = $this->logFailedJob();
+        try {
+            Carbon::setTestNow(now());
 
-        $failedJobs = $this->provider->all();
+            [$uuidOne, $exceptionOne] = $this->logFailedJob();
+            [$uuidTwo, $exceptionTwo] = $this->logFailedJob();
 
-        $this->assertEquals([
-            (object) [
-                'id' => $uuidTwo,
-                'connection' => 'connection',
-                'queue' => 'queue',
-                'payload' => json_encode(['uuid' => $uuidTwo]),
-                'exception' => (string) mb_convert_encoding((string) $exceptionTwo, 'UTF-8'),
-                'failed_at' => $failedJobs[1]->failed_at,
-                'failed_at_timestamp' => $failedJobs[1]->failed_at_timestamp,
-            ],
-            (object) [
-                'id' => $uuidOne,
-                'connection' => 'connection',
-                'queue' => 'queue',
-                'payload' => json_encode(['uuid' => $uuidOne]),
-                'exception' => (string) mb_convert_encoding((string) $exceptionOne, 'UTF-8'),
-                'failed_at' => $failedJobs[0]->failed_at,
-                'failed_at_timestamp' => $failedJobs[0]->failed_at_timestamp,
-            ],
-        ], $failedJobs);
+            $failedJobs = $this->provider->all();
+
+            $this->assertEquals([
+                (object) [
+                    'id' => $uuidTwo,
+                    'connection' => 'connection',
+                    'queue' => 'queue',
+                    'payload' => json_encode(['uuid' => $uuidTwo]),
+                    'exception' => (string) mb_convert_encoding((string) $exceptionTwo, 'UTF-8'),
+                    'failed_at' => $failedJobs[1]->failed_at,
+                    'failed_at_timestamp' => $failedJobs[1]->failed_at_timestamp,
+                ],
+                (object) [
+                    'id' => $uuidOne,
+                    'connection' => 'connection',
+                    'queue' => 'queue',
+                    'payload' => json_encode(['uuid' => $uuidOne]),
+                    'exception' => (string) mb_convert_encoding((string) $exceptionOne, 'UTF-8'),
+                    'failed_at' => $failedJobs[0]->failed_at,
+                    'failed_at_timestamp' => $failedJobs[0]->failed_at_timestamp,
+                ],
+            ], $failedJobs);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function testCanFindFailedJobs()
@@ -135,6 +138,23 @@ class FileFailedJobProviderTest extends TestCase
         $this->logFailedJob();
 
         $this->provider->prune(now()->subDay(1));
+        $failedJobs = $this->provider->all();
+        $this->assertCount(2, $failedJobs);
+    }
+
+    public function testCanPruneFailedJobsWithRelativeHours()
+    {
+        $this->logFailedJob();
+        $this->logFailedJob();
+
+        $this->provider->prune(now()->addHour(1));
+        $failedJobs = $this->provider->all();
+        $this->assertEmpty($failedJobs);
+
+        $this->logFailedJob();
+        $this->logFailedJob();
+
+        $this->provider->prune(now()->subHour(1));
         $failedJobs = $this->provider->all();
         $this->assertCount(2, $failedJobs);
     }

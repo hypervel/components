@@ -8,7 +8,9 @@ use Hypervel\Console\Command;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\ProvisioningPlan;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon')]
 class HorizonCommand extends Command
 {
     /**
@@ -48,7 +50,7 @@ class HorizonCommand extends Command
 
             $this->components->info('Shutting down.');
 
-            return $master->terminate();
+            return $master->terminate(); // @phpstan-ignore method.void
         });
 
         $master->monitor();

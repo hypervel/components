@@ -4,9 +4,25 @@ declare(strict_types=1);
 
 namespace Workbench\App\Http\Controllers;
 
-class ExampleController
+use Closure;
+use Hypervel\Routing\Controller;
+use PHPUnit\Framework\Assert;
+
+class ExampleController extends Controller
 {
-    public function index(): string
+    public function __construct()
+    {
+        $this->middleware(function ($request, Closure $next) {
+            $route = app('router')->getCurrentRoute();
+
+            Assert::assertSame('index', $route->getActionMethod());
+            Assert::assertSame(ExampleController::class, \get_class($route->getController()));
+
+            return $next($request);
+        });
+    }
+
+    public function index()
     {
         return 'ExampleController@index';
     }

@@ -1,12 +1,12 @@
 <script type="text/ecmascript-6">
-    export default {
-        data(){
-            return {
-                entry: null,
-                batch: [],
-            };
-        },
-    }
+export default {
+    data(){
+        return {
+            entry: null,
+            batch: [],
+        };
+    },
+}
 </script>
 
 <template>
@@ -15,25 +15,23 @@
             <tr>
                 <td class="table-fit text-muted">Channel</td>
                 <td>
-                    {{slotProps.entry.content.channel}}
+                    {{ slotProps.entry.content.channel }}
                 </td>
             </tr>
 
             <tr>
                 <td class="table-fit text-muted">Notification</td>
                 <td>
-                    {{slotProps.entry.content.notification}}
+                    {{ slotProps.entry.content.notification }}
 
-                    <span class="badge badge-secondary ml-2" v-if="slotProps.entry.content.queued">
-                        Queued
-                    </span>
+                    <span class="badge badge-secondary ml-2" v-if="slotProps.entry.content.queued"> Queued </span>
                 </td>
             </tr>
 
             <tr>
                 <td class="table-fit text-muted">Notifiable</td>
                 <td>
-                    {{slotProps.entry.content.notifiable}}
+                    {{ slotProps.entry.content.notifiable }}
                 </td>
             </tr>
         </template>

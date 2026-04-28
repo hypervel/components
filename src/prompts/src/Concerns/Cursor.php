@@ -78,4 +78,12 @@ trait Cursor
     {
         static::writeDirectly("\e[{$lines}A");
     }
+
+    /**
+     * Reset cursor state to defaults.
+     */
+    public static function resetCursor(): void
+    {
+        static::$cursorHidden = false;
+    }
 }

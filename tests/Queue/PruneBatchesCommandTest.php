@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Queue\Console\PruneBatchesCommand;
 use Hypervel\Testbench\TestCase;
@@ -12,30 +12,20 @@ use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
-/**
- * @internal
- * @coversNothing
- */
 class PruneBatchesCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-
-        parent::tearDown();
-    }
-
     public function testAllowPruningAllUnfinishedBatches()
     {
         $repo = m::mock(DatabaseBatchRepository::class);
         $repo->shouldReceive('prune')->once();
         $repo->shouldReceive('pruneUnfinished')->once();
 
-        $this->app->set(BatchRepository::class, $repo);
+        $this->app->instance(BatchRepository::class, $repo);
 
-        $command = new PruneBatchesCommand();
+        $command = new PruneBatchesCommand;
+        $command->setHypervel($this->app);
 
-        $command->run(new ArrayInput(['--unfinished' => 0]), new NullOutput());
+        $command->run(new ArrayInput(['--unfinished' => 0]), new NullOutput);
     }
 
     public function testAllowPruningAllCancelledBatches()
@@ -44,11 +34,12 @@ class PruneBatchesCommandTest extends TestCase
         $repo->shouldReceive('prune')->once();
         $repo->shouldReceive('pruneCancelled')->once();
 
-        $this->app->set(BatchRepository::class, $repo);
+        $this->app->instance(BatchRepository::class, $repo);
 
-        $command = new PruneBatchesCommand();
+        $command = new PruneBatchesCommand;
+        $command->setHypervel($this->app);
 
-        $command->run(new ArrayInput(['--cancelled' => 0]), new NullOutput());
+        $command->run(new ArrayInput(['--cancelled' => 0]), new NullOutput);
 
         $repo->shouldHaveReceived('pruneCancelled')->once();
     }

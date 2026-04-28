@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail\Transport;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Stringable;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\SentMessage;
@@ -23,7 +23,7 @@ class ArrayTransport implements Stringable, TransportInterface
      */
     public function __construct()
     {
-        $this->messages = new Collection();
+        $this->messages = new Collection;
     }
 
     public function send(RawMessage $message, ?Envelope $envelope = null): ?SentMessage
@@ -44,7 +44,7 @@ class ArrayTransport implements Stringable, TransportInterface
      */
     public function flush(): Collection
     {
-        return $this->messages = new Collection();
+        return $this->messages = new Collection;
     }
 
     /**

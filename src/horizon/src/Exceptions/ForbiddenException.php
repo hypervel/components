@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Exceptions;
 
-use Hypervel\HttpMessage\Exceptions\HttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ForbiddenException extends HttpException
 {

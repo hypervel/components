@@ -9,15 +9,11 @@ use Hypervel\Notifications\Slack\BlockKit\Elements\ImageElement;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class SectionBlockTest extends TestCase
 {
     public function testArrayable(): void
     {
-        $block = new SectionBlock();
+        $block = new SectionBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');
 
         $this->assertSame([
@@ -34,7 +30,7 @@ class SectionBlockTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('A section requires at least one block, or the text to be set.');
 
-        $block = new SectionBlock();
+        $block = new SectionBlock;
 
         $block->toArray();
     }
@@ -44,7 +40,7 @@ class SectionBlockTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Text must be at least 1 character(s) long.');
 
-        $block = new SectionBlock();
+        $block = new SectionBlock;
         $block->text('');
 
         $block->toArray();
@@ -52,7 +48,7 @@ class SectionBlockTest extends TestCase
 
     public function testTextCantExceedThreeThousandCharacters(): void
     {
-        $block = new SectionBlock();
+        $block = new SectionBlock;
         $block->text(str_repeat('a', 3001));
 
         $this->assertSame([
@@ -66,7 +62,7 @@ class SectionBlockTest extends TestCase
 
     public function testTextCanBeCustomized(): void
     {
-        $block = new SectionBlock();
+        $block = new SectionBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010')->markdown();
 
         $this->assertSame([
@@ -83,7 +79,7 @@ class SectionBlockTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('There is a maximum of 10 fields in each section block.');
 
-        $block = new SectionBlock();
+        $block = new SectionBlock;
         for ($i = 0; $i < 11; ++$i) {
             $block->field('Location: 123 Main Street, New York, NY 10010');
         }
@@ -93,7 +89,7 @@ class SectionBlockTest extends TestCase
 
     public function testFieldCantExceedTwoThousandCharacters(): void
     {
-        $block = new SectionBlock();
+        $block = new SectionBlock;
         $block->field(str_repeat('a', 2001));
 
         $this->assertSame([
@@ -109,7 +105,7 @@ class SectionBlockTest extends TestCase
 
     public function testFieldCanBeCustomized(): void
     {
-        $block = new SectionBlock();
+        $block = new SectionBlock;
         $block->field('Location: 123 Main Street, New York, NY 10010')->markdown();
 
         $this->assertSame([
@@ -125,7 +121,7 @@ class SectionBlockTest extends TestCase
 
     public function testCanManuallySpecifyBlockIdField(): void
     {
-        $block = new SectionBlock();
+        $block = new SectionBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');
         $block->id('section1');
 
@@ -144,7 +140,7 @@ class SectionBlockTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Maximum length for the block_id field is 255 characters.');
 
-        $block = new SectionBlock();
+        $block = new SectionBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');
         $block->id(str_repeat('a', 256));
 
@@ -153,7 +149,7 @@ class SectionBlockTest extends TestCase
 
     public function testCanSpecifyAccesoryElement(): void
     {
-        $block = new SectionBlock();
+        $block = new SectionBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');
         $block->accessory(new ImageElement('https://example.com/image.png', 'Image'));
 

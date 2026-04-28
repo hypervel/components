@@ -5,14 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Bus\Queueable;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueSizeTest extends TestCase
 {
     public function testQueueSize()
@@ -22,10 +18,10 @@ class QueueSizeTest extends TestCase
         $this->assertEquals(0, Queue::size());
         $this->assertEquals(0, Queue::size('Q2'));
 
-        $job = new TestJob1();
+        $job = new TestJob1;
 
         dispatch($job);
-        dispatch(new TestJob2());
+        dispatch(new TestJob2);
         dispatch($job)->onQueue('Q2');
 
         $this->assertEquals(2, Queue::size());

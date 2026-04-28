@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT\Storage;
 
-use Hypervel\Cache\Contracts\Repository as CacheContract;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\JWT\Contracts\StorageContract;
 
 class TaggedCache implements StorageContract

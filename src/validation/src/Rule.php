@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use BackedEnum;
 use Closure;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Validation\InvokableRule;
+use Hypervel\Contracts\Validation\Rule as RuleContract;
+use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Validation\Contracts\InvokableRule;
-use Hypervel\Validation\Contracts\ValidationRule;
 use Hypervel\Validation\Rules\AnyOf;
 use Hypervel\Validation\Rules\ArrayRule;
 use Hypervel\Validation\Rules\Can;
@@ -38,6 +39,14 @@ class Rule
     use Macroable;
 
     /**
+     * CoroutineContext key for caching the undotted data in Rule::compile().
+     *
+     * Set by ValidationRuleParser::explodeWildcardRulesCompilable() to avoid
+     * repeated Arr::undot() calls when Rule::forEach expands wildcard items.
+     */
+    public const UNDOTTED_DATA_CONTEXT_KEY = '__validation.rule_compile_undotted_data';
+
+    /**
      * Get a can constraint builder instance.
      */
     public static function can(string $ability, mixed ...$arguments): Can
@@ -50,8 +59,8 @@ class Rule
      */
     public static function when(
         bool|callable $condition,
-        array|Closure|InvokableRule|Rule|string|ValidationRule $rules,
-        array|Closure|InvokableRule|Rule|string|ValidationRule $defaultRules = []
+        array|Closure|InvokableRule|RuleContract|string|ValidationRule $rules,
+        array|Closure|InvokableRule|RuleContract|string|ValidationRule $defaultRules = []
     ): ConditionalRules {
         return new ConditionalRules($condition, $rules, $defaultRules);
     }
@@ -61,9 +70,9 @@ class Rule
      */
     public static function unless(
         bool|callable $condition,
-        array|Closure|InvokableRule|Rule|string|ValidationRule $rules,
-        array|Closure|InvokableRule|Rule|string|ValidationRule $defaultRules = []
-    ) {
+        array|Closure|InvokableRule|RuleContract|string|ValidationRule $rules,
+        array|Closure|InvokableRule|RuleContract|string|ValidationRule $defaultRules = []
+    ): ConditionalRules {
         return new ConditionalRules($condition, $defaultRules, $rules);
     }
 
@@ -102,7 +111,7 @@ class Rule
     /**
      * Get an in rule builder instance.
      */
-    public static function in(array|Arrayable|BackedEnum|string|UnitEnum $values): In
+    public static function in(array|Arrayable|UnitEnum|string $values): In
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();
@@ -114,7 +123,7 @@ class Rule
     /**
      * Get a not_in rule builder instance.
      */
-    public static function notIn(array|Arrayable|BackedEnum|string|UnitEnum $values): NotIn
+    public static function notIn(array|Arrayable|UnitEnum|string $values): NotIn
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();
@@ -126,7 +135,7 @@ class Rule
     /**
      * Get a contains rule builder instance.
      */
-    public static function contains(array|Arrayable|BackedEnum|string|UnitEnum $values): Contains
+    public static function contains(array|Arrayable|UnitEnum|string $values): Contains
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();
@@ -138,7 +147,7 @@ class Rule
     /**
      * Get a doesnt_contain rule builder instance.
      */
-    public static function doesntContain(array|Arrayable|BackedEnum|string|UnitEnum $values): DoesntContain
+    public static function doesntContain(array|Arrayable|UnitEnum|string $values): DoesntContain
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();
@@ -176,7 +185,7 @@ class Rule
      */
     public static function date(): Date
     {
-        return new Date();
+        return new Date;
     }
 
     /**
@@ -184,7 +193,7 @@ class Rule
      */
     public static function dateTime(): Date
     {
-        return (new Date())->format('Y-m-d H:i:s');
+        return (new Date)->format('Y-m-d H:i:s');
     }
 
     /**
@@ -192,7 +201,7 @@ class Rule
      */
     public static function email(): Email
     {
-        return new Email();
+        return new Email;
     }
 
     /**
@@ -210,7 +219,7 @@ class Rule
      */
     public static function file(): File
     {
-        return new File();
+        return new File;
     }
 
     /**
@@ -234,7 +243,7 @@ class Rule
      */
     public static function numeric(): Numeric
     {
-        return new Numeric();
+        return new Numeric;
     }
 
     /**
@@ -252,9 +261,16 @@ class Rule
      */
     public static function compile(string $attribute, mixed $rules, ?array $data = null): object
     {
-        $parser = new ValidationRuleParser(
-            Arr::undot(Arr::wrap($data))
-        );
+        $wrappedData = Arr::wrap($data);
+
+        $cached = CoroutineContext::get(self::UNDOTTED_DATA_CONTEXT_KEY);
+        if ($cached !== null && $cached['input'] === $wrappedData) {
+            $undotted = $cached['result'];
+        } else {
+            $undotted = Arr::undot($wrappedData);
+        }
+
+        $parser = new ValidationRuleParser($undotted);
 
         if (is_array($rules) && ! array_is_list($rules)) {
             $nested = [];
@@ -269,5 +285,13 @@ class Rule
         }
 
         return $parser->explode(ValidationRuleParser::filterConditionalRules($rules, $data));
+    }
+
+    /**
+     * Flush the rule builder's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

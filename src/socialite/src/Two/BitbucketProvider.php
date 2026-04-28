@@ -71,7 +71,7 @@ class BitbucketProvider extends AbstractProvider implements ProviderInterface
 
     protected function mapUserToObject(array $user): User
     {
-        return (new User())->setRaw($user)->map([
+        return (new User)->setRaw($user)->map([
             'id' => $user['uuid'],
             'nickname' => $user['username'],
             'name' => Arr::get($user, 'display_name'),
@@ -86,7 +86,7 @@ class BitbucketProvider extends AbstractProvider implements ProviderInterface
     public function getAccessToken(string $code): string
     {
         $response = $this->getHttpClient()->post($this->getTokenUrl(), [
-            RequestOptions::AUTH => [$this->clientId, $this->clientSecret],
+            RequestOptions::AUTH => [$this->getClientId(), $this->getClientSecret()],
             RequestOptions::HEADERS => ['Accept' => 'application/json'],
             RequestOptions::FORM_PARAMS => $this->getTokenFields($code),
         ]);

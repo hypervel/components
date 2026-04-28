@@ -4,16 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
-use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\Event;
+use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class FrequencyTest extends TestCase
 {
     /** @var \Hypervel\Console\Scheduling\Event */
@@ -52,6 +48,11 @@ class FrequencyTest extends TestCase
     public function testDailyAt()
     {
         $this->assertSame('8 13 * * *', $this->event->dailyAt('13:08')->getExpression());
+    }
+
+    public function testDailyAtParsesMinutesAndIgnoresSecondsWhenSecondsAreDefined()
+    {
+        $this->assertSame('8 13 * * *', $this->event->dailyAt('13:08:10')->getExpression());
     }
 
     public function testTwiceDaily()
@@ -124,8 +125,6 @@ class FrequencyTest extends TestCase
         Carbon::setTestNow('2020-10-10 10:10:10');
 
         $this->assertSame('0 0 31 * *', $this->event->lastDayOfMonth()->getExpression());
-
-        Carbon::setTestNow(null);
     }
 
     public function testTwiceMonthly()

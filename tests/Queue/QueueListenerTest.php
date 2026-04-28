@@ -10,17 +10,8 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueListenerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testRunProcessCallsProcess()
     {
         $process = m::mock(Process::class)->makePartial();
@@ -45,7 +36,7 @@ class QueueListenerTest extends TestCase
     public function testMakeProcessCorrectlyFormatsCommandLine()
     {
         $listener = new Listener(__DIR__);
-        $options = new ListenerOptions();
+        $options = new ListenerOptions;
         $options->backoff = 1;
         $options->memory = 2;
         $options->timeout = 3;

@@ -33,7 +33,7 @@ class GoogleTestProviderStub extends GoogleProvider
 
     protected function mapUserToObject(array $user): User
     {
-        return (new User())->map(['id' => $user['id']]);
+        return (new User)->map(['id' => $user['id']]);
     }
 
     /**

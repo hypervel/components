@@ -9,7 +9,7 @@ use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 
-class FailedJobsController
+class FailedJobsController extends Controller
 {
     /**
      * Create a new controller instance.
@@ -18,6 +18,7 @@ class FailedJobsController
         public JobRepository $jobs,
         public TagRepository $tags
     ) {
+        parent::__construct();
     }
 
     /**
@@ -58,11 +59,11 @@ class FailedJobsController
     {
         $jobIds = $this->tags->paginate(
             'failed:' . $tag,
-            ($request->query('starting_at') ?: -1) + 1,
+            ((int) ($request->query('starting_at') ?? -1)) + 1,
             50
         );
 
-        $startingAt = (int) $request->query('starting_at', 0);
+        $startingAt = (int) $request->query('starting_at', '0');
 
         return $this->jobs->getJobs($jobIds, $startingAt)->map(function ($job) {
             return $this->decode($job);

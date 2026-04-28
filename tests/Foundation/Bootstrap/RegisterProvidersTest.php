@@ -4,53 +4,55 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
-use Hypervel\Support\Composer;
+use Hypervel\Foundation\PackageManifest;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class RegisterProvidersTest extends TestCase
 {
-    use HasMockedApplication;
-
-    public function tearDown(): void
-    {
-        Composer::setBasePath(null);
-
-        parent::tearDown();
-    }
-
     public function testRegisterProviders()
     {
-        $config = m::mock(ConfigInterface::class);
+        $mergedProviders = null;
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')
-            ->with('app.providers', [])
-            ->once()
+            ->with('app.providers')
             ->andReturn([
                 TestTwoServiceProvider::class,
             ]);
+        $config->shouldReceive('set')
+            ->with('app.providers', m::type('array'))
+            ->once()
+            ->andReturnUsing(function (string $key, array $value) use (&$mergedProviders) {
+                $mergedProviders = $value;
+            });
+        $config->shouldReceive('get')
+            ->with('app.providers', [])
+            ->andReturnUsing(function () use (&$mergedProviders) {
+                return $mergedProviders ?? [];
+            });
 
-        $app = $this->getApplication([
-            ConfigInterface::class => fn () => $config,
-        ]);
+        $manifest = m::mock(PackageManifest::class);
+        $manifest->shouldReceive('providers')
+            ->once()
+            ->andReturn([
+                TestOneServiceProvider::class,
+            ]);
 
-        Composer::setBasePath(dirname(__DIR__) . '/fixtures/hyperf1');
+        $app = new Application($this->app->basePath());
+        $app->singleton('config', fn () => $config);
+        $app->singleton(PackageManifest::class, fn () => $manifest);
 
-        (new RegisterProviders())->bootstrap($app);
+        (new RegisterProviders)->bootstrap($app);
 
-        $this->assertSame('foo', $app->get('foo'));
-        $this->assertSame('bar', $app->get('bar'));
+        // TestOneServiceProvider discovered via PackageManifest, registers 'foo'
+        $this->assertSame('foo', $app->make('foo'));
 
-        // should not register TestThreeServiceProvider because of `dont-discover`
-        $this->assertFalse($app->bound('baz'));
-        $this->assertFalse($app->bound('qux'));
+        // TestTwoServiceProvider from config app.providers, registers 'bar'
+        $this->assertSame('bar', $app->make('bar'));
     }
 }
 
@@ -58,7 +60,7 @@ class TestOneServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('foo', function () {
+        $this->app->singleton('foo', function () {
             return 'foo';
         });
     }
@@ -68,7 +70,7 @@ class TestTwoServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('bar', function () {
+        $this->app->singleton('bar', function () {
             return 'bar';
         });
     }
@@ -78,7 +80,7 @@ class TestThreeServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('baz', function () {
+        $this->app->singleton('baz', function () {
             return 'baz';
         });
     }
@@ -88,7 +90,7 @@ class TestFourServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('qux', function () {
+        $this->app->singleton('qux', function () {
             return 'qux';
         });
     }

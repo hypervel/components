@@ -6,18 +6,14 @@ namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Sanctum\NewAccessToken;
 use Hypervel\Sanctum\PersonalAccessToken;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class NewAccessTokenTest extends TestCase
 {
     /**
      * Test to array method.
      */
-    public function testToArrayMethod(): void
+    public function testToArrayMethod()
     {
         $accessToken = new PersonalAccessToken([
             'name' => 'Test Token',
@@ -38,7 +34,7 @@ class NewAccessTokenTest extends TestCase
     /**
      * Test to json method.
      */
-    public function testToJsonMethod(): void
+    public function testToJsonMethod()
     {
         $accessToken = new PersonalAccessToken([
             'name' => 'Test Token',
@@ -61,7 +57,7 @@ class NewAccessTokenTest extends TestCase
     /**
      * Test toString method.
      */
-    public function testToStringMethod(): void
+    public function testToStringMethod()
     {
         $accessToken = new PersonalAccessToken([
             'name' => 'Test Token',

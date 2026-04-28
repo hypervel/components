@@ -6,9 +6,9 @@ namespace Hypervel\Queue\Middleware;
 
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Support\InteractsWithTime;
 
 class WithoutOverlapping
 {
@@ -21,6 +21,8 @@ class WithoutOverlapping
 
     /**
      * The prefix of the lock key.
+     *
+     * IMPORTANT: Uses Laravel's prefix for cross-framework queue interoperability.
      */
     public string $prefix = 'laravel-queue-overlap:';
 
@@ -49,11 +51,14 @@ class WithoutOverlapping
      */
     public function handle(mixed $job, callable $next): mixed
     {
-        $lock = ApplicationContext::getContainer()
-            ->get(CacheFactory::class)->lock(
-                $this->getLockKey($job),
-                $this->expiresAfter
-            );
+        /** @var \Hypervel\Cache\CacheManager $cache */
+        $cache = Container::getInstance()
+            ->make(CacheFactory::class);
+
+        $lock = $cache->lock(
+            $this->getLockKey($job),
+            $this->expiresAfter
+        );
 
         if ($lock->get()) {
             try {
@@ -123,8 +128,14 @@ class WithoutOverlapping
      */
     public function getLockKey(mixed $job): string
     {
-        return $this->shareKey
-            ? $this->prefix . $this->key
-            : $this->prefix . get_class($job) . ':' . $this->key;
+        if ($this->shareKey) {
+            return $this->prefix . $this->key;
+        }
+
+        $jobName = method_exists($job, 'displayName')
+            ? $job->displayName()
+            : get_class($job);
+
+        return $this->prefix . $jobName . ':' . $this->key;
     }
 }

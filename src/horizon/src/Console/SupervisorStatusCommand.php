@@ -8,7 +8,9 @@ use Hypervel\Console\Command;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:supervisor-status')]
 class SupervisorStatusCommand extends Command
 {
     /**
@@ -29,7 +31,7 @@ class SupervisorStatusCommand extends Command
     {
         $name = $this->argument('name');
 
-        $supervisorStatus = optional(collect($supervisors->all())->first(function ($supervisor) use ($name) {
+        $supervisorStatus = optional(collect($supervisors->all())->first(function ($supervisor) use ($name) { // @phpstan-ignore property.notFound (optional() __get proxy)
             return Str::startsWith($supervisor->name, MasterSupervisor::basename())
                    && Str::endsWith($supervisor->name, $name);
         }))->status;

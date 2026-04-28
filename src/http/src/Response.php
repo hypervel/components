@@ -4,331 +4,278 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use DateTimeImmutable;
-use Hyperf\Codec\Json;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
-use Hyperf\HttpMessage\Server\Chunk\Chunkable;
-use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\HttpServer\Response as HyperfResponse;
-use Hyperf\Support\Filesystem\Filesystem;
-use Hyperf\View\RenderInterface;
-use Hypervel\Http\Contracts\ResponseContract;
-use Hypervel\Http\Exceptions\FileNotFoundException;
-use Hypervel\Support\Collection;
-use Hypervel\Support\MimeTypeExtensionGuesser;
-use Psr\Http\Message\ResponseInterface;
+use ArrayObject;
+use Hypervel\Contracts\Engine\Http\Writable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Contracts\Support\Renderable;
+use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
+use JsonSerializable;
+use Override;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
-class Response extends HyperfResponse implements ResponseContract
+class Response extends SymfonyResponse
 {
-    public const HTTP_CONTINUE = 100;
-
-    public const HTTP_SWITCHING_PROTOCOLS = 101;
-
-    public const HTTP_PROCESSING = 102; // RFC2518
-
-    public const HTTP_EARLY_HINTS = 103; // RFC8297
-
-    public const HTTP_OK = 200;
-
-    public const HTTP_CREATED = 201;
-
-    public const HTTP_ACCEPTED = 202;
-
-    public const HTTP_NON_AUTHORITATIVE_INFORMATION = 203;
-
-    public const HTTP_NO_CONTENT = 204;
-
-    public const HTTP_RESET_CONTENT = 205;
-
-    public const HTTP_PARTIAL_CONTENT = 206;
-
-    public const HTTP_MULTI_STATUS = 207; // RFC4918
-
-    public const HTTP_ALREADY_REPORTED = 208; // RFC5842
-
-    public const HTTP_IM_USED = 226; // RFC3229
-
-    public const HTTP_MULTIPLE_CHOICES = 300;
-
-    public const HTTP_MOVED_PERMANENTLY = 301;
-
-    public const HTTP_FOUND = 302;
-
-    public const HTTP_SEE_OTHER = 303;
-
-    public const HTTP_NOT_MODIFIED = 304;
-
-    public const HTTP_USE_PROXY = 305;
-
-    public const HTTP_RESERVED = 306;
-
-    public const HTTP_TEMPORARY_REDIRECT = 307;
-
-    public const HTTP_PERMANENTLY_REDIRECT = 308; // RFC7238
-
-    public const HTTP_BAD_REQUEST = 400;
-
-    public const HTTP_UNAUTHORIZED = 401;
-
-    public const HTTP_PAYMENT_REQUIRED = 402;
-
-    public const HTTP_FORBIDDEN = 403;
-
-    public const HTTP_NOT_FOUND = 404;
-
-    public const HTTP_METHOD_NOT_ALLOWED = 405;
-
-    public const HTTP_NOT_ACCEPTABLE = 406;
-
-    public const HTTP_PROXY_AUTHENTICATION_REQUIRED = 407;
-
-    public const HTTP_REQUEST_TIMEOUT = 408;
-
-    public const HTTP_CONFLICT = 409;
-
-    public const HTTP_GONE = 410;
-
-    public const HTTP_LENGTH_REQUIRED = 411;
-
-    public const HTTP_PRECONDITION_FAILED = 412;
-
-    public const HTTP_REQUEST_ENTITY_TOO_LARGE = 413;
-
-    public const HTTP_REQUEST_URI_TOO_LONG = 414;
-
-    public const HTTP_UNSUPPORTED_MEDIA_TYPE = 415;
-
-    public const HTTP_REQUESTED_RANGE_NOT_SATISFIABLE = 416;
-
-    public const HTTP_EXPECTATION_FAILED = 417;
-
-    public const HTTP_I_AM_A_TEAPOT = 418; // RFC2324
-
-    public const HTTP_MISDIRECTED_REQUEST = 421; // RFC7540
-
-    public const HTTP_UNPROCESSABLE_ENTITY = 422; // RFC4918
-
-    public const HTTP_LOCKED = 423; // RFC4918
-
-    public const HTTP_FAILED_DEPENDENCY = 424; // RFC4918
-
-    public const HTTP_TOO_EARLY = 425; // RFC-ietf-httpbis-replay-04
-
-    public const HTTP_UPGRADE_REQUIRED = 426; // RFC2817
-
-    public const HTTP_PRECONDITION_REQUIRED = 428; // RFC6585
-
-    public const HTTP_TOO_MANY_REQUESTS = 429; // RFC6585
-
-    public const HTTP_REQUEST_HEADER_FIELDS_TOO_LARGE = 431; // RFC6585
-
-    public const HTTP_UNAVAILABLE_FOR_LEGAL_REASONS = 451; // RFC7725
-
-    public const HTTP_INTERNAL_SERVER_ERROR = 500;
-
-    public const HTTP_NOT_IMPLEMENTED = 501;
-
-    public const HTTP_BAD_GATEWAY = 502;
-
-    public const HTTP_SERVICE_UNAVAILABLE = 503;
-
-    public const HTTP_GATEWAY_TIMEOUT = 504;
-
-    public const HTTP_VERSION_NOT_SUPPORTED = 505;
-
-    public const HTTP_VARIANT_ALSO_NEGOTIATES_EXPERIMENTAL = 506; // RFC2295
-
-    public const HTTP_INSUFFICIENT_STORAGE = 507; // RFC4918
-
-    public const HTTP_LOOP_DETECTED = 508; // RFC5842
-
-    public const HTTP_NOT_EXTENDED = 510; // RFC2774
-
-    public const HTTP_NETWORK_AUTHENTICATION_REQUIRED = 511; // RFC6585
-
-    /**
-     * The context key for range headers.
-     */
-    public const RANGE_HEADERS_CONTEXT = '_response.withRangeHeaders';
-
-    /**
-     * Create a new response instance.
-     */
-    public function make(mixed $content = '', int $status = 200, array $headers = []): ResponseInterface
-    {
-        $response = $this->getResponse()->withStatus($status);
-        foreach ($headers as $name => $value) {
-            $response->addHeader($name, $value);
-        }
-        if (is_array($content) || $content instanceof Arrayable) {
-            return $response->addHeader('Content-Type', 'application/json')
-                ->setBody(new SwooleStream(Json::encode($content)));
-        }
-
-        if ($content instanceof Jsonable) {
-            return $response->addHeader('Content-Type', 'application/json')
-                ->setBody(new SwooleStream((string) $content));
-        }
-
-        if ($response->hasHeader('Content-Type')) {
-            return $response->setBody(new SwooleStream((string) $content));
-        }
-
-        return $response->addHeader('Content-Type', 'text/plain')
-            ->setBody(new SwooleStream((string) $content));
+    use Macroable {
+        Macroable::__call as macroCall;
     }
+    use ResponseTrait;
 
     /**
-     * Create a new "no content" response.
+     * Whether the response was already streamed directly to the client.
      */
-    public function noContent(int $status = 204, array $headers = []): ResponseInterface
-    {
-        $response = $this->getResponse()->withStatus($status);
-        foreach ($headers as $name => $value) {
-            $response->addHeader($name, $value);
-        }
-
-        return $response;
-    }
+    private bool $streamed = false;
 
     /**
-     * Create a new response for a given view.
-     */
-    public function view(string $view, array $data = [], int $status = 200, array $headers = []): ResponseInterface
-    {
-        $response = ApplicationContext::getContainer()
-            ->get(RenderInterface::class)
-            ->render($view, $data);
-
-        foreach ($headers as $name => $value) {
-            $response = $response->withAddedHeader($name, $value);
-        }
-
-        return $response->withStatus($status);
-    }
-
-    /**
-     * Format data to JSON and return data with Content-Type:application/json header.
+     * Whether the response body should be sent.
      *
-     * @param array|Arrayable|Jsonable $data
+     * Set to false for HEAD requests so that direct streaming sends
+     * headers/status but skips the body callback.
      */
-    public function json($data, int $status = 200, array $headers = []): ResponseInterface
-    {
-        $response = parent::json($data);
-        foreach ($headers as $name => $value) {
-            $response = $response->withHeader($name, $value);
-        }
+    private bool $sendBody = true;
 
-        return $response->withStatus($status);
+    /**
+     * The writable connection for direct Swoole streaming.
+     */
+    protected ?Writable $connection = null;
+
+    /**
+     * Create a new HTTP response.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function __construct(mixed $content = '', int $status = 200, array $headers = [])
+    {
+        $this->headers = new ResponseHeaderBag($headers);
+
+        $this->setContent($content);
+        $this->setStatusCode($status);
+        $this->setProtocolVersion('1.0');
     }
 
     /**
-     * Create a file response by file path.
+     * Get the response content.
      */
-    public function file(string $path, array $headers = []): ResponseInterface
+    #[Override]
+    public function getContent(): string|false
     {
-        $filesystem = ApplicationContext::getContainer()
-            ->get(Filesystem::class);
-        if (! $filesystem->isFile($path)) {
-            throw new FileNotFoundException($path);
-        }
-
-        $mime = Collection::make($headers)
-            ->where(function ($value, $key) {
-                return strtolower($key) === 'content-type';
-            })->first();
-        if (! $mime) {
-            $mime = ApplicationContext::getContainer()
-                ->get(MimeTypeExtensionGuesser::class)
-                ->guessMimeType(
-                    pathinfo($path, PATHINFO_EXTENSION)
-                ) ?: 'application/octet-stream';
-            $headers['Content-Type'] = $mime;
-        }
-
-        return $this->make($filesystem->get($path), 200, $headers);
+        return transform(parent::getContent(), fn ($content) => $content, '');
     }
 
     /**
-     * Get original psr7 response instance.
+     * Set the content on the response.
+     *
+     * @throws InvalidArgumentException
      */
-    public function getPsr7Response(): ResponseInterface
+    #[Override]
+    public function setContent(mixed $content): static
     {
-        return $this->getResponse();
+        $this->original = $content;
+
+        // If the content is "JSONable" we will set the appropriate header and convert
+        // the content to JSON. This is useful when returning something like models
+        // from routes that will be automatically transformed to their JSON form.
+        if ($this->shouldBeJson($content)) {
+            $this->header('Content-Type', 'application/json');
+
+            $content = $this->morphToJson($content);
+
+            if ($content === false) {
+                throw new InvalidArgumentException(json_last_error_msg());
+            }
+        }
+
+        // If this content implements the "Renderable" interface then we will call the
+        // render method on the object so we will avoid any "__toString" exceptions
+        // that might be thrown and have their errors obscured by PHP's handling.
+        elseif ($content instanceof Renderable) {
+            $content = $content->render();
+        }
+
+        parent::setContent($content);
+
+        return $this;
+    }
+
+    /**
+     * Determine if the given content should be turned into JSON.
+     */
+    protected function shouldBeJson(mixed $content): bool
+    {
+        return $content instanceof Arrayable
+               || $content instanceof Jsonable
+               || $content instanceof ArrayObject
+               || $content instanceof JsonSerializable
+               || is_array($content);
+    }
+
+    /**
+     * Morph the given content into JSON.
+     */
+    protected function morphToJson(mixed $content): string|false
+    {
+        if ($content instanceof Jsonable) {
+            return $content->toJson();
+        }
+        if ($content instanceof Arrayable) {
+            return json_encode($content->toArray());
+        }
+
+        return json_encode($content);
+    }
+
+    /**
+     * Mark the response as already streamed to the client.
+     *
+     * Called by stream() and streamDownload() immediately after sending
+     * headers/status to Swoole, before invoking the user's callback.
+     * This ensures the flag is set even if the callback throws after
+     * partial writes.
+     */
+    public function markStreamed(): void
+    {
+        $this->streamed = true;
+    }
+
+    /**
+     * Determine if the response was already streamed to the client.
+     *
+     * Used by ResponseBridge to detect responses that were sent via
+     * the direct Swoole write path (stream()/streamDownload()).
+     */
+    public function isStreamed(): bool
+    {
+        return $this->streamed;
+    }
+
+    /**
+     * Suppress the response body.
+     *
+     * Used for HEAD requests to send headers/status without body content.
+     * Direct streaming via stream() will skip the body callback.
+     */
+    public function withoutBody(): static
+    {
+        $this->sendBody = false;
+
+        return $this;
+    }
+
+    /**
+     * Determine if the response body should be sent.
+     */
+    public function shouldSendBody(): bool
+    {
+        return $this->sendBody;
+    }
+
+    /**
+     * Set the writable connection for direct Swoole streaming.
+     */
+    public function setConnection(Writable $connection): static
+    {
+        $this->connection = $connection;
+
+        return $this;
+    }
+
+    /**
+     * Get the writable connection for direct Swoole streaming.
+     */
+    public function getConnection(): ?Writable
+    {
+        return $this->connection;
     }
 
     /**
      * Create a streamed response.
      *
-     * @param callable $callback Callback that will be handled for streaming
+     * Streams content directly to the client via the Swoole socket,
+     * bypassing the normal response emission path. Each chunk written
+     * via the StreamOutput reaches the client immediately.
+     *
+     * @param callable $callback Callback that receives a StreamOutput for writing chunks
      * @param array $headers Additional headers for the response
      */
-    public function stream(callable $callback, array $headers = []): ResponseInterface
+    public function stream(callable $callback, array $headers = []): static
     {
-        $response = $this->getResponse();
-        if (! $response instanceof Chunkable) {
-            throw new RuntimeException('The response is not a chunkable response.');
-        }
-
         foreach ($headers as $key => $value) {
-            $response->addHeader($key, $value);
+            $this->headers->set($key, $value);
         }
 
-        if (! $response->hasHeader('Content-Type')) {
-            $response->setHeader('Content-Type', 'text/event-stream');
+        if (! $this->headers->has('Content-Type')) {
+            $this->headers->set('Content-Type', 'text/event-stream');
         }
 
-        if ($this->shouldAppendRangeHeaders()) {
-            $this->appendRangeHeaders();
+        // Remove headers that conflict with chunked transfer encoding
+        $this->headers->remove('Transfer-Encoding');
+        $this->headers->remove('Accept-Encoding');
+        $this->headers->remove('Content-Length');
+
+        $connection = $this->getConnection();
+
+        if ($connection === null) {
+            throw new RuntimeException('Cannot stream response without a writable connection.');
         }
 
-        $ignoreHeaders = ['Transfer-Encoding', 'Accept-Encoding', 'Content-Length'];
-        foreach ($ignoreHeaders as $header) {
-            if ($response->hasHeader($header)) {
-                $response->unsetHeader($header);
+        // Send headers and status directly via Swoole before streaming
+        $swooleResponse = $connection->getSocket();
+        foreach ($this->headers->allPreserveCaseWithoutCookies() as $name => $values) {
+            foreach ($values as $value) {
+                $swooleResponse->header($name, $value);
+            }
+        }
+        foreach ($this->headers->getCookies() as $cookie) {
+            $swooleResponse->cookie(
+                $cookie->getName(),
+                $cookie->getValue() ?? '',
+                $cookie->getExpiresTime(),
+                $cookie->getPath(),
+                $cookie->getDomain() ?? '',
+                $cookie->isSecure(),
+                $cookie->isHttpOnly(),
+                $cookie->getSameSite() ?? ''
+            );
+        }
+        $swooleResponse->status($this->getStatusCode());
+
+        // Mark as streamed NOW — headers are committed to Swoole, so the bridge
+        // must not re-send even if the callback throws after partial writes.
+        $this->markStreamed();
+
+        // Skip body output for HEAD requests — headers and status are sent,
+        // but the callback is not invoked.
+        if ($this->shouldSendBody()) {
+            $output = new StreamOutput($connection);
+            if (! is_null($result = $callback($output))) {
+                $output->write($result);
             }
         }
 
-        // Because response emitter sent response in the end of request lifecycle,
-        // we need to send headers and status manually before writing content.
-        /* @phpstan-ignore-next-line */
-        if ($responseConnection = $this->getConnection()) {
-            $swooleResponse = $responseConnection->getSocket();
-            foreach ($response->getHeaders() as $key => $value) {
-                $swooleResponse->header($key, $value);
-            }
-            $swooleResponse->status($response->getStatusCode(), $response->getReasonPhrase());
-        }
-
-        $output = new StreamOutput($response);
-        if (! is_null($result = $callback($output))) {
-            $output->write($result);
-        }
-
-        return $response;
+        return $this;
     }
 
     /**
      * Create a streamed download response.
      *
-     * @param callable $callback Callback that will be handled for streaming download
+     * @param callable $callback Callback that receives a StreamOutput for writing chunks
+     * @param null|string $filename Filename for the Content-Disposition header
      * @param array $headers Additional headers for the response
      * @param string $disposition Content-Disposition type (attachment or inline)
      */
-    public function streamDownload(callable $callback, ?string $filename = null, array $headers = [], string $disposition = 'attachment'): ResponseInterface
+    public function streamDownload(callable $callback, ?string $filename = null, array $headers = [], string $disposition = 'attachment'): static
     {
         $downloadHeaders = [
             'Content-Type' => 'application/octet-stream',
             'Content-Description' => 'File Transfer',
             'Pragma' => 'no-cache',
         ];
+
         if ($filename) {
-            $downloadHeaders['Content-Disposition'] = HeaderUtils::makeDisposition($disposition, $filename);
+            $downloadHeaders['Content-Disposition'] = $this->headers->makeDisposition($disposition, $filename);
         }
 
         foreach ($headers as $key => $value) {
@@ -339,105 +286,35 @@ class Response extends HyperfResponse implements ResponseContract
     }
 
     /**
-     * Enable range headers for the response.
+     * Send HTTP headers.
+     *
+     * @throws RuntimeException always — Swoole manages headers via its own API
      */
-    public function withRangeHeaders(?int $fileSize = null): static
+    #[Override]
+    public function sendHeaders(?int $statusCode = null): static
     {
-        Context::set(static::RANGE_HEADERS_CONTEXT, [
-            'fileSize' => $fileSize,
-        ]);
-
-        return $this;
+        throw new RuntimeException('Response::sendHeaders() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
     }
 
     /**
-     * Disable range headers for the response.
+     * Send response content.
+     *
+     * @throws RuntimeException always — Swoole has no SAPI output stream
      */
-    public function withoutRangeHeaders(): static
+    #[Override]
+    public function sendContent(): static
     {
-        Context::destroy(static::RANGE_HEADERS_CONTEXT);
-
-        return $this;
+        throw new RuntimeException('Response::sendContent() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
     }
 
     /**
-     * Determine if the response should append range headers.
+     * Send HTTP headers and content.
+     *
+     * @throws RuntimeException always — Swoole manages response emission
      */
-    public function shouldAppendRangeHeaders(): bool
+    #[Override]
+    public function send(bool $flush = true): static
     {
-        return Context::has(static::RANGE_HEADERS_CONTEXT);
-    }
-
-    /**
-     * Pull range headers from the context.
-     */
-    protected function pullRangeHeaders(): ?array
-    {
-        $context = Context::get(static::RANGE_HEADERS_CONTEXT, null);
-
-        $this->withoutRangeHeaders();
-
-        return $context;
-    }
-
-    /**
-     * Append range headers to the response.
-     */
-    protected function appendRangeHeaders(): ResponseInterface
-    {
-        $rangeHeaders = $this->pullRangeHeaders();
-        $request = RequestContext::get();
-        $response = $this->getResponse();
-
-        if (! $response->hasHeader('Accept-Ranges')) {
-            // Only accept ranges on safe HTTP methods
-            $isMethodSafe = in_array($request->getMethod(), ['GET', 'HEAD', 'OPTIONS', 'TRACE']);
-            $response->addHeader('Accept-Ranges', $isMethodSafe ? 'bytes' : 'none');
-        }
-
-        if (! $request->hasHeader('Range') || $request->getMethod() !== 'GET') {
-            return $response;
-        }
-
-        if ($request->hasHeader('If-Range') && ! $this->hasValidIfRangeHeader($request->getHeader('If-Range')[0] ?? null)) {
-            return $response;
-        }
-
-        $range = $request->getHeader('Range')[0] ?? null;
-        if (! str_starts_with($range, 'bytes=')) {
-            return $response;
-        }
-
-        // Process the range headers.
-        $fileSize = $rangeHeaders['fileSize'] ?? null;
-        [$start, $end] = HeaderUtils::validateRangeHeaders($range, $fileSize);
-
-        $response->setStatus(static::HTTP_PARTIAL_CONTENT);
-
-        // Set Content-Range
-        $rangeEnd = $end !== null ? $end : '*';
-        $totalSize = $fileSize !== null ? $fileSize : '*';
-        $response->setHeader('Content-Range', sprintf('bytes %d-%s/%s', $start, $rangeEnd, $totalSize));
-
-        return $response;
-    }
-
-    protected function hasValidIfRangeHeader(?string $header): bool
-    {
-        $response = $this->getResponse();
-
-        $etag = $response->getHeader('ETag')[0] ?? null;
-        if ($etag === $header) {
-            return true;
-        }
-
-        $lastModified = $response->getHeader('Last-Modified')[0] ?? null;
-        if (is_null($lastModified)) {
-            return false;
-        }
-
-        $lastModified = DateTimeImmutable::createFromFormat(DATE_RFC2822, $lastModified);
-
-        return $lastModified->format('D, d M Y H:i:s') . ' GMT' === $header;
+        throw new RuntimeException('Response::send() is not supported in Hypervel. Responses are emitted through Swoole\'s response API.');
     }
 }

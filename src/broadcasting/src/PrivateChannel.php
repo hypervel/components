@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 
 class PrivateChannel extends Channel
 {

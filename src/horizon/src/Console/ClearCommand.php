@@ -8,8 +8,9 @@ use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Queue\QueueManager;
-use Hypervel\Support\Arr;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:clear')]
 class ClearCommand extends Command
 {
     use ConfirmableTrait;
@@ -37,7 +38,7 @@ class ClearCommand extends Command
         }
 
         $connection = $this->argument('connection')
-            ?: Arr::first(config('horizon.defaults'))['connection'] ?? 'redis';
+            ?: array_first(config('horizon.defaults'))['connection'] ?? 'redis';
         $queue = $this->getQueue($connection);
 
         if (method_exists($jobRepository, 'purge')) {

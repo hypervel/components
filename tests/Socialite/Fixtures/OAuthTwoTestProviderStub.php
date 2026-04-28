@@ -33,7 +33,7 @@ class OAuthTwoTestProviderStub extends AbstractProvider
 
     protected function mapUserToObject(array $user): User
     {
-        return (new User())->map(['id' => $user['id']]);
+        return (new User)->map(['id' => $user['id']]);
     }
 
     /**

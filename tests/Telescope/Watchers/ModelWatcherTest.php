@@ -4,50 +4,29 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\ModelWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
+#[WithConfig('telescope.watchers', [
+    ModelWatcher::class => [
+        'enabled' => true,
+        'events' => ['eloquent.created*', 'eloquent.updated*', 'eloquent.retrieved*'],
+        'hydrations' => true,
+    ],
+])]
 class ModelWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->get(ConfigInterface::class)
-            ->set('telescope.watchers', [
-                ModelWatcher::class => [
-                    'enabled' => true,
-                    'events' => [
-                        \Hyperf\Database\Model\Events\Created::class,
-                        \Hyperf\Database\Model\Events\Updated::class,
-                        \Hyperf\Database\Model\Events\Retrieved::class,
-                    ],
-                    'hydrations' => true,
-                ],
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testModelWatcherRegistersEntry()
     {
-        Telescope::withoutRecording(function () {
-            $this->createUsersTable();
-        });
-
         UserEloquent::query()
             ->create([
                 'name' => 'Telescope',
-                'email' => 'telescope@laravel.com',
+                'email' => 'telescope@hypervel.org',
                 'password' => 1,
             ]);
 
@@ -60,14 +39,10 @@ class ModelWatcherTest extends FeatureTestCase
 
     public function testModelWatcherCanRestrictEvents()
     {
-        Telescope::withoutRecording(function () {
-            $this->createUsersTable();
-        });
-
         $user = UserEloquent::query()
             ->create([
                 'name' => 'Telescope',
-                'email' => 'telescope@laravel.com',
+                'email' => 'telescope@hypervel.org',
                 'password' => 1,
             ]);
 
@@ -84,10 +59,6 @@ class ModelWatcherTest extends FeatureTestCase
 
     public function testModelWatcherRegistersHydrationEntry()
     {
-        Telescope::withoutRecording(function () {
-            $this->createUsersTable();
-        });
-
         Telescope::stopRecording();
         $this->createUser();
         $this->createUser();

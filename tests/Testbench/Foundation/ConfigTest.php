@@ -1,0 +1,171 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Testbench\Foundation;
+
+use Hypervel\Testbench\Foundation\Config;
+use Hypervel\Testbench\PHPUnit\TestCase;
+use Hypervel\Testbench\TestbenchServiceProvider;
+use Hypervel\Tests\Testbench\Fixtures\Providers\ChildServiceProvider;
+use PHPUnit\Framework\Attributes\Test;
+
+class ConfigTest extends TestCase
+{
+    #[Test]
+    public function itCanLoadConfigurationFile(): void
+    {
+        $config = Config::loadFromYaml(__DIR__ . '/Fixtures/');
+
+        $this->assertNull($config['hypervel']);
+        $this->assertSame(['APP_DEBUG=(false)'], $config['env']);
+        $this->assertSame([], $config['bootstrappers']);
+        $this->assertSame([TestbenchServiceProvider::class], $config['providers']);
+        $this->assertSame([], $config['dont-discover']);
+        $this->assertSame([], $config['migrations']);
+        $this->assertFalse($config['seeders']);
+
+        $this->assertSame([
+            'env' => [
+                'APP_DEBUG=(false)',
+            ],
+            'bootstrappers' => [],
+            'providers' => [
+                TestbenchServiceProvider::class,
+            ],
+            'dont-discover' => [],
+        ], $config->getExtraAttributes());
+
+        $this->assertSame([
+            'directories' => [],
+            'files' => [],
+        ], $config->getPurgeAttributes());
+
+        $this->assertSame([
+            'start' => '/workbench',
+            'user' => 'crynobone@gmail.com',
+            'guard' => null,
+            'install' => true,
+            'auth' => false,
+            'welcome' => null,
+            'health' => null,
+            'sync' => [],
+            'build' => [],
+            'assets' => [],
+            'discovers' => [
+                'config' => false,
+                'factories' => false,
+                'web' => false,
+                'api' => false,
+                'commands' => false,
+                'components' => false,
+                'views' => false,
+            ],
+        ], $config->getWorkbenchAttributes());
+
+        $this->assertSame([
+            'config' => false,
+            'factories' => false,
+            'web' => false,
+            'api' => false,
+            'commands' => false,
+            'components' => false,
+            'views' => false,
+        ], $config->getWorkbenchDiscoversAttributes());
+    }
+
+    #[Test]
+    public function itCanLoadDefaultConfiguration(): void
+    {
+        $config = new Config;
+
+        $this->assertNull($config['hypervel']);
+        $this->assertSame([], $config['env']);
+        $this->assertSame([], $config['bootstrappers']);
+        $this->assertSame([], $config['providers']);
+        $this->assertSame([], $config['dont-discover']);
+        $this->assertSame([], $config['migrations']);
+        $this->assertFalse($config['seeders']);
+
+        $this->assertSame([
+            'env' => [],
+            'bootstrappers' => [],
+            'providers' => [],
+            'dont-discover' => [],
+        ], $config->getExtraAttributes());
+
+        $this->assertSame([
+            'directories' => [],
+            'files' => [],
+        ], $config->getPurgeAttributes());
+
+        $this->assertSame([
+            'start' => '/',
+            'user' => null,
+            'guard' => null,
+            'install' => true,
+            'auth' => false,
+            'welcome' => null,
+            'health' => null,
+            'sync' => [],
+            'build' => [],
+            'assets' => [],
+            'discovers' => [
+                'config' => false,
+                'factories' => false,
+                'web' => false,
+                'api' => false,
+                'commands' => false,
+                'components' => false,
+                'views' => false,
+            ],
+        ], $config->getWorkbenchAttributes());
+
+        $this->assertSame([
+            'config' => false,
+            'factories' => false,
+            'web' => false,
+            'api' => false,
+            'commands' => false,
+            'components' => false,
+            'views' => false,
+        ], $config->getWorkbenchDiscoversAttributes());
+    }
+
+    #[Test]
+    public function itCanAddAdditionalProvidersToConfigurationFile(): void
+    {
+        $config = Config::loadFromYaml(__DIR__ . '/Fixtures/');
+
+        $this->assertSame([
+            TestbenchServiceProvider::class,
+        ], $config['providers']);
+
+        $config->addProviders([
+            ChildServiceProvider::class,
+        ]);
+
+        $this->assertSame([
+            TestbenchServiceProvider::class,
+            ChildServiceProvider::class,
+        ], $config['providers']);
+    }
+
+    #[Test]
+    public function itCantAddDuplicatedProvidersToConfigurationFile(): void
+    {
+        $config = Config::loadFromYaml(__DIR__ . '/Fixtures/');
+
+        $this->assertSame([
+            TestbenchServiceProvider::class,
+        ], $config['providers']);
+
+        $config->addProviders([
+            TestbenchServiceProvider::class,
+        ]);
+
+        $this->assertSame([
+            TestbenchServiceProvider::class,
+        ], $config['providers']);
+    }
+}

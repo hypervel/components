@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Command\Command;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Queue\Worker;
+use Hypervel\Support\InteractsWithTime;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'queue:restart')]
 class RestartCommand extends Command
 {
-    use HasLaravelStyleCommand;
     use InteractsWithTime;
 
     /**
@@ -39,7 +40,7 @@ class RestartCommand extends Command
     public function handle()
     {
         /* @phpstan-ignore-next-line */
-        $this->cache->forever('illuminate:queue:restart', $this->currentTime());
+        $this->cache->forever(Worker::RESTART_SIGNAL_CACHE_KEY, $this->currentTime());
 
         $this->info('Broadcasting queue restart signal.');
     }

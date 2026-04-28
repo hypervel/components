@@ -1,0 +1,56 @@
+{
+    "name": "hypervel/router",
+    "type": "library",
+    "description": "The router package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "router",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Router\\": "src/"
+        },
+        "files": [
+            "src/Functions.php"
+        ]
+    },
+    "require": {
+        "php": "^8.4",
+        "hypervel/context": "^0.4",
+        "hypervel/http-server": "^0.4",
+        "nikic/fast-route": "^1.3.0"
+    },
+    "suggest": {
+        "hypervel/cache": "Required to use throttle requests middleware.",
+        "hypervel/core": "Required to use throttle requests middleware.",
+        "hypervel/session": "Required to use session based `previous` function in UrlGenerator.",
+        "hypervel/http": "Required to use ValidateSignature middleware."
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Router\\RouterServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

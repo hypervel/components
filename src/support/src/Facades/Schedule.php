@@ -4,23 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Console\Scheduling\Schedule as ScheduleAccessor;
+use Hypervel\Console\Scheduling\Schedule as ConsoleSchedule;
 
 /**
- * @method static \Hypervel\Console\Scheduling\CallbackEvent call(callable|string $callback, array $parameters = [])
- * @method static \Hypervel\Console\Scheduling\Event command(string $command, array $parameters = [])
- * @method static \Hypervel\Console\Scheduling\CallbackEvent job(object|string $job, string|null $queue = null, string|null $connection = null)
+ * @method static \Hypervel\Console\Scheduling\CallbackEvent call(callable|array|string $callback, array $parameters = [])
+ * @method static \Hypervel\Console\Scheduling\Event command(\Symfony\Component\Console\Command\Command|string $command, array $parameters = [])
+ * @method static \Hypervel\Console\Scheduling\CallbackEvent job(object|string $job, \UnitEnum|string|null $queue = null, \UnitEnum|string|null $connection = null)
  * @method static \Hypervel\Console\Scheduling\Event exec(string $command, array $parameters = [], bool $isSystem = true)
  * @method static void group(\Closure $events)
  * @method static string compileArrayInput(string|int $key, array $value)
  * @method static bool serverShouldRun(\Hypervel\Console\Scheduling\Event $event, \DateTimeInterface $time)
- * @method static \Hyperf\Collection\Collection dueEvents(\Hypervel\Foundation\Contracts\Application $app)
+ * @method static \Hypervel\Support\Collection dueEvents(\Hypervel\Contracts\Foundation\Application $app)
  * @method static array events()
- * @method static \Hypervel\Console\Scheduling\Schedule useCache(string|null $store)
- * @method static mixed macroCall(string $method, array $parameters)
+ * @method static \Hypervel\Console\Scheduling\Schedule useCache(\UnitEnum|string|null $store)
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
+ * @method static void flushMacros()
+ * @method static mixed macroCall(string $method, array $parameters)
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes withoutOverlapping(int $expiresAt = 1440)
  * @method static void mergeAttributes(\Hypervel\Console\Scheduling\Event $event)
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes user(string $user)
@@ -77,19 +78,20 @@ use Hypervel\Console\Scheduling\Schedule as ScheduleAccessor;
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes monthlyOn(int $dayOfMonth = 1, string $time = '0:0')
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes twiceMonthly(int $first = 1, int $second = 16, string $time = '0:0')
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes lastDayOfMonth(string $time = '0:0')
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes daysOfMonth(array<int>|int ...$days)
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes quarterly()
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes quarterlyOn(int $dayOfQuarter = 1, string $time = '0:0')
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes yearly()
- * @method static \Hypervel\Console\Scheduling\PendingEventAttributes yearlyOn(int $month = 1, int|string $dayOfMonth = 1, string $time = '0:0')
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes yearlyOn(int $month = 1, string|int $dayOfMonth = 1, string $time = '0:0')
  * @method static \Hypervel\Console\Scheduling\PendingEventAttributes days(array|mixed $days)
- * @method static \Hypervel\Console\Scheduling\PendingEventAttributes timezone(\DateTimeZone|string $timezone)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes timezone(\DateTimeZone|\UnitEnum|string $timezone)
  *
  * @see \Hypervel\Console\Scheduling\Schedule
  */
 class Schedule extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
-        return ScheduleAccessor::class;
+        return ConsoleSchedule::class;
     }
 }

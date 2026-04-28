@@ -125,6 +125,10 @@
                     <div class="col">{{job.id}}</div>
                 </div>
                 <div class="row mb-2">
+                    <div class="col-md-2 text-muted">Connection</div>
+                    <div class="col">{{job.connection}}</div>
+                </div>
+                <div class="row mb-2">
                     <div class="col-md-2 text-muted">Queue</div>
                     <div class="col">{{job.queue}}</div>
                 </div>
@@ -205,7 +209,7 @@
             <table class="table table-hover mb-0">
                 <thead>
                 <tr>
-                    <th>Job</th>
+                    <th>Status</th>
                     <th>ID</th>
                     <th class="text-end">Retry Time</th>
                 </tr>
@@ -227,7 +231,7 @@
                             <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
                         </svg>
 
-                        <span class="ms-2">{{ retry.status.charAt(0).toUpperCase() + retry.status.slice(1) }}</span>
+                        <span class="ms-2">{{ upperFirst(retry.status) }}</span>
                     </td>
 
                     <td class="table-fit">

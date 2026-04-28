@@ -7,6 +7,19 @@ use Hypervel\Support\Str;
 return [
     /*
     |--------------------------------------------------------------------------
+    | Horizon Name
+    |--------------------------------------------------------------------------
+    |
+    | This name appears in notifications and in the Horizon UI. Unique names
+    | can be useful while running multiple instances of Horizon within an
+    | application, allowing you to identify the Horizon you're viewing.
+    |
+    */
+
+    'name' => env('HORIZON_NAME'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Horizon Domain
     |--------------------------------------------------------------------------
     |
@@ -15,6 +28,8 @@ return [
     | application. Otherwise, this value will serve as the subdomain.
     |
     */
+
+    'domain' => env('HORIZON_DOMAIN'),
 
     /*
     |--------------------------------------------------------------------------
@@ -121,6 +136,10 @@ return [
         // App\Jobs\ExampleJob::class,
     ],
 
+    'silenced_tags' => [
+        // 'notifications',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Metrics
@@ -208,5 +227,31 @@ return [
                 'maxProcesses' => 3,
             ],
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | File Watcher Configuration
+    |--------------------------------------------------------------------------
+    |
+    | The following list of directories and files will be watched when using
+    | the `horizon:listen` command. If this value is not set, Horizon will
+    | fall back to your application's watcher config (config/watcher.php).
+    | This allows you to maintain a single watch list for both the server
+    | and Horizon, or override it specifically for Horizon.
+    |
+    */
+
+    'watch' => [
+        'app',
+        'bootstrap',
+        'config/**/*.php',
+        'database/**/*.php',
+        'public/**/*.php',
+        'resources/**/*.php',
+        'routes',
+        'composer.lock',
+        'composer.json',
+        '.env',
     ],
 ];

@@ -5,32 +5,40 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Bus\Contracts\Dispatcher;
-use Hypervel\Database\TransactionManager;
-use Hypervel\Queue\Contracts\QueueableEntity;
-use Hypervel\Queue\Contracts\ShouldQueue;
-use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Bus\Dispatcher as BusDispatcher;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Queue\QueueableEntity;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Events\Dispatcher as EventsDispatcher;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\SyncQueue;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueSyncQueueTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        SyncQueue::createPayloadUsing(null);
+        Container::setInstance(null);
+
+        parent::tearDown();
+    }
+
     public function testPushShouldFireJobInstantly()
     {
         unset($_SERVER['__sync.test']);
 
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
         $sync->setContainer($container);
@@ -45,12 +53,13 @@ class QueueSyncQueueTest extends TestCase
     {
         unset($_SERVER['__sync.failed']);
 
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcherInterface::class);
-        $events->shouldReceive('dispatch')->times(3);
-        $container->set(EventDispatcherInterface::class, $events);
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('dispatch')->times(4);
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
         $sync->setContainer($container);
 
         try {
@@ -60,18 +69,17 @@ class QueueSyncQueueTest extends TestCase
         }
     }
 
-    public function testCreatesPayloadObject()
+    public function testFailedJobHasAccessToJobInstance()
     {
-        $sync = new SyncQueue();
+        unset($_SERVER['__sync.failed']);
+
+        $sync = new SyncQueue;
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcherInterface::class);
-        $events->shouldReceive('dispatch');
-        $container->set(EventDispatcherInterface::class, $events);
-        $dispatcher = m::mock(Dispatcher::class);
-        $dispatcher->shouldReceive('getCommandHandler')->once()->andReturn(false);
-        $dispatcher->shouldReceive('dispatchNow')->once();
-        $container->set(Dispatcher::class, $dispatcher);
+        $events = new EventsDispatcher($container);
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
+        $container->instance(DispatcherContract::class, new BusDispatcher($container));
         $sync->setContainer($container);
 
         SyncQueue::createPayloadUsing(function ($connection, $queue, $payload) {
@@ -79,7 +87,33 @@ class QueueSyncQueueTest extends TestCase
         });
 
         try {
-            $sync->push(new SyncQueueJob());
+            $sync->push(new FailingSyncQueueJob);
+        } catch (LogicException) {
+            $this->assertSame('extraValue', $_SERVER['__sync.failed']);
+        }
+    }
+
+    public function testCreatesPayloadObject()
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $events = m::mock(EventDispatcher::class);
+        $events->shouldReceive('dispatch');
+        $container->instance('events', $events);
+        $container->instance(EventDispatcher::class, $events);
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('getCommandHandler')->once()->andReturn(false);
+        $dispatcher->shouldReceive('dispatchNow')->once();
+        $container->instance(Dispatcher::class, $dispatcher);
+        $sync->setContainer($container);
+
+        SyncQueue::createPayloadUsing(function ($connection, $queue, $payload) {
+            return ['data' => ['extra' => 'extraValue']];
+        });
+
+        try {
+            $sync->push(new SyncQueueJob);
         } catch (LogicException $e) {
             $this->assertSame('extraValue', $e->getMessage());
         }
@@ -89,33 +123,65 @@ class QueueSyncQueueTest extends TestCase
 
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitJob());
+        $sync->push(new SyncQueueAfterCommitJob);
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
-        $sync = new SyncQueue();
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
-        $sync->push(new SyncQueueAfterCommitInterfaceJob());
+        $sync->push(new SyncQueueAfterCommitInterfaceJob);
+    }
+
+    public function testItAddsATransactionCallbackForAfterCommitUniqueJobs()
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+
+        $sync->setContainer($container);
+        $sync->push(new SyncQueueAfterCommitUniqueJob);
+    }
+
+    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+
+        $sync->setContainer($container);
+        $sync->push(new SyncQueueAfterCommitInterfaceUniqueJob);
     }
 
     protected function getContainer(): Container
     {
-        return new Container(
-            new DefinitionSource([])
-        );
+        $container = new Container;
+        $container->instance(ContainerContract::class, $container);
+        Container::setInstance($container);
+
+        return $container;
     }
 }
 
@@ -149,12 +215,29 @@ class FailingSyncQueueTestHandler
 {
     public function fire($job, $data)
     {
-        throw new Exception();
+        throw new Exception;
     }
 
     public function failed()
     {
         $_SERVER['__sync.failed'] = true;
+    }
+}
+
+class FailingSyncQueueJob implements ShouldQueue
+{
+    use InteractsWithQueue;
+
+    public function handle(): void
+    {
+        throw new LogicException;
+    }
+
+    public function failed(): void
+    {
+        $payload = $this->job->payload();
+
+        $_SERVER['__sync.failed'] = $payload['data']['extra'];
     }
 }
 
@@ -191,6 +274,26 @@ class SyncQueueAfterCommitInterfaceJob implements ShouldQueueAfterCommit
     use InteractsWithQueue;
 
     public function handle()
+    {
+    }
+}
+
+class SyncQueueAfterCommitUniqueJob implements ShouldBeUnique
+{
+    use InteractsWithQueue;
+
+    public $afterCommit = true;
+
+    public function handle(): void
+    {
+    }
+}
+
+class SyncQueueAfterCommitInterfaceUniqueJob implements ShouldBeUnique, ShouldQueueAfterCommit
+{
+    use InteractsWithQueue;
+
+    public function handle(): void
     {
     }
 }

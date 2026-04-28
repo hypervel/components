@@ -5,15 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Channels;
 
 use GuzzleHttp\Client as HttpClient;
-use Hyperf\Collection\Collection;
 use Hypervel\Notifications\Messages\SlackAttachment;
 use Hypervel\Notifications\Messages\SlackAttachmentField;
 use Hypervel\Notifications\Messages\SlackMessage;
 use Hypervel\Notifications\Notification;
+use Hypervel\Support\Collection;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
-
-use function Hyperf\Collection\data_get;
 
 class SlackWebhookChannel
 {

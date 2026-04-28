@@ -45,9 +45,9 @@ class CliDumper extends BaseCliDumper
      */
     public static function register($basePath, $compiledViewPath): void
     {
-        $cloner = tap(new VarCloner())->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
+        $cloner = tap(new VarCloner)->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO); // @phpstan-ignore method.notFound (tap proxy __call)
 
-        $dumper = new static(new ConsoleOutput(), $basePath, $compiledViewPath);
+        $dumper = new static(new ConsoleOutput, $basePath, $compiledViewPath);
 
         VarDumper::setHandler(fn ($value) => $dumper->dumpWithSource($cloner->cloneVar($value)));
     }

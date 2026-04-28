@@ -6,14 +6,10 @@ namespace Hypervel\Tests\JWT\Storage;
 
 use Hypervel\JWT\Storage\PsrCache;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 use Psr\SimpleCache\CacheInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class PsrCacheTest extends TestCase
 {
     /**
@@ -25,7 +21,7 @@ class PsrCacheTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->cache = Mockery::mock(CacheInterface::class);
+        $this->cache = m::mock(CacheInterface::class);
         $this->storage = new PsrCache($this->cache);
     }
 

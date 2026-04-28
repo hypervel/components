@@ -4,46 +4,38 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
-use Hyperf\ViewEngine\Contract\ViewInterface;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Telescope\Watchers\Traits\FormatsClosure;
-use Hypervel\View\Events\ViewRendered;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\View\Factory;
 
 class ViewWatcher extends Watcher
 {
-    use FormatsClosure;
-
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Application $app): void
     {
-        $app->get(ConfigInterface::class)
-            ->set('view.event.enable', true);
-
-        $app->get(EventDispatcherInterface::class)
-            ->listen(ViewRendered::class, [$this, 'recordAction']);
+        $app->make(Factory::class)
+            ->observeRendering([$this, 'recordRenderedView']);
     }
 
     /**
-     * Record an action.
+     * Record a rendered view.
      */
-    public function recordAction(ViewRendered $event): void
+    public function recordRenderedView(ViewContract $view): void
     {
         if (! Telescope::isRecording()) {
             return;
         }
 
         Telescope::recordView(IncomingEntry::make(array_filter([
-            'name' => $event->view->name(),
-            'path' => $this->extractPath($event->view),
-            'data' => $this->extractKeysFromData($event->view),
+            'name' => $view->name(),
+            'path' => $this->extractPath($view),
+            'data' => $this->extractKeysFromData($view),
             'composers' => [],
         ])));
     }
@@ -51,9 +43,8 @@ class ViewWatcher extends Watcher
     /**
      * Extract the path from the given view.
      */
-    protected function extractPath(ViewInterface $view): string
+    protected function extractPath(ViewContract $view): string
     {
-        /** @var \Hyperf\ViewEngine\View $view */
         $path = $view->getPath();
 
         if (Str::startsWith($path, base_path())) {
@@ -66,7 +57,7 @@ class ViewWatcher extends Watcher
     /**
      * Extract the keys from the given view in array form.
      */
-    protected function extractKeysFromData(ViewInterface $view): array
+    protected function extractKeysFromData(ViewContract $view): array
     {
         return Collection::make($view->getData())->filter(function ($value, $key) {
             return ! in_array($key, ['app', '__env', 'obLevel', 'errors']);

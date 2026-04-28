@@ -31,6 +31,7 @@ trait FakesInputOutput
         $mock->shouldReceive('cols')->byDefault()->andReturn(80); // @phpstan-ignore-line
         $mock->shouldReceive('lines')->byDefault()->andReturn(24); // @phpstan-ignore-line
         $mock->shouldReceive('initDimensions')->byDefault(); // @phpstan-ignore-line
+        $mock->shouldReceive('supportsTrueColor')->byDefault()->andReturn(false); // @phpstan-ignore-line
 
         static::fakeKeyPresses($keys, function (string $key) use ($mock): void {
             /* @phpstan-ignore-next-line */
@@ -40,7 +41,7 @@ trait FakesInputOutput
         /* @phpstan-ignore-next-line */
         static::$terminal = $mock;
 
-        self::setOutput(new BufferedConsoleOutput());
+        self::setOutput(new BufferedConsoleOutput);
     }
 
     /**

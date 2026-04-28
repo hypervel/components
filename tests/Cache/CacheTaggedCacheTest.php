@@ -8,16 +8,31 @@ use DateInterval;
 use DateTime;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Tests\TestCase;
+use TypeError;
 
-/**
- * @internal
- * @coversNothing
- */
+enum TaggedCacheTestKeyStringEnum: string
+{
+    case Counter = 'counter';
+    case Total = 'total';
+}
+
+enum TaggedCacheTestKeyIntEnum: int
+{
+    case Key1 = 1;
+    case Key2 = 2;
+}
+
+enum TaggedCacheTestKeyUnitEnum
+{
+    case hits;
+    case misses;
+}
+
 class CacheTaggedCacheTest extends TestCase
 {
     public function testCacheCanBeSavedWithMultipleTags()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $tags = ['bop', 'zap'];
         $store->tags($tags)->put('foo', 'bar', 10);
         $this->assertSame('bar', $store->tags($tags)->get('foo'));
@@ -25,9 +40,9 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testCacheCanBeSetWithDatetimeArgument()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $tags = ['bop', 'zap'];
-        $duration = new DateTime();
+        $duration = new DateTime;
         $duration->add(new DateInterval('PT10M'));
         $store->tags($tags)->put('foo', 'bar', $duration);
         $this->assertSame('bar', $store->tags($tags)->get('foo'));
@@ -35,7 +50,7 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testCacheSavedWithMultipleTagsCanBeFlushed()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $tags1 = ['bop', 'zap'];
         $store->tags($tags1)->put('foo', 'bar', 10);
         $tags2 = ['bam', 'pow'];
@@ -47,14 +62,14 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testTagsWithStringArgument()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $store->tags('bop')->put('foo', 'bar', 10);
         $this->assertSame('bar', $store->tags('bop')->get('foo'));
     }
 
     public function testWithIncrement()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $taggableStore = $store->tags('bop');
 
         $taggableStore->put('foo', 5, 10);
@@ -80,7 +95,7 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testWithDecrement()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $taggableStore = $store->tags('bop');
 
         $taggableStore->put('foo', 50, 10);
@@ -179,7 +194,7 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testTagsWithIncrementCanBeFlushed()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $store->tags('bop')->increment('foo', 5);
         $this->assertEquals(5, $store->tags('bop')->get('foo'));
         $store->tags('bop')->flush();
@@ -188,7 +203,7 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testTagsWithDecrementCanBeFlushed()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $store->tags('bop')->decrement('foo', 5);
         $this->assertEquals(-5, $store->tags('bop')->get('foo'));
         $store->tags('bop')->flush();
@@ -197,15 +212,85 @@ class CacheTaggedCacheTest extends TestCase
 
     public function testTagsCacheForever()
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
         $tags = ['bop', 'zap'];
         $store->tags($tags)->forever('foo', 'bar');
         $this->assertSame('bar', $store->tags($tags)->get('foo'));
     }
 
+    public function testIncrementAcceptsStringBackedEnum(): void
+    {
+        $store = new ArrayStore;
+        $taggableStore = $store->tags('bop');
+
+        $taggableStore->put(TaggedCacheTestKeyStringEnum::Counter, 5, 10);
+
+        $value = $taggableStore->increment(TaggedCacheTestKeyStringEnum::Counter);
+
+        $this->assertSame(6, $value);
+        $this->assertSame(6, $taggableStore->get('counter'));
+    }
+
+    public function testIncrementAcceptsUnitEnum(): void
+    {
+        $store = new ArrayStore;
+        $taggableStore = $store->tags('bop');
+
+        $taggableStore->put('hits', 10, 10);
+
+        $value = $taggableStore->increment(TaggedCacheTestKeyUnitEnum::hits);
+
+        $this->assertSame(11, $value);
+    }
+
+    public function testIncrementWithIntBackedEnumThrowsTypeError(): void
+    {
+        $store = new ArrayStore;
+        $taggableStore = $store->tags('bop');
+
+        // Int-backed enum causes TypeError because itemKey() expects string
+        $this->expectException(TypeError::class);
+        $taggableStore->increment(TaggedCacheTestKeyIntEnum::Key1);
+    }
+
+    public function testDecrementAcceptsStringBackedEnum(): void
+    {
+        $store = new ArrayStore;
+        $taggableStore = $store->tags('bop');
+
+        $taggableStore->put(TaggedCacheTestKeyStringEnum::Counter, 50, 10);
+
+        $value = $taggableStore->decrement(TaggedCacheTestKeyStringEnum::Counter);
+
+        $this->assertSame(49, $value);
+        $this->assertSame(49, $taggableStore->get('counter'));
+    }
+
+    public function testDecrementAcceptsUnitEnum(): void
+    {
+        $store = new ArrayStore;
+        $taggableStore = $store->tags('bop');
+
+        $taggableStore->put('misses', 20, 10);
+
+        $value = $taggableStore->decrement(TaggedCacheTestKeyUnitEnum::misses);
+
+        $this->assertSame(19, $value);
+    }
+
+    public function testDecrementWithIntBackedEnumThrowsTypeError(): void
+    {
+        $store = new ArrayStore;
+        $taggableStore = $store->tags('bop');
+
+        // Int-backed enum causes TypeError because itemKey() expects string
+        $this->expectException(TypeError::class);
+        $taggableStore->decrement(TaggedCacheTestKeyIntEnum::Key1);
+    }
+
     private function getTestCacheStoreWithTagValues(): ArrayStore
     {
-        $store = new ArrayStore();
+        $store = new ArrayStore;
 
         $tags = ['fruit'];
         $store->tags($tags)->put('a', 'apple', 10);

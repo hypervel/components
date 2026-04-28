@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Prompts\Exceptions\FormRevertedException;
 use Hypervel\Prompts\Output\ConsoleOutput;
 use Hypervel\Prompts\Support\Result;
@@ -22,6 +24,16 @@ abstract class Prompt
     use Concerns\Fallback;
     use Concerns\Interactivity;
     use Concerns\Themes;
+
+    /**
+     * Context key for the output instance override.
+     */
+    protected const OUTPUT_CONTEXT_KEY = '__prompts.output';
+
+    /**
+     * Context key for the custom validation callback override.
+     */
+    protected const VALIDATE_USING_CONTEXT_KEY = '__prompts.validate_using';
 
     /**
      * The current state of the prompt.
@@ -76,7 +88,7 @@ abstract class Prompt
     /**
      * The custom validation callback.
      */
-    protected static ?Closure $validateUsing;
+    protected static ?Closure $validateUsing = null;
 
     /**
      * The revert handler from the StepBuilder.
@@ -110,9 +122,10 @@ abstract class Prompt
                 return $this->fallback();
             }
 
-            static::$interactive ??= stream_isatty(STDIN);
+            $interactive = static::isInteractive() ?? stream_isatty(STDIN);
+            static::interactive($interactive);
 
-            if (! static::$interactive) {
+            if (! $interactive) {
                 return $this->default();
             }
 
@@ -144,7 +157,7 @@ abstract class Prompt
                     }
 
                     if ($key === Key::CTRL_U && self::$revertUsing) {
-                        throw new FormRevertedException();
+                        throw new FormRevertedException;
                     }
 
                     return Result::from($this->transformedValue());
@@ -216,7 +229,11 @@ abstract class Prompt
      */
     public static function setOutput(OutputInterface $output): void
     {
-        self::$output = $output;
+        if (Coroutine::inCoroutine()) {
+            CoroutineContext::set(self::OUTPUT_CONTEXT_KEY, $output);
+        } else {
+            self::$output = $output;
+        }
     }
 
     /**
@@ -224,7 +241,11 @@ abstract class Prompt
      */
     protected static function output(): OutputInterface
     {
-        return self::$output ??= new ConsoleOutput();
+        if (Coroutine::inCoroutine()) {
+            return CoroutineContext::get(self::OUTPUT_CONTEXT_KEY) ?? (self::$output ??= new ConsoleOutput);
+        }
+
+        return self::$output ??= new ConsoleOutput;
     }
 
     /**
@@ -244,7 +265,7 @@ abstract class Prompt
      */
     public static function terminal(): Terminal
     {
-        return static::$terminal ??= new Terminal();
+        return static::$terminal ??= new Terminal;
     }
 
     /**
@@ -252,7 +273,23 @@ abstract class Prompt
      */
     public static function validateUsing(Closure $callback): void
     {
-        static::$validateUsing = $callback;
+        if (Coroutine::inCoroutine()) {
+            CoroutineContext::set(self::VALIDATE_USING_CONTEXT_KEY, $callback);
+        } else {
+            static::$validateUsing = $callback;
+        }
+    }
+
+    /**
+     * Get the custom validation callback.
+     */
+    protected static function getValidateUsing(): ?Closure
+    {
+        if (Coroutine::inCoroutine()) {
+            return CoroutineContext::get(self::VALIDATE_USING_CONTEXT_KEY) ?? static::$validateUsing;
+        }
+
+        return static::$validateUsing;
     }
 
     /**
@@ -399,13 +436,15 @@ abstract class Prompt
             return;
         }
 
-        if (! isset($this->validate) && ! isset(static::$validateUsing)) {
+        $validateUsing = static::getValidateUsing();
+
+        if (! isset($this->validate) && $validateUsing === null) {
             return;
         }
 
         $error = match (true) {
             is_callable($this->validate) => ($this->validate)($value),
-            isset(static::$validateUsing) => (static::$validateUsing)($this),
+            $validateUsing !== null => $validateUsing($this),
             default => throw new RuntimeException('The validation logic is missing.'),
         };
 
@@ -445,5 +484,25 @@ abstract class Prompt
         $this->restoreCursor();
 
         static::terminal()->restoreTty();
+    }
+
+    /**
+     * Flush all prompt static state back to defaults.
+     */
+    public static function flushState(): void
+    {
+        static::$cancelUsing = null;
+        static::$validateUsing = null;
+        static::$revertUsing = null;
+        static::$output = new ConsoleOutput;
+        static::$terminal = new Terminal;
+
+        CoroutineContext::forget(self::OUTPUT_CONTEXT_KEY);
+        CoroutineContext::forget(self::VALIDATE_USING_CONTEXT_KEY);
+
+        static::resetCursor();
+        static::resetFallback();
+        static::resetInteractivity();
+        static::resetTheme();
     }
 }

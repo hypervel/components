@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\InteractsWithQueue;
+
+class {{ class }} implements ShouldQueue
+{
+    use InteractsWithQueue;
+
+    /**
+     * Create the event listener.
+     */
+    public function __construct()
+    {
+        //
+    }
+
+    /**
+     * Handle the event.
+     */
+    public function handle(object $event): void
+    {
+        //
+    }
+}

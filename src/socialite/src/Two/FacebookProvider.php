@@ -22,12 +22,12 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
     /**
      * The Graph API version for the request.
      */
-    protected string $version = 'v3.3';
+    protected string $version = 'v23.0';
 
     /**
      * The user fields being requested.
      */
-    protected array $fields = ['name', 'email', 'gender', 'verified', 'link'];
+    protected array $fields = ['name', 'email', 'gender', 'verified', 'link', 'picture.width(1920)'];
 
     /**
      * The scopes being requested.
@@ -86,7 +86,7 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
 
         $data = (array) JWT::decode($token, $this->getPublicKeyOfOIDCToken($kid));
 
-        throw_if($data['aud'] !== $this->clientId, new Exception('Token has incorrect audience.'));
+        throw_if($data['aud'] !== $this->getClientId(), new Exception('Token has incorrect audience.'));
         throw_if($data['iss'] !== 'https://www.facebook.com', new Exception('Token has incorrect issuer.'));
 
         $data['id'] = $data['sub'];
@@ -130,8 +130,8 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
             'fields' => implode(',', $this->getFields()),
         ];
 
-        if (! empty($this->clientSecret)) {
-            $params['appsecret_proof'] = hash_hmac('sha256', $token, $this->clientSecret);
+        if (! empty($this->getClientSecret())) {
+            $params['appsecret_proof'] = hash_hmac('sha256', $token, $this->getClientSecret());
         }
 
         $response = $this->getHttpClient()->get($this->graphUrl . '/' . $this->getGraphVersion() . '/me', [
@@ -146,19 +146,13 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
 
     protected function mapUserToObject(array $user): User
     {
-        if (! isset($user['sub'])) {
-            $avatarUrl = $this->graphUrl . '/' . $this->getGraphVersion() . '/' . $user['id'] . '/picture';
-
-            $avatarOriginalUrl = $avatarUrl . '?width=1920';
-        }
-
-        return (new User())->setRaw($user)->map([
+        return (new User)->setRaw($user)->map([
             'id' => $user['id'],
             'nickname' => null,
             'name' => $user['name'] ?? null,
             'email' => $user['email'] ?? null,
-            'avatar' => $avatarUrl ?? $user['picture'] ?? null,
-            'avatar_original' => $avatarOriginalUrl ?? $user['picture'] ?? null,
+            'avatar' => $avatarUrl = Arr::get($user, 'picture.data.url', $user['picture'] ?? null),
+            'avatar_original' => $avatarUrl,
             'profileUrl' => $user['link'] ?? null,
         ]);
     }

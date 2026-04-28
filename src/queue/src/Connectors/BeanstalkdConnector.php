@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Connectors;
 
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\BeanstalkdQueue;
-use Hypervel\Queue\Contracts\Queue;
 use Pheanstalk\Contract\SocketFactoryInterface;
 use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Timeout;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Store;
 
 class TagSet
 {
@@ -97,8 +97,10 @@ class TagSet
 
     /**
      * Get an array of tag identifiers for all of the tags in the set.
+     *
+     * @return array<string>
      */
-    protected function tagIds(): array
+    public function tagIds(): array
     {
         return array_map([$this, 'tagId'], $this->names);
     }

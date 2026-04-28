@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Prompts\Concerns;
 
 use Hypervel\Prompts\Key;
+use IntlBreakIterator;
 
 trait TypedValue
 {
@@ -25,7 +26,7 @@ trait TypedValue
     {
         $this->typedValue = $default;
 
-        if ($this->typedValue) {
+        if (strlen($this->typedValue) > 0) {
             $this->cursorPosition = mb_strlen($this->typedValue);
         }
 
@@ -43,6 +44,7 @@ trait TypedValue
                     Key::oneOf([Key::HOME, Key::CTRL_A], $key) => $this->cursorPosition = 0,
                     Key::oneOf([Key::END, Key::CTRL_E], $key) => $this->cursorPosition = mb_strlen($this->typedValue),
                     Key::DELETE => $this->typedValue = mb_substr($this->typedValue, 0, $this->cursorPosition) . mb_substr($this->typedValue, $this->cursorPosition + 1),
+                    Key::OPTION_BACKSPACE => $this->deleteWordBackward(),
                     default => null,
                 };
 
@@ -73,7 +75,7 @@ trait TypedValue
 
                     $this->typedValue = mb_substr($this->typedValue, 0, $this->cursorPosition - 1) . mb_substr($this->typedValue, $this->cursorPosition);
                     --$this->cursorPosition;
-                } elseif (ord($key) >= 32) {
+                } elseif (mb_ord($key) >= 32) {
                     $this->typedValue = mb_substr($this->typedValue, 0, $this->cursorPosition) . $key . mb_substr($this->typedValue, $this->cursorPosition);
                     ++$this->cursorPosition;
                 }
@@ -128,5 +130,65 @@ trait TypedValue
         $trimmed = mb_strimwidth($reversed, $start, $width);
 
         return implode('', array_reverse(mb_str_split($trimmed, 1)));
+    }
+
+    /**
+     * Delete from the start of the current word (before cursor) through the cursor.
+     */
+    protected function deleteWordBackward(): void
+    {
+        if ($this->cursorPosition === 0) {
+            return;
+        }
+
+        $start = $this->findWordStartBeforeCursor();
+        $this->typedValue = mb_substr($this->typedValue, 0, $start) . mb_substr($this->typedValue, $this->cursorPosition);
+        $this->cursorPosition = $start;
+    }
+
+    /**
+     * Character offset of the word boundary immediately before the cursor (Intl + punctuation).
+     * Punctuation (e.g. . - _) is treated as a word boundary so "word.word" deletes in two steps.
+     */
+    protected function findWordStartBeforeCursor(): int
+    {
+        $before = mb_substr($this->typedValue, 0, $this->cursorPosition);
+
+        if ($before === '') {
+            return 0;
+        }
+
+        $regexStart = $this->findLastWordStartByLettersAndNumbers($before);
+
+        if (extension_loaded('intl')) {
+            $iterator = IntlBreakIterator::createWordInstance('');
+            $iterator->setText($before);
+            $endByte = strlen($before);
+            $wordStartByte = $iterator->preceding($endByte);
+
+            if ($wordStartByte === IntlBreakIterator::DONE) {
+                return $regexStart;
+            }
+
+            $intlStart = mb_strlen(substr($before, 0, $wordStartByte), 'UTF-8');
+
+            return max($intlStart, $regexStart);
+        }
+
+        return $regexStart;
+    }
+
+    /**
+     * Start (character offset) of the last run of letters/numbers in string (punctuation breaks words).
+     */
+    protected function findLastWordStartByLettersAndNumbers(string $before): int
+    {
+        if (preg_match_all('/((?:\p{L}\p{M}*|\p{N})+)/u', $before, $m, PREG_OFFSET_CAPTURE) && $m[1] !== []) {
+            $last = end($m[1]);
+
+            return mb_strlen(substr($before, 0, $last[1]), 'UTF-8');
+        }
+
+        return 0;
     }
 }

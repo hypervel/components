@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
+use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Horizon\LuaScripts;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use stdClass;
@@ -23,7 +23,7 @@ class RedisJobRepository implements JobRepository
     public array $keys = [
         'id', 'connection', 'queue', 'name', 'status', 'payload',
         'exception', 'context', 'failed_at', 'completed_at', 'retried_by',
-        'reserved_at',
+        'reserved_at', 'delay',
     ];
 
     /**
@@ -60,14 +60,14 @@ class RedisJobRepository implements JobRepository
      * Create a new repository instance.
      */
     public function __construct(
-        public RedisFactory $redis
+        public Redis $redis
     ) {
-        $this->recentJobExpires = config('horizon.trim.recent', 60);
-        $this->pendingJobExpires = config('horizon.trim.pending', 60);
-        $this->completedJobExpires = config('horizon.trim.completed', 60);
-        $this->failedJobExpires = config('horizon.trim.failed', 10080);
-        $this->recentFailedJobExpires = config('horizon.trim.recent_failed', $this->failedJobExpires);
-        $this->monitoredJobExpires = config('horizon.trim.monitored', 10080);
+        $this->recentJobExpires = (int) config('horizon.trim.recent', 60);
+        $this->pendingJobExpires = (int) config('horizon.trim.pending', 60);
+        $this->completedJobExpires = (int) config('horizon.trim.completed', 60);
+        $this->failedJobExpires = (int) config('horizon.trim.failed', 10080);
+        $this->recentFailedJobExpires = (int) config('horizon.trim.recent_failed', $this->failedJobExpires);
+        $this->monitoredJobExpires = (int) config('horizon.trim.monitored', 10080);
     }
 
     /**
@@ -309,7 +309,7 @@ class RedisJobRepository implements JobRepository
     /**
      * Mark the job as released / pending.
      */
-    public function released(string $connection, string $queue, JobPayload $payload): void
+    public function released(string $connection, string $queue, JobPayload $payload, int $delay = 0): void
     {
         $this->connection()->hmset(
             $payload->id(),
@@ -317,6 +317,7 @@ class RedisJobRepository implements JobRepository
                 'status' => 'pending',
                 'payload' => $payload->value,
                 'updated_at' => str_replace(',', '.', (string) microtime(true)),
+                'delay' => $delay,
             ]
         );
     }
@@ -362,6 +363,7 @@ class RedisJobRepository implements JobRepository
                         'status' => 'pending',
                         'payload' => $payload->value,
                         'updated_at' => str_replace(',', '.', (string) microtime(true)),
+                        'delay' => 0,
                     ]
                 );
             }
@@ -509,7 +511,9 @@ class RedisJobRepository implements JobRepository
             $this->keys
         );
 
-        $job = is_array($attributes) && $attributes[$this->keys[0]] ? (object) $attributes : null;
+        $job = is_array($attributes) && $attributes[0] !== null // @phpstan-ignore function.alreadyNarrowedType (Redis hmget can return false at runtime despite PHPDoc)
+            ? (object) array_combine($this->keys, $attributes)
+            : null;
 
         if ($job && $job->status !== 'failed') {
             return null;
@@ -602,16 +606,25 @@ class RedisJobRepository implements JobRepository
      */
     public function purge(string $queue): int
     {
-        return $this->connection()->eval(
-            LuaScripts::purge(),
-            [
+        $count = 0;
+        $cursor = 0;
+
+        do {
+            $result = $this->connection()->eval(
+                LuaScripts::purge(),
+                2,
                 'recent_jobs',
                 'pending_jobs',
                 config('horizon.prefix'),
                 $queue,
-            ],
-            2,
-        );
+                $cursor,
+            );
+
+            $count += $result[0];
+            $cursor = $result[1];
+        } while ($cursor !== '0');
+
+        return $count;
     }
 
     /**
@@ -619,6 +632,6 @@ class RedisJobRepository implements JobRepository
      */
     protected function connection(): RedisProxy
     {
-        return $this->redis->get('horizon');
+        return $this->redis->connection('horizon');
     }
 }

@@ -6,8 +6,8 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Queue\Contracts\Job as JobContract;
-use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Contracts\Queue\Job as JobContract;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
@@ -31,7 +31,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
         protected string $default,
         protected int $timeToRun,
         protected int $blockFor = 0,
-        protected bool $dispatchAfterCommit = false
+        protected ?bool $dispatchAfterCommit = false
     ) {
         $this->default = $default;
         $this->blockFor = $blockFor;
@@ -119,7 +119,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
     {
         return $this->enqueueUsing(
             $job,
-            $this->createPayload($job, $this->getQueue($queue), $data),
+            $this->createPayload($job, $this->getQueue($queue), $data, $delay),
             $queue,
             $delay,
             function ($payload, $queue, $delay) {

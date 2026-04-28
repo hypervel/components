@@ -4,37 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Events\BatchDispatched;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\BatchWatcher;
 use Hypervel\Telescope\Watchers\JobWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
-/**
- * @internal
- * @coversNothing
- */
+#[WithConfig('telescope.watchers', [
+    JobWatcher::class => true,
+    BatchWatcher::class => true,
+])]
 class BatchWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->get(ConfigInterface::class)
-            ->set('telescope.watchers', [
-                JobWatcher::class => true,
-                BatchWatcher::class => true,
-            ]);
-    }
-
     public function testJobDispatchRegistersEntries()
     {
-        $this->startTelescope();
-
         $batch = m::mock(Batch::class);
         $batch->id = 'batch-id';
         $batch->options = [
@@ -48,7 +35,7 @@ class BatchWatcherTest extends FeatureTestCase
             ->once()
             ->andReturn(true);
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->make(Dispatcher::class)
             ->dispatch(new BatchDispatched($batch));
 
         $entries = $this->loadTelescopeEntries()->all();

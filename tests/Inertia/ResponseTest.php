@@ -1,0 +1,1885 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Inertia;
+
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Http\JsonResponse;
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Json\ResourceCollection;
+use Hypervel\Http\Response as BaseResponse;
+use Hypervel\Inertia\AlwaysProp;
+use Hypervel\Inertia\DeferProp;
+use Hypervel\Inertia\Inertia;
+use Hypervel\Inertia\MergeProp;
+use Hypervel\Inertia\OptionalProp;
+use Hypervel\Inertia\ProvidesInertiaProperties;
+use Hypervel\Inertia\ProvidesScrollMetadata;
+use Hypervel\Inertia\RenderContext;
+use Hypervel\Inertia\Response;
+use Hypervel\Inertia\ScrollProp;
+use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Fluent;
+use Hypervel\Tests\Inertia\Fixtures\FakeResource;
+use Hypervel\Tests\Inertia\Fixtures\MergeWithSharedProp;
+use Hypervel\View\View;
+use Mockery;
+use PHPUnit\Framework\Attributes\DataProvider;
+
+class ResponseTest extends TestCase
+{
+    public function testCanMacro(): void
+    {
+        $response = new Response('User/Edit', [], []);
+        $response->macro('foo', function () {
+            return 'bar';
+        });
+
+        /* @phpstan-ignore-next-line */
+        $this->assertEquals('bar', $response->foo());
+    }
+
+    public function testServerResponse(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response('User/Edit', [], ['user' => $user], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"}},"url":"\/user\/123","version":"123"}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testServerResponseWithDeferredProp(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => new DeferProp(function () {
+                    return 'bar';
+                }, 'default'),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame([
+            'default' => ['foo'],
+        ], $page['deferredProps']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"}},"url":"\/user\/123","version":"123","deferredProps":{"default":["foo"]}}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testServerResponseWithDeferredPropAndMultipleGroups(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => new DeferProp(function () {
+                    return 'foo value';
+                }, 'default'),
+                'bar' => new DeferProp(function () {
+                    return 'bar value';
+                }, 'default'),
+                'baz' => new DeferProp(function () {
+                    return 'baz value';
+                }, 'custom'),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame([
+            'default' => ['foo', 'bar'],
+            'custom' => ['baz'],
+        ], $page['deferredProps']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"}},"url":"\/user\/123","version":"123","deferredProps":{"default":["foo","bar"],"custom":["baz"]}}</script><div id="app"></div>', $view->render());
+    }
+
+    #[DataProvider('resetUsersProp')]
+    public function testServerResponseWithScrollProps(bool $resetUsersProp): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        if ($resetUsersProp) {
+            $request->headers->add(['X-Inertia-Reset' => 'users']);
+        }
+
+        $response = new Response(
+            'User/Index',
+            [],
+            [
+                'users' => new ScrollProp(['data' => [['id' => 1]]], 'data', new class implements ProvidesScrollMetadata {
+                    public function getPageName(): string
+                    {
+                        return 'page';
+                    }
+
+                    public function getPreviousPage(): ?int
+                    {
+                        return null;
+                    }
+
+                    public function getNextPage(): int
+                    {
+                        return 2;
+                    }
+
+                    public function getCurrentPage(): int
+                    {
+                        return 1;
+                    }
+                }),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Index', $page['component']);
+        $this->assertSame(['data' => [['id' => 1]]], $page['props']['users']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame([
+            'users' => [
+                'pageName' => 'page',
+                'previousPage' => null,
+                'nextPage' => 2,
+                'currentPage' => 1,
+                'reset' => $resetUsersProp,
+            ],
+        ], $page['scrollProps']);
+    }
+
+    /**
+     * @return array<string, array{0: bool}>
+     */
+    public static function resetUsersProp(): array
+    {
+        return [
+            'no reset' => [false],
+            'with reset' => [true],
+        ];
+    }
+
+    public function testServerResponseWithMergeProps(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => new MergeProp('foo value'),
+                'bar' => new MergeProp('bar value'),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame([
+            'foo',
+            'bar',
+        ], $page['mergeProps']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"},"foo":"foo value","bar":"bar value"},"url":"\/user\/123","version":"123","mergeProps":["foo","bar"]}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testServerResponseWithMergePropsThatShouldPrepend(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => (new MergeProp('foo value'))->prepend(),
+                'bar' => new MergeProp('bar value'),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame(['bar'], $page['mergeProps']);
+        $this->assertSame(['foo'], $page['prependProps']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"},"foo":"foo value","bar":"bar value"},"url":"\/user\/123","version":"123","mergeProps":["bar"],"prependProps":["foo"]}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testServerResponseWithMergePropsThatHasNestedPathsToAppendAndPrepend(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => (new MergeProp(['data' => [['id' => 1], ['id' => 2]]]))->append('data'),
+                'bar' => (new MergeProp(['data' => ['items' => [['uuid' => 1], ['uuid' => 2]]]]))->prepend('data.items'),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame(['foo.data'], $page['mergeProps']);
+        $this->assertSame(['bar.data.items'], $page['prependProps']);
+        $this->assertArrayNotHasKey('matchPropsOn', $page);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"},"foo":{"data":[{"id":1},{"id":2}]},"bar":{"data":{"items":[{"uuid":1},{"uuid":2}]}}},"url":"\/user\/123","version":"123","mergeProps":["foo.data"],"prependProps":["bar.data.items"]}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testServerResponseWithMergePropsThatHasNestedPathsToAppendAndPrependWithMatchOnStrategies(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => (new MergeProp(['data' => [['id' => 1], ['id' => 2]]]))->append('data', 'id'),
+                'bar' => (new MergeProp(['data' => ['items' => [['uuid' => 1], ['uuid' => 2]]]]))->prepend('data.items', 'uuid'),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame(['foo.data'], $page['mergeProps']);
+        $this->assertSame(['bar.data.items'], $page['prependProps']);
+        $this->assertSame(['foo.data.id', 'bar.data.items.uuid'], $page['matchPropsOn']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"},"foo":{"data":[{"id":1},{"id":2}]},"bar":{"data":{"items":[{"uuid":1},{"uuid":2}]}}},"url":"\/user\/123","version":"123","mergeProps":["foo.data"],"prependProps":["bar.data.items"],"matchPropsOn":["foo.data.id","bar.data.items.uuid"]}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testServerResponseWithDeepMergeProps(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => (new MergeProp('foo value'))->deepMerge(),
+                'bar' => (new MergeProp('bar value'))->deepMerge(),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame([
+            'foo',
+            'bar',
+        ], $page['deepMergeProps']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"},"foo":"foo value","bar":"bar value"},"url":"\/user\/123","version":"123","deepMergeProps":["foo","bar"]}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testServerResponseWithMatchOnProps(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => (new MergeProp('foo value'))->matchOn('foo-key')->deepMerge(),
+                'bar' => (new MergeProp('bar value'))->matchOn('bar-key')->deepMerge(),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame([
+            'foo',
+            'bar',
+        ], $page['deepMergeProps']);
+
+        $this->assertSame([
+            'foo.foo-key',
+            'bar.bar-key',
+        ], $page['matchPropsOn']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"},"foo":"foo value","bar":"bar value"},"url":"\/user\/123","version":"123","deepMergeProps":["foo","bar"],"matchPropsOn":["foo.foo-key","bar.bar-key"]}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testServerResponseWithDeferAndMergeProps(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => (new DeferProp(function () {
+                    return 'foo value';
+                }, 'default'))->merge(),
+                'bar' => new MergeProp('bar value'),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame([
+            'default' => ['foo'],
+        ], $page['deferredProps']);
+        $this->assertSame([
+            'foo',
+            'bar',
+        ], $page['mergeProps']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"},"bar":"bar value"},"url":"\/user\/123","version":"123","mergeProps":["foo","bar"],"deferredProps":{"default":["foo"]}}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testServerResponseWithDeferAndDeepMergeProps(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => (new DeferProp(function () {
+                    return 'foo value';
+                }, 'default'))->deepMerge(),
+                'bar' => (new MergeProp('bar value'))->deepMerge(),
+            ],
+            'app',
+            '123'
+        );
+        $response = $response->toResponse($request);
+        /** @var BaseResponse $response */
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertSame([
+            'default' => ['foo'],
+        ], $page['deferredProps']);
+        $this->assertSame([
+            'foo',
+            'bar',
+        ], $page['deepMergeProps']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"user":{"name":"Jonathan"},"bar":"bar value"},"url":"\/user\/123","version":"123","deepMergeProps":["foo","bar"],"deferredProps":{"default":["foo"]}}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testExcludeMergePropsFromPartialOnlyResponse(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'user']);
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => new MergeProp('foo value'),
+                'bar' => new MergeProp('bar value'),
+            ],
+            'app',
+            '123'
+        );
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $props = get_object_vars($page->props);
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('Jonathan', $props['user']->name);
+        $this->assertArrayNotHasKey('foo', $props);
+        $this->assertArrayNotHasKey('bar', $props);
+        $this->assertFalse(isset($page->mergeProps));
+    }
+
+    public function testExcludeMergePropsFromPartialExceptResponse(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Except' => 'foo']);
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => new MergeProp('foo value'),
+                'bar' => new MergeProp('bar value'),
+            ],
+            'app',
+            '123'
+        );
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $props = get_object_vars($page->props);
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('Jonathan', $props['user']->name);
+        $this->assertArrayNotHasKey('foo', $props);
+        $this->assertArrayHasKey('bar', $props);
+        $this->assertSame(['bar'], $page->mergeProps);
+    }
+
+    public function testExcludeMergePropsWhenPassedInResetHeader(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'foo']);
+        $request->headers->add(['X-Inertia-Reset' => 'foo']);
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response(
+            'User/Edit',
+            [],
+            [
+                'user' => $user,
+                'foo' => new MergeProp('foo value'),
+                'bar' => new MergeProp('bar value'),
+            ],
+            'app',
+            '123'
+        );
+
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $props = get_object_vars($page->props);
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame($props['foo'], 'foo value');
+        $this->assertArrayNotHasKey('bar', $props);
+        $this->assertFalse(isset($page->mergeProps));
+    }
+
+    public function testXhrResponse(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $user = (object) ['name' => 'Jonathan'];
+        $response = new Response('User/Edit', [], ['user' => $user], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('Jonathan', $page->props->user->name);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+    }
+
+    public function testXhrResponseWithDeferredPropsIncludesDeferredMetadata(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('User/Edit', [], [
+            'user' => ['name' => 'Jonathan'],
+            'results' => new DeferProp(fn () => ['data' => ['item1', 'item2']], 'default'),
+        ], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('Jonathan', $page->props->user->name);
+        $this->assertFalse(property_exists($page->props, 'results'));
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) ['default' => ['results']], $page->deferredProps);
+    }
+
+    public function testResourceResponse(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $resource = new FakeResource(['name' => 'Jonathan']);
+
+        $response = new Response('User/Edit', [], ['user' => $resource], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('Jonathan', $page->props->user->name);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+    }
+
+    public function testOptionalCallableResourceResponse(): void
+    {
+        $request = Request::create('/users', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('User/Index', [], [
+            'users' => fn () => [['name' => 'Jonathan']],
+            'organizations' => fn () => [['name' => 'Inertia']],
+        ], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Index', $page->component);
+        $this->assertSame('/users', $page->url);
+        $this->assertSame('123', $page->version);
+        tap($page->props->users, function ($users) {
+            $this->assertSame(json_encode([['name' => 'Jonathan']]), json_encode($users));
+        });
+        tap($page->props->organizations, function ($organizations) {
+            $this->assertSame(json_encode([['name' => 'Inertia']]), json_encode($organizations));
+        });
+    }
+
+    public function testOptionalCallableResourcePartialResponse(): void
+    {
+        $request = Request::create('/users', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'users']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Index']);
+
+        $response = new Response('User/Index', [], [
+            'users' => fn () => [['name' => 'Jonathan']],
+            'organizations' => fn () => [['name' => 'Inertia']],
+        ], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Index', $page->component);
+        $this->assertSame('/users', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertFalse(property_exists($page->props, 'organizations'));
+        tap($page->props->users, function ($users) {
+            $this->assertSame(json_encode([['name' => 'Jonathan']]), json_encode($users));
+        });
+    }
+
+    public function testOptionalResourceResponse(): void
+    {
+        $request = Request::create('/users', 'GET', ['page' => 1]);
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $users = Collection::make([
+            new Fluent(['name' => 'Jonathan']),
+            new Fluent(['name' => 'Taylor']),
+            new Fluent(['name' => 'Jeffrey']),
+        ]);
+
+        $callable = static function () use ($users) {
+            $page = new LengthAwarePaginator($users->take(2), $users->count(), 2);
+
+            return new class($page) extends ResourceCollection {};
+        };
+
+        $response = new Response('User/Index', [], ['users' => $callable], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $expected = [
+            'data' => $users->take(2),
+            'links' => [
+                'first' => '/?page=1',
+                'last' => '/?page=2',
+                'prev' => null,
+                'next' => '/?page=2',
+            ],
+            'meta' => [
+                'current_page' => 1,
+                'from' => 1,
+                'last_page' => 2,
+                'path' => '/',
+                'per_page' => 2,
+                'to' => 2,
+                'total' => 3,
+            ],
+        ];
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Index', $page->component);
+        $this->assertSame('/users?page=1', $page->url);
+        $this->assertSame('123', $page->version);
+        tap($page->props->users, function ($users) use ($expected) {
+            $this->assertSame(json_encode($expected['data']), json_encode($users->data));
+            $this->assertSame(json_encode($expected['links']), json_encode($users->links));
+            $this->assertSame('/', $users->meta->path);
+        });
+    }
+
+    public function testNestedOptionalResourceResponse(): void
+    {
+        $request = Request::create('/users', 'GET', ['page' => 1]);
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $users = Collection::make([
+            new Fluent(['name' => 'Jonathan']),
+            new Fluent(['name' => 'Taylor']),
+            new Fluent(['name' => 'Jeffrey']),
+        ]);
+
+        $callable = static function () use ($users) {
+            $page = new LengthAwarePaginator($users->take(2), $users->count(), 2);
+
+            // nested array with ResourceCollection to resolve
+            return [
+                'users' => new class($page) extends ResourceCollection {},
+            ];
+        };
+
+        $response = new Response('User/Index', [], ['something' => $callable], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $expected = [
+            'users' => [
+                'data' => $users->take(2),
+                'links' => [
+                    'first' => '/?page=1',
+                    'last' => '/?page=2',
+                    'prev' => null,
+                    'next' => '/?page=2',
+                ],
+                'meta' => [
+                    'current_page' => 1,
+                    'from' => 1,
+                    'last_page' => 2,
+                    'path' => '/',
+                    'per_page' => 2,
+                    'to' => 2,
+                    'total' => 3,
+                ],
+            ],
+        ];
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Index', $page->component);
+        $this->assertSame('/users?page=1', $page->url);
+        $this->assertSame('123', $page->version);
+        tap($page->props->something->users, function ($users) use ($expected) {
+            $this->assertSame(json_encode($expected['users']['data']), json_encode($users->data));
+            $this->assertSame(json_encode($expected['users']['links']), json_encode($users->links));
+            $this->assertSame('/', $users->meta->path);
+        });
+    }
+
+    public function testArrayablePropResponse(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $resource = FakeResource::make(['name' => 'Jonathan']);
+
+        $response = new Response('User/Edit', [], ['user' => $resource], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('Jonathan', $page->props->user->name);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+    }
+
+    public function testPromisePropsAreResolved(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $user = (object) ['name' => 'Jonathan'];
+
+        $promise = Mockery::mock('GuzzleHttp\Promise\PromiseInterface')
+            ->shouldReceive('wait')
+            ->andReturn($user)
+            ->getMock();
+
+        $response = new Response('User/Edit', [], ['user' => $promise], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('Jonathan', $page->props->user->name);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+    }
+
+    public function testXhrPartialResponse(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'partial']);
+
+        $user = (object) ['name' => 'Jonathan'];
+        $response = new Response('User/Edit', [], ['user' => $user, 'partial' => 'partial-data'], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $props = get_object_vars($page->props);
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertFalse(isset($props['user']));
+        $this->assertCount(1, $props);
+        $this->assertSame('partial-data', $page->props->partial);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+    }
+
+    public function testExcludePropsFromPartialResponse(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Except' => 'user']);
+
+        $user = (object) ['name' => 'Jonathan'];
+        $response = new Response('User/Edit', [], ['user' => $user, 'partial' => 'partial-data'], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $props = get_object_vars($page->props);
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertFalse(isset($props['user']));
+        $this->assertCount(1, $props);
+        $this->assertSame('partial-data', $page->props->partial);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+    }
+
+    public function testNestedClosuresAreResolved(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], [
+            'auth' => [
+                'user' => fn () => ['name' => 'Jonathan'],
+                'token' => 'value',
+            ],
+        ], 'app', '123');
+
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame('Jonathan', $page['props']['auth']['user']['name']);
+        $this->assertSame('value', $page['props']['auth']['token']);
+    }
+
+    public function testDoubleNestedClosuresAreResolved(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], [
+            'auth' => fn () => [
+                'user' => fn () => ['name' => 'Jonathan'],
+                'token' => 'value',
+            ],
+        ], 'app', '123');
+
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame('Jonathan', $page['props']['auth']['user']['name']);
+        $this->assertSame('value', $page['props']['auth']['token']);
+    }
+
+    public function testNestedOptionalPropInsideClosureIsExcluded(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], [
+            'auth' => fn () => [
+                'user' => ['name' => 'Jonathan'],
+                'pending' => Inertia::optional(fn () => 'secret'),
+            ],
+        ], 'app', '123');
+
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame('Jonathan', $page['props']['auth']['user']['name']);
+        $this->assertArrayNotHasKey('pending', $page['props']['auth']);
+    }
+
+    public function testNestedPartialProps(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'auth.user,auth.refresh_token']);
+
+        $props = [
+            'auth' => [
+                'user' => new OptionalProp(function () {
+                    return [
+                        'name' => 'Jonathan Reinink',
+                        'email' => 'jonathan@example.com',
+                    ];
+                }),
+                'refresh_token' => 'value',
+                'token' => 'value',
+            ],
+            'shared' => [
+                'flash' => 'value',
+            ],
+        ];
+
+        $response = new Response('User/Edit', [], $props);
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertFalse(isset($page->props->shared));
+        $this->assertFalse(isset($page->props->auth->token));
+        $this->assertSame('Jonathan Reinink', $page->props->auth->user->name);
+        $this->assertSame('jonathan@example.com', $page->props->auth->user->email);
+        $this->assertSame('value', $page->props->auth->refresh_token);
+    }
+
+    public function testExcludeNestedPropsFromPartialResponse(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'auth']);
+        $request->headers->add(['X-Inertia-Partial-Except' => 'auth.user']);
+
+        $props = [
+            'auth' => [
+                'user' => new OptionalProp(function () {
+                    return [
+                        'name' => 'Jonathan Reinink',
+                        'email' => 'jonathan@example.com',
+                    ];
+                }),
+                'refresh_token' => 'value',
+            ],
+            'shared' => [
+                'flash' => 'value',
+            ],
+        ];
+
+        $response = new Response('User/Edit', [], $props);
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertFalse(isset($page->props->auth->user));
+        $this->assertFalse(isset($page->props->shared));
+        $this->assertSame('value', $page->props->auth->refresh_token);
+    }
+
+    public function testOptionalPropsAreNotIncludedByDefault(): void
+    {
+        $request = Request::create('/users', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $optionalProp = new OptionalProp(function () {
+            return 'An optional value';
+        });
+
+        $response = new Response('Users', [], ['users' => [], 'optional' => $optionalProp], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertSame([], $page->props->users);
+        $this->assertFalse(property_exists($page->props, 'optional'));
+    }
+
+    public function testOptionalPropsAreIncludedInPartialReload(): void
+    {
+        $request = Request::create('/users', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'Users']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'optional']);
+
+        $optionalProp = new OptionalProp(function () {
+            return 'An optional value';
+        });
+
+        $response = new Response('Users', [], ['users' => [], 'optional' => $optionalProp], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertFalse(property_exists($page->props, 'users'));
+        $this->assertSame('An optional value', $page->props->optional);
+    }
+
+    public function testDeferArrayablePropsAreResolvedInPartialReload(): void
+    {
+        $request = Request::create('/users', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'Users']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'defer']);
+
+        $deferProp = new DeferProp(function () {
+            return new class implements Arrayable {
+                public function toArray(): array
+                {
+                    return ['foo' => 'bar'];
+                }
+            };
+        });
+
+        $response = new Response('Users', [], ['users' => [], 'defer' => $deferProp], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertFalse(property_exists($page->props, 'users'));
+        $this->assertEquals((object) ['foo' => 'bar'], $page->props->defer);
+    }
+
+    public function testAlwaysPropsAreIncludedOnPartialReload(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'data']);
+
+        $props = [
+            'user' => new OptionalProp(function () {
+                return [
+                    'name' => 'Jonathan Reinink',
+                    'email' => 'jonathan@example.com',
+                ];
+            }),
+            'data' => [
+                'name' => 'Taylor Otwell',
+            ],
+            'errors' => new AlwaysProp(function () {
+                return [
+                    'name' => 'The email field is required.',
+                ];
+            }),
+        ];
+
+        $response = new Response('User/Edit', [], $props, 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertSame('The email field is required.', $page->props->errors->name);
+        $this->assertSame('Taylor Otwell', $page->props->data->name);
+        $this->assertFalse(isset($page->props->user));
+    }
+
+    public function testStringFunctionNamesAreNotInvokedAsCallables(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], [
+            'always' => new AlwaysProp('date'),
+            'merge' => new MergeProp('trim'),
+        ], 'app', '123');
+
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getOriginalContent()->getData()['page'];
+
+        $this->assertSame('date', $page['props']['always']);
+        $this->assertSame('trim', $page['props']['merge']);
+    }
+
+    public function testInertiaResponsableObjects(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], [
+            'foo' => 'bar',
+            new class implements ProvidesInertiaProperties {
+                /**
+                 * @return Collection<string, string>
+                 */
+                public function toInertiaProperties(RenderContext $context): iterable
+                {
+                    return collect([
+                        'baz' => 'qux',
+                    ]);
+                }
+            },
+            'quux' => 'corge',
+        ], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame('bar', $page['props']['foo']);
+        $this->assertSame('qux', $page['props']['baz']);
+        $this->assertSame('corge', $page['props']['quux']);
+    }
+
+    public function testInertiaResponseTypeProp(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        Inertia::share('items', ['foo']);
+        Inertia::share('deep.foo.bar', ['foo']);
+
+        $response = new Response('User/Edit', [], [
+            'items' => new MergeWithSharedProp(['bar']),
+            'deep' => [
+                'foo' => [
+                    'bar' => new MergeWithSharedProp(['baz']),
+                ],
+            ],
+        ], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame(['foo', 'bar'], $page['props']['items']);
+        $this->assertSame(['foo', 'baz'], $page['props']['deep']['foo']['bar']);
+    }
+
+    public function testTopLevelDotPropsGetUnpacked(): void
+    {
+        $props = [
+            'auth' => [
+                'user' => [
+                    'name' => 'Jonathan Reinink',
+                ],
+            ],
+            'auth.user.can' => [
+                'do.stuff' => true,
+            ],
+            'product' => ['name' => 'My example product'],
+        ];
+
+        $request = Request::create('/products/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('User/Edit', [], $props, 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData(true);
+
+        $user = $page['props']['auth']['user'];
+        $this->assertSame('Jonathan Reinink', $user['name']);
+        $this->assertTrue($user['can']['do.stuff']);
+        $this->assertFalse(array_key_exists('auth.user.can', $page['props']));
+    }
+
+    public function testNestedDotPropsDoNotGetUnpacked(): void
+    {
+        $props = [
+            'auth' => [
+                'user.can' => [
+                    'do.stuff' => true,
+                ],
+                'user' => [
+                    'name' => 'Jonathan Reinink',
+                ],
+            ],
+            'product' => ['name' => 'My example product'],
+        ];
+
+        $request = Request::create('/products/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('User/Edit', [], $props, 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData(true);
+
+        $auth = $page['props']['auth'];
+        $this->assertSame('Jonathan Reinink', $auth['user']['name']);
+        $this->assertTrue($auth['user.can']['do.stuff']);
+        $this->assertFalse(array_key_exists('can', $auth));
+    }
+
+    public function testPropsCanBeAddedUsingTheWithMethod(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $response = new Response('User/Edit', [], [], 'app', '123');
+
+        $response->with(['foo' => 'bar', 'baz' => 'qux'])
+            ->with(['quux' => 'corge'])
+            ->with(new class implements ProvidesInertiaProperties {
+                /**
+                 * @return Collection<string, string>
+                 */
+                public function toInertiaProperties(RenderContext $context): iterable
+                {
+                    return collect(['grault' => 'garply']);
+                }
+            });
+
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame('bar', $page['props']['foo']);
+        $this->assertSame('qux', $page['props']['baz']);
+        $this->assertSame('corge', $page['props']['quux']);
+    }
+
+    public function testOncePropsAreAlwaysResolvedOnInitialPageLoad(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], ['foo' => Inertia::once(fn () => 'bar')], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('bar', $page['props']['foo']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertArrayNotHasKey('clearHistory', $page);
+        $this->assertArrayNotHasKey('encryptHistory', $page);
+        $this->assertSame(['foo' => ['prop' => 'foo', 'expiresAt' => null]], $page['onceProps']);
+        $this->assertSame('<script data-page="app" type="application/json">{"component":"User\/Edit","props":{"foo":"bar"},"url":"\/user\/123","version":"123","onceProps":{"foo":{"prop":"foo","expiresAt":null}}}</script><div id="app"></div>', $view->render());
+    }
+
+    public function testFreshOncePropsAreIncludedOnInitialPageLoad(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], ['foo' => Inertia::once(fn () => 'bar')->fresh()], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('User/Edit', $page['component']);
+        $this->assertSame('bar', $page['props']['foo']);
+        $this->assertSame('/user/123', $page['url']);
+        $this->assertSame('123', $page['version']);
+        $this->assertArrayHasKey('onceProps', $page);
+        $this->assertSame(['foo' => ['prop' => 'foo', 'expiresAt' => null]], $page['onceProps']);
+    }
+
+    public function testOncePropsAreResolvedWithACustomKeyAndTtlValue(): void
+    {
+        $this->freezeSecond();
+
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('User/Edit', [], [
+            'foo' => Inertia::once(fn () => 'bar')->as('baz')->until(now()->addMinute()),
+        ], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('bar', $page->props->foo);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) ['baz' => (object) ['prop' => 'foo', 'expiresAt' => now()->addMinute()->getTimestampMs()]], $page->onceProps);
+    }
+
+    public function testOncePropsAreNotResolvedOnSubsequentRequestsWhenTheyAreInTheOncePropsHeader(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => 'foo']);
+
+        $response = new Response('User/Edit', [], ['foo' => Inertia::once(fn () => 'bar')], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertArrayNotHasKey('foo', (array) $page->props);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) ['foo' => (object) ['prop' => 'foo', 'expiresAt' => null]], $page->onceProps);
+    }
+
+    public function testOncePropsAreResolvedOnSubsequentRequestsWhenTheOncePropsHeaderIsMissing(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('User/Edit', [], ['foo' => Inertia::once(fn () => 'bar')], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('bar', $page->props->foo);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) ['foo' => (object) ['prop' => 'foo', 'expiresAt' => null]], $page->onceProps);
+    }
+
+    public function testOncePropsAreResolvedOnSubsequentRequestsWhenTheyAreNotInTheOncePropsHeader(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => 'baz']);
+
+        $response = new Response('User/Edit', [], ['foo' => Inertia::once(fn () => 'bar')], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('bar', $page->props->foo);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) ['foo' => (object) ['prop' => 'foo', 'expiresAt' => null]], $page->onceProps);
+    }
+
+    public function testOncePropsAreResolvedOnPartialRequestsWithoutOnlyOrExcept(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'foo']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => 'foo']);
+
+        $response = new Response('User/Edit', [], ['foo' => Inertia::once(fn () => 'bar')], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('bar', $page->props->foo);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) ['foo' => (object) ['prop' => 'foo', 'expiresAt' => null]], $page->onceProps);
+    }
+
+    public function testOncePropsAreResolvedOnPartialRequestsWhenIncludedInOnlyHeaders(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'foo']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => 'foo']);
+
+        $response = new Response('User/Edit', [], [
+            'foo' => Inertia::once(fn () => 'bar'),
+            'baz' => Inertia::once(fn () => 'qux'),
+        ], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('bar', $page->props->foo);
+        $this->assertFalse(isset($page->props->baz));
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) [
+            'foo' => (object) ['prop' => 'foo', 'expiresAt' => null],
+        ], $page->onceProps);
+    }
+
+    public function testOncePropsAreNotResolvedOnPartialRequestsWhenExcludedInExceptHeaders(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Except' => 'foo']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => 'foo']);
+
+        $response = new Response('User/Edit', [], [
+            'foo' => Inertia::once(fn () => 'bar'),
+            'baz' => Inertia::once(fn () => 'qux'),
+        ], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertFalse(isset($page->props->foo));
+        $this->assertSame('qux', $page->props->baz);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) [
+            'baz' => (object) ['prop' => 'baz', 'expiresAt' => null],
+        ], $page->onceProps);
+    }
+
+    public function testFreshPropsAreResolvedEvenWhenInExceptOncePropsHeader(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => 'foo']);
+
+        $response = new Response('User/Edit', [], ['foo' => Inertia::once(fn () => 'bar')->fresh()], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('bar', $page->props->foo);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) [
+            'foo' => (object) ['prop' => 'foo', 'expiresAt' => null],
+        ], $page->onceProps);
+    }
+
+    public function testFreshPropsAreNotExcludedWhileOncePropsAreExcluded(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => 'foo,baz']);
+
+        $response = new Response('User/Edit', [], [
+            'foo' => Inertia::once(fn () => 'bar')->fresh(),
+            'baz' => Inertia::once(fn () => 'qux'),
+        ], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('bar', $page->props->foo);
+        $this->assertFalse(isset($page->props->baz));
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) [
+            'foo' => (object) ['prop' => 'foo', 'expiresAt' => null],
+            'baz' => (object) ['prop' => 'baz', 'expiresAt' => null],
+        ], $page->onceProps);
+    }
+
+    public function testDeferPropsThatAreOnceAndAlreadyLoadedAreExcluded(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => 'defer']);
+
+        $response = new Response('User/Edit', [], [
+            'defer' => Inertia::defer(fn () => 'value')->once(),
+        ], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertFalse(isset($page->props->defer));
+        $this->assertFalse(isset($page->deferredProps));
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertEquals((object) [
+            'defer' => (object) ['prop' => 'defer', 'expiresAt' => null],
+        ], $page->onceProps);
+    }
+
+    public function testDeferPropsThatAreOnceAndAlreadyLoadedNotExcludedWhenExplicitlyRequested(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'defer']);
+        $request->headers->add(['X-Inertia-Except-Once-Props' => 'defer']);
+
+        $response = new Response('User/Edit', [], [
+            'defer' => Inertia::defer(fn () => 'value')->once(),
+        ], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertInstanceOf(JsonResponse::class, $response);
+
+        $this->assertSame('User/Edit', $page->component);
+        $this->assertSame('value', $page->props->defer);
+        $this->assertSame('/user/123', $page->url);
+        $this->assertSame('123', $page->version);
+        $this->assertFalse(isset($page->deferredProps));
+        $this->assertEquals((object) [
+            'defer' => (object) ['prop' => 'defer', 'expiresAt' => null],
+        ], $page->onceProps);
+    }
+
+    public function testResponsableWithInvalidKey(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $resource = new FakeResource(["\x00*\x00_invalid_key" => 'for object']);
+
+        $response = new Response('User/Edit', [], ['resource' => $resource], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData(true);
+
+        $this->assertSame(
+            ["\x00*\x00_invalid_key" => 'for object'],
+            $page['props']['resource']
+        );
+    }
+
+    public function testThePageUrlIsPrefixedWithTheProxyPrefix(): void
+    {
+        Request::setTrustedProxies(['1.2.3.4'], Request::HEADER_X_FORWARDED_PREFIX);
+
+        $request = Request::create('/user/123', 'GET');
+        $request->server->set('REMOTE_ADDR', '1.2.3.4');
+        $request->headers->set('X_FORWARDED_PREFIX', '/sub/directory');
+
+        $user = ['name' => 'Jonathan'];
+        $response = new Response('User/Edit', [], ['user' => $user], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertInstanceOf(BaseResponse::class, $response);
+        $this->assertInstanceOf(View::class, $view);
+
+        $this->assertSame('/sub/directory/user/123', $page['url']);
+    }
+
+    public function testThePageUrlDoesntDoubleUp(): void
+    {
+        $request = Request::create('/subpath/product/123', 'GET', [], [], [], [
+            'SCRIPT_FILENAME' => '/project/public/index.php',
+            'SCRIPT_NAME' => '/subpath/index.php',
+        ]);
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('Product/Show', [], []);
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertSame('/subpath/product/123', $page->url);
+    }
+
+    public function testTrailingSlashesInAUrlArePreserved(): void
+    {
+        $request = Request::create('/users/', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('User/Index', [], []);
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertSame('/users/', $page->url);
+    }
+
+    public function testTrailingSlashesInAUrlWithQueryParametersArePreserved(): void
+    {
+        $request = Request::create('/users/?page=1&sort=name', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('User/Index', [], []);
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertSame('/users/?page=1&sort=name', $page->url);
+    }
+
+    public function testAUrlWithoutTrailingSlashIsResolvedCorrectly(): void
+    {
+        $request = Request::create('/users', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('User/Index', [], []);
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertSame('/users', $page->url);
+    }
+
+    public function testAUrlWithoutTrailingSlashAndQueryParametersIsResolvedCorrectly(): void
+    {
+        $request = Request::create('/users?page=1&sort=name', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+
+        $response = new Response('User/Index', [], []);
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData();
+
+        $this->assertSame('/users?page=1&sort=name', $page->url);
+    }
+
+    public function testDeferredPropsFromProvidesInertiaPropertiesAreIncludedInDeferredPropsMetadata(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], [
+            'user' => ['name' => 'Jonathan'],
+            new class implements ProvidesInertiaProperties {
+                public function toInertiaProperties(RenderContext $context): iterable
+                {
+                    return [
+                        'foo' => new DeferProp(fn () => 'bar', 'default'),
+                    ];
+                }
+            },
+        ], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertArrayNotHasKey('foo', $page['props']);
+        $this->assertSame([
+            'default' => ['foo'],
+        ], $page['deferredProps']);
+    }
+
+    public function testDeferredPropsFromProvidesInertiaPropertiesWithMultipleGroups(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], [
+            'user' => ['name' => 'Jonathan'],
+            new class implements ProvidesInertiaProperties {
+                public function toInertiaProperties(RenderContext $context): iterable
+                {
+                    return [
+                        'foo' => new DeferProp(fn () => 'foo value', 'default'),
+                        'bar' => new DeferProp(fn () => 'bar value', 'custom'),
+                    ];
+                }
+            },
+        ], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertArrayNotHasKey('foo', $page['props']);
+        $this->assertArrayNotHasKey('bar', $page['props']);
+        $this->assertSame([
+            'default' => ['foo'],
+            'custom' => ['bar'],
+        ], $page['deferredProps']);
+    }
+
+    public function testDeferredPropsFromProvidesInertiaPropertiesCanBeLoadedViaPartialRequest(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+        $request->headers->add(['X-Inertia' => 'true']);
+        $request->headers->add(['X-Inertia-Partial-Component' => 'User/Edit']);
+        $request->headers->add(['X-Inertia-Partial-Data' => 'foo']);
+
+        $response = new Response('User/Edit', [], [
+            'user' => ['name' => 'Jonathan'],
+            new class implements ProvidesInertiaProperties {
+                public function toInertiaProperties(RenderContext $context): iterable
+                {
+                    return [
+                        'foo' => new DeferProp(fn () => 'bar', 'default'),
+                    ];
+                }
+            },
+        ], 'app', '123');
+        /** @var JsonResponse $response */
+        $response = $response->toResponse($request);
+        $page = $response->getData(true);
+
+        $this->assertSame('bar', $page['props']['foo']);
+        $this->assertArrayNotHasKey('user', $page['props']);
+    }
+
+    public function testMergePropsFromProvidesInertiaPropertiesAreIncludedInMergePropsMetadata(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], [
+            'user' => ['name' => 'Jonathan'],
+            new class implements ProvidesInertiaProperties {
+                public function toInertiaProperties(RenderContext $context): iterable
+                {
+                    return [
+                        'foo' => new MergeProp('foo value'),
+                    ];
+                }
+            },
+        ], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('foo value', $page['props']['foo']);
+        $this->assertSame(['foo'], $page['mergeProps']);
+    }
+
+    public function testOncePropsFromProvidesInertiaPropertiesAreIncludedInOncePropsMetadata(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], [
+            'user' => ['name' => 'Jonathan'],
+            new class implements ProvidesInertiaProperties {
+                public function toInertiaProperties(RenderContext $context): iterable
+                {
+                    return [
+                        'foo' => Inertia::once(fn () => 'bar'),
+                    ];
+                }
+            },
+        ], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertSame('bar', $page['props']['foo']);
+        $this->assertSame(['foo' => ['prop' => 'foo', 'expiresAt' => null]], $page['onceProps']);
+    }
+
+    public function testDeferredMergePropsFromProvidesInertiaPropertiesIncludeBothMetadata(): void
+    {
+        $request = Request::create('/user/123', 'GET');
+
+        $response = new Response('User/Edit', [], [
+            'user' => ['name' => 'Jonathan'],
+            new class implements ProvidesInertiaProperties {
+                public function toInertiaProperties(RenderContext $context): iterable
+                {
+                    return [
+                        'foo' => (new DeferProp(fn () => 'foo value', 'default'))->merge(),
+                    ];
+                }
+            },
+        ], 'app', '123');
+        /** @var BaseResponse $response */
+        $response = $response->toResponse($request);
+        $view = $response->getOriginalContent();
+        $page = $view->getData()['page'];
+
+        $this->assertSame('Jonathan', $page['props']['user']['name']);
+        $this->assertArrayNotHasKey('foo', $page['props']);
+        $this->assertSame([
+            'default' => ['foo'],
+        ], $page['deferredProps']);
+        $this->assertSame(['foo'], $page['mergeProps']);
+    }
+}

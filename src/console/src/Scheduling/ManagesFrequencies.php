@@ -8,6 +8,9 @@ use Closure;
 use DateTimeZone;
 use Hypervel\Support\Carbon;
 use InvalidArgumentException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 trait ManagesFrequencies
 {
@@ -277,7 +280,7 @@ trait ManagesFrequencies
         $segments = explode(':', $time);
 
         return $this->hourBasedSchedule(
-            count($segments) === 2 ? (int) $segments[1] : '0',
+            count($segments) >= 2 ? (int) $segments[1] : '0',
             (int) $segments[0]
         );
     }
@@ -465,6 +468,21 @@ trait ManagesFrequencies
     }
 
     /**
+     * Schedule the event to run on specific days of the month.
+     *
+     * @param array<int<1, 31>>|int<1, 31> ...$days
+     */
+    public function daysOfMonth(int|array ...$days): static
+    {
+        $days = count($days) === 1 && is_array($days[0]) ? $days[0] : $days;
+
+        /** @var array<int> $days */
+        $this->dailyAt('0:0');
+
+        return $this->spliceIntoPosition(3, implode(',', $days));
+    }
+
+    /**
      * Schedule the event to run quarterly.
      */
     public function quarterly(): static
@@ -523,9 +541,9 @@ trait ManagesFrequencies
     /**
      * Set the timezone the date should be evaluated on.
      */
-    public function timezone(DateTimeZone|string $timezone): static
+    public function timezone(DateTimeZone|UnitEnum|string $timezone): static
     {
-        $this->timezone = $timezone;
+        $this->timezone = enum_value($timezone);
 
         return $this;
     }

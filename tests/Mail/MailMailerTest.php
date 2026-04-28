@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
-use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Bus\Queueable;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailable;
@@ -18,38 +16,24 @@ use Hypervel\Mail\Mailer;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Mail\Transport\ArrayTransport;
-use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Testing\Fakes\QueueFake;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class MailMailerTest extends TestCase
 {
-    protected ?Container $app = null;
-
-    protected function setUp(): void
-    {
-        $this->app = $this->mockContainer();
-    }
-
     protected function tearDown(): void
     {
         unset($_SERVER['__mailer.test']);
-
-        m::close();
+        parent::tearDown();
     }
 
     public function testMailerSendSendsMessageWithProperViewContent()
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
@@ -62,7 +46,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
             $message->to('taylor@hypervel.org')
@@ -85,7 +69,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send(
             ['html' => new HtmlString('<p>Hello Hypervel</p>'), 'text' => new HtmlString('Hello World')],
@@ -104,7 +88,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send(
             [
@@ -134,7 +118,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->html('<p>Hello World</p>', function (Message $message) {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
@@ -146,7 +130,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperPlainViewContent()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->once()
             ->andReturn('rendered.view');
@@ -157,7 +141,7 @@ class MailMailerTest extends TestCase
         $view = m::mock(ViewFactory::class);
         $view->shouldReceive('make')->andReturn($viewInterface);
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send(['foo', 'bar'], ['data'], function (Message $message) {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
@@ -184,7 +168,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperPlainViewContentWhenExplicit()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->once()
             ->andReturn('rendered.view');
@@ -195,7 +179,7 @@ class MailMailerTest extends TestCase
         $view = m::mock(ViewFactory::class);
         $view->shouldReceive('make')->andReturn($viewInterface);
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
         $sentMessage = $mailer->send(['html' => 'foo', 'text' => 'bar'], ['data'], function (Message $message) {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
@@ -223,9 +207,9 @@ class MailMailerTest extends TestCase
     public function testToAllowsEmailAndName()
     {
         $view = $this->mockView();
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
 
-        $sentMessage = $mailer->to('taylor@hypervel.org', 'Taylor Otwell')->send(new TestMail());
+        $sentMessage = $mailer->to('taylor@hypervel.org', 'Taylor Otwell')->send(new TestMail);
 
         $recipients = $sentMessage->getEnvelope()->getRecipients();
         $this->assertCount(1, $recipients);
@@ -236,7 +220,7 @@ class MailMailerTest extends TestCase
     public function testGlobalFromIsRespectedOnAllMessages()
     {
         $view = $this->mockView();
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysFrom('hello@hypervel.org');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
@@ -250,7 +234,7 @@ class MailMailerTest extends TestCase
     public function testGlobalReplyToIsRespectedOnAllMessages()
     {
         $view = $this->mockView();
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysReplyTo('taylor@hypervel.org', 'Taylor Otwell');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
@@ -264,7 +248,7 @@ class MailMailerTest extends TestCase
     public function testGlobalToIsRespectedOnAllMessages()
     {
         $view = $this->mockView();
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysTo('taylor@hypervel.org', 'Taylor Otwell');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
@@ -293,7 +277,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->alwaysReturnPath('taylorotwell@gmail.com');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
@@ -307,11 +291,30 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $events = m::mock(EventDispatcherInterface::class);
-        $events->shouldReceive('dispatch')->once()->with(m::type(MessageSending::class));
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(MessageSending::class)->andReturn(true);
+        $events->shouldReceive('until')->once()->with(m::type(MessageSending::class));
+        $events->shouldReceive('hasListeners')->once()->with(MessageSent::class)->andReturn(true);
         $events->shouldReceive('dispatch')->once()->with(m::type(MessageSent::class));
 
-        $mailer = new Mailer('array', $view, new ArrayTransport(), $events);
+        $mailer = new Mailer('array', $view, new ArrayTransport, $events);
+
+        $mailer->send('foo', ['data'], function (Message $message) {
+            $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
+        });
+    }
+
+    public function testEventsAreSkippedWhenNoListenersAreRegistered()
+    {
+        $view = $this->mockView();
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(MessageSending::class)->andReturn(false);
+        $events->shouldReceive('hasListeners')->once()->with(MessageSent::class)->andReturn(false);
+        $events->shouldNotReceive('until');
+        $events->shouldNotReceive('dispatch');
+
+        $mailer = new Mailer('array', $view, new ArrayTransport, $events);
 
         $mailer->send('foo', ['data'], function (Message $message) {
             $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
@@ -324,7 +327,7 @@ class MailMailerTest extends TestCase
             return 'bar';
         });
 
-        $mailer = new Mailer('array', m::mock(ViewFactory::class), new ArrayTransport());
+        $mailer = new Mailer('array', m::mock(ViewFactory::class), new ArrayTransport);
 
         $this->assertSame(
             'bar',
@@ -337,39 +340,26 @@ class MailMailerTest extends TestCase
         $view = $this->mockView();
         $queueFake = new QueueFake($this->app);
 
-        $mailer = new Mailer('array', $view, new ArrayTransport());
+        $mailer = new Mailer('array', $view, new ArrayTransport);
         $mailer->setQueue($queueFake);
 
-        $mailable = new TestQueuedMail();
+        $mailable = new TestQueuedMail;
 
-        // Send the mailable
         $result = $mailer->send($mailable);
 
-        // Assert result is null for queued mailable
         $this->assertNull($result);
 
-        // Assert the mailable was queued
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);
     }
 
-    protected function mockContainer(): Container
+    protected function mockContainer(): void
     {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => m::mock(ConfigInterface::class),
-                ViewFactory::class => ViewFactory::class,
-                EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
-            ])
-        );
-
-        ApplicationContext::setContainer($container);
-
-        return $container;
+        $this->app->instance('view', m::mock(ViewFactory::class));
     }
 
     protected function mockView()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->andReturn('rendered.view');
 

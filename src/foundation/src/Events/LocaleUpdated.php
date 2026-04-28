@@ -9,7 +9,9 @@ class LocaleUpdated
     /**
      * Create a new event instance.
      */
-    public function __construct(public string $locale)
-    {
+    public function __construct(
+        public string $locale,
+        public ?string $previousLocale = null,
+    ) {
     }
 }

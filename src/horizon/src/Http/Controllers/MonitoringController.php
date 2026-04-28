@@ -11,7 +11,7 @@ use Hypervel\Horizon\Jobs\StopMonitoringTag;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 
-class MonitoringController
+class MonitoringController extends Controller
 {
     /**
      * Create a new controller instance.
@@ -20,6 +20,7 @@ class MonitoringController
         public JobRepository $jobs,
         public TagRepository $tags
     ) {
+        parent::__construct();
     }
 
     /**
@@ -38,14 +39,12 @@ class MonitoringController
     /**
      * Paginate the jobs for a given tag.
      */
-    public function paginate(Request $request): array
+    public function paginate(Request $request, string $tag): array
     {
-        $tag = $request->query('tag');
-
         $jobIds = $this->tags->paginate(
             $tag,
-            $startingAt = (int) $request->query('starting_at', 0),
-            (int) $request->query('limit', 25)
+            $startingAt = (int) $request->query('starting_at', '0'),
+            (int) $request->query('limit', '25')
         );
 
         return [

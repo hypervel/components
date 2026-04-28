@@ -4,15 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class PermissionTestCase extends TestCase
 {
     use RefreshDatabase;
@@ -25,7 +20,7 @@ class PermissionTestCase extends TestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('cache', [
                 'default' => env('CACHE_DRIVER', 'array'),
                 'stores' => [
@@ -36,7 +31,7 @@ class PermissionTestCase extends TestCase
                 'prefix' => env('CACHE_PREFIX', 'hypervel_cache'),
             ]);
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set('permission', [
                 'models' => [
                     'role' => \Hypervel\Permission\Models\Role::class,

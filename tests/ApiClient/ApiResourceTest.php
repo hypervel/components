@@ -8,22 +8,19 @@ use BadMethodCallException;
 use Hypervel\ApiClient\ApiRequest;
 use Hypervel\ApiClient\ApiResource;
 use Hypervel\ApiClient\ApiResponse;
-use PHPUnit\Framework\MockObject\MockObject;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
+use Mockery as m;
+use Mockery\MockInterface;
 
-/**
- * @internal
- * @covers \Hypervel\ApiClient\ApiResource
- */
 class ApiResourceTest extends TestCase
 {
     /**
-     * @var ApiResponse&MockObject
+     * @var ApiResponse&MockInterface
      */
     private $response;
 
     /**
-     * @var ApiRequest&MockObject
+     * @var ApiRequest&MockInterface
      */
     private $request;
 
@@ -33,9 +30,8 @@ class ApiResourceTest extends TestCase
     {
         parent::setUp();
 
-        // Create mock objects for the Response and Request
-        $this->response = $this->createMock(ApiResponse::class);
-        $this->request = $this->createMock(ApiRequest::class);
+        $this->response = m::mock(ApiResponse::class);
+        $this->request = m::mock(ApiRequest::class);
 
         // Create the resource with our mocks
         $this->resource = new ApiResource($this->response, $this->request);
@@ -53,8 +49,8 @@ class ApiResourceTest extends TestCase
     public function testToString(): void
     {
         $this->response
-            ->method('body')
-            ->willReturn($responseBody = '{"key": "value"}');
+            ->shouldReceive('body')
+            ->andReturn($responseBody = '{"key": "value"}');
 
         $this->assertEquals($responseBody, (string) $this->resource);
     }
@@ -62,8 +58,8 @@ class ApiResourceTest extends TestCase
     public function testResolve(): void
     {
         $this->response
-            ->method('json')
-            ->willReturn($jsonData = ['key' => 'value']);
+            ->shouldReceive('json')
+            ->andReturn($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->resolve());
     }
@@ -71,8 +67,8 @@ class ApiResourceTest extends TestCase
     public function testToArray(): void
     {
         $this->response
-            ->method('json')
-            ->willReturn($jsonData = ['key' => 'value']);
+            ->shouldReceive('json')
+            ->andReturn($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->toArray());
     }
@@ -80,34 +76,34 @@ class ApiResourceTest extends TestCase
     public function testJsonSerialize(): void
     {
         $this->response
-            ->method('json')
-            ->willReturn($jsonData = ['key' => 'value']);
+            ->shouldReceive('json')
+            ->andReturn($jsonData = ['key' => 'value']);
 
         $this->assertEquals($jsonData, $this->resource->jsonSerialize());
     }
 
     public function testArrayAccessOffsetExists(): void
     {
-        $this->response->method('offsetExists')
+        $this->response->shouldReceive('offsetExists')
             ->with('key')
-            ->willReturn(true);
+            ->andReturn(true);
 
         $this->assertTrue($this->resource->offsetExists('key'));
     }
 
     public function testArrayAccessOffsetGet(): void
     {
-        $this->response->method('offsetGet')
+        $this->response->shouldReceive('offsetGet')
             ->with('key')
-            ->willReturn($value = 'someValue');
+            ->andReturn($value = 'someValue');
 
         $this->assertEquals($value, $this->resource->offsetGet('key'));
     }
 
     public function testArrayAccessOffsetSet(): void
     {
-        $this->response->expects($this->once())
-            ->method('offsetSet')
+        $this->response->shouldReceive('offsetSet')
+            ->once()
             ->with($key = 'key', $value = 'value');
 
         $this->resource->offsetSet($key, $value);
@@ -115,8 +111,8 @@ class ApiResourceTest extends TestCase
 
     public function testArrayAccessOffsetUnset(): void
     {
-        $this->response->expects($this->once())
-            ->method('offsetUnset')
+        $this->response->shouldReceive('offsetUnset')
+            ->once()
             ->with($key = 'key');
 
         $this->resource->offsetUnset($key);
@@ -125,8 +121,8 @@ class ApiResourceTest extends TestCase
     public function testMagicIssetMethod(): void
     {
         $this->response
-            ->method('json')
-            ->willReturn($jsonData = ['existingKey' => 'value']);
+            ->shouldReceive('json')
+            ->andReturn($jsonData = ['existingKey' => 'value']);
 
         $this->assertTrue(isset($this->resource->existingKey));
         $this->assertFalse(isset($this->resource->nonExistingKey));
@@ -134,8 +130,8 @@ class ApiResourceTest extends TestCase
 
     public function testMagicUnsetMethod(): void
     {
-        $this->response->expects($this->once())
-            ->method('offsetUnset')
+        $this->response->shouldReceive('offsetUnset')
+            ->once()
             ->with('key');
 
         unset($this->resource->key);
@@ -143,9 +139,9 @@ class ApiResourceTest extends TestCase
 
     public function testMagicGetMethod(): void
     {
-        $this->response->method('offsetGet')
+        $this->response->shouldReceive('offsetGet')
             ->with('key')
-            ->willReturn($value = 'value');
+            ->andReturn($value = 'value');
 
         /* @phpstan-ignore-next-line */
         $this->assertEquals($value, $this->resource->key);
@@ -153,8 +149,8 @@ class ApiResourceTest extends TestCase
 
     public function testCallMethodOnResponse(): void
     {
-        $this->response->method('status')
-            ->willReturn($expectedResult = 200);
+        $this->response->shouldReceive('status')
+            ->andReturn($expectedResult = 200);
 
         $this->assertEquals($expectedResult, $this->resource->status());
     }

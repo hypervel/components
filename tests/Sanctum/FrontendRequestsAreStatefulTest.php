@@ -4,60 +4,63 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Testing\ModelFactory;
 use Hypervel\Auth\Middleware\Authenticate;
-use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Request;
-use Hypervel\Router\Router;
+use Hypervel\Routing\Router;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
-use Workbench\App\Models\User;
+use Hypervel\Tests\Sanctum\Fixtures\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class FrontendRequestsAreStatefulTest extends TestCase
 {
     use RefreshDatabase;
-    use RunTestsInCoroutine;
 
     protected bool $migrateRefresh = true;
+
+    protected function migrateFreshUsing(): array
+    {
+        return [
+            '--realpath' => true,
+            '--path' => [
+                __DIR__ . '/../../src/sanctum/database/migrations',
+                __DIR__ . '/migrations',
+            ],
+        ];
+    }
 
     public function setUp(): void
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)->set([
+        $this->app->make('config')->set([
             'auth.guards.sanctum.driver' => 'sanctum',
             'auth.guards.sanctum.provider' => 'users',
             'auth.providers.users.model' => User::class,
             'sanctum.middleware' => [
                 StartSession::class,
-                VerifyCsrfToken::class,
+                PreventRequestForgery::class,
             ],
         ]);
 
-        $this->app->get(SanctumServiceProvider::class)->register();
-        $this->app->get(SanctumServiceProvider::class)->boot();
+        $this->app->make(SanctumServiceProvider::class)->register();
+        $this->app->make(SanctumServiceProvider::class)->boot();
 
         $this->registerRoutes();
     }
 
     protected function registerRoutes(): void
     {
-        $router = $this->app->get(Router::class);
+        $router = $this->app->make(Router::class);
 
         $webMiddleware = [
             StartSession::class,
-            VerifyCsrfToken::class,
-            Authenticate::class . ':session',
+            PreventRequestForgery::class,
+            Authenticate::class . ':web',
         ];
         $apiMiddleware = [
             EnsureFrontendRequestsAreStateful::class,
@@ -102,7 +105,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
     {
         $user = $this->createUser();
 
-        $this->actingAs($user, 'session');
+        $this->actingAs($user, 'web');
 
         $this->getJson('/web/user', [
             'origin' => config('app.url'),
@@ -119,17 +122,16 @@ class FrontendRequestsAreStatefulTest extends TestCase
         $response = $this->get('/sanctum/csrf-cookie', [
             'origin' => config('app.url'),
         ])->assertNoContent();
-        $cookies = Collection::make($response->getCookies())
-            ->flatten();
+        $cookies = Collection::make($response->headers->getCookies());
 
         $csrfToken = $cookies->where(function ($cookie) {
             return $cookie->getName() === 'XSRF-TOKEN';
         })->firstOrFail();
         $sessionCookie = $cookies->where(function ($cookie) {
-            return $cookie->getName() === 'testing_session';
+            return $cookie->getName() === 'hypervel_session';
         })->firstOrFail();
 
-        $this->withCookie('testing_session', $sessionCookie->getValue())
+        $this->withCookie('hypervel_session', $sessionCookie->getValue())
             ->postJson('/sanctum/api/password', [], [
                 'origin' => config('app.url'),
                 'X-CSRF-TOKEN' => $csrfToken->getValue(),
@@ -144,9 +146,6 @@ class FrontendRequestsAreStatefulTest extends TestCase
 
     protected function createUser(array $attributes = []): User
     {
-        return $this->app
-            ->get(ModelFactory::class)
-            ->factory(User::class)
-            ->create($attributes);
+        return User::factory()->create($attributes);
     }
 }

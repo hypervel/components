@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use function Hyperf\Support\env;
-
 return [
     /*
     |--------------------------------------------------------------------------
@@ -14,7 +12,7 @@ return [
     | using Scout. This connection is used when syncing all models to the
     | search service. You should adjust this based on your needs.
     |
-    | Supported: "meilisearch", "typesense", "database", "collection", "null"
+    | Supported: "algolia", "meilisearch", "typesense", "database", "collection", "null"
     |
     */
 
@@ -57,7 +55,7 @@ return [
         'enabled' => env('SCOUT_QUEUE', false),
         'connection' => env('SCOUT_QUEUE_CONNECTION'),
         'queue' => env('SCOUT_QUEUE_NAME'),
-        'after_commit' => env('SCOUT_AFTER_COMMIT', false),
+        'after_commit' => env('SCOUT_QUEUE_AFTER_COMMIT', false),
     ],
 
     /*
@@ -105,6 +103,44 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Identify User
+    |--------------------------------------------------------------------------
+    |
+    | This option allows you to control whether to notify the search engine
+    | of the user performing the search. This is sometimes useful if the
+    | engine supports any analytics based on this application's users.
+    |
+    | Supported engines: "algolia"
+    |
+    */
+
+    'identify' => env('SCOUT_IDENTIFY', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Algolia Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Here you may configure your Algolia settings. Algolia is a cloud hosted
+    | search engine which works great with Scout out of the box. Just plug
+    | in your application ID and admin API key to get started searching.
+    |
+    */
+
+    'algolia' => [
+        'id' => env('ALGOLIA_APP_ID', ''),
+        'secret' => env('ALGOLIA_SECRET', ''),
+        'index-settings' => [
+            // Per-index settings can be defined here:
+            // 'users' => [
+            //     'searchableAttributes' => ['id', 'name', 'email'],
+            //     'attributesForFaceting' => ['filterOnly(email)'],
+            // ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Meilisearch Configuration
     |--------------------------------------------------------------------------
     |
@@ -119,6 +155,12 @@ return [
     'meilisearch' => [
         'host' => env('MEILISEARCH_HOST', 'http://localhost:7700'),
         'key' => env('MEILISEARCH_KEY'),
+
+        // HTTP retries on connection errors and 5xx/429 responses, with exponential
+        // backoff starting at initial_retry_delay_ms. Set retries to 0 to disable.
+        'retries' => env('MEILISEARCH_RETRIES', 3),
+        'initial_retry_delay_ms' => env('MEILISEARCH_INITIAL_RETRY_DELAY_MS', 100),
+
         'index-settings' => [
             // Per-index settings can be defined here:
             // 'users' => [
@@ -142,18 +184,27 @@ return [
 
     'typesense' => [
         'client-settings' => [
-            'api_key' => env('TYPESENSE_API_KEY', ''),
+            'api_key' => env('TYPESENSE_API_KEY', 'xyz'),
             'nodes' => [
                 [
                     'host' => env('TYPESENSE_HOST', 'localhost'),
                     'port' => env('TYPESENSE_PORT', '8108'),
+                    'path' => env('TYPESENSE_PATH', ''),
                     'protocol' => env('TYPESENSE_PROTOCOL', 'http'),
                 ],
             ],
-            'connection_timeout_seconds' => 2,
+            'nearest_node' => [
+                'host' => env('TYPESENSE_HOST', 'localhost'),
+                'port' => env('TYPESENSE_PORT', '8108'),
+                'path' => env('TYPESENSE_PATH', ''),
+                'protocol' => env('TYPESENSE_PROTOCOL', 'http'),
+            ],
+            'connection_timeout_seconds' => env('TYPESENSE_CONNECTION_TIMEOUT_SECONDS', 2),
+            'healthcheck_interval_seconds' => env('TYPESENSE_HEALTHCHECK_INTERVAL_SECONDS', 30),
+            'num_retries' => env('TYPESENSE_NUM_RETRIES', 3),
+            'retry_interval_seconds' => env('TYPESENSE_RETRY_INTERVAL_SECONDS', 1),
         ],
-        'max_total_results' => env('TYPESENSE_MAX_TOTAL_RESULTS', 1000),
-        'import_action' => 'upsert',
+        // 'max_total_results' => env('TYPESENSE_MAX_TOTAL_RESULTS', 1000),
         'model-settings' => [
             // Per-model settings can be defined here:
             // App\Models\User::class => [
@@ -170,5 +221,6 @@ return [
             //     ],
             // ],
         ],
+        'import_action' => env('TYPESENSE_IMPORT_ACTION', 'upsert'),
     ],
 ];

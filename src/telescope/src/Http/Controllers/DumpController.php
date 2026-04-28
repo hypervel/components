@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Http\Controllers;
 
 use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Http\Request;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\EntryType;
@@ -33,7 +33,7 @@ class DumpController extends EntryController
         $this->cache->put('telescope:dump-watcher', true, now()->addSeconds(4));
 
         return [
-            'dump' => (new HtmlDumper())->dump((new VarCloner())->cloneVar(true), true),
+            'dump' => (new HtmlDumper)->dump((new VarCloner)->cloneVar(true), true),
             'entries' => $storage->get(
                 $this->entryType(),
                 EntryQueryOptions::fromRequest($request)

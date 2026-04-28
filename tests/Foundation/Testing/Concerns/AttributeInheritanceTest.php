@@ -4,15 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\Foundation\Testing\AttributeParser;
-use Hypervel\Foundation\Testing\Attributes\WithConfig;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\PHPUnit\AttributeParser;
 use Hypervel\Testbench\TestCase;
 
 /**
  * Tests that attributes are inherited from parent TestCase classes.
- *
- * @internal
- * @coversNothing
  */
 #[WithConfig('testing.child_class', 'child_value')]
 class AttributeInheritanceTest extends AbstractParentTestCase
@@ -44,7 +41,7 @@ class AttributeInheritanceTest extends AbstractParentTestCase
         // The parent's #[WithConfig('testing.parent_class', 'parent_value')] should be applied
         $this->assertSame(
             'parent_value',
-            $this->app->get('config')->get('testing.parent_class')
+            $this->app->make('config')->get('testing.parent_class')
         );
     }
 
@@ -53,7 +50,7 @@ class AttributeInheritanceTest extends AbstractParentTestCase
         // The child's #[WithConfig('testing.child_class', 'child_value')] should be applied
         $this->assertSame(
             'child_value',
-            $this->app->get('config')->get('testing.child_class')
+            $this->app->make('config')->get('testing.child_class')
         );
     }
 
@@ -76,8 +73,6 @@ class AttributeInheritanceTest extends AbstractParentTestCase
 
 /**
  * Abstract parent test case with class-level attributes for inheritance testing.
- *
- * @internal
  */
 #[WithConfig('testing.parent_class', 'parent_value')]
 abstract class AbstractParentTestCase extends TestCase

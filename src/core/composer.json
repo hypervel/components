@@ -1,11 +1,10 @@
 {
     "name": "hypervel/core",
     "type": "library",
-    "description": "The core package for Hypervel.",
+    "description": "Swoole server lifecycle management for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
         "core",
         "swoole",
         "hypervel"
@@ -14,6 +13,10 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "support": {
@@ -22,30 +25,23 @@
     },
     "autoload": {
         "psr-4": {
-            "Hypervel\\": "src/"
-        },
-        "files": [
-            "src/helpers.php"
-        ]
+            "Hypervel\\Core\\": "src/"
+        }
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/database": "~3.1.0",
-        "hyperf/http-message": "~3.1.0",
-        "hyperf/context": "~3.1.0"
-    },
-    "require-dev": {
-        "fakerphp/faker": "^2.0"
+        "php": "^8.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coordinator": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "psr/log": "^3.0",
+        "symfony/console": "^8.0"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\ConfigProvider"
-        },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

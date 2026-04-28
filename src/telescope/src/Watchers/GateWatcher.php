@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model;
-use Hyperf\Stringable\Str;
 use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Auth\Access\Response;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Telescope\Watchers\Traits\FetchesStackTrace;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 class GateWatcher extends Watcher
 {
@@ -23,30 +22,41 @@ class GateWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Application $app): void
     {
-        $app->get(EventDispatcherInterface::class)
-            ->listen(GateEvaluated::class, [$this, 'recordGateCheck']);
+        $app->make(Dispatcher::class)
+            ->listen(GateEvaluated::class, [$this, 'handleGateEvaluated']);
+    }
+
+    /**
+     * Handle the GateEvaluated event.
+     */
+    public function handleGateEvaluated(GateEvaluated $event): void
+    {
+        $this->recordGateCheck($event->user, $event->ability, $event->result, $event->arguments);
     }
 
     /**
      * Record a gate check.
      */
-    public function recordGateCheck(GateEvaluated $event): void
+    public function recordGateCheck(mixed $user, string $ability, mixed $result, array $arguments): mixed
     {
-        if (! Telescope::isRecording() || $this->shouldIgnore($event->ability)) {
-            return;
+        if (! Telescope::isRecording() || $this->shouldIgnore($ability)) {
+            return $result;
         }
 
-        $caller = $this->getCallerFromStackTrace();
+        $caller = $this->getCallerFromStackTrace([0, 1]);
 
         Telescope::recordGate(IncomingEntry::make([
-            'ability' => $event->ability,
-            'result' => $this->gateResult($event->result),
-            'arguments' => $this->formatArguments($event->arguments),
+            'ability' => $ability,
+            'result' => $this->gateResult($result),
+            'message' => $this->gateMessage($result),
+            'arguments' => $this->formatArguments($arguments),
             'file' => $caller['file'] ?? null,
             'line' => $caller['line'] ?? null,
         ]));
+
+        return $result;
     }
 
     /**
@@ -60,13 +70,25 @@ class GateWatcher extends Watcher
     /**
      * Determine if the gate result is denied or allowed.
      */
-    private function gateResult(bool|Response $result): string
+    private function gateResult(bool|Response|null $result): string
     {
         if ($result instanceof Response) {
             return $result->allowed() ? 'allowed' : 'denied';
         }
 
         return $result ? 'allowed' : 'denied';
+    }
+
+    /**
+     * Get the message returned by the gate.
+     */
+    private function gateMessage(mixed $result): ?string
+    {
+        if ($result instanceof Response) {
+            return $result->message();
+        }
+
+        return null;
     }
 
     /**

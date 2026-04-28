@@ -4,23 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
-use Hyperf\Collection\Collection;
 use Hypervel\Prompts\Prompt;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Support\Collection;
+use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Prompts\progress;
 
-/**
- * @backupStaticProperties enabled
- * @internal
- * @coversNothing
- */
 class ProgressTest extends TestCase
 {
-    /**
-     * @dataProvider progressBarProvider
-     * @param mixed $steps
-     */
+    #[DataProvider('progressBarProvider')]
     public function testRendersProgressBar($steps): void
     {
         Prompt::fake();
@@ -34,28 +27,28 @@ class ProgressTest extends TestCase
         Prompt::assertStrippedOutputContains(<<<'OUTPUT'
      ┌ Adding States ───────────────────────────────────────────────┐
      │                                                              │
-     └───────────────────────────────────────────────────────── 0/4 ┘
+     └─────────────────────────────────────────────────────── 0 / 4 ┘
     OUTPUT);
 
         Prompt::assertStrippedOutputContains(<<<'OUTPUT'
      │ ███████████████                                              │
-     └───────────────────────────────────────────────────────── 1/4 ┘
+     └─────────────────────────────────────────────────────── 1 / 4 ┘
     OUTPUT);
 
         Prompt::assertStrippedOutputContains(<<<'OUTPUT'
      │ ██████████████████████████████                               │
-     └───────────────────────────────────────────────────────── 2/4 ┘
+     └─────────────────────────────────────────────────────── 2 / 4 ┘
     OUTPUT);
 
         Prompt::assertStrippedOutputContains(<<<'OUTPUT'
      │ █████████████████████████████████████████████                │
-     └───────────────────────────────────────────────────────── 3/4 ┘
+     └─────────────────────────────────────────────────────── 3 / 4 ┘
     OUTPUT);
 
         Prompt::assertStrippedOutputContains(<<<'OUTPUT'
      ┌ Adding States ───────────────────────────────────────────────┐
      │ ████████████████████████████████████████████████████████████ │
-     └───────────────────────────────────────────────────────── 4/4 ┘
+     └─────────────────────────────────────────────────────── 4 / 4 ┘
     OUTPUT);
     }
 
@@ -83,7 +76,7 @@ class ProgressTest extends TestCase
         Prompt::assertStrippedOutputContains(<<<'OUTPUT'
      ┌──────────────────────────────────────────────────────────────┐
      │                                                              │
-     └───────────────────────────────────────────────────────── 0/6 ┘
+     └─────────────────────────────────────────────────────── 0 / 6 ┘
     OUTPUT);
     }
 

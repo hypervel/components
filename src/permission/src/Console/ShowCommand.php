@@ -6,8 +6,10 @@ namespace Hypervel\Permission\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Helper\TableCell;
 
+#[AsCommand(name: 'permission:show')]
 class ShowCommand extends Command
 {
     protected ?string $signature = 'permission:show

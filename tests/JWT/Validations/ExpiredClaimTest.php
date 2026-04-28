@@ -9,10 +9,6 @@ use Hypervel\JWT\Exceptions\TokenExpiredException;
 use Hypervel\JWT\Validations\ExpiredClaim;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ExpiredClaimTest extends TestCase
 {
     public function testValid()
@@ -35,7 +31,7 @@ class ExpiredClaimTest extends TestCase
         $this->expectException(TokenExpiredException::class);
         $this->expectExceptionMessage('Token has expired');
 
-        $validation = new ExpiredClaim();
+        $validation = new ExpiredClaim;
 
         $validation->validate(['exp' => Carbon::now()->timestamp - 3600]);
     }

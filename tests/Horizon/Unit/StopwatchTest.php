@@ -7,15 +7,11 @@ namespace Hypervel\Tests\Horizon\Unit;
 use Hypervel\Horizon\Stopwatch;
 use Hypervel\Tests\Horizon\UnitTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class StopwatchTest extends UnitTestCase
 {
     public function testTimeBetweenChecksCanBeMeasured()
     {
-        $stopwatch = new Stopwatch();
+        $stopwatch = new Stopwatch;
         $stopwatch->start('foo');
         usleep(10 * 1000);
         $difference = $stopwatch->check('foo');

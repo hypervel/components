@@ -5,19 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Attribute;
-use Hypervel\Foundation\Testing\AttributeParser;
-use Hypervel\Foundation\Testing\Attributes\Define;
-use Hypervel\Foundation\Testing\Attributes\DefineEnvironment;
-use Hypervel\Foundation\Testing\Attributes\WithConfig;
-use Hypervel\Foundation\Testing\Concerns\HandlesAttributes;
-use Hypervel\Foundation\Testing\Concerns\InteractsWithTestCase;
 use Hypervel\Support\Collection;
+use Hypervel\Testbench\Attributes\Define;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\Concerns\HandlesAttributes;
+use Hypervel\Testbench\Concerns\InteractsWithTestCase;
+use Hypervel\Testbench\PHPUnit\AttributeParser;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 #[WithConfig('testing.class_level', 'class_value')]
 class InteractsWithTestCaseTest extends TestCase
 {
@@ -63,7 +59,7 @@ class InteractsWithTestCaseTest extends TestCase
     public function testClassLevelAttributeIsApplied(): void
     {
         // The WithConfig attribute at class level should be applied
-        $this->assertSame('class_value', $this->app->get('config')->get('testing.class_level'));
+        $this->assertSame('class_value', $this->app->make('config')->get('testing.class_level'));
     }
 
     public function testUsesTestingFeatureAddsAttribute(): void
@@ -103,13 +99,13 @@ class InteractsWithTestCaseTest extends TestCase
         // resolved to DefineEnvironment and executed during setUp, calling our method
         $this->assertSame(
             'define_env_executed',
-            $this->app->get('config')->get('testing.define_meta_attribute')
+            $this->app->make('config')->get('testing.define_meta_attribute')
         );
     }
 
     protected function setupDefineEnvForExecution($app): void
     {
-        $app->get('config')->set('testing.define_meta_attribute', 'define_env_executed');
+        $app->make('config')->set('testing.define_meta_attribute', 'define_env_executed');
     }
 
     public function testResolvePhpUnitAttributesReturnsCollectionOfCollections(): void
@@ -131,9 +127,6 @@ class InteractsWithTestCaseTest extends TestCase
 
 /**
  * Test fixture for Define meta-attribute parsing.
- *
- * @internal
- * @coversNothing
  */
 class DefineMetaAttributeTestCase extends TestCase
 {

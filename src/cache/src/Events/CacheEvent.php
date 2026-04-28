@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Events;
 
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
+
 abstract class CacheEvent
 {
     /**
@@ -24,10 +28,10 @@ abstract class CacheEvent
     /**
      * Create a new event instance.
      */
-    public function __construct(?string $storeName, string $key, array $tags = [])
+    public function __construct(?string $storeName, UnitEnum|string $key, array $tags = [])
     {
         $this->storeName = $storeName;
-        $this->key = $key;
+        $this->key = enum_value($key);
         $this->tags = $tags;
     }
 

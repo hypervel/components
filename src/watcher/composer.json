@@ -1,0 +1,55 @@
+{
+    "name": "hypervel/watcher",
+    "type": "library",
+    "description": "File watcher with pluggable drivers and restart strategies for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "watcher",
+        "hot-reload",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Watcher\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "ext-posix": "*",
+        "hypervel/console": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coordinator": "^0.4",
+        "hypervel/engine": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/support": "^0.4"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Watcher\\WatcherServiceProvider"
+            ]
+        }
+    }
+}

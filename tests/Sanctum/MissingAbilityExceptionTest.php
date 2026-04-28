@@ -5,22 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Sanctum\Exceptions\MissingAbilityException;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class MissingAbilityExceptionTest extends TestCase
 {
-    public function testAbilitiesMethodReturnsTheAbilities(): void
+    public function testAbilitiesMethodReturnsTheAbilities()
     {
         $exception = new MissingAbilityException(['foo', 'bar']);
 
         $this->assertEquals(['foo', 'bar'], $exception->abilities());
     }
 
-    public function testAbilitiesMethodWithStringAbility(): void
+    public function testAbilitiesMethodWithStringAbility()
     {
         $exception = new MissingAbilityException('foo');
 

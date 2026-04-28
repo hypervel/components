@@ -4,16 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Feature;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Tests\Scout\Models\PrefixSearchableModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseEngineTest extends ScoutTestCase
 {
     protected function setUp(): void
@@ -21,7 +16,7 @@ class DatabaseEngineTest extends ScoutTestCase
         parent::setUp();
 
         // Set driver to database for these tests
-        $this->app->get(ConfigInterface::class)->set('scout.driver', 'database');
+        $this->app->make('config')->set('scout.driver', 'database');
     }
 
     public function testSearchReturnsMatchingModels(): void
@@ -165,7 +160,7 @@ class DatabaseEngineTest extends ScoutTestCase
     public function testUpdateAndDeleteAreNoOps(): void
     {
         $model = SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
 
         // These should not throw exceptions since database is the index
         $engine->update($model->newCollection([$model]));
@@ -177,7 +172,7 @@ class DatabaseEngineTest extends ScoutTestCase
 
     public function testCreateAndDeleteIndexAreNoOps(): void
     {
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
 
         $this->assertNull($engine->createIndex('test'));
         $this->assertNull($engine->deleteIndex('test'));
@@ -189,7 +184,7 @@ class DatabaseEngineTest extends ScoutTestCase
         SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
 
         $builder = SearchableModel::search('');
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
         $results = $engine->search($builder);
 
         $this->assertEquals(2, $engine->getTotalCount($results));
@@ -201,7 +196,7 @@ class DatabaseEngineTest extends ScoutTestCase
         $model2 = SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
 
         $builder = SearchableModel::search('');
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
         $results = $engine->search($builder);
 
         $ids = $engine->mapIds($results);
@@ -215,7 +210,7 @@ class DatabaseEngineTest extends ScoutTestCase
         $model = SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
 
         $builder = SearchableModel::search('Test');
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
         $results = $engine->search($builder);
 
         $mapped = $engine->map($builder, $results, $model);
@@ -229,9 +224,9 @@ class DatabaseEngineTest extends ScoutTestCase
         SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
 
         $builder = SearchableModel::search('Test');
-        $engine = new DatabaseEngine();
+        $engine = new DatabaseEngine;
         $results = $engine->search($builder);
-        $model = new SearchableModel();
+        $model = new SearchableModel;
 
         $lazyMapped = $engine->lazyMap($builder, $results, $model);
 

@@ -1,11 +1,10 @@
 {
     "name": "hypervel/socialite",
     "type": "library",
-    "description": "Hypervel wrapper around OAuth 1 & OAuth 2 libraries.",
+    "description": "Hypervel wrapper around OAuth 2 libraries.",
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
         "oauth",
         "swoole",
         "hypervel"
@@ -14,6 +13,10 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "support": {
@@ -26,24 +29,28 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "ext-json": "*",
-        "firebase/php-jwt": "^6.4",
-        "guzzlehttp/guzzle": "^6.0|^7.0",
-        "hypervel/http": "^0.3",
-        "hypervel/support": "^0.3",
-        "league/oauth1-client": "^1.11",
-        "phpseclib/phpseclib": "^3.0"
+        "firebase/php-jwt": "^7.0",
+        "guzzlehttp/guzzle": "^7.8.2",
+        "phpseclib/phpseclib": "^3.0",
+        "hypervel/collections": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Socialite\\ConfigProvider"
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Socialite\\SocialiteServiceProvider"
+            ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

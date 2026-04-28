@@ -4,34 +4,34 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cookie\Middleware;
 
-use Hypervel\Cookie\Contracts\Cookie as ContractsCookie;
+use Hypervel\Contracts\Cookie\QueueingFactory as CookieJar;
 use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpFoundation\Response;
 
-/**
- * @internal
- * @coversNothing
- */
 class AddQueuedCookiesToResponseTest extends TestCase
 {
-    public function testProcess()
+    public function testHandle()
     {
-        $cookie = m::mock(ContractsCookie::class);
-        $cookie->shouldReceive('getQueuedCookies')->once()->andReturn(['cookie']);
+        $queuedCookie = new Cookie('foo', 'bar');
 
-        $request = m::mock(ServerRequestInterface::class);
-        $response = m::mock(ResponseInterface::class);
-        $response->shouldReceive('withCookie')->once()->with('cookie')->andReturnSelf();
+        $cookieManager = m::mock(CookieJar::class);
+        $cookieManager->shouldReceive('getQueuedCookies')->once()->andReturn([$queuedCookie]);
 
-        $handler = m::mock(RequestHandlerInterface::class);
-        $handler->shouldReceive('handle')->with($request)->once()->andReturn($response);
+        $request = Request::create('/test');
+        $response = new Response('OK');
 
-        $middle = new AddQueuedCookiesToResponse($cookie);
+        $middleware = new AddQueuedCookiesToResponse($cookieManager);
 
-        $middle->process($request, $handler);
+        $result = $middleware->handle($request, fn () => $response);
+
+        $this->assertSame($response, $result);
+        $cookies = $result->headers->getCookies();
+        $this->assertCount(1, $cookies);
+        $this->assertSame('foo', $cookies[0]->getName());
+        $this->assertSame('bar', $cookies[0]->getValue());
     }
 }

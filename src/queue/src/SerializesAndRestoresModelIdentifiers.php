@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Builder;
-use Hyperf\Database\Model\Collection as EloquentCollection;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\Relations\Concerns\AsPivot;
-use Hyperf\Database\Model\Relations\Pivot;
+use Hypervel\Contracts\Queue\QueueableCollection;
+use Hypervel\Contracts\Queue\QueueableEntity;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\ModelIdentifier;
-use Hypervel\Queue\Contracts\QueueableCollection;
-use Hypervel\Queue\Contracts\QueueableEntity;
+use Hypervel\Support\Collection as SupportCollection;
 
 trait SerializesAndRestoresModelIdentifiers
 {
@@ -63,16 +63,17 @@ trait SerializesAndRestoresModelIdentifiers
     /**
      * Restore a queueable collection instance.
      */
-    protected function restoreCollection(ModelIdentifier $value): Collection
+    protected function restoreCollection(ModelIdentifier $value): EloquentCollection
     {
         if (! $value->class || count($value->id) === 0) {
             return ! is_null($value->collectionClass ?? null)
-                ? new $value->collectionClass()
-                : new EloquentCollection();
+                ? new $value->collectionClass
+                : new EloquentCollection;
         }
 
+        /** @var EloquentCollection<int, Model> $collection */
         $collection = $this->getQueryForModelRestoration(
-            (new $value->class())->setConnection($value->connection),
+            (new $value->class)->setConnection($value->connection),
             $value->id
         )->useWritePdo()->get();
 
@@ -85,13 +86,17 @@ trait SerializesAndRestoresModelIdentifiers
         /* @phpstan-ignore-next-line */
         $collection = $collection->keyBy->getKey();
 
+        /** @var class-string<EloquentCollection<int, Model>> $collectionClass */
         $collectionClass = get_class($collection);
 
-        return new $collectionClass(
-            Collection::make($value->id)->map(function ($id) use ($collection) {
+        /** @var EloquentCollection<int, Model> $restoredCollection */
+        $restoredCollection = new $collectionClass(
+            SupportCollection::make($value->id)->map(function ($id) use ($collection) {
                 return $collection[$id] ?? null;
             })->filter()
         );
+
+        return $restoredCollection->loadMissing($value->relations ?? []);
     }
 
     /**
@@ -99,16 +104,19 @@ trait SerializesAndRestoresModelIdentifiers
      */
     public function restoreModel(ModelIdentifier $value): Model
     {
-        return $this->getQueryForModelRestoration(
-            (new $value->class())->setConnection($value->connection),
+        /** @var Model $model */
+        $model = $this->getQueryForModelRestoration(
+            (new ($value->getClass()))->setConnection($value->connection),
             $value->id
-        )->useWritePdo()->firstOrFail()->load($value->relations ?? []);
+        )->useWritePdo()->firstOrFail();
+
+        return $model->loadMissing($value->relations ?? []);
     }
 
     /**
      * Get the query for model restoration.
      */
-    protected function getQueryForModelRestoration(Model $model, array|int $ids): Builder
+    protected function getQueryForModelRestoration(Model $model, array|int|string $ids): Builder
     {
         return $model->newQueryForRestoration($ids);
     }

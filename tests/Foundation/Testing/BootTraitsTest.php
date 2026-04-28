@@ -4,19 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
-use Hypervel\Testbench\TestCase as TestbenchTestCase;
+use Hypervel\Foundation\Testing\Attributes\SetUp;
+use Hypervel\Foundation\Testing\Attributes\TearDown;
+use Hypervel\Foundation\Testing\TestCase as FoundationTestCase;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 
-/**
- * @internal
- * @coversNothing
- */
 class BootTraitsTest extends TestCase
 {
-    use TestTrait;
-
-    public function testSetUpTraits()
+    public function testSetUpAndTearDownTraits()
     {
         $testCase = new TestCaseWithTrait('foo');
 
@@ -30,15 +26,72 @@ class BootTraitsTest extends TestCase
 
         $this->assertTrue($testCase->tearDown);
     }
+
+    public function testSetUpAndTearDownWithAttributes()
+    {
+        $testCase = new TestCaseWithAttributeTrait('foo');
+
+        $method = new ReflectionMethod($testCase, 'setUpTraits');
+        $method->invoke($testCase);
+
+        $this->assertTrue($testCase->attributeSetUp);
+
+        $method = new ReflectionMethod($testCase, 'callBeforeApplicationDestroyedCallbacks');
+        $method->invoke($testCase);
+
+        $this->assertTrue($testCase->attributeTearDown);
+    }
+
+    public function testConventionalAndAttributeTraitsWorkTogether()
+    {
+        $testCase = new TestCaseWithBothTraits('foo');
+
+        $method = new ReflectionMethod($testCase, 'setUpTraits');
+        $method->invoke($testCase);
+
+        $this->assertTrue($testCase->setUp);
+        $this->assertTrue($testCase->attributeSetUp);
+
+        $method = new ReflectionMethod($testCase, 'callBeforeApplicationDestroyedCallbacks');
+        $method->invoke($testCase);
+
+        $this->assertTrue($testCase->tearDown);
+        $this->assertTrue($testCase->attributeTearDown);
+    }
 }
 
-/**
- * @internal
- * @coversNothing
- */
-class TestCaseWithTrait extends TestbenchTestCase
+class TestCaseWithTrait extends FoundationTestCase
 {
     use TestTrait;
+
+    /**
+     * Dummy test method required for setUpTraits() to work.
+     *
+     * PHPUnit TestCase expects the named test method to exist, and
+     * AttributeParser reflects on it to check for database attributes.
+     */
+    public function foo(): void
+    {
+    }
+}
+
+class TestCaseWithAttributeTrait extends FoundationTestCase
+{
+    use TestTraitWithAttributes;
+
+    public function foo(): void
+    {
+    }
+}
+
+class TestCaseWithBothTraits extends FoundationTestCase
+{
+    use TestTrait;
+    use TestTraitWithAttributes;
+
+    public function foo(): void
+    {
+    }
 }
 
 trait TestTrait
@@ -55,5 +108,24 @@ trait TestTrait
     public function tearDownTestTrait()
     {
         $this->tearDown = true;
+    }
+}
+
+trait TestTraitWithAttributes
+{
+    public bool $attributeSetUp = false;
+
+    public bool $attributeTearDown = false;
+
+    #[SetUp]
+    public function initializeSearch()
+    {
+        $this->attributeSetUp = true;
+    }
+
+    #[TearDown]
+    public function cleanUpSearch()
+    {
+        $this->attributeTearDown = true;
     }
 }

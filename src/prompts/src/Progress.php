@@ -110,9 +110,9 @@ class Progress extends Prompt
             });
         }
 
-        $this->state = 'active';
         $this->hideCursor();
         $this->render();
+        $this->state = 'active';
     }
 
     /**

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Testing\PendingCommand;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Testing\PendingCommand;
 
 trait InteractsWithConsole
 {
@@ -78,6 +78,9 @@ trait InteractsWithConsole
 
     /**
      * Disable mocking the console output.
+     *
+     * When using this with traits like DatabaseMigrations, call this in setUp()
+     * BEFORE parent::setUp() to ensure mock output is never bound.
      */
     protected function withoutMockingConsoleOutput(): static
     {

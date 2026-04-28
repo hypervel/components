@@ -8,15 +8,11 @@ use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ContextBlockTest extends TestCase
 {
     public function testArrayable(): void
     {
-        $block = new ContextBlock();
+        $block = new ContextBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');
 
         $this->assertSame([
@@ -35,7 +31,7 @@ class ContextBlockTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('There must be at least one element in each context block.');
 
-        $block = new ContextBlock();
+        $block = new ContextBlock;
         $block->toArray();
     }
 
@@ -44,7 +40,7 @@ class ContextBlockTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('There is a maximum of 10 elements in each context block.');
 
-        $block = new ContextBlock();
+        $block = new ContextBlock;
         for ($i = 0; $i < 11; ++$i) {
             $block->text('Location: 123 Main Street, New York, NY 10010');
         }
@@ -54,7 +50,7 @@ class ContextBlockTest extends TestCase
 
     public function testCanManuallySpecifyBlockIdField(): void
     {
-        $block = new ContextBlock();
+        $block = new ContextBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');
         $block->id('actions1');
 
@@ -75,7 +71,7 @@ class ContextBlockTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Maximum length for the block_id field is 255 characters.');
 
-        $block = new ContextBlock();
+        $block = new ContextBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');
         $block->id(str_repeat('a', 256));
 
@@ -84,7 +80,7 @@ class ContextBlockTest extends TestCase
 
     public function testCanAddImageBlocks(): void
     {
-        $block = new ContextBlock();
+        $block = new ContextBlock;
         $block->image('https://image.freepik.com/free-photo/red-drawing-pin_1156-445.jpg')->alt('images');
         $block->image('http://placekitten.com/500/500', 'An incredibly cute kitten.');
 
@@ -107,7 +103,7 @@ class ContextBlockTest extends TestCase
 
     public function testCanAddTextBlocks(): void
     {
-        $block = new ContextBlock();
+        $block = new ContextBlock;
         $block->text('Location: 123 Main Street, New York, NY 10010');
         $block->text('Description: **Bring your dog!**')->markdown();
 

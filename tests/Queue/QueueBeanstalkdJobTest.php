@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Mockery as m;
@@ -14,26 +16,15 @@ use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use Pheanstalk\Pheanstalk;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
 class QueueBeanstalkdJobTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testFireProperlyCallsTheJobHandler()
     {
         $job = $this->getJob();
         $job->getPheanstalkJob()->shouldReceive('getData')->once()->andReturn(json_encode(['job' => 'foo', 'data' => ['data']]));
-        $job->getContainer()->shouldReceive('get')->once()->with('foo')->andReturn($handler = m::mock(stdClass::class));
+        $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(stdClass::class));
         $handler->shouldReceive('fire')->once()->with($job, ['data']);
 
         $job->fire();
@@ -43,13 +34,13 @@ class QueueBeanstalkdJobTest extends TestCase
     {
         $job = $this->getJob();
         $job->getPheanstalkJob()->shouldReceive('getData')->andReturn(json_encode(['job' => 'foo', 'uuid' => 'test-uuid', 'data' => ['data']]));
-        $job->getContainer()->shouldReceive('get')->once()->with('foo')->andReturn($handler = m::mock(BeanstalkdJobTestFailedTest::class));
+        $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(BeanstalkdJobTestFailedTest::class));
         $job->getPheanstalk()->shouldReceive('delete')->once()->with($job->getPheanstalkJob())->andReturnSelf();
-        $handler->shouldReceive('failed')->once()->with(['data'], m::type(Exception::class), 'test-uuid');
-        $job->getContainer()->shouldReceive('get')->once()->with(EventDispatcherInterface::class)->andReturn($events = m::mock(EventDispatcherInterface::class));
+        $handler->shouldReceive('failed')->once()->with(['data'], m::type(Exception::class), 'test-uuid', m::type(BeanstalkdJob::class));
+        $job->getContainer()->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events = m::mock(Dispatcher::class));
         $events->shouldReceive('dispatch')->once()->with(m::type(JobFailed::class))->andReturnNull();
 
-        $job->fail(new Exception());
+        $job->fail(new Exception);
     }
 
     public function testDeleteRemovesTheJobFromBeanstalkd()
@@ -79,7 +70,7 @@ class QueueBeanstalkdJobTest extends TestCase
     protected function getJob()
     {
         return new BeanstalkdJob(
-            m::mock(ContainerInterface::class),
+            m::mock(Container::class),
             m::mock(implode(',', [PheanstalkManagerInterface::class, PheanstalkPublisherInterface::class, PheanstalkSubscriberInterface::class])),
             m::mock(JobIdInterface::class),
             'connection-name',
@@ -90,7 +81,7 @@ class QueueBeanstalkdJobTest extends TestCase
 
 class BeanstalkdJobTestFailedTest
 {
-    public function failed(array $data)
+    public function failed(array $data, Exception $exception, string $uuid, BeanstalkdJob $job)
     {
     }
 }

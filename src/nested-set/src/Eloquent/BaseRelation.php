@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet\Eloquent;
 
-use Hyperf\Database\Model\Builder as EloquentBuilder;
-use Hyperf\Database\Model\Collection;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\Relations\Relation;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Query\Builder;
 use Hypervel\NestedSet\NestedSet;
 use InvalidArgumentException;
 
@@ -37,10 +37,7 @@ abstract class BaseRelation extends Relation
 
     abstract protected function relationExistenceCondition(string $hash, string $table, string $lft, string $rgt): string;
 
-    /**
-     * @param array $columns
-     */
-    public function getRelationExistenceQuery(EloquentBuilder $query, EloquentBuilder $parent, $columns = ['*']): mixed
+    public function getRelationExistenceQuery(EloquentBuilder $query, EloquentBuilder $parentQuery, mixed $columns = ['*']): EloquentBuilder
     {
         /* @phpstan-ignore-next-line */
         $query = $this->getParent()->replicate()->newScopedQuery()->select($columns);

@@ -9,10 +9,6 @@ use Hypervel\JWT\Exceptions\TokenInvalidException;
 use Hypervel\JWT\Validations\IssuedAtClaim;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class IssuedAtClaimTest extends TestCase
 {
     public function testValid()
@@ -35,7 +31,7 @@ class IssuedAtClaimTest extends TestCase
         $this->expectException(TokenInvalidException::class);
         $this->expectExceptionMessage('Issued At (iat) timestamp cannot be in the future');
 
-        $validation = new IssuedAtClaim();
+        $validation = new IssuedAtClaim;
 
         $validation->validate(['iat' => Carbon::now()->timestamp + 3600]);
     }

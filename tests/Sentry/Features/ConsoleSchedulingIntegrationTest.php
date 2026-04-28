@@ -1,0 +1,289 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Sentry\Features;
+
+use DateTimeZone;
+use Hypervel\Bus\Queueable;
+use Hypervel\Console\Scheduling\Event;
+use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
+use Hypervel\Tests\Sentry\SentryTestCase;
+use RuntimeException;
+
+class ConsoleSchedulingIntegrationTest extends SentryTestCase
+{
+    protected array $defaultSetupConfig = [
+        'sentry.traces_sample_rate' => 1.0,
+        'sentry.features' => [
+            ConsoleSchedulingFeature::class,
+        ],
+    ];
+
+    public function testScheduleMacro(): void
+    {
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()
+            ->call(function () {
+            })
+            ->sentryMonitor('test-monitor');
+
+        $scheduledEvent->run($this->app);
+
+        // We expect a total of 2 events to be sent to Sentry:
+        // 1. The start check-in event
+        // 2. The finish check-in event
+        $this->assertSentryCheckInCount(2);
+
+        $finishCheckInEvent = $this->getLastSentryEvent();
+
+        $this->assertNotNull($finishCheckInEvent->getCheckIn());
+        $this->assertEquals('test-monitor', $finishCheckInEvent->getCheckIn()->getMonitorSlug());
+    }
+
+    /**
+     * When a timezone was defined on a command this would fail with:
+     * Sentry\MonitorConfig::__construct(): Argument #4 ($timezone) must be of type ?string, DateTimeZone given
+     * This test ensures that the timezone is properly converted to a string as expected.
+     */
+    public function testScheduleMacroWithTimeZone(): void
+    {
+        $expectedTimezone = 'UTC';
+
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()
+            ->call(function () {
+            })
+            ->timezone(new DateTimeZone($expectedTimezone))
+            ->sentryMonitor('test-timezone-monitor');
+
+        $scheduledEvent->run($this->app);
+
+        // We expect a total of 2 events to be sent to Sentry:
+        // 1. The start check-in event
+        // 2. The finish check-in event
+        $this->assertSentryCheckInCount(2);
+
+        $finishCheckInEvent = $this->getLastSentryEvent();
+
+        $this->assertNotNull($finishCheckInEvent->getCheckIn());
+        $this->assertEquals($expectedTimezone, $finishCheckInEvent->getCheckIn()->getMonitorConfig()->getTimezone());
+    }
+
+    public function testScheduleMacroAutomaticSlugForCommand(): void
+    {
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()->command('migrate')->sentryMonitor();
+
+        $scheduledEvent->run($this->app);
+
+        // We expect a total of 2 events to be sent to Sentry:
+        // 1. The start check-in event
+        // 2. The finish check-in event
+        $this->assertSentryCheckInCount(2);
+
+        $finishCheckInEvent = $this->getLastSentryEvent();
+
+        $this->assertNotNull($finishCheckInEvent->getCheckIn());
+        $this->assertEquals('scheduled_migrate', $finishCheckInEvent->getCheckIn()->getMonitorSlug());
+    }
+
+    public function testScheduleMacroAutomaticSlugForJob(): void
+    {
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()->job(ScheduledQueuedJob::class)->sentryMonitor();
+
+        $scheduledEvent->run($this->app);
+
+        // We expect a total of 2 events to be sent to Sentry:
+        // 1. The start check-in event
+        // 2. The finish check-in event
+        $this->assertSentryCheckInCount(2);
+
+        $finishCheckInEvent = $this->getLastSentryEvent();
+
+        $this->assertNotNull($finishCheckInEvent->getCheckIn());
+        // Scheduled is duplicated here because of the class name of the queued job, this is not a bug just unfortunate naming for the test class
+        $this->assertEquals(
+            'scheduled_scheduledqueuedjob-features-sentry-tests-hypervel',
+            $finishCheckInEvent->getCheckIn()->getMonitorSlug()
+        );
+    }
+
+    public function testScheduleMacroWithoutSlugCommandOrDescriptionOrName(): void
+    {
+        $this->expectException(RuntimeException::class);
+
+        $this->getScheduler()->call(function () {
+        })->sentryMonitor();
+    }
+
+    /** @define-env envWithoutDsnSet */
+    public function testScheduleMacroWithoutDsnSet(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.dsn' => null,
+            'sentry_test.override_dsn' => true,
+            'sentry.features' => [
+                ConsoleSchedulingFeature::class,
+            ],
+        ]);
+
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()->call(function () {
+        })->sentryMonitor('test-monitor');
+
+        $scheduledEvent->run($this->app);
+
+        $this->assertSentryCheckInCount(0);
+    }
+
+    public function testScheduleMacroIsRegistered(): void
+    {
+        $this->assertTrue(Event::hasMacro('sentryMonitor'));
+    }
+
+    public function testScheduleMacroIsRegisteredWithoutDsnSet(): void
+    {
+        $this->resetApplicationWithConfig([
+            'sentry.dsn' => null,
+            'sentry_test.override_dsn' => true,
+            'sentry.features' => [
+                ConsoleSchedulingFeature::class,
+            ],
+        ]);
+
+        $this->assertTrue(Event::hasMacro('sentryMonitor'));
+    }
+
+    public function testScheduledClosureCreatesTransaction(): void
+    {
+        $this->getScheduler()->call(function () {
+        })->everyMinute();
+
+        $this->artisan('schedule:run --once');
+
+        $this->assertSentryTransactionCount(1);
+
+        $transaction = $this->getLastSentryEvent();
+
+        $this->assertEquals('Closure', $transaction->getTransaction());
+    }
+
+    /** @define-env envSamplingAllTransactions */
+    public function testScheduledJobCreatesTransaction(): void
+    {
+        $this->getScheduler()->job(ScheduledQueuedJob::class)->everyMinute();
+
+        $this->artisan('schedule:run --once');
+
+        $this->assertSentryTransactionCount(1);
+
+        $transaction = $this->getLastSentryEvent();
+
+        $this->assertEquals(ScheduledQueuedJob::class, $transaction->getTransaction());
+    }
+
+    public function testBackgroundScheduledTaskUsesContextForCheckInId(): void
+    {
+        /** @var Event $scheduledEvent */
+        $scheduledEvent = $this->getScheduler()
+            ->command('migrate')
+            ->runInBackground()
+            ->sentryMonitor('test-background-monitor');
+
+        $scheduledEvent->run($this->app);
+
+        // We should have 2 check-in events (start + finish)
+        $this->assertSentryCheckInCount(2);
+
+        $events = $this->getCapturedSentryEvents();
+        $checkInEvents = array_values(array_filter($events, fn ($e) => $e[0]->getCheckIn() !== null));
+
+        $startCheckInId = $checkInEvents[0][0]->getCheckIn()->getId();
+        $finishCheckInId = $checkInEvents[1][0]->getCheckIn()->getId();
+
+        // The finish check-in should have the same ID as the start check-in,
+        // verifying the ID was correctly stored and retrieved via Context hidden storage
+        $this->assertEquals($startCheckInId, $finishCheckInId);
+    }
+
+    public function testBackgroundScheduledTaskOverlappingExecutionsHaveDistinctCheckInIds(): void
+    {
+        $scheduler = $this->getScheduler();
+
+        /** @var Event $scheduledEventA */
+        $scheduledEventA = $scheduler->call(fn () => null)->sentryMonitor('test-overlapping-monitor');
+        /** @var Event $scheduledEventB */
+        $scheduledEventB = $scheduler->call(fn () => null)->sentryMonitor('test-overlapping-monitor');
+
+        $scheduledEventA->run($this->app);
+        $scheduledEventB->run($this->app);
+
+        $this->assertSentryCheckInCount(4);
+
+        $events = $this->getCapturedSentryEvents();
+        $checkInEvents = array_values(array_filter($events, fn ($e) => $e[0]->getCheckIn() !== null));
+
+        $taskAStartId = $checkInEvents[0][0]->getCheckIn()->getId();
+        $taskAFinishId = $checkInEvents[1][0]->getCheckIn()->getId();
+        $taskBStartId = $checkInEvents[2][0]->getCheckIn()->getId();
+        $taskBFinishId = $checkInEvents[3][0]->getCheckIn()->getId();
+
+        // Each task's start and finish should match
+        $this->assertEquals($taskAStartId, $taskAFinishId);
+        $this->assertEquals($taskBStartId, $taskBFinishId);
+
+        // But the two tasks should have different check-in IDs
+        $this->assertNotEquals($taskAStartId, $taskBStartId);
+    }
+
+    public function testCheckInStateIsIsolatedBetweenConcurrentTasks(): void
+    {
+        $scheduler = $this->getScheduler();
+
+        // Schedule two closures with different monitor slugs
+        $scheduledEventA = $scheduler->call(fn () => null)->sentryMonitor('task-a');
+        $scheduledEventB = $scheduler->call(fn () => null)->sentryMonitor('task-b');
+
+        // Run both — each gets its own check-in in its own coroutine-local context
+        $scheduledEventA->run($this->app);
+        $scheduledEventB->run($this->app);
+
+        // We should have 4 check-in events total (2 starts + 2 finishes)
+        $this->assertSentryCheckInCount(4);
+    }
+
+    public function testCheckInStateIsCleanedUpAfterTaskCompletes(): void
+    {
+        $scheduler = $this->getScheduler();
+
+        $scheduledEvent = $scheduler->call(fn () => null)->sentryMonitor('cleanup-test');
+
+        $scheduledEvent->run($this->app);
+
+        // 2 check-in events (start + finish)
+        $this->assertSentryCheckInCount(2);
+
+        // Running again should create 2 new check-ins (not reuse old state)
+        $scheduledEvent->run($this->app);
+
+        $this->assertSentryCheckInCount(4);
+    }
+
+    protected function getScheduler(): Schedule
+    {
+        return $this->app->make(Schedule::class);
+    }
+}
+
+class ScheduledQueuedJob implements ShouldQueue
+{
+    use Queueable;
+
+    public function handle(): void
+    {
+    }
+}

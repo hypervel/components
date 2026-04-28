@@ -4,21 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\Facades;
 
+use Closure;
 use Hypervel\Socialite\Contracts\Factory;
+use Hypervel\Socialite\Contracts\User as UserContract;
+use Hypervel\Socialite\Testing\SocialiteFake;
 use Hypervel\Support\Facades\Facade;
 
 /**
  * @method static mixed with(string $driver)
- * @method static mixed buildProvider(string $provider, array|null $config)
+ * @method static mixed driver(string|null $driver = null)
+ * @method static mixed buildOAuth2Provider(string $provider, array|null $config)
  * @method static array formatConfig(array $config)
  * @method static \Hypervel\Socialite\SocialiteManager forgetDrivers()
+ * @method static \Hypervel\Socialite\SocialiteManager setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static string getDefaultDriver()
- * @method static mixed driver(string|null $driver = null)
  * @method static \Hypervel\Socialite\SocialiteManager extend(string $driver, \Closure $callback)
  * @method static array getDrivers()
- * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static \Hypervel\Socialite\SocialiteManager setContainer(\Psr\Container\ContainerInterface $container)
- * @method static \Psr\Http\Message\ResponseInterface redirect()
+ * @method static \Hypervel\Contracts\Container\Container getContainer()
+ * @method static \Hypervel\Http\RedirectResponse redirect()
  * @method static \Hypervel\Socialite\Two\User user()
  * @method static \Hypervel\Socialite\Two\User userFromToken(string $token)
  * @method static mixed getAccessTokenResponse(string $code)
@@ -27,9 +30,12 @@ use Hypervel\Support\Facades\Facade;
  * @method static \Hypervel\Socialite\Two\AbstractProvider setScopes(array|string $scopes)
  * @method static array getScopes()
  * @method static \Hypervel\Socialite\Two\AbstractProvider redirectUrl(string $url)
- * @method static \Hypervel\Socialite\Two\AbstractProvider setRequest(\Hypervel\Http\Contracts\RequestContract $request)
- * @method static \Hypervel\Socialite\Two\AbstractProvider stateless()
  * @method static \Hypervel\Socialite\Two\AbstractProvider enablePKCE()
+ * @method static \Hypervel\Socialite\Two\AbstractProvider setConfig(array $config)
+ * @method static \Hypervel\Socialite\Two\AbstractProvider withConfig(array $config)
+ * @method static \Hypervel\Socialite\Two\AbstractProvider setHttpClient(\GuzzleHttp\Client $client)
+ * @method static \Hypervel\Socialite\Two\AbstractProvider setRequest(\Hypervel\Http\Request $request)
+ * @method static \Hypervel\Socialite\Two\AbstractProvider stateless()
  * @method static mixed getContext(string $key, mixed $default = null)
  * @method static mixed setContext(string $key, mixed $value)
  * @method static mixed getOrSetContext(string $key, mixed $value)
@@ -39,8 +45,26 @@ use Hypervel\Support\Facades\Facade;
  */
 class Socialite extends Facade
 {
-    protected static function getFacadeAccessor()
+    protected static function getFacadeAccessor(): string
     {
         return Factory::class;
+    }
+
+    /**
+     * Register a fake Socialite instance.
+     */
+    public static function fake(string $driver, UserContract|Closure|null $user = null): SocialiteFake
+    {
+        $root = static::getFacadeRoot();
+
+        if ($root instanceof SocialiteFake) {
+            $fake = $root;
+        } else {
+            $fake = new SocialiteFake($root);
+
+            static::swap($fake);
+        }
+
+        return $fake->fake($driver, $user);
     }
 }

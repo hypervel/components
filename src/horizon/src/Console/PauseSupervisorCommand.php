@@ -8,7 +8,9 @@ use Hypervel\Console\Command;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Str;
+use Symfony\Component\Console\Attribute\AsCommand;
 
+#[AsCommand(name: 'horizon:pause-supervisor')]
 class PauseSupervisorCommand extends Command
 {
     /**
@@ -27,7 +29,7 @@ class PauseSupervisorCommand extends Command
      */
     public function handle(SupervisorRepository $supervisors): int
     {
-        $processId = (int) optional(collect($supervisors->all())->first(function ($supervisor) {
+        $processId = (int) optional(collect($supervisors->all())->first(function ($supervisor) { // @phpstan-ignore property.notFound (optional() __get proxy)
             return Str::startsWith($supervisor->name, MasterSupervisor::basename())
                     && Str::endsWith($supervisor->name, $this->argument('name'));
         }))->pid;

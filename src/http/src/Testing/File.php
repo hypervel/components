@@ -5,14 +5,25 @@ declare(strict_types=1);
 namespace Hypervel\Http\Testing;
 
 use Hypervel\Http\UploadedFile;
-use Hypervel\Support\MimeTypeExtensionGuesser;
 
 class File extends UploadedFile
 {
     /**
+     * The name of the file.
+     */
+    public string $name;
+
+    /**
+     * The temporary file resource.
+     *
+     * @var resource
+     */
+    public mixed $tempFile;
+
+    /**
      * The "size" to report.
      */
-    public int $sizeToReport = 0;
+    public ?int $sizeToReport = null;
 
     /**
      * The MIME type to report.
@@ -24,17 +35,15 @@ class File extends UploadedFile
      *
      * @param resource $tempFile
      */
-    public function __construct(
-        public string $name,
-        public $tempFile
-    ) {
+    public function __construct(string $name, mixed $tempFile)
+    {
+        $this->name = $name;
         $this->tempFile = $tempFile;
 
         parent::__construct(
             $this->tempFilePath(),
             $name,
             $this->getMimeType(),
-            UPLOAD_ERR_OK,
             null,
             true
         );
@@ -43,25 +52,25 @@ class File extends UploadedFile
     /**
      * Create a new fake file.
      */
-    public static function create(string $name, int $kilobytes = 0): File
+    public static function create(string $name, string|int $kilobytes = 0): self
     {
-        return (new FileFactory())->create($name, $kilobytes);
+        return (new FileFactory)->create($name, $kilobytes);
     }
 
     /**
      * Create a new fake file with content.
      */
-    public static function createWithContent(string $name, string $content): File
+    public static function createWithContent(string $name, string $content): self
     {
-        return (new FileFactory())->createWithContent($name, $content);
+        return (new FileFactory)->createWithContent($name, $content);
     }
 
     /**
      * Create a new fake image.
      */
-    public static function image(string $name, int $width = 10, int $height = 10): File
+    public static function image(string $name, int $width = 10, int $height = 10): self
     {
-        return (new FileFactory())->image($name, $width, $height);
+        return (new FileFactory)->image($name, $width, $height);
     }
 
     /**
@@ -83,7 +92,7 @@ class File extends UploadedFile
     }
 
     /**
-     * Set the "MIME type" for the file.
+     * Set the MIME type for the file.
      */
     public function mimeType(string $mimeType): static
     {
@@ -97,13 +106,7 @@ class File extends UploadedFile
      */
     public function getMimeType(): string
     {
-        if ($this->mimeTypeToReport) {
-            return $this->mimeTypeToReport;
-        }
-
-        return (new MimeTypeExtensionGuesser())->guessMimeType(
-            pathinfo($this->name, PATHINFO_EXTENSION)
-        ) ?: 'application/octet-stream';
+        return $this->mimeTypeToReport ?: MimeType::from($this->name);
     }
 
     /**

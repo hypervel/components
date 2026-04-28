@@ -6,9 +6,9 @@ namespace Hypervel\Filesystem;
 
 use Closure;
 use Exception;
-use Hyperf\Coroutine\Coroutine;
-use Hyperf\Coroutine\Locker;
-use Hypervel\Filesystem\Exceptions\LockTimeoutException;
+use Hypervel\Contracts\Filesystem\LockTimeoutException;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Locker;
 
 class LockableFile
 {
@@ -80,8 +80,6 @@ class LockableFile
 
     /**
      * Write to the file.
-     *
-     * @return $this
      */
     public function write(string $contents): static
     {
@@ -94,8 +92,6 @@ class LockableFile
 
     /**
      * Truncate the file.
-     *
-     * @return $this
      */
     public function truncate(): static
     {
@@ -148,8 +144,6 @@ class LockableFile
 
     /**
      * Release the lock on the file.
-     *
-     * @return $this
      */
     public function releaseLock(): static
     {

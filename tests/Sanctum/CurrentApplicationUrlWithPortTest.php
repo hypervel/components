@@ -4,19 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Testbench\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CurrentApplicationUrlWithPortTest extends TestCase
 {
     public function testCurrentApplicationUrlWithPort(): void
     {
-        $this->app->get(ConfigInterface::class)->set('app.url', 'https://www.example.com:8080');
+        $this->app->make('config')->set('app.url', 'https://www.example.com:8080');
 
         $result = Sanctum::currentApplicationUrlWithPort();
 
@@ -25,7 +20,7 @@ class CurrentApplicationUrlWithPortTest extends TestCase
 
     public function testCurrentApplicationUrlWithoutPort(): void
     {
-        $this->app->get(ConfigInterface::class)->set('app.url', 'https://www.example.com');
+        $this->app->make('config')->set('app.url', 'https://www.example.com');
 
         $result = Sanctum::currentApplicationUrlWithPort();
 
@@ -34,7 +29,7 @@ class CurrentApplicationUrlWithPortTest extends TestCase
 
     public function testCurrentApplicationUrlWhenNotSet(): void
     {
-        $this->app->get(ConfigInterface::class)->set('app.url', null);
+        $this->app->make('config')->set('app.url', null);
 
         $result = Sanctum::currentApplicationUrlWithPort();
 

@@ -1,0 +1,62 @@
+{
+    "name": "hypervel/view",
+    "description": "The view package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "swoole",
+        "view",
+        "hypervel"
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "ext-tokenizer": "*",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/events": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
+        "hypervel/reflection": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/validation": "^0.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\View\\": "src/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\View\\ViewServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}

@@ -4,734 +4,86 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Carbon\Carbon;
-use Carbon\Exceptions\InvalidFormatException;
+use ArrayAccess;
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\HttpServer\Request as HyperfRequest;
-use Hyperf\HttpServer\Router\Dispatched;
-use Hyperf\Stringable\Str;
-use Hypervel\Context\RequestContext;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Session\SymfonySessionDecorator;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Uri;
-use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
-use Psr\Http\Message\ServerRequestInterface;
+use Override;
 use RuntimeException;
-use stdClass;
-use Stringable;
-use TypeError;
+use Symfony\Component\HttpFoundation\Exception\SessionNotFoundException;
+use Symfony\Component\HttpFoundation\InputBag;
+use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
-use function Hyperf\Collection\data_get;
-
-class Request extends HyperfRequest implements RequestContract
+/**
+ * @method array validate(array $rules, ...$params)
+ * @method array validateWithBag(string $errorBag, array $rules, ...$params)
+ * @method bool hasValidSignature(bool $absolute = true)
+ * @method bool hasValidRelativeSignature()
+ * @method bool hasValidSignatureWhileIgnoring($ignoreQuery = [], $absolute = true)
+ * @method bool hasValidRelativeSignatureWhileIgnoring($ignoreQuery = [])
+ * @method bool inertia() Registered as a macro by Hypervel\Inertia\InertiaServiceProvider.
+ */
+class Request extends SymfonyRequest implements Arrayable, ArrayAccess
 {
+    use Concerns\CanBePrecognitive;
+    use Concerns\InteractsWithContentTypes;
+    use Concerns\InteractsWithFlashData;
+    use Concerns\InteractsWithInput;
+    use Conditionable;
+    use Macroable;
+
+    /**
+     * The decoded JSON content for the request.
+     */
+    protected ?InputBag $json = null;
+
+    /**
+     * All of the converted files for the request.
+     *
+     * @var null|array<int, UploadedFile|UploadedFile[]>
+     */
+    protected ?array $convertedFiles = null;
+
     /**
      * The user resolver callback.
      */
     protected ?Closure $userResolver = null;
 
     /**
-     * Retrieve normalized file upload data.
-     * This method returns upload metadata in a normalized tree, with each leaf
-     * an instance of Psr\Http\Message\UploadedFileInterface.
-     * These values MAY be prepared from $_FILES or the message body during
-     * instantiation, or MAY be injected via withUploadedFiles().
+     * The route resolver callback.
+     */
+    protected ?Closure $routeResolver = null;
+
+    /**
+     * The cached "Accept" header value.
+     */
+    protected ?string $cachedAcceptHeader = null;
+
+    /**
+     * Create a new HTTP request from PHP superglobals.
      *
-     * @return array an array tree of UploadedFileInterface instances; an empty
-     *               array MUST be returned if no data is present
+     * @throws RuntimeException always — superglobals don't exist in Swoole workers
      */
-    public function allFiles(): array
+    public static function createFromGlobals(): static
     {
-        return $this->getUploadedFiles();
+        throw new RuntimeException('Request::createFromGlobals() is not supported in Hypervel. Requests are created from Swoole request objects.');
     }
 
     /**
-     * Determine if the request contains a non-empty value for any of the given inputs.
-     */
-    public function anyFilled(array|string $keys): bool
-    {
-        $keys = is_array($keys) ? $keys : func_get_args();
-
-        foreach ($keys as $key) {
-            if ($this->filled($key)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Retrieve input as a boolean value.
-     *
-     * Returns true when value is "1", "true", "on", and "yes". Otherwise, returns false.
-     */
-    public function boolean(?string $key = null, bool $default = false): bool
-    {
-        return filter_var(
-            $this->input($key, $default),
-            FILTER_VALIDATE_BOOLEAN
-        );
-    }
-
-    /**
-     * Retrieve input from the request as a collection.
-     */
-    public function collect(array|string|null $key = null): Collection
-    {
-        if (is_null($key)) {
-            return Collection::make($this->all());
-        }
-
-        return Collection::make(
-            is_array($key) ? $this->only($key) : $this->input($key)
-        );
-    }
-
-    /**
-     * Retrieve input from the request as a Carbon instance.
-     *
-     * @throws InvalidFormatException
-     */
-    public function date(string $key, ?string $format = null, ?string $tz = null): ?Carbon
-    {
-        if ($this->isNotFilled($key)) {
-            return null;
-        }
-
-        if (is_null($format)) {
-            return Carbon::parse($this->input($key), $tz);
-        }
-
-        return Carbon::createFromFormat($format, $this->input($key), $tz);
-    }
-
-    /**
-     * Retrieve input from the request as an enum.
-     *
-     * @template TEnum
-     *
-     * @param class-string<TEnum> $enumClass
-     * @return null|TEnum
-     */
-    public function enum(string $key, $enumClass)
-    {
-        if ($this->isNotFilled($key)
-            || ! function_exists('enum_exists')
-            || ! enum_exists($enumClass)
-            || ! method_exists($enumClass, 'tryFrom')
-        ) {
-            return null;
-        }
-
-        return $enumClass::tryFrom($this->input($key));
-    }
-
-    /**
-     * Get all of the input except for a specified array of items.
-     *
-     * @param array|mixed $keys
-     */
-    public function except(mixed $keys): array
-    {
-        $keys = is_array($keys) ? $keys : func_get_args();
-        $results = $this->all();
-
-        Arr::forget($results, $keys);
-
-        return $results;
-    }
-
-    /**
-     * Determine if the request contains a given input item key.
-     */
-    public function exists(array|string $key): bool
-    {
-        return $this->has($key);
-    }
-
-    /**
-     * Determine if the request contains a non-empty value for an input item.
-     */
-    public function filled(array|string $key): bool
-    {
-        $keys = is_array($key) ? $key : func_get_args();
-
-        foreach ($keys as $value) {
-            if ($this->isEmptyString($value)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Retrieve input as a float value.
-     */
-    public function float(string $key, float $default = 0.0): float
-    {
-        return (float) $this->input($key, $default);
-    }
-
-    /**
-     * Retrieve input from the request as a Stringable instance.
-     */
-    public function string(string $key, mixed $default = null): Stringable
-    {
-        return Str::of($this->input($key, $default));
-    }
-
-    /**
-     * Retrieve input from the request as a Stringable instance.
-     */
-    public function str(string $key, mixed $default = null): Stringable
-    {
-        return $this->string($key, $default = null);
-    }
-
-    /**
-     * Determine if the request contains any of the given inputs.
-     */
-    public function hasAny(array|string $keys): bool
-    {
-        return Arr::hasAny(
-            $this->all(),
-            is_array($keys) ? $keys : func_get_args()
-        );
-    }
-
-    /**
-     * Returns the host name.
-     *
-     * This method can read the client host name from the "HOST" header.
-     */
-    public function getHost(): string
-    {
-        return strtolower(
-            preg_replace('/:\d+$/', '', trim($this->header('HOST') ?? ''))
-        );
-    }
-
-    /**
-     * Returns the HTTP host being requested.
-     *
-     * The port name will be appended to the host if it's non-standard.
-     */
-    public function getHttpHost(): string
-    {
-        return $this->getHost() . ':' . $this->getPort();
-    }
-
-    /**
-     * Returns the port on which the request is made.
-     *
-     * This method can read the client port from the SERVER_PORT from server params
-     * or from HTTP scheme.
-     *
-     * @return int|string Can be a string if fetched from the server bag
-     */
-    public function getPort(): int|string
-    {
-        if (! $host = $this->header('HOST', '')) {
-            return $this->server('server_port');
-        }
-
-        if ($host[0] === '[') {
-            $pos = strpos($host, ':', strrpos($host, ']'));
-        } else {
-            $pos = strrpos($host, ':');
-        }
-
-        if ($pos !== false && $port = substr($host, $pos + 1)) {
-            return (int) $port;
-        }
-
-        return $this->getScheme() === 'https' ? 443 : 80;
-    }
-
-    /**
-     * Gets the request's scheme.
-     */
-    public function getScheme(): string
-    {
-        return $this->getUri()
-            ->getScheme();
-    }
-
-    /**
-     * Checks whether the request is secure or not.
-     */
-    public function isSecure(): bool
-    {
-        return $this->getScheme() === 'https';
-    }
-
-    /**
-     * Retrieve input as an integer value.
-     */
-    public function integer(string $key, int $default = 0): int
-    {
-        return (int) $this->input($key, $default);
-    }
-
-    /**
-     * Determine if the given input key is an empty string for "filled".
-     */
-    public function isEmptyString(string $key): bool
-    {
-        $value = $this->input($key);
-
-        return ! is_bool($value)
-            && ! is_array($value)
-            && trim((string) $value) === '';
-    }
-
-    /**
-     * Determine if the request is sending JSON.
-     */
-    public function isJson(): bool
-    {
-        return Str::contains($this->header('CONTENT_TYPE') ?? '', ['/json', '+json']);
-    }
-
-    /**
-     * Determine if the request contains an empty value for an input item.
-     */
-    public function isNotFilled(array|string $key): bool
-    {
-        $keys = is_array($key) ? $key : func_get_args();
-
-        foreach ($keys as $value) {
-            if (! $this->isEmptyString($value)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Get the keys for all of the input and files.
-     */
-    public function keys(): array
-    {
-        return array_merge(
-            array_keys($this->all()),
-            array_keys($this->getUploadedFiles())
-        );
-    }
-
-    /**
-     * Merge new input into the current request's input array.
+     * Return the Request instance.
      *
      * @return $this
      */
-    public function merge(array $input): static
+    public function instance(): static
     {
-        Context::override(
-            $this->contextkeys['parsedData'],
-            fn ($inputs) => array_merge((array) $inputs, $input)
-        );
-
         return $this;
-    }
-
-    /**
-     * Replace the input values for the current request.
-     *
-     * @return $this
-     */
-    public function replace(array $input): static
-    {
-        Context::override(
-            $this->contextkeys['parsedData'],
-            fn ($inputs) => array_replace((array) $inputs, $input)
-        );
-
-        return $this;
-    }
-
-    /**
-     * Merge new input into the request's input, but only when that key is missing from the request.
-     *
-     * @return $this
-     */
-    public function mergeIfMissing(array $input): static
-    {
-        return $this->merge(
-            Collection::make($input)
-                ->filter(fn ($value, $key) => $this->missing($key))
-                ->toArray()
-        );
-    }
-
-    /**
-     * Determine if the request is missing a given input item key.
-     */
-    public function missing(array|string $key): bool
-    {
-        return ! $this->has(is_array($key) ? $key : func_get_args());
-    }
-
-    /**
-     * Get a subset containing the provided keys with values from the input data.
-     *
-     * @param array|mixed $keys
-     */
-    public function only(mixed $keys): array
-    {
-        $results = [];
-        $input = $this->all();
-        $placeholder = new stdClass();
-
-        foreach (is_array($keys) ? $keys : func_get_args() as $key) {
-            $value = data_get($input, $key, $placeholder);
-
-            if ($value !== $placeholder) {
-                Arr::set($results, $key, $value);
-            }
-        }
-
-        return $results;
-    }
-
-    /**
-     * Get all the input and files for the request.
-     */
-    public function all(mixed $keys = null): array
-    {
-        $input = array_replace_recursive($this->getInputData(), $this->allFiles());
-
-        if (! $keys) {
-            return $input;
-        }
-
-        $results = [];
-
-        foreach (is_array($keys) ? $keys : func_get_args() as $key) {
-            Arr::set($results, $key, Arr::get($input, $key));
-        }
-
-        return $results;
-    }
-
-    /**
-     * Gets the scheme and HTTP host.
-     *
-     * If the URL was called with basic authentication, the user
-     * and the password are not added to the generated string.
-     */
-    public function getSchemeAndHttpHost(): string
-    {
-        return $this->getScheme() . '://' . $this->getHttpHost();
-    }
-
-    /**
-     * Get the scheme and HTTP host.
-     */
-    public function schemeAndHttpHost(): string
-    {
-        return $this->getSchemeAndHttpHost();
-    }
-
-    /**
-     * Determine if the current request probably expects a JSON response.
-     */
-    public function expectsJson(): bool
-    {
-        return ($this->ajax() && ! $this->pjax() && $this->acceptsAnyContentType())
-            || $this->wantsJson();
-    }
-
-    /**
-     * Determine if the current request is asking for JSON.
-     */
-    public function wantsJson(): bool
-    {
-        $acceptable = explode(',', $this->header('Accept') ?? '');
-
-        return Str::contains(strtolower($acceptable[0]), ['/json', '+json']);
-    }
-
-    /**
-     * Determines whether the current requests accepts a given content type.
-     */
-    public function accepts(array|string $contentTypes): bool
-    {
-        $accepts = $this->getAcceptableContentTypes();
-        if (count($accepts) === 0) {
-            return true;
-        }
-        $contentTypes = is_string($contentTypes) ? [$contentTypes] : $contentTypes;
-        foreach ($accepts as $accept) {
-            if ($accept === '*/*' || $accept === '*') {
-                return true;
-            }
-
-            foreach ($contentTypes as $type) {
-                $accept = strtolower($accept);
-                $type = strtolower($type);
-
-                if (AcceptHeader::matchesType($accept, $type) || $accept === strtok($type, '/') . '/*') {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Return the most suitable content type from the given array based on content negotiation.
-     */
-    public function prefers(array|string $contentTypes): ?string
-    {
-        $accepts = $this->getAcceptableContentTypes();
-        foreach ($accepts as $accept) {
-            if (in_array($accept, ['*/*', '*'])) {
-                return $contentTypes[0];
-            }
-
-            foreach ($contentTypes as $contentType) {
-                $type = $contentType;
-
-                if (! is_null($mimeType = $this->getMimeType($contentType))) {
-                    $type = $mimeType;
-                }
-
-                $accept = strtolower($accept);
-
-                $type = strtolower($type);
-
-                if (AcceptHeader::matchesType($type, $accept) || $accept === strtok($type, '/') . '/*') {
-                    return $contentType;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Determine if the current request accepts any content type.
-     */
-    public function acceptsAnyContentType(): bool
-    {
-        $acceptable = $this->getAcceptableContentTypes();
-
-        return count($acceptable) === 0 || (
-            isset($acceptable[0]) && ($acceptable[0] === '*/*' || $acceptable[0] === '*')
-        );
-    }
-
-    /**
-     * Determines whether a request accepts JSON.
-     */
-    public function acceptsJson(): bool
-    {
-        return $this->accepts('application/json');
-    }
-
-    /**
-     * Determines whether a request accepts HTML.
-     */
-    public function acceptsHtml(): bool
-    {
-        return $this->accepts('text/html');
-    }
-
-    /**
-     * Apply the callback if the request contains a non-empty value for the given input item key.
-     *
-     * @return $this|mixed
-     */
-    public function whenFilled(string $key, callable $callback, ?callable $default = null): mixed
-    {
-        if ($this->filled($key)) {
-            return $callback(data_get($this->all(), $key)) ?: $this;
-        }
-
-        if ($default) {
-            return $default();
-        }
-
-        return $this;
-    }
-
-    /**
-     * Apply the callback if the request contains the given input item key.
-     *
-     * @return $this|mixed
-     */
-    public function whenHas(string $key, callable $callback, ?callable $default = null): mixed
-    {
-        if ($this->has($key)) {
-            return $callback(data_get($this->all(), $key)) ?: $this;
-        }
-
-        if ($default) {
-            return $default();
-        }
-
-        return $this;
-    }
-
-    /**
-     * Returns the client IP address.
-     *
-     * This method can read the client IP address from the "x-real-ip" header
-     * or remote_addr from server params.
-     */
-    public function getClientIp(): ?string
-    {
-        if (! RequestContext::has()) {
-            return '127.0.0.1';
-        }
-
-        return $this->getHeaderLine('x-real-ip')
-            ?: $this->server('remote_addr');
-    }
-
-    /**
-     * Returns the client IP address.
-     *
-     * This method can read the client IP address from the "x-real-ip" header
-     * or remote_addr from server params.
-     *
-     * alias of getClientIp
-     */
-    public function ip(): ?string
-    {
-        return $this->getClientIp();
-    }
-
-    /**
-     * Get the root URL for the application.
-     */
-    public function root(): string
-    {
-        return rtrim($this->getSchemeAndHttpHost(), '/');
-    }
-
-    /**
-     * Get the full URL for the request.
-     */
-    public function fullUrl(): string
-    {
-        $url = $this->url();
-        if ($query = $this->getQueryString()) {
-            $url .= '?' . $query;
-        }
-
-        return $url;
-    }
-
-    /**
-     * Get the full URL for the request with the added query string parameters.
-     */
-    public function fullUrlWithQuery(array $query): string
-    {
-        $question = $this->url() . $this->getPathInfo() === '/' ? '/?' : '?';
-
-        return count($this->query()) > 0
-            ? $this->url() . $question . Arr::query(array_merge($this->query(), $query))
-            : $this->fullUrl() . Arr::query($query);
-    }
-
-    /**
-     * Get the full URL for the request without the given query string parameters.
-     */
-    public function fullUrlWithoutQuery(array|string $keys): string
-    {
-        $query = Arr::except($this->query(), $keys);
-
-        $question = $this->url() . $this->getPathInfo() === '/' ? '/?' : '?';
-
-        return count($query) > 0
-            ? $this->url() . $question . Arr::query($query)
-            : $this->url();
-    }
-
-    /**
-     * Get the dispatched route.
-     */
-    public function getDispatchedRoute(): DispatchedRoute
-    {
-        return $this->getAttribute(Dispatched::class);
-    }
-
-    /**
-     * Get a segment from the URI (1 based index).
-     */
-    public function segment(int $index, ?string $default = null): ?string
-    {
-        return $this->segments()[$index - 1] ?? $default;
-    }
-
-    /**
-     * Get all of the segments for the request path.
-     */
-    public function segments(): array
-    {
-        $segments = explode('/', $this->decodedPath());
-
-        return array_values(array_filter($segments, function ($value) {
-            return $value !== '';
-        }));
-    }
-
-    /**
-     * Get the route handling the request.
-     *
-     * @return ($param is null ? \Hypervel\Http\DispatchedRoute : mixed)
-     */
-    public function route(?string $param = null, mixed $default = null): mixed
-    {
-        $route = $this->getDispatchedRoute();
-        if (is_null($param)) {
-            return $route;
-        }
-
-        return $route->parameter($param, $default);
-    }
-
-    /**
-     * Determine if the route name matches a given pattern.
-     */
-    public function routeIs(mixed ...$patterns): bool
-    {
-        if (is_null($routeName = $this->getDispatchedRoute()->getName())) {
-            return false;
-        }
-
-        foreach ($patterns as $pattern) {
-            if (Str::is($pattern, $routeName)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Determine if the current request URL and query string match a pattern.
-     */
-    public function fullUrlIs(mixed ...$patterns): bool
-    {
-        $fullUrl = $this->fullUrl();
-        foreach ($patterns as $pattern) {
-            if (Str::is($pattern, $fullUrl)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -751,78 +103,149 @@ class Request extends HyperfRequest implements RequestContract
     }
 
     /**
-     * Get the request headers.
+     * Get the root URL for the application.
      */
-    public function headers(): array
+    public function root(): string
     {
-        return $this->getHeaders();
+        return rtrim($this->getSchemeAndHttpHost() . $this->getBaseUrl(), '/');
     }
 
     /**
-     * Get the bearer token from the request headers.
+     * Get the URL (no query string) for the request.
      */
-    public function bearerToken(): ?string
+    public function url(): string
     {
-        $header = $this->header('Authorization', '');
-
-        $position = strrpos($header, 'Bearer ');
-
-        if ($position !== false) {
-            $header = substr($header, $position + 7);
-
-            return str_contains($header, ',') ? strstr($header, ',', true) : $header;
-        }
-
-        return null;
+        return rtrim(preg_replace('/\?.*/', '', $this->getUri()), '/');
     }
 
     /**
-     * Gets a list of content types acceptable by the client browser in preferable order.
-     *
-     * @return string[]
+     * Get the full URL for the request.
      */
-    public function getAcceptableContentTypes(): array
+    public function fullUrl(): string
     {
-        return array_map('strval', array_keys(
-            AcceptHeader::fromString($this->header('Accept'))->all()
-        ));
+        $query = $this->getQueryString();
+
+        $question = $this->getBaseUrl() . $this->getPathInfo() === '/' ? '/?' : '?';
+
+        return $query ? $this->url() . $question . $query : $this->url();
     }
 
     /**
-     * Gets the mime type associated with the format.
+     * Get the full URL for the request with the added query string parameters.
      */
-    public function getMimeType(string $format): ?string
+    public function fullUrlWithQuery(array $query): string
     {
-        return isset(HeaderUtils::$formats[$format]) ? HeaderUtils::$formats[$format][0] : null;
+        $question = $this->getBaseUrl() . $this->getPathInfo() === '/' ? '/?' : '?';
+
+        return count($this->query()) > 0
+            ? $this->url() . $question . Arr::query(array_merge($this->query(), $query))
+            : $this->fullUrl() . $question . Arr::query($query);
     }
 
     /**
-     * Gets the mime types associated with the format.
-     *
-     * @return string[]
+     * Get the full URL for the request without the given query string parameters.
      */
-    public function getMimeTypes(string $format): array
+    public function fullUrlWithoutQuery(array|string $keys): string
     {
-        return HeaderUtils::$formats[$format] ?? [];
+        $query = Arr::except($this->query(), $keys);
+
+        $question = $this->getBaseUrl() . $this->getPathInfo() === '/' ? '/?' : '?';
+
+        return count($query) > 0
+            ? $this->url() . $question . Arr::query($query)
+            : $this->url();
     }
 
     /**
-     * Returns true if the request is an XMLHttpRequest.
-     *
-     * It works if your JavaScript library sets an X-Requested-With HTTP header.
-     * It is known to work with common JavaScript frameworks:
-     *
-     * @see https://wikipedia.org/wiki/List_of_Ajax_frameworks#JavaScript
+     * Get the current path info for the request.
      */
-    public function isXmlHttpRequest(): bool
+    public function path(): string
     {
-        return $this->header('X-Requested-With') === 'XMLHttpRequest';
+        $pattern = trim($this->getPathInfo(), '/');
+
+        return $pattern === '' ? '/' : $pattern;
+    }
+
+    /**
+     * Get the current decoded path info for the request.
+     */
+    public function decodedPath(): string
+    {
+        return rawurldecode($this->path());
+    }
+
+    /**
+     * Get a segment from the URI (1 based index).
+     */
+    public function segment(int $index, ?string $default = null): ?string
+    {
+        return Arr::get($this->segments(), $index - 1, $default);
+    }
+
+    /**
+     * Get all of the segments for the request path.
+     */
+    public function segments(): array
+    {
+        $segments = explode('/', $this->decodedPath());
+
+        return array_values(array_filter($segments, function ($value) {
+            return $value !== '';
+        }));
+    }
+
+    /**
+     * Determine if the current request URI matches a pattern.
+     */
+    public function is(mixed ...$patterns): bool
+    {
+        return (new Collection($patterns))
+            ->contains(fn ($pattern) => Str::is($pattern, $this->decodedPath()));
+    }
+
+    /**
+     * Determine if the route name matches a given pattern.
+     */
+    public function routeIs(mixed ...$patterns): bool
+    {
+        return $this->route() && $this->route()->named(...$patterns);
+    }
+
+    /**
+     * Determine if the current request URL and query string match a pattern.
+     */
+    public function fullUrlIs(mixed ...$patterns): bool
+    {
+        return (new Collection($patterns))
+            ->contains(fn ($pattern) => Str::is($pattern, $this->fullUrl()));
+    }
+
+    /**
+     * Get the host name.
+     */
+    public function host(): string
+    {
+        return $this->getHost();
+    }
+
+    /**
+     * Get the HTTP host being requested.
+     */
+    public function httpHost(): string
+    {
+        return $this->getHttpHost();
+    }
+
+    /**
+     * Get the scheme and HTTP host.
+     */
+    public function schemeAndHttpHost(): string
+    {
+        return $this->getSchemeAndHttpHost();
     }
 
     /**
      * Determine if the request is the result of an AJAX call.
-     *
-     * alias of isXmlHttpRequest
      */
     public function ajax(): bool
     {
@@ -834,7 +257,7 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function pjax(): bool
     {
-        return $this->header('X-PJAX') === 'true';
+        return $this->headers->get('X-PJAX') == true;
     }
 
     /**
@@ -842,55 +265,358 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function prefetch(): bool
     {
-        return strcasecmp($this->header('X-MOZ') ?? '', 'prefetch') === 0
-            || strcasecmp($this->header('Purpose') ?? '', 'prefetch') === 0
-            || strcasecmp($this->header('Sec-Purpose') ?? '', 'prefetch') === 0;
+        return strcasecmp($this->server->get('HTTP_X_MOZ') ?? '', 'prefetch') === 0
+            || strcasecmp($this->headers->get('Purpose') ?? '', 'prefetch') === 0
+            || strcasecmp($this->headers->get('Sec-Purpose') ?? '', 'prefetch') === 0;
     }
 
     /**
-     * Determine if the it is a range request.
+     * Determine if the request is over HTTPS.
      */
-    public function isRange(): bool
+    public function secure(): bool
     {
-        if (! $this->hasHeader('Range') || $this->getMethod() !== 'GET') {
-            return false;
+        return $this->isSecure();
+    }
+
+    /**
+     * Get the client IP address.
+     */
+    public function ip(): ?string
+    {
+        return $this->getClientIp();
+    }
+
+    /**
+     * Get the client IP addresses.
+     */
+    public function ips(): array
+    {
+        return $this->getClientIps();
+    }
+
+    /**
+     * Get the client user agent.
+     */
+    public function userAgent(): ?string
+    {
+        return $this->headers->get('User-Agent');
+    }
+
+    #[Override]
+    public function getAcceptableContentTypes(): array
+    {
+        $currentAcceptHeader = $this->headers->get('Accept');
+
+        if ($this->cachedAcceptHeader !== $currentAcceptHeader) {
+            // Flush acceptable content types so Symfony re-calculates them...
+            $this->acceptableContentTypes = null;
+            $this->cachedAcceptHeader = $currentAcceptHeader;
         }
 
-        if (! str_starts_with($this->header('Range'), 'bytes=')) {
-            return false;
-        }
-
-        return true;
+        return parent::getAcceptableContentTypes();
     }
 
     /**
-     * Determine if the request has a session.
-     */
-    public function hasSession(): bool
-    {
-        return ApplicationContext::getContainer()
-            ->has(SessionContract::class);
-    }
-
-    /**
-     * Get session for the current request.
-     */
-    public function session(): SessionContract
-    {
-        return ApplicationContext::getContainer()
-            ->get(SessionContract::class);
-    }
-
-    /**
-     * Validate the given data against the provided rules.
+     * Merge new input into the current request's input array.
      *
-     * @throws \Hypervel\Validation\ValidationException
+     * @return $this
      */
-    public function validate(array $rules, array $messages = [], array $customAttributes = []): array
+    public function merge(array $input): static
     {
-        return ApplicationContext::getContainer()
-            ->get(ValidatorFactoryContract::class)
-            ->validate($this->all(), $rules, $messages, $customAttributes);
+        return tap($this, function (Request $request) use ($input) {
+            $request->getInputSource()
+                ->replace((new Collection($input))->reduce(
+                    fn ($requestInput, $value, $key) => data_set($requestInput, $key, $value),
+                    $this->getInputSource()->all()
+                ));
+        });
+    }
+
+    /**
+     * Merge new input into the request's input, but only when that key is missing from the request.
+     *
+     * @return $this
+     */
+    public function mergeIfMissing(array $input): static
+    {
+        return $this->merge(
+            (new Collection($input))
+                ->filter(fn ($value, $key) => $this->missing($key))
+                ->toArray()
+        );
+    }
+
+    /**
+     * Replace the input values for the current request.
+     *
+     * @return $this
+     */
+    public function replace(array $input): static
+    {
+        $this->getInputSource()->replace($input);
+
+        return $this;
+    }
+
+    /**
+     * Retrieve a parameter from the request.
+     *
+     * Instead, you may use the "input" method.
+     *
+     * @deprecated use ->input() instead
+     */
+    public function get(string $key, mixed $default = null): mixed
+    {
+        if ($this !== $result = $this->attributes->get($key, $this)) {
+            return $result;
+        }
+
+        if ($this->query->has($key)) {
+            return $this->query->all()[$key];
+        }
+
+        if ($this->request->has($key)) {
+            return $this->request->all()[$key];
+        }
+
+        return $default;
+    }
+
+    /**
+     * Get the JSON payload for the request.
+     *
+     * @return ($key is null ? InputBag : mixed)
+     */
+    public function json(?string $key = null, mixed $default = null): mixed
+    {
+        if (! isset($this->json)) {
+            $this->json = new InputBag((array) json_decode($this->getContent() ?: '[]', true));
+        }
+
+        if (is_null($key)) {
+            return $this->json;
+        }
+
+        return data_get($this->json->all(), $key, $default);
+    }
+
+    /**
+     * Get the input source for the request.
+     */
+    protected function getInputSource(): InputBag
+    {
+        if ($this->isJson()) {
+            return $this->json();
+        }
+
+        return in_array($this->getRealMethod(), ['GET', 'HEAD']) ? $this->query : $this->request;
+    }
+
+    /**
+     * Create a new request instance from the given request.
+     */
+    public static function createFrom(self $from, ?self $to = null): static
+    {
+        $request = $to ?: new static;
+
+        $files = array_filter($from->files->all());
+
+        $request->initialize(
+            $from->query->all(),
+            $from->request->all(),
+            $from->attributes->all(),
+            $from->cookies->all(),
+            $files,
+            $from->server->all(),
+            $from->getContent()
+        );
+
+        $request->headers->replace($from->headers->all());
+
+        $request->setRequestLocale($from->getLocale());
+
+        $request->setDefaultRequestLocale($from->getDefaultLocale());
+
+        $request->setJson($from->json());
+
+        if ($from->hasSession()) {
+            $request->setHypervelSession($from->session());
+        }
+
+        $request->setUserResolver($from->getUserResolver());
+
+        $request->setRouteResolver($from->getRouteResolver());
+
+        /** @var static $request */
+        return $request;
+    }
+
+    /**
+     * Create a Hypervel request from a Symfony instance.
+     */
+    public static function createFromBase(SymfonyRequest $request): static
+    {
+        $newRequest = new static(
+            $request->query->all(), $request->request->all(), $request->attributes->all(),
+            $request->cookies->all(), (new static)->filterFiles($request->files->all()) ?? [], $request->server->all()
+        );
+
+        $newRequest->headers->replace($request->headers->all());
+
+        $newRequest->content = $request->content;
+
+        if ($newRequest->isJson()) {
+            $newRequest->request = $newRequest->json();
+        }
+
+        return $newRequest;
+    }
+
+    #[Override]
+    public function duplicate(?array $query = null, ?array $request = null, ?array $attributes = null, ?array $cookies = null, ?array $files = null, ?array $server = null): static
+    {
+        return parent::duplicate($query, $request, $attributes, $cookies, $this->filterFiles($files), $server);
+    }
+
+    /**
+     * Filter the given array of files, removing any empty values.
+     */
+    protected function filterFiles(mixed $files): mixed
+    {
+        if (! $files) {
+            return null;
+        }
+
+        foreach ($files as $key => $file) {
+            if (is_array($file)) {
+                $files[$key] = $this->filterFiles($files[$key]);
+            }
+
+            if (empty($files[$key])) {
+                unset($files[$key]);
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * @phpstan-assert-if-true SymfonySessionDecorator $this->session
+     */
+    #[Override]
+    public function hasSession(bool $skipIfUninitialized = false): bool
+    {
+        return $this->session instanceof SymfonySessionDecorator;
+    }
+
+    #[Override]
+    public function getSession(): SessionInterface
+    {
+        return $this->hasSession()
+            ? $this->session
+            : throw new SessionNotFoundException;
+    }
+
+    /**
+     * Get the session associated with the request.
+     *
+     * @return \Hypervel\Contracts\Session\Session
+     *
+     * @throws RuntimeException
+     */
+    public function session()
+    {
+        if (! $this->hasSession()) {
+            throw new RuntimeException('Session store not set on request.');
+        }
+
+        return $this->session->store;
+    }
+
+    /**
+     * Set the session instance on the request.
+     *
+     * @param \Hypervel\Contracts\Session\Session $session
+     */
+    public function setHypervelSession($session): void
+    {
+        $this->session = new SymfonySessionDecorator($session);
+    }
+
+    /**
+     * Set the locale for the request instance.
+     */
+    public function setRequestLocale(string $locale): void
+    {
+        $this->locale = $locale;
+    }
+
+    /**
+     * Set the default locale for the request instance.
+     */
+    public function setDefaultRequestLocale(string $locale): void
+    {
+        $this->defaultLocale = $locale;
+    }
+
+    /**
+     * Get the user making the request.
+     */
+    public function user(?string $guard = null): mixed
+    {
+        return call_user_func($this->getUserResolver(), $guard);
+    }
+
+    /**
+     * Get the route handling the request.
+     *
+     * @return ($param is null ? null|\Hypervel\Routing\Route : null|object|string)
+     */
+    public function route(?string $param = null, mixed $default = null): mixed
+    {
+        $route = call_user_func($this->getRouteResolver());
+
+        if (is_null($route) || is_null($param)) {
+            return $route;
+        }
+
+        if ($route->hasParameters()) {
+            return $route->parameter($param, $default);
+        }
+
+        // Fall back to snapshotted parameters — used when the request is
+        // inspected after its coroutine has ended (e.g. in test assertions
+        // after MakesHttpRequests::call() returns from its waiter coroutine)
+        return Arr::get($this->attributes->get('_route_params', []), $param, $default);
+    }
+
+    /**
+     * Get a unique fingerprint for the request / route / IP address.
+     *
+     * @throws RuntimeException
+     */
+    public function fingerprint(): string
+    {
+        if (! $route = $this->route()) {
+            throw new RuntimeException('Unable to generate fingerprint. Route unavailable.');
+        }
+
+        return sha1(implode('|', array_merge(
+            $route->methods(),
+            [$route->getDomain(), $route->uri(), $this->ip()]
+        )));
+    }
+
+    /**
+     * Set the JSON payload for the request.
+     *
+     * @return $this
+     */
+    public function setJson(InputBag $json): static
+    {
+        $this->json = $json;
+
+        return $this;
     }
 
     /**
@@ -904,6 +630,8 @@ class Request extends HyperfRequest implements RequestContract
 
     /**
      * Set the user resolver callback.
+     *
+     * @return $this
      */
     public function setUserResolver(Closure $callback): static
     {
@@ -913,73 +641,84 @@ class Request extends HyperfRequest implements RequestContract
     }
 
     /**
-     * Get the user making the request.
+     * Get the route resolver callback.
      */
-    public function user(?string $guard = null): mixed
+    public function getRouteResolver(): Closure
     {
-        return call_user_func($this->getUserResolver(), $guard);
+        return $this->routeResolver ?: function () {
+        };
     }
 
     /**
-     * Check if the current request url has valid signature.
+     * Set the route resolver callback.
+     *
+     * @return $this
      */
-    public function hasValidSignature(bool $absolute = true): bool
+    public function setRouteResolver(Closure $callback): static
     {
-        return ApplicationContext::getContainer()
-            ->get(UrlGeneratorContract::class)
-            ->hasValidSignature($this, $absolute);
+        $this->routeResolver = $callback;
+
+        return $this;
     }
 
     /**
-     * Check if the current request url has relative signature.
+     * Get all of the input and files for the request.
      */
-    public function hasValidRelativeSignature(): bool
+    public function toArray(): array
     {
-        return ApplicationContext::getContainer()
-            ->get(UrlGeneratorContract::class)
-            ->hasValidSignature($this, false);
+        return $this->all();
     }
 
     /**
-     * Check if the current request url has valid signature wile ignoring.
+     * Determine if the given offset exists.
      */
-    public function hasValidSignatureWhileIgnoring(array $ignoreQuery = [], bool $absolute = true): bool
+    public function offsetExists(mixed $offset): bool
     {
-        return ApplicationContext::getContainer()
-            ->get(UrlGeneratorContract::class)
-            ->hasValidSignature($this, $absolute, $ignoreQuery);
+        $route = $this->route();
+
+        return Arr::has(
+            $this->all() + ($route ? $route->parameters() : []),
+            $offset
+        );
     }
 
     /**
-     * Check if the current request url has valid relative signature wile ignoring.
+     * Get the value at the given offset.
      */
-    public function hasValidRelativeSignatureWhileIgnoring(array $ignoreQuery = []): bool
+    public function offsetGet(mixed $offset): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get(UrlGeneratorContract::class)
-            ->hasValidSignature($this, false, $ignoreQuery);
+        return $this->__get($offset);
     }
 
     /**
-     * Get original psr7 request instance.
+     * Set the value at the given offset.
      */
-    public function getPsr7Request(): ServerRequestInterface
+    public function offsetSet(mixed $offset, mixed $value): void
     {
-        return $this->getRequest();
+        $this->getInputSource()->set($offset, $value);
     }
 
-    protected function getRequest(): ServerRequestInterface
+    /**
+     * Remove the value at the given offset.
+     */
+    public function offsetUnset(mixed $offset): void
     {
-        try {
-            return RequestContext::get();
-        } catch (TypeError $e) {
-            if (! RequestContext::has()) {
-                throw new RuntimeException(
-                    'RequestContext is not set, please use RequestContext::set() to set the request.'
-                );
-            }
+        $this->getInputSource()->remove($offset);
+    }
 
-            throw $e;
-        }
+    /**
+     * Check if an input element is set on the request.
+     */
+    public function __isset(string $key): bool
+    {
+        return ! is_null($this->__get($key));
+    }
+
+    /**
+     * Get an input element from the request.
+     */
+    public function __get(string $key): mixed
+    {
+        return Arr::get($this->all(), $key, fn () => $this->route($key));
     }
 }

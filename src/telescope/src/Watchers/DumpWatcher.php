@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Exception;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Telescope\IncomingDumpEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 use Symfony\Component\VarDumper\Dumper\HtmlDumper;
 use Symfony\Component\VarDumper\VarDumper;
@@ -28,7 +28,7 @@ class DumpWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Application $app): void
     {
         $dumpWatcherCache = false;
 
@@ -42,12 +42,12 @@ class DumpWatcher extends Watcher
             return;
         }
 
-        $htmlDumper = new HtmlDumper();
+        $htmlDumper = new HtmlDumper;
         $htmlDumper->setDumpHeader('');
 
         VarDumper::setHandler(function ($var) use ($htmlDumper) {
             $this->recordDump($htmlDumper->dump(
-                (new VarCloner())->cloneVar($var),
+                (new VarCloner)->cloneVar($var),
                 true
             ));
         });

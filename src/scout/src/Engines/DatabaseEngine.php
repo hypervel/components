@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\LengthAwarePaginatorInterface;
-use Hyperf\Contract\PaginatorInterface;
-use Hypervel\Context\ApplicationContext;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
+use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -17,7 +16,6 @@ use Hypervel\Scout\Attributes\SearchUsingPrefix;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
 use Hypervel\Scout\Contracts\SearchableInterface;
-use Hypervel\Scout\Engine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
@@ -72,7 +70,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
         int $perPage,
         string $pageName,
         int $page
-    ): LengthAwarePaginatorInterface {
+    ): LengthAwarePaginatorContract {
         return $this->buildSearchQuery($builder)
             ->when(count($builder->orders) > 0, function (EloquentBuilder $query) use ($builder): void {
                 foreach ($builder->orders as $order) {
@@ -99,7 +97,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
         int $perPage,
         string $pageName,
         int $page
-    ): PaginatorInterface {
+    ): PaginatorContract {
         return $this->buildSearchQuery($builder)
             ->when(count($builder->orders) > 0, function (EloquentBuilder $query) use ($builder): void {
                 foreach ($builder->orders as $order) {
@@ -505,8 +503,8 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      */
     protected function getConfig(string $key, mixed $default = null): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+        return Container::getInstance()
+            ->make('config')
             ->get("scout.{$key}", $default);
     }
 }

@@ -4,27 +4,38 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite;
 
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 
 trait HasProviderContext
 {
+    /**
+     * The unique context namespace for this provider instance.
+     *
+     * Lazily initialized on first access. Persists for the instance's lifetime,
+     * ensuring stable context keys even across coroutines.
+     */
+    protected ?string $contextNamespace = null;
+
     public function getContext(string $key, mixed $default = null): mixed
     {
-        return Context::get($this->getContextKey($key), $default);
+        return CoroutineContext::get($this->getContextKey($key), $default);
     }
 
     public function setContext(string $key, mixed $value): mixed
     {
-        return Context::set($this->getContextKey($key), $value);
+        return CoroutineContext::set($this->getContextKey($key), $value);
     }
 
     public function getOrSetContext(string $key, mixed $value): mixed
     {
-        return Context::getOrSet($this->getContextKey($key), $value);
+        return CoroutineContext::getOrSet($this->getContextKey($key), $value);
     }
 
     protected function getContextKey(string $key): string
     {
-        return 'socialite.providers.' . static::class . '.' . $key;
+        $namespace = $this->contextNamespace
+            ??= '__socialite.providers.' . spl_object_id($this);
+
+        return $namespace . '.' . $key;
     }
 }

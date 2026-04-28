@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
+
+class {{ class }} implements CastsInboundAttributes
+{
+    /**
+     * Prepare the given value for storage.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
+    {
+        return $value;
+    }
+}

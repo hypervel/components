@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Events\Dispatcher;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class PendingBroadcast
 {
@@ -12,7 +15,7 @@ class PendingBroadcast
      * Create a new pending broadcast instance.
      */
     public function __construct(
-        protected EventDispatcherInterface $eventDispatcher,
+        protected Dispatcher $eventDispatcher,
         protected mixed $event
     ) {
     }
@@ -20,10 +23,10 @@ class PendingBroadcast
     /**
      * Broadcast the event using a specific broadcaster.
      */
-    public function via(?string $connection = null): static
+    public function via(UnitEnum|string|null $connection = null): static
     {
         if (method_exists($this->event, 'broadcastVia')) {
-            $this->event->broadcastVia($connection);
+            $this->event->broadcastVia(enum_value($connection));
         }
 
         return $this;

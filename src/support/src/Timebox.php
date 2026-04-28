@@ -8,14 +8,18 @@ use Throwable;
 
 class Timebox
 {
+    /**
+     * Indicates if the timebox is allowed to return early.
+     */
     public bool $earlyReturn = false;
 
     /**
-     * @template TValue of mixed
+     * Invoke the given callback within the specified timebox minimum.
      *
-     * @param (callable(static): TValue) $callback
+     * @template TCallReturnType
      *
-     * @return TValue
+     * @param (callable($this): TCallReturnType) $callback
+     * @return TCallReturnType
      *
      * @throws Throwable
      */
@@ -44,6 +48,9 @@ class Timebox
         return $result;
     }
 
+    /**
+     * Indicate that the timebox can return early.
+     */
     public function returnEarly(): static
     {
         $this->earlyReturn = true;
@@ -51,6 +58,9 @@ class Timebox
         return $this;
     }
 
+    /**
+     * Indicate that the timebox cannot return early.
+     */
     public function dontReturnEarly(): static
     {
         $this->earlyReturn = false;
@@ -58,7 +68,10 @@ class Timebox
         return $this;
     }
 
-    protected function usleep(int $microseconds)
+    /**
+     * Sleep for the specified number of microseconds.
+     */
+    protected function usleep(int $microseconds): void
     {
         Sleep::usleep($microseconds);
     }

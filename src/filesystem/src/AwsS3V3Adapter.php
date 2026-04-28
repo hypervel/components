@@ -6,8 +6,8 @@ namespace Hypervel\Filesystem;
 
 use Aws\S3\S3Client;
 use DateTimeInterface;
-use Hyperf\Conditionable\Conditionable;
-use League\Flysystem\AwsS3V3\AwsS3V3Adapter as S3Adapter;
+use Hypervel\Support\Traits\Conditionable;
+use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
 use RuntimeException;
 
@@ -23,8 +23,10 @@ class AwsS3V3Adapter extends FilesystemAdapter
     /**
      * Create a new AwsS3V3FilesystemAdapter instance.
      */
-    public function __construct(FilesystemOperator $driver, S3Adapter $adapter, array $config, S3Client $client)
+    public function __construct(FilesystemOperator $driver, FlysystemAdapter $adapter, array $config, S3Client $client)
     {
+        $config['directory_separator'] = '/';
+
         parent::__construct($driver, $adapter, $config);
 
         $this->client = $client;

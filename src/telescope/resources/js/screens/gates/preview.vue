@@ -1,19 +1,19 @@
 <script type="text/ecmascript-6">
-    import StylesMixin from './../../mixins/entriesStyles';
+import StylesMixin from './../../mixins/entriesStyles';
 
-    export default {
-        mixins: [
-            StylesMixin,
-        ],
+export default {
+    mixins: [
+        StylesMixin,
+    ],
 
 
-        data() {
-            return {
-                entry: null,
-                batch: [],
-            };
-        }
+    data() {
+        return {
+            entry: null,
+            batch: [],
+        };
     }
+}
 </script>
 
 <template>
@@ -22,24 +22,29 @@
             <tr>
                 <td class="table-fit text-muted">Ability</td>
                 <td>
-                    {{slotProps.entry.content.ability}}
+                    {{ slotProps.entry.content.ability }}
                 </td>
             </tr>
 
             <tr>
                 <td class="table-fit text-muted">Result</td>
                 <td>
-                    <span class="badge" :class="'badge-'+gateResultClass(slotProps.entry.content.result)">
-                        {{slotProps.entry.content.result}}
+                    <span class="badge" :class="'badge-' + gateResultClass(slotProps.entry.content.result)">
+                        {{ slotProps.entry.content.result }}
                     </span>
                 </td>
             </tr>
 
-            <tr  v-if="slotProps.entry.content.file">
-                <td class="table-fit text-muted">Location</td>
+            <tr>
+                <td class="table-fit text-muted">Message</td>
                 <td>
-                    {{slotProps.entry.content.file}}:{{slotProps.entry.content.line}}
+                    {{slotProps.entry.content.message}}
                 </td>
+            </tr>
+
+            <tr v-if="slotProps.entry.content.file">
+                <td class="table-fit text-muted">Location</td>
+                <td>{{ slotProps.entry.content.file }}:{{ slotProps.entry.content.line }}</td>
             </tr>
         </template>
 

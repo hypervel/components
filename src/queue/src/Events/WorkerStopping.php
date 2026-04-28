@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Events;
 
 use Hypervel\Queue\WorkerOptions;
+use Hypervel\Queue\WorkerStopReason;
 
 class WorkerStopping
 {
@@ -13,7 +14,8 @@ class WorkerStopping
      */
     public function __construct(
         public int $status = 0,
-        public ?WorkerOptions $workerOptions = null
+        public ?WorkerOptions $workerOptions = null,
+        public ?WorkerStopReason $reason = null,
     ) {
     }
 }

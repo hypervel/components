@@ -4,18 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Context\Context;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\User;
+use Hypervel\Tests\Sanctum\Fixtures\User;
 
-/**
- * @internal
- * @coversNothing
- */
 class ActingAsTest extends TestCase
 {
     protected function setUp(): void
@@ -26,7 +19,7 @@ class ActingAsTest extends TestCase
         $this->app->register(SanctumServiceProvider::class);
 
         // Configure auth guards
-        $this->app->get(ConfigInterface::class)
+        $this->app->make('config')
             ->set([
                 'auth.guards.sanctum' => [
                     'driver' => 'sanctum',
@@ -43,16 +36,9 @@ class ActingAsTest extends TestCase
             ]);
     }
 
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::destroyAll();
-    }
-
     public function testActingAsSetsUserInContext(): void
     {
-        $user = new User();
+        $user = new User;
         $user->id = 123;
 
         $result = Sanctum::actingAs($user);
@@ -62,7 +48,7 @@ class ActingAsTest extends TestCase
 
     public function testActingAsWithAbilitiesSetsTokenWithCorrectAbilities(): void
     {
-        $user = new User();
+        $user = new User;
         $abilities = ['read', 'write'];
 
         Sanctum::actingAs($user, $abilities);
@@ -74,7 +60,7 @@ class ActingAsTest extends TestCase
 
     public function testActingAsWithWildcardAbility(): void
     {
-        $user = new User();
+        $user = new User;
 
         Sanctum::actingAs($user, ['*']);
 
@@ -86,17 +72,17 @@ class ActingAsTest extends TestCase
 
     public function testActingAsWithCustomGuard(): void
     {
-        $user = new User();
+        $user = new User;
         $user->id = 456;
 
         Sanctum::actingAs($user, ['read'], 'api');
 
-        $this->assertSame($user, $this->app->get(AuthFactoryContract::class)->guard('api')->user());
+        $this->assertSame($user, $this->app->make('auth')->guard('api')->user());
     }
 
     public function testActingAsRemovesRecentlyCreatedFlag(): void
     {
-        $user = new User();
+        $user = new User;
         $user->wasRecentlyCreated = true;
 
         Sanctum::actingAs($user);

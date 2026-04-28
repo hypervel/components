@@ -8,10 +8,6 @@ use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CollectionEngineTest extends ScoutTestCase
 {
     public function testSearchReturnsMatchingModels()
@@ -128,7 +124,7 @@ class CollectionEngineTest extends ScoutTestCase
     public function testUpdateAndDeleteAreNoOps()
     {
         $model = SearchableModel::create(['title' => 'Test', 'body' => 'Body']);
-        $engine = new CollectionEngine();
+        $engine = new CollectionEngine;
 
         // These should not throw exceptions
         $engine->update($model->newCollection([$model]));
@@ -140,7 +136,7 @@ class CollectionEngineTest extends ScoutTestCase
 
     public function testCreateAndDeleteIndexAreNoOps()
     {
-        $engine = new CollectionEngine();
+        $engine = new CollectionEngine;
 
         $this->assertNull($engine->createIndex('test'));
         $this->assertNull($engine->deleteIndex('test'));
@@ -152,7 +148,7 @@ class CollectionEngineTest extends ScoutTestCase
         SearchableModel::create(['title' => 'Second', 'body' => 'Body']);
 
         $builder = SearchableModel::search('');
-        $engine = new CollectionEngine();
+        $engine = new CollectionEngine;
         $results = $engine->search($builder);
 
         $this->assertEquals(2, $engine->getTotalCount($results));

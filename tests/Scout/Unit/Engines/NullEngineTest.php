@@ -13,15 +13,11 @@ use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class NullEngineTest extends TestCase
 {
     public function testUpdateDoesNothing()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
         $models = new EloquentCollection([m::mock(Model::class)]);
 
         // Should not throw any exception
@@ -31,7 +27,7 @@ class NullEngineTest extends TestCase
 
     public function testDeleteDoesNothing()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
         $models = new EloquentCollection([m::mock(Model::class)]);
 
         // Should not throw any exception
@@ -41,7 +37,7 @@ class NullEngineTest extends TestCase
 
     public function testSearchReturnsEmptyArray()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
         $builder = m::mock(Builder::class);
 
         $result = $engine->search($builder);
@@ -52,7 +48,7 @@ class NullEngineTest extends TestCase
 
     public function testPaginateReturnsEmptyArray()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
         $builder = m::mock(Builder::class);
 
         $result = $engine->paginate($builder, 15, 1);
@@ -63,7 +59,7 @@ class NullEngineTest extends TestCase
 
     public function testMapIdsReturnsEmptyCollection()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
 
         $result = $engine->mapIds([]);
 
@@ -73,7 +69,7 @@ class NullEngineTest extends TestCase
 
     public function testMapReturnsEmptyEloquentCollection()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
         $builder = m::mock(Builder::class);
         $model = m::mock(Model::class);
 
@@ -85,7 +81,7 @@ class NullEngineTest extends TestCase
 
     public function testLazyMapReturnsEmptyLazyCollection()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
         $builder = m::mock(Builder::class);
         $model = m::mock(Model::class);
 
@@ -97,21 +93,21 @@ class NullEngineTest extends TestCase
 
     public function testGetTotalCountReturnsZeroForEmptyResults()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
 
         $this->assertSame(0, $engine->getTotalCount([]));
     }
 
     public function testGetTotalCountReturnsCountForCountableResults()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
 
         $this->assertSame(3, $engine->getTotalCount([1, 2, 3]));
     }
 
     public function testFlushDoesNothing()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
         $model = m::mock(Model::class);
 
         // Should not throw any exception
@@ -121,7 +117,7 @@ class NullEngineTest extends TestCase
 
     public function testCreateIndexReturnsEmptyArray()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
 
         $result = $engine->createIndex('test-index');
 
@@ -131,7 +127,7 @@ class NullEngineTest extends TestCase
 
     public function testDeleteIndexReturnsEmptyArray()
     {
-        $engine = new NullEngine();
+        $engine = new NullEngine;
 
         $result = $engine->deleteIndex('test-index');
 

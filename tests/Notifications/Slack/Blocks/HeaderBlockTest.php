@@ -8,10 +8,6 @@ use Hypervel\Notifications\Slack\BlockKit\Blocks\HeaderBlock;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class HeaderBlockTest extends TestCase
 {
     public function testArrayable(): void

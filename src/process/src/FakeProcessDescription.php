@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Process;
 
-use Hyperf\Collection\Collection;
-use Hypervel\Process\Contracts\ProcessResult;
+use Hypervel\Contracts\Process\ProcessResult;
+use Hypervel\Support\Collection;
 use Symfony\Component\Process\Process;
 
 class FakeProcessDescription
@@ -170,7 +170,7 @@ class FakeProcessDescription
             ->filter(fn ($output) => $output['type'] === 'out');
 
         return $output->isNotEmpty()
-                    ? rtrim($output->map->buffer->implode(''), "\n") . "\n"
+                    ? rtrim($output->map->buffer->implode(''), "\n") . "\n" // @phpstan-ignore property.notFound (collection proxy __get)
                     : '';
     }
 
@@ -183,7 +183,7 @@ class FakeProcessDescription
             ->filter(fn ($output) => $output['type'] === 'err');
 
         return $output->isNotEmpty()
-                    ? rtrim($output->map->buffer->implode(''), "\n") . "\n"
+                    ? rtrim($output->map->buffer->implode(''), "\n") . "\n" // @phpstan-ignore property.notFound (collection proxy __get)
                     : '';
     }
 }

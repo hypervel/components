@@ -4,26 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
-use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 
-/**
- * @internal
- * @coversNothing
- */
 class DatabaseMigrationsTest extends TestCase
 {
-    use HasMockedApplication;
     use DatabaseMigrations;
     use InteractsWithConsole;
 
     protected bool $dropViews = false;
+
+    protected bool $dropTypes = false;
 
     protected bool $seed = false;
 
@@ -39,6 +35,7 @@ class DatabaseMigrationsTest extends TestCase
     public function tearDown(): void
     {
         $this->dropViews = false;
+        $this->dropTypes = false;
         $this->seed = false;
         $this->seeder = null;
         parent::tearDown();
@@ -56,17 +53,16 @@ class DatabaseMigrationsTest extends TestCase
             ->once()
             ->with('migrate:fresh', [
                 '--drop-views' => false,
-                '--database' => 'default',
+                '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
         $kernel->shouldReceive('call')
             ->once()
             ->with('migrate:rollback', [])
             ->andReturn(0);
-        $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
-            KernelContract::class => fn () => $kernel,
-        ]);
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
 
         $this->runDatabaseMigrations();
     }
@@ -80,17 +76,39 @@ class DatabaseMigrationsTest extends TestCase
             ->once()
             ->with('migrate:fresh', [
                 '--drop-views' => true,
-                '--database' => 'default',
+                '--drop-types' => false,
                 '--seed' => false,
             ])->andReturn(0);
         $kernel->shouldReceive('call')
             ->once()
             ->with('migrate:rollback', [])
             ->andReturn(0);
-        $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
-            KernelContract::class => fn () => $kernel,
-        ]);
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+
+        $this->runDatabaseMigrations();
+    }
+
+    public function testRefreshTestDatabaseWithDropTypesOption()
+    {
+        $this->dropTypes = true;
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('call')
+            ->once()
+            ->with('migrate:fresh', [
+                '--drop-views' => false,
+                '--drop-types' => true,
+                '--seed' => false,
+            ])->andReturn(0);
+        $kernel->shouldReceive('call')
+            ->once()
+            ->with('migrate:rollback', [])
+            ->andReturn(0);
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
 
         $this->runDatabaseMigrations();
     }
@@ -104,17 +122,16 @@ class DatabaseMigrationsTest extends TestCase
             ->once()
             ->with('migrate:fresh', [
                 '--drop-views' => false,
-                '--database' => 'default',
+                '--drop-types' => false,
                 '--seed' => true,
             ])->andReturn(0);
         $kernel->shouldReceive('call')
             ->once()
             ->with('migrate:rollback', [])
             ->andReturn(0);
-        $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
-            KernelContract::class => fn () => $kernel,
-        ]);
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
 
         $this->runDatabaseMigrations();
     }
@@ -128,27 +145,17 @@ class DatabaseMigrationsTest extends TestCase
             ->once()
             ->with('migrate:fresh', [
                 '--drop-views' => false,
-                '--database' => 'default',
+                '--drop-types' => false,
                 '--seeder' => 'seeder',
             ])->andReturn(0);
         $kernel->shouldReceive('call')
             ->once()
             ->with('migrate:rollback', [])
             ->andReturn(0);
-        $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
-            KernelContract::class => fn () => $kernel,
-        ]);
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
 
         $this->runDatabaseMigrations();
-    }
-
-    protected function getConfig(array $config = []): Config
-    {
-        return new Config(array_merge([
-            'database' => [
-                'default' => 'default',
-            ],
-        ], $config));
     }
 }

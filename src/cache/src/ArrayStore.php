@@ -4,23 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cache\Contracts\LockProvider;
+use Hypervel\Contracts\Cache\CanFlushLocks;
+use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\InteractsWithTime;
+use RuntimeException;
 
-class ArrayStore extends TaggableStore implements LockProvider
+class ArrayStore extends TaggableStore implements CanFlushLocks, LockProvider
 {
     use InteractsWithTime;
     use RetrievesMultipleKeys;
 
     /**
-     * The array of locks.
-     */
-    public array $locks = [];
-
-    /**
      * The array of stored values.
+     *
+     * @var array<string, array{value: mixed, expiresAt: float}>
      */
     protected array $storage = [];
+
+    /**
+     * The array of locks.
+     *
+     * @var array<string, array{owner: ?string, expiresAt: ?Carbon}>
+     */
+    public array $locks = [];
 
     /**
      * Indicates if values are serialized within the store.
@@ -28,11 +35,40 @@ class ArrayStore extends TaggableStore implements LockProvider
     protected bool $serializesValues;
 
     /**
+     * The classes that should be allowed during unserialization.
+     */
+    protected array|bool|null $serializableClasses;
+
+    /**
      * Create a new Array store.
      */
-    public function __construct(bool $serializesValues = false)
+    public function __construct(bool $serializesValues = false, array|bool|null $serializableClasses = null)
     {
         $this->serializesValues = $serializesValues;
+        $this->serializableClasses = $serializableClasses;
+    }
+
+    /**
+     * Get all of the cached values and their expiration times.
+     *
+     * @return array<string, array{value: mixed, expiresAt: float}>
+     */
+    public function all(bool $unserialize = true): array
+    {
+        if ($unserialize === false || $this->serializesValues === false) {
+            return $this->storage;
+        }
+
+        $storage = [];
+
+        foreach ($this->storage as $key => $data) {
+            $storage[$key] = [
+                'value' => $this->unserialize($data['value']),
+                'expiresAt' => $data['expiresAt'],
+            ];
+        }
+
+        return $storage;
     }
 
     /**
@@ -46,7 +82,7 @@ class ArrayStore extends TaggableStore implements LockProvider
 
         $item = $this->storage[$key];
 
-        $expiresAt = $item['expiresAt'] ?? 0.0;
+        $expiresAt = $item['expiresAt'];
 
         if ($expiresAt !== 0.0 && (now()->getPreciseTimestamp(3) / 1000) >= $expiresAt) {
             $this->forget($key);
@@ -54,7 +90,7 @@ class ArrayStore extends TaggableStore implements LockProvider
             return null;
         }
 
-        return $this->serializesValues ? unserialize($item['value']) : $item['value'];
+        return $this->serializesValues ? $this->unserialize($item['value']) : $item['value'];
     }
 
     /**
@@ -105,6 +141,24 @@ class ArrayStore extends TaggableStore implements LockProvider
     }
 
     /**
+     * Adjust the expiration time of a cached item.
+     */
+    public function touch(string $key, int $seconds): bool
+    {
+        $item = $this->storage[$this->getPrefix() . $key] ?? null;
+
+        if (is_null($item)) {
+            return false;
+        }
+
+        $item['expiresAt'] = $this->calculateExpiration($seconds);
+
+        $this->storage = array_merge($this->storage, [$this->getPrefix() . $key => $item]);
+
+        return true;
+    }
+
+    /**
      * Remove an item from the cache.
      */
     public function forget(string $key): bool
@@ -124,6 +178,22 @@ class ArrayStore extends TaggableStore implements LockProvider
     public function flush(): bool
     {
         $this->storage = [];
+
+        return true;
+    }
+
+    /**
+     * Remove all locks from the store.
+     *
+     * @throws RuntimeException
+     */
+    public function flushLocks(): bool
+    {
+        if (! $this->hasSeparateLockStore()) {
+            throw new RuntimeException('Flushing locks is only supported when the lock store is separate from the cache store.');
+        }
+
+        $this->locks = [];
 
         return true;
     }
@@ -166,5 +236,25 @@ class ArrayStore extends TaggableStore implements LockProvider
     protected function toTimestamp(int $seconds): float
     {
         return $seconds > 0 ? (now()->getPreciseTimestamp(3) / 1000) + $seconds : 0;
+    }
+
+    /**
+     * Determine if the lock store is separate from the cache store.
+     */
+    public function hasSeparateLockStore(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Unserialize the given value.
+     */
+    protected function unserialize(string $value): mixed
+    {
+        if ($this->serializableClasses !== null) {
+            return unserialize($value, ['allowed_classes' => $this->serializableClasses]);
+        }
+
+        return unserialize($value);
     }
 }

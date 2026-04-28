@@ -6,11 +6,10 @@ namespace Hypervel\Mail;
 
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Conditionable\Conditionable;
-use Hypervel\Mail\Contracts\Mailable as MailableContract;
-use Hypervel\Mail\Contracts\Mailer as MailerContract;
-
-use function Hyperf\Tappable\tap;
+use Hypervel\Contracts\Mail\Mailable as MailableContract;
+use Hypervel\Contracts\Mail\Mailer as MailerContract;
+use Hypervel\Contracts\Translation\HasLocalePreference;
+use Hypervel\Support\Traits\Conditionable;
 
 class PendingMail
 {
@@ -29,12 +28,12 @@ class PendingMail
     /**
      * The "cc" recipients of the message.
      */
-    protected array $cc = [];
+    protected mixed $cc = [];
 
     /**
      * The "bcc" recipients of the message.
      */
-    protected array $bcc = [];
+    protected mixed $bcc = [];
 
     /**
      * Create a new mailable mailer instance.
@@ -61,7 +60,7 @@ class PendingMail
     {
         $this->to = $users;
 
-        if (! $this->locale && method_exists($users, 'preferredLocale')) {
+        if (! $this->locale && $users instanceof HasLocalePreference) {
             $this->locale($users->preferredLocale());
         }
 

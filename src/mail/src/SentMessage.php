@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Support\Traits\ForwardsCalls;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\ForwardsCalls;
 use Symfony\Component\Mailer\SentMessage as SymfonySentMessage;
 
 /**
@@ -36,12 +36,7 @@ class SentMessage
      */
     public function __call(string $method, array $parameters)
     {
-        $result = $this->forwardCallTo($this->sentMessage, $method, $parameters);
-        if ($result === $this->sentMessage) {
-            return $this;
-        }
-
-        return $result;
+        return $this->forwardCallTo($this->sentMessage, $method, $parameters);
     }
 
     /**
@@ -49,9 +44,7 @@ class SentMessage
      */
     public function __serialize(): array
     {
-        $hasAttachments = Collection::make(
-            $this->sentMessage->getOriginalMessage()->getAttachments() // @phpstan-ignore-line
-        )->isNotEmpty();
+        $hasAttachments = (new Collection($this->sentMessage->getOriginalMessage()->getAttachments()))->isNotEmpty(); // @phpstan-ignore method.notFound
 
         return [
             'hasAttachments' => $hasAttachments,

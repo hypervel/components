@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Horizon;
 
 use Hypervel\Broadcasting\BroadcastEvent;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Events\CallQueuedListener;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Support\Collection;
-use Illuminate\Events\CallQueuedListener;
 use ReflectionClass;
 use ReflectionProperty;
 use stdClass;
 
 class Tags
 {
-    protected const CONTEXT_KEY = 'horizon.tags';
+    protected const CONTEXT_KEY = '__horizon.tags';
 
     /**
      * Determine the tags for the given job.
@@ -140,7 +140,7 @@ class Tags
     {
         return isset($job->data[0]) && is_object($job->data[0])
                         ? $job->data[0]
-                        : new stdClass();
+                        : new stdClass;
     }
 
     /**
@@ -148,12 +148,12 @@ class Tags
      */
     protected static function setEvent(object $event): void
     {
-        Context::set(static::CONTEXT_KEY, $event);
+        CoroutineContext::set(static::CONTEXT_KEY, $event);
     }
 
     protected static function getEvent(): ?object
     {
-        return Context::get(static::CONTEXT_KEY);
+        return CoroutineContext::get(static::CONTEXT_KEY);
     }
 
     /**
@@ -161,6 +161,6 @@ class Tags
      */
     protected static function flushEventState(): void
     {
-        Context::set(static::CONTEXT_KEY, null);
+        CoroutineContext::set(static::CONTEXT_KEY, null);
     }
 }

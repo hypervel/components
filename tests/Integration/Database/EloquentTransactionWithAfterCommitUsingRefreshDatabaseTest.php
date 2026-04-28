@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Integration\Database;
+
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Testbench\TestCase;
+
+class EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest extends TestCase
+{
+    use EloquentTransactionWithAfterCommitTests;
+    use RefreshDatabase;
+
+    protected string $driver;
+
+    protected function afterRefreshingDatabase(): void
+    {
+        $this->createTransactionTestTables();
+    }
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $config = $app->make('config');
+        $connection = $config->get('database.default');
+
+        $this->driver = $config->get("database.connections.{$connection}.driver");
+    }
+}

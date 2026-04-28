@@ -6,9 +6,7 @@ namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
-use Hypervel\Context\Context;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\Contracts\User as UserContract;
 use Hypervel\Socialite\Two\LinkedInOpenIdProvider;
 use Hypervel\Socialite\Two\User;
@@ -17,19 +15,8 @@ use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 
-/**
- * @internal
- * @coversNothing
- */
 class LinkedInOpenIdProviderTest extends TestCase
 {
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Context::destroyAll();
-    }
-
     public function testResponse()
     {
         $user = $this->fromResponse([
@@ -93,7 +80,7 @@ class LinkedInOpenIdProviderTest extends TestCase
 
     protected function fromResponse(array $response): UserContract
     {
-        $request = m::mock(RequestContract::class);
+        $request = m::mock(Request::class);
         $request->allows('input')->with('code')->andReturns('fake-code');
 
         $stream = m::mock(StreamInterface::class);
@@ -122,16 +109,12 @@ class LinkedInOpenIdProviderTest extends TestCase
 
         $provider = new LinkedInOpenIdProvider(
             $request,
-            m::mock(ResponseContract::class),
             'client_id',
             'client_secret',
             'redirect'
         );
         $provider->stateless();
-        Context::set(
-            'socialite.providers.' . LinkedInOpenIdProvider::class . '.httpClient',
-            $guzzle
-        );
+        $provider->setHttpClient($guzzle);
 
         return $provider->user();
     }

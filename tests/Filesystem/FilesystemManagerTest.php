@@ -4,27 +4,58 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Filesystem;
 
-use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\ContainerInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
+use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
+use League\Flysystem\UnableToReadFile;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
+enum FilesystemTestStringBackedDisk: string
+{
+    case Local = 'local';
+}
+
+enum FilesystemTestIntBackedDisk: int
+{
+    case Local = 1;
+}
+
+enum FilesystemTestUnitDisk
+{
+    case local;
+}
+
 class FilesystemManagerTest extends TestCase
 {
+    private string $tempDir;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->tempDir = ParallelTesting::tempDir('FilesystemManager');
+    }
+
+    protected function tearDown(): void
+    {
+        if (is_dir($this->tempDir)) {
+            $filesystem = new \League\Flysystem\Filesystem(
+                new \League\Flysystem\Local\LocalFilesystemAdapter(dirname($this->tempDir))
+            );
+            $filesystem->deleteDirectory(basename($this->tempDir));
+        }
+
+        parent::tearDown();
+    }
+
     public function testExceptionThrownOnUnsupportedDriver()
     {
         $this->expectException(InvalidArgumentException::class);
@@ -117,6 +148,39 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
+    public function testCanBuildScopedDiskFromScopedDisk()
+    {
+        try {
+            $container = $this->getContainer([
+                'disks' => [
+                    'local' => [
+                        'driver' => 'local',
+                        'root' => 'root-to-be-scoped',
+                    ],
+                    'scoped-from-root' => [
+                        'driver' => 'scoped',
+                        'disk' => 'local',
+                        'prefix' => 'scoped-from-root-prefix',
+                    ],
+                ],
+            ]);
+            $filesystem = new FilesystemManager($container);
+
+            $root = $filesystem->disk('local');
+            $nestedScoped = $filesystem->build([
+                'driver' => 'scoped',
+                'disk' => 'scoped-from-root',
+                'prefix' => 'nested-scoped-prefix',
+            ]);
+
+            $nestedScoped->put('dirname/filename.txt', 'file content');
+            $this->assertEquals('file content', $root->get('scoped-from-root-prefix/nested-scoped-prefix/dirname/filename.txt'));
+            $root->deleteDirectory('scoped-from-root-prefix');
+        } finally {
+            rmdir(__DIR__ . '/../../root-to-be-scoped');
+        }
+    }
+
     #[RequiresOperatingSystem('Linux|Darwin')]
     public function testCanBuildScopedDisksWithVisibility()
     {
@@ -150,6 +214,34 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
+    public function testCanBuildScopedDisksWithThrow()
+    {
+        try {
+            $container = $this->getContainer([
+                'disks' => [
+                    'local' => [
+                        'driver' => 'local',
+                        'root' => 'to-be-scoped',
+                        'throw' => false,
+                    ],
+                ],
+            ]);
+            $filesystem = new FilesystemManager($container);
+
+            $scoped = $filesystem->build([
+                'driver' => 'scoped',
+                'disk' => 'local',
+                'prefix' => 'path-prefix',
+                'throw' => true,
+            ]);
+
+            $this->expectException(UnableToReadFile::class);
+            $scoped->get('dirname/filename.txt');
+        } finally {
+            rmdir(__DIR__ . '/../../to-be-scoped');
+        }
+    }
+
     public function testCanBuildInlineScopedDisks()
     {
         try {
@@ -175,6 +267,20 @@ class FilesystemManagerTest extends TestCase
         }
     }
 
+    public function testCustomDriverClosureBoundObjectIsFilesystemManager()
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                __CLASS__ => [
+                    'driver' => __CLASS__,
+                ],
+            ],
+        ]);
+        $manager = new FilesystemManager($container);
+        $manager->extend(__CLASS__, fn () => $this);
+        $this->assertSame($manager, $manager->disk(__CLASS__));
+    }
+
     public function testPoolableDriver()
     {
         $container = $this->getContainer([
@@ -187,20 +293,89 @@ class FilesystemManagerTest extends TestCase
         $filesystem = (new FilesystemManager($container))
             ->addPoolable('local');
 
-        ApplicationContext::setContainer($container);
+        Container::setInstance($container);
 
         $this->assertInstanceOf(FilesystemPoolProxy::class, $filesystem->disk('local'));
     }
 
-    protected function getContainer(array $config = []): ContainerInterface
+    public function testDiskAcceptsStringBackedEnum(): void
     {
-        $config = new Config(['filesystems' => $config]);
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => $this->tempDir,
+                ],
+            ],
+        ]);
+        $filesystem = new FilesystemManager($container);
 
-        return new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => $config,
-                PoolFactory::class => PoolManager::class,
-            ])
-        );
+        $disk = $filesystem->disk(FilesystemTestStringBackedDisk::Local);
+
+        $this->assertInstanceOf(Filesystem::class, $disk);
+    }
+
+    public function testDiskAcceptsUnitEnum(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => $this->tempDir,
+                ],
+            ],
+        ]);
+        $filesystem = new FilesystemManager($container);
+
+        $disk = $filesystem->disk(FilesystemTestUnitDisk::local);
+
+        $this->assertInstanceOf(Filesystem::class, $disk);
+    }
+
+    public function testDiskWithIntBackedEnumResolvesAsString(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                '1' => [
+                    'driver' => 'local',
+                    'root' => $this->tempDir,
+                ],
+            ],
+        ]);
+        $filesystem = new FilesystemManager($container);
+
+        // Int-backed enum value is cast to string for disk resolution
+        $disk = $filesystem->disk(FilesystemTestIntBackedDisk::Local);
+
+        $this->assertInstanceOf(Filesystem::class, $disk);
+    }
+
+    public function testDriveAcceptsStringBackedEnum(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => $this->tempDir,
+                ],
+            ],
+        ]);
+        $filesystem = new FilesystemManager($container);
+
+        $disk = $filesystem->drive(FilesystemTestStringBackedDisk::Local);
+
+        $this->assertInstanceOf(Filesystem::class, $disk);
+    }
+
+    protected function getContainer(array $config = []): Container
+    {
+        $config = new Repository(['filesystems' => $config]);
+
+        $container = new Container;
+        $container->instance('config', $config);
+        $container->instance(ContainerContract::class, $container);
+        $container->singleton(PoolFactory::class, PoolManager::class);
+
+        return $container;
     }
 }

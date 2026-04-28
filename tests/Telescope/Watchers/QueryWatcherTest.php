@@ -4,37 +4,28 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\Connection;
-use Hyperf\Database\Events\QueryExecuted;
+use Exception;
+use Hypervel\Database\Connection;
+use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Watchers\QueryWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use PDO;
+use PDOException;
+use ReflectionProperty;
 
-/**
- * @internal
- * @coversNothing
- */
+#[WithConfig('telescope.watchers', [
+    QueryWatcher::class => [
+        'enabled' => true,
+        'slow' => 0.2,
+    ],
+])]
 class QueryWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->get(ConfigInterface::class)
-            ->set('telescope.watchers', [
-                QueryWatcher::class => [
-                    'enabled' => true,
-                    'slow' => 0.2,
-                ],
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testQueryWatcherRegistersDatabaseQueries()
     {
         EntryModel::count();
@@ -43,7 +34,32 @@ class QueryWatcherTest extends FeatureTestCase
 
         $this->assertSame(EntryType::QUERY, $entry->type);
         $this->assertSame('select count(*) as aggregate from "telescope_entries"', $entry->content['sql']);
-        $this->assertSame('sqlite', $entry->content['connection']);
+        $this->assertSame('testing', $entry->content['connection']);
+        $this->assertSame('sqlite', $entry->content['driver']);
+    }
+
+    public function testQueryWatcherCanTagSlowQueries()
+    {
+        $bindings = array_map(
+            static fn (int $record): string => sprintf('tag-%012d', $record),
+            range(1, 300),
+        );
+
+        $event = new QueryExecuted(
+            'insert into "telescope_monitoring" ("tag") values ' . implode(', ', array_fill(0, count($bindings), '(?)')),
+            $bindings,
+            500,
+            DB::connection(),
+        );
+
+        $this->app->make(QueryWatcher::class)->recordQuery($event);
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::QUERY, $entry->type);
+        $this->assertGreaterThan(300 * 16, strlen($entry->content['sql']));
+        $this->assertSame('testing', $entry->content['connection']);
+        $this->assertTrue($entry->content['slow']);
     }
 
     public function testQueryWatcherCanPrepareBindings()
@@ -68,7 +84,7 @@ SQL,
             $entry->content['sql']
         );
 
-        $this->assertSame('sqlite', $entry->content['connection']);
+        $this->assertSame('testing', $entry->content['connection']);
     }
 
     public function testQueryWatcherCanPrepareNamedBindings()
@@ -100,7 +116,7 @@ SQL,
             $entry->content['sql']
         );
 
-        $this->assertSame('sqlite', $entry->content['connection']);
+        $this->assertSame('testing', $entry->content['connection']);
     }
 
     public function testQueryWatcherCanPrepareBindingsForNonstandardConnections()
@@ -121,10 +137,22 @@ Data: {
 SQL,
             ['kp_id' => '=ABC001'],
             500,
-            new Connection('filemaker'),
+            new class(fn () => null, '', '', ['name' => 'filemaker']) extends Connection {
+                public function getName(): string
+                {
+                    return $this->config['name'];
+                }
+
+                public function getPdo(): PDO
+                {
+                    $e = new PDOException('Driver does not support this function');
+                    (new ReflectionProperty(Exception::class, 'code'))->setValue($e, 'IM001');
+                    throw $e;
+                }
+            },
         );
 
-        $sql = $this->app->get(QueryWatcher::class)->replaceBindings($event);
+        $sql = $this->app->make(QueryWatcher::class)->replaceBindings($event);
 
         $this->assertSame(<<<'SQL'
 select

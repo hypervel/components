@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Context\Context;
+use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Support\Collection as BaseCollection;
 
 /**
@@ -23,6 +23,14 @@ use Hypervel\Support\Collection as BaseCollection;
 trait Searchable
 {
     /**
+     * Coroutine-local context key for the WaitConcurrent runner used during imports.
+     *
+     * Coroutine-local rather than a static property so concurrent coroutines in
+     * the same process don't share or overwrite each other's runner instances.
+     */
+    public const SCOUT_RUNNER_CONTEXT_KEY = '__scout.runner';
+
+    /**
      * Additional metadata attributes managed by Scout.
      *
      * @var array<string, mixed>
@@ -30,79 +38,15 @@ trait Searchable
     protected array $scoutMetadata = [];
 
     /**
-     * Concurrent runner for command batch operations.
-     */
-    protected static ?WaitConcurrent $scoutRunner = null;
-
-    /**
      * Boot the searchable trait.
      */
     public static function bootSearchable(): void
     {
-        static::addGlobalScope(new SearchableScope());
+        static::addGlobalScope(new SearchableScope);
 
-        (new static())->registerSearchableMacros();
+        static::observe(new ModelObserver);
 
-        static::registerCallback('saved', function ($model): void {
-            if (! static::isSearchSyncingEnabled()) {
-                return;
-            }
-
-            if (! $model->searchIndexShouldBeUpdated()) {
-                return;
-            }
-
-            if (! $model->shouldBeSearchable()) {
-                if ($model->wasSearchableBeforeUpdate()) {
-                    $model->unsearchable();
-                }
-                return;
-            }
-
-            $model->searchable();
-        });
-
-        static::registerCallback('deleted', function ($model): void {
-            if (! static::isSearchSyncingEnabled()) {
-                return;
-            }
-
-            if (! $model->wasSearchableBeforeDelete()) {
-                return;
-            }
-
-            if (static::usesSoftDelete() && static::getScoutConfig('soft_delete', false)) {
-                $model->searchable();
-            } else {
-                $model->unsearchable();
-            }
-        });
-
-        static::registerCallback('forceDeleted', function ($model): void {
-            if (! static::isSearchSyncingEnabled()) {
-                return;
-            }
-
-            $model->unsearchable();
-        });
-
-        static::registerCallback('restored', function ($model): void {
-            if (! static::isSearchSyncingEnabled()) {
-                return;
-            }
-
-            // Note: restored is a "forced update" - we don't check searchIndexShouldBeUpdated()
-            // because restored models should always be re-indexed
-
-            if (! $model->shouldBeSearchable()) {
-                if ($model->wasSearchableBeforeUpdate()) {
-                    $model->unsearchable();
-                }
-                return;
-            }
-
-            $model->searchable();
-        });
+        (new static)->registerSearchableMacros();
     }
 
     /**
@@ -148,7 +92,7 @@ trait Searchable
             return;
         }
 
-        if (static::getScoutConfig('queue.enabled', false)) {
+        if (! Scout::isImporting() && static::getScoutConfig('queue.enabled', false)) {
             $jobClass = Scout::$makeSearchableJob;
             $pendingDispatch = $jobClass::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
@@ -193,7 +137,7 @@ trait Searchable
             return;
         }
 
-        if (static::getScoutConfig('queue.enabled', false)) {
+        if (! Scout::isImporting() && static::getScoutConfig('queue.enabled', false)) {
             $jobClass = Scout::$removeFromSearchJob;
             $pendingDispatch = $jobClass::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
@@ -247,7 +191,7 @@ trait Searchable
     public static function search(string $query = '', ?Closure $callback = null): Builder
     {
         return new Builder(
-            model: new static(),
+            model: new static,
             query: $query,
             callback: $callback,
             softDelete: static::usesSoftDelete() && static::getScoutConfig('soft_delete', false)
@@ -267,7 +211,7 @@ trait Searchable
      */
     public static function makeAllSearchableQuery(): EloquentBuilder
     {
-        $self = new static();
+        $self = new static;
         $softDelete = static::usesSoftDelete() && static::getScoutConfig('soft_delete', false);
 
         return $self->newQuery()
@@ -316,7 +260,7 @@ trait Searchable
      */
     public static function removeAllFromSearch(): void
     {
-        $self = new static();
+        $self = new static;
         $self->searchableUsing()->flush($self);
     }
 
@@ -388,7 +332,7 @@ trait Searchable
      */
     public static function enableSearchSyncing(): void
     {
-        Context::set('__scout.syncing_disabled.' . static::class, false);
+        ModelObserver::enableSyncingFor(static::class);
     }
 
     /**
@@ -396,7 +340,7 @@ trait Searchable
      */
     public static function disableSearchSyncing(): void
     {
-        Context::set('__scout.syncing_disabled.' . static::class, true);
+        ModelObserver::disableSyncingFor(static::class);
     }
 
     /**
@@ -404,7 +348,7 @@ trait Searchable
      */
     public static function isSearchSyncingEnabled(): bool
     {
-        return ! Context::get('__scout.syncing_disabled.' . static::class, false);
+        return ! ModelObserver::syncingDisabledFor(static::class);
     }
 
     /**
@@ -450,7 +394,7 @@ trait Searchable
      */
     public function searchableUsing(): Engine
     {
-        return ApplicationContext::getContainer()->get(EngineManager::class)->engine();
+        return Container::getInstance()->make(EngineManager::class)->engine();
     }
 
     /**
@@ -529,14 +473,17 @@ trait Searchable
     protected static function dispatchSearchableJob(callable $job): void
     {
         // Command path: use WaitConcurrent for parallel execution
-        if (defined('SCOUT_COMMAND')) {
-            if (! static::$scoutRunner instanceof WaitConcurrent) {
-                static::$scoutRunner = new WaitConcurrent(
+        if (Scout::isImporting()) {
+            $runner = CoroutineContext::get(self::SCOUT_RUNNER_CONTEXT_KEY);
+
+            if (! $runner instanceof WaitConcurrent) {
+                $runner = new WaitConcurrent(
                     (int) static::getScoutConfig('command_concurrency', 50)
                 );
+                CoroutineContext::set(self::SCOUT_RUNNER_CONTEXT_KEY, $runner);
             }
 
-            static::$scoutRunner->create($job);
+            $runner->create($job);
             return;
         }
 
@@ -552,9 +499,11 @@ trait Searchable
      */
     public static function waitForSearchableJobs(): void
     {
-        if (static::$scoutRunner instanceof WaitConcurrent) {
-            static::$scoutRunner->wait();
-            static::$scoutRunner = null;
+        $runner = CoroutineContext::get(self::SCOUT_RUNNER_CONTEXT_KEY);
+
+        if ($runner instanceof WaitConcurrent) {
+            $runner->wait();
+            CoroutineContext::forget(self::SCOUT_RUNNER_CONTEXT_KEY);
         }
     }
 
@@ -571,8 +520,8 @@ trait Searchable
      */
     protected static function getScoutConfig(string $key, mixed $default = null): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+        return Container::getInstance()
+            ->make('config')
             ->get("scout.{$key}", $default);
     }
 }

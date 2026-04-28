@@ -4,56 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\LogWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
+use stdClass;
 
-/**
- * @internal
- * @coversNothing
- */
+#[WithConfig('logging.default', 'null')]
 class LogWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $config = match ($this->name()) {
-            'testLogWatcherRegistersEntryForAnyLevelByDefault' => true,
-            'testLogWatcherOnlyRegistersEntriesForTheSpecifiedErrorLevelPriority' => [
-                'enabled' => true,
-                'level' => 'error',
-            ],
-            'testLogWatcherOnlyRegistersEntriesForTheSpecifiedDebugLevelPriority' => [
-                'level' => 'debug',
-            ],
-            'testLogWatcherDoNotRegistersRetryWhenDisabledOnTheBooleanFormat' => false,
-            'testLogWatcherDoNotRegistersRetryWhenDisabledOnTheArrayFormat' => [
-                'enabled' => false,
-                'level' => 'error',
-            ],
-            'testLogWatcherRegistersRetryWithExceptionKey' => true,
-        };
-
-        $this->app->get(ConfigInterface::class)
-            ->set('telescope.watchers', [
-                LogWatcher::class => $config,
-            ]);
-        $this->app->get(ConfigInterface::class)
-            ->set('logging.default', 'null');
-
-        $this->startTelescope();
-    }
-
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => true,
+    ])]
     public function testLogWatcherRegistersEntryForAnyLevelByDefault(string $level)
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->{$level}("Logging Level [{$level}].", [
             'user' => 'Claire Redfield',
@@ -69,12 +39,16 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertSame('Zombie Hunter', $entry->content['context']['role']);
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => [
+            'enabled' => true,
+            'level' => 'error',
+        ],
+    ])]
     public function testLogWatcherOnlyRegistersEntriesForTheSpecifiedErrorLevelPriority(string $level)
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->{$level}("Logging Level [{$level}].", [
             'user' => 'Claire Redfield',
@@ -94,12 +68,15 @@ class LogWatcherTest extends FeatureTestCase
         }
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
+    #[DataProvider('logLevelProvider')]
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => [
+            'level' => 'debug',
+        ],
+    ])]
     public function testLogWatcherOnlyRegistersEntriesForTheSpecifiedDebugLevelPriority(string $level)
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->{$level}("Logging Level [{$level}].", [
             'user' => 'Claire Redfield',
@@ -115,12 +92,13 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertSame('Zombie Hunter', $entry->content['context']['role']);
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
-    public function testLogWatcherDoNotRegistersRetryWhenDisabledOnTheBooleanFormat(string $level)
+    #[DataProvider('logLevelProvider')]
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => false,
+    ])]
+    public function testLogWatcherDoNotRegistersEntryWhenDisabledOnTheBooleanFormat(string $level)
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->{$level}("Logging Level [{$level}].", [
             'user' => 'Claire Redfield',
@@ -132,12 +110,16 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertNull($entry);
     }
 
-    /**
-     * @dataProvider logLevelProvider
-     */
-    public function testLogWatcherDoNotRegistersRetryWhenDisabledOnTheArrayFormat(string $level)
+    #[DataProvider('logLevelProvider')]
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => [
+            'enabled' => false,
+            'level' => 'error',
+        ],
+    ])]
+    public function testLogWatcherDoNotRegistersEntryWhenDisabledOnTheArrayFormat(string $level)
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->{$level}("Logging Level [{$level}].", [
             'user' => 'Claire Redfield',
@@ -163,9 +145,12 @@ class LogWatcherTest extends FeatureTestCase
         ];
     }
 
-    public function testLogWatcherRegistersRetryWithExceptionKey()
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => true,
+    ])]
+    public function testLogWatcherRegistersEntryWithExceptionKey()
     {
-        $logger = $this->app->get(LoggerInterface::class);
+        $logger = $this->app->make(LoggerInterface::class);
 
         $logger->error('Some message', [
             'exception' => 'Some error message',
@@ -177,5 +162,102 @@ class LogWatcherTest extends FeatureTestCase
         $this->assertSame('error', $entry->content['level']);
         $this->assertSame('Some message', $entry->content['message']);
         $this->assertSame('Some error message', $entry->content['context']['exception']);
+    }
+
+    #[DataProvider('interpolationProvider')]
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => [
+            'enabled' => true,
+            'level' => 'info',
+        ],
+    ])]
+    public function testLogWatcherInterpolatesMessage(string $message, array $context, string $expectedMessage)
+    {
+        $logger = $this->app->make(LoggerInterface::class);
+
+        $logger->info($message, $context);
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::LOG, $entry->type);
+        $this->assertSame('info', $entry->content['level']);
+        $this->assertSame($expectedMessage, $entry->content['message']);
+    }
+
+    public static function interpolationProvider()
+    {
+        $stringableObject = new class {
+            public function __toString()
+            {
+                return 'Stringable Object';
+            }
+        };
+
+        return [
+            'all placeholders replaced' => [
+                'User {id} created: {name}.',
+                ['id' => 123, 'name' => 'Jill Valentine'],
+                'User 123 created: Jill Valentine.',
+            ],
+            'some placeholders not replaced' => [
+                'User {id} created: {name}.',
+                ['id' => 456],
+                'User 456 created: {name}.',
+            ],
+            'non-stringable object value' => [
+                'Data: {data}, User: {user_id}.',
+                ['data' => new stdClass, 'user_id' => 789],
+                'Data: {data}, User: 789.',
+            ],
+            'array value' => [
+                'Request data: {payload}.',
+                ['payload' => ['a' => 1, 'b' => 2]],
+                'Request data: {payload}.',
+            ],
+            'stringable object value' => [
+                'Object: {obj}.',
+                ['obj' => $stringableObject],
+                'Object: Stringable Object.',
+            ],
+            'no placeholders present in context' => [
+                'Message with {unprovided} placeholder.',
+                ['some_other_key' => 'value'],
+                'Message with {unprovided} placeholder.',
+            ],
+            'null value' => [
+                'Value is {value}.',
+                ['value' => null],
+                'Value is {value}.',
+            ],
+        ];
+    }
+
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => true,
+    ])]
+    public function testLogWatcherStoresExtraWhenContextFacadeUsed()
+    {
+        ContextRepository::getInstance()->add('trace_id', 'abc-123');
+
+        $logger = $this->app->make(LoggerInterface::class);
+        $logger->error('test message');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertArrayHasKey('extra', $entry->content);
+        $this->assertSame('abc-123', $entry->content['extra']['trace_id']);
+    }
+
+    #[WithConfig('telescope.watchers', [
+        LogWatcher::class => true,
+    ])]
+    public function testLogWatcherOmitsExtraWhenContextFacadeNotUsed()
+    {
+        $logger = $this->app->make(LoggerInterface::class);
+        $logger->error('test message');
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertArrayNotHasKey('extra', $entry->content);
     }
 }

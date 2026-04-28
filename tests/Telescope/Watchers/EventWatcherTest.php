@@ -4,46 +4,37 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\EventWatcher;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Telescope\Dummies\DummyEvent;
 use Telescope\Dummies\DummyEventListener;
+use Telescope\Dummies\DummyEventSubscriber;
 use Telescope\Dummies\DummyEventWithObject;
+use Telescope\Dummies\DummyInvokableEventListener;
 use Telescope\Dummies\DummyObject;
 use Telescope\Dummies\IgnoredEvent;
 
-/**
- * @internal
- * @coversNothing
- */
+#[WithConfig('telescope.watchers', [
+    EventWatcher::class => [
+        'enabled' => true,
+        'ignore' => [
+            IgnoredEvent::class,
+        ],
+    ],
+])]
 class EventWatcherTest extends FeatureTestCase
 {
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->get(ConfigInterface::class)
-            ->set('telescope.watchers', [
-                EventWatcher::class => [
-                    'enabled' => true,
-                    'ignore' => [
-                        IgnoredEvent::class,
-                    ],
-                    'ignore_framework' => false,
-                ],
-            ]);
-
-        $this->startTelescope();
-    }
-
     public function testEventWatcherRegistersAnyEvents()
     {
-        $this->app->get(EventDispatcherInterface::class)
-            ->dispatch(new DummyEvent());
+        Event::listen(DummyEvent::class, function ($payload) {
+        });
+
+        event(new DummyEvent);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -53,8 +44,10 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherStoresPayloads()
     {
-        $this->app->get(EventDispatcherInterface::class)
-            ->dispatch(new DummyEvent('Telescope', 'Laravel', 'PHP'));
+        Event::listen(DummyEvent::class, function ($payload) {
+        });
+
+        event(new DummyEvent('Telescope', 'Laravel', 'PHP'));
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -68,8 +61,10 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherWithObjectPropertyCallsFormatForTelescopeMethodIfItExists()
     {
-        $this->app->get(EventDispatcherInterface::class)
-            ->dispatch(new DummyEventWithObject());
+        Event::listen(DummyEventWithObject::class, function ($payload) {
+        });
+
+        event(new DummyEventWithObject);
 
         $entry = $this->loadTelescopeEntries()->first();
 
@@ -82,30 +77,55 @@ class EventWatcherTest extends FeatureTestCase
         $this->assertContains('PHP', $entry->content['payload']['thing']['properties']);
     }
 
+    public function testEventWatcherRegistersEventsAndStoresPayloadsWithSubscriberMethods()
+    {
+        Event::listen(DummyEvent::class, DummyEventSubscriber::class . '@handleDummyEvent');
+
+        event(new DummyEvent('Telescope', 'Laravel', 'PHP'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::EVENT, $entry->type);
+        $this->assertSame(DummyEvent::class, $entry->content['name']);
+        $this->assertArrayHasKey('data', $entry->content['payload']);
+        $this->assertContains('Telescope', $entry->content['payload']['data']);
+        $this->assertContains('Laravel', $entry->content['payload']['data']);
+        $this->assertContains('PHP', $entry->content['payload']['data']);
+    }
+
+    public function testEventWatcherRegistersEventsAndStoresPayloadsWithSubscriberClasses()
+    {
+        Event::listen(DummyEvent::class, [DummyEventSubscriber::class, 'handleDummyEvent']);
+
+        event(new DummyEvent('Telescope', 'Laravel', 'PHP'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertSame(EntryType::EVENT, $entry->type);
+        $this->assertSame(DummyEvent::class, $entry->content['name']);
+        $this->assertArrayHasKey('data', $entry->content['payload']);
+        $this->assertContains('Telescope', $entry->content['payload']['data']);
+        $this->assertContains('Laravel', $entry->content['payload']['data']);
+        $this->assertContains('PHP', $entry->content['payload']['data']);
+    }
+
     public function testEventWatcherIgnoreEvent()
     {
-        $this->app->get(EventDispatcherInterface::class)
-            ->dispatch(new IgnoredEvent());
+        event(new IgnoredEvent);
 
         $entry = $this->loadTelescopeEntries()->first();
 
         $this->assertNull($entry);
     }
 
-    /**
-     * @dataProvider formatListenersProvider
-     * @param mixed $listener
-     * @param mixed $formatted
-     */
+    #[DataProvider('formatListenersProvider')]
     public function testFormatListeners($listener, $formatted)
     {
-        $this->app->get(EventDispatcherInterface::class)
-            ->listen(DummyEvent::class, $listener);
+        Event::listen(DummyEvent::class, $listener);
 
         $method = new ReflectionMethod(EventWatcher::class, 'formatListeners');
-        $method->setAccessible(true);
 
-        $this->assertSame($formatted, $method->invoke(new EventWatcher(), DummyEvent::class)[0]['name']);
+        $this->assertSame($formatted, $method->invoke(new EventWatcher, DummyEvent::class)[0]['name']);
     }
 
     public static function formatListenersProvider()
@@ -124,8 +144,20 @@ class EventWatcherTest extends FeatureTestCase
                 DummyEventListener::class . '@handle',
             ],
             'array object and method' => [
-                [new DummyEventListener(), 'handle'],
+                [new DummyEventListener, 'handle'],
                 DummyEventListener::class . '@handle',
+            ],
+            'callable object' => [
+                new DummyInvokableEventListener,
+                DummyInvokableEventListener::class . '@__invoke',
+            ],
+            'anonymous callable object' => [
+                $class = new class {
+                    public function __invoke()
+                    {
+                    }
+                },
+                get_class($class) . '@__invoke',
             ],
             'closure' => [
                 function () {
@@ -158,7 +190,7 @@ class DummyEventWithObject
 
     public function __construct()
     {
-        $this->thing = new DummyObject();
+        $this->thing = new DummyObject;
     }
 }
 
@@ -174,6 +206,13 @@ class DummyObject
     }
 }
 
+class DummyEventSubscriber
+{
+    public function handleDummyEvent($event)
+    {
+    }
+}
+
 class IgnoredEvent
 {
     public function handle()
@@ -184,6 +223,13 @@ class IgnoredEvent
 class DummyEventListener
 {
     public function handle($event)
+    {
+    }
+}
+
+class DummyInvokableEventListener
+{
+    public function __invoke($event)
     {
     }
 }

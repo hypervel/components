@@ -12,7 +12,8 @@ class MessageLogged
     public function __construct(
         public string $level,
         public string $message,
-        public array $context = []
+        public array $context = [],
+        public array $extra = [],
     ) {
     }
 }

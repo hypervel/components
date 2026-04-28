@@ -4,13 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\JWT\Providers;
 
-use Hypervel\Tests\JWT\Stub\ProviderStub;
+use Hypervel\Tests\JWT\Fixtures\ProviderStub;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class ProviderTest extends TestCase
 {
     protected $provider;
