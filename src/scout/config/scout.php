@@ -12,7 +12,7 @@ return [
     | using Scout. This connection is used when syncing all models to the
     | search service. You should adjust this based on your needs.
     |
-    | Supported: "meilisearch", "typesense", "database", "collection", "null"
+    | Supported: "algolia", "meilisearch", "typesense", "database", "collection", "null"
     |
     */
 
@@ -103,6 +103,44 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Identify User
+    |--------------------------------------------------------------------------
+    |
+    | This option allows you to control whether to notify the search engine
+    | of the user performing the search. This is sometimes useful if the
+    | engine supports any analytics based on this application's users.
+    |
+    | Supported engines: "algolia"
+    |
+    */
+
+    'identify' => env('SCOUT_IDENTIFY', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Algolia Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Here you may configure your Algolia settings. Algolia is a cloud hosted
+    | search engine which works great with Scout out of the box. Just plug
+    | in your application ID and admin API key to get started searching.
+    |
+    */
+
+    'algolia' => [
+        'id' => env('ALGOLIA_APP_ID', ''),
+        'secret' => env('ALGOLIA_SECRET', ''),
+        'index-settings' => [
+            // Per-index settings can be defined here:
+            // 'users' => [
+            //     'searchableAttributes' => ['id', 'name', 'email'],
+            //     'attributesForFaceting' => ['filterOnly(email)'],
+            // ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Meilisearch Configuration
     |--------------------------------------------------------------------------
     |
@@ -117,6 +155,12 @@ return [
     'meilisearch' => [
         'host' => env('MEILISEARCH_HOST', 'http://localhost:7700'),
         'key' => env('MEILISEARCH_KEY'),
+
+        // HTTP retries on connection errors and 5xx/429 responses, with exponential
+        // backoff starting at initial_retry_delay_ms. Set retries to 0 to disable.
+        'retries' => env('MEILISEARCH_RETRIES', 3),
+        'initial_retry_delay_ms' => env('MEILISEARCH_INITIAL_RETRY_DELAY_MS', 100),
+
         'index-settings' => [
             // Per-index settings can be defined here:
             // 'users' => [

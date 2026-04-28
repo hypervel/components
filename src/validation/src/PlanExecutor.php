@@ -186,7 +186,7 @@ trait PlanExecutor
                 $check->param['mode']
             ),
             CheckType::Digits => ! preg_match('/[^0-9]/', $s = (string) $value)
-                && strlen($s) == $check->param,
+                && strlen($s) === $check->param,
             CheckType::DigitsBetween => $this->inlineDigitsBetween($value, $check->param),
             CheckType::MinDigits => ! preg_match('/[^0-9]/', $s = (string) $value)
                 && strlen($s) >= $check->param,

@@ -120,6 +120,12 @@ class PutMany
                 }
 
                 // 4. Batch update new tag hashes
+                //
+                // Hash field names are the logical cache key only — the
+                // store prefix is already on the hash's own Redis key path
+                // (via tagHashKey) and is re-applied by readers
+                // (Flush/Prune). Avoids duplicating the prefix in every
+                // field.
                 foreach ($keysByNewTag as $tag => $keys) {
                     $tag = (string) $tag;
                     $tagHashKey = $this->context->tagHashKey($tag);
@@ -219,6 +225,12 @@ class PutMany
                 }
 
                 // 4. Batch update new tag hashes
+                //
+                // Hash field names are the logical cache key only — the
+                // store prefix is already on the hash's own Redis key path
+                // (via tagHashKey) and is re-applied by readers
+                // (Flush/Prune). Avoids duplicating the prefix in every
+                // field.
                 foreach ($keysByNewTag as $tag => $keys) {
                     $tag = (string) $tag;
                     $tagHashKey = $this->context->tagHashKey($tag);

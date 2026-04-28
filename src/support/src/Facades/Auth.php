@@ -14,6 +14,7 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\Auth\AuthManager viaRequest(string $driver, callable $callback)
  * @method static \Closure userResolver()
  * @method static \Hypervel\Auth\AuthManager resolveUsersUsing(\Closure $userResolver)
+ * @method static void clearUserCache(mixed $identifier, ?string $guard = null)
  * @method static \Hypervel\Auth\AuthManager extend(string $driver, \Closure $callback)
  * @method static \Hypervel\Auth\AuthManager provider(string $name, \Closure $callback)
  * @method static bool hasResolvedGuards()

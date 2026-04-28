@@ -6,9 +6,10 @@ namespace Hypervel\Cache\Redis\Console\Benchmark;
 
 use Exception;
 use Hypervel\Cache\Redis\Exceptions\BenchmarkMemoryException;
-use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Cache\Redis\Support\TagKeyBuilder;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\TagMode;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
@@ -135,9 +136,9 @@ class BenchmarkContext
 
         return [
             // Any mode tag storage: {cachePrefix}_any:tag:{tagNamePrefix}*
-            $prefix . TagMode::Any->tagSegment() . $tagNamePrefix . '*',
+            $prefix . TagKeyBuilder::tagSegmentFor(TagMode::Any) . $tagNamePrefix . '*',
             // All mode tag storage: {cachePrefix}_all:tag:{tagNamePrefix}*
-            $prefix . TagMode::All->tagSegment() . $tagNamePrefix . '*',
+            $prefix . TagKeyBuilder::tagSegmentFor(TagMode::All) . $tagNamePrefix . '*',
         ];
     }
 

@@ -7,7 +7,6 @@ namespace Hypervel\Scout\Engines;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
-use Hypervel\Scout\Engine;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 

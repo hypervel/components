@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Scout\Builder;
-use Hypervel\Scout\Engine;
+use Hypervel\Scout\Engines\Engine;
 
 /**
  * Contract for models that can be indexed and searched.
@@ -51,6 +51,16 @@ interface SearchableInterface
      * Get the Scout engine for the model.
      */
     public function searchableUsing(): Engine;
+
+    /**
+     * Get the queue connection that should be used when syncing.
+     */
+    public function syncWithSearchUsing(): ?string;
+
+    /**
+     * Get the queue that should be used with syncing.
+     */
+    public function syncWithSearchUsingQueue(): ?string;
 
     /**
      * Make the given model instance searchable.

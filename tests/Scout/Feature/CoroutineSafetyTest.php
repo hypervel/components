@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Feature;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\WaitGroup;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Scout\Jobs\MakeSearchable;
+use Hypervel\Scout\Jobs\RemoveFromSearch;
+use Hypervel\Scout\Scout;
+use Hypervel\Support\Facades\Bus;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
+use RuntimeException;
 
 use function Hypervel\Coroutine\go;
 
@@ -180,5 +187,202 @@ class CoroutineSafetyTest extends ScoutTestCase
 
         // Child should have syncing enabled (nested coroutine has fresh context)
         $this->assertTrue($results['child']);
+    }
+
+    public function testWhileImportingIsCoroutineIsolated()
+    {
+        $results = [];
+        $waiter = new WaitGroup;
+
+        // Coroutine 1: enter whileImporting, hold the flag for 10ms
+        $waiter->add(1);
+        go(function () use (&$results, $waiter) {
+            Scout::whileImporting(function () use (&$results) {
+                $results['coroutine1_inside'] = Scout::isImporting();
+                usleep(10000); // 10ms - overlap with coroutine 2's check
+            });
+
+            $results['coroutine1_after'] = Scout::isImporting();
+            $waiter->done();
+        });
+
+        // Coroutine 2: check Scout::isImporting() while coroutine 1 is inside whileImporting
+        $waiter->add(1);
+        go(function () use (&$results, $waiter) {
+            usleep(5000); // 5ms - start after coroutine 1 has entered whileImporting
+            $results['coroutine2'] = Scout::isImporting();
+            $waiter->done();
+        });
+
+        $waiter->wait();
+
+        $this->assertTrue($results['coroutine1_inside']);
+        $this->assertFalse($results['coroutine1_after']);
+        $this->assertFalse($results['coroutine2']);
+    }
+
+    public function testWhileImportingRestoresStateAfterCallbackAndOnException()
+    {
+        // Normal-return path
+        $beforeNormal = Scout::isImporting();
+        $insideNormal = null;
+        Scout::whileImporting(function () use (&$insideNormal) {
+            $insideNormal = Scout::isImporting();
+        });
+        $afterNormal = Scout::isImporting();
+
+        $this->assertFalse($beforeNormal);
+        $this->assertTrue($insideNormal);
+        $this->assertFalse($afterNormal);
+
+        // Exception path
+        $beforeException = Scout::isImporting();
+        $insideException = null;
+        try {
+            Scout::whileImporting(function () use (&$insideException) {
+                $insideException = Scout::isImporting();
+                throw new RuntimeException('boom');
+            });
+        } catch (RuntimeException) {
+            // swallow
+        }
+        $afterException = Scout::isImporting();
+
+        $this->assertFalse($beforeException);
+        $this->assertTrue($insideException);
+        $this->assertFalse($afterException);
+    }
+
+    public function testQueueMakeSearchableBypassIsCoroutineIsolated()
+    {
+        $this->app->make('config')->set('scout.queue.enabled', true);
+
+        Bus::fake([MakeSearchable::class]);
+
+        $waiter = new WaitGroup;
+
+        // Coroutine A: queueMakeSearchable inside whileImporting (bypassed → no Bus dispatch)
+        $waiter->add(1);
+        go(function () use ($waiter) {
+            Scout::whileImporting(function () {
+                usleep(5000); // hold the importing flag while B dispatches
+                $model = new SearchableModel(['title' => 'A', 'body' => 'Body']);
+                $model->id = 1;
+                $model->queueMakeSearchable(new Collection([$model]));
+            });
+            $waiter->done();
+        });
+
+        // Coroutine B: queueMakeSearchable outside whileImporting (queues normally → 1 Bus dispatch)
+        $waiter->add(1);
+        go(function () use ($waiter) {
+            usleep(2000); // start while A is still inside whileImporting
+            $model = new SearchableModel(['title' => 'B', 'body' => 'Body']);
+            $model->id = 2;
+            $model->queueMakeSearchable(new Collection([$model]));
+            $waiter->done();
+        });
+
+        $waiter->wait();
+
+        // Only B's dispatch goes through Bus; A's was bypassed because A's coroutine had the flag
+        Bus::assertDispatchedTimes(MakeSearchable::class, 1);
+    }
+
+    public function testQueueRemoveFromSearchBypassIsCoroutineIsolated()
+    {
+        $this->app->make('config')->set('scout.queue.enabled', true);
+
+        Bus::fake([RemoveFromSearch::class]);
+
+        $waiter = new WaitGroup;
+
+        // Coroutine A: queueRemoveFromSearch inside whileImporting (bypassed → no Bus dispatch)
+        $waiter->add(1);
+        go(function () use ($waiter) {
+            Scout::whileImporting(function () {
+                usleep(5000);
+                $model = new SearchableModel(['title' => 'A', 'body' => 'Body']);
+                $model->id = 1;
+                $model->queueRemoveFromSearch(new Collection([$model]));
+            });
+            $waiter->done();
+        });
+
+        // Coroutine B: queueRemoveFromSearch outside whileImporting (queues normally → 1 Bus dispatch)
+        $waiter->add(1);
+        go(function () use ($waiter) {
+            usleep(2000);
+            $model = new SearchableModel(['title' => 'B', 'body' => 'Body']);
+            $model->id = 2;
+            $model->queueRemoveFromSearch(new Collection([$model]));
+            $waiter->done();
+        });
+
+        $waiter->wait();
+
+        Bus::assertDispatchedTimes(RemoveFromSearch::class, 1);
+    }
+
+    public function testRunnerStateIsCoroutineIsolated()
+    {
+        // queue.enabled=false so dispatch goes through dispatchSearchableJob (which sets up the runner)
+        $this->app->make('config')->set('scout.queue.enabled', false);
+
+        $results = [];
+        $waiter = new WaitGroup;
+
+        // Coroutine A: trigger dispatchSearchableJob → runner gets installed in A's context
+        $waiter->add(1);
+        go(function () use (&$results, $waiter) {
+            Scout::whileImporting(function () use (&$results) {
+                $model = new SearchableModel(['title' => 'A', 'body' => 'Body']);
+                $model->id = 1;
+                $model->queueMakeSearchable(new Collection([$model]));
+                $results['a_has_runner'] = CoroutineContext::has(SearchableModel::SCOUT_RUNNER_CONTEXT_KEY);
+                usleep(10000); // hold runner in context while B checks
+            });
+            $waiter->done();
+        });
+
+        // Coroutine B: check whether A's runner is visible in B's context (it must not be)
+        $waiter->add(1);
+        go(function () use (&$results, $waiter) {
+            usleep(5000); // start after A has installed its runner
+            Scout::whileImporting(function () use (&$results) {
+                $results['b_has_runner'] = CoroutineContext::has(SearchableModel::SCOUT_RUNNER_CONTEXT_KEY);
+            });
+            $waiter->done();
+        });
+
+        $waiter->wait();
+
+        $this->assertTrue($results['a_has_runner']);
+        $this->assertFalse($results['b_has_runner']);
+    }
+
+    public function testWhileImportingIsNestingSafe()
+    {
+        $results = [];
+
+        $results['outside'] = Scout::isImporting();
+
+        Scout::whileImporting(function () use (&$results) {
+            $results['outer'] = Scout::isImporting();
+
+            Scout::whileImporting(function () use (&$results) {
+                $results['inner'] = Scout::isImporting();
+            });
+
+            $results['outer_after_inner'] = Scout::isImporting();
+        });
+
+        $results['after'] = Scout::isImporting();
+
+        $this->assertFalse($results['outside']);
+        $this->assertTrue($results['outer']);
+        $this->assertTrue($results['inner']);
+        $this->assertTrue($results['outer_after_inner']);
+        $this->assertFalse($results['after']);
     }
 }

@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout;
 
+use Algolia\AlgoliaSearch\Algolia;
+use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Closure;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Scout\Engines\AlgoliaEngine;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\DatabaseEngine;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Scout\Engines\NullEngine;
 use Hypervel\Scout\Engines\TypesenseEngine;
@@ -83,6 +87,38 @@ class EngineManager
     protected function callCustomCreator(string $name): Engine
     {
         return $this->customCreators[$name]($this->container);
+    }
+
+    /**
+     * Create an Algolia engine instance.
+     *
+     * @throws RuntimeException
+     */
+    public function createAlgoliaDriver(): AlgoliaEngine
+    {
+        $this->ensureAlgoliaClientIsInstalled();
+
+        return new AlgoliaEngine(
+            $this->container->make(AlgoliaSearchClient::class),
+            $this->getConfig('soft_delete', false),
+            $this->getConfig('identify', false),
+        );
+    }
+
+    /**
+     * Ensure the Algolia client is installed.
+     *
+     * @throws RuntimeException
+     */
+    protected function ensureAlgoliaClientIsInstalled(): void
+    {
+        if (class_exists(Algolia::class) && version_compare(Algolia::VERSION, '4.0.0', '>=')) {
+            return;
+        }
+
+        throw new RuntimeException(
+            'Please install the Algolia client: algolia/algoliasearch-client-php (^4.0).'
+        );
     }
 
     /**

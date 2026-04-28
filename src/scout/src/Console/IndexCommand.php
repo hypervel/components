@@ -8,8 +8,8 @@ use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
-use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 

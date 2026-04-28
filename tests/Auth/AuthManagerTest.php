@@ -7,20 +7,26 @@ namespace Hypervel\Tests\Auth;
 use Closure;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\DatabaseUserProvider;
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Auth\RequestGuard;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\RedisStore;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Hashing\Hasher as HashContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Foundation\Auth\User as FoundationUser;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use ReflectionClass;
 
 class AuthManagerTest extends TestCase
 {
@@ -327,6 +333,142 @@ class AuthManagerTest extends TestCase
         $this->assertTrue($manager->check());
     }
 
+    public function testClearUserCacheIsNoOpForCustomGuardWithoutGetProvider()
+    {
+        $manager = new AuthManager($container = $this->getContainer([
+            'guards' => [
+                'api' => ['driver' => 'custom'],
+            ],
+        ]));
+
+        $guard = m::mock(Guard::class);
+        $manager->extend('custom', fn () => $guard);
+
+        $manager->clearUserCache(42, 'api');
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function testClearUserCacheUsesSpecifiedGuardProvider()
+    {
+        $manager = new AuthManager($container = $this->getContainer([
+            'defaults' => [
+                'guard' => 'web',
+            ],
+            'guards' => [
+                'web' => ['driver' => 'token', 'provider' => 'users'],
+                'admin' => ['driver' => 'token', 'provider' => 'admins'],
+            ],
+            'providers' => [
+                'users' => [
+                    'driver' => 'eloquent',
+                    'model' => AuthManagerCacheUserStub::class,
+                    'cache' => ['enabled' => true, 'store' => 'web-store'],
+                ],
+                'admins' => [
+                    'driver' => 'eloquent',
+                    'model' => AuthManagerCacheAdminStub::class,
+                    'cache' => ['enabled' => true, 'store' => 'admin-store', 'prefix' => 'admin_users'],
+                ],
+            ],
+        ]));
+
+        Container::setInstance($container);
+        $container->instance('hash', m::mock(HashContract::class));
+
+        $cacheManager = m::mock(CacheManager::class);
+        $adminRepo = m::mock(CacheRepository::class);
+        $adminRepo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
+        $adminRepo->shouldReceive('forget')
+            ->once()
+            ->with('admin_users:' . AuthManagerCacheAdminStub::class . ':42')
+            ->andReturn(true);
+        $cacheManager->shouldReceive('store')->with('admin-store')->andReturn($adminRepo);
+        $container->instance('cache', $cacheManager);
+
+        $manager->clearUserCache(42, 'admin');
+    }
+
+    public function testClearUserCacheUsesDefaultGuardAndRespectsResolver()
+    {
+        $manager = new AuthManager($container = $this->getContainer([
+            'defaults' => [
+                'guard' => 'web',
+            ],
+            'guards' => [
+                'web' => ['driver' => 'token', 'provider' => 'users'],
+            ],
+            'providers' => [
+                'users' => [
+                    'driver' => 'eloquent',
+                    'model' => AuthManagerCacheUserStub::class,
+                    'cache' => ['enabled' => true, 'store' => 'web-store'],
+                ],
+            ],
+        ]));
+
+        Container::setInstance($container);
+        $container->instance('hash', m::mock(HashContract::class));
+
+        $cacheManager = m::mock(CacheManager::class);
+        $repo = m::mock(CacheRepository::class);
+        $repo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
+        $repo->shouldReceive('forget')
+            ->once()
+            ->with('auth_users:' . AuthManagerCacheUserStub::class . ':tenant:42')
+            ->andReturn(true);
+        $cacheManager->shouldReceive('store')->with('web-store')->andReturn($repo);
+        $container->instance('cache', $cacheManager);
+
+        EloquentUserProvider::resolveUserCacheKeyUsing(fn (mixed $identifier): string => 'tenant:' . $identifier);
+
+        $manager->clearUserCache(42);
+    }
+
+    public function testForgetGuardsDoesNotAccumulateAuthCacheDescriptors()
+    {
+        $manager = new AuthManager($container = $this->getContainer([
+            'defaults' => [
+                'guard' => 'api',
+            ],
+            'guards' => [
+                'api' => ['driver' => 'token', 'provider' => 'users'],
+            ],
+            'providers' => [
+                'users' => [
+                    'driver' => 'eloquent',
+                    'model' => AuthManagerCacheUserStub::class,
+                    'cache' => ['enabled' => true, 'store' => 'redis'],
+                ],
+            ],
+        ]));
+
+        Container::setInstance($container);
+        $container->instance('hash', m::mock(HashContract::class));
+
+        $cacheManager = m::mock(CacheManager::class);
+        $firstRepo = m::mock(CacheRepository::class);
+        $firstRepo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
+        $secondRepo = m::mock(CacheRepository::class);
+        $secondRepo->shouldReceive('getStore')->andReturn(m::mock(RedisStore::class));
+        $cacheManager->shouldReceive('store')->with('redis')->andReturn($firstRepo, $secondRepo);
+        $container->instance('cache', $cacheManager);
+
+        $firstGuard = $manager->guard('api');
+
+        $manager->forgetGuards();
+
+        $secondGuard = $manager->guard('api');
+
+        $this->assertNotSame($firstGuard, $secondGuard);
+
+        $reflection = new ReflectionClass(EloquentUserProvider::class);
+        $descriptors = $reflection->getStaticPropertyValue('cachedProviders');
+
+        $this->assertArrayHasKey(AuthManagerCacheUserStub::class, $descriptors);
+        $this->assertCount(1, $descriptors[AuthManagerCacheUserStub::class]);
+    }
+
     protected function getContainer(array $authConfig = []): Container
     {
         $container = new Container;
@@ -336,4 +478,12 @@ class AuthManagerTest extends TestCase
 
         return $container;
     }
+}
+
+class AuthManagerCacheUserStub extends FoundationUser
+{
+}
+
+class AuthManagerCacheAdminStub extends FoundationUser
+{
 }

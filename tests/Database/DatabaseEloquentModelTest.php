@@ -44,9 +44,11 @@ use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Fluent;
@@ -2904,6 +2906,151 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertArrayHasKey('foo', $model->getCasts());
     }
 
+    public function testGetCastsCacheIsInvalidatedByMergeCasts()
+    {
+        $model = new ModelStub;
+
+        $before = $model->getCasts();
+        $this->assertArrayNotHasKey('foo', $before);
+
+        $model->mergeCasts(['foo' => 'date']);
+
+        $after = $model->getCasts();
+        $this->assertArrayHasKey('foo', $after);
+        $this->assertSame('date', $after['foo']);
+    }
+
+    public function testGetCastsCacheIsInvalidatedBySetKeyName()
+    {
+        $model = new ModelStub;
+
+        $before = $model->getCasts();
+        $this->assertArrayHasKey('id', $before);
+
+        $model->setKeyName('uuid');
+
+        $after = $model->getCasts();
+        $this->assertArrayHasKey('uuid', $after);
+        $this->assertArrayNotHasKey('id', $after);
+    }
+
+    public function testGetCastsCacheIsInvalidatedBySetKeyType()
+    {
+        $model = new ModelStub;
+
+        $before = $model->getCasts();
+        $this->assertSame('int', $before[$model->getKeyName()]);
+
+        $model->setKeyType('string');
+
+        $after = $model->getCasts();
+        $this->assertSame('string', $after[$model->getKeyName()]);
+    }
+
+    public function testGetCastsCacheIsInvalidatedBySetIncrementing()
+    {
+        $model = new ModelStub;
+
+        $with = $model->getCasts();
+        $this->assertArrayHasKey('id', $with);
+
+        $model->setIncrementing(false);
+
+        $without = $model->getCasts();
+        $this->assertArrayNotHasKey('id', $without);
+    }
+
+    public function testGetCastsForNonIncrementingModelReturnsCastsDirectly()
+    {
+        $model = new ModelStub;
+        $model->setIncrementing(false);
+        $model->mergeCasts(['foo' => 'int']);
+
+        $casts = $model->getCasts();
+
+        $this->assertArrayNotHasKey($model->getKeyName(), $casts);
+        $this->assertArrayHasKey('foo', $casts);
+        $this->assertSame('int', $casts['foo']);
+    }
+
+    public function testGetCastsIsIsolatedPerInstance()
+    {
+        $a = new ModelStub;
+        $b = new ModelStub;
+
+        $b->mergeCasts(['extra' => 'int']);
+
+        $this->assertArrayNotHasKey('extra', $a->getCasts());
+        $this->assertArrayHasKey('extra', $b->getCasts());
+    }
+
+    public function testGetCastsOnNewInstanceIsNotSharedWithSource()
+    {
+        $source = new ModelStub;
+        $source->mergeCasts(['a' => 'int']);
+        $source->getCasts();
+
+        $clone = $source->newInstance();
+        $clone->mergeCasts(['b' => 'string']);
+
+        $this->assertArrayHasKey('b', $clone->getCasts());
+        $this->assertArrayNotHasKey('b', $source->getCasts());
+    }
+
+    public function testGetCastsCacheIsInvalidatedDuringInitializeHasAttributes()
+    {
+        Model::clearBootedModels();
+
+        Model::setEventDispatcher($dispatcher = new EventDispatcher);
+
+        try {
+            $dispatcher->listen(
+                'eloquent.booting: ' . GetCastsBootingStub::class,
+                function (GetCastsBootingStub $model) {
+                    $model->getCasts();
+                }
+            );
+
+            $instance = new GetCastsBootingStub;
+
+            $casts = $instance->getCasts();
+
+            $this->assertArrayHasKey('foo', $casts);
+            $this->assertSame('integer', $casts['foo']);
+        } finally {
+            GetCastsBootingStub::flushEventListeners();
+            Model::clearBootedModels();
+            Model::unsetEventDispatcher();
+        }
+    }
+
+    public function testGetCastsCacheIsInvalidatedDuringInitializeSoftDeletes()
+    {
+        Model::clearBootedModels();
+
+        Model::setEventDispatcher($dispatcher = new EventDispatcher);
+
+        try {
+            $dispatcher->listen(
+                'eloquent.booting: ' . GetCastsSoftDeletingBootingStub::class,
+                function (GetCastsSoftDeletingBootingStub $model) {
+                    $model->getCasts();
+                }
+            );
+
+            $instance = new GetCastsSoftDeletingBootingStub;
+
+            $casts = $instance->getCasts();
+
+            $this->assertArrayHasKey('deleted_at', $casts);
+            $this->assertSame('datetime', $casts['deleted_at']);
+        } finally {
+            GetCastsSoftDeletingBootingStub::flushEventListeners();
+            Model::clearBootedModels();
+            Model::unsetEventDispatcher();
+        }
+    }
+
     public function testMergeCastsMergesCastsUsingArrays()
     {
         $model = new CastingStub;
@@ -4468,6 +4615,23 @@ class StringableCastBuilder implements NativeStringable
     {
         return $this->cast;
     }
+}
+
+class GetCastsBootingStub extends Model
+{
+    protected array $guarded = [];
+
+    protected function casts(): array
+    {
+        return ['foo' => 'integer'];
+    }
+}
+
+class GetCastsSoftDeletingBootingStub extends Model
+{
+    use SoftDeletes;
+
+    protected array $guarded = [];
 }
 
 enum ConnectionName

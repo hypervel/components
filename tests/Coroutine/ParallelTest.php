@@ -267,6 +267,182 @@ class ParallelTest extends TestCase
         }
     }
 
+    public function testNewInspectionMethodsInitialState()
+    {
+        $parallel = new Parallel;
+
+        $this->assertSame([], $parallel->getThrowables());
+        $this->assertFalse($parallel->hasFailures());
+        $this->assertSame(0, $parallel->failedCount());
+    }
+
+    public function testWaitWithoutThrowReturnsResultsAndCapturesThrowables()
+    {
+        $parallel = new Parallel;
+
+        $err = new RuntimeException('boom');
+
+        $parallel->add(function () use ($err) {
+            Coroutine::sleep(0.001);
+            throw $err;
+        }, 'failed');
+
+        $parallel->add(function () {
+            Coroutine::sleep(0.001);
+            return 'success-value';
+        }, 'ok');
+
+        $results = $parallel->wait(throw: false);
+
+        $this->assertSame(['ok' => 'success-value'], $results);
+        $this->assertArrayNotHasKey('failed', $results);
+        $this->assertSame(['failed' => $err], $parallel->getThrowables());
+    }
+
+    public function testNewInspectionMethodsAfterAllSuccessRun()
+    {
+        $parallel = new Parallel;
+        $parallel->add(function () {
+            return 1;
+        }, 'a');
+        $parallel->add(function () {
+            return 2;
+        }, 'b');
+
+        $parallel->wait(throw: false);
+
+        $this->assertFalse($parallel->hasFailures());
+        $this->assertSame(0, $parallel->failedCount());
+        $this->assertSame([], $parallel->getThrowables());
+    }
+
+    public function testHasFailuresAndFailedCountReportFailures()
+    {
+        $parallel = new Parallel;
+
+        $parallel->add(function () {
+            Coroutine::sleep(0.001);
+            throw new RuntimeException('first');
+        }, 'a');
+
+        $parallel->add(function () {
+            Coroutine::sleep(0.001);
+            return 1;
+        }, 'b');
+
+        $parallel->add(function () {
+            Coroutine::sleep(0.001);
+            throw new RuntimeException('second');
+        }, 'c');
+
+        $parallel->wait(throw: false);
+
+        $this->assertTrue($parallel->hasFailures());
+        $this->assertSame(2, $parallel->failedCount());
+    }
+
+    public function testStringAndNumericKeysArePreservedInThrowables()
+    {
+        $parallel = new Parallel;
+
+        $parallel->add(function () {
+            throw new RuntimeException('string-key');
+        }, 'string-key');
+
+        $parallel->add(function () {
+            throw new RuntimeException('numeric-key');
+        }, 42);
+
+        $parallel->wait(throw: false);
+
+        $throwables = $parallel->getThrowables();
+
+        $this->assertArrayHasKey('string-key', $throwables);
+        $this->assertArrayHasKey(42, $throwables);
+        $this->assertSame('string-key', $throwables['string-key']->getMessage());
+        $this->assertSame('numeric-key', $throwables[42]->getMessage());
+    }
+
+    public function testClearResetsNewMethodsState()
+    {
+        $parallel = new Parallel;
+
+        $parallel->add(function () {
+            throw new RuntimeException('boom');
+        }, 'a');
+
+        $parallel->wait(throw: false);
+
+        $this->assertTrue($parallel->hasFailures());
+
+        $parallel->clear();
+
+        $this->assertSame([], $parallel->getThrowables());
+        $this->assertFalse($parallel->hasFailures());
+        $this->assertSame(0, $parallel->failedCount());
+    }
+
+    public function testWaitDoesNotLeakStateBetweenRuns()
+    {
+        $parallel = new Parallel;
+
+        $parallel->add(function () {
+            throw new RuntimeException('first-run-failure');
+        }, 'shared-key');
+
+        $parallel->wait(throw: false);
+        $this->assertTrue($parallel->hasFailures());
+
+        // Replace the failing callback with one that succeeds, using the same key.
+        // Deliberately do NOT call clear() — this verifies that wait() resets its
+        // own per-run state so previous failures cannot leak through.
+        $parallel->add(function () {
+            return 'now-succeeds';
+        }, 'shared-key');
+
+        $parallel->wait(throw: false);
+
+        $this->assertFalse($parallel->hasFailures());
+        $this->assertSame(0, $parallel->failedCount());
+        $this->assertSame([], $parallel->getThrowables());
+    }
+
+    public function testConcurrencyLimitWithFailuresDoesNotDeadlock()
+    {
+        $parallel = new Parallel(2);
+
+        for ($i = 0; $i < 4; ++$i) {
+            $parallel->add(function () use ($i) {
+                Coroutine::sleep(0.001);
+                if ($i % 2 === 0) {
+                    throw new RuntimeException("failure-{$i}");
+                }
+                return "success-{$i}";
+            }, $i);
+        }
+
+        $results = $parallel->wait(throw: false);
+
+        $this->assertCount(2, $results);
+        $this->assertSame(2, $parallel->failedCount());
+        $this->assertArrayHasKey(1, $results);
+        $this->assertArrayHasKey(3, $results);
+        $this->assertSame('success-1', $results[1]);
+        $this->assertSame('success-3', $results[3]);
+
+        // Run again to verify the concurrency channel was properly drained
+        // and a second wait() does not hang.
+        $parallel->clear();
+        $parallel->add(function () {
+            return 'second-run';
+        }, 'second');
+
+        $results = $parallel->wait(throw: false);
+
+        $this->assertSame(['second' => 'second-run'], $results);
+        $this->assertFalse($parallel->hasFailures());
+    }
+
     public function returnCoroutineId(): int
     {
         return Coroutine::id();

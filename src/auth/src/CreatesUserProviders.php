@@ -71,7 +71,18 @@ trait CreatesUserProviders
      */
     protected function createEloquentProvider(array $config): EloquentUserProvider
     {
-        return new EloquentUserProvider($this->app['hash'], $config['model']);
+        $provider = new EloquentUserProvider($this->app['hash'], $config['model']);
+
+        if (! empty($config['cache']['enabled'])) {
+            $provider->enableCache(
+                $config['cache']['store'] ?? null,
+                (int) ($config['cache']['ttl'] ?? 300),
+                $config['cache']['prefix'] ?? 'auth_users',
+                $config['cache']['tags'] ?? null,
+            );
+        }
+
+        return $provider;
     }
 
     /**

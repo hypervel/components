@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
-use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Foundation\Testing\Concerns\RequiresAnyTagModeRedis;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\TestCase;
 use Redis as PhpRedis;
@@ -29,6 +30,7 @@ use Redis as PhpRedis;
 abstract class RedisCacheIntegrationTestCase extends TestCase
 {
     use InteractsWithRedis;
+    use RequiresAnyTagModeRedis;
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
@@ -66,31 +68,6 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
     }
 
     /**
-     * Minimum phpredis version required for any tag mode.
-     */
-    private const PHPREDIS_MIN_VERSION = '6.3.0';
-
-    /**
-     * Minimum Redis version required for any tag mode.
-     */
-    private const REDIS_MIN_VERSION = '8.0.0';
-
-    /**
-     * Minimum Valkey version required for any tag mode.
-     */
-    private const VALKEY_MIN_VERSION = '9.0.0';
-
-    /**
-     * Cached result of any tag mode support check (null = not checked yet).
-     */
-    private static ?bool $anyTagModeSupported = null;
-
-    /**
-     * Cached skip reason when any tag mode is not supported.
-     */
-    private static string $anyTagModeSkipReason = '';
-
-    /**
      * Set the tag mode on the store.
      *
      * When setting to Any mode, checks version requirements and skips
@@ -108,64 +85,22 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
     }
 
     /**
-     * Skip the test if any tag mode requirements are not met.
-     *
-     * Any tag mode requires:
-     * - phpredis >= 6.3.0 (for HSETEX support)
-     * - Redis >= 8.0.0 OR Valkey >= 9.0.0 (for HEXPIRE command)
-     *
-     * The check is performed once per process and cached for performance.
-     */
-    protected function skipIfAnyTagModeUnsupported(): void
-    {
-        if (self::$anyTagModeSupported === null) {
-            self::$anyTagModeSupported = $this->checkAnyTagModeSupport();
-        }
-
-        if (! self::$anyTagModeSupported) {
-            $this->markTestSkipped(self::$anyTagModeSkipReason);
-        }
-    }
-
-    /**
-     * Check if the environment supports any tag mode.
-     */
-    private function checkAnyTagModeSupport(): bool
-    {
-        // Check phpredis version
-        $phpredisVersion = phpversion('redis') ?: '0';
-        if (version_compare($phpredisVersion, self::PHPREDIS_MIN_VERSION, '<')) {
-            self::$anyTagModeSkipReason = 'Any tag mode requires phpredis >= ' . self::PHPREDIS_MIN_VERSION . " (installed: {$phpredisVersion})";
-
-            return false;
-        }
-
-        // Check Redis/Valkey version
-        $info = $this->redis()->info('server');
-
-        if (isset($info['valkey_version'])) {
-            if (version_compare($info['valkey_version'], self::VALKEY_MIN_VERSION, '<')) {
-                self::$anyTagModeSkipReason = 'Any tag mode requires Valkey >= ' . self::VALKEY_MIN_VERSION . " (installed: {$info['valkey_version']})";
-
-                return false;
-            }
-        } elseif (isset($info['redis_version'])) {
-            if (version_compare($info['redis_version'], self::REDIS_MIN_VERSION, '<')) {
-                self::$anyTagModeSkipReason = 'Any tag mode requires Redis >= ' . self::REDIS_MIN_VERSION . " (installed: {$info['redis_version']})";
-
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
      * Get the current tag mode.
      */
     protected function getTagMode(): TagMode
     {
         return $this->store()->getTagMode();
+    }
+
+    /**
+     * Probe the server via the store's configured connection so tests that
+     * run against a non-default connection check the correct server.
+     *
+     * @return array<string, mixed>
+     */
+    protected function detectedServerInfo(): array
+    {
+        return $this->redis()->info('server');
     }
 
     /**

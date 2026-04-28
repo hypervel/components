@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Support;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
-use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Cache\TagMode;
 use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisProxy;

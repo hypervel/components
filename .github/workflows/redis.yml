@@ -60,6 +60,7 @@ jobs:
           REDIS_HOST: redis
           REDIS_PORT: 6379
         run: |
+          vendor/bin/phpunit tests/Integration/Auth
           vendor/bin/phpunit tests/Integration/Cache/Redis
           vendor/bin/phpunit tests/Integration/Horizon
           vendor/bin/phpunit tests/Integration/Redis
@@ -116,6 +117,7 @@ jobs:
           REDIS_HOST: valkey
           REDIS_PORT: 6379
         run: |
+          vendor/bin/phpunit tests/Integration/Auth
           vendor/bin/phpunit tests/Integration/Cache/Redis
           vendor/bin/phpunit tests/Integration/Horizon
           vendor/bin/phpunit tests/Integration/Redis

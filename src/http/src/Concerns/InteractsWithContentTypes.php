@@ -35,6 +35,16 @@ trait InteractsWithContentTypes
     }
 
     /**
+     * Determine if the current request is asking for Markdown.
+     */
+    public function wantsMarkdown(): bool
+    {
+        $acceptable = $this->getAcceptableContentTypes();
+
+        return isset($acceptable[0]) && str_starts_with(strtolower($acceptable[0]), 'text/markdown');
+    }
+
+    /**
      * Determine whether the current requests accepts a given content type.
      */
     public function accepts(string|array $contentTypes): bool
@@ -126,6 +136,14 @@ trait InteractsWithContentTypes
     public function acceptsJson(): bool
     {
         return $this->accepts('application/json');
+    }
+
+    /**
+     * Determine whether a request accepts Markdown.
+     */
+    public function acceptsMarkdown(): bool
+    {
+        return $this->accepts('text/markdown');
     }
 
     /**

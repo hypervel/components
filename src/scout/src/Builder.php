@@ -16,6 +16,7 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Scout\Contracts\PaginatesEloquentModels;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;

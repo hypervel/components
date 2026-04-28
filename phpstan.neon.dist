@@ -11,7 +11,7 @@ parameters:
     maximumNumberOfProcesses: 32
     minimumNumberOfJobsPerProcess: 2
   inferPrivatePropertyTypeFromConstructor: true
-  treatPhpDocTypesAsCertain: true
+  treatPhpDocTypesAsCertain: false
   reportUnmatchedIgnoredErrors: false
   paths:
     - src

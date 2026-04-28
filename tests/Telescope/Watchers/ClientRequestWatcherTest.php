@@ -11,6 +11,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\TransferStats;
+use Hypervel\Contracts\Telescope\TelescopeTag;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAop;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\DB;
@@ -698,6 +699,54 @@ class ClientRequestWatcherTest extends FeatureTestCase
             ->all();
         $this->assertContains('billing', $tags);
         $this->assertContains('invoice', $tags);
+    }
+
+    public function testTelescopeTagsViaGuzzleConstructorConfig()
+    {
+        // Regression guard: the framework relies on Guzzle's prepareDefaults()
+        // merging client constructor config into per-request options before
+        // transfer() runs, so tags set at construction time reach the aspect.
+        // If Guzzle ever changes that merge, this test catches it.
+        $client = $this->makeClient(
+            [new Response(200, [], 'OK')],
+            ['telescope_tags' => ['scout', 'algolia']],
+        );
+
+        $this->executeTransfer($client, new Request('GET', 'https://example.com/api'));
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertNotNull($entry);
+        $tags = DB::table('telescope_entries_tags')
+            ->where('entry_uuid', $entry->uuid)
+            ->pluck('tag')
+            ->all();
+        $this->assertContains('scout', $tags);
+        $this->assertContains('algolia', $tags);
+    }
+
+    public function testBackedEnumTelescopeTagsAreNormalizedToStrings()
+    {
+        // The aspect's array_map normalizes enum cases via enum_value() so
+        // tags reach storage as strings. Uses the real TelescopeTag enum —
+        // proves the end-to-end path the framework itself relies on.
+        $client = $this->makeClient([new Response(200, [], 'OK')]);
+
+        $this->executeTransfer(
+            $client,
+            new Request('GET', 'https://example.com/api'),
+            ['telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Algolia]],
+        );
+
+        $entry = $this->loadTelescopeEntries()->first();
+
+        $this->assertNotNull($entry);
+        $tags = DB::table('telescope_entries_tags')
+            ->where('entry_uuid', $entry->uuid)
+            ->pluck('tag')
+            ->all();
+        $this->assertContains('scout', $tags);
+        $this->assertContains('algolia', $tags);
     }
 
     public function testExistingOnStatsCallbackIsPreserved()

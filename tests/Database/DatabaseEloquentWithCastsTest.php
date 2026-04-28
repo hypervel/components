@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database;
 
+use Carbon\CarbonInterface;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\MissingAttributeException;
 use Hypervel\Database\Eloquent\Model;
@@ -78,6 +79,18 @@ class DatabaseEloquentWithCastsTest extends TestCase
             ->createOrFirst(['time' => '07:30']);
 
         $this->assertSame($time1->id, $time2->id);
+    }
+
+    public function testWithCastsDoesNotLeakAcrossQueries()
+    {
+        Time::query()->insert(['time' => '07:30']);
+
+        $scoped = Time::query()->withCasts(['time' => 'string'])->first();
+        $this->assertIsString($scoped->time);
+        $this->assertSame('07:30', $scoped->time);
+
+        $default = Time::query()->first();
+        $this->assertInstanceOf(CarbonInterface::class, $default->time);
     }
 
     public function testThrowsExceptionIfCastableAttributeWasNotRetrievedAndPreventMissingAttributesIsEnabled()

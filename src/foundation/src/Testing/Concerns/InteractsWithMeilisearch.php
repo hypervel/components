@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Config\Repository;
 use Meilisearch\Client as MeilisearchClient;
 use Throwable;
 
@@ -20,8 +19,7 @@ use Throwable;
  * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
  * - Auto-cleanup: Removes test indexes in teardown
  *
- * Usage: Add `use InteractsWithMeilisearch;` to your test case and call
- * configureMeilisearchForTesting() from defineEnvironment().
+ * Usage: Add `use InteractsWithMeilisearch;` to your test case.
  *
  * Environment Variables:
  * - MEILISEARCH_HOST: Host (default: 127.0.0.1)
@@ -102,21 +100,6 @@ trait InteractsWithMeilisearch
     }
 
     /**
-     * Configure Meilisearch for testing.
-     *
-     * Call from defineEnvironment() to set up Scout config.
-     */
-    protected function configureMeilisearchForTesting(Repository $config): void
-    {
-        $this->computeMeilisearchTestPrefix();
-
-        $config->set('scout.driver', 'meilisearch');
-        $config->set('scout.prefix', $this->meilisearchTestPrefix);
-        $config->set('scout.meilisearch.host', $this->getMeilisearchHost());
-        $config->set('scout.meilisearch.key', env('MEILISEARCH_KEY', ''));
-    }
-
-    /**
      * Initialize the Meilisearch client.
      */
     protected function initializeMeilisearchClient(): void
@@ -149,22 +132,6 @@ trait InteractsWithMeilisearch
         $port = env('MEILISEARCH_PORT', '7700');
 
         return "http://{$host}:{$port}";
-    }
-
-    /**
-     * Check if MEILISEARCH_HOST was explicitly set.
-     */
-    protected function hasExplicitMeilisearchConfig(): bool
-    {
-        return env('MEILISEARCH_HOST') !== null;
-    }
-
-    /**
-     * Get a prefixed index name.
-     */
-    protected function meilisearchIndex(string $name): string
-    {
-        return $this->meilisearchTestPrefix . $name;
     }
 
     /**

@@ -99,6 +99,11 @@ trait HasAttributes
     protected array $attributeCastCache = [];
 
     /**
+     * The cached merged casts array for this instance.
+     */
+    protected ?array $mergedCastsCache = null;
+
+    /**
      * The built-in, primitive cast types supported by Eloquent.
      *
      * @var string[]
@@ -193,6 +198,8 @@ trait HasAttributes
         $this->casts = $this->ensureCastsAreStringValues(
             array_merge($this->casts, $this->casts()),
         );
+
+        $this->mergedCastsCache = null;
     }
 
     /**
@@ -710,6 +717,8 @@ trait HasAttributes
         $casts = $this->ensureCastsAreStringValues($casts);
 
         $this->casts = array_merge($this->casts, $casts);
+
+        $this->mergedCastsCache = null;
 
         return $this;
     }
@@ -1500,7 +1509,10 @@ trait HasAttributes
     public function getCasts(): array
     {
         if ($this->getIncrementing()) {
-            return array_merge([$this->getKeyName() => $this->getKeyType()], $this->casts);
+            return $this->mergedCastsCache ??= array_merge(
+                [$this->getKeyName() => $this->getKeyType()],
+                $this->casts,
+            );
         }
 
         return $this->casts;

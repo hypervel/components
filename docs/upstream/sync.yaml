@@ -1,0 +1,91 @@
+# Upstream Sync State
+#
+# Tracks the last-reviewed and last-ported release tag per upstream package.
+# Updated during every sync session. See README.md in this directory for the
+# session workflow.
+#
+# Top-level keys are gh repo slugs (what `gh --repo` expects).
+#
+# Fields:
+#   url               — GitHub URL, for humans
+#   last_reviewed_tag — newest release tag fully walked (every PR classified)
+#   last_ported_tag   — newest release where every PR was ported or intentionally
+#                       skipped (nothing deferred pending work). Stays behind
+#                       last_reviewed_tag when anything is deferred.
+#   last_session      — date (YYYY-MM-DD) of the most recent session that
+#                       touched this entry
+#   notes             — free-form. Reference <package>.md here when a
+#                       divergence doc exists (e.g. "See laravel-framework.md").
+#
+# Tags are `null` until the first session backfills them to reflect what
+# Hypervel currently ships for each package.
+
+inertiajs/inertia-laravel:
+  url: https://github.com/inertiajs/inertia-laravel
+  last_reviewed_tag: null
+  last_ported_tag: null
+  last_session: null
+  notes: null
+
+laravel/framework:
+  url: https://github.com/laravel/framework
+  last_reviewed_tag: null
+  last_ported_tag: null
+  last_session: null
+  notes: Also scan direct-to-branch commits per README step 2e.
+
+laravel/horizon:
+  url: https://github.com/laravel/horizon
+  last_reviewed_tag: null
+  last_ported_tag: null
+  last_session: null
+  notes: null
+
+laravel/prompts:
+  url: https://github.com/laravel/prompts
+  last_reviewed_tag: null
+  last_ported_tag: null
+  last_session: null
+  notes: null
+
+laravel/sanctum:
+  url: https://github.com/laravel/sanctum
+  last_reviewed_tag: null
+  last_ported_tag: null
+  last_session: null
+  notes: null
+
+laravel/scout:
+  url: https://github.com/laravel/scout
+  last_reviewed_tag: null
+  last_ported_tag: null
+  last_session: null
+  notes: null
+
+laravel/telescope:
+  url: https://github.com/laravel/telescope
+  last_reviewed_tag: null
+  last_ported_tag: null
+  last_session: null
+  notes: null
+
+laravel/tinker:
+  url: https://github.com/laravel/tinker
+  last_reviewed_tag: null
+  last_ported_tag: null
+  last_session: null
+  notes: null
+
+orchestral/testbench:
+  url: https://github.com/orchestral/testbench
+  last_reviewed_tag: null
+  last_ported_tag: null
+  last_session: null
+  notes: Composer package is `orchestra/testbench` (different from gh slug).
+
+spatie/laravel-permission:
+  url: https://github.com/spatie/laravel-permission
+  last_reviewed_tag: null
+  last_ported_tag: null
+  last_session: null
+  notes: null
