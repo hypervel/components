@@ -15,6 +15,7 @@ namespace Hypervel\Support;
 
 use Exception;
 use finfo;
+use Hypervel\Context\Context;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
@@ -24,10 +25,7 @@ use RuntimeException;
  */
 class FileinfoMimeTypeGuesser
 {
-    /**
-     * @var array<string, finfo>
-     */
-    private static $finfoCache = [];
+    private const FINFO_CACHE_KEY = '__support.finfo_mime_type_guesser.';
 
     /**
      * @param null|string $magicFile A magic file to use with the finfo instance
@@ -55,7 +53,10 @@ class FileinfoMimeTypeGuesser
         }
 
         try {
-            $finfo = self::$finfoCache[$this->magicFile] ??= new finfo(FILEINFO_MIME_TYPE, $this->magicFile);
+            $finfo = Context::getOrSet(
+                self::FINFO_CACHE_KEY . ($this->magicFile ?? ''),
+                fn () => new finfo(FILEINFO_MIME_TYPE, $this->magicFile)
+            );
         } catch (Exception $e) {
             throw new RuntimeException($e->getMessage());
         }
