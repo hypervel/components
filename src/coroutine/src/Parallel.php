@@ -59,6 +59,12 @@ class Parallel
      */
     public function wait(bool $throw = true): array
     {
+        // Reset per-run state so previous runs cannot leak into this one. Without this, a
+        // failure from an earlier wait() would remain in $throwables and surface through
+        // getThrowables() on subsequent runs, regardless of the current run's outcome.
+        $this->results = [];
+        $this->throwables = [];
+
         $wg = new WaitGroup;
         $wg->add(count($this->callbacks));
         foreach ($this->callbacks as $key => $callback) {
@@ -95,6 +101,32 @@ class Parallel
     public function count(): int
     {
         return count($this->callbacks);
+    }
+
+    /**
+     * Get the throwables captured from the most recent wait() call, keyed by callback key.
+     *
+     * @return array<array-key, Throwable>
+     */
+    public function getThrowables(): array
+    {
+        return $this->throwables;
+    }
+
+    /**
+     * Determine if the most recent wait() call captured any throwables.
+     */
+    public function hasFailures(): bool
+    {
+        return count($this->throwables) > 0;
+    }
+
+    /**
+     * Get the number of throwables captured from the most recent wait() call.
+     */
+    public function failedCount(): int
+    {
+        return count($this->throwables);
     }
 
     /**

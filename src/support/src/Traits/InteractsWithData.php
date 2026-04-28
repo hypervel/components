@@ -6,6 +6,8 @@ namespace Hypervel\Support\Traits;
 
 use BackedEnum;
 use Carbon\CarbonInterface;
+use Carbon\CarbonInterval;
+use Carbon\Unit;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
@@ -249,6 +251,26 @@ trait InteractsWithData
         }
 
         return Date::createFromFormat($format, $this->data($key), $tz);
+    }
+
+    /**
+     * Retrieve data from the instance as a CarbonInterval instance.
+     */
+    public function interval(string $key, Unit|string|null $unit = null): ?CarbonInterval
+    {
+        if ($this->isNotFilled($key)) {
+            return null;
+        }
+
+        $value = $this->data($key);
+
+        if (is_null($unit)) {
+            return CarbonInterval::make($value);
+        }
+
+        $unit = $unit instanceof Unit ? $unit : Unit::fromName($unit);
+
+        return CarbonInterval::fromString(number_format((float) $value, 10, '.', '') . ' ' . $unit->name);
     }
 
     /**

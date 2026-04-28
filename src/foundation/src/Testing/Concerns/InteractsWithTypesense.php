@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Config\Repository;
 use Throwable;
 use Typesense\Client as TypesenseClient;
 
@@ -20,8 +19,7 @@ use Typesense\Client as TypesenseClient;
  * - Parallel-safe: Uses TEST_TOKEN for unique collection prefixes
  * - Auto-cleanup: Removes test collections in teardown
  *
- * Usage: Add `use InteractsWithTypesense;` to your test case and call
- * configureTypesenseForTesting() from defineEnvironment().
+ * Usage: Add `use InteractsWithTypesense;` to your test case.
  *
  * Environment Variables:
  * - TYPESENSE_HOST: Host (default: 127.0.0.1)
@@ -100,20 +98,6 @@ trait InteractsWithTypesense
     }
 
     /**
-     * Configure Typesense for testing.
-     *
-     * Call from defineEnvironment() to set up Scout config.
-     */
-    protected function configureTypesenseForTesting(Repository $config): void
-    {
-        $this->computeTypesenseTestPrefix();
-
-        $config->set('scout.driver', 'typesense');
-        $config->set('scout.prefix', $this->typesenseTestPrefix);
-        $config->set('scout.typesense.client-settings', $this->getTypesenseClientSettings());
-    }
-
-    /**
      * Initialize the Typesense client.
      */
     protected function initializeTypesenseClient(): void
@@ -150,22 +134,6 @@ trait InteractsWithTypesense
         $token = env('TEST_TOKEN', '');
 
         $this->typesenseTestPrefix = $token !== '' ? "{$base}{$token}_" : $base;
-    }
-
-    /**
-     * Check if TYPESENSE_HOST was explicitly set.
-     */
-    protected function hasExplicitTypesenseConfig(): bool
-    {
-        return env('TYPESENSE_HOST') !== null;
-    }
-
-    /**
-     * Get a prefixed collection name.
-     */
-    protected function typesenseCollection(string $name): string
-    {
-        return $this->typesenseTestPrefix . $name;
     }
 
     /**

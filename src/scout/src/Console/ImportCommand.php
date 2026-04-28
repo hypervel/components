@@ -6,8 +6,10 @@ namespace Hypervel\Scout\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Scout\Console\Traits\ResolvesScoutModelClass;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Exceptions\ScoutException;
+use Hypervel\Scout\Scout;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 /**
@@ -16,6 +18,8 @@ use Symfony\Component\Console\Attribute\AsCommand;
 #[AsCommand(name: 'scout:import')]
 class ImportCommand extends Command
 {
+    use ResolvesScoutModelClass;
+
     /**
      * The name and signature of the console command.
      */
@@ -36,53 +40,32 @@ class ImportCommand extends Command
      */
     public function handle(Dispatcher $events): void
     {
-        defined('SCOUT_COMMAND') || define('SCOUT_COMMAND', true);
+        Scout::whileImporting(function () use ($events): void {
+            $class = $this->resolveModelClass((string) $this->argument('model'));
+            $chunk = $this->option('chunk');
+            $fresh = $this->option('fresh');
 
-        $class = $this->resolveModelClass((string) $this->argument('model'));
-        $chunk = $this->option('chunk');
-        $fresh = $this->option('fresh');
+            try {
+                $events->listen(ModelsImported::class, function (ModelsImported $event) use ($class): void {
+                    $lastModel = $event->models->last();
+                    $key = $lastModel?->getScoutKey();
 
-        try {
-            $events->listen(ModelsImported::class, function (ModelsImported $event) use ($class): void {
-                $lastModel = $event->models->last();
-                $key = $lastModel?->getScoutKey();
+                    if ($key !== null) {
+                        $this->line("<comment>Imported [{$class}] models up to ID:</comment> {$key}");
+                    }
+                });
 
-                if ($key !== null) {
-                    $this->line("<comment>Imported [{$class}] models up to ID:</comment> {$key}");
+                if ($fresh) {
+                    $class::removeAllFromSearch();
                 }
-            });
 
-            if ($fresh) {
-                $class::removeAllFromSearch();
+                $class::makeAllSearchable($chunk !== null ? (int) $chunk : null);
+            } finally {
+                $class::waitForSearchableJobs();
+                $events->forget(ModelsImported::class);
             }
 
-            $class::makeAllSearchable($chunk !== null ? (int) $chunk : null);
-        } finally {
-            $class::waitForSearchableJobs();
-            $events->forget(ModelsImported::class);
-        }
-
-        $this->info("All [{$class}] records have been imported.");
-    }
-
-    /**
-     * Resolve the fully-qualified model class name.
-     *
-     * @throws ScoutException
-     */
-    protected function resolveModelClass(string $class): string
-    {
-        if (class_exists($class)) {
-            return $class;
-        }
-
-        // Try the conventional App\Models namespace
-        $namespacedClass = "App\\Models\\{$class}";
-
-        if (class_exists($namespacedClass)) {
-            return $namespacedClass;
-        }
-
-        throw new ScoutException("Model [{$class}] not found.");
+            $this->info("All [{$class}] records have been imported.");
+        });
     }
 }

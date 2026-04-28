@@ -4,65 +4,56 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit\Console;
 
-use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Scout\Console\ImportCommand;
 use Hypervel\Scout\Exceptions\ScoutException;
-use Hypervel\Tests\TestCase;
-use Mockery as m;
-use ReflectionMethod;
+use Hypervel\Scout\Jobs\MakeSearchable;
+use Hypervel\Scout\Jobs\RemoveFromSearch;
+use Hypervel\Support\Facades\Bus;
+use Hypervel\Tests\Scout\Models\SearchableModel;
+use Hypervel\Tests\Scout\ScoutTestCase;
 
-class ImportCommandTest extends TestCase
+class ImportCommandTest extends ScoutTestCase
 {
-    public function testThrowsExceptionWhenModelClassNotFound(): void
+    public function testItThrowsScoutExceptionForNonExistentModelClass(): void
     {
-        $events = m::mock(Dispatcher::class);
-
-        $command = m::mock(ImportCommand::class)->makePartial();
-        $command->shouldReceive('argument')
-            ->with('model')
-            ->andReturn('NonExistentModel');
-
         $this->expectException(ScoutException::class);
         $this->expectExceptionMessage('Model [NonExistentModel] not found.');
 
-        $command->handle($events);
+        $this->artisan('scout:import', ['model' => 'NonExistentModel'])->run();
     }
 
-    public function testResolvesModelClassFromAppModelsNamespace(): void
+    public function testScoutImportIgnoresQueueEnabledConfigAndRunsSync(): void
     {
-        // Use reflection to test the protected method on a partial mock
-        $command = m::mock(ImportCommand::class)->makePartial();
+        $this->app->make('config')->set('scout.queue.enabled', true);
 
-        $method = new ReflectionMethod(ImportCommand::class, 'resolveModelClass');
-        $method->setAccessible(true);
+        for ($i = 1; $i <= 3; ++$i) {
+            SearchableModel::create(['title' => "Title {$i}", 'body' => 'Body']);
+        }
 
-        // Test with a class that exists - use a real class from the codebase
-        $result = $method->invoke($command, \Hypervel\Scout\Builder::class);
-        $this->assertSame(\Hypervel\Scout\Builder::class, $result);
+        Bus::fake([MakeSearchable::class, RemoveFromSearch::class]);
+
+        $this->artisan('scout:import', ['model' => SearchableModel::class])
+            ->expectsOutputToContain('have been imported')
+            ->assertSuccessful();
+
+        Bus::assertNotDispatched(MakeSearchable::class);
+        Bus::assertNotDispatched(RemoveFromSearch::class);
     }
 
-    public function testResolvesFullyQualifiedClassName(): void
+    public function testScoutImportFreshIgnoresQueueEnabledConfig(): void
     {
-        $command = m::mock(ImportCommand::class)->makePartial();
+        $this->app->make('config')->set('scout.queue.enabled', true);
 
-        $method = new ReflectionMethod(ImportCommand::class, 'resolveModelClass');
-        $method->setAccessible(true);
+        for ($i = 1; $i <= 3; ++$i) {
+            SearchableModel::create(['title' => "Title {$i}", 'body' => 'Body']);
+        }
 
-        // Test with fully qualified class name
-        $result = $method->invoke($command, \Hypervel\Scout\Engine::class);
-        $this->assertSame(\Hypervel\Scout\Engine::class, $result);
-    }
+        Bus::fake([MakeSearchable::class, RemoveFromSearch::class]);
 
-    public function testThrowsExceptionForNonExistentClass(): void
-    {
-        $command = m::mock(ImportCommand::class)->makePartial();
+        $this->artisan('scout:import', ['model' => SearchableModel::class, '--fresh' => true])
+            ->expectsOutputToContain('have been imported')
+            ->assertSuccessful();
 
-        $method = new ReflectionMethod(ImportCommand::class, 'resolveModelClass');
-        $method->setAccessible(true);
-
-        $this->expectException(ScoutException::class);
-        $this->expectExceptionMessage('Model [FakeModelThatDoesNotExist] not found.');
-
-        $method->invoke($command, 'FakeModelThatDoesNotExist');
+        Bus::assertNotDispatched(MakeSearchable::class);
+        Bus::assertNotDispatched(RemoveFromSearch::class);
     }
 }

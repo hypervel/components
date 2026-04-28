@@ -6,11 +6,13 @@ namespace Hypervel\Scout;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Support\Collection as BaseCollection;
 
 /**
@@ -21,16 +23,19 @@ use Hypervel\Support\Collection as BaseCollection;
 trait Searchable
 {
     /**
+     * Coroutine-local context key for the WaitConcurrent runner used during imports.
+     *
+     * Coroutine-local rather than a static property so concurrent coroutines in
+     * the same process don't share or overwrite each other's runner instances.
+     */
+    public const SCOUT_RUNNER_CONTEXT_KEY = '__scout.runner';
+
+    /**
      * Additional metadata attributes managed by Scout.
      *
      * @var array<string, mixed>
      */
     protected array $scoutMetadata = [];
-
-    /**
-     * Concurrent runner for command batch operations.
-     */
-    protected static ?WaitConcurrent $scoutRunner = null;
 
     /**
      * Boot the searchable trait.
@@ -87,7 +92,7 @@ trait Searchable
             return;
         }
 
-        if (static::getScoutConfig('queue.enabled', false)) {
+        if (! Scout::isImporting() && static::getScoutConfig('queue.enabled', false)) {
             $jobClass = Scout::$makeSearchableJob;
             $pendingDispatch = $jobClass::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
@@ -132,7 +137,7 @@ trait Searchable
             return;
         }
 
-        if (static::getScoutConfig('queue.enabled', false)) {
+        if (! Scout::isImporting() && static::getScoutConfig('queue.enabled', false)) {
             $jobClass = Scout::$removeFromSearchJob;
             $pendingDispatch = $jobClass::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
@@ -468,14 +473,17 @@ trait Searchable
     protected static function dispatchSearchableJob(callable $job): void
     {
         // Command path: use WaitConcurrent for parallel execution
-        if (defined('SCOUT_COMMAND')) {
-            if (! static::$scoutRunner instanceof WaitConcurrent) {
-                static::$scoutRunner = new WaitConcurrent(
+        if (Scout::isImporting()) {
+            $runner = CoroutineContext::get(self::SCOUT_RUNNER_CONTEXT_KEY);
+
+            if (! $runner instanceof WaitConcurrent) {
+                $runner = new WaitConcurrent(
                     (int) static::getScoutConfig('command_concurrency', 50)
                 );
+                CoroutineContext::set(self::SCOUT_RUNNER_CONTEXT_KEY, $runner);
             }
 
-            static::$scoutRunner->create($job);
+            $runner->create($job);
             return;
         }
 
@@ -491,9 +499,11 @@ trait Searchable
      */
     public static function waitForSearchableJobs(): void
     {
-        if (static::$scoutRunner instanceof WaitConcurrent) {
-            static::$scoutRunner->wait();
-            static::$scoutRunner = null;
+        $runner = CoroutineContext::get(self::SCOUT_RUNNER_CONTEXT_KEY);
+
+        if ($runner instanceof WaitConcurrent) {
+            $runner->wait();
+            CoroutineContext::forget(self::SCOUT_RUNNER_CONTEXT_KEY);
         }
     }
 

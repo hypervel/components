@@ -10,7 +10,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\SearchableInterface;
-use Hypervel\Scout\Engine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;

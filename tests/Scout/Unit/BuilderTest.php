@@ -11,7 +11,7 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\PaginatesEloquentModels;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
-use Hypervel\Scout\Engine;
+use Hypervel\Scout\Engines\Engine;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;

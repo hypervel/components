@@ -26,7 +26,7 @@ class RemoveFromSearchTest extends ScoutTestCase
 
         $collection = new Collection([$model1, $model2]);
 
-        $engine = m::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engines\Engine::class);
         $engine->shouldReceive('delete')
             ->once()
             ->with(m::on(function ($models) {
@@ -39,7 +39,7 @@ class RemoveFromSearchTest extends ScoutTestCase
             {
             }
 
-            public function engine(): \Hypervel\Scout\Engine
+            public function engine(): \Hypervel\Scout\Engines\Engine
             {
                 return $this->engine;
             }
@@ -53,7 +53,7 @@ class RemoveFromSearchTest extends ScoutTestCase
     {
         $collection = new Collection([]);
 
-        $engine = m::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engines\Engine::class);
         $engine->shouldNotReceive('delete');
 
         $this->app->instance(\Hypervel\Scout\EngineManager::class, new class($engine) {
@@ -61,7 +61,7 @@ class RemoveFromSearchTest extends ScoutTestCase
             {
             }
 
-            public function engine(): \Hypervel\Scout\Engine
+            public function engine(): \Hypervel\Scout\Engines\Engine
             {
                 return $this->engine;
             }
