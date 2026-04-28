@@ -100,7 +100,7 @@ class PendingChain
      */
     public function catchCallbacks(): array
     {
-        return $this->catchCallbacks ?? [];
+        return $this->catchCallbacks ?: [];
     }
 
     /**
