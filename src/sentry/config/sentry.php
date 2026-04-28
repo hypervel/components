@@ -95,8 +95,7 @@ return [
         ValidationException::class,
     ],
 
-    'ignore_transactions' => [
-    ],
+    'ignore_transactions' => [],
 
     'ignore_commands' => [
         'crontab:run',
