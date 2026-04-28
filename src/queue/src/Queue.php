@@ -356,7 +356,7 @@ abstract class Queue
             return $job->afterCommit;
         }
 
-        return $this->dispatchAfterCommit;
+        return $this->dispatchAfterCommit ?? false;
     }
 
     /**
