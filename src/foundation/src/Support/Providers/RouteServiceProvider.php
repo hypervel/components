@@ -12,8 +12,7 @@ class RouteServiceProvider extends ServiceProvider
     /**
      * The route files for the application.
      */
-    protected array $routes = [
-    ];
+    protected array $routes = [];
 
     public function boot(): void
     {

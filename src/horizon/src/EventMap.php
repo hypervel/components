@@ -61,11 +61,9 @@ trait EventMap
             Listeners\MonitorWaitTimes::class,
         ],
 
-        Events\WorkerProcessRestarting::class => [
-        ],
+        Events\WorkerProcessRestarting::class => [],
 
-        Events\SupervisorProcessRestarting::class => [
-        ],
+        Events\SupervisorProcessRestarting::class => [],
 
         Events\LongWaitDetected::class => [
             Listeners\SendNotification::class,
