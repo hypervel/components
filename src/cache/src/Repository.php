@@ -297,19 +297,19 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         $this->event(
             WritingKey::class,
-            fn (): WritingKey => new WritingKey($this->getName(), $key, $value, $seconds)
+            fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
         );
 
         $result = $this->store->put($this->itemKey($key), $value, $seconds);
         if ($result) {
             $this->event(
                 KeyWritten::class,
-                fn (): KeyWritten => new KeyWritten($this->getName(), $key, $value, $seconds)
+                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
             );
         } else {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, $value, $seconds)
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
             );
         }
 
@@ -344,7 +344,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             fn (): WritingManyKeys => new WritingManyKeys(
                 $this->getName(),
                 array_map(static fn ($key) => (string) $key, array_keys($values)),
-                array_values($values),
+                array_map(NullSentinel::unwrap(...), array_values($values)),
                 $seconds
             )
         );
@@ -355,12 +355,12 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             if ($result) {
                 $this->event(
                     KeyWritten::class,
-                    fn (): KeyWritten => new KeyWritten($this->getName(), (string) $key, $value, $seconds)
+                    fn (): KeyWritten => new KeyWritten($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
                 );
             } else {
                 $this->event(
                     KeyWriteFailed::class,
-                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, $value, $seconds)
+                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
                 );
             }
         }
@@ -434,16 +434,16 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     {
         $key = enum_value($key);
 
-        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey($this->getName(), $key, $value));
+        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value)));
 
         $result = $this->store->forever($this->itemKey($key), $value);
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten($this->getName(), $key, $value));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value)));
         } else {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, $value)
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
             );
         }
 
@@ -1021,7 +1021,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
         if (is_null($value)) {
             $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
         } else {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, $value));
+            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
         }
 
         return $value;
@@ -1080,7 +1080,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
             if (is_null($value)) {
                 $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
             } else {
-                $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, $value));
+                $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
             }
         }
 
