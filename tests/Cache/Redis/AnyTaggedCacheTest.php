@@ -6,11 +6,15 @@ namespace Hypervel\Tests\Cache\Redis;
 
 use BadMethodCallException;
 use Generator;
+use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Redis\Exceptions\LuaScriptException;
+use Mockery as m;
 use RuntimeException;
 
 /**
@@ -517,6 +521,62 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
         $this->assertNull($result);
         $this->assertFalse($invoked);
+    }
+
+    public function testRememberNullableFiresCacheHitWithNullPayloadOnSentinelHit(): void
+    {
+        $connection = $this->mockConnection();
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with('prefix:mykey')
+            ->andReturn(serialize(NullSentinel::VALUE));
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function ($event) use (&$captured) {
+                $captured[] = $event;
+            });
+
+        $store = $this->createStore($connection);
+        $tagged = $store->setTagMode('any')->tags(['users']);
+        $tagged->setEventDispatcher($events);
+
+        $tagged->rememberNullable('mykey', 60, fn () => 'should-not-run');
+
+        $cacheHit = array_values(array_filter($captured, fn ($e) => $e instanceof CacheHit))[0] ?? null;
+        $this->assertNotNull($cacheHit);
+        // Null, not the sentinel value.
+        $this->assertNull($cacheHit->value);
+    }
+
+    public function testRememberNullableFiresKeyWrittenWithNullPayloadOnCacheMiss(): void
+    {
+        $connection = $this->mockConnection();
+
+        $connection->shouldReceive('get')->once()->with('prefix:mykey')->andReturnNull();
+        $connection->shouldReceive('evalWithShaCache')->once()->andReturn(true);
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function ($event) use (&$captured) {
+                $captured[] = $event;
+            });
+
+        $store = $this->createStore($connection);
+        $tagged = $store->setTagMode('any')->tags(['users']);
+        $tagged->setEventDispatcher($events);
+
+        $tagged->rememberNullable('mykey', 60, fn () => null);
+
+        $keyWritten = array_values(array_filter($captured, fn ($e) => $e instanceof KeyWritten))[0] ?? null;
+        $this->assertNotNull($keyWritten);
+        // Null, not the sentinel value.
+        $this->assertNull($keyWritten->value);
     }
 
     /**

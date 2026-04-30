@@ -179,8 +179,8 @@ class FailoverStoreTest extends TestCase
 
         $outerRepo->rememberNullable('k', 60, fn () => null);
 
-        // Install the capturing dispatcher AFTER the write so we only observe the
-        // many() read-path events.
+        // Capture only the many() read-path events by attaching the dispatcher
+        // after the write.
         $captured = [];
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
@@ -193,15 +193,11 @@ class FailoverStoreTest extends TestCase
         $result = $outerRepo->many(['k']);
 
         $this->assertSame(['k' => null], $result);
-
-        // Regression: before Repository::many() → manyRaw() refactor, FailoverStore::many()
-        // unwrapped the sentinel before the outer Repository saw it — so many() fired
-        // CacheMissed on a key that was genuinely present. The refactor routes many()
-        // through manyRaw(), which sees the raw sentinel and correctly fires CacheHit.
         $this->assertCount(2, $captured);
         $this->assertInstanceOf(RetrievingManyKeys::class, $captured[0]);
         $this->assertInstanceOf(CacheHit::class, $captured[1]);
-        $this->assertSame(NullSentinel::VALUE, $captured[1]->value);
+        // Null, not the sentinel value.
+        $this->assertNull($captured[1]->value);
         $this->assertEmpty(array_filter($captured, fn ($e) => $e instanceof CacheMissed));
     }
 

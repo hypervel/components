@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis;
 
+use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\NullSentinel;
+use Hypervel\Contracts\Events\Dispatcher;
 use Mockery as m;
 use RuntimeException;
 
@@ -482,6 +485,68 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $this->assertNull($result);
         $this->assertFalse($invoked);
+    }
+
+    public function testRememberNullableFiresCacheHitWithNullPayloadOnSentinelHit(): void
+    {
+        $connection = $this->mockConnection();
+        $key = sha1('_all:tag:users:entries') . ':profile';
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with("prefix:{$key}")
+            ->andReturn(serialize(NullSentinel::VALUE));
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function ($event) use (&$captured) {
+                $captured[] = $event;
+            });
+
+        $store = $this->createStore($connection);
+        $tagged = $store->tags(['users']);
+        $tagged->setEventDispatcher($events);
+
+        $tagged->rememberNullable('profile', 60, fn () => 'should-not-run');
+
+        $cacheHit = array_values(array_filter($captured, fn ($e) => $e instanceof CacheHit))[0] ?? null;
+        $this->assertNotNull($cacheHit);
+        // Null, not the sentinel value.
+        $this->assertNull($cacheHit->value);
+    }
+
+    public function testRememberNullableFiresKeyWrittenWithNullPayloadOnCacheMiss(): void
+    {
+        $connection = $this->mockConnection();
+        $key = sha1('_all:tag:users:entries') . ':profile';
+        $expectedScore = now()->timestamp + 60;
+
+        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', $expectedScore, $key)->andReturn($connection);
+        $connection->shouldReceive('setex')->once()->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, true]);
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function ($event) use (&$captured) {
+                $captured[] = $event;
+            });
+
+        $store = $this->createStore($connection);
+        $tagged = $store->tags(['users']);
+        $tagged->setEventDispatcher($events);
+
+        $tagged->rememberNullable('profile', 60, fn () => null);
+
+        $keyWritten = array_values(array_filter($captured, fn ($e) => $e instanceof KeyWritten))[0] ?? null;
+        $this->assertNotNull($keyWritten);
+        // Null, not the sentinel value.
+        $this->assertNull($keyWritten->value);
     }
 
     /**
