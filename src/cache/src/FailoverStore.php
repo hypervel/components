@@ -8,12 +8,14 @@ use Hypervel\Cache\Events\CacheFailedOver;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as RepositoryContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use RuntimeException;
 use Throwable;
+use UnitEnum;
 
-class FailoverStore extends TaggableStore implements LockProvider
+class FailoverStore extends TaggableStore implements LockProvider, RawReadable
 {
     /**
      * Context key prefix for the caches which failed on the last action.
@@ -41,10 +43,18 @@ class FailoverStore extends TaggableStore implements LockProvider
 
     /**
      * Retrieve an item from the cache by key.
+     *
+     * Store contract method — unwraps sentinels to null, matching the
+     * pre-refactor behavior (inner Repository's get() also unwrapped).
      */
     public function get(string $key): mixed
     {
-        return $this->attemptOnAllStores(__FUNCTION__, func_get_args());
+        return NullSentinel::unwrap($this->getRaw($key));
+    }
+
+    public function getRaw(UnitEnum|string $key): mixed
+    {
+        return $this->attemptOnAllStores('getRaw', [$key]);
     }
 
     /**
@@ -54,7 +64,15 @@ class FailoverStore extends TaggableStore implements LockProvider
      */
     public function many(array $keys): array
     {
-        return $this->attemptOnAllStores(__FUNCTION__, func_get_args());
+        return array_map(
+            NullSentinel::unwrap(...),
+            $this->manyRaw(array_map(fn ($k) => (string) $k, $keys))
+        );
+    }
+
+    public function manyRaw(array $keys): array
+    {
+        return $this->attemptOnAllStores('manyRaw', [$keys]);
     }
 
     /**
