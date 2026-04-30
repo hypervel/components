@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Auth\EloquentUserProviderCacheTest;
 
+use Closure;
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\RedisStore;
@@ -209,10 +210,13 @@ class EloquentUserProviderCacheTest extends TestCase
         $expectedKey = $this->buildKey($user->getAuthIdentifier());
 
         $repo = $this->stubCache();
-        $repo->shouldReceive('get')->twice()->with($expectedKey)
-            ->andReturn(null, $user); // first call: miss; second: hit
-        $repo->shouldReceive('put')->once()->with($expectedKey, m::type(User::class), 300)
-            ->andReturn(true);
+        $repo->shouldReceive('rememberNullable')
+            ->twice()
+            ->with($expectedKey, 300, m::type(Closure::class))
+            ->andReturnUsing(
+                fn (string $key, int $ttl, Closure $callback) => $callback(),
+                fn (string $key, int $ttl, Closure $callback) => $user,
+            );
 
         $withQueryInvocations = 0;
         $provider = new EloquentUserProvider($this->app['hash'], User::class);
