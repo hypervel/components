@@ -1000,8 +1000,8 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      *   use get(), which unwraps NullSentinel::VALUE to null.
      *
      * Fires the same RetrievingKey / CacheHit / CacheMissed events as get(),
-     * so observability is unchanged — listeners observing CacheHit may see
-     * NullSentinel::VALUE as the event's value field on cached-null entries.
+     * so observability is unchanged — cached-null entries still fire CacheHit,
+     * but the event payload is unwrapped to null to match the public API.
      *
      * Delegates to $this->store->getRaw() when the underlying store implements
      * RawReadable (wrapper stores that need to preserve sentinels across their
