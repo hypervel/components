@@ -19,13 +19,15 @@ class PoolFactory
     }
 
     /**
-     * Flush all connections from all pools.
+     * Flush all connections from all pools and clear the cached pool instances.
      */
     public function flushAll(): void
     {
         foreach ($this->pools as $pool) {
             $pool->flushAll();
         }
+
+        $this->pools = [];
     }
 
     /**

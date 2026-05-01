@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Facades\Redis;
 use Throwable;
@@ -107,6 +108,15 @@ trait InteractsWithRedis
             $this->flushRedis();
         } catch (Throwable) {
             // Ignore cleanup errors
+        }
+
+        // Flush the Redis connection pool so phpredis sockets are closed
+        // before $this->app->flush() drops the pool factory. Without this,
+        // the Pool/Connection reference cycle keeps sockets open until PHP's
+        // cycle collector eventually fires, which trips the FD limit under
+        // long ParaTest runs.
+        if ($this->app->resolved(PoolFactory::class)) {
+            $this->app->make(PoolFactory::class)->flushAll();
         }
     }
 

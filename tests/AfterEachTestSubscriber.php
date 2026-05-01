@@ -56,7 +56,6 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Database\Console\Migrations\RollbackCommand::flushState();
         \Hypervel\Database\Console\Seeds\SeedCommand::flushState();
         \Hypervel\Database\Console\WipeCommand::flushState();
-        \Hypervel\Database\DatabaseManager::purgeConnections();
         \Hypervel\Database\DatabaseTransactionsManager::flushState();
         \Hypervel\Database\Eloquent\Builder::flushState();
         \Hypervel\Database\Eloquent\Factories\Factory::flushState();

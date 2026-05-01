@@ -443,12 +443,17 @@ class DatabaseManager implements ConnectionResolverInterface
      * Resolves the DatabaseManager from the container and disconnects
      * every active connection. Safe to call when no container or no
      * database manager exists (e.g., unit tests).
+     *
+     * Uses bound() - not has() - because Application::has() falls through to
+     * class_exists(), so any string that case-insensitively matches a loaded
+     * PHP class name would falsely report bound. bound() only checks
+     * bindings/instances/aliases.
      */
     public static function purgeConnections(): void
     {
         $container = Container::getInstance();
 
-        if (! $container->has('db')) {
+        if (! $container->bound('db')) {
             return;
         }
 

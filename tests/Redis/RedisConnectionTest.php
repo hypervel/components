@@ -1948,6 +1948,37 @@ class RedisConnectionTest extends TestCase
         $this->assertNull($connection->client());
     }
 
+    public function testCloseInvokesNativeRedisClose()
+    {
+        $connection = $this->mockRedisConnection();
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('close')->once()->andReturnTrue();
+
+        $connection->setActiveConnection($redis);
+        $this->assertNotNull($connection->client());
+
+        $result = $connection->close();
+
+        $this->assertTrue($result);
+        $this->assertNull($connection->client());
+    }
+
+    public function testCloseSwallowsExceptionFromNativeRedisClose()
+    {
+        $connection = $this->mockRedisConnection();
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('close')
+            ->once()
+            ->andThrow(new RedisException('connection already closed'));
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->close();
+
+        $this->assertTrue($result);
+        $this->assertNull($connection->client());
+    }
+
     public function testClusterTransformFiresInAtomicMode()
     {
         $connection = new PhpRedisClusterConnectionStub;
