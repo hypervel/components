@@ -950,6 +950,14 @@ class Application extends Container implements ApplicationContract, CachesConfig
             $provider = $this->resolveProvider($provider);
         }
 
+        // Hypervel-specific: providers may opt out of registration via isEnabled()
+        // returning false (e.g. gated on runtime config/env). A disabled provider
+        // is instantiated but never registered or booted, its bindings/singletons
+        // properties are skipped, and it is not tracked as a registered provider.
+        if (! $provider->isEnabled()) {
+            return $provider;
+        }
+
         $provider->register();
 
         // If there are bindings / singletons set as properties on the provider we
