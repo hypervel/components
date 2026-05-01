@@ -236,6 +236,33 @@ $value = Cache::rememberForever('users', function () {
 });
 ```
 
+<a name="negative-caching"></a>
+#### Negative Caching
+
+Sometimes `null` is a real result that you want to cache. For example, you may look up a user, a feature flag, or an external resource and determine that nothing exists. Caching that "not found" result can prevent repeated database queries or API calls for the same missing data. This is often referred to as *negative caching*.
+
+By default, the `remember` family does not cache `null` values. If the closure returns `null`, the value will be treated as a cache miss and the closure will run again on the next call.
+
+If you would like to cache `null` results, you may use the `rememberNullable`, `rememberForeverNullable`, and `flexibleNullable` methods:
+
+```php
+$value = Cache::rememberNullable('users:'.$id, 300, function () use ($id) {
+    return User::find($id);
+});
+
+$value = Cache::rememberForeverNullable('settings:'.$key, function () use ($key) {
+    return Settings::get($key);
+});
+
+$value = Cache::flexibleNullable('users:'.$id, [5, 10], function () use ($id) {
+    return User::find($id);
+});
+```
+
+If the closure returns a real value, it will be cached as usual. If the closure returns `null`, Hypervel will cache that result and return `null` on subsequent calls until the cache entry expires or is cleared.
+
+The `searNullable` method is also available as an alias of `rememberForeverNullable`.
+
 <a name="swr"></a>
 #### Stale While Revalidate
 

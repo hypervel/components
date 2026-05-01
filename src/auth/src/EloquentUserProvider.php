@@ -26,16 +26,6 @@ use SensitiveParameter;
 class EloquentUserProvider implements UserProvider
 {
     /**
-     * Sentinel value cached for user IDs that don't exist.
-     *
-     * Must be serializable (not an object) because it's stored in an
-     * external cache store.
-     *
-     * @var array{__auth_null_sentinel: true}
-     */
-    protected const NULL_SENTINEL = ['__auth_null_sentinel' => true];
-
-    /**
      * Whitelist of cache store classes supported for auth user caching.
      *
      * Checked with instanceof in ensureSupportedAuthCacheStore(), so
@@ -158,22 +148,11 @@ class EloquentUserProvider implements UserProvider
             return $this->fetchUserById($identifier);
         }
 
-        $key = $this->buildCacheKey($identifier);
-        $cached = $this->cache->get($key);
-
-        if ($cached === self::NULL_SENTINEL) {
-            return null;
-        }
-
-        if ($cached !== null) {
-            return $cached;
-        }
-
-        $user = $this->fetchUserById($identifier);
-
-        $this->resolveWriteCache()->put($key, $user ?? self::NULL_SENTINEL, $this->cacheTtl);
-
-        return $user;
+        return $this->resolveWriteCache()->rememberNullable(
+            $this->buildCacheKey($identifier),
+            $this->cacheTtl,
+            fn () => $this->fetchUserById($identifier),
+        );
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\NullStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Tests\TestCase;
 
 class CacheNullStoreTest extends TestCase
@@ -39,5 +40,22 @@ class CacheNullStoreTest extends TestCase
     public function testTouchReturnsFalse()
     {
         $this->assertFalse((new NullStore)->touch('foo', 30));
+    }
+
+    public function testRememberNullableAlwaysReRunsCallbackOnNullStore(): void
+    {
+        $repo = new Repository(new NullStore);
+
+        $count = 0;
+        $repo->rememberNullable('k', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+        $repo->rememberNullable('k', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+
+        $this->assertSame(2, $count);
     }
 }
