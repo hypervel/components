@@ -3,8 +3,11 @@
 - [Introduction](#introduction)
 - [Writing Service Providers](#writing-service-providers)
     - [The Register Method](#the-register-method)
+    - [Merging Configuration](#merging-configuration)
     - [The Boot Method](#the-boot-method)
+    - [Conditionally Loading Providers](#conditionally-loading-providers)
 - [Registering Providers](#registering-providers)
+    - [Provider Priority](#provider-priority)
 - [Deferred Providers](#deferred-providers)
 
 <a name="introduction"></a>
@@ -104,6 +107,39 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
+<a name="merging-configuration"></a>
+#### Merging Configuration
+
+Package service providers may merge their default configuration into the application's configuration using the `mergeConfigFrom` method. This is typically done within the `register` method:
+
+```php
+/**
+ * Register any application services.
+ */
+public function register(): void
+{
+    $this->mergeConfigFrom(
+        __DIR__.'/../config/riak.php', 'riak'
+    );
+}
+```
+
+By default, configuration is merged at the top level. If your configuration contains arrays that should allow applications to add new entries without replacing the entire array, override the `mergeableOptions` method:
+
+```php
+/**
+ * Get the options within the configuration that should be merged.
+ *
+ * @return array<int, string>
+ */
+protected function mergeableOptions(string $name): array
+{
+    return $name === 'riak' ? ['connections'] : [];
+}
+```
+
+In this example, the application's `riak.connections` entries will be merged with the package's default connections. Entries with the same key will still be replaced by the application's configuration.
+
 <a name="the-boot-method"></a>
 ### The Boot Method
 
@@ -150,6 +186,23 @@ public function boot(ResponseFactory $response): void
 }
 ```
 
+<a name="conditionally-loading-providers"></a>
+### Conditionally Loading Providers
+
+You may prevent a service provider from being registered or booted by overriding the `isEnabled` method. This is useful for packages that are installed in many applications but should only load in some of them:
+
+```php
+/**
+ * Determine whether this provider should be registered and booted.
+ */
+public function isEnabled(): bool
+{
+    return (bool) config('modules.riak.enabled');
+}
+```
+
+When this method returns `false`, the provider's `register` and `boot` methods will not be called, its `bindings` and `singletons` properties will not be processed, and the provider will not be marked as loaded.
+
 <a name="registering-providers"></a>
 ## Registering Providers
 
@@ -173,6 +226,25 @@ return [
     App\Providers\ComposerServiceProvider::class, // [tl! add]
 ];
 ```
+
+<a name="provider-priority"></a>
+### Provider Priority
+
+Auto-discovered package providers may define a `priority` property to control their registration order relative to other discovered package providers. Providers with a higher priority are registered first:
+
+```php
+use Hypervel\Support\ServiceProvider;
+
+class RiakServiceProvider extends ServiceProvider
+{
+    /**
+     * The registration priority for this provider.
+     */
+    public int $priority = 10;
+}
+```
+
+Provider priority only applies to auto-discovered package providers. Framework providers are always registered before discovered package providers, and application providers are registered after them.
 
 <a name="deferred-providers"></a>
 ## Deferred Providers

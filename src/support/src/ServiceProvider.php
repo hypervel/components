@@ -83,6 +83,20 @@ abstract class ServiceProvider
     }
 
     /**
+     * Determine whether this provider should be registered and booted.
+     *
+     * Hypervel-specific extension (not in Laravel). Override on a subclass to
+     * gate registration on runtime config / env / feature flags. When this
+     * returns false the provider is instantiated but neither register() nor
+     * boot() is called, its bindings/singletons properties are not processed,
+     * and it is not tracked in the application's provider list.
+     */
+    public function isEnabled(): bool
+    {
+        return true;
+    }
+
+    /**
      * Register any application services.
      */
     public function register(): void
