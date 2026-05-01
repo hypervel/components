@@ -7,7 +7,7 @@ namespace Hypervel\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Coordinator\Timer;
-use Hypervel\Engine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
 class DeferredQueue extends SyncQueue
@@ -20,34 +20,19 @@ class DeferredQueue extends SyncQueue
     protected $exceptionCallback;
 
     /**
+     * The timer used to schedule delayed jobs.
+     */
+    protected Timer $timer;
+
+    /**
      * Create a new deferred queue instance.
      */
     public function __construct(
-        protected ?bool $dispatchAfterCommit = false,
-        protected ?Timer $timer = null
+        bool $dispatchAfterCommit = false,
+        ?Timer $timer = null
     ) {
-        if (! $this->timer) {
-            $this->timer = new Timer;
-        }
-    }
-
-    /**
-     * Push a new job onto the queue.
-     */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
-    {
-        if ($this->shouldDispatchAfterCommit($job)
-            && $this->container->has('db.transactions')
-        ) {
-            return $this->container->make('db.transactions')
-                ->addCallback(
-                    fn () => $this->deferJob($job, $data, $queue)
-                );
-        }
-
-        $this->deferJob($job, $data, $queue);
-
-        return null;
+        parent::__construct($dispatchAfterCommit);
+        $this->timer = $timer ?? new Timer;
     }
 
     /**
@@ -55,10 +40,18 @@ class DeferredQueue extends SyncQueue
      */
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
-        return $this->timer->after(
-            (float) $this->secondsUntil($delay),
-            fn () => $this->deferJob($job, $data, $queue)
-        );
+        if ($this->shouldDispatchAfterCommit($job)
+            && $this->container->has('db.transactions')
+        ) {
+            $this->addUniqueJobRollbackCallback($job);
+
+            return $this->container->make('db.transactions')
+                ->addCallback(
+                    fn () => $this->scheduleTimer($delay, $job, $data, $queue)
+                );
+        }
+
+        return $this->scheduleTimer($delay, $job, $data, $queue);
     }
 
     /**
@@ -72,18 +65,41 @@ class DeferredQueue extends SyncQueue
     }
 
     /**
+     * Schedule the timer that will execute the job after the delay.
+     *
+     * Skips execution when the worker is closing — pending delayed jobs are
+     * dropped rather than racing against shutdown cleanup. Devs needing
+     * durability across worker restarts should use a persistent queue.
+     */
+    protected function scheduleTimer(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data, ?string $queue): int
+    {
+        return $this->timer->after(
+            max(0.0, (float) $this->secondsUntil($delay)),
+            function (bool $isClosing = false) use ($job, $data, $queue) {
+                if ($isClosing) {
+                    return;
+                }
+
+                $this->executeJob($job, $data, $queue);
+            }
+        );
+    }
+
+    /**
      * Defer a new job onto the deferred queue.
      */
-    protected function deferJob(object|string $job, mixed $data = '', ?string $queue = null): void
+    protected function executeJob(object|string $job, mixed $data = '', ?string $queue = null): int
     {
         Coroutine::defer(function () use ($job, $data, $queue) {
             try {
-                $this->executeJob($job, $data, $queue);
+                parent::executeJob($job, $data, $queue);
             } catch (Throwable $e) {
                 if ($this->exceptionCallback) {
                     ($this->exceptionCallback)($e);
                 }
             }
         });
+
+        return 0;
     }
 }

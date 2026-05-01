@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use DateInterval;
+use DateTimeInterface;
+use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
 use Throwable;
 
@@ -17,23 +20,38 @@ class BackgroundQueue extends SyncQueue
     protected $exceptionCallback;
 
     /**
-     * Push a new job onto the queue.
+     * The timer used to schedule delayed jobs.
      */
-    public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
+    protected Timer $timer;
+
+    /**
+     * Create a new background queue instance.
+     */
+    public function __construct(
+        bool $dispatchAfterCommit = false,
+        ?Timer $timer = null
+    ) {
+        parent::__construct($dispatchAfterCommit);
+        $this->timer = $timer ?? new Timer;
+    }
+
+    /**
+     * Push a new job onto the queue after (n) seconds.
+     */
+    public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
-        if (
-            $this->shouldDispatchAfterCommit($job)
+        if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
+            $this->addUniqueJobRollbackCallback($job);
+
             return $this->container->make('db.transactions')
                 ->addCallback(
-                    fn () => $this->executeJob($job, $data, $queue)
+                    fn () => $this->scheduleTimer($delay, $job, $data, $queue)
                 );
         }
 
-        $this->executeJob($job, $data, $queue);
-
-        return null;
+        return $this->scheduleTimer($delay, $job, $data, $queue);
     }
 
     /**
@@ -44,6 +62,27 @@ class BackgroundQueue extends SyncQueue
         $this->exceptionCallback = $callback;
 
         return $this;
+    }
+
+    /**
+     * Schedule the timer that will execute the job after the delay.
+     *
+     * Skips execution when the worker is closing — pending delayed jobs are
+     * dropped rather than racing against shutdown cleanup. Devs needing
+     * durability across worker restarts should use a persistent queue.
+     */
+    protected function scheduleTimer(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data, ?string $queue): int
+    {
+        return $this->timer->after(
+            max(0.0, (float) $this->secondsUntil($delay)),
+            function (bool $isClosing = false) use ($job, $data, $queue) {
+                if ($isClosing) {
+                    return;
+                }
+
+                $this->executeJob($job, $data, $queue);
+            }
+        );
     }
 
     /**

@@ -9,6 +9,7 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableEntity;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Database\DatabaseTransactionsManager;
@@ -93,6 +94,34 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->push(new DeferredQueueAfterCommitInterfaceJob));
     }
 
+    public function testItAddsATransactionCallbackForAfterCommitUniqueJobs()
+    {
+        $deferred = new DeferredQueue;
+        $deferred->setConnectionName('deferred');
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+
+        $deferred->setContainer($container);
+        run(fn () => $deferred->push(new DeferredQueueAfterCommitUniqueJob));
+    }
+
+    public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
+    {
+        $deferred = new DeferredQueue;
+        $deferred->setConnectionName('deferred');
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+
+        $deferred->setContainer($container);
+        run(fn () => $deferred->push(new DeferredQueueAfterCommitInterfaceUniqueJob));
+    }
+
     public function testLaterSchedulesJobWithDelay()
     {
         $timer = m::mock(Timer::class);
@@ -131,12 +160,12 @@ class QueueDeferredQueueTest extends TestCase
         $deferred->setConnectionName('deferred');
         $deferred->setContainer($this->getContainer());
 
-        unset($_SERVER['__deferred.later.interval.test']);
+        unset($_SERVER['__deferred.later.test']);
 
-        run(fn () => $deferred->later(new DateInterval('PT10S'), DeferredQueueLaterIntervalTestHandler::class, ['baz' => 'qux']));
+        run(fn () => $deferred->later(new DateInterval('PT10S'), DeferredQueueLaterTestHandler::class, ['baz' => 'qux']));
 
-        $this->assertInstanceOf(SyncJob::class, $_SERVER['__deferred.later.interval.test'][0]);
-        $this->assertEquals(['baz' => 'qux'], $_SERVER['__deferred.later.interval.test'][1]);
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__deferred.later.test'][0]);
+        $this->assertEquals(['baz' => 'qux'], $_SERVER['__deferred.later.test'][1]);
     }
 
     public function testLaterWithDateTime()
@@ -156,14 +185,187 @@ class QueueDeferredQueueTest extends TestCase
         $deferred->setConnectionName('deferred');
         $deferred->setContainer($this->getContainer());
 
-        unset($_SERVER['__deferred.later.datetime.test']);
+        unset($_SERVER['__deferred.later.test']);
 
-        run(fn () => $deferred->later(Carbon::parse('2024-01-01 12:00:15'), DeferredQueueLaterDateTimeTestHandler::class, ['test' => 'data']));
+        run(fn () => $deferred->later(Carbon::parse('2024-01-01 12:00:15'), DeferredQueueLaterTestHandler::class, ['test' => 'data']));
 
-        $this->assertInstanceOf(SyncJob::class, $_SERVER['__deferred.later.datetime.test'][0]);
-        $this->assertEquals(['test' => 'data'], $_SERVER['__deferred.later.datetime.test'][1]);
+        $this->assertInstanceOf(SyncJob::class, $_SERVER['__deferred.later.test'][0]);
+        $this->assertEquals(['test' => 'data'], $_SERVER['__deferred.later.test'][1]);
 
         Carbon::setTestNow();
+    }
+
+    public function testLaterAddsTransactionCallbackForAfterCommitJobs()
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+
+        $deferred = new DeferredQueue(timer: $timer);
+        $deferred->setConnectionName('deferred');
+
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                $callback();
+                return null;
+            });
+        $container->instance('db.transactions', $transactionManager);
+        $deferred->setContainer($container);
+
+        run(fn () => $deferred->later(5, new DeferredQueueAfterCommitJob));
+    }
+
+    public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitJobs()
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+
+        $deferred = new DeferredQueue(timer: $timer);
+        $deferred->setConnectionName('deferred');
+
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                $callback();
+                return null;
+            });
+        $container->instance('db.transactions', $transactionManager);
+        $deferred->setContainer($container);
+
+        run(fn () => $deferred->later(5, new DeferredQueueAfterCommitInterfaceJob));
+    }
+
+    public function testLaterAddsTransactionCallbackForAfterCommitUniqueJobs()
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+
+        $deferred = new DeferredQueue(timer: $timer);
+        $deferred->setConnectionName('deferred');
+
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                $callback();
+                return null;
+            });
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+        $deferred->setContainer($container);
+
+        run(fn () => $deferred->later(5, new DeferredQueueAfterCommitUniqueJob));
+    }
+
+    public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+
+        $deferred = new DeferredQueue(timer: $timer);
+        $deferred->setConnectionName('deferred');
+
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                $callback();
+                return null;
+            });
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+        $deferred->setContainer($container);
+
+        run(fn () => $deferred->later(5, new DeferredQueueAfterCommitInterfaceUniqueJob));
+    }
+
+    public function testLaterClampsNegativeIntegerDelay()
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
+
+        $deferred = new DeferredQueue(timer: $timer);
+        $deferred->setConnectionName('deferred');
+        $deferred->setContainer($this->getContainer());
+
+        run(fn () => $deferred->later(-5, DeferredQueueLaterTestHandler::class));
+    }
+
+    public function testLaterClampsPastDateTimeInterface()
+    {
+        Carbon::setTestNow('2024-01-01 12:00:00');
+
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
+
+        $deferred = new DeferredQueue(timer: $timer);
+        $deferred->setConnectionName('deferred');
+        $deferred->setContainer($this->getContainer());
+
+        run(fn () => $deferred->later(Carbon::parse('2024-01-01 11:59:50'), DeferredQueueLaterTestHandler::class));
+
+        Carbon::setTestNow();
+    }
+
+    public function testLaterFailedJobGetsHandledWhenAnExceptionIsThrown()
+    {
+        unset($_SERVER['__deferred.failed']);
+
+        $result = null;
+
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')
+            ->once()
+            ->with(5.0, m::type('Closure'))
+            ->andReturnUsing(function ($delay, $callback) {
+                $callback();
+                return 1;
+            });
+
+        $deferred = new DeferredQueue(timer: $timer);
+        $deferred->setExceptionCallback(function ($exception) use (&$result) {
+            $result = $exception;
+        });
+        $deferred->setConnectionName('deferred');
+        $container = $this->getContainer();
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('dispatch')->times(4);
+        $container->instance('events', $events);
+        $container->instance(Dispatcher::class, $events);
+        $deferred->setContainer($container);
+
+        run(fn () => $deferred->later(5, FailingDeferredQueueTestHandler::class, ['foo' => 'bar']));
+
+        $this->assertInstanceOf(Exception::class, $result);
+        $this->assertTrue($_SERVER['__deferred.failed']);
+    }
+
+    public function testLaterDoesNotExecuteJobWhenWorkerIsClosing()
+    {
+        unset($_SERVER['__deferred.later.test']);
+
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')
+            ->once()
+            ->with(5.0, m::type('Closure'))
+            ->andReturnUsing(function ($delay, $callback) {
+                $callback(true);
+                return 1;
+            });
+
+        $deferred = new DeferredQueue(timer: $timer);
+        $deferred->setConnectionName('deferred');
+        $deferred->setContainer($this->getContainer());
+
+        run(fn () => $deferred->later(5, DeferredQueueLaterTestHandler::class, ['foo' => 'bar']));
+
+        $this->assertArrayNotHasKey('__deferred.later.test', $_SERVER);
     }
 
     protected function getContainer(): Container
@@ -231,26 +433,30 @@ class DeferredQueueAfterCommitInterfaceJob implements ShouldQueueAfterCommit
     }
 }
 
+class DeferredQueueAfterCommitUniqueJob implements ShouldBeUnique
+{
+    use InteractsWithQueue;
+
+    public $afterCommit = true;
+
+    public function handle(): void
+    {
+    }
+}
+
+class DeferredQueueAfterCommitInterfaceUniqueJob implements ShouldBeUnique, ShouldQueueAfterCommit
+{
+    use InteractsWithQueue;
+
+    public function handle(): void
+    {
+    }
+}
+
 class DeferredQueueLaterTestHandler
 {
     public function fire(SyncJob $job, mixed $data): void
     {
         $_SERVER['__deferred.later.test'] = func_get_args();
-    }
-}
-
-class DeferredQueueLaterIntervalTestHandler
-{
-    public function fire(SyncJob $job, mixed $data): void
-    {
-        $_SERVER['__deferred.later.interval.test'] = func_get_args();
-    }
-}
-
-class DeferredQueueLaterDateTimeTestHandler
-{
-    public function fire(SyncJob $job, mixed $data): void
-    {
-        $_SERVER['__deferred.later.datetime.test'] = func_get_args();
     }
 }
