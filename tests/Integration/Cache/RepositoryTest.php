@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Cache;
 
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Cache;
@@ -342,6 +343,99 @@ class RepositoryTest extends TestCase
         $cache->clear();
         $this->assertSame(['foo' => null, 'bar' => null, 'baz' => null], $cache->many([TestCacheKey::Foo, TestCacheKey::Bar, TestCacheKey::Baz]));
         $this->assertSame(['foo' => 'default', 'qux' => 'default'], $cache->getMultiple([TestCacheKey::Foo, TestCacheKey::Qux], 'default'));
+    }
+
+    public function testRememberNullableRoundTripsThroughDefaultStore()
+    {
+        $cache = Cache::driver('array');
+
+        $count = 0;
+        $result1 = $cache->rememberNullable('k', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+        $result2 = $cache->rememberNullable('k', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+
+        $this->assertNull($result1);
+        $this->assertNull($result2);
+        $this->assertSame(1, $count);
+    }
+
+    public function testHasReturnsFalseForCachedNullSentinelViaRealStore()
+    {
+        $cache = Cache::driver('array');
+
+        $cache->rememberNullable('k', 60, fn () => null);
+
+        // Laravel null-as-absence convention: has() returns false for a stored null.
+        $this->assertFalse($cache->has('k'));
+        $this->assertTrue($cache->missing('k'));
+    }
+
+    public function testPutOverwritesCachedNullSentinelEndToEnd()
+    {
+        $cache = Cache::driver('array');
+
+        $cache->rememberNullable('k', 60, fn () => null);
+        $cache->put('k', 'real', 60);
+
+        $this->assertSame('real', $cache->get('k'));
+        $this->assertTrue($cache->has('k'));
+    }
+
+    public function testTtlExpiryOnSentinelStoredKeyReRunsCallback()
+    {
+        $this->freezeTime();
+        $cache = Cache::driver('array');
+
+        $cache->rememberNullable('k', 60, fn () => null);
+
+        $this->travel(61)->seconds();
+
+        $invoked = false;
+        $result = $cache->rememberNullable('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'fresh';
+        });
+
+        $this->assertSame('fresh', $result);
+        $this->assertTrue($invoked);
+    }
+
+    public function testFlexibleNullableStaleHitUnwrapsAndTriggersRefresh()
+    {
+        Carbon::setTestNow('2000-01-01 00:00:00');
+        $cache = Cache::driver('array');
+
+        $count = 0;
+
+        // First call: miss, callback returns null → sentinel stored via flexible's putMany.
+        $value = $cache->flexibleNullable('foo', [10, 20], function () use (&$count) {
+            ++$count;
+            return null;
+        });
+        $this->assertNull($value);
+        $this->assertSame(1, $count);
+        $this->assertSame(NullSentinel::VALUE, $cache->getStore()->get('foo'));
+
+        // Advance past the fresh TTL. Next call returns the stale sentinel (unwrapped)
+        // and registers a deferred refresh.
+        Carbon::setTestNow(now()->addSeconds(11));
+        $value = $cache->flexibleNullable('foo', [10, 20], function () use (&$count) {
+            ++$count;
+            return null;
+        });
+        $this->assertNull($value);
+        $this->assertSame(1, $count, 'Callback must not run inline on stale hit — refresh is deferred');
+        $this->assertCount(1, defer());
+
+        // Invoke the deferred refresh. Callback runs; sentinel stays stored.
+        defer()->invoke();
+        $this->assertSame(2, $count);
+        $this->assertSame(NullSentinel::VALUE, $cache->getStore()->get('foo'));
     }
 }
 

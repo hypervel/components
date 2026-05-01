@@ -55,7 +55,7 @@ abstract class Queue
     /**
      * Indicates that jobs should be dispatched after all database transactions have committed.
      */
-    protected ?bool $dispatchAfterCommit = false;
+    protected bool $dispatchAfterCommit = false;
 
     /**
      * The create payload callbacks.
@@ -314,13 +314,7 @@ abstract class Queue
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
-            if ($job instanceof ShouldBeUnique) {
-                $this->container->make('db.transactions')->addCallbackForRollback(
-                    function () use ($job) {
-                        (new UniqueLock($this->container->make(Cache::class)))->release($job);
-                    }
-                );
-            }
+            $this->addUniqueJobRollbackCallback($job);
 
             return $this->container->make('db.transactions')
                 ->addCallback(
@@ -356,7 +350,23 @@ abstract class Queue
             return $job->afterCommit;
         }
 
-        return $this->dispatchAfterCommit ?? false;
+        return $this->dispatchAfterCommit;
+    }
+
+    /**
+     * Register a transaction rollback callback that releases the unique lock for the given job.
+     */
+    protected function addUniqueJobRollbackCallback(object|string $job): void
+    {
+        if (! $job instanceof ShouldBeUnique) {
+            return;
+        }
+
+        $this->container->make('db.transactions')->addCallbackForRollback(
+            function () use ($job) {
+                (new UniqueLock($this->container->make(Cache::class)))->release($job);
+            }
+        );
     }
 
     /**

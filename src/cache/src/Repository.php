@@ -28,6 +28,7 @@ use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockTimeoutException;
+use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -43,7 +44,7 @@ use function Hypervel\Support\enum_value;
 /**
  * @mixin \Hypervel\Contracts\Cache\Store
  */
-class Repository implements ArrayAccess, CacheContract
+class Repository implements ArrayAccess, CacheContract, RawReadable
 {
     use InteractsWithTime;
     use Macroable {
@@ -110,24 +111,10 @@ class Repository implements ArrayAccess, CacheContract
             return $this->many($key);
         }
 
-        $key = enum_value($key);
-
-        $this->event(RetrievingKey::class, fn (): RetrievingKey => new RetrievingKey($this->getName(), $key));
-
-        $value = $this->store->get($this->itemKey($key));
-
-        // If we could not find the cache value, we will fire the missed event and get
-        // the default value for this cache value. This default could be a callback
-        // so we will execute the value function which will resolve it if needed.
-        if (is_null($value)) {
-            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
-
-            $value = value($default);
-        } else {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, $value));
-        }
-
-        return $value;
+        // NullSentinel::unwrap collapses a cached sentinel to null, so a sentinel
+        // and a genuine miss both resolve to the default — matching Laravel's
+        // convention that `put('k', null)` + `get('k', 'default')` returns 'default'.
+        return NullSentinel::unwrap($this->getRaw($key)) ?? value($default);
     }
 
     /**
@@ -140,12 +127,10 @@ class Repository implements ArrayAccess, CacheContract
             return is_string($key) ? $key : (string) enum_value($value);
         })->values()->all();
 
-        $this->event(
-            RetrievingManyKeys::class,
-            fn (): RetrievingManyKeys => new RetrievingManyKeys($this->getName(), $resolvedKeys)
-        );
-
-        $values = $this->store->many($resolvedKeys);
+        // manyRaw() fires RetrievingManyKeys + per-key CacheHit/CacheMissed events and
+        // routes through the RawReadable raw-read path for wrapper stores — so a cached
+        // sentinel is correctly classified as CacheHit rather than CacheMissed.
+        $values = $this->manyRaw($resolvedKeys);
 
         return collect($values)->map(function ($value, $key) use ($keys) {
             return $this->handleManyResult($keys, (string) $key, $value);
@@ -312,19 +297,19 @@ class Repository implements ArrayAccess, CacheContract
 
         $this->event(
             WritingKey::class,
-            fn (): WritingKey => new WritingKey($this->getName(), $key, $value, $seconds)
+            fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
         );
 
         $result = $this->store->put($this->itemKey($key), $value, $seconds);
         if ($result) {
             $this->event(
                 KeyWritten::class,
-                fn (): KeyWritten => new KeyWritten($this->getName(), $key, $value, $seconds)
+                fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
             );
         } else {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, $value, $seconds)
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value), $seconds)
             );
         }
 
@@ -359,7 +344,7 @@ class Repository implements ArrayAccess, CacheContract
             fn (): WritingManyKeys => new WritingManyKeys(
                 $this->getName(),
                 array_map(static fn ($key) => (string) $key, array_keys($values)),
-                array_values($values),
+                array_map(NullSentinel::unwrap(...), array_values($values)),
                 $seconds
             )
         );
@@ -370,12 +355,12 @@ class Repository implements ArrayAccess, CacheContract
             if ($result) {
                 $this->event(
                     KeyWritten::class,
-                    fn (): KeyWritten => new KeyWritten($this->getName(), (string) $key, $value, $seconds)
+                    fn (): KeyWritten => new KeyWritten($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
                 );
             } else {
                 $this->event(
                     KeyWriteFailed::class,
-                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, $value, $seconds)
+                    fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), (string) $key, NullSentinel::unwrap($value), $seconds)
                 );
             }
         }
@@ -449,16 +434,16 @@ class Repository implements ArrayAccess, CacheContract
     {
         $key = enum_value($key);
 
-        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey($this->getName(), $key, $value));
+        $this->event(WritingKey::class, fn (): WritingKey => new WritingKey($this->getName(), $key, NullSentinel::unwrap($value)));
 
         $result = $this->store->forever($this->itemKey($key), $value);
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten($this->getName(), $key, $value));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten($this->getName(), $key, NullSentinel::unwrap($value)));
         } else {
             $this->event(
                 KeyWriteFailed::class,
-                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, $value)
+                fn (): KeyWriteFailed => new KeyWriteFailed($this->getName(), $key, NullSentinel::unwrap($value))
             );
         }
 
@@ -477,25 +462,44 @@ class Repository implements ArrayAccess, CacheContract
     public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
     {
         $remember = function () use ($key, $ttl, $callback) {
-            $value = $this->get($key);
+            $value = $this->getRaw($key);
 
-            // If the item exists in the cache we will just return this immediately and if
-            // not we will execute the given Closure and cache the result of that for a
-            // given number of seconds so it's available for all subsequent requests.
+            // Hit — including cached sentinels. Unwrap before returning.
             if (! is_null($value)) {
-                return $value;
+                return NullSentinel::unwrap($value);
             }
 
+            // Miss — run callback and store the raw result (may be a sentinel if
+            // the caller is rememberNullable(), which wraps the callback).
             $value = $callback();
 
             $this->put($key, $value, value($ttl, $value));
 
-            return $value;
+            return NullSentinel::unwrap($value);
         };
 
         return method_exists($this->store, 'withPinnedConnection')
             ? $this->store->withPinnedConnection($remember)
             : $remember();
+    }
+
+    /**
+     * Get an item from the cache, or execute the given Closure and store the result.
+     *
+     * Unlike remember(), a null return from $callback is stored (as the internal
+     * NullSentinel::VALUE marker) and returned as null on subsequent calls rather
+     * than triggering re-execution. Public accessors (get, many, pull, has, etc.)
+     * unwrap the sentinel automatically — callers never see it.
+     *
+     * @template TCacheValue
+     *
+     * @param Closure(): TCacheValue $callback
+     *
+     * @return TCacheValue
+     */
+    public function rememberNullable(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
+    {
+        return $this->remember($key, $ttl, fn () => $callback() ?? NullSentinel::VALUE);
     }
 
     /**
@@ -515,6 +519,22 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Get an item from the cache, or execute the given Closure and store the result forever.
      *
+     * Alias for rememberForeverNullable().
+     *
+     * @template TCacheValue
+     *
+     * @param Closure(): TCacheValue $callback
+     *
+     * @return TCacheValue
+     */
+    public function searNullable(UnitEnum|string $key, Closure $callback): mixed
+    {
+        return $this->rememberForeverNullable($key, $callback);
+    }
+
+    /**
+     * Get an item from the cache, or execute the given Closure and store the result forever.
+     *
      * @template TCacheValue
      *
      * @param Closure(): TCacheValue $callback
@@ -524,23 +544,39 @@ class Repository implements ArrayAccess, CacheContract
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
         $remember = function () use ($key, $callback) {
-            $value = $this->get($key);
+            $value = $this->getRaw($key);
 
-            // If the item exists in the cache we will just return this immediately
-            // and if not we will execute the given Closure and cache the result
-            // of that forever so it is available for all subsequent requests.
             if (! is_null($value)) {
-                return $value;
+                return NullSentinel::unwrap($value);
             }
 
             $this->forever($key, $value = $callback());
 
-            return $value;
+            return NullSentinel::unwrap($value);
         };
 
         return method_exists($this->store, 'withPinnedConnection')
             ? $this->store->withPinnedConnection($remember)
             : $remember();
+    }
+
+    /**
+     * Get an item from the cache, or execute the given Closure and store the result forever.
+     *
+     * Unlike rememberForever(), a null return from $callback is stored (as the
+     * internal NullSentinel::VALUE marker) and returned as null on subsequent
+     * calls rather than triggering re-execution. Public accessors unwrap the
+     * sentinel automatically.
+     *
+     * @template TCacheValue
+     *
+     * @param Closure(): TCacheValue $callback
+     *
+     * @return TCacheValue
+     */
+    public function rememberForeverNullable(UnitEnum|string $key, Closure $callback): mixed
+    {
+        return $this->rememberForever($key, fn () => $callback() ?? NullSentinel::VALUE);
     }
 
     /**
@@ -556,43 +592,73 @@ class Repository implements ArrayAccess, CacheContract
     public function flexible(UnitEnum|string $key, array $ttl, mixed $callback, ?array $lock = null, bool $alwaysDefer = false): mixed
     {
         $key = enum_value($key);
+        $markerKey = "hypervel:cache:flexible:created:{$key}";
 
-        [
-            $key => $value,
-            "hypervel:cache:flexible:created:{$key}" => $created,
-        ] = $this->many([$key, "hypervel:cache:flexible:created:{$key}"]);
+        [$key => $value, $markerKey => $created] = $this->manyRaw([$key, $markerKey]);
 
         if (in_array(null, [$value, $created], true)) {
-            return tap(value($callback), fn ($value) => $this->putMany([
-                $key => $value,
-                "hypervel:cache:flexible:created:{$key}" => Carbon::now()->getTimestamp(),
-            ], $ttl[1]));
+            $stored = value($callback);
+
+            $this->putMany([
+                $key => $stored,
+                $markerKey => Carbon::now()->getTimestamp(),
+            ], $ttl[1]);
+
+            return NullSentinel::unwrap($stored);
         }
 
         if (($created + $this->getSeconds($ttl[0])) > Carbon::now()->getTimestamp()) {
-            return $value;
+            return NullSentinel::unwrap($value);
         }
 
-        $refresh = function () use ($key, $ttl, $callback, $lock, $created) {
+        $refresh = function () use ($key, $markerKey, $ttl, $callback, $lock, $created) {
             $this->store->lock( // @phpstan-ignore method.notFound (lock() is on LockProvider, not Store contract)
                 "hypervel:cache:flexible:lock:{$key}",
                 $lock['seconds'] ?? 0,
                 $lock['owner'] ?? null,
-            )->get(function () use ($key, $callback, $created, $ttl) {
-                if ($created !== $this->get("hypervel:cache:flexible:created:{$key}")) {
+            )->get(function () use ($key, $markerKey, $callback, $created, $ttl) {
+                // Re-check the marker inside the lock. Single key, so getRaw is the
+                // right tool here — no need to batch.
+                if ($created !== $this->getRaw($markerKey)) {
                     return;
                 }
 
                 $this->putMany([
                     $key => value($callback),
-                    "hypervel:cache:flexible:created:{$key}" => Carbon::now()->getTimestamp(),
+                    $markerKey => Carbon::now()->getTimestamp(),
                 ], $ttl[1]);
             });
         };
 
         defer($refresh, "hypervel:cache:flexible:{$key}", $alwaysDefer);
 
-        return $value;
+        return NullSentinel::unwrap($value);
+    }
+
+    /**
+     * Retrieve an item from the cache by key, refreshing it in the background if it is stale.
+     *
+     * Unlike flexible(), a null return from $callback is stored (as the internal
+     * NullSentinel::VALUE marker) and returned as null on subsequent calls rather
+     * than triggering re-execution. Public accessors unwrap the sentinel
+     * automatically.
+     *
+     * Inherits flexible()'s support matrix: unsupported on any-mode tagged caches
+     * (tags()->flexibleNullable() on a TagMode::Any store throws the same
+     * BadMethodCallException that tags()->flexible() does, because flexible()
+     * internally reads via manyRaw() (initial batched read) and getRaw() (refresh
+     * closure), both of which AnyTaggedCache overrides to throw in any-mode).
+     *
+     * @template TCacheValue
+     *
+     * @param array{ 0: DateInterval|DateTimeInterface|int, 1: DateInterval|DateTimeInterface|int } $ttl
+     * @param callable(): TCacheValue $callback
+     * @param null|array{ seconds?: int, owner?: string } $lock
+     * @return TCacheValue
+     */
+    public function flexibleNullable(UnitEnum|string $key, array $ttl, mixed $callback, ?array $lock = null, bool $alwaysDefer = false): mixed
+    {
+        return $this->flexible($key, $ttl, fn () => value($callback) ?? NullSentinel::VALUE, $lock, $alwaysDefer);
     }
 
     /**
@@ -863,19 +929,12 @@ class Repository implements ArrayAccess, CacheContract
      */
     protected function handleManyResult(array $keys, string $key, mixed $value): mixed
     {
-        // If we could not find the cache value, we will fire the missed event and get
-        // the default value for this cache value. This default could be a callback
-        // so we will execute the value function which will resolve it if needed.
-        if (is_null($value)) {
-            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
-
+        // Events are fired by manyRaw(). This method is a pure default resolver:
+        // genuine miss (null) and cached-null (sentinel) both resolve to the
+        // per-key default, matching get()'s convention.
+        if (is_null($value) || $value === NullSentinel::VALUE) {
             return (isset($keys[$key]) && ! array_is_list($keys)) ? value($keys[$key]) : null;
         }
-
-        // If we found a valid value we will fire the "hit" event and return the value
-        // back from this function. The "hit" event gives developers an opportunity
-        // to listen for every possible cache "hit" throughout this applications.
-        $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, $value));
 
         return $value;
     }
@@ -930,6 +989,102 @@ class Repository implements ArrayAccess, CacheContract
         }
 
         $this->events->dispatch($event());
+    }
+
+    /**
+     * Retrieve an item from the cache by key without unwrapping sentinels.
+     *
+     * @internal For cache-layer internal use (sentinel-aware hit detection in
+     *   remember/rememberForever/flexible, plus the RawReadable seam that
+     *   wrapper stores like MemoizedStore / FailoverStore use). App code should
+     *   use get(), which unwraps NullSentinel::VALUE to null.
+     *
+     * Fires the same RetrievingKey / CacheHit / CacheMissed events as get(),
+     * so observability is unchanged — cached-null entries still fire CacheHit,
+     * but the event payload is unwrapped to null to match the public API.
+     *
+     * Delegates to $this->store->getRaw() when the underlying store implements
+     * RawReadable (wrapper stores that need to preserve sentinels across their
+     * own internal indirection). Otherwise calls $this->store->get(), which
+     * plain stores already implement as a raw read.
+     */
+    public function getRaw(UnitEnum|string $key): mixed
+    {
+        $key = enum_value($key);
+
+        $this->event(RetrievingKey::class, fn (): RetrievingKey => new RetrievingKey($this->getName(), $key));
+
+        $value = $this->store instanceof RawReadable
+            ? $this->store->getRaw($this->itemKey($key))
+            : $this->store->get($this->itemKey($key));
+
+        if (is_null($value)) {
+            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
+        } else {
+            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
+        }
+
+        return $value;
+    }
+
+    /**
+     * Retrieve multiple items from the cache by key without unwrapping sentinels.
+     *
+     * @internal For cache-layer internal use. App code should use many(), which
+     *   unwraps sentinels via handleManyResult().
+     *
+     * Batched raw-read counterpart to getRaw(). Used by flexible() to preserve
+     * its single batched store read (avoiding a hot-path regression from
+     * splitting into sequential get() calls), while still returning raw
+     * sentinels so the caller can distinguish "cached sentinel = hit" from
+     * "genuinely absent = miss".
+     *
+     * Applies itemKey() to each key so tag-namespacing works correctly on
+     * TaggedCache / AllTaggedCache (which prepend sha1($tagNamespace) . ':').
+     * AnyTaggedCache overrides this method to throw, preserving the any-mode
+     * invariant that reads through tags are rejected.
+     *
+     * Fires RetrievingManyKeys + per-key CacheHit/CacheMissed events, matching
+     * the event shape of public many() calls.
+     *
+     * Delegates to $this->store->manyRaw() when the underlying store implements
+     * RawReadable (MemoizedStore / FailoverStore). Otherwise calls
+     * $this->store->many(), which plain stores already implement as a raw read.
+     *
+     * @param list<string> $keys
+     * @return array<string, mixed> keyed by the input keys (not itemKey-prefixed);
+     *                              value may be null (miss), NullSentinel::VALUE (cached-null), or a real value
+     */
+    public function manyRaw(array $keys): array
+    {
+        if ($keys === []) {
+            return [];
+        }
+
+        $this->event(
+            RetrievingManyKeys::class,
+            fn (): RetrievingManyKeys => new RetrievingManyKeys($this->getName(), $keys)
+        );
+
+        $itemKeys = array_map(fn (string $key): string => $this->itemKey($key), $keys);
+
+        $storeValues = $this->store instanceof RawReadable
+            ? $this->store->manyRaw($itemKeys)
+            : $this->store->many($itemKeys);
+
+        $result = [];
+        foreach ($keys as $i => $key) {
+            $value = $storeValues[$itemKeys[$i]] ?? null;
+            $result[$key] = $value;
+
+            if (is_null($value)) {
+                $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed($this->getName(), $key));
+            } else {
+                $this->event(CacheHit::class, fn (): CacheHit => new CacheHit($this->getName(), $key, NullSentinel::unwrap($value)));
+            }
+        }
+
+        return $result;
     }
 
     /**

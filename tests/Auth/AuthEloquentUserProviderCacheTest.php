@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Closure;
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\CacheManager;
@@ -71,8 +72,10 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $user = m::mock(Authenticatable::class);
         $key = $this->buildDefaultKey(42);
 
-        $repo->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $repo->shouldReceive('put')->once()->with($key, $user, 300)->andReturn(true);
+        $repo->shouldReceive('rememberNullable')
+            ->once()
+            ->with($key, 300, m::type(Closure::class))
+            ->andReturnUsing(fn (string $receivedKey, int $ttl, Closure $callback) => $callback());
 
         $provider = $this->providerExpectingDbFetch($user, 42);
         $provider->enableCache(null);
@@ -85,7 +88,10 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $repo = $this->stubCache(RedisStore::class);
         $user = m::mock(Authenticatable::class);
 
-        $repo->shouldReceive('get')->once()->with($this->buildDefaultKey(42))->andReturn($user);
+        $repo->shouldReceive('rememberNullable')
+            ->once()
+            ->with($this->buildDefaultKey(42), 300, m::type(Closure::class))
+            ->andReturn($user);
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null);
@@ -93,14 +99,15 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame($user, $provider->retrieveById(42));
     }
 
-    public function testRetrieveByIdCachesNullSentinelForMissingUser()
+    public function testRetrieveByIdCachesNullForMissingUser()
     {
         $repo = $this->stubCache(RedisStore::class);
-        $sentinel = ['__auth_null_sentinel' => true];
         $key = $this->buildDefaultKey(999);
 
-        $repo->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $repo->shouldReceive('put')->once()->with($key, $sentinel, 300)->andReturn(true);
+        $repo->shouldReceive('rememberNullable')
+            ->once()
+            ->with($key, 300, m::type(Closure::class))
+            ->andReturnUsing(fn (string $receivedKey, int $ttl, Closure $callback) => $callback());
 
         $provider = $this->providerExpectingDbFetch(null, 999);
         $provider->enableCache(null);
@@ -108,12 +115,14 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertNull($provider->retrieveById(999));
     }
 
-    public function testRetrieveByIdReturnsNullForCachedSentinel()
+    public function testRetrieveByIdReturnsNullForCachedNull()
     {
         $repo = $this->stubCache(RedisStore::class);
-        $sentinel = ['__auth_null_sentinel' => true];
 
-        $repo->shouldReceive('get')->once()->with($this->buildDefaultKey(999))->andReturn($sentinel);
+        $repo->shouldReceive('rememberNullable')
+            ->once()
+            ->with($this->buildDefaultKey(999), 300, m::type(Closure::class))
+            ->andReturn(null);
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null);
@@ -124,8 +133,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testRetrieveByCredentialsIsNeverCached()
     {
         $repo = $this->stubCache(RedisStore::class);
-        $repo->shouldNotReceive('get');
-        $repo->shouldNotReceive('put');
+        $repo->shouldNotReceive('rememberNullable');
 
         $expectedUser = m::mock(Authenticatable::class);
         $model = m::mock(Model::class);
@@ -144,8 +152,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
     public function testRetrieveByTokenIsNeverCached()
     {
         $repo = $this->stubCache(RedisStore::class);
-        $repo->shouldNotReceive('get');
-        $repo->shouldNotReceive('put');
+        $repo->shouldNotReceive('rememberNullable');
 
         $user = m::mock(Authenticatable::class);
         $user->shouldReceive('getRememberToken')->once()->andReturn('tok');
@@ -172,7 +179,10 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $repo = $this->stubCache(RedisStore::class);
         $expectedKey = self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':42';
 
-        $repo->shouldReceive('get')->once()->with($expectedKey)->andReturn(m::mock(Authenticatable::class));
+        $repo->shouldReceive('rememberNullable')
+            ->once()
+            ->with($expectedKey, 300, m::type(Closure::class))
+            ->andReturn(m::mock(Authenticatable::class));
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null);
@@ -194,8 +204,8 @@ class AuthEloquentUserProviderCacheTest extends TestCase
             ->andReturn($repo1, $repo2);
 
         $expectedKey = self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':42';
-        $repo1->shouldReceive('get')->once()->with($expectedKey)->andReturn(m::mock(Authenticatable::class));
-        $repo2->shouldReceive('get')->once()->with($expectedKey)->andReturn(m::mock(Authenticatable::class));
+        $repo1->shouldReceive('rememberNullable')->once()->with($expectedKey, 300, m::type(Closure::class))->andReturn(m::mock(Authenticatable::class));
+        $repo2->shouldReceive('rememberNullable')->once()->with($expectedKey, 300, m::type(Closure::class))->andReturn(m::mock(Authenticatable::class));
 
         $providerNull = $this->providerWithoutDbFetch();
         $providerNull->enableCache(null, 300, null);
@@ -212,7 +222,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
         $repo = $this->stubCache(RedisStore::class);
         $expectedKey = self::DEFAULT_KEY_PREFIX . ':' . self::MODEL . ':tenant5:42';
-        $repo->shouldReceive('get')->once()->with($expectedKey)->andReturn(m::mock(Authenticatable::class));
+        $repo->shouldReceive('rememberNullable')->once()->with($expectedKey, 300, m::type(Closure::class))->andReturn(m::mock(Authenticatable::class));
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null);
@@ -230,7 +240,10 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         });
 
         $repo = $this->stubCache(RedisStore::class);
-        $repo->shouldReceive('get')->once()->andReturn(m::mock(Authenticatable::class));
+        $repo->shouldReceive('rememberNullable')
+            ->once()
+            ->with(m::type('string'), 300, m::type(Closure::class))
+            ->andReturn(m::mock(Authenticatable::class));
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null);
@@ -246,7 +259,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
 
         $capturedKey = null;
         $repo = $this->stubCache(RedisStore::class);
-        $repo->shouldReceive('get')->once()->andReturnUsing(function (string $key) use (&$capturedKey) {
+        $repo->shouldReceive('rememberNullable')->once()->andReturnUsing(function (string $key) use (&$capturedKey) {
             $capturedKey = $key;
 
             return m::mock(Authenticatable::class);
@@ -452,10 +465,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $user = m::mock(Authenticatable::class);
         $key = $this->buildDefaultKey(42);
 
-        $plainRepo->shouldReceive('get')->once()->with($key)->andReturn(null);
         $plainRepo->shouldReceive('tags')->once()->with(['auth_users'])->andReturn($taggedRepo);
-        $plainRepo->shouldNotReceive('put');
-        $taggedRepo->shouldReceive('put')->once()->with($key, $user, 300)->andReturn(true);
+        $taggedRepo->shouldReceive('rememberNullable')
+            ->once()
+            ->with($key, 300, m::type(Closure::class))
+            ->andReturnUsing(fn (string $receivedKey, int $ttl, Closure $callback) => $callback());
 
         $provider = $this->providerExpectingDbFetch($user, 42);
         $provider->enableCache(null, tags: ['auth_users']);
@@ -463,13 +477,17 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertSame($user, $provider->retrieveById(42));
     }
 
-    public function testRetrieveByIdHitUsesPlainRepoEvenWhenTagsConfigured()
+    public function testRetrieveByIdUsesTaggedRepoWhenTagsConfigured()
     {
         $plainRepo = $this->stubCache(RedisStore::class, tagMode: TagMode::Any);
+        $taggedRepo = m::mock(CacheRepository::class);
         $user = m::mock(Authenticatable::class);
 
-        $plainRepo->shouldReceive('get')->once()->with($this->buildDefaultKey(42))->andReturn($user);
-        $plainRepo->shouldNotReceive('tags');
+        $plainRepo->shouldReceive('tags')->once()->with(['auth_users'])->andReturn($taggedRepo);
+        $taggedRepo->shouldReceive('rememberNullable')
+            ->once()
+            ->with($this->buildDefaultKey(42), 300, m::type(Closure::class))
+            ->andReturn($user);
 
         $provider = $this->providerWithoutDbFetch();
         $provider->enableCache(null, tags: ['auth_users']);
@@ -499,9 +517,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $user = m::mock(Authenticatable::class);
         $key = $this->buildDefaultKey(42);
 
-        $plainRepo->shouldReceive('get')->once()->with($key)->andReturn(null);
         $plainRepo->shouldReceive('tags')->once()->with(['auth_users', 'scope:a'])->andReturn($taggedRepo);
-        $taggedRepo->shouldReceive('put')->once()->with($key, $user, 300)->andReturn(true);
+        $taggedRepo->shouldReceive('rememberNullable')
+            ->once()
+            ->with($key, 300, m::type(Closure::class))
+            ->andReturnUsing(fn (string $receivedKey, int $ttl, Closure $callback) => $callback());
 
         $provider = $this->providerExpectingDbFetch($user, 42);
         $provider->enableCache(null, tags: ['auth_users']);
@@ -516,9 +536,11 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $user = m::mock(Authenticatable::class);
         $key = $this->buildDefaultKey(42);
 
-        $plainRepo->shouldReceive('get')->once()->with($key)->andReturn(null);
         $plainRepo->shouldReceive('tags')->once()->with(['auth_users'])->andReturn($taggedRepo);
-        $taggedRepo->shouldReceive('put')->once()->with($key, $user, 300)->andReturn(true);
+        $taggedRepo->shouldReceive('rememberNullable')
+            ->once()
+            ->with($key, 300, m::type(Closure::class))
+            ->andReturnUsing(fn (string $receivedKey, int $ttl, Closure $callback) => $callback());
 
         $provider = $this->providerExpectingDbFetch($user, 42);
         $provider->enableCache(null, tags: ['auth_users']);
@@ -543,12 +565,16 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $key1 = $this->buildDefaultKey(42);
         $key2 = $this->buildDefaultKey(43);
 
-        $plainRepo->shouldReceive('get')->once()->with($key1)->andReturn(null);
-        $plainRepo->shouldReceive('get')->once()->with($key2)->andReturn(null);
         $plainRepo->shouldReceive('tags')->once()->with(['auth_users', 'scope:1'])->andReturn($taggedRepo1);
         $plainRepo->shouldReceive('tags')->once()->with(['auth_users', 'scope:2'])->andReturn($taggedRepo2);
-        $taggedRepo1->shouldReceive('put')->once()->with($key1, $user1, 300)->andReturn(true);
-        $taggedRepo2->shouldReceive('put')->once()->with($key2, $user2, 300)->andReturn(true);
+        $taggedRepo1->shouldReceive('rememberNullable')
+            ->once()
+            ->with($key1, 300, m::type(Closure::class))
+            ->andReturnUsing(fn (string $receivedKey, int $ttl, Closure $callback) => $callback());
+        $taggedRepo2->shouldReceive('rememberNullable')
+            ->once()
+            ->with($key2, 300, m::type(Closure::class))
+            ->andReturnUsing(fn (string $receivedKey, int $ttl, Closure $callback) => $callback());
 
         // Set up two DB fetches with distinct models/IDs.
         $model1 = m::mock(Model::class);
@@ -588,8 +614,10 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $user = m::mock(Authenticatable::class);
         $key = $this->buildDefaultKey(42);
 
-        $plainRepo->shouldReceive('get')->once()->with($key)->andReturn(null);
-        $plainRepo->shouldReceive('put')->once()->with($key, $user, 300)->andReturn(true);
+        $plainRepo->shouldReceive('rememberNullable')
+            ->once()
+            ->with($key, 300, m::type(Closure::class))
+            ->andReturnUsing(fn (string $receivedKey, int $ttl, Closure $callback) => $callback());
         $plainRepo->shouldNotReceive('tags');
 
         $provider = $this->providerExpectingDbFetch($user, 42);

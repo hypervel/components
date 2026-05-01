@@ -28,12 +28,8 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
         protected string $default,
         protected string $prefix = '',
         protected string $suffix = '',
-        protected ?bool $dispatchAfterCommit = false
+        bool $dispatchAfterCommit = false
     ) {
-        $this->sqs = $sqs;
-        $this->prefix = $prefix;
-        $this->default = $default;
-        $this->suffix = $suffix;
         $this->dispatchAfterCommit = $dispatchAfterCommit;
     }
 

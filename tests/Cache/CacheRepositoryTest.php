@@ -10,8 +10,15 @@ use DateInterval;
 use DateTime;
 use DateTimeImmutable;
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\RetrievingManyKeys;
+use Hypervel\Cache\Events\WritingKey;
+use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Cache\FileStore;
 use Hypervel\Cache\Lock;
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
@@ -142,6 +149,341 @@ class CacheRepositoryTest extends TestCase
             return 'bar';
         });
         $this->assertSame('bar', $result);
+    }
+
+    public function testRememberNullableStoresAndReturnsNonNullValue()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(null);
+        $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 10);
+
+        $result = $repo->rememberNullable('foo', 10, fn () => 'bar');
+
+        $this->assertSame('bar', $result);
+    }
+
+    public function testRememberNullableStoresSentinelWhenCallbackReturnsNull()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(null);
+        $repo->getStore()->shouldReceive('put')->once()->with('foo', NullSentinel::VALUE, 10);
+
+        $result = $repo->rememberNullable('foo', 10, fn () => null);
+
+        $this->assertNull($result);
+    }
+
+    public function testRememberNullableReturnsNullOnSentinelHitWithoutInvokingCallback()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn(NullSentinel::VALUE);
+        $repo->getStore()->shouldNotReceive('put');
+
+        $invoked = false;
+        $result = $repo->rememberNullable('foo', 10, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testRememberNullableReturnsCachedValueOnHit()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('foo')->andReturn('cached');
+
+        $result = $repo->rememberNullable('foo', 10, fn () => 'new');
+
+        $this->assertSame('cached', $result);
+    }
+
+    public function testRememberForeverNullableStoresAndReturnsNonNullValue()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->andReturn(null);
+        $repo->getStore()->shouldReceive('forever')->once()->with('foo', 'bar');
+
+        $result = $repo->rememberForeverNullable('foo', fn () => 'bar');
+
+        $this->assertSame('bar', $result);
+    }
+
+    public function testRememberForeverNullableStoresSentinelWhenCallbackReturnsNull()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->andReturn(null);
+        $repo->getStore()->shouldReceive('forever')->once()->with('foo', NullSentinel::VALUE);
+
+        $result = $repo->rememberForeverNullable('foo', fn () => null);
+
+        $this->assertNull($result);
+    }
+
+    public function testRememberForeverNullableReturnsNullOnSentinelHit()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->andReturn(NullSentinel::VALUE);
+        $repo->getStore()->shouldNotReceive('forever');
+
+        $result = $repo->rememberForeverNullable('foo', fn () => 'should-not-run');
+
+        $this->assertNull($result);
+    }
+
+    public function testSearNullableDelegatesToRememberForeverNullable()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->andReturn(null);
+        $repo->getStore()->shouldReceive('forever')->once()->with('foo', NullSentinel::VALUE);
+
+        $result = $repo->searNullable('foo', fn () => null);
+
+        $this->assertNull($result);
+    }
+
+    public function testFlexibleNullableStoresAndReturnsNonNullValue()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()
+            ->shouldReceive('many')
+            ->once()
+            ->with(['foo', 'hypervel:cache:flexible:created:foo'])
+            ->andReturn(['foo' => null, 'hypervel:cache:flexible:created:foo' => null]);
+        $repo->getStore()
+            ->shouldReceive('putMany')
+            ->once()
+            ->with(m::on(fn ($values) => $values['foo'] === 'bar'), 20);
+
+        $result = $repo->flexibleNullable('foo', [10, 20], fn () => 'bar');
+
+        $this->assertSame('bar', $result);
+    }
+
+    public function testFlexibleNullableStoresSentinelWhenCallbackReturnsNull()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()
+            ->shouldReceive('many')
+            ->once()
+            ->with(['foo', 'hypervel:cache:flexible:created:foo'])
+            ->andReturn(['foo' => null, 'hypervel:cache:flexible:created:foo' => null]);
+        $repo->getStore()
+            ->shouldReceive('putMany')
+            ->once()
+            ->with(m::on(fn ($values) => $values['foo'] === NullSentinel::VALUE), 20);
+
+        $result = $repo->flexibleNullable('foo', [10, 20], fn () => null);
+
+        $this->assertNull($result);
+    }
+
+    public function testFlexibleNullableReturnsNullOnFreshSentinelHit()
+    {
+        $repo = $this->getRepository();
+        $now = Carbon::now()->getTimestamp();
+
+        $repo->getStore()
+            ->shouldReceive('many')
+            ->once()
+            ->with(['foo', 'hypervel:cache:flexible:created:foo'])
+            ->andReturn([
+                'foo' => NullSentinel::VALUE,
+                'hypervel:cache:flexible:created:foo' => $now,
+            ]);
+
+        $result = $repo->flexibleNullable('foo', [10, 20], fn () => 'should-not-run');
+
+        $this->assertNull($result);
+    }
+
+    public function testFlexibleNullableReturnsValueOnFreshValueHit()
+    {
+        $repo = $this->getRepository();
+        $now = Carbon::now()->getTimestamp();
+
+        $repo->getStore()
+            ->shouldReceive('many')
+            ->once()
+            ->with(['foo', 'hypervel:cache:flexible:created:foo'])
+            ->andReturn([
+                'foo' => 'cached',
+                'hypervel:cache:flexible:created:foo' => $now,
+            ]);
+
+        $result = $repo->flexibleNullable('foo', [10, 20], fn () => 'new');
+
+        $this->assertSame('cached', $result);
+    }
+
+    public function testMixedUsageGetReturnsNullForCachedNullEntry()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        $this->assertNull($repo->get('k'));
+    }
+
+    public function testMixedUsageGetAppliesDefaultForCachedNullEntry()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        $this->assertSame('default', $repo->get('k', 'default'));
+    }
+
+    public function testMixedUsageManyReturnsNullForCachedNullEntry()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        $this->assertSame(['k' => null], $repo->many(['k']));
+    }
+
+    public function testMixedUsageHasReturnsFalseForCachedNullEntry()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        $this->assertFalse($repo->has('k'));
+        $this->assertTrue($repo->missing('k'));
+    }
+
+    public function testMixedUsageHasConsistencyBetweenPutNullAndRememberNullable()
+    {
+        $repoA = new Repository(new ArrayStore(serializesValues: true));
+        $repoA->put('k', null, 60);
+
+        $repoB = new Repository(new ArrayStore(serializesValues: true));
+        $repoB->rememberNullable('k', 60, fn () => null);
+
+        $this->assertSame($repoA->has('k'), $repoB->has('k'));
+        $this->assertFalse($repoA->has('k'));
+        $this->assertFalse($repoB->has('k'));
+    }
+
+    public function testMixedUsagePlainRememberTreatsCachedSentinelAsHit()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        $invoked = false;
+        $result = $repo->remember('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testMixedUsagePlainFlexibleTreatsCachedSentinelAsHit()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+        $repo->flexibleNullable('k', [60, 120], fn () => null);
+
+        $invoked = false;
+        $result = $repo->flexible('k', [60, 120], function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testNullSentinelRoundTripsThroughStoreWithDefaultSerializableClasses()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        $this->assertSame(NullSentinel::VALUE, $repo->getStore()->get('k'));
+        $this->assertNull($repo->get('k'));
+
+        $invoked = false;
+        $result = $repo->rememberNullable('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testNullSentinelRoundTripsThroughStoreWithNoAllowedClasses()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true, serializableClasses: false));
+
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        $this->assertSame(NullSentinel::VALUE, $repo->getStore()->get('k'));
+        $this->assertNull($repo->get('k'));
+
+        $invoked = false;
+        $result = $repo->rememberNullable('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testRememberNullableReRunsCallbackAfterTtlExpiry()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        Carbon::setTestNow(Carbon::now()->addSeconds(61));
+
+        $invoked = false;
+        $result = $repo->rememberNullable('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'fresh';
+        });
+
+        $this->assertSame('fresh', $result);
+        $this->assertTrue($invoked);
+    }
+
+    public function testPutOverwritesCachedNullSentinelWithRealValue()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        $repo->put('k', 'real', 60);
+
+        $this->assertSame('real', $repo->get('k'));
+        $this->assertTrue($repo->has('k'));
+
+        $invoked = false;
+        $result = $repo->rememberNullable('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertSame('real', $result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testForgetClearsSentinelAndNextRememberNullableReRunsCallback()
+    {
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        $repo->forget('k');
+
+        $invoked = false;
+        $result = $repo->rememberNullable('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'fresh';
+        });
+
+        $this->assertSame('fresh', $result);
+        $this->assertTrue($invoked);
     }
 
     public function testPuttingMultipleItemsInCache()
@@ -878,6 +1220,186 @@ class CacheRepositoryTest extends TestCase
         $result = $repository->remember('foo', 10, fn () => 'bar');
 
         $this->assertSame('bar', $result);
+    }
+
+    public function testRememberNullableFiresEventsWithNullPayloadOnCacheMiss()
+    {
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('withPinnedConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldReceive('get')->once()->with('foo')->andReturn(null);
+        $store->shouldReceive('put')->once()->with('foo', NullSentinel::VALUE, 10)->andReturn(true);
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function ($event) use (&$captured) {
+                $captured[] = $event;
+            });
+
+        $repository = new Repository($store);
+        $repository->setEventDispatcher($events);
+
+        $result = $repository->rememberNullable('foo', 10, fn () => null);
+
+        $this->assertNull($result);
+
+        // Miss path fires four events: RetrievingKey, CacheMissed, WritingKey, KeyWritten.
+        $this->assertCount(4, $captured);
+
+        $writingKey = array_values(array_filter($captured, fn ($e) => $e instanceof WritingKey))[0] ?? null;
+        $keyWritten = array_values(array_filter($captured, fn ($e) => $e instanceof KeyWritten))[0] ?? null;
+
+        $this->assertNotNull($writingKey);
+        $this->assertNotNull($keyWritten);
+        // Null, not the sentinel value.
+        $this->assertNull($writingKey->value);
+        $this->assertNull($keyWritten->value);
+    }
+
+    public function testRememberForeverNullableFiresEventsWithNullPayloadOnCacheMiss()
+    {
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('withPinnedConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldReceive('get')->once()->with('foo')->andReturn(null);
+        $store->shouldReceive('forever')->once()->with('foo', NullSentinel::VALUE)->andReturn(true);
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function ($event) use (&$captured) {
+                $captured[] = $event;
+            });
+
+        $repository = new Repository($store);
+        $repository->setEventDispatcher($events);
+
+        $result = $repository->rememberForeverNullable('foo', fn () => null);
+
+        $this->assertNull($result);
+
+        // Miss path fires four events: RetrievingKey, CacheMissed, WritingKey, KeyWritten.
+        $this->assertCount(4, $captured);
+
+        $writingKey = array_values(array_filter($captured, fn ($e) => $e instanceof WritingKey))[0] ?? null;
+        $keyWritten = array_values(array_filter($captured, fn ($e) => $e instanceof KeyWritten))[0] ?? null;
+
+        $this->assertNotNull($writingKey);
+        $this->assertNotNull($keyWritten);
+        // Null, not the sentinel value.
+        $this->assertNull($writingKey->value);
+        $this->assertNull($keyWritten->value);
+    }
+
+    public function testFlexibleNullableFiresEventsWithNullPayloadOnCacheMiss()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()
+            ->shouldReceive('many')
+            ->once()
+            ->with(['foo', 'hypervel:cache:flexible:created:foo'])
+            ->andReturn(['foo' => null, 'hypervel:cache:flexible:created:foo' => null]);
+        $repo->getStore()
+            ->shouldReceive('putMany')
+            ->once()
+            ->andReturn(true);
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function ($event) use (&$captured) {
+                $captured[] = $event;
+            });
+        $repo->setEventDispatcher($events);
+
+        $result = $repo->flexibleNullable('foo', [10, 20], fn () => null);
+
+        $this->assertNull($result);
+
+        // WritingManyKeys carries an aligned keys/values pair, so we look up the
+        // value-key's entry by its index in the keys array.
+        $writingMany = array_values(array_filter($captured, fn ($e) => $e instanceof WritingManyKeys))[0] ?? null;
+        $this->assertNotNull($writingMany);
+        $valueKeyIndex = array_search('foo', $writingMany->keys, true);
+        $this->assertNotFalse($valueKeyIndex);
+        // Null, not the sentinel value.
+        $this->assertNull($writingMany->values[$valueKeyIndex]);
+
+        // The marker key's KeyWritten carries a real timestamp, so filter to the
+        // value key's KeyWritten specifically.
+        $valueKeyWritten = array_values(array_filter(
+            $captured,
+            fn ($e) => $e instanceof KeyWritten && $e->key === 'foo'
+        ))[0] ?? null;
+        $this->assertNotNull($valueKeyWritten);
+        // Null, not the sentinel value.
+        $this->assertNull($valueKeyWritten->value);
+    }
+
+    public function testRememberNullableFiresHitEventWithNullPayloadOnSentinelRetrieval()
+    {
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('withPinnedConnection')
+            ->once()
+            ->andReturnUsing(fn (callable $callback) => $callback());
+        $store->shouldReceive('get')->once()->with('foo')->andReturn(NullSentinel::VALUE);
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function ($event) use (&$captured) {
+                $captured[] = $event;
+            });
+
+        $repository = new Repository($store);
+        $repository->setEventDispatcher($events);
+
+        $result = $repository->rememberNullable('foo', 10, fn () => 'should-not-run');
+
+        $this->assertNull($result);
+
+        // Hit path fires two events: RetrievingKey, CacheHit.
+        $this->assertCount(2, $captured);
+
+        $cacheHit = array_values(array_filter($captured, fn ($e) => $e instanceof CacheHit))[0] ?? null;
+        $this->assertNotNull($cacheHit);
+        // Null, not the sentinel value.
+        $this->assertNull($cacheHit->value);
+    }
+
+    public function testManyFiresCacheHitWithNullPayloadForCachedNullEntry()
+    {
+        // Real ArrayStore so the sentinel genuinely round-trips through serialize.
+        $repo = new Repository(new ArrayStore(serializesValues: true));
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        // Capture only the many() read-path events by attaching the dispatcher
+        // after the write.
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function ($event) use (&$captured) {
+                $captured[] = $event;
+            });
+        $repo->setEventDispatcher($events);
+
+        $result = $repo->many(['k']);
+
+        $this->assertSame(['k' => null], $result);
+        $this->assertCount(2, $captured);
+        $this->assertInstanceOf(RetrievingManyKeys::class, $captured[0]);
+        $this->assertInstanceOf(CacheHit::class, $captured[1]);
+        // Null, not the sentinel value.
+        $this->assertNull($captured[1]->value);
+        $this->assertEmpty(array_filter($captured, fn ($e) => $e instanceof CacheMissed));
     }
 
     public function testRememberWorksWithoutPinnableStore()

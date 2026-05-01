@@ -7,9 +7,13 @@ namespace Hypervel\Cache;
 use BadMethodCallException;
 use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Store;
+use UnitEnum;
 
-class MemoizedStore implements LockProvider, Store
+use function Hypervel\Support\enum_value;
+
+class MemoizedStore implements LockProvider, RawReadable, Store
 {
     /**
      * The memoized cache values.
@@ -29,16 +33,27 @@ class MemoizedStore implements LockProvider, Store
 
     /**
      * Retrieve an item from the cache by key.
+     *
+     * Store contract method — returns the value with sentinels unwrapped to null,
+     * matching the pre-refactor behavior (which returned whatever the inner
+     * Repository's get() returned, i.e., unwrapped). Memoizes the raw value so
+     * subsequent getRaw() calls see the sentinel.
      */
     public function get(string $key): mixed
     {
-        $prefixedKey = $this->prefix($key);
+        return NullSentinel::unwrap($this->getRaw($key));
+    }
+
+    public function getRaw(UnitEnum|string $key): mixed
+    {
+        $stringKey = (string) (is_object($key) ? enum_value($key) : $key);
+        $prefixedKey = $this->prefix($stringKey);
 
         if (array_key_exists($prefixedKey, $this->cache)) {
             return $this->cache[$prefixedKey];
         }
 
-        return $this->cache[$prefixedKey] = $this->repository->get($key);
+        return $this->cache[$prefixedKey] = $this->repository->getRaw($stringKey);
     }
 
     /**
@@ -48,35 +63,39 @@ class MemoizedStore implements LockProvider, Store
      */
     public function many(array $keys): array
     {
-        [$memoized, $retrieved, $missing] = [[], [], []];
+        return array_map(
+            NullSentinel::unwrap(...),
+            $this->manyRaw(array_map(fn ($k) => (string) $k, $keys))
+        );
+    }
+
+    public function manyRaw(array $keys): array
+    {
+        [$memoized, $missing] = [[], []];
 
         foreach ($keys as $key) {
             $stringKey = (string) $key;
             $prefixedKey = $this->prefix($stringKey);
 
             if (array_key_exists($prefixedKey, $this->cache)) {
-                $memoized[$key] = $this->cache[$prefixedKey];
+                $memoized[$stringKey] = $this->cache[$prefixedKey];
             } else {
                 $missing[] = $stringKey;
             }
         }
 
+        $retrieved = [];
         if (count($missing) > 0) {
-            $retrieved = tap($this->repository->many($missing), function ($values) {
-                foreach ($values as $key => $value) {
-                    $this->cache[$this->prefix((string) $key)] = $value;
-                }
-            });
+            $retrieved = $this->repository->manyRaw($missing);
+            foreach ($retrieved as $key => $value) {
+                $this->cache[$this->prefix((string) $key)] = $value;
+            }
         }
 
         $result = [];
-
         foreach ($keys as $key) {
-            if (array_key_exists($key, $memoized)) {
-                $result[$key] = $memoized[$key];
-            } else {
-                $result[$key] = $retrieved[$key];
-            }
+            $stringKey = (string) $key;
+            $result[$stringKey] = $memoized[$stringKey] ?? $retrieved[$stringKey] ?? null;
         }
 
         return $result;
