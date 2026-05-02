@@ -30,9 +30,15 @@ class Parallel
      * Create a new parallel executor.
      *
      * @param int $concurrent Maximum concurrent coroutines (0 = unlimited)
+     * @param array<string>|bool $copyContext When set, parent coroutine context is copied to each child.
+     *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
+     *                                        Object values from the parent context are shared by reference; values implementing
+     *                                        Hypervel\Context\ReplicableContext are deep-copied via replicate().
      */
-    public function __construct(int $concurrent = 0)
-    {
+    public function __construct(
+        int $concurrent = 0,
+        protected bool|array $copyContext = false,
+    ) {
         if ($concurrent > 0) {
             $this->concurrentChannel = new Channel($concurrent);
         }
@@ -70,7 +76,7 @@ class Parallel
         foreach ($this->callbacks as $key => $callback) {
             $this->concurrentChannel && $this->concurrentChannel->push(true);
             $this->results[$key] = null;
-            Coroutine::create(function () use ($callback, $key, $wg) {
+            $childCallable = function () use ($callback, $key, $wg) {
                 try {
                     $this->results[$key] = $callback();
                 } catch (Throwable $throwable) {
@@ -80,7 +86,13 @@ class Parallel
                     $this->concurrentChannel && $this->concurrentChannel->pop();
                     $wg->done();
                 }
-            });
+            };
+
+            if ($this->copyContext === false) {
+                Coroutine::create($childCallable);
+            } else {
+                Coroutine::fork($childCallable, is_array($this->copyContext) ? $this->copyContext : []);
+            }
         }
         $wg->wait();
         if ($throw && ($throwableCount = count($this->throwables)) > 0) {
