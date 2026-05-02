@@ -3,6 +3,10 @@
 - [Introduction](#introduction)
 - [Configuration](#configuration)
     - [Driver Prerequisites](#driver-prerequisites)
+    - [Swoole Table Cache](#swoole-table-cache)
+    - [Building Cache Stacks](#building-cache-stacks)
+    - [Session Cache](#session-cache)
+    - [Cache Failover](#cache-failover)
 - [Cache Usage](#cache-usage)
     - [Obtaining a Cache Instance](#obtaining-a-cache-instance)
     - [Retrieving Items From the Cache](#retrieving-items-from-the-cache)
@@ -12,29 +16,38 @@
     - [Cache Memoization](#cache-memoization)
     - [The Cache Helper](#the-cache-helper)
 - [Cache Tags](#cache-tags)
+    - [Redis Tag Modes](#redis-tag-modes)
+    - [All Tag Mode](#all-tag-mode)
+    - [Any Tag Mode](#any-tag-mode)
+    - [Pruning Stale Tag Entries](#pruning-stale-tag-entries)
 - [Atomic Locks](#atomic-locks)
     - [Managing Locks](#managing-locks)
     - [Managing Locks Across Processes](#managing-locks-across-processes)
+    - [Refreshing Locks](#refreshing-locks)
+    - [Flushing Locks](#flushing-locks)
     - [Concurrency Limiting](#concurrency-limiting)
-- [Cache Failover](#cache-failover)
 - [Adding Custom Cache Drivers](#adding-custom-cache-drivers)
     - [Writing the Driver](#writing-the-driver)
     - [Registering the Driver](#registering-the-driver)
+- [Console Commands](#console-commands)
 - [Events](#events)
 
 <a name="introduction"></a>
 ## Introduction
 
-Some of the data retrieval or processing tasks performed by your application could be CPU intensive or take several seconds to complete. When this is the case, it is common to cache the retrieved data for a time so it can be retrieved quickly on subsequent requests for the same data. The cached data is usually stored in a very fast data store such as [Memcached](https://memcached.org) or [Redis](https://redis.io).
+Some of the data retrieval or processing tasks performed by your application could be CPU intensive or take several seconds to complete. When this is the case, it is common to cache the retrieved data for a time so it can be retrieved quickly on subsequent requests for the same data. The cached data is usually stored in a very fast data store such as [Redis](https://redis.io), a relational database, local files, or Swoole tables.
 
-Thankfully, Laravel provides an expressive, unified API for various cache backends, allowing you to take advantage of their blazing fast data retrieval and speed up your web application.
+Thankfully, Hypervel provides an expressive, unified API for various cache backends, allowing you to take advantage of their blazing fast data retrieval and speed up your web application.
+
+> [!NOTE]
+> Non-tagged Hypervel Redis cache keys and atomic lock keys can be shared with Laravel applications using the same Redis connection, cache prefix, and serialization settings. Tagged-cache storage is Hypervel-specific and is not interchangeable with Laravel's tagged caches because Hypervel uses separate `_all` and `_any` tag namespaces to support its Redis tag modes.
 
 <a name="configuration"></a>
 ## Configuration
 
-Your application's cache configuration file is located at `config/cache.php`. In this file, you may specify which cache store you would like to be used by default throughout your application. Laravel supports popular caching backends like [Memcached](https://memcached.org), [Redis](https://redis.io), [DynamoDB](https://aws.amazon.com/dynamodb), and relational databases out of the box. In addition, a file based cache driver is available, while `array` and `null` cache drivers provide convenient cache backends for your automated tests.
+Your application's cache configuration file is located at `config/cache.php`. In this file, you may specify which cache store you would like to be used by default throughout your application. Hypervel supports Redis, relational databases, file storage, Swoole tables, session storage, cache stacks, failover stores, and the `array` and `null` stores that are convenient for automated tests.
 
-The cache configuration file also contains a variety of other options that you may review. By default, Laravel is configured to use the `database` cache driver, which stores the serialized, cached objects in your application's database.
+The cache configuration file also contains a variety of other options that you may review. By default, Hypervel is configured to use the `database` cache driver, which stores serialized cache values in your application's database.
 
 <a name="driver-prerequisites"></a>
 ### Driver Prerequisites
@@ -42,7 +55,7 @@ The cache configuration file also contains a variety of other options that you m
 <a name="prerequisites-database"></a>
 #### Database
 
-When using the `database` cache driver, you will need a database table to contain the cache data. Typically, this is included in Laravel's default `0001_01_01_000001_create_cache_table.php` [database migration](/docs/{{version}}/migrations); however, if your application does not contain this migration, you may use the `make:cache-table` Artisan command to create it:
+When using the `database` cache driver, you will need database tables to contain cache data and cache locks. Hypervel's application skeleton includes default `cache` and `cache_locks` table migrations. If your application does not contain these migrations, you may use the `make:cache-table` Artisan command to create them:
 
 ```shell
 php artisan make:cache-table
@@ -50,82 +63,119 @@ php artisan make:cache-table
 php artisan migrate
 ```
 
-<a name="memcached"></a>
-#### Memcached
-
-Using the Memcached driver requires the [Memcached PECL package](https://pecl.php.net/package/memcached) to be installed. You may list all of your Memcached servers in the `config/cache.php` configuration file. This file already contains a `memcached.servers` entry to get you started:
-
-```php
-'memcached' => [
-    // ...
-
-    'servers' => [
-        [
-            'host' => env('MEMCACHED_HOST', '127.0.0.1'),
-            'port' => env('MEMCACHED_PORT', 11211),
-            'weight' => 100,
-        ],
-    ],
-],
-```
-
-If needed, you may set the `host` option to a UNIX socket path. If you do this, the `port` option should be set to `0`:
-
-```php
-'memcached' => [
-    // ...
-
-    'servers' => [
-        [
-            'host' => '/var/run/memcached/memcached.sock',
-            'port' => 0,
-            'weight' => 100
-        ],
-    ],
-],
-```
-
 <a name="redis"></a>
 #### Redis
 
-Before using a Redis cache with Laravel, you will need to either install the PhpRedis PHP extension via PECL or install the `predis/predis` package (~2.0) via Composer. [Laravel Sail](/docs/{{version}}/sail) already includes this extension. In addition, official Laravel application platforms such as [Laravel Cloud](https://cloud.laravel.com) and [Laravel Forge](https://forge.laravel.com) have the PhpRedis extension installed by default.
+Before using a Redis cache with Hypervel, you will need to install the PhpRedis PHP extension via PECL.
 
-For more information on configuring Redis, consult its [Laravel documentation page](/docs/{{version}}/redis#configuration).
-
-<a name="dynamodb"></a>
-#### DynamoDB
-
-Before using the [DynamoDB](https://aws.amazon.com/dynamodb) cache driver, you must create a DynamoDB table to store all of the cached data. Typically, this table should be named `cache`. However, you should name the table based on the value of the `stores.dynamodb.table` configuration value within the `cache` configuration file. The table name may also be set via the `DYNAMODB_CACHE_TABLE` environment variable.
-
-This table should also have a string partition key with a name that corresponds to the value of the `stores.dynamodb.attributes.key` configuration item within your application's `cache` configuration file. By default, the partition key should be named `key`.
-
-Typically, DynamoDB will not proactively remove expired items from a table. Therefore, you should [enable Time to Live (TTL)](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html) on the table. When configuring the table's TTL settings, you should set the TTL attribute name to `expires_at`.
-
-Next, install the AWS SDK so that your Laravel application can communicate with DynamoDB:
-
-```shell
-composer require aws/aws-sdk-php
-```
-
-In addition, you should ensure that values are provided for the DynamoDB cache store configuration options. Typically these options, such as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, should be defined in your application's `.env` configuration file:
+Redis cache tags support two modes. The default `all` mode works on standard Redis deployments. The `any` tag mode requires Redis 8.0+ or Valkey 9.0+ and PhpRedis 6.3.0+, because it uses Redis hash-field expiration commands for tag indexes.
 
 ```php
-'dynamodb' => [
-    'driver' => 'dynamodb',
-    'key' => env('AWS_ACCESS_KEY_ID'),
-    'secret' => env('AWS_SECRET_ACCESS_KEY'),
-    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
-    'table' => env('DYNAMODB_CACHE_TABLE', 'cache'),
-    'endpoint' => env('DYNAMODB_ENDPOINT'),
+'redis' => [
+    'driver' => 'redis',
+    'connection' => env('REDIS_CACHE_CONNECTION', 'cache'),
+    'tag_mode' => env('REDIS_CACHE_TAG_MODE', 'all'),
+    'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'cache'),
 ],
 ```
 
-<a name="mongodb"></a>
-#### MongoDB
+You may run the `cache:redis-doctor` command to verify your Redis cache configuration and feature support:
 
-If you are using MongoDB, a `mongodb` cache driver is provided by the official `mongodb/laravel-mongodb` package and can be configured using a `mongodb` database connection. MongoDB supports TTL indexes, which can be used to automatically clear expired cache items.
+```shell
+php artisan cache:redis-doctor
+```
 
-For more information on configuring MongoDB, please refer to the MongoDB [Cache and Locks documentation](https://www.mongodb.com/docs/drivers/php/laravel-mongodb/current/cache/).
+<a name="swoole-table-cache"></a>
+### Swoole Table Cache
+
+The `swoole` cache driver stores cache values in a Swoole table. This can be useful for very hot cache values that should be served from memory without a Redis or database round trip. Swoole tables are stored in memory and are cleared when the server restarts.
+
+Swoole tables are bounded by their configured row count and column size. Hypervel's Swoole cache store supports `lru`, `lfu`, `ttl`, and `noeviction` eviction policies, as well as a memory-limit buffer and eviction proportion:
+
+```php
+use Hypervel\Cache\SwooleStore;
+
+'swoole' => [
+    'driver' => 'swoole',
+    'table' => 'default',
+    'memory_limit_buffer' => 0.05,
+    'eviction_policy' => SwooleStore::EVICTION_POLICY_LRU,
+    'eviction_proportion' => 0.05,
+    'eviction_interval' => 10000, // milliseconds
+],
+```
+
+The available eviction policy constants are `EVICTION_POLICY_LRU`, `EVICTION_POLICY_LFU`, `EVICTION_POLICY_TTL`, and `EVICTION_POLICY_NOEVICTION`.
+
+The table itself is configured in the `swoole_tables` section of your `config/cache.php` file:
+
+```php
+'swoole_tables' => [
+    'default' => [
+        'rows' => 1024,
+        'bytes' => 10240,
+        'conflict_proportion' => 0.2,
+    ],
+],
+```
+
+<a name="building-cache-stacks"></a>
+### Building Cache Stacks
+
+Hypervel provides a multi-tier caching architecture. The `stack` driver allows you to combine multiple cache layers for high-performance reads. To illustrate how to use cache stacks, let's take a look at an example configuration that you might see in a production application:
+
+```php
+'stack' => [
+    'driver' => 'stack',
+    'stores' => [
+        'swoole' => [
+            'ttl' => 3, // seconds
+        ],
+        'redis',
+    ],
+],
+```
+
+This configuration aggregates two other cache stores: `swoole` and `redis`. When caching data, both stores are written sequentially. The `ttl` option may be used to override the time to live for a specific layer.
+
+When retrieving data, if there is a cache hit in the `swoole` layer, the data will be returned immediately and the Redis cache will not be queried. If there is a cache miss in the `swoole` layer, the stack driver will check the Redis layer. If Redis contains the value, the value will be returned and backfilled into the Swoole layer for future requests.
+
+<a name="session-cache"></a>
+### Session Cache
+
+The `session` cache driver stores cache values inside the active session store. This is useful for per-user scratch data that should live with the user's session:
+
+```php
+'session' => [
+    'driver' => 'session',
+    'key' => env('SESSION_CACHE_KEY', '_cache'),
+],
+```
+
+<a name="cache-failover"></a>
+### Cache Failover
+
+The `failover` cache driver provides automatic failover functionality when interacting with the cache. If the primary cache store of the `failover` store fails for any reason, Hypervel will automatically attempt to use the next configured store in the list. This is particularly useful for ensuring high availability in production environments where cache reliability is critical.
+
+To configure a failover cache store, specify the `failover` driver and provide an array of store names to attempt in order. By default, Hypervel includes an example failover configuration in your application's `config/cache.php` configuration file:
+
+```php
+'failover' => [
+    'driver' => 'failover',
+    'stores' => [
+        'database',
+        'array',
+    ],
+],
+```
+
+Once you have configured a store that uses the `failover` driver, you will need to set the failover store as your default cache store in your application's `.env` file to make use of the failover functionality:
+
+```ini
+CACHE_STORE=failover
+```
+
+When a cache store operation fails and failover is activated, Hypervel will dispatch the `Hypervel\Cache\Events\CacheFailedOver` event, allowing you to report or log that a cache store has failed.
 
 <a name="cache-usage"></a>
 ## Cache Usage
@@ -133,7 +183,7 @@ For more information on configuring MongoDB, please refer to the MongoDB [Cache 
 <a name="obtaining-a-cache-instance"></a>
 ### Obtaining a Cache Instance
 
-To obtain a cache store instance, you may use the `Cache` facade, which is what we will use throughout this documentation. The `Cache` facade provides convenient, terse access to the underlying implementations of the Laravel cache contracts:
+To obtain a cache store instance, you may use the `Cache` facade, which is what we will use throughout this documentation. The `Cache` facade provides convenient, terse access to the underlying implementations of the Hypervel cache contracts:
 
 ```php
 <?php
@@ -304,7 +354,7 @@ If the storage time is not passed to the `put` method, the item will be stored i
 Cache::put('key', 'value');
 ```
 
-Instead of passing the number of seconds as an integer, you may also pass a `DateTime` instance representing the desired expiration time of the cached item:
+Instead of passing the number of seconds as an integer, you may also pass a `DateTimeInterface` instance representing the desired expiration time of the cached item:
 
 ```php
 Cache::put('key', 'value', now()->plus(minutes: 10));
@@ -313,7 +363,7 @@ Cache::put('key', 'value', now()->plus(minutes: 10));
 <a name="store-if-not-present"></a>
 #### Store if Not Present
 
-The `add` method will only add the item to the cache if it does not already exist in the cache store. The method will return `true` if the item is actually added to the cache. Otherwise, the method will return `false`. The `add` method is an atomic operation:
+The `add` method will only add the item to the cache if it does not already exist in the cache store. The method will return `true` if the item is actually added to the cache. Otherwise, the method will return `false`. The `add` method is an atomic operation on stores that provide native support for it:
 
 ```php
 Cache::add('key', 'value', $seconds);
@@ -328,10 +378,10 @@ The `touch` method allows you to extend the lifetime (TTL) of an existing cache 
 Cache::touch('key', 3600);
 ```
 
-You may provide a `DateTimeInterface`, `DateInterval`, or `Carbon` instance to specify an exact expiration time:
+You may provide an integer number of seconds, a `DateInterval`, or a `DateTimeInterface` instance to specify the new lifetime or expiration time:
 
 ```php
-Cache::touch('key', now()->addHours(2));
+Cache::touch('key', now()->plus(hours: 2));
 ```
 
 <a name="storing-items-forever"></a>
@@ -344,7 +394,7 @@ Cache::forever('key', 'value');
 ```
 
 > [!NOTE]
-> If you are using the Memcached driver, items that are stored "forever" may be removed when the cache reaches its size limit.
+> If you are using the `swoole` driver, items stored using the `forever` method are stored with a long expiration time and may still expire or be evicted when the table reaches its capacity, depending on the configured eviction policy.
 
 <a name="removing-items-from-the-cache"></a>
 ### Removing Items From the Cache
@@ -369,19 +419,13 @@ You may clear the entire cache using the `flush` method:
 Cache::flush();
 ```
 
-You may clear all atomic locks in the cache using the `flushLocks` method:
-
-```php
-Cache::flushLocks();
-```
-
 > [!WARNING]
-> Flushing the cache does not respect your configured cache "prefix" and will remove all entries from the cache. Consider this carefully when clearing a cache which is shared by other applications.
+> Flushing the cache does not respect your configured cache "prefix" and may remove entries from the underlying cache store that are used by other applications. Consider this carefully when clearing a cache which is shared by other applications.
 
 <a name="cache-memoization"></a>
 ### Cache Memoization
 
-Laravel's `memo` cache driver allows you to temporarily store resolved cache values in memory during a single request or job execution. This prevents repeated cache hits within the same execution, significantly improving performance.
+Hypervel's memoized cache allows you to temporarily store resolved cache values in memory during a single request or job execution. This prevents repeated cache hits within the same execution, significantly improving performance.
 
 To use the memoized cache, invoke the `memo` method:
 
@@ -422,6 +466,8 @@ Cache::memo()->put('name', 'Tim');    // Forgets memoized value, writes new valu
 Cache::memo()->get('name');           // Hits underlying cache again...
 ```
 
+Memoized values are scoped to the current request, job, or coroutine context. They are not stored on the worker for the lifetime of the process.
+
 <a name="the-cache-helper"></a>
 ### The Cache Helper
 
@@ -454,12 +500,29 @@ cache()->remember('users', $seconds, function () {
 ## Cache Tags
 
 > [!WARNING]
-> Cache tags are not supported when using the `file`, `dynamodb`, or `database` cache drivers.
+> Cache tags are supported by the `redis`, `array`, `failover`, and `null` cache drivers. They are not supported by the `file`, `database`, `swoole`, `stack`, `session`, or `memo` drivers.
 
-<a name="storing-tagged-cache-items"></a>
-### Storing Tagged Cache Items
+<a name="redis-tag-modes"></a>
+### Redis Tag Modes
 
-Cache tags allow you to tag related items in the cache and then flush all cached values that have been assigned a given tag. You may access a tagged cache by passing in an ordered array of tag names. For example, let's access a tagged cache and `put` a value into the cache:
+Hypervel's Redis cache driver supports two tag modes: `all` and `any`. You may configure the mode using the `tag_mode` option for your Redis cache store:
+
+```php
+'redis' => [
+    'driver' => 'redis',
+    'connection' => env('REDIS_CACHE_CONNECTION', 'cache'),
+    'tag_mode' => env('REDIS_CACHE_TAG_MODE', 'all'),
+],
+```
+
+The `all` mode is the default and behaves like Laravel's classic tagged cache: the full set of tags acts as a namespace. The `any` mode treats tags as invalidation indexes instead of namespaces.
+
+The two Redis tag modes write to different tag namespaces (`_all:tag:...` and `_any:tag:...`) and cannot share tagged cache data. If you switch modes on an existing store, you should flush the cache first.
+
+<a name="all-tag-mode"></a>
+### All Tag Mode
+
+In `all` mode, cache tags allow you to tag related items in the cache and then flush all cached values that have been assigned a given tag. You may access a tagged cache by passing an ordered array of tag names. For example, let's access a tagged cache and `put` a value into the cache:
 
 ```php
 use Hypervel\Support\Facades\Cache;
@@ -468,9 +531,6 @@ Cache::tags(['people', 'artists'])->put('John', $john, $seconds);
 Cache::tags(['people', 'authors'])->put('Anne', $anne, $seconds);
 ```
 
-<a name="accessing-tagged-cache-items"></a>
-### Accessing Tagged Cache Items
-
 Items stored via tags may not be accessed without also providing the tags that were used to store the value. To retrieve a tagged cache item, pass the same ordered list of tags to the `tags` method, then call the `get` method with the key you wish to retrieve:
 
 ```php
@@ -478,9 +538,6 @@ $john = Cache::tags(['people', 'artists'])->get('John');
 
 $anne = Cache::tags(['people', 'authors'])->get('Anne');
 ```
-
-<a name="removing-tagged-cache-items"></a>
-### Removing Tagged Cache Items
 
 You may flush all items that are assigned a tag or list of tags. For example, the following code would remove all caches tagged with either `people`, `authors`, or both. So, both `Anne` and `John` would be removed from the cache:
 
@@ -494,16 +551,59 @@ In contrast, the code below would remove only cached values tagged with `authors
 Cache::tags('authors')->flush();
 ```
 
+<a name="any-tag-mode"></a>
+### Any Tag Mode
+
+The Redis `any` tag mode requires Redis 8.0+ or Valkey 9.0+ and PhpRedis 6.3.0+. In this mode, tags are used for writing, indexing, and flushing only. Items are stored under their plain cache keys, so you should retrieve them without calling `tags()`:
+
+```php
+use Hypervel\Support\Facades\Cache;
+
+Cache::tags(['user:42', 'team:7'])->put('profile:42', $profile, 3600);
+
+$profile = Cache::get('profile:42');
+```
+
+Because tags are invalidation indexes in `any` mode, flushing any one tag removes all cache items that were written with that tag:
+
+```php
+Cache::tags(['user:42'])->flush();
+```
+
+> [!WARNING]
+> In `any` mode, attempting to retrieve, check, pull, forget, or retrieve many cache items through a tagged cache will throw a `BadMethodCallException`. Use the direct `Cache::get`, `Cache::has`, `Cache::pull`, `Cache::forget`, and `Cache::many` methods with the full cache key instead.
+
+The `items` method returns a generator yielding all key / value pairs indexed by the given tags. This can be useful for debugging or bulk operations:
+
+```php
+foreach (Cache::tags(['user:42'])->items() as $key => $value) {
+    // ...
+}
+```
+
+<a name="pruning-stale-tag-entries"></a>
+### Pruning Stale Tag Entries
+
+Redis tag indexes may accumulate stale references to expired or deleted cache items. You may prune stale tag entries using the `cache:prune-stale-tags` Artisan command:
+
+```shell
+php artisan cache:prune-stale-tags
+
+php artisan cache:prune-stale-tags redis
+```
+
+You may schedule this command to run periodically based on how often tagged cache entries are written and expired by your application.
+
 <a name="atomic-locks"></a>
 ## Atomic Locks
 
 > [!WARNING]
-> To utilize this feature, your application must be using the `memcached`, `redis`, `dynamodb`, `database`, `file`, or `array` cache driver as your application's default cache driver. In addition, all servers must be communicating with the same central cache server.
+> To utilize this feature, your application must be using the `redis`, `database`, `file`, or `array` cache driver as your application's default cache driver. For distributed locks, all servers must be communicating with the same central cache server.
 
 <a name="managing-locks"></a>
 ### Managing Locks
 
-Atomic locks allow for the manipulation of distributed locks without worrying about race conditions. For example, [Laravel Cloud](https://cloud.laravel.com) uses atomic locks to ensure that only one remote task is being executed on a server at a time. You may create and manage locks using the `Cache::lock` method:
+Atomic locks allow for the manipulation of distributed locks without worrying about race conditions. You may create and manage locks using the `Cache::lock` method:
 
 ```php
 use Hypervel\Support\Facades\Cache;
@@ -517,7 +617,7 @@ if ($lock->get()) {
 }
 ```
 
-The `get` method also accepts a closure. After the closure is executed, Laravel will automatically release the lock:
+The `get` method also accepts a closure. After the closure is executed, Hypervel will automatically release the lock:
 
 ```php
 Cache::lock('foo', 10)->get(function () {
@@ -525,7 +625,7 @@ Cache::lock('foo', 10)->get(function () {
 });
 ```
 
-If the lock is not available at the moment you request it, you may instruct Laravel to wait for a specified number of seconds. If the lock cannot be acquired within the specified time limit, an `Hypervel\Contracts\Cache\LockTimeoutException` will be thrown:
+If the lock is not available at the moment you request it, you may instruct Hypervel to wait for a specified number of seconds. If the lock cannot be acquired within the specified time limit, a `Hypervel\Contracts\Cache\LockTimeoutException` will be thrown:
 
 ```php
 use Hypervel\Contracts\Cache\LockTimeoutException;
@@ -543,12 +643,22 @@ try {
 }
 ```
 
-The example above may be simplified by passing a closure to the `block` method. When a closure is passed to this method, Laravel will attempt to acquire the lock for the specified number of seconds and will automatically release the lock once the closure has been executed:
+The example above may be simplified by passing a closure to the `block` method. When a closure is passed to this method, Hypervel will attempt to acquire the lock for the specified number of seconds and will automatically release the lock once the closure has been executed:
 
 ```php
 Cache::lock('foo', 10)->block(5, function () {
     // Lock acquired for 10 seconds after waiting a maximum of 5 seconds...
 });
+```
+
+You may specify the number of milliseconds to sleep between blocked lock acquisition attempts using the `betweenBlockedAttemptsSleepFor` method:
+
+```php
+Cache::lock('foo', 10)
+    ->betweenBlockedAttemptsSleepFor(500)
+    ->block(5, function () {
+        // ...
+    });
 ```
 
 <a name="managing-locks-across-processes"></a>
@@ -580,10 +690,68 @@ If you would like to release a lock without respecting its current owner, you ma
 Cache::lock('processing')->forceRelease();
 ```
 
+<a name="refreshing-locks"></a>
+### Refreshing Locks
+
+The `redis`, `database`, and `array` cache lock drivers support atomic TTL refresh and remaining-lifetime inspection via the `Hypervel\Contracts\Cache\RefreshableLock` interface. This is useful for long-running work where you want to extend the lock as you go rather than acquiring a single conservative lock up front:
+
+```php
+$lock = Cache::lock('processing', 60);
+
+if ($lock->get()) {
+    try {
+        foreach ($items as $item) {
+            $this->process($item);
+
+            $lock->refresh();
+        }
+    } finally {
+        $lock->release();
+    }
+}
+```
+
+The `refresh` method is atomic. If the lock has expired or has been acquired by another process, it will return `false` without modifying the lock. You may pass an explicit TTL to refresh the lock for a different duration:
+
+```php
+$lock->refresh(120);
+```
+
+If the lock was acquired permanently by passing `0` seconds, calling `refresh` without arguments is a no-op that returns `true`. Calling `refresh` with a non-positive explicit TTL will throw an `InvalidArgumentException`.
+
+You may inspect the number of seconds remaining before a refreshable lock expires using the `getRemainingLifetime` method. This method returns `null` if the lock does not exist or has no expiration:
+
+```php
+$remaining = $lock->getRemainingLifetime();
+```
+
+> [!NOTE]
+> File locks do not support lock refreshing. If your code may receive different lock implementations, check that the lock is an instance of `Hypervel\Contracts\Cache\RefreshableLock` before calling `refresh` or `getRemainingLifetime`.
+
+<a name="flushing-locks"></a>
+### Flushing Locks
+
+You may clear all atomic locks in the cache using the `flushLocks` method:
+
+```php
+Cache::flushLocks();
+```
+
+The `flushLocks` method is supported by the `redis`, `database`, `file`, and `array` cache drivers. Redis, database, and file stores only support flushing locks when lock storage is configured separately from regular cache storage. If lock storage is shared with regular cache storage, Hypervel will throw a `RuntimeException`. If a store does not support flushing locks, Hypervel will throw a `BadMethodCallException`.
+
+> [!WARNING]
+> The `flushLocks` method removes every lock in the lock store, regardless of which application or process owns the lock. Use it carefully in shared environments.
+
+You may also flush only cache locks from the command line using the `--locks` option:
+
+```shell
+php artisan cache:clear --locks
+```
+
 <a name="concurrency-limiting"></a>
 ### Concurrency Limiting
 
-Laravel's atomic lock functionality also provides a few ways to limit concurrent execution of closures. Use `withoutOverlapping` when you want to allow only one running instance across your infrastructure:
+Hypervel's atomic lock functionality also provides a few ways to limit concurrent execution of closures. Use `withoutOverlapping` when you want to allow only one running instance across your infrastructure:
 
 ```php
 Cache::withoutOverlapping('foo', function () {
@@ -599,7 +767,7 @@ Cache::withoutOverlapping('foo', function () {
 }, lockFor: 120, waitFor: 5);
 ```
 
-If the lock cannot be acquired within the specified wait time, an `Hypervel\Contracts\Cache\LockTimeoutException` will be thrown.
+If the lock cannot be acquired within the specified wait time, a `Hypervel\Contracts\Cache\LockTimeoutException` will be thrown.
 
 If you want controlled parallelism, use the `funnel` method to set a maximum number of concurrent executions. The `funnel` method works with any cache driver that supports locks:
 
@@ -617,7 +785,7 @@ Cache::funnel('foo')
 
 The `funnel` key identifies the resource being limited. The `limit` method defines the maximum concurrent executions. The `releaseAfter` method sets a safety timeout in seconds before an acquired slot is automatically released. The `block` method sets how many seconds to wait for an available slot.
 
-If you prefer to handle the timeout via exceptions instead of providing a failure closure, you may omit the second closure. An `Hypervel\Cache\Limiters\LimiterTimeoutException` will be thrown if the lock cannot be acquired within the specified wait time:
+If you prefer to handle the timeout via exceptions instead of providing a failure closure, you may omit the second closure. A `Hypervel\Cache\Limiters\LimiterTimeoutException` will be thrown if the lock cannot be acquired within the specified wait time:
 
 ```php
 use Hypervel\Cache\Limiters\LimiterTimeoutException;
@@ -649,38 +817,13 @@ Cache::store('redis')->funnel('foo')
 > [!NOTE]
 > The `funnel` method requires the cache store to implement the `Hypervel\Contracts\Cache\LockProvider` interface. If you attempt to use `funnel` with a cache store that does not support locks, a `BadMethodCallException` will be thrown.
 
-<a name="cache-failover"></a>
-## Cache Failover
-
-The `failover` cache driver provides automatic failover functionality when interacting with the cache. If the primary cache store of the `failover` store fails for any reason, Laravel will automatically attempt to use the next configured store in the list. This is particularly useful for ensuring high availability in production environments where cache reliability is critical.
-
-To configure a failover cache store, specify the `failover` driver and provide an array of store names to attempt in order. By default, Laravel includes an example failover configuration in your application's `config/cache.php` configuration file:
-
-```php
-'failover' => [
-    'driver' => 'failover',
-    'stores' => [
-        'database',
-        'array',
-    ],
-],
-```
-
-Once you have configured a store that uses the `failover` driver, you will need to set the failover store as your default cache store in your application's `.env` file to make use of the failover functionality:
-
-```ini
-CACHE_STORE=failover
-```
-
-When a cache store operation fails and failover is activated, Laravel will dispatch the `Hypervel\Cache\Events\CacheFailedOver` event, allowing you to report or log that a cache store has failed.
-
 <a name="adding-custom-cache-drivers"></a>
 ## Adding Custom Cache Drivers
 
 <a name="writing-the-driver"></a>
 ### Writing the Driver
 
-To create our custom cache driver, we first need to implement the `Hypervel\Contracts\Cache\Store` [contract](/docs/{{version}}/contracts). So, a MongoDB cache implementation might look something like this:
+To create our custom cache driver, we first need to implement the `Hypervel\Contracts\Cache\Store` [contract](/docs/{{version}}/contracts). So, a custom cache implementation might look something like this:
 
 ```php
 <?php
@@ -689,43 +832,44 @@ namespace App\Extensions;
 
 use Hypervel\Contracts\Cache\Store;
 
-class MongoStore implements Store
+class CustomStore implements Store
 {
-    public function get($key) {}
-    public function many(array $keys) {}
-    public function put($key, $value, $seconds) {}
-    public function putMany(array $values, $seconds) {}
-    public function increment($key, $value = 1) {}
-    public function decrement($key, $value = 1) {}
-    public function forever($key, $value) {}
-    public function forget($key) {}
-    public function flush() {}
-    public function getPrefix() {}
+    public function get(string $key): mixed {}
+    public function many(array $keys): array {}
+    public function put(string $key, mixed $value, int $seconds): bool {}
+    public function putMany(array $values, int $seconds): bool {}
+    public function increment(string $key, int $value = 1): bool|int {}
+    public function decrement(string $key, int $value = 1): bool|int {}
+    public function forever(string $key, mixed $value): bool {}
+    public function touch(string $key, int $seconds): bool {}
+    public function forget(string $key): bool {}
+    public function flush(): bool {}
+    public function getPrefix(): string {}
 }
 ```
 
-We just need to implement each of these methods using a MongoDB connection. For an example of how to implement each of these methods, take a look at the `Hypervel\Cache\MemcachedStore` in the [Laravel framework source code](https://github.com/laravel/framework). Once our implementation is complete, we can finish our custom driver registration by calling the `Cache` facade's `extend` method:
+We just need to implement each of these methods using your underlying cache backend. For an example of how to implement each of these methods, take a look at the `Hypervel\Cache\RedisStore` in the [Hypervel framework source code](https://github.com/hypervel/components/blob/main/src/cache/src/RedisStore.php). Once our implementation is complete, we can finish our custom driver registration by calling the `Cache` facade's `extend` method:
 
 ```php
-Cache::extend('mongo', function (Application $app) {
-    return Cache::repository(new MongoStore);
+Cache::extend('custom', function (Application $app, array $config) {
+    return Cache::repository(new CustomStore);
 });
 ```
 
 > [!NOTE]
-> If you're wondering where to put your custom cache driver code, you could create an `Extensions` namespace within your `app` directory. However, keep in mind that Laravel does not have a rigid application structure and you are free to organize your application according to your preferences.
+> If you're wondering where to put your custom cache driver code, you could create an `Extensions` namespace within your `app` directory. However, keep in mind that Hypervel does not have a rigid application structure and you are free to organize your application according to your preferences.
 
 <a name="registering-the-driver"></a>
 ### Registering the Driver
 
-To register the custom cache driver with Laravel, we will use the `extend` method on the `Cache` facade. Since other service providers may attempt to read cached values within their `boot` method, we will register our custom driver within a `booting` callback. By using the `booting` callback, we can ensure that the custom driver is registered just before the `boot` method is called on our application's service providers but after the `register` method is called on all of the service providers. We will register our `booting` callback within the `register` method of our application's `App\Providers\AppServiceProvider` class:
+To register the custom cache driver with Hypervel, we will use the `extend` method on the `Cache` facade. Since other service providers may attempt to read cached values within their `boot` method, we will register our custom driver within a `booting` callback. By using the `booting` callback, we can ensure that the custom driver is registered just before the `boot` method is called on our application's service providers but after the `register` method is called on all of the service providers. We will register our `booting` callback within the `register` method of our application's `App\Providers\AppServiceProvider` class:
 
 ```php
 <?php
 
 namespace App\Providers;
 
-use App\Extensions\MongoStore;
+use App\Extensions\CustomStore;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\ServiceProvider;
@@ -738,10 +882,10 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->booting(function () {
-             Cache::extend('mongo', function (Application $app) {
-                 return Cache::repository(new MongoStore);
-             });
-         });
+            Cache::extend('custom', function (Application $app, array $config) {
+                return Cache::repository(new CustomStore);
+            });
+        });
     }
 
     /**
@@ -754,9 +898,31 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
-The first argument passed to the `extend` method is the name of the driver. This will correspond to your `driver` option in the `config/cache.php` configuration file. The second argument is a closure that should return an `Hypervel\Cache\Repository` instance. The closure will be passed an `$app` instance, which is an instance of the [service container](/docs/{{version}}/container).
+The first argument passed to the `extend` method is the name of the driver. This will correspond to your `driver` option in the `config/cache.php` configuration file. The second argument is a closure that should return a `Hypervel\Cache\Repository` instance. The closure will be passed an `$app` instance, which is an instance of the [service container](/docs/{{version}}/container), and the cache store's configuration array.
 
 Once your extension is registered, update the `CACHE_STORE` environment variable or `default` option within your application's `config/cache.php` configuration file to the name of your extension.
+
+<a name="console-commands"></a>
+## Console Commands
+
+Hypervel includes several Artisan commands for working with cache stores:
+
+<div class="overflow-auto">
+
+| Command | Purpose |
+| --- | --- |
+| `cache:clear [store]` | Flush a cache store. |
+| `cache:clear [store] --tags=tag-a,tag-b` | Flush tagged cache entries for a store that supports tags. |
+| `cache:clear [store] --locks` | Flush cache locks for a store that supports lock flushing. |
+| `cache:forget {key} [store]` | Forget a single cache key. |
+| `cache:prune-db-expired [store]` | Prune expired rows from a database cache store. |
+| `cache:prune-stale-tags [store]` | Prune stale Redis tag index entries. |
+| `cache:redis-doctor [--store=]` | Run diagnostic checks against a Redis cache store. |
+| `cache:redis-benchmark [--store=]` | Benchmark Redis cache scenarios, including tag modes, bulk operations, and reads. |
+| `make:cache-table` | Create the `cache` and `cache_locks` table migrations. |
+| `cache:table` | Alias of `make:cache-table`. |
+
+</div>
 
 <a name="events"></a>
 ## Events
@@ -767,6 +933,7 @@ To execute code on every cache operation, you may listen for various [events](/d
 
 | Event Name                                      |
 |-------------------------------------------------|
+| `Hypervel\Cache\Events\CacheFailedOver`       |
 | `Hypervel\Cache\Events\CacheFlushed`          |
 | `Hypervel\Cache\Events\CacheFlushing`         |
 | `Hypervel\Cache\Events\CacheFlushFailed`      |
