@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Limiters;
 
 use Hypervel\Contracts\Redis\LimiterTimeoutException;
+use Hypervel\Redis\LuaScripts;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
@@ -12,6 +13,13 @@ use Throwable;
 
 class ConcurrencyLimiter
 {
+    /**
+     * Precomputed slot names. Built once in the constructor.
+     *
+     * @var list<string>
+     */
+    protected array $slots;
+
     /**
      * Create a new concurrency limiter instance.
      *
@@ -26,6 +34,9 @@ class ConcurrencyLimiter
         protected int $maxLocks,
         protected int $releaseAfter
     ) {
+        $this->slots = $maxLocks < 1
+            ? []
+            : array_map(fn (int $i): string => $name . $i, range(1, $maxLocks));
     }
 
     /**
@@ -50,7 +61,7 @@ class ConcurrencyLimiter
 
         if (is_callable($callback)) {
             try {
-                return tap($callback(), function () use ($slot, $id) {
+                return tap($callback(), function () use ($slot, $id): void {
                     $this->release($slot, $id);
                 });
             } catch (Throwable $exception) {
@@ -70,34 +81,17 @@ class ConcurrencyLimiter
      */
     protected function acquire(string $id): mixed
     {
-        $slots = array_map(function ($i) {
-            return $this->name . $i;
-        }, range(1, $this->maxLocks));
+        // Without slots there's nothing to claim. Calling eval with zero KEYS
+        // would error inside Lua via unpack({}) → redis.call('mget') with no args.
+        if ($this->slots === []) {
+            return false;
+        }
 
         return $this->redis->eval(...array_merge(
-            [$this->lockScript(), count($slots)],
-            array_merge($slots, [$this->name, $this->releaseAfter, $id])
+            [LuaScripts::acquireConcurrencySlot(), count($this->slots)],
+            $this->slots,
+            [$this->name, $this->releaseAfter, $id],
         ));
-    }
-
-    /**
-     * Get the Lua script for acquiring a lock.
-     *
-     * KEYS    - The keys that represent available slots
-     * ARGV[1] - The limiter name
-     * ARGV[2] - The number of seconds the slot should be reserved
-     * ARGV[3] - The unique identifier for this lock
-     */
-    protected function lockScript(): string
-    {
-        return <<<'LUA'
-for index, value in pairs(redis.call('mget', unpack(KEYS))) do
-    if not value then
-        redis.call('set', KEYS[index], ARGV[3], "EX", ARGV[2])
-        return ARGV[1]..index
-    end
-end
-LUA;
     }
 
     /**
@@ -105,24 +99,6 @@ LUA;
      */
     protected function release(string $key, string $id): void
     {
-        $this->redis->eval($this->releaseScript(), 1, $key, $id);
-    }
-
-    /**
-     * Get the Lua script to atomically release a lock.
-     *
-     * KEYS[1] - The name of the lock
-     * ARGV[1] - The unique identifier for this lock
-     */
-    protected function releaseScript(): string
-    {
-        return <<<'LUA'
-if redis.call('get', KEYS[1]) == ARGV[1]
-then
-    return redis.call('del', KEYS[1])
-else
-    return 0
-end
-LUA;
+        $this->redis->eval(LuaScripts::releaseLock(), 1, $key, $id);
     }
 }
