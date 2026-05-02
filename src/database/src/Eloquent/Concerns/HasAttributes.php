@@ -104,6 +104,14 @@ trait HasAttributes
     protected ?array $mergedCastsCache = null;
 
     /**
+     * The cached results of cast metadata predicate methods for this instance.
+     *
+     * Keyed by predicate name then attribute name. Cleared whenever cast state
+     * mutates via flushCastCaches().
+     */
+    protected array $castMetadataCache = [];
+
+    /**
      * The built-in, primitive cast types supported by Eloquent.
      *
      * @var string[]
@@ -199,7 +207,7 @@ trait HasAttributes
             array_merge($this->casts, $this->casts()),
         );
 
-        $this->mergedCastsCache = null;
+        $this->flushCastCaches();
     }
 
     /**
@@ -718,9 +726,18 @@ trait HasAttributes
 
         $this->casts = array_merge($this->casts, $casts);
 
-        $this->mergedCastsCache = null;
+        $this->flushCastCaches();
 
         return $this;
+    }
+
+    /**
+     * Flush the per-instance cast metadata caches.
+     */
+    protected function flushCastCaches(): void
+    {
+        $this->mergedCastsCache = null;
+        $this->castMetadataCache = [];
     }
 
     /**
@@ -873,10 +890,14 @@ trait HasAttributes
      */
     protected function getCastType(string $key): string
     {
+        if (isset($this->castMetadataCache['castType'][$key])) {
+            return $this->castMetadataCache['castType'][$key];
+        }
+
         $castType = $this->getCasts()[$key];
 
         if (isset(static::$castTypeCache[$castType])) {
-            return static::$castTypeCache[$castType];
+            return $this->castMetadataCache['castType'][$key] = static::$castTypeCache[$castType];
         }
 
         if ($this->isCustomDateTimeCast($castType)) {
@@ -891,7 +912,7 @@ trait HasAttributes
             $convertedCastType = trim(strtolower($castType));
         }
 
-        return static::$castTypeCache[$castType] = $convertedCastType;
+        return $this->castMetadataCache['castType'][$key] = static::$castTypeCache[$castType] = $convertedCastType;
     }
 
     /**
@@ -1533,7 +1554,7 @@ trait HasAttributes
      */
     protected function isDateCastable(string $key): bool
     {
-        return $this->hasCast($key, ['date', 'datetime', 'immutable_date', 'immutable_datetime']);
+        return $this->castMetadataCache['dateCastable'][$key] ??= $this->hasCast($key, ['date', 'datetime', 'immutable_date', 'immutable_datetime']);
     }
 
     /**
@@ -1541,7 +1562,7 @@ trait HasAttributes
      */
     protected function isDateCastableWithCustomFormat(string $key): bool
     {
-        return $this->hasCast($key, ['custom_datetime', 'immutable_custom_datetime']);
+        return $this->castMetadataCache['dateCastableWithCustomFormat'][$key] ??= $this->hasCast($key, ['custom_datetime', 'immutable_custom_datetime']);
     }
 
     /**
@@ -1549,7 +1570,7 @@ trait HasAttributes
      */
     protected function isJsonCastable(string $key): bool
     {
-        return $this->hasCast($key, ['array', 'json', 'json:unicode', 'object', 'collection', 'encrypted:array', 'encrypted:collection', 'encrypted:json', 'encrypted:object']);
+        return $this->castMetadataCache['jsonCastable'][$key] ??= $this->hasCast($key, ['array', 'json', 'json:unicode', 'object', 'collection', 'encrypted:array', 'encrypted:collection', 'encrypted:json', 'encrypted:object']);
     }
 
     /**
@@ -1557,7 +1578,7 @@ trait HasAttributes
      */
     protected function isEncryptedCastable(string $key): bool
     {
-        return $this->hasCast($key, ['encrypted', 'encrypted:array', 'encrypted:collection', 'encrypted:json', 'encrypted:object']);
+        return $this->castMetadataCache['encryptedCastable'][$key] ??= $this->hasCast($key, ['encrypted', 'encrypted:array', 'encrypted:collection', 'encrypted:json', 'encrypted:object']);
     }
 
     /**
@@ -1567,20 +1588,24 @@ trait HasAttributes
      */
     protected function isClassCastable(string $key): bool
     {
+        if (isset($this->castMetadataCache['classCastable'][$key])) {
+            return $this->castMetadataCache['classCastable'][$key];
+        }
+
         $casts = $this->getCasts();
 
         if (! array_key_exists($key, $casts)) {
-            return false;
+            return $this->castMetadataCache['classCastable'][$key] = false;
         }
 
         $castType = $this->parseCasterClass($casts[$key]);
 
         if (in_array($castType, static::$primitiveCastTypes)) {
-            return false;
+            return $this->castMetadataCache['classCastable'][$key] = false;
         }
 
         if (class_exists($castType)) {
-            return true;
+            return $this->castMetadataCache['classCastable'][$key] = true;
         }
 
         throw new InvalidCastException($this, $key, $castType);
@@ -1591,23 +1616,27 @@ trait HasAttributes
      */
     protected function isEnumCastable(string $key): bool
     {
+        if (isset($this->castMetadataCache['enumCastable'][$key])) {
+            return $this->castMetadataCache['enumCastable'][$key];
+        }
+
         $casts = $this->getCasts();
 
         if (! array_key_exists($key, $casts)) {
-            return false;
+            return $this->castMetadataCache['enumCastable'][$key] = false;
         }
 
         $castType = $casts[$key];
 
         if (in_array($castType, static::$primitiveCastTypes)) {
-            return false;
+            return $this->castMetadataCache['enumCastable'][$key] = false;
         }
 
         if (is_subclass_of($castType, Castable::class)) {
-            return false;
+            return $this->castMetadataCache['enumCastable'][$key] = false;
         }
 
-        return enum_exists($castType);
+        return $this->castMetadataCache['enumCastable'][$key] = enum_exists($castType);
     }
 
     /**
@@ -1617,13 +1646,17 @@ trait HasAttributes
      */
     protected function isClassDeviable(string $key): bool
     {
+        if (isset($this->castMetadataCache['classDeviable'][$key])) {
+            return $this->castMetadataCache['classDeviable'][$key];
+        }
+
         if (! $this->isClassCastable($key)) {
-            return false;
+            return $this->castMetadataCache['classDeviable'][$key] = false;
         }
 
         $castType = $this->resolveCasterClass($key);
 
-        return method_exists($castType::class, 'increment') && method_exists($castType::class, 'decrement');
+        return $this->castMetadataCache['classDeviable'][$key] = method_exists($castType::class, 'increment') && method_exists($castType::class, 'decrement');
     }
 
     /**
@@ -1633,7 +1666,7 @@ trait HasAttributes
      */
     protected function isClassSerializable(string $key): bool
     {
-        return ! $this->isEnumCastable($key)
+        return $this->castMetadataCache['classSerializable'][$key] ??= ! $this->isEnumCastable($key)
             && $this->isClassCastable($key)
             && method_exists($this->resolveCasterClass($key), 'serialize');
     }
@@ -1643,7 +1676,7 @@ trait HasAttributes
      */
     protected function isClassComparable(string $key): bool
     {
-        return ! $this->isEnumCastable($key)
+        return $this->castMetadataCache['classComparable'][$key] ??= ! $this->isEnumCastable($key)
             && $this->isClassCastable($key)
             && method_exists($this->resolveCasterClass($key), 'compare');
     }
