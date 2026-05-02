@@ -26,7 +26,9 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Cache\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Contracts\Cache\CanFlushLocks;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
@@ -690,6 +692,18 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     public function withoutOverlapping(UnitEnum|string $key, callable $callback, int $lockFor = 0, int $waitFor = 10, ?string $owner = null): mixed
     {
         return $this->store->lock(enum_value($key), $lockFor, $owner)->block($waitFor, $callback); // @phpstan-ignore method.notFound (lock() is on LockProvider, not Store contract)
+    }
+
+    /**
+     * Funnel a callback for a maximum number of simultaneous executions.
+     */
+    public function funnel(UnitEnum|string $name): ConcurrencyLimiterBuilder
+    {
+        if (! $this->store instanceof LockProvider) {
+            throw new BadMethodCallException('This cache store does not support locks.');
+        }
+
+        return new ConcurrencyLimiterBuilder($this, enum_value($name));
     }
 
     /**
