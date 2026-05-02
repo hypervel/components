@@ -93,6 +93,17 @@ class DatabaseEloquentWithCastsTest extends TestCase
         $this->assertInstanceOf(CarbonInterface::class, $default->time);
     }
 
+    public function testWithCastsDoesNotLeakPredicateCacheAcrossQueries()
+    {
+        Time::query()->insert(['time' => '07:30']);
+
+        $scoped = Time::query()->withCasts(['time' => 'string'])->first();
+        $this->assertFalse($scoped->hasCast('time', 'datetime'));
+
+        $default = Time::query()->first();
+        $this->assertTrue($default->hasCast('time', 'datetime'));
+    }
+
     public function testThrowsExceptionIfCastableAttributeWasNotRetrievedAndPreventMissingAttributesIsEnabled()
     {
         Time::create(['time' => now()]);
