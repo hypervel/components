@@ -60,6 +60,7 @@ use Mockery;
  * @method static mixed flexible(\UnitEnum|string $key, array $ttl, callable $callback, null|array $lock = null, bool $alwaysDefer = false)
  * @method static mixed flexibleNullable(\UnitEnum|string $key, array $ttl, callable $callback, null|array $lock = null, bool $alwaysDefer = false)
  * @method static mixed withoutOverlapping(\UnitEnum|string $key, callable $callback, int $lockFor = 0, int $waitFor = 10, string|null $owner = null)
+ * @method static \Hypervel\Cache\Limiters\ConcurrencyLimiterBuilder funnel(\UnitEnum|string $name)
  * @method static bool flushLocks()
  * @method static bool supportsTags()
  * @method static bool supportsFlushingLocks()

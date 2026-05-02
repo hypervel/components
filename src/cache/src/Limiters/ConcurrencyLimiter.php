@@ -2,11 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Redis\Limiters;
+namespace Hypervel\Cache\Limiters;
 
-use Hypervel\Contracts\Redis\LimiterTimeoutException;
-use Hypervel\Redis\LuaScripts;
-use Hypervel\Redis\RedisProxy;
+use Hypervel\Contracts\Cache\Lock;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Throwable;
@@ -23,16 +22,16 @@ class ConcurrencyLimiter
     /**
      * Create a new concurrency limiter instance.
      *
-     * @param RedisProxy $redis the Redis connection instance
+     * @param LockProvider $store the cache store instance
      * @param string $name the name of the limiter
-     * @param int $maxLocks the allowed number of concurrent tasks
+     * @param int $maxLocks the allowed number of concurrent locks
      * @param int $releaseAfter the number of seconds a slot should be maintained
      */
     public function __construct(
-        protected RedisProxy $redis,
+        protected LockProvider $store,
         protected string $name,
         protected int $maxLocks,
-        protected int $releaseAfter
+        protected int $releaseAfter,
     ) {
         $this->slots = $maxLocks < 1
             ? []
@@ -61,11 +60,11 @@ class ConcurrencyLimiter
 
         if (is_callable($callback)) {
             try {
-                return tap($callback(), function () use ($slot, $id): void {
-                    $this->release($slot, $id);
+                return tap($callback(), function () use ($slot): void {
+                    $this->release($slot);
                 });
             } catch (Throwable $exception) {
-                $this->release($slot, $id);
+                $this->release($slot);
 
                 throw $exception;
             }
@@ -75,30 +74,26 @@ class ConcurrencyLimiter
     }
 
     /**
-     * Attempt to acquire the lock.
-     *
-     * @param string $id a unique identifier for this lock
+     * Attempt to acquire a slot lock.
      */
-    protected function acquire(string $id): mixed
+    protected function acquire(string $id): bool|Lock
     {
-        // Without slots there's nothing to claim. Calling eval with zero KEYS
-        // would error inside Lua via unpack({}) → redis.call('mget') with no args.
-        if ($this->slots === []) {
-            return false;
+        foreach ($this->slots as $slotName) {
+            $lock = $this->store->lock($slotName, $this->releaseAfter, $id);
+
+            if ($lock->acquire()) {
+                return $lock;
+            }
         }
 
-        return $this->redis->eval(...array_merge(
-            [LuaScripts::acquireConcurrencySlot(), count($this->slots)],
-            $this->slots,
-            [$this->name, $this->releaseAfter, $id],
-        ));
+        return false;
     }
 
     /**
-     * Release the lock.
+     * Release the slot lock.
      */
-    protected function release(string $key, string $id): void
+    protected function release(Lock $lock): void
     {
-        $this->redis->eval(LuaScripts::releaseLock(), 1, $key, $id);
+        $lock->release();
     }
 }
