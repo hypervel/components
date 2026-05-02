@@ -38,7 +38,7 @@ trait SoftDeletes
             $this->casts[$this->getDeletedAtColumn()] = 'datetime';
         }
 
-        $this->mergedCastsCache = null;
+        $this->flushCastCaches();
     }
 
     /**

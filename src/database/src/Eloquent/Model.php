@@ -1865,7 +1865,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     {
         $this->primaryKey = $key;
 
-        $this->mergedCastsCache = null;
+        $this->flushCastCaches();
 
         return $this;
     }
@@ -1893,7 +1893,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     {
         $this->keyType = $type;
 
-        $this->mergedCastsCache = null;
+        $this->flushCastCaches();
 
         return $this;
     }
@@ -1913,7 +1913,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     {
         $this->incrementing = $value;
 
-        $this->mergedCastsCache = null;
+        $this->flushCastCaches();
 
         return $this;
     }
@@ -2314,7 +2314,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         $this->classCastCache = [];
         $this->attributeCastCache = [];
-        $this->mergedCastsCache = null;
+        $this->flushCastCaches();
         $this->relationAutoloadCallback = null;
         $this->relationAutoloadContext = null;
 
