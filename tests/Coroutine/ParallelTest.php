@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coroutine;
 
 use Exception;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Coroutine\Parallel;
+use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 use Throwable;
@@ -441,6 +443,103 @@ class ParallelTest extends TestCase
 
         $this->assertSame(['second' => 'second-run'], $results);
         $this->assertFalse($parallel->hasFailures());
+    }
+
+    public function testCopyContextDisabledByDefault()
+    {
+        CoroutineContext::set('parent_only', 'value');
+
+        $channel = new Channel(1);
+        $parallel = new Parallel;
+        $parallel->add(function () use ($channel) {
+            $channel->push(CoroutineContext::get('parent_only'));
+        });
+        $parallel->wait();
+
+        $this->assertNull($channel->pop());
+    }
+
+    public function testCopyContextTrueCopiesAllKeys()
+    {
+        CoroutineContext::set('key_a', 'value_a');
+        CoroutineContext::set('key_b', 'value_b');
+
+        $channel = new Channel(2);
+        $parallel = new Parallel(0, copyContext: true);
+        $parallel->add(function () use ($channel) {
+            $channel->push(CoroutineContext::get('key_a'));
+            $channel->push(CoroutineContext::get('key_b'));
+        });
+        $parallel->wait();
+
+        $this->assertSame('value_a', $channel->pop());
+        $this->assertSame('value_b', $channel->pop());
+    }
+
+    public function testCopyContextEmptyArrayCopiesAllKeys()
+    {
+        CoroutineContext::set('key_a', 'value_a');
+        CoroutineContext::set('key_b', 'value_b');
+
+        $channel = new Channel(2);
+        $parallel = new Parallel(0, copyContext: []);
+        $parallel->add(function () use ($channel) {
+            $channel->push(CoroutineContext::get('key_a'));
+            $channel->push(CoroutineContext::get('key_b'));
+        });
+        $parallel->wait();
+
+        $this->assertSame('value_a', $channel->pop());
+        $this->assertSame('value_b', $channel->pop());
+    }
+
+    public function testCopyContextArrayCopiesSpecifiedKeysOnly()
+    {
+        CoroutineContext::set('key_a', 'value_a');
+        CoroutineContext::set('key_b', 'value_b');
+
+        $channel = new Channel(2);
+        $parallel = new Parallel(0, copyContext: ['key_a']);
+        $parallel->add(function () use ($channel) {
+            $channel->push(CoroutineContext::get('key_a'));
+            $channel->push(CoroutineContext::get('key_b'));
+        });
+        $parallel->wait();
+
+        $this->assertSame('value_a', $channel->pop());
+        $this->assertNull($channel->pop());
+    }
+
+    public function testCopyContextWorksWithConcurrencyLimit()
+    {
+        CoroutineContext::set('shared', 'value');
+
+        $channel = new Channel(4);
+        $parallel = new Parallel(2, copyContext: true);
+        for ($i = 0; $i < 4; ++$i) {
+            $parallel->add(function () use ($channel) {
+                $channel->push(CoroutineContext::get('shared'));
+            });
+        }
+        $parallel->wait();
+
+        for ($i = 0; $i < 4; ++$i) {
+            $this->assertSame('value', $channel->pop());
+        }
+    }
+
+    public function testParallelHelperPassesCopyContextThrough()
+    {
+        CoroutineContext::set('via_helper', 'value');
+
+        $channel = new Channel(1);
+        parallel([
+            function () use ($channel) {
+                $channel->push(CoroutineContext::get('via_helper'));
+            },
+        ], 0, copyContext: true);
+
+        $this->assertSame('value', $channel->pop());
     }
 
     public function returnCoroutineId(): int
