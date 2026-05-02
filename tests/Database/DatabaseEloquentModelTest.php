@@ -38,6 +38,7 @@ use Hypervel\Database\Eloquent\Concerns\HasUlids;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\InvalidCastException;
 use Hypervel\Database\Eloquent\JsonEncodingException;
 use Hypervel\Database\Eloquent\MassAssignmentException;
 use Hypervel\Database\Eloquent\MissingAttributeException;
@@ -50,6 +51,7 @@ use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Events\Dispatcher as EventDispatcher;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\HtmlString;
@@ -3051,6 +3053,169 @@ class DatabaseEloquentModelTest extends TestCase
         }
     }
 
+    public function testCastCacheIsInvalidatedByMergeCasts()
+    {
+        $model = new ModelStub;
+        $model->mergeCasts(['foo' => 'array']);
+
+        $this->assertTrue($model->hasCast('foo', 'array'));
+
+        $model->mergeCasts(['foo' => 'integer']);
+
+        $this->assertFalse($model->hasCast('foo', 'array'));
+    }
+
+    public function testCastCacheIsInvalidatedBySetKeyType()
+    {
+        $model = new ModelStub;
+
+        $this->assertTrue($model->hasCast($model->getKeyName(), 'int'));
+
+        $model->setKeyType('string');
+
+        $this->assertFalse($model->hasCast($model->getKeyName(), 'int'));
+        $this->assertTrue($model->hasCast($model->getKeyName(), 'string'));
+    }
+
+    public function testCastCacheIsInvalidatedBySetKeyName()
+    {
+        $model = new ModelStub;
+        $model->hasCast('id', 'int');
+
+        $invoker = new ClassInvoker($model);
+        $this->assertNotEmpty($invoker->castMetadataCache, 'cache should be populated before mutation');
+
+        $model->setKeyName('uuid');
+
+        $this->assertSame([], $invoker->castMetadataCache, 'cache should be cleared after setKeyName');
+    }
+
+    public function testCastCacheIsInvalidatedBySetIncrementing()
+    {
+        $model = new ModelStub;
+        $model->hasCast('id', 'int');
+
+        $invoker = new ClassInvoker($model);
+        $this->assertNotEmpty($invoker->castMetadataCache, 'cache should be populated before mutation');
+
+        $model->setIncrementing(false);
+
+        $this->assertSame([], $invoker->castMetadataCache, 'cache should be cleared after setIncrementing');
+    }
+
+    public function testCastCacheIsInvalidatedDuringInitializeHasAttributes()
+    {
+        Model::clearBootedModels();
+
+        Model::setEventDispatcher($dispatcher = new EventDispatcher);
+
+        try {
+            $dispatcher->listen(
+                'eloquent.booting: ' . GetCastsBootingStub::class,
+                function (GetCastsBootingStub $model) {
+                    $model->hasCast('id', 'int');
+                }
+            );
+
+            $instance = new GetCastsBootingStub;
+
+            $invoker = new ClassInvoker($instance);
+            $this->assertSame([], $invoker->castMetadataCache, 'cache should be cleared after initializeHasAttributes');
+        } finally {
+            GetCastsBootingStub::flushEventListeners();
+            Model::clearBootedModels();
+            Model::unsetEventDispatcher();
+        }
+    }
+
+    public function testInitializeSoftDeletesClearsCastMetadataCache()
+    {
+        $model = new GetCastsSoftDeletingBootingStub;
+        $invoker = new ClassInvoker($model);
+
+        $invoker->isDateCastable($model->getDeletedAtColumn());
+        $this->assertNotEmpty($invoker->castMetadataCache, 'cache should be populated');
+
+        $invoker->initializeSoftDeletes();
+
+        $this->assertSame([], $invoker->castMetadataCache, 'initializeSoftDeletes should clear the cache');
+    }
+
+    public function testCastCacheIsClearedDuringSleep()
+    {
+        $model = new ModelStub;
+        $model->hasCast('id', 'int');
+
+        $invoker = new ClassInvoker($model);
+        $this->assertNotEmpty($invoker->castMetadataCache, 'cache should be populated');
+
+        $model->__sleep();
+
+        $this->assertSame([], $invoker->castMetadataCache, 'cache should be cleared by __sleep');
+    }
+
+    public function testIsClassCastableThrowsRepeatedlyForInvalidCast()
+    {
+        $invoker = new ClassInvoker(new CastCacheInvalidClassStub);
+
+        try {
+            $invoker->isClassCastable('foo');
+            $this->fail('Expected InvalidCastException on first call');
+        } catch (InvalidCastException) {
+            // expected
+        }
+
+        $this->expectException(InvalidCastException::class);
+        $invoker->isClassCastable('foo');
+    }
+
+    public function testCastCacheIsIsolatedPerInstance()
+    {
+        $a = new ModelStub;
+        $b = new ModelStub;
+
+        $a->mergeCasts(['castedFloat' => 'integer']);
+
+        // Populate $a's cache first to make any class-level leakage visible.
+        $this->assertTrue($a->hasCast('castedFloat', 'integer'));
+
+        // $b retains the default 'float' cast for castedFloat.
+        $this->assertTrue($b->hasCast('castedFloat', 'float'));
+        $this->assertFalse($b->hasCast('castedFloat', 'integer'));
+    }
+
+    public function testEachPredicatePopulatesItsExpectedBucket()
+    {
+        $cases = [
+            ['castType', 'id', fn (ClassInvoker $i) => $i->getCastType('id')],
+            ['dateCastable', 'foo', fn (ClassInvoker $i) => $i->isDateCastable('foo')],
+            ['dateCastableWithCustomFormat', 'foo', fn (ClassInvoker $i) => $i->isDateCastableWithCustomFormat('foo')],
+            ['jsonCastable', 'foo', fn (ClassInvoker $i) => $i->isJsonCastable('foo')],
+            ['encryptedCastable', 'foo', fn (ClassInvoker $i) => $i->isEncryptedCastable('foo')],
+            ['classCastable', 'foo', fn (ClassInvoker $i) => $i->isClassCastable('foo')],
+            ['enumCastable', 'foo', fn (ClassInvoker $i) => $i->isEnumCastable('foo')],
+            ['classDeviable', 'foo', fn (ClassInvoker $i) => $i->isClassDeviable('foo')],
+            ['classSerializable', 'foo', fn (ClassInvoker $i) => $i->isClassSerializable('foo')],
+            ['classComparable', 'foo', fn (ClassInvoker $i) => $i->isClassComparable('foo')],
+        ];
+
+        foreach ($cases as [$bucket, $key, $call]) {
+            $invoker = new ClassInvoker(new ModelStub);
+            $call($invoker);
+
+            $this->assertArrayHasKey(
+                $bucket,
+                $invoker->castMetadataCache,
+                "Predicate should populate '{$bucket}' bucket"
+            );
+            $this->assertArrayHasKey(
+                $key,
+                $invoker->castMetadataCache[$bucket],
+                "Predicate should write to '{$bucket}'[{$key}], not under any other key"
+            );
+        }
+    }
+
     public function testMergeCastsMergesCastsUsingArrays()
     {
         $model = new CastingStub;
@@ -4632,6 +4797,13 @@ class GetCastsSoftDeletingBootingStub extends Model
     use SoftDeletes;
 
     protected array $guarded = [];
+}
+
+class CastCacheInvalidClassStub extends Model
+{
+    protected array $guarded = [];
+
+    protected array $casts = ['foo' => '\This\Class\Does\Not\Exist'];
 }
 
 enum ConnectionName
