@@ -17,7 +17,6 @@ use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
 use Hypervel\Foundation\Http\Traits\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
-use Hypervel\Support\Arr;
 use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
 use ReflectionClass;
@@ -73,16 +72,6 @@ class FormRequest extends Request implements ValidatesWhenResolved
      * The validator instance.
      */
     protected ?Validator $validator = null;
-
-    /**
-     * The scenes defined by developer.
-     */
-    protected array $scenes = [];
-
-    /**
-     * The current validation scene.
-     */
-    protected ?string $currentScene = null;
 
     /**
      * Get the validator instance for the request.
@@ -208,22 +197,12 @@ class FormRequest extends Request implements ValidatesWhenResolved
 
     /**
      * Get the validation rules for this form request.
-     *
-     * Applies scene filtering when a scene is active.
      */
     protected function validationRules(): array
     {
-        $rules = method_exists($this, 'rules')
+        return method_exists($this, 'rules')
             ? $this->container->call([$this, 'rules'])
             : [];
-
-        $scene = $this->getScene();
-
-        if ($scene && isset($this->scenes[$scene]) && is_array($this->scenes[$scene])) {
-            return Arr::only($rules, $this->scenes[$scene]);
-        }
-
-        return $rules;
     }
 
     /**
@@ -360,23 +339,5 @@ class FormRequest extends Request implements ValidatesWhenResolved
     public static function flushState(): void
     {
         static::$attributeConfiguration = [];
-    }
-
-    /**
-     * Set the active validation scene.
-     */
-    public function scene(string $scene): static
-    {
-        $this->currentScene = $scene;
-
-        return $this;
-    }
-
-    /**
-     * Get the active validation scene.
-     */
-    public function getScene(): ?string
-    {
-        return $this->currentScene;
     }
 }
