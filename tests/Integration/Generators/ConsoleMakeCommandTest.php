@@ -17,11 +17,9 @@ class ConsoleMakeCommandTest extends TestCase
 
         $this->assertFileContains([
             'namespace App\Console\Commands;',
-            'use Hypervel\Console\Attributes\Description;',
-            'use Hypervel\Console\Attributes\Signature;',
             'use Hypervel\Console\Command;',
-            "#[Signature('app:foo-command')]",
-            "#[Description('Command description')]",
+            "protected ?string \$signature = 'app:foo-command';",
+            "protected string \$description = 'Command description';",
             'class FooCommand extends Command',
         ], 'app/Console/Commands/FooCommand.php');
     }
@@ -33,11 +31,9 @@ class ConsoleMakeCommandTest extends TestCase
 
         $this->assertFileContains([
             'namespace App\Console\Commands;',
-            'use Hypervel\Console\Attributes\Description;',
-            'use Hypervel\Console\Attributes\Signature;',
             'use Hypervel\Console\Command;',
-            "#[Signature('foo:bar')]",
-            "#[Description('Command description')]",
+            "protected ?string \$signature = 'foo:bar';",
+            "protected string \$description = 'Command description';",
             'class FooCommand extends Command',
         ], 'app/Console/Commands/FooCommand.php');
     }
