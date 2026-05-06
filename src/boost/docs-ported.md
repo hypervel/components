@@ -6,3 +6,4 @@ routing.md
 sanctum.md
 scout.md
 socialite.md
+validation.md
