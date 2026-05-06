@@ -523,15 +523,6 @@ class MoneyCast implements CastInputs
     {
         return Money::fromCents((int) $value);
     }
-
-    public function set(string $key, mixed $value, array $inputs): array
-    {
-        if ($value instanceof Money) {
-            return [$key => $value->amount];
-        }
-
-        return [$key => $value];
-    }
 }
 
 class Contact extends DataObject
