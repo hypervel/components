@@ -5,3 +5,4 @@ requests.md
 routing.md
 sanctum.md
 scout.md
+socialite.md

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Socialite\Facades;
+namespace Hypervel\Socialite;
 
 use Closure;
 use Hypervel\Socialite\Contracts\Factory;
