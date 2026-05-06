@@ -3,4 +3,5 @@ authentication.md
 cache.md
 requests.md
 routing.md
+sanctum.md
 scout.md
