@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console;
 
 use Hypervel\Console\Application as ConsoleApplication;
+use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Command;
 use Hypervel\Console\ContainerCommandLoader;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -59,6 +60,16 @@ class ConsoleApplicationResolveTest extends TestCase
 
         $this->assertNull($result);
         $this->assertArrayHasKey('test:signed', $this->getCommandMap($app));
+    }
+
+    public function testResolveLazilyRegistersCommandWithSignatureAttribute()
+    {
+        $app = $this->createApp();
+
+        $result = $app->resolve(StubSignatureAttributeCommand::class);
+
+        $this->assertNull($result);
+        $this->assertArrayHasKey('test:signed-attribute', $this->getCommandMap($app));
     }
 
     public function testResolveLazilyRegistersCommandWithNameProperty()
@@ -243,6 +254,16 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertInstanceOf(StubSignatureWithAliasCommand::class, $app->get('test:signed-alias'));
     }
 
+    public function testSignatureAttributeCommandWithAliasesResolvesDirectlyByAlias()
+    {
+        $app = $this->createApp($this->app);
+        $app->resolve(StubSignatureAttributeCommand::class);
+        $app->setContainerCommandLoader();
+
+        // Access alias DIRECTLY — never resolve the primary name first.
+        $this->assertInstanceOf(StubSignatureAttributeCommand::class, $app->get('test:signed-attribute-alias'));
+    }
+
     public function testResolvingCommandsWithNoAliasViaAttribute()
     {
         $app = $this->createApp($this->app);
@@ -424,6 +445,14 @@ class StubSignatureCommand extends Command
 {
     protected ?string $signature = 'test:signed {--option}';
 
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('test:signed-attribute {--option}', aliases: ['test:signed-attribute-alias'])]
+class StubSignatureAttributeCommand extends Command
+{
     public function handle(): void
     {
     }

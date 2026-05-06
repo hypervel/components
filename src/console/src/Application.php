@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Closure;
+use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Events\ArtisanStarting;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Console\Application as ConsoleApplicationContract;
@@ -214,10 +215,10 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Add a command, resolving through the application.
      *
-     * Commands whose name can be determined statically (#[AsCommand], $signature,
-     * or $name property) are added to the commandMap for lazy resolution via
-     * ContainerCommandLoader. Commands without a static name fall back to eager
-     * resolution through the container.
+     * Commands whose name can be determined statically (#[AsCommand],
+     * #[Signature], $signature, or $name property) are added to the commandMap
+     * for lazy resolution via ContainerCommandLoader. Commands without a static
+     * name fall back to eager resolution through the container.
      */
     public function resolve(SymfonyCommand|string $command): ?SymfonyCommand
     {
@@ -253,9 +254,9 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Extract the command name from a class without instantiation.
      *
-     * Checks (in order): #[AsCommand] attribute, $signature property default,
-     * $name property default. Returns null if the name can only be determined
-     * at construction time.
+     * Checks (in order): #[AsCommand] attribute, #[Signature] attribute,
+     * $signature property default, $name property default. Returns null if the
+     * name can only be determined at construction time.
      */
     protected static function extractCommandName(string $command): ?string
     {
@@ -268,16 +269,23 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
             return $attributes[0]->newInstance()->name;
         }
 
-        $defaults = $reflection->getDefaultProperties();
+        // 2. #[Signature] attribute (Hypervel command metadata).
+        $attributes = $reflection->getAttributes(Signature::class);
 
-        // 2. $signature property (Laravel convention) — name is the first token.
-        if (! empty($defaults['signature'])) {
-            return preg_match('/^\S+/', trim($defaults['signature']), $matches)
-                ? $matches[0]
-                : null;
+        if (! empty($attributes)) {
+            return static::extractCommandNameFromSignature(
+                $attributes[0]->newInstance()->signature
+            );
         }
 
-        // 3. $name property.
+        $defaults = $reflection->getDefaultProperties();
+
+        // 3. $signature property (Laravel convention) — name is the first token.
+        if (! empty($defaults['signature'])) {
+            return static::extractCommandNameFromSignature($defaults['signature']);
+        }
+
+        // 4. $name property.
         if (! empty($defaults['name'])) {
             return $defaults['name'];
         }
@@ -286,17 +294,39 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     }
 
     /**
+     * Extract the command name from a signature string.
+     */
+    protected static function extractCommandNameFromSignature(string $signature): ?string
+    {
+        return preg_match('/^\S+/', trim($signature), $matches)
+            ? $matches[0]
+            : null;
+    }
+
+    /**
      * Extract command aliases from a class without instantiation.
      *
-     * Reads the $aliases property default. #[AsCommand] aliases are already
-     * baked into the name string as pipe-separated values by Symfony, so they
-     * are handled by extractCommandName() + the explode('|') in resolve().
+     * Reads #[Signature] aliases first, then the $aliases property default.
+     * #[AsCommand] aliases are already baked into the name string as
+     * pipe-separated values by Symfony, so they are handled by
+     * extractCommandName() + the explode('|') in resolve().
      *
      * @return array<int, string>
      */
     protected static function extractCommandAliases(string $command): array
     {
-        $defaults = (new ReflectionClass($command))->getDefaultProperties();
+        $reflection = new ReflectionClass($command);
+        $attributes = $reflection->getAttributes(Signature::class);
+
+        if (! empty($attributes)) {
+            $aliases = $attributes[0]->newInstance()->aliases;
+
+            if ($aliases !== null) {
+                return $aliases;
+            }
+        }
+
+        $defaults = $reflection->getDefaultProperties();
 
         return $defaults['aliases'] ?? [];
     }
