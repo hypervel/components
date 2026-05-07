@@ -1,6 +1,7 @@
 <!-- Keep entries in alphabetical order. -->
 artisan.md
 authentication.md
+authorization.md
 cache.md
 requests.md
 routing.md
