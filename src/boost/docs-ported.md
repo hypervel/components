@@ -3,6 +3,7 @@ artisan.md
 authentication.md
 authorization.md
 blade.md
+broadcasting.md
 cache.md
 requests.md
 routing.md

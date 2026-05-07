@@ -19,6 +19,10 @@
     - [Broadcast Conditions](#broadcast-conditions)
     - [Broadcasting and Database Transactions](#broadcasting-and-database-transactions)
 - [Authorizing Channels](#authorizing-channels)
+    - [Defining Authorization Routes](#defining-authorization-routes)
+    - [Customizing the Authorization Endpoint](#customizing-the-authorization-endpoint)
+    - [Customizing the Authorization Request](#customizing-the-authorization-request)
+    - [Authenticating Users](#authenticating-users)
     - [Defining Authorization Callbacks](#defining-authorization-callbacks)
     - [Defining Channel Classes](#defining-channel-classes)
 - [Broadcasting Events](#broadcasting-events)
@@ -48,22 +52,22 @@ In many modern web applications, WebSockets are used to implement realtime, live
 
 For example, imagine your application is able to export a user's data to a CSV file and email it to them. However, creating this CSV file takes several minutes so you choose to create and mail the CSV within a [queued job](/docs/{{version}}/queues). When the CSV has been created and mailed to the user, we can use event broadcasting to dispatch an `App\Events\UserDataExported` event that is received by our application's JavaScript. Once the event is received, we can display a message to the user that their CSV has been emailed to them without them ever needing to refresh the page.
 
-To assist you in building these types of features, Laravel makes it easy to "broadcast" your server-side Laravel [events](/docs/{{version}}/events) over a WebSocket connection. Broadcasting your Laravel events allows you to share the same event names and data between your server-side Laravel application and your client-side JavaScript application.
+To assist you in building these types of features, Hypervel makes it easy to "broadcast" your server-side Hypervel [events](/docs/{{version}}/events) over a WebSocket connection. Broadcasting your Hypervel events allows you to share the same event names and data between your server-side Hypervel application and your client-side JavaScript application.
 
-The core concepts behind broadcasting are simple: clients connect to named channels on the frontend, while your Laravel application broadcasts events to these channels on the backend. These events can contain any additional data you wish to make available to the frontend.
+The core concepts behind broadcasting are simple: clients connect to named channels on the frontend, while your Hypervel application broadcasts events to these channels on the backend. These events can contain any additional data you wish to make available to the frontend.
 
 <a name="supported-drivers"></a>
 #### Supported Drivers
 
-By default, Laravel includes three server-side broadcasting drivers for you to choose from: [Laravel Reverb](https://reverb.laravel.com), [Pusher Channels](https://pusher.com/channels), and [Ably](https://ably.com).
+By default, Hypervel includes three server-side broadcasting drivers for you to choose from: [Hypervel Reverb](/docs/{{version}}/reverb), [Pusher Channels](https://pusher.com/channels), and [Ably](https://ably.com).
 
 > [!NOTE]
-> Before diving into event broadcasting, make sure you have read Laravel's documentation on [events and listeners](/docs/{{version}}/events).
+> Before diving into event broadcasting, make sure you have read Hypervel's documentation on [events and listeners](/docs/{{version}}/events).
 
 <a name="quickstart"></a>
 ## Quickstart
 
-By default, broadcasting is not enabled in new Laravel applications. You may enable broadcasting using the `install:broadcasting` Artisan command:
+By default, broadcasting is not enabled in new Hypervel applications. You may enable broadcasting using the `install:broadcasting` Artisan command:
 
 ```shell
 php artisan install:broadcasting
@@ -71,14 +75,14 @@ php artisan install:broadcasting
 
 The `install:broadcasting` command will prompt you for which event broadcasting service you would like to use. In addition, it will create the `config/broadcasting.php` configuration file and the `routes/channels.php` file where you may register your application's broadcast authorization routes and callbacks.
 
-Laravel supports several broadcast drivers out of the box: [Laravel Reverb](/docs/{{version}}/reverb), [Pusher Channels](https://pusher.com/channels), [Ably](https://ably.com), and a `log` driver for local development and debugging. Additionally, a `null` driver is included which allows you to disable broadcasting during testing. A configuration example is included for each of these drivers in the `config/broadcasting.php` configuration file.
+Hypervel supports several broadcast drivers out of the box: [Hypervel Reverb](/docs/{{version}}/reverb), [Pusher Channels](https://pusher.com/channels), [Ably](https://ably.com), and a `log` driver for local development and debugging. Additionally, a `null` driver is included which allows you to disable broadcasting during testing. A configuration example is included for each of these drivers in the `config/broadcasting.php` configuration file.
 
 All of your application's event broadcasting configuration is stored in the `config/broadcasting.php` configuration file. Don't worry if this file does not exist in your application; it will be created when you run the `install:broadcasting` Artisan command.
 
 <a name="quickstart-next-steps"></a>
 #### Next Steps
 
-Once you have enabled event broadcasting, you're ready to learn more about [defining broadcast events](#defining-broadcast-events) and [listening for events](#listening-for-events). If you're using Laravel's React, Vue, or Svelte [starter kits](/docs/{{version}}/starter-kits), you may listen for events using Echo's [useEcho hook](#using-react-or-vue).
+Once you have enabled event broadcasting, you're ready to learn more about [defining broadcast events](#defining-broadcast-events) and [listening for events](#listening-for-events). If you're using Hypervel's React [starter kit](/docs/{{version}}/starter-kits), you may listen for events using Echo's [useEcho hook](#using-react-or-vue).
 
 > [!NOTE]
 > Before broadcasting any events, you should first configure and run a [queue worker](/docs/{{version}}/queues). All event broadcasting is done via queued jobs so that the response time of your application is not seriously affected by events being broadcast.
@@ -86,14 +90,14 @@ Once you have enabled event broadcasting, you're ready to learn more about [defi
 <a name="server-side-installation"></a>
 ## Server Side Installation
 
-To get started using Laravel's event broadcasting, we need to do some configuration within the Laravel application as well as install a few packages.
+To get started using Hypervel's event broadcasting, we need to do some configuration within the Hypervel application as well as install a few packages.
 
-Event broadcasting is accomplished by a server-side broadcasting driver that broadcasts your Laravel events so that Laravel Echo (a JavaScript library) can receive them within the browser client. Don't worry - we'll walk through each part of the installation process step-by-step.
+Event broadcasting is accomplished by a server-side broadcasting driver that broadcasts your Hypervel events so that Laravel Echo (a JavaScript library) can receive them within the browser client. Don't worry - we'll walk through each part of the installation process step-by-step.
 
 <a name="reverb"></a>
 ### Reverb
 
-To quickly enable support for Laravel's broadcasting features while using Reverb as your event broadcaster, invoke the `install:broadcasting` Artisan command with the `--reverb` option. This Artisan command will install Reverb's required Composer and NPM packages and update your application's `.env` file with the appropriate variables:
+To quickly enable support for Hypervel's broadcasting features while using Reverb as your event broadcaster, invoke the `install:broadcasting` Artisan command with the `--reverb` option. This Artisan command will install Reverb's required Composer and NPM packages and update your application's `.env` file with the appropriate variables:
 
 ```shell
 php artisan install:broadcasting --reverb
@@ -102,10 +106,10 @@ php artisan install:broadcasting --reverb
 <a name="reverb-manual-installation"></a>
 #### Manual Installation
 
-When running the `install:broadcasting` command, you will be prompted to install [Laravel Reverb](/docs/{{version}}/reverb). Of course, you may also install Reverb manually using the Composer package manager:
+When running the `install:broadcasting` command, you will be prompted to install [Hypervel Reverb](/docs/{{version}}/reverb). Of course, you may also install Reverb manually using the Composer package manager:
 
 ```shell
-composer require laravel/reverb
+composer require hypervel/reverb
 ```
 
 Once the package is installed, you may run Reverb's installation command to publish the configuration, add Reverb's required environment variables, and enable event broadcasting in your application:
@@ -119,7 +123,7 @@ You can find detailed Reverb installation and usage instructions in the [Reverb 
 <a name="pusher-channels"></a>
 ### Pusher Channels
 
-To quickly enable support for Laravel's broadcasting features while using Pusher as your event broadcaster, invoke the `install:broadcasting` Artisan command with the `--pusher` option. This Artisan command will prompt you for your Pusher credentials, install the Pusher PHP and JavaScript SDKs, and update your application's `.env` file with the appropriate variables:
+To quickly enable support for Hypervel's broadcasting features while using Pusher as your event broadcaster, invoke the `install:broadcasting` Artisan command with the `--pusher` option. This Artisan command will prompt you for your Pusher credentials, install the Pusher PHP and JavaScript SDKs, and update your application's `.env` file with the appropriate variables:
 
 ```shell
 php artisan install:broadcasting --pusher
@@ -162,7 +166,7 @@ Finally, you are ready to install and configure [Laravel Echo](#client-side-inst
 > [!NOTE]
 > The documentation below discusses how to use Ably in "Pusher compatibility" mode. However, the Ably team recommends and maintains a broadcaster and Echo client that is able to take advantage of the unique capabilities offered by Ably. For more information on using the Ably maintained drivers, please [consult Ably's Laravel broadcaster documentation](https://github.com/ably/laravel-broadcaster).
 
-To quickly enable support for Laravel's broadcasting features while using [Ably](https://ably.com) as your event broadcaster, invoke the `install:broadcasting` Artisan command with the `--ably` option. This Artisan command will prompt you for your Ably credentials, install the Ably PHP and JavaScript SDKs, and update your application's `.env` file with the appropriate variables:
+To quickly enable support for Hypervel's broadcasting features while using [Ably](https://ably.com) as your event broadcaster, invoke the `install:broadcasting` Artisan command with the `--ably` option. This Artisan command will prompt you for your Ably credentials, install the Ably PHP SDK and Echo dependencies, and update your application's `.env` file with the appropriate variables:
 
 ```shell
 php artisan install:broadcasting --ably
@@ -196,12 +200,12 @@ Finally, you are ready to install and configure [Laravel Echo](#client-side-inst
 <a name="client-side-installation"></a>
 ## Client Side Installation
 
+[Laravel Echo](https://github.com/laravel/echo) is the client-side library used by Hypervel broadcasting. Echo is backend-agnostic and speaks the Pusher protocol, so the `laravel-echo`, `@laravel/echo-react`, `@laravel/echo-vue`, and `@laravel/echo-svelte` packages work with Hypervel as-is.
+
 <a name="client-reverb"></a>
 ### Reverb
 
-[Laravel Echo](https://github.com/laravel/echo) is a JavaScript library that makes it painless to subscribe to channels and listen for events broadcast by your server-side broadcasting driver.
-
-When installing Laravel Reverb via the `install:broadcasting` Artisan command, Reverb and Echo's scaffolding and configuration will be injected into your application automatically. However, if you wish to manually configure Laravel Echo, you may do so by following the instructions below.
+When installing Hypervel Reverb via the `install:broadcasting` Artisan command, Reverb and Echo's scaffolding and configuration will be injected into your React application's `app.tsx` or `app.jsx` file automatically. However, if you wish to manually configure Laravel Echo, you may do so by following the instructions below.
 
 <a name="reverb-client-manual-installation"></a>
 #### Manual Installation
@@ -212,7 +216,7 @@ To manually configure Laravel Echo for your application's frontend, first instal
 npm install --save-dev laravel-echo pusher-js
 ```
 
-Once Echo is installed, you are ready to create a fresh Echo instance in your application's JavaScript. A great place to do this is at the bottom of the `resources/js/bootstrap.js` file that is included with the Laravel framework:
+Once Echo is installed, you are ready to create a fresh Echo instance in your application's JavaScript. A great place to do this is your application's `resources/js/bootstrap.js` file:
 
 ```js tab=JavaScript
 import Echo from 'laravel-echo';
@@ -285,9 +289,7 @@ npm run build
 <a name="client-pusher-channels"></a>
 ### Pusher Channels
 
-[Laravel Echo](https://github.com/laravel/echo) is a JavaScript library that makes it painless to subscribe to channels and listen for events broadcast by your server-side broadcasting driver.
-
-When installing broadcasting support via the `install:broadcasting --pusher` Artisan command, Pusher and Echo's scaffolding and configuration will be injected into your application automatically. However, if you wish to manually configure Laravel Echo, you may do so by following the instructions below.
+When installing broadcasting support via the `install:broadcasting --pusher` Artisan command, Pusher and Echo's scaffolding and configuration will be injected into your React application's `app.tsx` or `app.jsx` file automatically. However, if you wish to manually configure Laravel Echo, you may do so by following the instructions below.
 
 <a name="pusher-client-manual-installation"></a>
 #### Manual Installation
@@ -413,9 +415,7 @@ window.Echo = new Echo({
 > [!NOTE]
 > The documentation below discusses how to use Ably in "Pusher compatibility" mode. However, the Ably team recommends and maintains a broadcaster and Echo client that is able to take advantage of the unique capabilities offered by Ably. For more information on using the Ably maintained drivers, please [consult Ably's Laravel broadcaster documentation](https://github.com/ably/laravel-broadcaster).
 
-[Laravel Echo](https://github.com/laravel/echo) is a JavaScript library that makes it painless to subscribe to channels and listen for events broadcast by your server-side broadcasting driver.
-
-When installing broadcasting support via the `install:broadcasting --ably` Artisan command, Ably and Echo's scaffolding and configuration will be injected into your application automatically. However, if you wish to manually configure Laravel Echo, you may do so by following the instructions below.
+When installing broadcasting support via the `install:broadcasting --ably` Artisan command, Ably and Echo's scaffolding and configuration will be injected into your React application's `app.tsx` or `app.jsx` file automatically. However, if you wish to manually configure Laravel Echo, you may do so by following the instructions below.
 
 <a name="ably-client-manual-installation"></a>
 #### Manual Installation
@@ -499,7 +499,7 @@ npm run dev
 <a name="concept-overview"></a>
 ## Concept Overview
 
-Laravel's event broadcasting allows you to broadcast your server-side Laravel events to your client-side JavaScript application using a driver-based approach to WebSockets. Currently, Laravel ships with [Laravel Reverb](https://reverb.laravel.com), [Pusher Channels](https://pusher.com/channels), and [Ably](https://ably.com) drivers. The events may be easily consumed on the client-side using the [Laravel Echo](#client-side-installation) JavaScript package.
+Hypervel's event broadcasting allows you to broadcast your server-side Hypervel events to your client-side JavaScript application using a driver-based approach to WebSockets. Currently, Hypervel ships with [Hypervel Reverb](/docs/{{version}}/reverb), [Pusher Channels](https://pusher.com/channels), and [Ably](https://ably.com) drivers. The events may be easily consumed on the client-side using the [Laravel Echo](#client-side-installation) JavaScript package.
 
 Events are broadcast over "channels", which may be specified as public or private. Any visitor to your application may subscribe to a public channel without any authentication or authorization; however, in order to subscribe to a private channel, a user must be authenticated and authorized to listen on that channel.
 
@@ -519,7 +519,7 @@ OrderShipmentStatusUpdated::dispatch($order);
 <a name="the-shouldbroadcast-interface"></a>
 #### The `ShouldBroadcast` Interface
 
-When a user is viewing one of their orders, we don't want them to have to refresh the page to view status updates. Instead, we want to broadcast the updates to the application as they are created. So, we need to mark the `OrderShipmentStatusUpdated` event with the `ShouldBroadcast` interface. This will instruct Laravel to broadcast the event when it is fired:
+When a user is viewing one of their orders, we don't want them to have to refresh the page to view status updates. Instead, we want to broadcast the updates to the application as they are created. So, we need to mark the `OrderShipmentStatusUpdated` event with the `ShouldBroadcast` interface. This will instruct Hypervel to broadcast the event when it is fired:
 
 ```php
 <?php
@@ -527,20 +527,16 @@ When a user is viewing one of their orders, we don't want them to have to refres
 namespace App\Events;
 
 use App\Models\Order;
-use Hypervel\Broadcasting\Channel;
-use Hypervel\Broadcasting\InteractsWithSockets;
-use Hypervel\Broadcasting\PresenceChannel;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
-use Hypervel\Queue\SerializesModels;
 
 class OrderShipmentStatusUpdated implements ShouldBroadcast
 {
     /**
-     * The order instance.
-     *
-     * @var \App\Models\Order
+     * Create a new event instance.
      */
-    public $order;
+    public function __construct(
+        public Order $order,
+    ) {}
 }
 ```
 
@@ -644,7 +640,7 @@ useEcho(
 <a name="defining-broadcast-events"></a>
 ## Defining Broadcast Events
 
-To inform Laravel that a given event should be broadcast, you must implement the `Hypervel\Contracts\Broadcasting\ShouldBroadcast` interface on the event class. This interface is already imported into all event classes generated by the framework so you may easily add it to any of your events.
+To inform Hypervel that a given event should be broadcast, you must implement the `Hypervel\Contracts\Broadcasting\ShouldBroadcast` interface on the event class. This interface is already imported into all event classes generated by the framework so you may easily add it to any of your events.
 
 The `ShouldBroadcast` interface requires you to implement a single method: `broadcastOn`. The `broadcastOn` method should return a channel or array of channels that the event should broadcast on. The channels should be instances of `Channel`, `PrivateChannel`, or `PresenceChannel`. Instances of `Channel` represent public channels that any user may subscribe to, while `PrivateChannels` and `PresenceChannels` represent private channels that require [channel authorization](#authorizing-channels):
 
@@ -691,7 +687,7 @@ After implementing the `ShouldBroadcast` interface, you only need to [fire the e
 <a name="broadcast-name"></a>
 ### Broadcast Name
 
-By default, Laravel will broadcast the event using the event's class name. However, you may customize the broadcast name by defining a `broadcastAs` method on the event:
+By default, Hypervel will broadcast the event using the event's class name. However, you may customize the broadcast name by defining a `broadcastAs` method on the event:
 
 ```php
 /**
@@ -827,9 +823,12 @@ class ServerCreated implements ShouldBroadcast, ShouldDispatchAfterCommit
 <a name="authorizing-channels"></a>
 ## Authorizing Channels
 
-Private channels require you to authorize that the currently authenticated user can actually listen on the channel. This is accomplished by making an HTTP request to your Laravel application with the channel name and allowing your application to determine if the user can listen on that channel. When using [Laravel Echo](#client-side-installation), the HTTP request to authorize subscriptions to private channels will be made automatically.
+Private channels require you to authorize that the currently authenticated user can actually listen on the channel. This is accomplished by making an HTTP request to your Hypervel application with the channel name and allowing your application to determine if the user can listen on that channel. When using [Laravel Echo](#client-side-installation), the HTTP request to authorize subscriptions to private channels will be made automatically.
 
-When broadcasting is installed Laravel attempts to automatically register the `/broadcasting/auth` route to handle authorization requests. If Laravel fails to automatically register these routes, you may register them manually in your application's `/bootstrap/app.php` file:
+<a name="defining-authorization-routes"></a>
+### Defining Authorization Routes
+
+When broadcasting is installed, Hypervel attempts to automatically register the `/broadcasting/auth` route to handle authorization requests. If Hypervel fails to automatically register these routes, you may register them manually in your application's `/bootstrap/app.php` file:
 
 ```php
 ->withRouting(
@@ -839,12 +838,101 @@ When broadcasting is installed Laravel attempts to automatically register the `/
 )
 ```
 
+If you would like to customize the assigned route attributes, you may use the `withBroadcasting` method instead:
+
+```php
+->withBroadcasting(
+    __DIR__.'/../routes/channels.php',
+    ['middleware' => ['web', 'auth']],
+)
+```
+
+<a name="customizing-the-authorization-endpoint"></a>
+### Customizing the Authorization Endpoint
+
+By default, Echo will use the `/broadcasting/auth` endpoint to authorize channel access. However, you may specify your own authorization endpoint by passing the `authEndpoint` configuration option to your Echo instance:
+
+```js
+window.Echo = new Echo({
+    broadcaster: 'pusher',
+    // ...
+    authEndpoint: '/custom/endpoint/auth',
+});
+```
+
+<a name="customizing-the-authorization-request"></a>
+### Customizing the Authorization Request
+
+You can customize how Laravel Echo performs authorization requests by providing a custom authorizer when initializing Echo:
+
+```js
+window.Echo = new Echo({
+    // ...
+    authorizer: (channel, options) => {
+        return {
+            authorize: (socketId, callback) => {
+                axios.post('/api/broadcasting/auth', {
+                    socket_id: socketId,
+                    channel_name: channel.name,
+                })
+                .then((response) => {
+                    callback(null, response.data);
+                })
+                .catch((error) => {
+                    callback(error);
+                });
+            },
+        };
+    },
+});
+```
+
+<a name="authenticating-users"></a>
+### Authenticating Users
+
+The `/broadcasting/auth` route authorizes access to individual private and presence channels. If you are using Pusher or Reverb user authentication features, you may also register the `/broadcasting/user-auth` route during application boot so Echo can authenticate the currently connected user with the broadcaster:
+
+```php
+use Hypervel\Support\Facades\Broadcast;
+
+Broadcast::userRoutes();
+```
+
+Like `Broadcast::routes`, the `userRoutes` method uses the `web` middleware group by default. You may pass route attributes if you need to customize the route:
+
+```php
+Broadcast::userRoutes(['middleware' => ['web', 'auth']]);
+```
+
+Next, use the `Broadcast::resolveAuthenticatedUserUsing` method to define the authenticated user payload that should be returned to the broadcaster:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Broadcast;
+
+Broadcast::resolveAuthenticatedUserUsing(function (Request $request): ?array {
+    if (! $user = $request->user()) {
+        return null;
+    }
+
+    return [
+        'id' => (string) $user->getAuthIdentifier(),
+        'user_info' => [
+            'name' => $user->name,
+        ],
+    ];
+});
+```
+
+The returned array is signed by the broadcaster and returned to Echo. At minimum, it should contain a string `id` value that uniquely identifies the authenticated user.
+
 <a name="defining-authorization-callbacks"></a>
 ### Defining Authorization Callbacks
 
 Next, we need to define the logic that will actually determine if the currently authenticated user can listen to a given channel. This is done in the `routes/channels.php` file that was created by the `install:broadcasting` Artisan command. In this file, you may use the `Broadcast::channel` method to register channel authorization callbacks:
 
 ```php
+use App\Models\Order;
 use App\Models\User;
 
 Broadcast::channel('orders.{orderId}', function (User $user, int $orderId) {
@@ -935,7 +1023,7 @@ class OrderChannel
 ```
 
 > [!NOTE]
-> Like many other classes in Laravel, channel classes will automatically be resolved by the [service container](/docs/{{version}}/container). So, you may type-hint any dependencies required by your channel in its constructor.
+> Like many other classes in Hypervel, channel classes will automatically be resolved by the [service container](/docs/{{version}}/container). So, you may type-hint any dependencies required by your channel in its constructor.
 
 <a name="broadcasting-events"></a>
 ## Broadcasting Events
@@ -976,7 +1064,7 @@ However, remember that we also broadcast the task's creation. If your JavaScript
 <a name="only-to-others-configuration"></a>
 #### Configuration
 
-When you initialize a Laravel Echo instance, a socket ID is assigned to the connection. If you are using a global [Axios](https://github.com/axios/axios) instance to make HTTP requests from your JavaScript application, the socket ID will automatically be attached to every outgoing request as an `X-Socket-ID` header. Then, when you call the `toOthers` method, Laravel will extract the socket ID from the header and instruct the broadcaster to not broadcast to any connections with that socket ID.
+When you initialize a Laravel Echo instance, a socket ID is assigned to the connection. If you are using a global [Axios](https://github.com/axios/axios) instance to make HTTP requests from your JavaScript application, the socket ID will automatically be attached to every outgoing request as an `X-Socket-ID` header. Then, when you call the `toOthers` method, Hypervel will extract the socket ID from the header and instruct the broadcaster to not broadcast to any connections with that socket ID.
 
 If you are not using a global Axios instance, you will need to manually configure your JavaScript application to send the `X-Socket-ID` header with all outgoing requests. You may retrieve the socket ID using the `Echo.socketId` method:
 
@@ -1086,9 +1174,9 @@ Broadcast::on('orders.'.$order->id)
 <a name="rescuing-broadcasts"></a>
 ### Rescuing Broadcasts
 
-When your application's queue server is unavailable or Laravel encounters an error while broadcasting an event, an exception is thrown that typically causes the end user to see an application error. Since event broadcasting is often supplementary to your application's core functionality, you can prevent these exceptions from disrupting the user experience by implementing the `ShouldRescue` interface on your events.
+When your application's queue server is unavailable or Hypervel encounters an error while broadcasting an event, an exception is thrown that typically causes the end user to see an application error. Since event broadcasting is often supplementary to your application's core functionality, you can prevent these exceptions from disrupting the user experience by implementing the `ShouldRescue` interface on your events.
 
-Events that implement the `ShouldRescue` interface automatically utilize Laravel's [rescue helper function](/docs/{{version}}/helpers#method-rescue) during broadcast attempts. This helper catches any exceptions, reports them to your application's exception handler for logging, and allows the application to continue executing normally without interrupting the user's workflow:
+Events that implement the `ShouldRescue` interface automatically utilize Hypervel's [rescue helper function](/docs/{{version}}/helpers#method-rescue) during broadcast attempts. This helper catches any exceptions, reports them to your application's exception handler for logging, and allows the application to continue executing normally without interrupting the user's workflow:
 
 ```php
 <?php
@@ -1110,7 +1198,7 @@ class ServerCreated implements ShouldBroadcast, ShouldRescue
 <a name="listening-for-events"></a>
 ### Listening for Events
 
-Once you have [installed and instantiated Laravel Echo](#client-side-installation), you are ready to start listening for events that are broadcast from your Laravel application. First, use the `channel` method to retrieve an instance of a channel, then call the `listen` method to listen for a specified event:
+Once you have [installed and instantiated Laravel Echo](#client-side-installation), you are ready to start listening for events that are broadcast from your Hypervel application. First, use the `channel` method to retrieve an instance of a channel, then call the `listen` method to listen for a specified event:
 
 ```js
 Echo.channel(`orders.${this.order.id}`)
@@ -1532,11 +1620,11 @@ Echo.join(`chat.${roomId}`)
 ## Model Broadcasting
 
 > [!WARNING]
-> Before reading the following documentation about model broadcasting, we recommend you become familiar with the general concepts of Laravel's model broadcasting services as well as how to manually create and listen to broadcast events.
+> Before reading the following documentation about model broadcasting, we recommend you become familiar with the general concepts of Hypervel's model broadcasting services as well as how to manually create and listen to broadcast events.
 
 It is common to broadcast events when your application's [Eloquent models](/docs/{{version}}/eloquent) are created, updated, or deleted. Of course, this can easily be accomplished by manually [defining custom events for Eloquent model state changes](/docs/{{version}}/eloquent#events) and marking those events with the `ShouldBroadcast` interface.
 
-However, if you are not using these events for any other purposes in your application, it can be cumbersome to create event classes for the sole purpose of broadcasting them. To remedy this, Laravel allows you to indicate that an Eloquent model should automatically broadcast its state changes.
+However, if you are not using these events for any other purposes in your application, it can be cumbersome to create event classes for the sole purpose of broadcasting them. To remedy this, Hypervel allows you to indicate that an Eloquent model should automatically broadcast its state changes.
 
 To get started, your Eloquent model should use the `Hypervel\Database\Eloquent\BroadcastsEvents` trait. In addition, the model should define a `broadcastOn` method, which will return an array of channels that the model's events should broadcast on:
 
@@ -1598,7 +1686,7 @@ public function broadcastOn(string $event): array
 <a name="customizing-model-broadcasting-event-creation"></a>
 #### Customizing Model Broadcasting Event Creation
 
-Occasionally, you may wish to customize how Laravel creates the underlying model broadcasting event. You may accomplish this by defining a `newBroadcastableEvent` method on your Eloquent model. This method should return an `Hypervel\Database\Eloquent\BroadcastableModelEventOccurred` instance:
+Occasionally, you may wish to customize how Hypervel creates the underlying model broadcasting event. You may accomplish this by defining a `newBroadcastableEvent` method on your Eloquent model. This method should return an `Hypervel\Database\Eloquent\BroadcastableModelEventOccurred` instance:
 
 ```php
 use Hypervel\Database\Eloquent\BroadcastableModelEventOccurred;
@@ -1620,7 +1708,7 @@ protected function newBroadcastableEvent(string $event): BroadcastableModelEvent
 <a name="model-broadcasting-channel-conventions"></a>
 #### Channel Conventions
 
-As you may have noticed, the `broadcastOn` method in the model example above did not return `Channel` instances. Instead, Eloquent models were returned directly. If an Eloquent model instance is returned by your model's `broadcastOn` method (or is contained in an array returned by the method), Laravel will automatically instantiate a private channel instance for the model using the model's class name and primary key identifier as the channel name.
+As you may have noticed, the `broadcastOn` method in the model example above did not return `Channel` instances. Instead, Eloquent models were returned directly. If an Eloquent model instance is returned by your model's `broadcastOn` method (or is contained in an array returned by the method), Hypervel will automatically instantiate a private channel instance for the model using the model's class name and primary key identifier as the channel name.
 
 So, an `App\Models\User` model with an `id` of `1` would be converted into an `Hypervel\Broadcasting\PrivateChannel` instance with a name of `App.Models.User.1`. Of course, in addition to returning Eloquent model instances from your model's `broadcastOn` method, you may return complete `Channel` instances in order to have full control over the model's channel names:
 
@@ -1640,7 +1728,7 @@ public function broadcastOn(string $event): array
 }
 ```
 
-If you plan to explicitly return a channel instance from your model's `broadcastOn` method, you may pass an Eloquent model instance to the channel's constructor. When doing so, Laravel will use the model channel conventions discussed above to convert the Eloquent model into a channel name string:
+If you plan to explicitly return a channel instance from your model's `broadcastOn` method, you may pass an Eloquent model instance to the channel's constructor. When doing so, Hypervel will use the model channel conventions discussed above to convert the Eloquent model into a channel name string:
 
 ```php
 return [new Channel($this->user)];
@@ -1655,7 +1743,7 @@ $user->broadcastChannel();
 <a name="model-broadcasting-event-conventions"></a>
 #### Event Conventions
 
-Since model broadcast events are not associated with an "actual" event within your application's `App\Events` directory, they are assigned a name and a payload based on conventions. Laravel's convention is to broadcast the event using the class name of the model (not including the namespace) and the name of the model event that triggered the broadcast.
+Since model broadcast events are not associated with an "actual" event within your application's `App\Events` directory, they are assigned a name and a payload based on conventions. Hypervel's convention is to broadcast the event using the class name of the model (not including the namespace) and the name of the model event that triggered the broadcast.
 
 So, for example, an update to the `App\Models\Post` model would broadcast an event to your client-side application as `PostUpdated` with the following payload:
 
@@ -1673,7 +1761,7 @@ So, for example, an update to the `App\Models\Post` model would broadcast an eve
 
 The deletion of the `App\Models\User` model would broadcast an event named `UserDeleted`.
 
-If you would like, you may define a custom broadcast name and payload by adding a `broadcastAs` and `broadcastWith` method to your model. These methods receive the name of the model event / operation that is occurring, allowing you to customize the event's name and payload for each model operation. If `null` is returned from the `broadcastAs` method, Laravel will use the model broadcasting event name conventions discussed above when broadcasting the event:
+If you would like, you may define a custom broadcast name and payload by adding a `broadcastAs` and `broadcastWith` method to your model. These methods receive the name of the model event / operation that is occurring, allowing you to customize the event's name and payload for each model operation. If `null` is returned from the `broadcastAs` method, Hypervel will use the model broadcasting event name conventions discussed above when broadcasting the event:
 
 ```php
 /**
@@ -1706,7 +1794,7 @@ public function broadcastWith(string $event): array
 
 Once you have added the `BroadcastsEvents` trait to your model and defined your model's `broadcastOn` method, you are ready to start listening for broadcasted model events within your client-side application. Before getting started, you may wish to consult the complete documentation on [listening for events](#listening-for-events).
 
-First, use the `private` method to retrieve an instance of a channel, then call the `listen` method to listen for a specified event. Typically, the channel name given to the `private` method should correspond to Laravel's [model broadcasting conventions](#model-broadcasting-conventions).
+First, use the `private` method to retrieve an instance of a channel, then call the `listen` method to listen for a specified event. Typically, the channel name given to the `private` method should correspond to Hypervel's [model broadcasting conventions](#model-broadcasting-conventions).
 
 Once you have obtained a channel instance, you may use the `listen` method to listen for a particular event. Since model broadcast events are not associated with an "actual" event within your application's `App\Events` directory, the [event name](#model-broadcasting-event-conventions) must be prefixed with a `.` to indicate it does not belong to a particular namespace. Each model broadcast event has a `model` property which contains all of the broadcastable properties of the model:
 
@@ -1771,7 +1859,7 @@ useEchoModel<User, "App.Models.User">("App.Models.User", userId, ["UserUpdated"]
 > [!NOTE]
 > When using [Pusher Channels](https://pusher.com/channels), you must enable the "Client Events" option in the "App Settings" section of your [application dashboard](https://dashboard.pusher.com/) in order to send client events.
 
-Sometimes you may wish to broadcast an event to other connected clients without hitting your Laravel application at all. This can be particularly useful for things like "typing" notifications, where you want to alert users of your application that another user is typing a message on a given screen.
+Sometimes you may wish to broadcast an event to other connected clients without hitting your Hypervel application at all. This can be particularly useful for things like "typing" notifications, where you want to alert users of your application that another user is typing a message on a given screen.
 
 To broadcast client events, you may use Echo's `whisper` method:
 
