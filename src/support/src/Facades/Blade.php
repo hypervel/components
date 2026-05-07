@@ -14,7 +14,7 @@ namespace Hypervel\Support\Facades;
  * @method static array getExtensions()
  * @method static void if(string $name, callable $callback)
  * @method static bool check(string $name, mixed ...$parameters)
- * @method static void component(string $class, string|null $alias = null, string $prefix = '')
+ * @method static void component(string $alias, string|null $class = null, string $prefix = '')
  * @method static void components(array $components, string $prefix = '')
  * @method static array getClassComponentAliases()
  * @method static void anonymousComponentPath(string $path, string|null $prefix = null)

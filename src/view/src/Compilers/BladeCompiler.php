@@ -641,13 +641,12 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register a class-based component alias directive.
      */
-    public function component(string $class, ?string $alias = null, string $prefix = ''): void
+    public function component(string $alias, ?string $class = null, string $prefix = ''): void
     {
-        if (! is_null($alias) && str_contains($alias, '\\')) {
-            [$class, $alias] = [$alias, $class];
-        }
-
-        if (is_null($alias)) {
+        // Hypervel intentionally only supports the canonical alias-first order.
+        // Support for the class-first order has been removed.
+        if (is_null($class)) {
+            $class = $alias;
             $alias = str_contains($class, '\View\Components\\')
                             ? (new Collection(explode('\\', Str::after($class, '\View\Components\\'))))->map(function ($segment) {
                                 return Str::kebab($segment);
