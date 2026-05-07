@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Broadcasting;
 
 use Exception;
+use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\Channel;
@@ -15,8 +16,12 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
 use Hypervel\Contracts\Broadcasting\ShouldRescue;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
+use Hypervel\Http\Request;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\Routing\Route;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
@@ -221,6 +226,71 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager->routes();
     }
 
+    public function testAuthenticatedUserResolverWorksThroughPooledManagerDriver(): void
+    {
+        $app = new Container;
+        $app->singleton('config', fn () => new \Hypervel\Config\Repository([
+            'broadcasting' => [
+                'default' => 'test',
+                'connections' => [
+                    'test' => [
+                        'driver' => 'custom',
+                        'pool' => [
+                            'min_connections' => 0,
+                            'max_connections' => 2,
+                        ],
+                    ],
+                ],
+            ],
+        ]));
+        Container::setInstance($app);
+
+        $firstBroadcaster = new ManagerUserAuthenticationBroadcaster($app);
+        $secondBroadcaster = new ManagerUserAuthenticationBroadcaster($app);
+
+        $pool = m::mock(ObjectPool::class);
+        $pool->shouldReceive('get')
+            ->twice()
+            ->andReturn($firstBroadcaster, $secondBroadcaster);
+        $pool->shouldReceive('release')
+            ->once()
+            ->with($firstBroadcaster);
+        $pool->shouldReceive('release')
+            ->once()
+            ->with($secondBroadcaster);
+
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('create')
+            ->once()
+            ->withArgs(function (string $name, callable $resolver, array $options): bool {
+                $this->assertSame(BroadcastManager::class . ':test', $name);
+                $this->assertSame([
+                    'min_connections' => 0,
+                    'max_connections' => 2,
+                ], $options);
+
+                return true;
+            })
+            ->andReturn($pool);
+        $app->instance(PoolFactory::class, $poolFactory);
+
+        $broadcastManager = new BroadcastManager($app);
+        $broadcastManager->addPoolable('custom');
+
+        $broadcastManager->resolveAuthenticatedUserUsing(function (Request $request): array {
+            return ['id' => 'user-' . $request->input('socket_id')];
+        });
+
+        $this->assertSame(
+            ['id' => 'user-1.1'],
+            $broadcastManager->resolveAuthenticatedUser(Request::create('/broadcasting/user-auth', 'POST', ['socket_id' => '1.1']))
+        );
+        $this->assertSame(
+            ['id' => 'user-2.2'],
+            $broadcastManager->resolveAuthenticatedUser(Request::create('/broadcasting/user-auth', 'POST', ['socket_id' => '2.2']))
+        );
+    }
+
     public function testCustomDriverClosureBoundObjectIsBroadcastManager(): void
     {
         $app = new Container;
@@ -334,5 +404,27 @@ class TestEventNowRescue implements ShouldBroadcastNow, ShouldRescue
     public function broadcastOn(): array
     {
         return [];
+    }
+}
+
+class ManagerUserAuthenticationBroadcaster extends BaseBroadcaster
+{
+    public function __construct(
+        protected ContainerContract $container
+    ) {
+    }
+
+    public function auth(Request $request): mixed
+    {
+        return null;
+    }
+
+    public function validAuthenticationResponse(Request $request, mixed $result): mixed
+    {
+        return null;
+    }
+
+    public function broadcast(array $channels, string $event, array $payload = []): void
+    {
     }
 }
