@@ -47,14 +47,9 @@ class BroadcastingInstallCommand extends Command
     protected ?string $driver = null;
 
     /**
-     * The framework packages to install.
-     *
-     * @var array<string, string>
+     * The React Echo package to install.
      */
-    protected array $frameworkPackages = [
-        'react' => '@laravel/echo-react',
-        'vue' => '@laravel/echo-vue',
-    ];
+    protected string $reactEchoPackage = '@laravel/echo-react';
 
     /**
      * Execute the console command.
@@ -259,21 +254,10 @@ class BroadcastingInstallCommand extends Command
      */
     protected function injectFrameworkSpecificConfiguration(): void
     {
-        if ($this->appUsesVue()) {
-            $importPath = $this->frameworkPackages['vue'];
-
-            $filePaths = [
-                $this->hypervel->resourcePath('js/app.ts'),
-                $this->hypervel->resourcePath('js/app.js'),
-            ];
-        } else {
-            $importPath = $this->frameworkPackages['react'];
-
-            $filePaths = [
-                $this->hypervel->resourcePath('js/app.tsx'),
-                $this->hypervel->resourcePath('js/app.jsx'),
-            ];
-        }
+        $filePaths = [
+            $this->hypervel->resourcePath('js/app.tsx'),
+            $this->hypervel->resourcePath('js/app.jsx'),
+        ];
 
         $filePath = Arr::first($filePaths, fn (string $path): bool => file_exists($path));
 
@@ -286,7 +270,7 @@ class BroadcastingInstallCommand extends Command
         $contents = file_get_contents($filePath);
 
         $echoCode = <<<JS
-        import { configureEcho } from '{$importPath}';
+        import { configureEcho } from '{$this->reactEchoPackage}';
 
         configureEcho({
             broadcaster: '{$this->driver}',
@@ -376,10 +360,8 @@ class BroadcastingInstallCommand extends Command
             ];
         }
 
-        if ($this->appUsesVue()) {
-            $commands[0] .= ' ' . $this->frameworkPackages['vue'];
-        } elseif ($this->appUsesReact()) {
-            $commands[0] .= ' ' . $this->frameworkPackages['react'];
+        if ($this->appUsesReact()) {
+            $commands[0] .= ' ' . $this->reactEchoPackage;
         }
 
         $command = Process::command(implode(' && ', $commands))
@@ -421,11 +403,11 @@ class BroadcastingInstallCommand extends Command
     }
 
     /**
-     * Detect if the user is using a supported framework (React or Vue).
+     * Detect if the user is using a supported framework.
      */
     protected function isUsingSupportedFramework(): bool
     {
-        return $this->appUsesReact() || $this->appUsesVue();
+        return $this->appUsesReact();
     }
 
     /**
@@ -434,14 +416,6 @@ class BroadcastingInstallCommand extends Command
     protected function appUsesReact(): bool
     {
         return $this->packageDependenciesInclude('react');
-    }
-
-    /**
-     * Detect if the user is using Vue.
-     */
-    protected function appUsesVue(): bool
-    {
-        return $this->packageDependenciesInclude('vue');
     }
 
     /**
