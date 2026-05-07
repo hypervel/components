@@ -106,6 +106,7 @@ For the majority of the remaining collection documentation, we'll discuss each m
 
 <div class="collection-method-list" markdown="1">
 
+[add](#method-add)
 [after](#method-after)
 [all](#method-all)
 [average](#method-average)
@@ -119,6 +120,8 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [combine](#method-combine)
 [concat](#method-concat)
 [contains](#method-contains)
+[containsManyItems](#method-containsmanyitems)
+[containsOneItem](#method-containsoneitem)
 [containsStrict](#method-containsstrict)
 [count](#method-count)
 [countBy](#method-countBy)
@@ -128,6 +131,8 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [diffAssoc](#method-diffassoc)
 [diffAssocUsing](#method-diffassocusing)
 [diffKeys](#method-diffkeys)
+[diffKeysUsing](#method-diffkeysusing)
+[diffUsing](#method-diffusing)
 [doesntContain](#method-doesntcontain)
 [doesntContainStrict](#method-doesntcontainstrict)
 [dot](#method-dot)
@@ -150,6 +155,8 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [forPage](#method-forpage)
 [fromJson](#method-fromjson)
 [get](#method-get)
+[getCachingIterator](#method-getcachingiterator)
+[getOrPut](#method-getorput)
 [groupBy](#method-groupby)
 [has](#method-has)
 [hasAny](#method-hasany)
@@ -157,10 +164,10 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [hasSole](#method-hassole)
 [implode](#method-implode)
 [intersect](#method-intersect)
-[intersectUsing](#method-intersectusing)
 [intersectAssoc](#method-intersectAssoc)
 [intersectAssocUsing](#method-intersectassocusing)
 [intersectByKeys](#method-intersectbykeys)
+[intersectUsing](#method-intersectusing)
 [isEmpty](#method-isempty)
 [isNotEmpty](#method-isnotempty)
 [join](#method-join)
@@ -173,6 +180,7 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [map](#method-map)
 [mapInto](#method-mapinto)
 [mapSpread](#method-mapspread)
+[mapToDictionary](#method-maptodictionary)
 [mapToGroups](#method-maptogroups)
 [mapWithKeys](#method-mapwithkeys)
 [max](#method-max)
@@ -200,6 +208,7 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [range](#method-range)
 [reduce](#method-reduce)
 [reduceSpread](#method-reduce-spread)
+[reduceWithKeys](#method-reduce-with-keys)
 [reject](#method-reject)
 [replace](#method-replace)
 [replaceRecursive](#method-replacerecursive)
@@ -232,6 +241,7 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [tap](#method-tap)
 [times](#method-times)
 [toArray](#method-toarray)
+[toBase](#method-tobase)
 [toJson](#method-tojson)
 [toPrettyJson](#method-to-pretty-json)
 [transform](#method-transform)
@@ -242,6 +252,7 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [unless](#method-unless)
 [unlessEmpty](#method-unlessempty)
 [unlessNotEmpty](#method-unlessnotempty)
+[unshift](#method-unshift)
 [unwrap](#method-unwrap)
 [value](#method-value)
 [values](#method-values)
@@ -249,16 +260,16 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [whenEmpty](#method-whenempty)
 [whenNotEmpty](#method-whennotempty)
 [where](#method-where)
-[whereStrict](#method-wherestrict)
 [whereBetween](#method-wherebetween)
 [whereIn](#method-wherein)
-[whereInStrict](#method-whereinstrict)
 [whereInstanceOf](#method-whereinstanceof)
+[whereInStrict](#method-whereinstrict)
 [whereNotBetween](#method-wherenotbetween)
 [whereNotIn](#method-wherenotin)
 [whereNotInStrict](#method-wherenotinstrict)
 [whereNotNull](#method-wherenotnull)
 [whereNull](#method-wherenull)
+[whereStrict](#method-wherestrict)
 [wrap](#method-wrap)
 [zip](#method-zip)
 
@@ -277,8 +288,23 @@ For the majority of the remaining collection documentation, we'll discuss each m
     }
 </style>
 
+<a name="method-add"></a>
+#### `add()` {.collection-method .first-collection-method}
+
+The `add` method appends the given item to the end of the collection and returns the modified collection:
+
+```php
+$collection = collect([1, 2]);
+
+$collection->add(3);
+
+$collection->all();
+
+// [1, 2, 3]
+```
+
 <a name="method-after"></a>
-#### `after()` {.collection-method .first-collection-method}
+#### `after()` {.collection-method}
 
 The `after` method returns the item after the given item. `null` is returned if the given item is not found or is the last item:
 
@@ -577,6 +603,68 @@ The `contains` method uses "loose" comparisons when checking item values, meanin
 
 For the inverse of `contains`, see the [doesntContain](#method-doesntcontain) method.
 
+<a name="method-containsmanyitems"></a>
+#### `containsManyItems()` {.collection-method}
+
+The `containsManyItems` method determines whether the collection contains more than one item:
+
+```php
+collect([])->containsManyItems();
+
+// false
+
+collect(['first'])->containsManyItems();
+
+// false
+
+collect(['first', 'second'])->containsManyItems();
+
+// true
+```
+
+When using the `Collection` class, you may pass a closure to determine whether the collection contains more than one item matching a given truth test:
+
+```php
+$collection = collect(['ant', 'bear', 'cat', 'deer']);
+
+$collection->containsManyItems(function (string $value) {
+    return strlen($value) === 4;
+});
+
+// true
+```
+
+<a name="method-containsoneitem"></a>
+#### `containsOneItem()` {.collection-method}
+
+The `containsOneItem` method determines whether the collection contains exactly one item:
+
+```php
+collect([])->containsOneItem();
+
+// false
+
+collect(['first'])->containsOneItem();
+
+// true
+
+collect(['first', 'second'])->containsOneItem();
+
+// false
+```
+
+You may pass a closure to determine whether the collection contains exactly one item matching a given truth test:
+
+```php
+$collection = collect(['ant', 'bear', 'cat']);
+
+$collection->containsOneItem(function (string $value) {
+    return strlen($value) === 4;
+});
+
+// true
+```
+
 <a name="method-containsstrict"></a>
 #### `containsStrict()` {.collection-method}
 
@@ -706,6 +794,23 @@ $diff->all();
 > [!NOTE]
 > This method's behavior is modified when using [Eloquent Collections](/docs/{{version}}/eloquent-collections#method-diff).
 
+<a name="method-diffusing"></a>
+#### `diffUsing()` {.collection-method}
+
+Unlike `diff`, the `diffUsing` method accepts a user supplied callback function for the value comparison:
+
+```php
+$collection = collect(['en_GB', 'fr', 'HR']);
+
+$diff = $collection->diffUsing(['en_gb', 'hr'], 'strcasecmp');
+
+$diff->all();
+
+// ['fr']
+```
+
+The callback must be a comparison function that returns an integer less than, equal to, or greater than zero. For more information, refer to the PHP documentation on [array_udiff](https://www.php.net/array_udiff#refsect1-function.array-udiff-parameters), which is the PHP function that the `diffUsing` method utilizes internally.
+
 <a name="method-diffassoc"></a>
 #### `diffAssoc()` {.collection-method}
 
@@ -780,6 +885,30 @@ $diff->all();
 
 // ['one' => 10, 'three' => 30, 'five' => 50]
 ```
+
+<a name="method-diffkeysusing"></a>
+#### `diffKeysUsing()` {.collection-method}
+
+Unlike `diffKeys`, `diffKeysUsing` accepts a user supplied callback function for the key comparison:
+
+```php
+$collection = collect([
+    'en_GB' => 'British English',
+    'fr' => 'French',
+    'HR' => 'Croatian',
+]);
+
+$diff = $collection->diffKeysUsing([
+    'en_gb' => 'English',
+    'hr' => 'Croatian',
+], 'strcasecmp');
+
+$diff->all();
+
+// ['fr' => 'French']
+```
+
+The callback must be a comparison function that returns an integer less than, equal to, or greater than zero. For more information, refer to the PHP documentation on [array_diff_ukey](https://www.php.net/array_diff_ukey#refsect1-function.array-diff-ukey-parameters), which is the PHP function that the `diffKeysUsing` method utilizes internally.
 
 <a name="method-doesntcontain"></a>
 #### `doesntContain()` {.collection-method}
@@ -1190,13 +1319,13 @@ In this example, calling `flatten` without providing the depth would have also f
 The `flip` method swaps the collection's keys with their corresponding values:
 
 ```php
-$collection = collect(['name' => 'Taylor', 'framework' => 'Laravel']);
+$collection = collect(['name' => 'Taylor', 'framework' => 'Hypervel']);
 
 $flipped = $collection->flip();
 
 $flipped->all();
 
-// ['Taylor' => 'name', 'Laravel' => 'framework']
+// ['Taylor' => 'name', 'Hypervel' => 'framework']
 ```
 
 <a name="method-forget"></a>
@@ -1205,12 +1334,12 @@ $flipped->all();
 The `forget` method removes an item from the collection by its key:
 
 ```php
-$collection = collect(['name' => 'Taylor', 'framework' => 'Laravel']);
+$collection = collect(['name' => 'Taylor', 'framework' => 'Hypervel']);
 
 // Forget a single key...
 $collection->forget('name');
 
-// ['framework' => 'Laravel']
+// ['framework' => 'Hypervel']
 
 // Forget multiple keys...
 $collection->forget(['name', 'framework']);
@@ -1259,7 +1388,7 @@ $collection = Collection::fromJson($json);
 The `get` method returns the item at a given key. If the key does not exist, `null` is returned:
 
 ```php
-$collection = collect(['name' => 'Taylor', 'framework' => 'Laravel']);
+$collection = collect(['name' => 'Taylor', 'framework' => 'Hypervel']);
 
 $value = $collection->get('name');
 
@@ -1269,7 +1398,7 @@ $value = $collection->get('name');
 You may optionally pass a default value as the second argument:
 
 ```php
-$collection = collect(['name' => 'Taylor', 'framework' => 'Laravel']);
+$collection = collect(['name' => 'Taylor', 'framework' => 'Hypervel']);
 
 $value = $collection->get('age', 34);
 
@@ -1284,6 +1413,48 @@ $collection->get('email', function () {
 });
 
 // taylor@example.com
+```
+
+<a name="method-getcachingiterator"></a>
+#### `getCachingIterator()` {.collection-method}
+
+The `getCachingIterator` method returns a PHP [`CachingIterator`](https://www.php.net/manual/en/class.cachingiterator.php) instance for the collection:
+
+```php
+$collection = collect(['first', 'second']);
+
+$iterator = $collection->getCachingIterator();
+
+foreach ($iterator as $value) {
+    // ...
+}
+```
+
+<a name="method-getorput"></a>
+#### `getOrPut()` {.collection-method}
+
+The `getOrPut` method returns the value for the given key. If the key does not exist, the method will store the given value in the collection and return it:
+
+```php
+$collection = collect(['name' => 'Taylor']);
+
+$framework = $collection->getOrPut('framework', 'Hypervel');
+
+// Hypervel
+
+$collection->all();
+
+// ['name' => 'Taylor', 'framework' => 'Hypervel']
+```
+
+You may also pass a callback as the value. The result of the callback will be stored and returned if the specified key does not exist:
+
+```php
+$collection->getOrPut('version', function () {
+    return 4;
+});
+
+// 4
 ```
 
 <a name="method-groupby"></a>
@@ -1819,10 +1990,45 @@ $sequence->all();
 // [1, 5, 9, 13, 17]
 ```
 
+<a name="method-maptodictionary"></a>
+#### `mapToDictionary()` {.collection-method}
+
+The `mapToDictionary` method groups the collection's items by the given closure. The closure should return an associative array containing a single key / value pair, thus forming a new collection of grouped arrays:
+
+```php
+$collection = collect([
+    [
+        'name' => 'John Doe',
+        'department' => 'Sales',
+    ],
+    [
+        'name' => 'Jane Doe',
+        'department' => 'Sales',
+    ],
+    [
+        'name' => 'Johnny Doe',
+        'department' => 'Marketing',
+    ],
+]);
+
+$grouped = $collection->mapToDictionary(function (array $item, int $key) {
+    return [$item['department'] => $item['name']];
+});
+
+$grouped->all();
+
+/*
+    [
+        'Sales' => ['John Doe', 'Jane Doe'],
+        'Marketing' => ['Johnny Doe'],
+    ]
+*/
+```
+
 <a name="method-maptogroups"></a>
 #### `mapToGroups()` {.collection-method}
 
-The `mapToGroups` method groups the collection's items by the given closure. The closure should return an associative array containing a single key / value pair, thus forming a new collection of grouped values:
+The `mapToGroups` method groups the collection's items by the given closure. The closure should return an associative array containing a single key / value pair, thus forming a new collection of grouped collections:
 
 ```php
 $collection = collect([
@@ -2519,6 +2725,31 @@ The `reduceSpread` method reduces the collection to an array of values, passing 
     }, $creditsAvailable, collect());
 ```
 
+<a name="method-reduce-with-keys"></a>
+#### `reduceWithKeys()` {.collection-method}
+
+The `reduceWithKeys` method reduces the collection to a single value, passing each item and key to the given callback:
+
+```php
+$collection = collect([
+    'usd' => 1400,
+    'gbp' => 1200,
+    'eur' => 1000,
+]);
+
+$ratio = [
+    'usd' => 1,
+    'gbp' => 1.37,
+    'eur' => 1.22,
+];
+
+$collection->reduceWithKeys(function (int $carry, int $value, string $key) use ($ratio) {
+    return $carry + ($value * $ratio[$key]);
+}, 0);
+
+// 4264
+```
+
 <a name="method-reject"></a>
 #### `reject()` {.collection-method}
 
@@ -2867,7 +3098,7 @@ $collection->sole();
 // ['product' => 'Desk', 'price' => 200]
 ```
 
-If there are no elements in the collection that should be returned by the `sole` method, an `\Hypervel\Collections\ItemNotFoundException` exception will be thrown. If there is more than one element that should be returned, an `\Hypervel\Collections\MultipleItemsFoundException` will be thrown.
+If there are no elements in the collection that should be returned by the `sole` method, an `\Hypervel\Support\ItemNotFoundException` exception will be thrown. If there is more than one element that should be returned, an `\Hypervel\Support\MultipleItemsFoundException` will be thrown.
 
 <a name="method-some"></a>
 #### `some()` {.collection-method}
@@ -3349,6 +3580,17 @@ $collection->toArray();
 > [!WARNING]
 > `toArray` also converts all of the collection's nested objects that are an instance of `Arrayable` to an array. If you want to get the raw array underlying the collection, use the [all](#method-all) method instead.
 
+<a name="method-tobase"></a>
+#### `toBase()` {.collection-method}
+
+The `toBase` method returns a base `Hypervel\Support\Collection` instance:
+
+```php
+$collection = collect([1, 2, 3]);
+
+$base = $collection->toBase();
+```
+
 <a name="method-tojson"></a>
 #### `toJson()` {.collection-method}
 
@@ -3560,6 +3802,21 @@ Alias for the [whenNotEmpty](#method-whennotempty) method.
 #### `unlessNotEmpty()` {.collection-method}
 
 Alias for the [whenEmpty](#method-whenempty) method.
+
+<a name="method-unshift"></a>
+#### `unshift()` {.collection-method}
+
+The `unshift` method prepends one or more items to the beginning of the collection and returns the modified collection:
+
+```php
+$collection = collect([3, 4]);
+
+$collection->unshift(1, 2);
+
+$collection->all();
+
+// [1, 2, 3, 4]
+```
 
 <a name="method-unwrap"></a>
 #### `unwrap()` {.collection-method}
@@ -4065,11 +4322,11 @@ return $users->sum->votes;
 ### Introduction
 
 > [!WARNING]
-> Before learning more about Laravel's lazy collections, take some time to familiarize yourself with [PHP generators](https://www.php.net/manual/en/language.generators.overview.php).
+> Before learning more about Hypervel's lazy collections, take some time to familiarize yourself with [PHP generators](https://www.php.net/manual/en/language.generators.overview.php).
 
 To supplement the already powerful `Collection` class, the `LazyCollection` class leverages PHP's [generators](https://www.php.net/manual/en/language.generators.overview.php) to allow you to work with very large datasets while keeping memory usage low.
 
-For example, imagine your application needs to process a multi-gigabyte log file while taking advantage of Laravel's collection methods to parse the logs. Instead of reading the entire file into memory at once, lazy collections may be used to keep only a small part of the file in memory at a given time:
+For example, imagine your application needs to process a multi-gigabyte log file while taking advantage of Hypervel's collection methods to parse the logs. Instead of reading the entire file into memory at once, lazy collections may be used to keep only a small part of the file in memory at a given time:
 
 ```php
 use App\Models\LogEntry;
@@ -4090,7 +4347,7 @@ LazyCollection::make(function () {
 });
 ```
 
-Or, imagine you need to iterate through 10,000 Eloquent models. When using traditional Laravel collections, all 10,000 Eloquent models must be loaded into memory at the same time:
+Or, imagine you need to iterate through 10,000 Eloquent models. When using traditional Hypervel collections, all 10,000 Eloquent models must be loaded into memory at the same time:
 
 ```php
 use App\Models\User;
@@ -4136,7 +4393,7 @@ LazyCollection::make(function () {
 <a name="the-enumerable-contract"></a>
 ### The Enumerable Contract
 
-Almost all methods available on the `Collection` class are also available on the `LazyCollection` class. Both of these classes implement the `Hypervel\Support\Enumerable` contract, which defines the following methods:
+Almost all methods available on the `Collection` class are also available on the `LazyCollection` class. Both of these classes implement the `Hypervel\Support\Enumerable` contract and share the following user-facing methods:
 
 <style>
     .collection-method-list > p {
@@ -4153,16 +4410,21 @@ Almost all methods available on the `Collection` class are also available on the
 
 <div class="collection-method-list" markdown="1">
 
+[after](#method-after)
 [all](#method-all)
 [average](#method-average)
 [avg](#method-avg)
+[before](#method-before)
 [chunk](#method-chunk)
 [chunkWhile](#method-chunkwhile)
 [collapse](#method-collapse)
+[collapseWithKeys](#method-collapsewithkeys)
 [collect](#method-collect)
 [combine](#method-combine)
 [concat](#method-concat)
 [contains](#method-contains)
+[containsManyItems](#method-containsmanyitems)
+[containsOneItem](#method-containsoneitem)
 [containsStrict](#method-containsstrict)
 [count](#method-count)
 [countBy](#method-countBy)
@@ -4170,12 +4432,19 @@ Almost all methods available on the `Collection` class are also available on the
 [dd](#method-dd)
 [diff](#method-diff)
 [diffAssoc](#method-diffassoc)
+[diffAssocUsing](#method-diffassocusing)
 [diffKeys](#method-diffkeys)
+[diffKeysUsing](#method-diffkeysusing)
+[diffUsing](#method-diffusing)
+[doesntContain](#method-doesntcontain)
+[doesntContainStrict](#method-doesntcontainstrict)
+[dot](#method-dot)
 [dump](#method-dump)
 [duplicates](#method-duplicates)
 [duplicatesStrict](#method-duplicatesstrict)
 [each](#method-each)
 [eachSpread](#method-eachspread)
+[ensure](#method-ensure)
 [every](#method-every)
 [except](#method-except)
 [filter](#method-filter)
@@ -4186,13 +4455,20 @@ Almost all methods available on the `Collection` class are also available on the
 [flatten](#method-flatten)
 [flip](#method-flip)
 [forPage](#method-forpage)
+[fromJson](#method-fromjson)
 [get](#method-get)
+[getCachingIterator](#method-getcachingiterator)
 [groupBy](#method-groupby)
 [has](#method-has)
+[hasAny](#method-hasany)
+[hasMany](#method-hasmany)
+[hasSole](#method-hassole)
 [implode](#method-implode)
 [intersect](#method-intersect)
 [intersectAssoc](#method-intersectAssoc)
+[intersectAssocUsing](#method-intersectassocusing)
 [intersectByKeys](#method-intersectbykeys)
+[intersectUsing](#method-intersectusing)
 [isEmpty](#method-isempty)
 [isNotEmpty](#method-isnotempty)
 [join](#method-join)
@@ -4204,6 +4480,7 @@ Almost all methods available on the `Collection` class are also available on the
 [map](#method-map)
 [mapInto](#method-mapinto)
 [mapSpread](#method-mapspread)
+[mapToDictionary](#method-maptodictionary)
 [mapToGroups](#method-maptogroups)
 [mapWithKeys](#method-mapwithkeys)
 [max](#method-max)
@@ -4212,36 +4489,54 @@ Almost all methods available on the `Collection` class are also available on the
 [mergeRecursive](#method-mergerecursive)
 [min](#method-min)
 [mode](#method-mode)
+[multiply](#method-multiply)
 [nth](#method-nth)
 [only](#method-only)
 [pad](#method-pad)
 [partition](#method-partition)
+[percentage](#method-percentage)
 [pipe](#method-pipe)
+[pipeInto](#method-pipeinto)
+[pipeThrough](#method-pipethrough)
 [pluck](#method-pluck)
 [random](#method-random)
+[range](#method-range)
 [reduce](#method-reduce)
+[reduceSpread](#method-reduce-spread)
+[reduceWithKeys](#method-reduce-with-keys)
 [reject](#method-reject)
 [replace](#method-replace)
 [replaceRecursive](#method-replacerecursive)
 [reverse](#method-reverse)
 [search](#method-search)
+[select](#method-select)
 [shuffle](#method-shuffle)
 [skip](#method-skip)
+[skipUntil](#method-skipuntil)
+[skipWhile](#method-skipwhile)
 [slice](#method-slice)
+[sliding](#method-sliding)
 [sole](#method-sole)
 [some](#method-some)
 [sort](#method-sort)
 [sortBy](#method-sortby)
 [sortByDesc](#method-sortbydesc)
+[sortDesc](#method-sortdesc)
 [sortKeys](#method-sortkeys)
 [sortKeysDesc](#method-sortkeysdesc)
+[sortKeysUsing](#method-sortkeysusing)
 [split](#method-split)
+[splitIn](#method-splitin)
 [sum](#method-sum)
 [take](#method-take)
+[takeUntil](#method-takeuntil)
+[takeWhile](#method-takewhile)
 [tap](#method-tap)
 [times](#method-times)
 [toArray](#method-toarray)
 [toJson](#method-tojson)
+[toPrettyJson](#method-to-pretty-json)
+[undot](#method-undot)
 [union](#method-union)
 [unique](#method-unique)
 [uniqueStrict](#method-uniquestrict)
@@ -4254,14 +4549,16 @@ Almost all methods available on the `Collection` class are also available on the
 [whenEmpty](#method-whenempty)
 [whenNotEmpty](#method-whennotempty)
 [where](#method-where)
-[whereStrict](#method-wherestrict)
 [whereBetween](#method-wherebetween)
 [whereIn](#method-wherein)
-[whereInStrict](#method-whereinstrict)
 [whereInstanceOf](#method-whereinstanceof)
+[whereInStrict](#method-whereinstrict)
 [whereNotBetween](#method-wherenotbetween)
 [whereNotIn](#method-wherenotin)
 [whereNotInStrict](#method-wherenotinstrict)
+[whereNotNull](#method-wherenotnull)
+[whereNull](#method-wherenull)
+[whereStrict](#method-wherestrict)
 [wrap](#method-wrap)
 [zip](#method-zip)
 
@@ -4274,6 +4571,27 @@ Almost all methods available on the `Collection` class are also available on the
 ### Lazy Collection Methods
 
 In addition to the methods defined in the `Enumerable` contract, the `LazyCollection` class contains the following methods:
+
+<a name="method-eager"></a>
+#### `eager()` {.collection-method}
+
+The `eager` method enumerates the lazy collection immediately and returns a new lazy collection backed by the enumerated values:
+
+```php
+use Hypervel\Support\LazyCollection;
+
+$lazyCollection = LazyCollection::make(function () {
+    yield 1;
+    yield 2;
+    yield 3;
+});
+
+$eagerCollection = $lazyCollection->eager();
+
+$eagerCollection->all();
+
+// [1, 2, 3]
+```
 
 <a name="method-takeUntilTimeout"></a>
 #### `takeUntilTimeout()` {.collection-method}
@@ -4305,7 +4623,7 @@ use Hypervel\Support\Carbon;
 
 Invoice::pending()->cursor()
     ->takeUntilTimeout(
-        Carbon::createFromTimestamp(LARAVEL_START)->add(14, 'minutes')
+        Carbon::createFromTimestamp(HYPERVEL_START)->add(14, 'minutes')
     )
     ->each(fn (Invoice $invoice) => $invoice->submit());
 ```
@@ -4380,7 +4698,7 @@ if ($lock->get()) {
             ->lazy()
             ->withHeartbeat(
                 CarbonInterval::minutes(4),
-                fn () => $lock->extend(CarbonInterval::minutes(5))
+                fn () => $lock->refresh(60 * 5)
             )
             ->each(fn ($report) => $report->process());
     } finally {

@@ -28,6 +28,13 @@
 - Bring `Hypervel\View\ComponentAttributeBag` closer to Laravel by implementing `Hypervel\Contracts\Support\Arrayable`, adding `toArray()`, supporting `all($keys = null)`, and using `Hypervel\Support\Traits\InteractsWithData`. Laravel exposes typed attribute access helpers through this trait; Hypervel's attribute bag currently lacks that API surface.
 - Fix `CompilesComponents::compileProps()` helper variable cleanup. Laravel unsets `$__defined_vars`, `$__key`, and `$__value`; Hypervel currently only unsets `$__defined_vars`, so the generated component template can leak internal helper variables into scope.
 
+## Collections
+
+- Port Laravel's `Collection` / `LazyCollection` `newInstance()` extension hook. Laravel routes derived collection instances through a protected `newInstance($items = [])` method, while Hypervel currently uses direct `new static(...)` calls throughout the collection classes. Correct fix: add the protected `newInstance()` method and update the internal factory paths Laravel uses it for, so subclasses can control how derived collections are constructed.
+- Port Laravel's variadic collection factory arguments. Laravel's `make`, `wrap`, `empty`, `times`, `fromJson`, and `range` APIs accept extra constructor arguments and forward them to the collection instance. Hypervel currently exposes stricter signatures and drops those extra args. Correct fix: update the signatures and internal construction to match Laravel's `...$args` behavior for both eager and lazy collections where Laravel supports it.
+- Port `SortDirection` enum support in collection and array sorting APIs. Laravel accepts the global `SortDirection::Ascending` / `SortDirection::Descending` enum values in `Collection::sortBy()`, multi-column sort definitions, `sortKeys()`, `sortKeysDesc()`, `Arr::sortRecursive()`, and `Arr::sortRecursiveDesc()`. Hypervel currently supports the older bool / string direction forms only. Correct fix: port Laravel's enum handling and related tests.
+- Port depth-aware `dot()` support. Laravel supports `Arr::dot($array, $prepend = '', $depth = INF)`, `Collection::dot($depth = INF)`, and `LazyCollection::dot($depth = INF)`. Hypervel currently flattens all nested levels and does not accept a depth argument. Correct fix: port Laravel's depth parameter and behavior across `Arr`, `Collection`, and `LazyCollection`.
+
 ## Http
 
 - Port FailOnUnknownFields form request support
