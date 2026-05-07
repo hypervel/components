@@ -1,7 +1,6 @@
 # Blade Templates
 
 - [Introduction](#introduction)
-    - [Supercharging Blade With Livewire](#supercharging-blade-with-livewire)
 - [Displaying Data](#displaying-data)
     - [HTML Entity Encoding](#html-entity-encoding)
     - [Blade and JavaScript Frameworks](#blade-and-javascript-frameworks)
@@ -49,7 +48,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Blade is the simple, yet powerful templating engine that is included with Laravel. Unlike some PHP templating engines, Blade does not restrict you from using plain PHP code in your templates. In fact, all Blade templates are compiled into plain PHP code and cached until they are modified, meaning Blade adds essentially zero overhead to your application. Blade template files use the `.blade.php` file extension and are typically stored in the `resources/views` directory.
+Blade is the simple, yet powerful templating engine that is included with Hypervel. Unlike some PHP templating engines, Blade does not restrict you from using plain PHP code in your templates. In fact, all Blade templates are compiled into plain PHP code and cached until they are modified, meaning Blade adds essentially zero overhead to your application. Blade template files use the `.blade.php` file extension and are typically stored in the `resources/views` directory.
 
 Blade views may be returned from routes or controllers using the global `view` helper. Of course, as mentioned in the documentation on [views](/docs/{{version}}/views), data may be passed to the Blade view using the `view` helper's second argument:
 
@@ -58,11 +57,6 @@ Route::get('/', function () {
     return view('greeting', ['name' => 'Finn']);
 });
 ```
-
-<a name="supercharging-blade-with-livewire"></a>
-### Supercharging Blade With Livewire
-
-Want to take your Blade templates to the next level and build dynamic interfaces with ease? Check out [Laravel Livewire](https://livewire.laravel.com). Livewire allows you to write Blade components that are augmented with dynamic functionality that would typically only be possible via frontend frameworks like React, Svelte, or Vue, providing a great approach to building modern, reactive frontends without the complexities, client-side rendering, or build steps of many JavaScript frameworks.
 
 <a name="displaying-data"></a>
 ## Displaying Data
@@ -93,7 +87,7 @@ The current UNIX timestamp is {{ time() }}.
 <a name="html-entity-encoding"></a>
 ### HTML Entity Encoding
 
-By default, Blade (and the Laravel `e` function) will double encode HTML entities. If you would like to disable double encoding, call the `Blade::withoutDoubleEncoding` method from the `boot` method of your `AppServiceProvider`:
+By default, Blade (and the Hypervel `e` function) will double encode HTML entities. If you would like to disable double encoding, call the `Blade::withoutDoubleEncoding` method from the `boot` method of your `AppServiceProvider`:
 
 ```php
 <?php
@@ -133,7 +127,7 @@ Hello, {!! $name !!}.
 Since many JavaScript frameworks also use "curly" braces to indicate a given expression should be displayed in the browser, you may use the `@` symbol to inform the Blade rendering engine an expression should remain untouched. For example:
 
 ```blade
-<h1>Laravel</h1>
+<h1>Hypervel</h1>
 
 Hello, @{{ name }}.
 ```
@@ -169,7 +163,7 @@ However, instead of manually calling `json_encode`, you may use the `Hypervel\Su
 </script>
 ```
 
-The latest versions of the Laravel application skeleton include a `Js` facade, which provides convenient access to this functionality within your Blade templates:
+The latest versions of the Hypervel application skeleton include a `Js` facade, which provides convenient access to this functionality within your Blade templates:
 
 ```blade
 <script>
@@ -384,13 +378,13 @@ When using loops you may also skip the current iteration or end the loop using t
 
 ```blade
 @foreach ($users as $user)
-    @if ($user->type == 1)
+    @if ($user->type === 1)
         @continue
     @endif
 
     <li>{{ $user->name }}</li>
 
-    @if ($user->number == 5)
+    @if ($user->number === 5)
         @break
     @endif
 @endforeach
@@ -400,11 +394,11 @@ You may also include the continuation or break condition within the directive de
 
 ```blade
 @foreach ($users as $user)
-    @continue($user->type == 1)
+    @continue($user->type === 1)
 
     <li>{{ $user->name }}</li>
 
-    @break($user->number == 5)
+    @break($user->number === 5)
 @endforeach
 ```
 
@@ -513,7 +507,7 @@ Likewise, the `@selected` directive may be used to indicate if a given select op
 ```blade
 <select name="version">
     @foreach ($product->versions as $version)
-        <option value="{{ $version }}" @selected(old('version') == $version)>
+        <option value="{{ $version }}" @selected(old('version') === $version)>
             {{ $version }}
         </option>
     @endforeach
@@ -532,7 +526,7 @@ Moreover, the `@readonly` directive may be used to indicate if a given element s
 <input
     type="email"
     name="email"
-    value="email@laravel.com"
+    value="email@hypervel.org"
     @readonly($user->isNotAdmin())
 />
 ```
@@ -572,7 +566,7 @@ Even though the included view will inherit all data available in the parent view
 @include('view.name', ['status' => 'complete'])
 ```
 
-If you attempt to `@include` a view which does not exist, Laravel will throw an error. If you would like to include a view that may or may not be present, you should use the `@includeIf` directive:
+If you attempt to `@include` a view which does not exist, Hypervel will throw an error. If you would like to include a view that may or may not be present, you should use the `@includeIf` directive:
 
 ```blade
 @includeIf('view.name', ['status' => 'complete'])
@@ -749,6 +743,7 @@ However, if you are building a package that utilizes Blade components, you will 
 
 ```php
 use Hypervel\Support\Facades\Blade;
+use VendorPackage\View\Components\Alert;
 
 /**
  * Bootstrap your package's services.
@@ -825,12 +820,12 @@ public function shouldRender(): bool
 Sometimes components are part of a component group and you may wish to group the related components within a single directory. For example, imagine a "card" component with the following class structure:
 
 ```text
-App\Views\Components\Card\Card
-App\Views\Components\Card\Header
-App\Views\Components\Card\Body
+App\View\Components\Card\Card
+App\View\Components\Card\Header
+App\View\Components\Card\Body
 ```
 
-Since the root `Card` component is nested within a `Card` directory, you might expect that you would need to render the component via `<x-card.card>`. However, when a component's file name matches the name of the component's directory, Laravel automatically assumes that component is the "root" component and allows you to render the component without repeating the directory name:
+Since the root `Card` component is nested within a `Card` directory, you might expect that you would need to render the component via `<x-card.card>`. However, when a component's file name matches the name of the component's directory, Hypervel automatically assumes that component is the "root" component and allows you to render the component without repeating the directory name:
 
 ```blade
 <x-card>
@@ -856,7 +851,7 @@ You should define all of the component's data attributes in its class constructo
 namespace App\View\Components;
 
 use Hypervel\View\Component;
-use Hypervel\View\View;
+use Hypervel\Contracts\View\View;
 
 class Alert extends Component
 {
@@ -995,14 +990,14 @@ return function (array $data) {
 > [!WARNING]
 > The elements in the `$data` array should never be directly embedded into the Blade string returned by your `render` method, as doing so could allow remote code execution via malicious attribute content.
 
-The `componentName` is equal to the name used in the HTML tag after the `x-` prefix. So `<x-alert />`'s `componentName` will be `alert`. The `attributes` element will contain all of the attributes that were present on the HTML tag. The `slot` element is an `Hypervel\Support\HtmlString` instance with the contents of the component's slot.
+The `componentName` is equal to the name used in the HTML tag after the `x-` prefix. So `<x-alert />`'s `componentName` will be `alert`. The `attributes` element will contain all of the attributes that were present on the HTML tag. The `slot` element is an `Hypervel\View\ComponentSlot` instance with the contents of the component's slot.
 
 The closure should return a string. If the returned string corresponds to an existing view, that view will be rendered; otherwise, the returned string will be evaluated as an inline Blade view.
 
 <a name="additional-dependencies"></a>
 #### Additional Dependencies
 
-If your component requires dependencies from Laravel's [service container](/docs/{{version}}/container), you may list them before any of the component's data attributes and they will automatically be injected by the container:
+If your component requires dependencies from Hypervel's [service container](/docs/{{version}}/container), you may list them before any of the component's data attributes and they will automatically be injected by the container:
 
 ```php
 use App\Services\AlertCreator;
@@ -1155,7 +1150,7 @@ If you would like an attribute other than `class` to have its default value and 
 You may filter attributes using the `filter` method. This method accepts a closure which should return `true` if you wish to retain the attribute in the attribute bag:
 
 ```blade
-{{ $attributes->filter(fn (string $value, string $key) => $key == 'foo') }}
+{{ $attributes->filter(fn (string $value, string $key) => $key === 'foo') }}
 ```
 
 For convenience, you may use the `whereStartsWith` method to retrieve all attributes whose keys begin with a given string:
@@ -1226,8 +1221,12 @@ By default, some keywords are reserved for Blade's internal use in order to rend
 <div class="content-list" markdown="1">
 
 - `data`
+- `flushCache`
+- `forgetComponentsResolver`
+- `forgetFactory`
 - `render`
 - `resolve`
+- `resolveComponentsUsing`
 - `resolveView`
 - `shouldRender`
 - `view`
@@ -1306,7 +1305,7 @@ Additionally, the `hasActualContent` method may be used to determine if the slot
 <a name="scoped-slots"></a>
 #### Scoped Slots
 
-If you have used a JavaScript framework such as Vue, you may be familiar with "scoped slots", which allow you to access data or methods from the component within your slot. You may achieve similar behavior in Laravel by defining public methods or properties on your component and accessing the component within your slot via the `$component` variable. In this example, we will assume that the `x-alert` component has a public `formatAlert` method defined on its component class:
+If you have used a JavaScript framework such as Vue, you may be familiar with "scoped slots", which allow you to access data or methods from the component within your slot. You may achieve similar behavior in Hypervel by defining public methods or properties on your component and accessing the component within your slot via the `$component` variable. In this example, we will assume that the `x-alert` component has a public `formatAlert` method defined on its component class:
 
 ```blade
 <x-alert>
@@ -1389,7 +1388,7 @@ php artisan make:component Alert --inline
 <a name="dynamic-components"></a>
 ### Dynamic Components
 
-Sometimes you may need to render a component but not know which component should be rendered until runtime. In this situation, you may use Laravel's built-in `dynamic-component` component to render the component based on a runtime value or variable:
+Sometimes you may need to render a component but not know which component should be rendered until runtime. In this situation, you may use Hypervel's built-in `dynamic-component` component to render the component based on a runtime value or variable:
 
 ```blade
 // $componentName = "secondary-button";
@@ -1401,11 +1400,11 @@ Sometimes you may need to render a component but not know which component should
 ### Manually Registering Components
 
 > [!WARNING]
-> The following documentation on manually registering components is primarily applicable to those who are writing Laravel packages that include view components. If you are not writing a package, this portion of the component documentation may not be relevant to you.
+> The following documentation on manually registering components is primarily applicable to those who are writing Hypervel packages that include view components. If you are not writing a package, this portion of the component documentation may not be relevant to you.
 
 When writing components for your own application, components are automatically discovered within the `app/View/Components` directory and `resources/views/components` directory.
 
-However, if you are building a package that utilizes Blade components or placing components in non-conventional directories, you will need to manually register your component class and its HTML tag alias so that Laravel knows where to find the component. You should typically register your components in the `boot` method of your package's service provider:
+However, if you are building a package that utilizes Blade components or placing components in non-conventional directories, you will need to manually register your component class and its HTML tag alias so that Hypervel knows where to find the component. You should typically register your components in the `boot` method of your package's service provider:
 
 ```php
 use Hypervel\Support\Facades\Blade;
@@ -1568,7 +1567,7 @@ Because the `color` prop was only passed into the parent (`<x-menu>`), it won't 
 <a name="anonymous-component-paths"></a>
 ### Anonymous Component Paths
 
-As previously discussed, anonymous components are typically defined by placing a Blade template within your `resources/views/components` directory. However, you may occasionally want to register other anonymous component paths with Laravel in addition to the default path.
+As previously discussed, anonymous components are typically defined by placing a Blade template within your `resources/views/components` directory. However, you may occasionally want to register other anonymous component paths with Hypervel in addition to the default path.
 
 The `anonymousComponentPath` method accepts the "path" to the anonymous component location as its first argument and an optional "namespace" that components should be placed under as its second argument. Typically, this method should be called from the `boot` method of one of your application's [service providers](/docs/{{version}}/providers):
 
@@ -1861,10 +1860,10 @@ If you would like to prepend content onto the beginning of a stack, you should u
 @endprepend
 ```
 
-The `@hasstack` directive may be used to determine if a stack is empty:
+The `@hasStack` directive may be used to determine if a stack is empty:
 
 ```blade
-@hasstack('list')
+@hasStack('list')
     <ul>
         @stack('list')
     </ul>
@@ -1874,7 +1873,7 @@ The `@hasstack` directive may be used to determine if a stack is empty:
 <a name="service-injection"></a>
 ## Service Injection
 
-The `@inject` directive may be used to retrieve a service from the Laravel [service container](/docs/{{version}}/container). The first argument passed to `@inject` is the name of the variable the service will be placed into, while the second argument is the class or interface name of the service you wish to resolve:
+The `@inject` directive may be used to retrieve a service from the Hypervel [service container](/docs/{{version}}/container). The first argument passed to `@inject` is the name of the variable the service will be placed into, while the second argument is the class or interface name of the service you wish to resolve:
 
 ```blade
 @inject('metrics', 'App\Services\MetricsService')
@@ -1895,7 +1894,7 @@ use Hypervel\Support\Facades\Blade;
 return Blade::render('Hello, {{ $name }}', ['name' => 'Julian Bashir']);
 ```
 
-Laravel renders inline Blade templates by writing them to the `storage/framework/views` directory. If you would like Laravel to remove these temporary files after rendering the Blade template, you may provide the `deleteCachedView` argument to the method:
+Hypervel renders inline Blade templates by writing them to the `storage/framework/views` directory. If you would like Hypervel to remove these temporary files after rendering the Blade template, you may provide the `deleteCachedView` argument to the method:
 
 ```php
 return Blade::render(
