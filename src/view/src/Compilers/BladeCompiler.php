@@ -643,8 +643,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function component(string $alias, ?string $class = null, string $prefix = ''): void
     {
-        // Hypervel intentionally only supports the canonical alias-first order.
-        // Support for the class-first order has been removed.
+        // Alias-first only — Laravel's class-first swap is intentionally not ported.
         if (is_null($class)) {
             $class = $alias;
             $alias = str_contains($class, '\View\Components\\')
