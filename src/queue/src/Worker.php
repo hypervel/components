@@ -182,11 +182,11 @@ class Worker
             if ($job) {
                 ++$jobsProcessed;
                 $concurrent->create(fn () => $this->runJob($job, $connectionName, $options));
-            }
 
-            if ($job && $options->rest > 0) {
-                $this->sleep($options->rest);
-            } elseif (! $job && $jobsProcessed) {
+                if ($options->rest > 0) {
+                    $this->sleep($options->rest);
+                }
+            } else {
                 $this->sleep($options->sleep);
             }
 
