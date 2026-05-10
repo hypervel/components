@@ -5,6 +5,8 @@ authorization.md
 blade.md
 broadcasting.md
 cache.md
+collections.md
+concurrency.md
 requests.md
 routing.md
 sanctum.md
