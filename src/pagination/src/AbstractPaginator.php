@@ -542,41 +542,6 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
     }
 
     /**
-     * Indicate that Bootstrap 4 styling should be used for generated links.
-     */
-    public static function useBootstrap(): void
-    {
-        static::useBootstrapFour();
-    }
-
-    /**
-     * Indicate that Bootstrap 3 styling should be used for generated links.
-     */
-    public static function useBootstrapThree(): void
-    {
-        static::defaultView('pagination::default');
-        static::defaultSimpleView('pagination::simple-default');
-    }
-
-    /**
-     * Indicate that Bootstrap 4 styling should be used for generated links.
-     */
-    public static function useBootstrapFour(): void
-    {
-        static::defaultView('pagination::bootstrap-4');
-        static::defaultSimpleView('pagination::simple-bootstrap-4');
-    }
-
-    /**
-     * Indicate that Bootstrap 5 styling should be used for generated links.
-     */
-    public static function useBootstrapFive(): void
-    {
-        static::defaultView('pagination::bootstrap-5');
-        static::defaultSimpleView('pagination::simple-bootstrap-5');
-    }
-
-    /**
      * Flush all static state.
      */
     public static function flushState(): void
