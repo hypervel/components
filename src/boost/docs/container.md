@@ -18,6 +18,7 @@
 - [Resolving](#resolving)
     - [The Make Method](#the-make-method)
     - [Forcing a Fresh Instance](#forcing-a-fresh-instance)
+    - [Self-Building Classes](#self-building-classes)
     - [Automatic Injection](#automatic-injection)
 - [Method Invocation and Injection](#method-invocation-and-injection)
 - [Container Events](#container-events)
@@ -115,6 +116,7 @@ Because Hypervel runs inside a long-running Swoole worker, instance lifecycles a
 |---|---|---|
 | Fresh instance every call, ignoring all bindings and caches | `build($class)` | Always constructs a new instance. Nested constructor dependencies are still resolved through the container. |
 | Fresh instance with parameter overrides | `buildWith($class, $params)` | Same as `build()` but applies the given parameter overrides during construction. |
+| Class declares its own factory | `implements SelfBuilding` + static `newInstance()` | Container invokes the static factory with DI on its parameters. Skips auto-singletoning by default; honors any explicit `singleton()` / `scoped()` binding. |
 | Resolve respecting bindings and caching | `make($class)` | Honors `bind()` / `singleton()` / `scoped()`. Auto-singletons unbound concrete classes for the worker's lifetime. |
 | Resolve with parameter overrides | `make($class, $params)` / `makeWith()` | Same as `make()` but contextual parameters bypass all caching. |
 | One instance per worker | `$app->singleton($abstract, ...)` or `#[Singleton]` | Cached for the worker's lifetime. Lives until the worker restarts. |
@@ -155,6 +157,8 @@ $report = $this->app->make(ReportBuilder::class);
 // Right — fresh instance per call.
 $report = $this->app->build(ReportBuilder::class);
 ```
+
+Alternatively, mark the class with [`SelfBuilding`](#self-building-classes) and leave it unbound — every `make()` will then call `newInstance` and rebuild the instance from scratch.
 
 The same caution applies to mutating state on a worker-lifetime singleton at runtime — anything you assign to `$this->foo` on a shared instance persists across every request that worker handles. For per-request state that lives on a shared service, use [CoroutineContext](/docs/{{version}}/context) instead of instance properties.
 
@@ -730,6 +734,43 @@ $fresh = $this->app->buildWith(Transistor::class, ['id' => 1]);
 Nested constructor dependencies are still resolved through the container, so they pick up bindings, contextual bindings, resolving callbacks, and constructor-parameter attribute injection as normal. For the class being built itself, `build` and `buildWith` skip the container's lifecycle machinery — they bypass binding lookups, contextual binding for that abstract, and resolving callbacks. Class-level attribute callbacks registered via `afterResolvingAttribute()` still fire. `#[Singleton]` and `#[Scoped]` are intentionally ignored by `build()` — they're caching markers that only apply via `make()`. This is what makes `build()` reliable as "always fresh."
 
 `buildWith` is the right choice when a class needs parameter overrides and must not be cached, for example a builder object or a class whose constructor captures per-call state. Internally, Hypervel uses this method to instantiate view components so each render gets a fresh instance even though the component class has no explicit binding.
+
+<a name="self-building-classes"></a>
+### Self-Building Classes
+
+When a class needs fresh construction *and* container-resolvable dependencies, mark it with the `Hypervel\Contracts\Container\SelfBuilding` marker interface and provide a static `newInstance` method. The container calls `newInstance` on every resolution and resolves its parameters via dependency injection, the same way it resolves a controller method:
+
+```php
+<?php
+
+namespace App\Services;
+
+use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Http\Request;
+
+class WeeklyDigest implements SelfBuilding
+{
+    public function __construct(
+        public readonly string $audience,
+        public readonly array $filters,
+    ) {
+    }
+
+    public static function newInstance(Request $current): static
+    {
+        return new static(
+            audience: $current->user()->email,
+            filters: $current->input('filters', []),
+        );
+    }
+}
+```
+
+By default, self-building classes are excluded from auto-singletoning, so every `make()` calls `newInstance` and returns a fresh instance. The container still fires `resolving` and `afterResolving` callbacks around the result, so anything layered on top of resolution (for example, validation callbacks) keeps working.
+
+`SelfBuilding` is the right choice when fresh construction depends on container-resolvable values that aren't available at the call site. `buildWith` covers the inverse case — fresh construction with caller-supplied parameters. Hypervel uses `SelfBuilding` internally for `FormRequest`: every controller method that type-hints a form request gets a new instance hydrated from the current coroutine's `Request`.
+
+Explicit caching bindings still apply on top of `SelfBuilding`. Bind a self-building class with `singleton()` / `scoped()` (or apply `#[Singleton]` / `#[Scoped]`) and the container runs `newInstance` once and caches the result — a useful pattern for lazy custom construction of a service that's stateless once built. Only do this when the cached instance is safe to share. Classes whose `newInstance` reads per-call state must stay unbound so each resolution rebuilds from the current request; that's why nothing in the framework binds `FormRequest`.
 
 <a name="automatic-injection"></a>
 ### Automatic Injection

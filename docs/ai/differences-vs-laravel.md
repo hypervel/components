@@ -38,6 +38,7 @@ Hypervel caches more aggressively than Laravel: any class resolved via `make()` 
 | Need | Call | Lifecycle |
 |---|---|---|
 | Always fresh, bypass all caching | `$app->build($class)` / `$app->buildWith($class, $params)` | Never cached |
+| Class-controlled construction | `implements SelfBuilding` + static `newInstance()` | Container calls `newInstance` per `make()`; skips auto-singleton; honors explicit `singleton()` / `scoped()` if applied |
 | Default resolution | `$app->make($class)` | Auto-singleton if unbound |
 | Fresh with parameter overrides | `$app->make($class, $params)` / `makeWith()` | Not cached (contextual build) |
 | Worker-wide singleton | `singleton(...)` or `#[Singleton]` | Worker lifetime |
@@ -47,7 +48,7 @@ Hypervel caches more aggressively than Laravel: any class resolved via `make()` 
 
 **Footguns:**
 
-- Don't capture per-call state (e.g. `Request` data) in `__construct` of an auto-resolved class — the first resolution freezes it for all subsequent requests on that worker. Use `bind()` to register fresh, or call `build()` at the resolution site.
+- Don't capture per-call state (e.g. `Request` data) in `__construct` of an auto-resolved class — the first resolution freezes it for all subsequent requests on that worker. Fixes: `bind()` the class, call `build()` at the resolution site, or implement `SelfBuilding` with a `newInstance()` factory.
 - Don't mutate `$this->foo` on a worker-lifetime singleton during request handling. The mutation persists across every request that worker handles. Use `CoroutineContext` for per-request state on shared services.
 
 ## Service providers
