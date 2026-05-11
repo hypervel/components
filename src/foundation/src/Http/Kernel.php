@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Http;
 use Carbon\CarbonInterval;
 use Closure;
 use DateTimeInterface;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
@@ -80,9 +81,13 @@ class Kernel implements KernelContract
     protected array $requestLifecycleDurationHandlers = [];
 
     /**
-     * When the kernel started handling the current request.
+     * Context key for the current request's start time.
+     *
+     * Stored per-coroutine — a singleton Kernel handles concurrent requests
+     * and an instance property would be overwritten by whichever coroutine
+     * called handle() most recently.
      */
-    protected ?Carbon $requestStartedAt = null;
+    protected const REQUEST_STARTED_AT_CONTEXT_KEY = '__http.kernel.request_started_at';
 
     /**
      * The priority-sorted list of middleware.
@@ -121,7 +126,7 @@ class Kernel implements KernelContract
      */
     public function handle(Request $request): Response
     {
-        $this->requestStartedAt = Carbon::now();
+        CoroutineContext::set(self::REQUEST_STARTED_AT_CONTEXT_KEY, Carbon::now());
 
         try {
             $request->enableHttpMethodParameterOverride();
@@ -201,23 +206,25 @@ class Kernel implements KernelContract
         $this->terminateMiddleware($request, $response);
         $this->app->terminate();
 
-        if ($this->requestStartedAt === null || $this->requestLifecycleDurationHandlers === []) {
-            $this->requestStartedAt = null;
+        $requestStartedAt = CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+
+        if ($requestStartedAt === null || $this->requestLifecycleDurationHandlers === []) {
+            CoroutineContext::forget(self::REQUEST_STARTED_AT_CONTEXT_KEY);
 
             return;
         }
 
-        $this->requestStartedAt->setTimezone($this->app['config']->get('app.timezone') ?? 'UTC');
+        $requestStartedAt->setTimezone($this->app['config']->get('app.timezone') ?? 'UTC');
 
         foreach ($this->requestLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
             $end ??= Carbon::now();
 
-            if ($this->requestStartedAt->diffInMilliseconds($end) > $threshold) {
-                $handler($this->requestStartedAt, $request, $response);
+            if ($requestStartedAt->diffInMilliseconds($end) > $threshold) {
+                $handler($requestStartedAt, $request, $response);
             }
         }
 
-        $this->requestStartedAt = null;
+        CoroutineContext::forget(self::REQUEST_STARTED_AT_CONTEXT_KEY);
     }
 
     /**
@@ -276,7 +283,7 @@ class Kernel implements KernelContract
      */
     public function requestStartedAt(): ?Carbon
     {
-        return $this->requestStartedAt;
+        return CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
     }
 
     /**
