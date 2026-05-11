@@ -11,6 +11,12 @@
 - Create Hypervel Sail
 - Port console command `Aliases`, `Help`, `Hidden`, and repeatable `Usage` attributes
 
+## Configuration
+
+- Add `Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance` to the default global middleware stack. The configuration docs correctly say maintenance mode is checked by the default middleware stack, but `Hypervel\Foundation\Configuration\Middleware::getGlobalMiddleware()` currently omits it. Correct fix: add it in the same relative position Laravel uses, before `ValidatePostSize`, and port or update the middleware configuration tests.
+- Improve cache-backed maintenance mode freshness across multiple servers without adding cache overhead to every request. `WorkerCachedMaintenanceMode` currently caches one maintenance snapshot for the worker lifetime, so `php artisan down` on one server may not be seen by already-running workers on other servers until those workers reload. Correct fix: keep the per-worker in-memory snapshot, but add a configurable refresh interval such as `app.maintenance.refresh_interval` / `APP_MAINTENANCE_REFRESH_INTERVAL` with a small default like `5` seconds. Each worker should only check the backing maintenance driver when the interval has elapsed; normal requests continue using memory. A value of `0` should likely mean "never poll, refresh only on local activate/deactivate or worker reload." This preserves high-traffic scalability while letting remote servers observe cache-backed maintenance mode within the configured interval.
+- Wire pre-rendered maintenance mode output into the earliest HTTP request path. `DownCommand` writes `storage/framework/maintenance.php` when `--render` is used, and the docs say this view is returned before application dependencies load, but no source path currently includes that generated file before the framework boots. Correct fix: integrate the generated file into Hypervel's Swoole HTTP entry path, preserving maintenance bypass and excluded-path behavior from `src/foundation/src/Console/stubs/maintenance-mode.stub`.
+
 ## Authorization
 
 - Add `Hypervel\Routing\Attributes\Controllers\Authorize`. Laravel has `Illuminate\Routing\Attributes\Controllers\Authorize`; Hypervel docs already reference the Hypervel equivalent, but the class does not exist. Correct fix: port Laravel's attribute, extending `Hypervel\Routing\Attributes\Controllers\Middleware` and using `Hypervel\Auth\Middleware\Authorize::using(...)`.
