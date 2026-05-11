@@ -1,0 +1,8 @@
+{
+    "name": "@hypervel/wayfinder",
+    "private": true,
+    "type": "module",
+    "devDependencies": {
+        "happy-dom": "^20.0.2"
+    }
+}
