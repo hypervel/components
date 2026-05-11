@@ -182,6 +182,22 @@ class LengthAwarePaginatorTest extends TestCase
         $this->assertSame('/?settings%5Bid%5D=1&settings%5Bname%5D=Hypervel&page=1', $paginator->url(1));
     }
 
+    public function testToArrayIncludesCurrentPageUrl()
+    {
+        $paginator = new LengthAwarePaginator([1, 2], 10, 2, 2);
+
+        $this->assertSame('/?page=2', $paginator->toArray()['current_page_url']);
+    }
+
+    public function testCurrentPageUrlIncludesAppendedQueryParams()
+    {
+        $paginator = (new LengthAwarePaginator([1, 2], 10, 2, 2))
+            ->appends('sort', 'votes')
+            ->fragment('users');
+
+        $this->assertSame('/?sort=votes&page=2#users', $paginator->toArray()['current_page_url']);
+    }
+
     public function testToJson()
     {
         $paginator = new LengthAwarePaginator([1, 2], 10, 2, 2);
