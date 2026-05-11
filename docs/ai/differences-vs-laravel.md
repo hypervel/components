@@ -33,9 +33,22 @@ Write Hypervel apps like Laravel apps, except for these differences. Most stem f
 
 ## Container
 
-- Unbound concrete classes are auto-singletoned on first `make()` (cached for worker lifetime). Laravel returns a fresh instance every time.
-- For objects that must be fresh (mutable per-request DTOs, builders), call `$this->app->bind(Class::class)` explicitly.
-- `make($abstract, [...params])` always returns fresh — parameters bypass all caching.
+Hypervel caches more aggressively than Laravel: any class resolved via `make()` becomes a worker-lifetime singleton unless bound otherwise, in which case `make()` respects that binding.
+
+| Need | Call | Lifecycle |
+|---|---|---|
+| Always fresh, bypass all caching | `$app->build($class)` / `$app->buildWith($class, $params)` | Never cached |
+| Default resolution | `$app->make($class)` | Auto-singleton if unbound |
+| Fresh with parameter overrides | `$app->make($class, $params)` / `makeWith()` | Not cached (contextual build) |
+| Worker-wide singleton | `singleton(...)` or `#[Singleton]` | Worker lifetime |
+| Per-request singleton | `scoped(...)` or `#[Scoped]` | `CoroutineContext`, per coroutine |
+| Fresh every `make()` | `bind(...)` | Not cached |
+| Pre-built object | `instance($abstract, $obj)` | Returns the exact passed object |
+
+**Footguns:**
+
+- Don't capture per-call state (e.g. `Request` data) in `__construct` of an auto-resolved class — the first resolution freezes it for all subsequent requests on that worker. Use `bind()` to register fresh, or call `build()` at the resolution site.
+- Don't mutate `$this->foo` on a worker-lifetime singleton during request handling. The mutation persists across every request that worker handles. Use `CoroutineContext` for per-request state on shared services.
 
 ## Service providers
 
