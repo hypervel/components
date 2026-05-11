@@ -16,6 +16,9 @@
 /docs/.vuepress/.cache
 /docs/.vuepress/.temp
 /node_modules
+/src/*/node_modules
+/coverage
+*.tsbuildinfo
 /phpunit.xml
 /testing
 /tests/*.coverage

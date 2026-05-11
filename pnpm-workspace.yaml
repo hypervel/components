@@ -1,0 +1,19 @@
+packages:
+  - 'src/*'
+  # Exclude legacy standalone-UI packages that ship their own Vite/Vue
+  # build chains. They're maintained independently and pulling their
+  # deps into the workspace install would bloat `pnpm install` for
+  # contributors who only need the TS test infrastructure.
+  - '!src/horizon'
+  - '!src/telescope'
+
+# Supply-chain defense: require packages to be at least 5 days old before
+# install. Compromised packages typically get yanked within hours, so this
+# buffer dramatically reduces the chance of pulling a malicious release.
+# Value is in minutes (5 days × 24h × 60min = 7200).
+minimumReleaseAge: 7200
+
+# Allow lifecycle scripts for trusted build-time tools. pnpm 10+ blocks
+# install scripts by default for security; opt-in is explicit.
+allowBuilds:
+  esbuild: true
