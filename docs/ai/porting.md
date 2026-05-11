@@ -300,7 +300,7 @@ Four places need updating:
 
 2. **Package `composer.json` `extra.hypervel.providers`** — Replace `extra.hyperf.config` with `extra.hypervel.providers` listing the new service provider. This is how apps discover providers when the package is installed as a standalone dependency.
 
-3. **`DefaultProviders`** (`src/support/src/DefaultProviders.php`) — Add to the providers list (alphabetical order). This is how the testbench and default app configs load the provider. Without this, tests using `Testbench\TestCase` won't have the bindings available.
+3. **`DefaultProviders`** (`src/support/src/DefaultProviders.php`) — Only add the provider here if the package is **core framework infrastructure** that every Hypervel app needs (auth, cache, database, session, encryption, validation, view, pagination, plus Swoole infra like engine/server/object-pool/signal). For **optional/standalone packages** (Reverb, Scout, Horizon, Sanctum, Telescope, Wayfinder, etc.) do NOT add to DefaultProviders — the `extra.hypervel.providers` entry in the package composer.json handles auto-discovery, and tests register the provider explicitly via `getPackageProviders()` or equivalent setUp wiring.
 
 4. **Remove from `extra.hyperf.config`** — Remove the ConfigProvider from both the root `composer.json` and the package `composer.json` `extra.hyperf.config` entries (since the ConfigProvider is deleted).
 
@@ -528,6 +528,15 @@ Always call `parent::setUp()` in your setUp method.
 #### Test Support Files
 
 All **standalone** test support files — PHP classes, non-class PHP files, and non-PHP files (JSON, SQL, images, templates, etc.) — go in a single **`Fixtures/`** directory (capital F). This matches Laravel's predominant convention. PHP classes in `Fixtures/` are PSR-4 autoloaded like any other test file. Helper classes used only by a single test file may be defined inline within that file (matching Laravel's convention).
+
+#### Workbench Fixtures from Upstream Packages
+
+Laravel packages sometimes ship a `workbench/` directory with controllers, models, middleware, and a `routes/web.php`. Hypervel's testbench workbench is shared across every package's tests, so port these into the package-scoped pattern:
+
+- **Controllers, models, middleware** → `tests/{Package}/Fixtures/...`, namespace `Hypervel\Tests\{Package}\Fixtures\...`.
+- **Routes** → `tests/{Package}/Fixtures/routes.php`. Load only from tests that need them (test setUp, or a small bootstrap script for CLI subprocesses). Never always-load.
+
+Update upstream test imports to point at the new Fixtures namespace.
 
 #### Temp Directories for File I/O
 

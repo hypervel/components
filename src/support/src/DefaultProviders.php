@@ -14,7 +14,9 @@ namespace Hypervel\Support;
  *
  * Optional/standalone packages (Reverb, Scout, Horizon, Sanctum, etc.) must
  * not be added here. They register their own providers via composer.json
- * extra.hypervel.providers and are auto-discovered when installed.
+ * extra.hypervel.providers and are auto-discovered when installed. Tests for
+ * these packages register the provider via the test class's
+ * getPackageProviders() method.
  */
 class DefaultProviders
 {
