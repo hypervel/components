@@ -95,7 +95,9 @@ abstract class Component
             return new static(...array_intersect_key($data, array_flip($parameters)));
         }
 
-        return Container::getInstance()->make(static::class, $data);
+        // buildWith() not make() — components capture per-render state in their
+        // constructors and must always be freshly instantiated.
+        return Container::getInstance()->buildWith(static::class, $data);
     }
 
     /**
