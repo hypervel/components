@@ -190,6 +190,7 @@ class LengthAwarePaginator extends AbstractPaginator implements Arrayable, Array
     {
         return [
             'current_page' => $this->currentPage(),
+            'current_page_url' => $this->url($this->currentPage()),
             'data' => $this->items->toArray(),
             'first_page_url' => $this->url(1),
             'from' => $this->firstItem(),
