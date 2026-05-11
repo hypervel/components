@@ -1,0 +1,364 @@
+import { expect, it } from "vitest";
+import {
+    index,
+    show,
+} from "./.generated/actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/PostController";
+
+it("can convert basic params", () => {
+    expect(
+        index({
+            query: {
+                foo: "bar",
+                bar: "baz",
+            },
+        }),
+    ).toEqual({
+        url: "/posts?foo=bar&bar=baz",
+        method: "get",
+    });
+});
+
+it("can convert array params", () => {
+    expect(
+        index({
+            query: {
+                foo: ["bar", "baz"],
+                bar: "qux",
+            },
+        }),
+    ).toEqual({
+        url: "/posts?foo%5B%5D=bar&foo%5B%5D=baz&bar=qux",
+        method: "get",
+    });
+});
+
+it("can convert object params", () => {
+    expect(
+        index({
+            query: {
+                foo: {
+                    a: "baz",
+                    b: "qux",
+                },
+                bar: "something",
+            },
+        }),
+    ).toEqual({
+        url: "/posts?foo%5Ba%5D=baz&foo%5Bb%5D=qux&bar=something",
+        method: "get",
+    });
+});
+
+it("can convert boolean params", () => {
+    expect(
+        index({
+            query: {
+                foo: true,
+                bar: false,
+            },
+        }),
+    ).toEqual({
+        url: "/posts?foo=1&bar=0",
+        method: "get",
+    });
+});
+
+it("will ignore existing params without star", () => {
+    window.location.search = "?foo=bar&bar=baz";
+
+    expect(
+        index({
+            query: {
+                also: "yes",
+                bar: "no",
+            },
+        }),
+    ).toEqual({
+        url: "/posts?also=yes&bar=no",
+        method: "get",
+    });
+});
+
+it("can integrate basic params with existing window params", () => {
+    window.location.search = "?foo=bar&bar=baz";
+
+    expect(
+        index({
+            mergeQuery: {
+                also: "yes",
+                bar: "no",
+            },
+        }),
+    ).toEqual({
+        url: "/posts?foo=bar&also=yes&bar=no",
+        method: "get",
+    });
+});
+
+it("can integrate array params with existing window params", () => {
+    window.location.search = "?foo[]=bar&bar=baz";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: ["qux", "baz"],
+                also: "yes",
+            },
+        }),
+    ).toEqual({
+        url: "/posts?bar=baz&foo%5B%5D=qux&foo%5B%5D=baz&also=yes",
+        method: "get",
+    });
+});
+
+it("can integrate object params with existing window params", () => {
+    window.location.search = "?foo[baz]=bar&something=else";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: { qux: "baz" },
+                also: "yes",
+            },
+        }),
+    ).toEqual({
+        url: "/posts?something=else&foo%5Bqux%5D=baz&also=yes",
+        method: "get",
+    });
+});
+
+it("can delete existing params via null", () => {
+    window.location.search = "?foo=bar&bar=baz";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: null,
+            },
+        }),
+    ).toEqual({
+        url: "/posts?bar=baz",
+        method: "get",
+    });
+});
+
+it("can delete existing params via undefined", () => {
+    window.location.search = "?foo=bar&bar=baz";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: undefined,
+            },
+        }),
+    ).toEqual({
+        url: "/posts?bar=baz",
+        method: "get",
+    });
+});
+
+it("replaces an existing scalar param when merging an array param", () => {
+    window.location.search = "?foo=bar&status=active";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: ["qux", "baz"],
+            },
+        }),
+    ).toEqual({
+        url: "/posts?status=active&foo%5B%5D=qux&foo%5B%5D=baz",
+        method: "get",
+    });
+});
+
+it("replaces an existing scalar param when merging an object param", () => {
+    window.location.search = "?foo=bar&status=active";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: { role: "admin" },
+            },
+        }),
+    ).toEqual({
+        url: "/posts?status=active&foo%5Brole%5D=admin",
+        method: "get",
+    });
+});
+
+it("replaces an existing array param when merging a scalar param", () => {
+    window.location.search = "?foo[]=bar&foo[]=baz&status=active";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: "qux",
+            },
+        }),
+    ).toEqual({
+        url: "/posts?status=active&foo=qux",
+        method: "get",
+    });
+});
+
+it("can delete existing array params via null", () => {
+    window.location.search = "?foo[]=bar&foo[]=baz&status=active";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: null,
+            },
+        }),
+    ).toEqual({
+        url: "/posts?status=active",
+        method: "get",
+    });
+});
+
+it("can delete existing nested params via null", () => {
+    window.location.search = "?foo[role]=admin&foo[team]=ops&status=active";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: null,
+            },
+        }),
+    ).toEqual({
+        url: "/posts?status=active",
+        method: "get",
+    });
+});
+
+it("replaces an existing array param when merging an object param", () => {
+    window.location.search = "?foo[]=bar&foo[]=baz&status=active";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: { role: "admin" },
+            },
+        }),
+    ).toEqual({
+        url: "/posts?status=active&foo%5Brole%5D=admin",
+        method: "get",
+    });
+});
+
+it("replaces an existing object param when merging an array param", () => {
+    window.location.search = "?foo[role]=admin&foo[team]=ops&status=active";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: ["qux", "baz"],
+            },
+        }),
+    ).toEqual({
+        url: "/posts?status=active&foo%5B%5D=qux&foo%5B%5D=baz",
+        method: "get",
+    });
+});
+
+it("does not clobber params that share a prefix with the merged key", () => {
+    window.location.search = "?foo=bar&foobar=keep&foo_baz=keep";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: null,
+            },
+        }),
+    ).toEqual({
+        url: "/posts?foobar=keep&foo_baz=keep",
+        method: "get",
+    });
+});
+
+it("clears deeply nested params when merging a scalar", () => {
+    window.location.search = "?foo[a][b]=x&foo[a][c]=y&status=active";
+
+    expect(
+        index({
+            mergeQuery: {
+                foo: "scalar",
+            },
+        }),
+    ).toEqual({
+        url: "/posts?status=active&foo=scalar",
+        method: "get",
+    });
+});
+
+it("can merge with the form method", () => {
+    window.location.search = "?foo=bar&bar=baz";
+
+    expect(
+        index.form.head({
+            mergeQuery: {
+                foo: "sure",
+            },
+        }),
+    ).toEqual({
+        action: "/posts?bar=baz&_method=HEAD&foo=sure",
+        method: "get",
+    });
+});
+
+it("can pass nested query parameters", () => {
+    expect(
+        show(
+            { post: 1 },
+            {
+                query: {
+                    search: "Hello World",
+                    filters: {
+                        users: ["james", "michael", "john"],
+                        attributes: {
+                            visible: true,
+                            status: "example",
+                        },
+                    },
+                },
+            },
+        ),
+    ).toEqual({
+        url: "/posts/1?search=Hello+World&filters%5Busers%5D%5B%5D=james&filters%5Busers%5D%5B%5D=michael&filters%5Busers%5D%5B%5D=john&filters%5Battributes%5D%5Bvisible%5D=1&filters%5Battributes%5D%5Bstatus%5D=example",
+        method: "get",
+    });
+});
+
+it("replaces existing scalar params when merging nested object values", () => {
+    window.location.search = "?parent=og";
+
+    const query = (): {
+        string: string;
+        number: number;
+        boolean: boolean;
+    } => {
+        const obj = {
+            string: "string",
+            number: 5,
+            boolean: true,
+            undefined: undefined,
+            null: null,
+            array: [],
+            object: {},
+        };
+
+        return obj;
+    };
+
+    expect(
+        index.form.head({
+            mergeQuery: {
+                parent: query(),
+            },
+        }),
+    ).toEqual({
+        action: "/posts?_method=HEAD&parent%5Bstring%5D=string&parent%5Bnumber%5D=5&parent%5Bboolean%5D=1",
+        method: "get",
+    });
+});
