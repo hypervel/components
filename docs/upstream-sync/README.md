@@ -25,7 +25,7 @@ For the mechanics of porting code (namespace changes, container conversion, serv
 
 ### Step 1 — Read state
 
-Read `sync.yaml` top to bottom. For each package entry, note: the repo slug (top-level key), `last_reviewed_tag`, `last_ported_tag`, and whether the `notes` field references a `<package>.md` divergence doc.
+Read `sync.yaml` top to bottom. For each package entry, note: the repo slug (top-level key), `release`, `sync_date`, and whether the `notes` field references a `<package>.md` divergence doc.
 
 ### Step 2 — Process each package
 
@@ -41,7 +41,7 @@ If the package's `notes` field references a `<package>.md` divergence doc, read 
 gh release list --repo <repo-slug> --limit 50
 ```
 
-`gh release list` returns releases in reverse chronological order (newest first). Walk the output downward until you hit the package's `last_reviewed_tag` — every release **above** that line is new. Reverse that subset to get oldest-first processing order. Do not rely on string comparison of tag names; use release order.
+`gh release list` returns releases in reverse chronological order (newest first). Walk the output downward until you hit the package's `release` — every release **above** that line is new. Reverse that subset to get oldest-first processing order. Do not rely on string comparison of tag names; use release order.
 
 If zero new releases, note "no new releases" for the session record and move to the next package.
 
@@ -84,7 +84,7 @@ Optional commit body only if the port diverges from the upstream approach and th
 After walking the release's PRs, also scan for commits that landed directly on the branch without a PR — these are not surfaced by release notes:
 
 ```
-gh api repos/laravel/framework/compare/<last_reviewed_tag>...<new_tag> --jq '.commits[] | select(.commit.message | test("\\(#\\d+\\)") | not) | {sha: .sha, message: .commit.message}'
+gh api repos/laravel/framework/compare/<release>...<new_tag> --jq '.commits[] | select(.commit.message | test("\\(#\\d+\\)") | not) | {sha: .sha, message: .commit.message}'
 ```
 
 Report each result. Classify port/skip/defer the same way.
@@ -93,16 +93,13 @@ This check is **only required for `laravel/framework`**. Other packages release 
 
 **2f. Close out the release**
 
-When every PR (and any direct commits) in the release has been decided and committed/recorded:
-
-- Bump `last_reviewed_tag` in `sync.yaml` to this release's tag.
-- Bump `last_ported_tag` **only if** every porting decision for this release is complete (all ports committed, all skips recorded, nothing deferred pending work). If anything is deferred, `last_ported_tag` stays behind `last_reviewed_tag`.
+When every PR (and any direct commits) in the release has been decided and committed/recorded, bump `release` in `sync.yaml` to this release's tag. This happens regardless of whether anything was deferred — deferred items are tracked in the session PR body (and in `<package>.md` if the blocker is persistent), not by holding the tag back.
 
 Then move to the next release for the same package.
 
 **2g. Open the package's PR**
 
-Once every new release for this package has been processed, bump `last_session` in `sync.yaml` to today's date, then open a PR for this package using the structure defined under "PR structure" below. The PR contains all the commits you made for this package during this session.
+Once every new release for this package has been processed, bump `sync_date` in `sync.yaml` to today's date, then open a PR for this package using the structure defined under "PR structure" below. The PR contains all the commits you made for this package during this session.
 
 Do this before moving to the next package — the user can review and merge while you continue. If the session is interrupted mid-package, still open the PR with whatever commits landed (see "Partial-session handling" below).
 
@@ -145,9 +142,9 @@ Any section with no entries can be omitted. Keep entries scannable; this body is
 
 If a session is interrupted mid-package:
 
-- `sync.yaml` still reflects whatever releases were fully walked (tags bumped for those).
+- `sync.yaml` still reflects whatever releases were fully walked (`release` bumped for those).
 - The PR is merged with whatever was ported up to that point.
-- The next session resumes from the current `last_reviewed_tag`.
+- The next session resumes from the current `release`.
 
 Never leave `sync.yaml` in a state that misrepresents what was actually done.
 

@@ -1,0 +1,74 @@
+# Upstream Sync State
+#
+# Tracks the release tag each upstream package has been synced up to.
+# Updated during every sync session. See README.md in this directory for the
+# session workflow.
+#
+# Top-level keys are gh repo slugs (what `gh --repo` expects).
+#
+# Fields:
+#   repo_url   — GitHub URL, for humans
+#   release    — newest release tag walked in a sync session. Bumped even if
+#                some PRs were deferred; deferred items are tracked in the
+#                session PR body and, if persistent, in <package>.md
+#   sync_date  — date (YYYY-MM-DD) of the most recent session that touched
+#                this entry (bumped even if no releases were new)
+#   notes      — optional, omit when empty. Permanent per-repo context that
+#                informs every sync of this entry (e.g. composer/repo name
+#                mismatch, per-repo workflow tweaks). Per-session notes
+#                belong in the session PR body, not here. Reference
+#                <package>.md here when a divergence doc exists.
+#
+# `release` and `sync_date` are null on entries that haven't been synced yet.
+
+inertiajs/inertia-laravel:
+  repo_url: https://github.com/inertiajs/inertia-laravel
+  release: v3.1.0
+  sync_date: 2026-05-11
+
+laravel/framework:
+  repo_url: https://github.com/laravel/framework
+  release: null
+  sync_date: null
+  notes: Also scan direct-to-branch commits per README step 2e.
+
+laravel/horizon:
+  repo_url: https://github.com/laravel/horizon
+  release: null
+  sync_date: null
+
+laravel/prompts:
+  repo_url: https://github.com/laravel/prompts
+  release: null
+  sync_date: null
+
+laravel/sanctum:
+  repo_url: https://github.com/laravel/sanctum
+  release: null
+  sync_date: null
+
+laravel/scout:
+  repo_url: https://github.com/laravel/scout
+  release: null
+  sync_date: null
+
+laravel/telescope:
+  repo_url: https://github.com/laravel/telescope
+  release: null
+  sync_date: null
+
+laravel/tinker:
+  repo_url: https://github.com/laravel/tinker
+  release: null
+  sync_date: null
+
+orchestral/testbench:
+  repo_url: https://github.com/orchestral/testbench
+  release: null
+  sync_date: null
+  notes: Composer package is `orchestra/testbench` (different from gh slug).
+
+spatie/laravel-permission:
+  repo_url: https://github.com/spatie/laravel-permission
+  release: null
+  sync_date: null
