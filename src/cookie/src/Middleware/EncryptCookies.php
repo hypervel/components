@@ -54,6 +54,9 @@ class EncryptCookies
 
     /**
      * Disable encryption for the given cookie name(s).
+     *
+     * Only call this once at boot (service provider). The list persists for
+     * the worker's lifetime and applies to every subsequent request.
      */
     public function disableFor(array|string $name): void
     {
