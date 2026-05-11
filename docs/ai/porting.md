@@ -561,6 +561,21 @@ All tests run inside coroutines by default. The `RunTestsInCoroutine` trait is o
 
 These are primarily useful for DB operations or external service setup that needs coroutine context. Most ported Laravel tests won't need them.
 
+#### Testing coroutine state isolation
+
+To prove state is per-coroutine (not shared on a worker-lifetime singleton), spawn concurrent coroutines via `parallel()` from `Hypervel\Coroutine` and `usleep()` between mutation and read — the sleep forces the runtime to interleave them; without it tasks may complete sequentially and the leak won't reproduce.
+
+```php
+use function Hypervel\Coroutine\parallel;
+
+[$a, $b] = parallel([
+    function () use ($service) { $service->set('A'); usleep(5000); return $service->get(); },
+    function () use ($service) { $service->set('B'); usleep(5000); return $service->get(); },
+]);
+```
+
+Examples: `tests/Inertia/CoroutineIsolationTest.php`, `tests/Container/CoroutineSafetyTest.php`. Name new tests `CoroutineIsolationTest` / `CoroutineSafetyTest` for discoverability.
+
 #### Request Context in Tests
 
 `request()` resolves from `RequestContext` — when no request exists in context (tests that don't make HTTP requests), each `request()` call creates a throwaway fallback instance. This means `request()->merge()` has no effect on subsequent `request()` calls. Replace `request()->merge(['key' => 'value'])` with `RequestContext::set(Request::create('/?key=value'))` to seed a stable request in context.
