@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Http;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Contracts\Validation\Factory as ValidationFactory;
 use Hypervel\Contracts\Validation\ValidatesWhenResolved;
 use Hypervel\Contracts\Validation\Validator;
@@ -21,7 +22,7 @@ use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
 use ReflectionClass;
 
-class FormRequest extends Request implements ValidatesWhenResolved
+class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 {
     use HasCasts;
     use ValidatesWhenResolvedTrait;
@@ -72,6 +73,19 @@ class FormRequest extends Request implements ValidatesWhenResolved
      * The validator instance.
      */
     protected ?Validator $validator = null;
+
+    /**
+     * Build a fresh form request hydrated from the current request.
+     *
+     * Invoked by the container's SelfBuilding path. Each resolution returns a
+     * new instance so per-request data does not leak across the worker.
+     */
+    public static function newInstance(Request $current, Container $container, Redirector $redirector): static
+    {
+        return static::createFrom($current)
+            ->setContainer($container)
+            ->setRedirector($redirector);
+    }
 
     /**
      * Get the validator instance for the request.
