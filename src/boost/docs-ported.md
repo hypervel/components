@@ -7,6 +7,7 @@ broadcasting.md
 cache.md
 collections.md
 concurrency.md
+pagination.md
 requests.md
 routing.md
 sanctum.md
