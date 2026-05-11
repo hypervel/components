@@ -1,0 +1,65 @@
+{
+    "name": "hypervel/wayfinder",
+    "type": "library",
+    "description": "Generate TypeScript representations of your Hypervel actions and routes.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "wayfinder",
+        "typescript",
+        "routes",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Taylor Otwell",
+            "email": "taylor@laravel.com"
+        },
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Wayfinder\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "laravel/serializable-closure": "^2.0.10",
+        "phpstan/phpdoc-parser": "^2.3",
+        "hypervel/collections": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/prompts": "^0.4",
+        "hypervel/routing": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/view": "^0.4"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Wayfinder\\WayfinderServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}
