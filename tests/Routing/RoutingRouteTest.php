@@ -13,6 +13,7 @@ use Hypervel\Auth\Middleware\Authorize;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Attributes\Config;
 use Hypervel\Container\Container;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Routing\Registrar;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Database\Eloquent\Model;
@@ -40,15 +41,15 @@ use Hypervel\Routing\RouteGroup;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\UrlGenerator;
 use Hypervel\Support\Str;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Routing\Fixtures\CategoryBackedEnum;
-use Hypervel\Tests\Routing\RoutingTestCase;
 use LogicException;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use UnexpectedValueException;
 
-class RoutingRouteTest extends RoutingTestCase
+class RoutingRouteTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -2062,13 +2063,12 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouteRedirect()
     {
-        $container = new Container;
-        $router = new Router(new Dispatcher, $container);
-        $container->instance(Registrar::class, $router);
+        $router = new Router(new Dispatcher, $this->app);
+        $this->app->instance(Registrar::class, $router);
         $request = Request::create('contact_us', 'GET');
-        $container->instance(Request::class, $request);
+        RequestContext::set($request);
         $urlGenerator = new UrlGenerator(new RouteCollection, $request);
-        $container->instance(UrlGenerator::class, $urlGenerator);
+        $this->app->instance(UrlGenerator::class, $urlGenerator);
         $router->get('contact_us', function () {
             throw new Exception('Route should not be reachable.');
         });
@@ -2081,13 +2081,12 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouteRedirectRetainsExistingStartingForwardSlash()
     {
-        $container = new Container;
-        $router = new Router(new Dispatcher, $container);
-        $container->instance(Registrar::class, $router);
+        $router = new Router(new Dispatcher, $this->app);
+        $this->app->instance(Registrar::class, $router);
         $request = Request::create('contact_us', 'GET');
-        $container->instance(Request::class, $request);
+        RequestContext::set($request);
         $urlGenerator = new UrlGenerator(new RouteCollection, $request);
-        $container->instance(UrlGenerator::class, $urlGenerator);
+        $this->app->instance(UrlGenerator::class, $urlGenerator);
         $router->get('contact_us', function () {
             throw new Exception('Route should not be reachable.');
         });
@@ -2100,13 +2099,12 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouteRedirectStripsMissingStartingForwardSlash()
     {
-        $container = new Container;
-        $router = new Router(new Dispatcher, $container);
-        $container->instance(Registrar::class, $router);
+        $router = new Router(new Dispatcher, $this->app);
+        $this->app->instance(Registrar::class, $router);
         $request = Request::create('contact_us', 'GET');
-        $container->instance(Request::class, $request);
+        RequestContext::set($request);
         $urlGenerator = new UrlGenerator(new RouteCollection, $request);
-        $container->instance(UrlGenerator::class, $urlGenerator);
+        $this->app->instance(UrlGenerator::class, $urlGenerator);
         $router->get('contact_us', function () {
             throw new Exception('Route should not be reachable.');
         });
@@ -2122,13 +2120,12 @@ class RoutingRouteTest extends RoutingTestCase
         $this->expectException(UrlGenerationException::class);
         $this->expectExceptionMessage('Missing required parameter for [Route: hypervel_route_redirect_destination] [URI: users/{user}] [Missing parameter: user].');
 
-        $container = new Container;
-        $router = new Router(new Dispatcher, $container);
-        $container->instance(Registrar::class, $router);
+        $router = new Router(new Dispatcher, $this->app);
+        $this->app->instance(Registrar::class, $router);
         $request = Request::create('users', 'GET');
-        $container->instance(Request::class, $request);
+        RequestContext::set($request);
         $urlGenerator = new UrlGenerator(new RouteCollection, $request);
-        $container->instance(UrlGenerator::class, $urlGenerator);
+        $this->app->instance(UrlGenerator::class, $urlGenerator);
         $router->get('users', function () {
             throw new Exception('Route should not be reachable.');
         });
@@ -2139,13 +2136,12 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRouteRedirectWithCustomStatus()
     {
-        $container = new Container;
-        $router = new Router(new Dispatcher, $container);
-        $container->instance(Registrar::class, $router);
+        $router = new Router(new Dispatcher, $this->app);
+        $this->app->instance(Registrar::class, $router);
         $request = Request::create('contact_us', 'GET');
-        $container->instance(Request::class, $request);
+        RequestContext::set($request);
         $urlGenerator = new UrlGenerator(new RouteCollection, $request);
-        $container->instance(UrlGenerator::class, $urlGenerator);
+        $this->app->instance(UrlGenerator::class, $urlGenerator);
         $router->get('contact_us', function () {
             throw new Exception('Route should not be reachable.');
         });
@@ -2158,13 +2154,12 @@ class RoutingRouteTest extends RoutingTestCase
 
     public function testRoutePermanentRedirect()
     {
-        $container = new Container;
-        $router = new Router(new Dispatcher, $container);
-        $container->instance(Registrar::class, $router);
+        $router = new Router(new Dispatcher, $this->app);
+        $this->app->instance(Registrar::class, $router);
         $request = Request::create('contact_us', 'GET');
-        $container->instance(Request::class, $request);
+        RequestContext::set($request);
         $urlGenerator = new UrlGenerator(new RouteCollection, $request);
-        $container->instance(UrlGenerator::class, $urlGenerator);
+        $this->app->instance(UrlGenerator::class, $urlGenerator);
         $router->get('contact_us', function () {
             throw new Exception('Route should not be reachable.');
         });

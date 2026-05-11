@@ -9,6 +9,7 @@ use DateTimeZone;
 use Hypervel\Broadcasting\FakePendingBroadcast;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Exceptions\HttpResponseException;
@@ -242,7 +243,7 @@ class FoundationHelpersTest extends TestCase
     public function testAbortReceivesCodeAsResponsableImplementation()
     {
         $request = \Hypervel\Http\Request::create('/');
-        $this->app->instance('request', $request);
+        RequestContext::set($request);
 
         try {
             abort($code = new class implements Responsable {

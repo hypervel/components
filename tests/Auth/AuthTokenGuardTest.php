@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\TokenGuard;
-use Hypervel\Container\Container;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Http\Request;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
 class AuthTokenGuardTest extends TestCase
 {
     /**
-     * Create a TokenGuard with a request bound to a fresh container.
+     * Create a TokenGuard with a request seeded in coroutine context.
      */
     protected function createGuard(
         UserProvider $provider,
@@ -24,10 +24,9 @@ class AuthTokenGuardTest extends TestCase
         string $storageKey = 'api_token',
         bool $hash = false,
     ): TokenGuard {
-        $container = Container::setInstance(new Container);
-        $container->instance('request', $request);
+        RequestContext::set($request);
 
-        return new TokenGuard('token', $provider, $container, $inputKey, $storageKey, $hash);
+        return new TokenGuard('token', $provider, $this->app, $inputKey, $storageKey, $hash);
     }
 
     public function testUserCanBeRetrievedByQueryStringVariable()
@@ -142,8 +141,8 @@ class AuthTokenGuardTest extends TestCase
 
         $guard = $this->createGuard($provider, $request);
 
-        // Replace the request in the container (Hypervel resolves request from container, not a stored property)
-        Container::getInstance()->instance('request', Request::create('/', 'GET', ['api_token' => 'custom']));
+        // Replace the request in coroutine context (Hypervel resolves request from RequestContext via the container's bind closure)
+        RequestContext::set(Request::create('/', 'GET', ['api_token' => 'custom']));
 
         $user = $guard->user();
 
@@ -255,18 +254,16 @@ class AuthTokenGuardTest extends TestCase
             ->once()
             ->andReturn($user2);
 
-        $container = Container::setInstance(new Container);
-
         // First request with token-a
         $request1 = Request::create('/', 'GET', ['api_token' => 'token-a']);
-        $container->instance('request', $request1);
-        $guard = new TokenGuard('token', $provider, $container);
+        RequestContext::set($request1);
+        $guard = new TokenGuard('token', $provider, $this->app);
 
         $this->assertSame($user1, $guard->user());
 
         // Switch to token-b — different token should resolve different user
         $request2 = Request::create('/', 'GET', ['api_token' => 'token-b']);
-        $container->instance('request', $request2);
+        RequestContext::set($request2);
 
         $this->assertSame($user2, $guard->user());
     }
@@ -327,16 +324,15 @@ class AuthTokenGuardTest extends TestCase
             ->once()
             ->andReturn($user1);
 
-        $container = Container::setInstance(new Container);
         $request1 = Request::create('/', 'GET', ['api_token' => 'token-a']);
-        $container->instance('request', $request1);
+        RequestContext::set($request1);
 
-        $guard = new TokenGuard('token', $provider, $container);
+        $guard = new TokenGuard('token', $provider, $this->app);
         $this->assertSame($user1, $guard->user());
 
         // Change to a request with no token — guard should not see user1
         $request2 = Request::create('/', 'GET');
-        $container->instance('request', $request2);
+        RequestContext::set($request2);
 
         $this->assertNull($guard->user());
     }

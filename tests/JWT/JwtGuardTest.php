@@ -7,8 +7,6 @@ namespace Hypervel\Tests\JWT;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\AuthServiceProvider;
 use Hypervel\Config\Repository;
-use Hypervel\Container\Container;
-use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -17,7 +15,7 @@ use Hypervel\Http\Request;
 use Hypervel\JWT\Contracts\ManagerContract;
 use Hypervel\JWT\JwtGuard;
 use Hypervel\JWT\JWTServiceProvider;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
 class JwtGuardTest extends TestCase
@@ -34,6 +32,7 @@ class JwtGuardTest extends TestCase
     public function testParseTokenFromRequestInput()
     {
         $request = m::mock(Request::class);
+        $request->shouldReceive('setUserResolver')->andReturnSelf();
         $request->shouldReceive('header')->with('Authorization', '')->andReturn('');
         $request->shouldReceive('has')->with('token')->andReturnTrue();
         $request->shouldReceive('input')->with('token')->andReturn('input-token');
@@ -489,19 +488,15 @@ class JwtGuardTest extends TestCase
         ?Request $request = null,
         int $ttl = 120,
     ): JwtGuard {
-        $container = new Container;
-
         if ($request !== null) {
-            $container->instance('request', $request);
-            // Set RequestContext so parseToken() works
-            CoroutineContext::set(Request::class, $request);
+            RequestContext::set($request);
         }
 
         return new JwtGuard(
             'jwt',
             $provider ?? m::mock(UserProvider::class),
             $jwtManager ?? m::mock(ManagerContract::class),
-            $container,
+            $this->app,
             $ttl,
         );
     }
@@ -512,6 +507,7 @@ class JwtGuardTest extends TestCase
     protected function createRequestWithBearer(?string $token): Request
     {
         $request = m::mock(Request::class);
+        $request->shouldReceive('setUserResolver')->andReturnSelf();
 
         if ($token !== null) {
             $request->shouldReceive('header')

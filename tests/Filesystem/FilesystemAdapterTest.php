@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Filesystem;
 use Carbon\Carbon;
 use GuzzleHttp\Psr7\Stream;
 use Hypervel\Container\Container;
+use Hypervel\Context\RequestContext;
+use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\FilesystemAdapter;
@@ -14,6 +16,7 @@ use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\FakeWritableConnection;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
@@ -25,7 +28,6 @@ use League\Flysystem\UnableToRetrieveMetadata;
 use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
-use PHPUnit\Framework\TestCase;
 use Swoole\Runtime;
 
 class FilesystemAdapterTest extends TestCase
@@ -38,6 +40,8 @@ class FilesystemAdapterTest extends TestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
+
         $this->tempDir = ParallelTesting::tempDir('FilesystemAdapter');
         $this->filesystem = new Filesystem(
             $this->adapter = new LocalFilesystemAdapter($this->tempDir)
@@ -56,6 +60,8 @@ class FilesystemAdapterTest extends TestCase
         $filesystem->deleteDirectory(basename($this->tempDir));
 
         unset($this->tempDir, $this->filesystem, $this->adapter);
+
+        parent::tearDown();
     }
 
     public function testResponse()
@@ -882,12 +888,10 @@ class FilesystemAdapterTest extends TestCase
         $this->filesystem->write('large.txt', $content);
 
         $writable = new FailAfterFirstWriteConnection;
-        $container = new Container;
-        $container->instance(Request::class, Request::create('/test', 'GET'));
+        RequestContext::set(Request::create('/test', 'GET'));
         $response = new Response;
         $response->setConnection($writable);
-        $container->instance(Response::class, $response);
-        Container::setInstance($container);
+        ResponseContext::set($response);
 
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $files->response('large.txt');
@@ -899,17 +903,13 @@ class FilesystemAdapterTest extends TestCase
 
     protected function mockResponse(): FakeWritableConnection
     {
-        $container = new Container;
-
         $request = Request::create('/test', 'GET');
-        $container->instance(Request::class, $request);
+        RequestContext::set($request);
 
         $writable = new FakeWritableConnection;
         $response = new Response;
         $response->setConnection($writable);
-        $container->instance(Response::class, $response);
-
-        Container::setInstance($container);
+        ResponseContext::set($response);
 
         return $writable;
     }

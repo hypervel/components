@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Socialite;
 
 use Hypervel\Config\Repository;
+use Hypervel\Context\RequestContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
@@ -238,7 +239,7 @@ class SocialiteManagerTest extends TestCase
         $firstRequest = Request::create('/first');
         $secondRequest = Request::create('/second');
 
-        $this->app->instance('request', $firstRequest);
+        RequestContext::set($firstRequest);
 
         $factory = $this->app->make(SocialiteManager::class);
 
@@ -249,7 +250,7 @@ class SocialiteManagerTest extends TestCase
         $provider = $factory->driver('generic');
         $this->assertSame($firstRequest, (new ReflectionProperty($provider, 'request'))->getValue($provider));
 
-        $this->app->instance('request', $secondRequest);
+        RequestContext::set($secondRequest);
 
         $provider = $factory->driver('generic');
         $this->assertSame($secondRequest, (new ReflectionProperty($provider, 'request'))->getValue($provider));
