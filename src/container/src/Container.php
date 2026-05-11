@@ -1390,6 +1390,33 @@ class Container implements ArrayAccess, ContainerContract
     }
 
     /**
+     * Instantiate a concrete instance with the given parameter overrides.
+     *
+     * Bypasses all binding lookups and the auto-singleton cache, so the
+     * returned instance is always freshly constructed. Class-typed
+     * dependencies are still resolved via the container.
+     *
+     * @template TClass of object
+     *
+     * @param class-string<TClass>|Closure(static, array): TClass $concrete
+     * @param array<string, mixed> $parameters
+     * @return ($concrete is class-string<TClass> ? TClass : mixed)
+     *
+     * @throws BindingResolutionException
+     * @throws CircularDependencyException
+     */
+    public function buildWith(Closure|string $concrete, array $parameters = []): mixed
+    {
+        $this->pushParameterOverrides($parameters);
+
+        try {
+            return $this->build($concrete);
+        } finally {
+            $this->popParameterOverrides();
+        }
+    }
+
+    /**
      * Instantiate a concrete instance of the given type.
      *
      * @template TClass of object

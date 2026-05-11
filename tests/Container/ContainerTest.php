@@ -800,6 +800,61 @@ class ContainerTest extends TestCase
         $this->assertInstanceOf(ContainerDependentStub::class, $container->build(ContainerDependentStub::class));
     }
 
+    public function testBuildWithReturnsFreshInstancePerCall()
+    {
+        $container = new Container;
+
+        $first = $container->buildWith(ContainerDefaultValueStub::class);
+        $second = $container->buildWith(ContainerDefaultValueStub::class);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame('taylor', $first->default);
+        $this->assertSame('taylor', $second->default);
+    }
+
+    public function testBuildWithAppliesParameterOverrides()
+    {
+        $container = new Container;
+
+        $instance = $container->buildWith(ContainerDefaultValueStub::class, ['default' => 'abigail']);
+
+        $this->assertSame('abigail', $instance->default);
+        $this->assertInstanceOf(ContainerConcreteStub::class, $instance->stub);
+    }
+
+    public function testBuildWithBypassesAutoSingletonCache()
+    {
+        $container = new Container;
+
+        $autoSingletons = fn () => (fn () => $this->autoSingletons)->call($container);
+
+        $first = $container->buildWith(ContainerDefaultValueStub::class);
+
+        $this->assertArrayNotHasKey(ContainerDefaultValueStub::class, $autoSingletons());
+
+        $cached = $container->make(ContainerDefaultValueStub::class);
+
+        $this->assertNotSame($first, $cached);
+        $this->assertSame($cached, $container->make(ContainerDefaultValueStub::class));
+
+        $third = $container->buildWith(ContainerDefaultValueStub::class);
+
+        $this->assertNotSame($cached, $third);
+    }
+
+    public function testBuildWithSupportsClosureConcrete()
+    {
+        $container = new Container;
+
+        $result = $container->buildWith(fn ($app, $config) => $config);
+
+        $this->assertSame([], $result);
+
+        $resultWithParams = $container->buildWith(fn ($app, $config) => $config, ['name' => 'taylor']);
+
+        $this->assertSame(['name' => 'taylor'], $resultWithParams);
+    }
+
     public function testContainerKnowsEntry()
     {
         $container = new Container;
