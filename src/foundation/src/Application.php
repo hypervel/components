@@ -1096,6 +1096,12 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Register a terminating callback with the application.
      *
+     * Only call this at boot (in a service provider). Callbacks persist for
+     * the worker's lifetime and fire on every subsequent request. Do not
+     * call from a controller or per-request code — the closure (and anything
+     * it captures) would leak across every request that worker handles. Use
+     * defer() for per-request "after the response" cleanup instead.
+     *
      * @return $this
      */
     public function terminating(callable|string $callback): static
