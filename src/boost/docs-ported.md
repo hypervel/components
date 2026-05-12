@@ -7,6 +7,7 @@ broadcasting.md
 cache.md
 collections.md
 concurrency.md
+configuration.md
 container.md
 pagination.md
 requests.md

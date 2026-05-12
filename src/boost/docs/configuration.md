@@ -19,10 +19,10 @@ All of the configuration files for the Hypervel framework are stored in the `con
 
 These configuration files allow you to configure things like your database connection information, your mail server information, as well as various other core configuration values such as your application URL and encryption key.
 
-Hypervel ships framework configuration defaults with the framework itself. Your application's `config` files override those defaults, while common nested options like database connections, cache stores, queue connections, and mailers are merged so you may customize only the values you need.
+Hypervel ships framework configuration defaults with the framework itself. Your application's `config` files override those defaults, while common nested options like authentication guards and providers, broadcasting connections, cache stores, database connections and Redis settings, filesystem disks, logging channels, mailers, and queue connections are merged so you may customize only the values you need.
 
-> [!WARNING]
-> Configuration files are loaded during application bootstrap. You should not use the `config` function inside configuration files to reference other configuration values, since those files may not have been loaded yet. Use `env` or local PHP values instead.
+> [!NOTE]
+> Configuration files are loaded in alphabetical order during application bootstrap. Cross-references via the `config` function depend on file load order, so you should prefer `env` or local PHP values inside configuration files.
 
 <a name="the-about-command"></a>
 #### The `about` Command
@@ -392,6 +392,8 @@ APP_MAINTENANCE_DRIVER=cache
 APP_MAINTENANCE_STORE=database
 ```
 
+When maintenance mode is enabled or disabled, Hypervel will send a `SIGUSR1` reload signal to the server process listed in your configured `server.settings.pid_file` so workers on the current server refresh their maintenance state. The default PID file is `storage/framework/hypervel.pid`; the signal is only sent when that file exists.
+
 <a name="pre-rendering-the-maintenance-mode-view"></a>
 #### Pre-Rendering the Maintenance Mode View
 
@@ -424,14 +426,7 @@ php artisan up
 > [!NOTE]
 > You may customize the default maintenance mode template by defining your own template at `resources/views/errors/503.blade.php`.
 
-When maintenance mode is enabled or disabled, Hypervel will attempt a best-effort worker reload using `SIGUSR1` so workers on the current server refresh their maintenance state.
-
 <a name="maintenance-mode-queues"></a>
 #### Maintenance Mode and Queues
 
 While your application is in maintenance mode, no [queued jobs](/docs/{{version}}/queues) will be handled. The jobs will continue to be handled as normal once the application is out of maintenance mode.
-
-<a name="alternatives-to-maintenance-mode"></a>
-#### Alternatives to Maintenance Mode
-
-Since maintenance mode requires your application to have several seconds of downtime, consider using rolling deployments, load balancer draining, or another zero-downtime deployment strategy when your application must remain available during releases.
