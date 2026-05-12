@@ -373,11 +373,13 @@ class HttpRequestTrustedStateTest extends TestCase
             'HTTP_X_FORWARDED_HOST' => 'api.example.com',
             'HTTP_X_FORWARDED_PROTO' => 'https',
             'HTTP_X_FORWARDED_PORT' => '8443',
+            'HTTP_X_FORWARDED_PREFIX' => '/app',
         ];
         $headers = Request::HEADER_X_FORWARDED_FOR
             | Request::HEADER_X_FORWARDED_HOST
             | Request::HEADER_X_FORWARDED_PROTO
-            | Request::HEADER_X_FORWARDED_PORT;
+            | Request::HEADER_X_FORWARDED_PORT
+            | Request::HEADER_X_FORWARDED_PREFIX;
 
         try {
             $symfony = SymfonyRequest::create('http://internal.test/users', 'GET', [], [], [], $server);
@@ -389,6 +391,8 @@ class HttpRequestTrustedStateTest extends TestCase
             $this->assertSame($symfony->getHost(), $hypervel->getHost());
             $this->assertSame($symfony->getPort(), $hypervel->getPort());
             $this->assertSame($symfony->isSecure(), $hypervel->isSecure());
+            $this->assertSame($symfony->getBaseUrl(), $hypervel->getBaseUrl());
+            $this->assertSame($symfony->isFromTrustedProxy(), $hypervel->isFromTrustedProxy());
         } finally {
             SymfonyRequest::setTrustedProxies([], -1);
         }
