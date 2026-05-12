@@ -344,6 +344,7 @@ class Middleware
             $this->trustHosts ? \Hypervel\Http\Middleware\TrustHosts::class : null,
             \Hypervel\Http\Middleware\TrustProxies::class,
             \Hypervel\Http\Middleware\HandleCors::class,
+            \Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class,
             \Hypervel\Http\Middleware\ValidatePostSize::class,
             \Hypervel\Foundation\Http\Middleware\TrimStrings::class,
             \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,

@@ -302,6 +302,7 @@ class MiddlewareTest extends TestCase
             \Hypervel\Foundation\Http\Middleware\InvokeDeferredCallbacks::class,
             \Hypervel\Http\Middleware\TrustProxies::class,
             \Hypervel\Http\Middleware\HandleCors::class,
+            \Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class,
             \Hypervel\Http\Middleware\ValidatePostSize::class,
             \Hypervel\Foundation\Http\Middleware\TrimStrings::class,
             \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
