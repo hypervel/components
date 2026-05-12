@@ -20,14 +20,14 @@ class HandleCors
     /**
      * The closure used to resolve CORS configuration for the current request.
      *
-     * @var null|Closure(\Hypervel\Http\Request): array
+     * @var null|Closure(Request): array
      */
     protected static ?Closure $configResolver = null;
 
     /**
      * All of the registered skip callbacks.
      *
-     * @var array<int, Closure(\Hypervel\Http\Request): bool>
+     * @var array<int, Closure(Request): bool>
      */
     protected static array $skipCallbacks = [];
 
@@ -120,7 +120,7 @@ class HandleCors
      * current request and returns the CORS options array; useful for
      * multi-tenant CORS where the config varies by host or other request data.
      *
-     * @param null|Closure(\Hypervel\Http\Request): array $callback
+     * @param null|Closure(Request): array $callback
      */
     public static function resolveConfigUsing(?Closure $callback): void
     {

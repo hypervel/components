@@ -28,6 +28,7 @@
 - [Form Method Spoofing](#form-method-spoofing)
 - [Accessing the Current Route](#accessing-the-current-route)
 - [Cross-Origin Resource Sharing (CORS)](#cors)
+    - [Dynamic CORS Configuration](#dynamic-cors-configuration)
 - [Route Caching](#route-caching)
 
 <a name="basic-routing"></a>
@@ -1042,6 +1043,43 @@ This command will place a `cors.php` configuration file within your application'
 
 > [!NOTE]
 > For more information on CORS and CORS headers, please consult the [MDN web documentation on CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#The_HTTP_response_headers).
+
+<a name="dynamic-cors-configuration"></a>
+### Dynamic CORS Configuration
+
+If you need to derive CORS configuration from the incoming request — for example, to apply per-tenant or per-host CORS rules — you may register a configuration resolver on the `HandleCors` middleware from the `boot` method of your application's `App\Providers\AppServiceProvider` class:
+
+```php
+use Hypervel\Http\Middleware\HandleCors;
+use Hypervel\Http\Request;
+
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
+{
+    HandleCors::resolveConfigUsing(function (Request $request) {
+        return [
+            'paths' => ['api/*'],
+            'allowed_origins' => ['https://' . $request->getHost()],
+            'allowed_methods' => ['GET', 'POST'],
+            'allowed_headers' => ['Content-Type'],
+        ];
+    });
+}
+```
+
+The closure receives the current HTTP request instance and should return the full CORS options array. It is invoked on every request the middleware applies to, so the returned configuration may be built dynamically from any property of the request — the host, headers, route, authenticated user, and so on.
+
+If you only need to override a few options, you may merge your changes with the values defined in your `cors.php` configuration file:
+
+```php
+HandleCors::resolveConfigUsing(function (Request $request) {
+    return array_merge(config('cors'), [
+        'allowed_origins' => ['https://' . $request->getHost()],
+    ]);
+});
+```
 
 <a name="route-caching"></a>
 ## Route Caching
