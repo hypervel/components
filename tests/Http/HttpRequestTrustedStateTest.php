@@ -311,6 +311,28 @@ class HttpRequestTrustedStateTest extends TestCase
         $this->assertSame(['9.9.9.9'], $duplicate->getClientIps());
     }
 
+    public function testDuplicateRecomputesTrustedValuesForNewRequestState()
+    {
+        $request = $this->trustedRequest(
+            [
+                'REMOTE_ADDR' => '10.0.0.1',
+                'HTTP_FORWARDED' => 'host=example.com',
+                'HTTPS' => 'on',
+            ],
+            ['10.0.0.1'],
+            Request::HEADER_FORWARDED
+        );
+
+        $this->assertSame(443, $request->getPort());
+
+        $duplicate = $request->duplicate(server: [
+            'REMOTE_ADDR' => '10.0.0.1',
+            'HTTP_FORWARDED' => 'host=example.com',
+        ]);
+
+        $this->assertSame(80, $duplicate->getPort());
+    }
+
     public function testSetTrustedProxiesClearsTrustedValuesCache()
     {
         $request = $this->trustedRequest(
