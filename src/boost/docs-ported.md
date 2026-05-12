@@ -11,6 +11,7 @@ configuration.md
 console-tests.md
 context.md
 container.md
+contracts.md
 pagination.md
 requests.md
 routing.md
