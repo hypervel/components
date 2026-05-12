@@ -9,6 +9,7 @@ collections.md
 concurrency.md
 configuration.md
 console-tests.md
+context.md
 container.md
 pagination.md
 requests.md

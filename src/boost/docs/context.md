@@ -3,11 +3,15 @@
 - [Introduction](#introduction)
     - [How it Works](#how-it-works)
 - [Capturing Context](#capturing-context)
+    - [Conditional Context](#conditional-context)
+    - [Scoped Context](#scoped-context)
     - [Stacks](#stacks)
 - [Retrieving Context](#retrieving-context)
     - [Determining Item Existence](#determining-item-existence)
+    - [Injecting Context](#injecting-context)
 - [Removing Context](#removing-context)
 - [Hidden Context](#hidden-context)
+- [Low-Level Coroutine Context](#low-level-coroutine-context)
 - [Events](#events)
     - [Dehydrating](#dehydrating)
     - [Hydrated](#hydrated)
@@ -15,12 +19,17 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel's "context" capabilities enable you to capture, retrieve, and share information throughout requests, jobs, and commands executing within your application. This captured information is also included in logs written by your application, giving you deeper insight into the surrounding code execution history that occurred before a log entry was written and allowing you to trace execution flows throughout a distributed system.
+Hypervel's "context" capabilities enable you to capture, retrieve, and share information throughout requests, jobs, and commands executing within your application. This captured information is also included in logs written by your application, giving you deeper insight into the surrounding code execution history that occurred before a log entry was written and allowing you to trace execution flows throughout a distributed system.
+
+In Hypervel, the context repository is stored under the current coroutine via `Hypervel\Context\CoroutineContext`. This means that context values are isolated between concurrent requests, queued jobs, and commands running within the same long-lived Swoole worker. When the coroutine ends, its context is destroyed automatically.
+
+> [!WARNING]
+> Do not store request-specific state in static properties, global variables, or mutable singleton properties. These values are shared by all coroutines in the worker and may leak between concurrent requests. Use context for request, job, and log metadata that should remain scoped to the current coroutine.
 
 <a name="how-it-works"></a>
 ### How it Works
 
-The best way to understand Laravel's context capabilities is to see it in action using  the built-in logging features. To get started, you may [add information to the context](#capturing-context) using the `Context` facade. In this example, we will use a [middleware](/docs/{{version}}/middleware) to add the request URL and a unique trace ID to the context on every incoming request:
+The best way to understand Hypervel's context capabilities is to see it in action using the built-in logging features. To get started, you may [add information to the context](#capturing-context) using the `Context` facade. In this example, we will use a [middleware](/docs/{{version}}/middleware) to add the request URL and a unique trace ID to the context on every incoming request:
 
 ```php
 <?php
@@ -100,7 +109,7 @@ The resulting log entry would contain the information that was added to the cont
 Processing podcast. {"podcast_id":95} {"url":"https://example.com/login","trace_id":"e04e1a11-e75c-4db3-b5b5-cfef4ef56697"}
 ```
 
-Although we have focused on the built-in logging related features of Laravel's context, the following documentation will illustrate how context allows you to share information across the HTTP request / queued job boundary and even how to add [hidden context data](#hidden-context) that is not written with log entries.
+Although we have focused on the built-in logging related features of Hypervel's context, the following documentation will illustrate how context allows you to share information across the HTTP request / queued job boundary and even how to add [hidden context data](#hidden-context) that is not written with log entries.
 
 <a name="capturing-context"></a>
 ## Capturing Context
@@ -334,6 +343,54 @@ Context::has('key');
 // true
 ```
 
+<a name="injecting-context"></a>
+### Injecting Context
+
+Hypervel's service container offers a `Context` attribute that allows you to inject context values into classes resolved by the container. The attribute accepts the context key as its first argument:
+
+```php
+use Hypervel\Container\Attributes\Context;
+
+class ProcessPodcast
+{
+    public function __construct(
+        #[Context('trace_id')] protected ?string $traceId,
+    ) {
+        // ...
+    }
+}
+```
+
+You may provide a default value as the second argument to the attribute:
+
+```php
+use Hypervel\Container\Attributes\Context;
+
+class ProcessPodcast
+{
+    public function __construct(
+        #[Context('trace_id', 'unknown')] protected string $traceId,
+    ) {
+        // ...
+    }
+}
+```
+
+To retrieve a value from [hidden context](#hidden-context), pass `true` to the `hidden` argument:
+
+```php
+use Hypervel\Container\Attributes\Context;
+
+class ProcessPodcast
+{
+    public function __construct(
+        #[Context('user_id', hidden: true)] protected ?int $userId,
+    ) {
+        // ...
+    }
+}
+```
+
 <a name="removing-context"></a>
 ## Removing Context
 
@@ -383,20 +440,39 @@ Context::pushHidden(/* ... */);
 Context::getHidden(/* ... */);
 Context::pullHidden(/* ... */);
 Context::popHidden(/* ... */);
+Context::rememberHidden(/* ... */);
 Context::onlyHidden(/* ... */);
 Context::exceptHidden(/* ... */);
 Context::allHidden(/* ... */);
 Context::hasHidden(/* ... */);
 Context::missingHidden(/* ... */);
+Context::hiddenStackContains(/* ... */);
 Context::forgetHidden(/* ... */);
 ```
+
+<a name="low-level-coroutine-context"></a>
+## Low-Level Coroutine Context
+
+The `Context` facade documents Hypervel's application-facing context API. Internally, this repository is stored in `Hypervel\Context\CoroutineContext` under the current coroutine. Most application code should use the `Context` facade, but package and framework code may use `CoroutineContext` directly when it needs low-level coroutine-local storage.
+
+`CoroutineContext` provides methods such as `set`, `get`, `has`, `forget`, `getOrSet`, `override`, `copyFrom`, `copyFromNonCoroutine`, and `flush`:
+
+```php
+use Hypervel\Context\CoroutineContext;
+
+CoroutineContext::set('tenant_id', 123);
+
+$tenantId = CoroutineContext::get('tenant_id');
+```
+
+Plain child coroutines do not automatically inherit the parent's context. For example, `Hypervel\Coroutine\Coroutine::fork` copies the parent's context into the child via `CoroutineContext::copyFrom`; values implementing `Hypervel\Context\ReplicableContext`, such as the context repository, are copied independently so changes made inside the child coroutine do not mutate the parent's context.
 
 <a name="events"></a>
 ## Events
 
 Context dispatches two events that allow you to hook into the hydration and dehydration process of the context.
 
-To illustrate how these events may be used, imagine that in a middleware of your application you set the `app.locale` configuration value based on the incoming HTTP request's `Accept-Language` header. Context's events allow you to capture this value during the request and restore it on the queue, ensuring notifications sent on the queue have the correct `app.locale` value. We can use context's events and [hidden](#hidden-context) data to achieve this, which the following documentation will illustrate.
+To illustrate how these events may be used, imagine that in a middleware of your application you set the current application locale based on the incoming HTTP request's `Accept-Language` header. Context's events allow you to capture this value during the request and restore it on the queue, ensuring notifications sent on the queue use the correct locale. We can use context's events and [hidden](#hidden-context) data to achieve this, which the following documentation will illustrate.
 
 <a name="dehydrating"></a>
 ### Dehydrating
@@ -407,7 +483,7 @@ Typically, you should register `dehydrating` callbacks within the `boot` method 
 
 ```php
 use Hypervel\Log\Context\Repository;
-use Hypervel\Support\Facades\Config;
+use Hypervel\Support\Facades\App;
 use Hypervel\Support\Facades\Context;
 
 /**
@@ -416,13 +492,13 @@ use Hypervel\Support\Facades\Context;
 public function boot(): void
 {
     Context::dehydrating(function (Repository $context) {
-        $context->addHidden('locale', Config::get('app.locale'));
+        $context->addHidden('locale', App::currentLocale());
     });
 }
 ```
 
 > [!NOTE]
-> You should not use the `Context` facade within the `dehydrating` callback, as that will change the context of the current process. Ensure you only make changes to the repository passed to the callback.
+> You should not use the `Context` facade within the `dehydrating` callback, as that will change the context of the current coroutine. Ensure you only make changes to the repository passed to the callback.
 
 <a name="hydrated"></a>
 ### Hydrated
@@ -433,7 +509,7 @@ Typically, you should register `hydrated` callbacks within the `boot` method of 
 
 ```php
 use Hypervel\Log\Context\Repository;
-use Hypervel\Support\Facades\Config;
+use Hypervel\Support\Facades\App;
 use Hypervel\Support\Facades\Context;
 
 /**
@@ -443,11 +519,11 @@ public function boot(): void
 {
     Context::hydrated(function (Repository $context) {
         if ($context->hasHidden('locale')) {
-            Config::set('app.locale', $context->getHidden('locale'));
+            App::setLocale($context->getHidden('locale'));
         }
     });
 }
 ```
 
 > [!NOTE]
-> You should not use the `Context` facade within the `hydrated` callback and instead ensure you only make changes to the repository passed to the callback.
+> You should not use the `Context` facade within the `hydrated` callback. Use the repository passed to the callback to read hydrated values, then restore other coroutine-local state using the appropriate service APIs.
