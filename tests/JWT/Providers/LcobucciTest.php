@@ -17,6 +17,8 @@ class LcobucciTest extends TestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
+
         Carbon::setTestNow('2000-01-01T00:00:00.000000Z');
 
         $this->testNowTimestamp = Carbon::now()->timestamp;
@@ -199,6 +201,63 @@ class LcobucciTest extends TestCase
         $this->assertSame($keys, $provider->getKeys());
     }
 
+    public function testSetAlgoTakesEffectOnEncoding()
+    {
+        $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
+
+        $provider = $this->getProvider($this->getRandomString(), Provider::ALGO_HS256);
+        $provider->setAlgo(Provider::ALGO_HS512);
+
+        $token = $provider->encode($payload);
+        $header = json_decode(base64_decode(explode('.', $token)[0]), true);
+
+        $this->assertEquals(Provider::ALGO_HS512, $header['alg']);
+    }
+
+    public function testSetSecretTakesEffectOnSigning()
+    {
+        $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
+
+        $originalSecret = $this->getRandomString();
+        $rotatedSecret = $this->getRandomString();
+
+        $provider = $this->getProvider($originalSecret, Provider::ALGO_HS256);
+        $provider->setSecret($rotatedSecret);
+
+        $token = $provider->encode($payload);
+
+        // A fresh provider using the new secret decodes the token successfully.
+        $decoded = $this->getProvider($rotatedSecret, Provider::ALGO_HS256)->decode($token);
+        $this->assertEquals('1', $decoded['sub']);
+
+        // A fresh provider using the old secret cannot verify the signature.
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessage('Token Signature could not be verified.');
+        $this->getProvider($originalSecret, Provider::ALGO_HS256)->decode($token);
+    }
+
+    public function testSetKeysTakesEffectOnSigning()
+    {
+        $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
+
+        $keyPair1 = ['private' => $this->getDummyPrivateKey(), 'public' => $this->getDummyPublicKey()];
+        $keyPair2 = ['private' => $this->getAltPrivateKey(), 'public' => $this->getAltPublicKey()];
+
+        $provider = $this->getProvider('does_not_matter', Provider::ALGO_RS256, $keyPair1);
+        $provider->setKeys($keyPair2);
+
+        $token = $provider->encode($payload);
+
+        // A fresh provider using key pair 2 decodes the token successfully.
+        $decoded = $this->getProvider('does_not_matter', Provider::ALGO_RS256, $keyPair2)->decode($token);
+        $this->assertEquals('1', $decoded['sub']);
+
+        // A fresh provider using key pair 1 cannot verify the signature.
+        $this->expectException(TokenInvalidException::class);
+        $this->expectExceptionMessage('Token Signature could not be verified.');
+        $this->getProvider('does_not_matter', Provider::ALGO_RS256, $keyPair1)->decode($token);
+    }
+
     private function getProvider(string $secret, string $algo, array $keys = []): Lcobucci
     {
         return new Lcobucci($secret, $algo, $keys);
@@ -219,11 +278,21 @@ class LcobucciTest extends TestCase
 
     private function getDummyPrivateKey()
     {
-        return file_get_contents(__DIR__ . '/keys/id_rsa');
+        return file_get_contents(__DIR__ . '/../Fixtures/keys/id_rsa');
     }
 
     private function getDummyPublicKey()
     {
-        return file_get_contents(__DIR__ . '/keys/id_rsa.pub');
+        return file_get_contents(__DIR__ . '/../Fixtures/keys/id_rsa.pub');
+    }
+
+    private function getAltPrivateKey()
+    {
+        return file_get_contents(__DIR__ . '/../Fixtures/keys/id_rsa_alt');
+    }
+
+    private function getAltPublicKey()
+    {
+        return file_get_contents(__DIR__ . '/../Fixtures/keys/id_rsa_alt.pub');
     }
 }

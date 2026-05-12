@@ -8,7 +8,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-In addition to simplifying HTTP testing, Laravel provides a simple API for testing your application's [custom console commands](/docs/{{version}}/artisan).
+In addition to simplifying HTTP testing, Hypervel provides a simple API for testing your application's [custom console commands](/docs/{{version}}/artisan).
 
 <a name="success-failure-expectations"></a>
 ## Success / Failure Expectations
@@ -17,7 +17,7 @@ To get started, let's explore how to make assertions regarding an Artisan comman
 
 ```php tab=Pest
 test('console command', function () {
-    $this->artisan('inspire')->assertExitCode(0);
+    $this->artisan('about')->assertExitCode(0);
 });
 ```
 
@@ -27,30 +27,34 @@ test('console command', function () {
  */
 public function test_console_command(): void
 {
-    $this->artisan('inspire')->assertExitCode(0);
+    $this->artisan('about')->assertExitCode(0);
 }
 ```
 
 You may use the `assertNotExitCode` method to assert that the command did not exit with a given exit code:
 
 ```php
-$this->artisan('inspire')->assertNotExitCode(1);
+$this->artisan('about')->assertNotExitCode(1);
 ```
 
 Of course, all terminal commands typically exit with a status code of `0` when they are successful and a non-zero exit code when they are not successful. Therefore, for convenience, you may utilize the `assertSuccessful` and `assertFailed` assertions to assert that a given command exited with a successful exit code or not:
 
 ```php
-$this->artisan('inspire')->assertSuccessful();
+$this->artisan('about')->assertSuccessful();
 
-$this->artisan('inspire')->assertFailed();
+$this->artisan('example:failing-command')->assertFailed();
 ```
+
+The `assertOk` method is also available as an alias of the `assertSuccessful` method.
 
 <a name="input-output-expectations"></a>
 ## Input / Output Expectations
 
-Laravel allows you to easily "mock" user input for your console commands using the `expectsQuestion` method. In addition, you may specify the exit code and text that you expect to be output by the console command using the `assertExitCode` and `expectsOutput` methods. For example, consider the following console command:
+Hypervel allows you to easily "mock" user input for your console commands using the `expectsQuestion` method. In addition, you may specify the exit code and text that you expect to be output by the console command using the `assertExitCode` and `expectsOutput` methods. For example, consider the following console command:
 
 ```php
+use Hypervel\Support\Facades\Artisan;
+
 Artisan::command('question', function () {
     $name = $this->ask('What is your name?');
 
@@ -70,7 +74,11 @@ You may test this command with the following test:
 test('console command', function () {
     $this->artisan('question')
         ->expectsQuestion('What is your name?', 'Taylor Otwell')
-        ->expectsQuestion('Which language do you prefer?', 'PHP')
+        ->expectsChoice('Which language do you prefer?', 'PHP', [
+            'PHP',
+            'Ruby',
+            'Python',
+        ])
         ->expectsOutput('Your name is Taylor Otwell and you prefer PHP.')
         ->doesntExpectOutput('Your name is Taylor Otwell and you prefer Ruby.')
         ->assertExitCode(0);
@@ -85,14 +93,20 @@ public function test_console_command(): void
 {
     $this->artisan('question')
         ->expectsQuestion('What is your name?', 'Taylor Otwell')
-        ->expectsQuestion('Which language do you prefer?', 'PHP')
+        ->expectsChoice('Which language do you prefer?', 'PHP', [
+            'PHP',
+            'Ruby',
+            'Python',
+        ])
         ->expectsOutput('Your name is Taylor Otwell and you prefer PHP.')
         ->doesntExpectOutput('Your name is Taylor Otwell and you prefer Ruby.')
         ->assertExitCode(0);
 }
 ```
 
-If you are utilizing the `search` or `multisearch` functions provided by [Laravel Prompts](/docs/{{version}}/prompts), you may use the `expectsSearch` assertion to mock the user's input, search results, and selection:
+If the order of the available choices is important, you may pass `true` as the fourth argument to the `expectsChoice` method to assert that the choices are offered in the exact order provided.
+
+If you are utilizing the `search` or `multisearch` functions provided by [Hypervel Prompts](/docs/{{version}}/prompts), you may use the `expectsSearch` assertion to mock the user's input, search results, and selection:
 
 ```php tab=Pest
 test('console command', function () {
@@ -191,6 +205,29 @@ $this->artisan('users:all')
         [1, 'taylor@example.com'],
         [2, 'abigail@example.com'],
     ]);
+```
+
+<a name="prompts-output-expectations"></a>
+#### Prompts Output Expectations
+
+If your command displays messages or tables using [Hypervel Prompts](/docs/{{version}}/prompts), you may use the `expectsPromptsInfo`, `expectsPromptsWarning`, `expectsPromptsError`, `expectsPromptsAlert`, `expectsPromptsIntro`, `expectsPromptsOutro`, and `expectsPromptsTable` methods:
+
+```php
+$this->artisan('report:generate')
+    ->expectsPromptsInfo('Welcome to the application!')
+    ->expectsPromptsWarning('This action cannot be undone')
+    ->expectsPromptsError('Something went wrong')
+    ->expectsPromptsAlert('Important notice!')
+    ->expectsPromptsIntro('Starting process...')
+    ->expectsPromptsOutro('Process completed!')
+    ->expectsPromptsTable(
+        headers: ['Name', 'Email'],
+        rows: [
+            ['Taylor Otwell', 'taylor@example.com'],
+            ['Jason Beggs', 'jason@example.com'],
+        ]
+    )
+    ->assertExitCode(0);
 ```
 
 <a name="console-events"></a>

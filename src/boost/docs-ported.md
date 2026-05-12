@@ -8,6 +8,7 @@ cache.md
 collections.md
 concurrency.md
 configuration.md
+console-tests.md
 container.md
 pagination.md
 requests.md

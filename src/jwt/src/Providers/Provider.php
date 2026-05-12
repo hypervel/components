@@ -39,11 +39,16 @@ abstract class Provider
     /**
      * Set the algorithm used to sign the token.
      *
+     * Only call this once at boot (service provider). Providers are cached
+     * on the singleton JWTManager; runtime mutation affects every subsequent
+     * request and races across coroutines.
+     *
      * @return $this
      */
     public function setAlgo(string $algo): static
     {
         $this->algo = $algo;
+        $this->onConfigurationChanged();
 
         return $this;
     }
@@ -59,11 +64,16 @@ abstract class Provider
     /**
      * Set the secret used to sign the token.
      *
+     * Only call this once at boot (service provider). Providers are cached
+     * on the singleton JWTManager; runtime mutation affects every subsequent
+     * request and races across coroutines.
+     *
      * @return $this
      */
     public function setSecret(string $secret): static
     {
         $this->secret = $secret;
+        $this->onConfigurationChanged();
 
         return $this;
     }
@@ -79,11 +89,16 @@ abstract class Provider
     /**
      * Set the keys used to sign the token.
      *
+     * Only call this once at boot (service provider). Providers are cached
+     * on the singleton JWTManager; runtime mutation affects every subsequent
+     * request and races across coroutines.
+     *
      * @return $this
      */
     public function setKeys(array $keys): static
     {
         $this->keys = $keys;
+        $this->onConfigurationChanged();
 
         return $this;
     }
@@ -141,4 +156,14 @@ abstract class Provider
      * Determine if the algorithm is asymmetric, and thus requires a public/private key combo.
      */
     abstract protected function isAsymmetric(): bool;
+
+    /**
+     * Hook fired after any of algo/secret/keys is mutated.
+     *
+     * Subclasses that cache derived state (signers, configuration objects)
+     * override this to rebuild it so the new values actually take effect.
+     */
+    protected function onConfigurationChanged(): void
+    {
+    }
 }

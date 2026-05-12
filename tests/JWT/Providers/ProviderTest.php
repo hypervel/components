@@ -28,4 +28,13 @@ class ProviderTest extends TestCase
 
         $this->assertSame('foo', $provider->getSecret());
     }
+
+    public function testSetTheKeys()
+    {
+        $provider = new ProviderStub('secret', 'HS256', []);
+
+        $provider->setKeys($keys = ['private' => 'priv', 'public' => 'pub']);
+
+        $this->assertSame($keys, $provider->getKeys());
+    }
 }
