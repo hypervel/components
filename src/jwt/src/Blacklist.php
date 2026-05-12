@@ -120,6 +120,10 @@ class Blacklist implements BlacklistContract
     /**
      * Set the grace period.
      *
+     * Only call this once at boot (service provider). Blacklist is a
+     * worker-lifetime singleton; runtime mutation affects every subsequent
+     * request and races across coroutines.
+     *
      * @return $this
      */
     public function setGracePeriod(int $gracePeriod): static
@@ -152,6 +156,10 @@ class Blacklist implements BlacklistContract
     /**
      * Set the unique key held within the blacklist.
      *
+     * Only call this once at boot (service provider). Blacklist is a
+     * worker-lifetime singleton; runtime mutation affects every subsequent
+     * request and races across coroutines.
+     *
      * @return $this
      */
     public function setKey(string $key): static
@@ -163,6 +171,10 @@ class Blacklist implements BlacklistContract
 
     /**
      * Set the refresh time limit.
+     *
+     * Only call this once at boot (service provider). Blacklist is a
+     * worker-lifetime singleton; runtime mutation affects every subsequent
+     * request and races across coroutines.
      *
      * @return $this
      */
