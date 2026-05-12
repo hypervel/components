@@ -53,7 +53,7 @@ use Hypervel\Log\Context\Repository;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  * @method static void flushMacros()
- * @method static \Hypervel\Database\Eloquent\Model restoreModel(\Hypervel\Database\ModelIdentifier $value)
+ * @method static \Hypervel\Database\Eloquent\Model restoreModel(\Hypervel\Contracts\Database\ModelIdentifier $value)
  *
  * @see \Hypervel\Log\Context\Repository
  */

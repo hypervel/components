@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Database;
+namespace Hypervel\Contracts\Database;
 
 use Hypervel\Database\Eloquent\Relations\Relation;
 
@@ -103,6 +103,9 @@ class ModelIdentifier
 
     /**
      * Indicate whether to use the relational morph-map when serializing Models.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every model identifier serialization across all coroutines.
      */
     public static function useMorphMap(bool $useMorphMap = true): void
     {

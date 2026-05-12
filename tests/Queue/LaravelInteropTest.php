@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Queue;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Database\ModelIdentifier;
+use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
 use Hypervel\Queue\Middleware\WithoutOverlapping;

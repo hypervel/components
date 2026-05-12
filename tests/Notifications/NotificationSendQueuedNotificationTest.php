@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\ModelIdentifier;
+use Hypervel\Contracts\Database\ModelIdentifier;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Notifiable;
