@@ -1551,6 +1551,10 @@ class Connection implements ConnectionInterface
 
     /**
      * Register a connection resolver.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every subsequent Connection construction for the
+     * given driver across all coroutines.
      */
     public static function resolverFor(string $driver, Closure $callback): void
     {

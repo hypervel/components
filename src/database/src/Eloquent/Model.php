@@ -399,6 +399,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Clear the list of booted models so they will be re-booted.
+     *
+     * Boot or tests only. Clears worker-wide boot state, boot callbacks, and
+     * global scopes; concurrent coroutines mid-query may observe inconsistent
+     * model state.
      */
     public static function clearBootedModels(): void
     {
@@ -461,6 +465,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Indicate that models should prevent lazy loading, silently discarding attributes, and accessing missing attributes.
+     *
+     * Boot-only. Toggles worker-wide strict-mode flags that apply to every
+     * model operation across all coroutines.
      */
     public static function shouldBeStrict(bool $shouldBeStrict = true): void
     {
@@ -471,6 +478,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Prevent model relationships from being lazy loaded.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every relationship access across all coroutines.
      */
     public static function preventLazyLoading(bool $value = true): void
     {
@@ -479,6 +489,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Determine if model relationships should be automatically eager loaded when accessed.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every relationship access across all coroutines.
      */
     public static function automaticallyEagerLoadRelationships(bool $value = true): void
     {
@@ -487,6 +500,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Register a callback that is responsible for handling lazy loading violations.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every lazy-loading violation across all coroutines.
      *
      * @param null|(callable(self, string): void) $callback
      */
@@ -497,6 +513,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Prevent non-fillable attributes from being silently discarded.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every mass assignment across all coroutines.
      */
     public static function preventSilentlyDiscardingAttributes(bool $value = true): void
     {
@@ -505,6 +524,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Register a callback that is responsible for handling discarded attribute violations.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every discarded-attribute violation across all
+     * coroutines.
      *
      * @param null|(callable(self, array): void) $callback
      */
@@ -515,6 +538,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Prevent accessing missing attributes on retrieved models.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every attribute access across all coroutines.
      */
     public static function preventAccessingMissingAttributes(bool $value = true): void
     {
@@ -523,6 +549,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Register a callback that is responsible for handling missing attribute violations.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every missing-attribute violation across all
+     * coroutines.
      *
      * @param null|(callable(self, string): void) $callback
      */
@@ -1818,6 +1848,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Set the connection resolver instance.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and is used by every model's connection resolution across all
+     * coroutines.
      */
     public static function setConnectionResolver(Resolver $resolver): void
     {
@@ -1826,6 +1860,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Unset the connection resolver for models.
+     *
+     * Tests only. Clears the worker-wide connection resolver shared by every
+     * coroutine; concurrent model queries will fail or rebuild.
      */
     public static function unsetConnectionResolver(): void
     {

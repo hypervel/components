@@ -39,9 +39,8 @@ abstract class Provider
     /**
      * Set the algorithm used to sign the token.
      *
-     * Only call this once at boot (service provider). Providers are cached
-     * on the singleton JWTManager; runtime mutation affects every subsequent
-     * request and races across coroutines.
+     * Boot-only. Providers are cached on the singleton JWTManager; runtime
+     * mutation affects every subsequent request and races across coroutines.
      *
      * @return $this
      */
@@ -64,9 +63,8 @@ abstract class Provider
     /**
      * Set the secret used to sign the token.
      *
-     * Only call this once at boot (service provider). Providers are cached
-     * on the singleton JWTManager; runtime mutation affects every subsequent
-     * request and races across coroutines.
+     * Boot-only. Providers are cached on the singleton JWTManager; runtime
+     * mutation affects every subsequent request and races across coroutines.
      *
      * @return $this
      */
@@ -89,9 +87,8 @@ abstract class Provider
     /**
      * Set the keys used to sign the token.
      *
-     * Only call this once at boot (service provider). Providers are cached
-     * on the singleton JWTManager; runtime mutation affects every subsequent
-     * request and races across coroutines.
+     * Boot-only. Providers are cached on the singleton JWTManager; runtime
+     * mutation affects every subsequent request and races across coroutines.
      *
      * @return $this
      */

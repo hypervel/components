@@ -175,6 +175,9 @@ class Coroutine
 
     /**
      * Enable or disable exception reporting in coroutines.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every coroutine spawned across the process.
      */
     public static function enableReportException(bool $enableReportException): void
     {

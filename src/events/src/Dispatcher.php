@@ -955,6 +955,9 @@ class Dispatcher implements DispatcherContract
     /**
      * Set the database transaction manager resolver implementation.
      *
+     * Boot-only. The resolver persists on the singleton Dispatcher for the
+     * worker lifetime and is consulted for every transaction-aware dispatch.
+     *
      * @param callable(): ?\Hypervel\Database\DatabaseTransactionsManager $resolver
      */
     public function setTransactionManagerResolver(callable $resolver): static

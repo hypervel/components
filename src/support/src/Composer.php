@@ -236,6 +236,9 @@ class Composer
 
     /**
      * Set the Composer autoloader instance.
+     *
+     * Tests only. Swaps the cached Composer loader for the worker lifetime and
+     * affects every subsequent class-map registration.
      */
     public static function setLoader(ClassLoader $classLoader): ClassLoader
     {
@@ -260,6 +263,9 @@ class Composer
 
     /**
      * Flush all static state back to defaults.
+     *
+     * Tests only. Clears the cached Composer loader used by subsequent
+     * class-map registration and package discovery.
      */
     public static function flushState(): void
     {

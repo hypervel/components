@@ -291,6 +291,9 @@ class EloquentUserProvider implements UserProvider
      * in its prior (uncached) state and does not register a descriptor or
      * model event listeners.
      *
+     * Boot-only. User providers are held by cached guards; runtime use mutates
+     * the provider used by every subsequent authentication lookup.
+     *
      * @param null|array<string> $tags optional tag names enabling tag-based bulk flush; requires a TaggableStore in TagMode::Any
      *
      * @throws InvalidArgumentException when the resolved store is not supported
@@ -353,6 +356,9 @@ class EloquentUserProvider implements UserProvider
      * The fully qualified model class name is always included in the key
      * automatically. The resolver only controls the identifier segment.
      *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every cached user lookup.
+     *
      * @param Closure(mixed): string $callback
      */
     public static function resolveUserCacheKeyUsing(Closure $callback): void
@@ -370,6 +376,9 @@ class EloquentUserProvider implements UserProvider
      * Effective tags applied to each write = static config tags
      * (per-provider, from auth.providers.*.cache.tags) unioned with the
      * resolver's return value.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every cached user write.
      *
      * @param Closure(): list<string> $callback
      */
@@ -616,6 +625,9 @@ class EloquentUserProvider implements UserProvider
 
     /**
      * Set the hasher implementation.
+     *
+     * Boot or tests only. User providers are held by cached guards; runtime use
+     * mutates password verification for every subsequent authentication lookup.
      */
     public function setHasher(HasherContract $hasher): static
     {
@@ -636,6 +648,9 @@ class EloquentUserProvider implements UserProvider
 
     /**
      * Set the name of the Eloquent user model.
+     *
+     * Boot or tests only. User providers are held by cached guards; runtime use
+     * changes the model used by every subsequent authentication lookup.
      *
      * @param class-string<Model&UserContract> $model
      */
@@ -658,6 +673,9 @@ class EloquentUserProvider implements UserProvider
 
     /**
      * Set the callback to modify the query before retrieving users.
+     *
+     * Boot or tests only. User providers are held by cached guards; runtime use
+     * mutates the query applied to every subsequent authentication lookup.
      *
      * @param null|(Closure(Builder):mixed) $queryCallback
      */

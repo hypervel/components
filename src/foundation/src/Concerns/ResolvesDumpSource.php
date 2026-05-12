@@ -180,6 +180,9 @@ trait ResolvesDumpSource
     /**
      * Set the resolver that resolves the source of the dump call.
      *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every dump source resolution across all coroutines.
+     *
      * @param null|(callable(): (null|array{0: string, 1: string, 2: null|int})) $callable
      */
     public static function resolveDumpSourceUsing(?callable $callable): void
@@ -189,6 +192,9 @@ trait ResolvesDumpSource
 
     /**
      * Don't include the location / file of the dump in dumps.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every dump source resolution across all coroutines.
      */
     public static function dontIncludeSource(): void
     {

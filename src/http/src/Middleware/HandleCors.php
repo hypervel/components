@@ -116,9 +116,9 @@ class HandleCors
     /**
      * Register a closure that resolves CORS configuration for the current request.
      *
-     * Call once at boot (in a service provider). The closure receives the
-     * current request and returns the CORS options array; useful for
-     * multi-tenant CORS where the config varies by host or other request data.
+     * Boot-only. The closure receives the current request and returns the CORS
+     * options array; useful for multi-tenant CORS where the config varies by
+     * host or other request data. Persists for the worker lifetime.
      *
      * @param null|Closure(Request): array $callback
      */
@@ -129,6 +129,9 @@ class HandleCors
 
     /**
      * Register a callback that instructs the middleware to be skipped.
+     *
+     * Boot-only. Skip callbacks persist for the worker lifetime and run on
+     * every subsequent request.
      */
     public static function skipWhen(Closure $callback): void
     {

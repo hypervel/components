@@ -1566,6 +1566,9 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Register a callback to be called while building the view data.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every Mailable render across all coroutines.
      */
     public static function buildViewDataUsing(callable $callback): void
     {

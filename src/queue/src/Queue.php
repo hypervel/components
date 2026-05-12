@@ -272,6 +272,10 @@ abstract class Queue
 
     /**
      * Register a callback to be executed when creating job payloads.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every subsequent payload creation across all
+     * coroutines. Passing null clears the registry.
      */
     public static function createPayloadUsing(?callable $callback): void
     {
@@ -445,6 +449,10 @@ abstract class Queue
 
     /**
      * Set the IoC container instance.
+     *
+     * Tests only. Queue connection instances are cached on QueueManager; per-
+     * request use races across coroutines and breaks every concurrent dispatch
+     * through this connection.
      */
     public function setContainer(Container $container): static
     {

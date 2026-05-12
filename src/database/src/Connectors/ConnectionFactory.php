@@ -65,6 +65,9 @@ class ConnectionFactory
 
     /**
      * Register an extension connection resolver.
+     *
+     * Boot-only. The resolver persists in the singleton factory's extensions
+     * array for the worker lifetime and applies to every subsequent connection.
      */
     public function extend(string $name, callable $resolver): void
     {
@@ -73,6 +76,10 @@ class ConnectionFactory
 
     /**
      * Remove an extension connection resolver.
+     *
+     * Boot or tests only. Mutates the singleton factory's extensions array;
+     * concurrent coroutines establishing connections may see the resolver
+     * removed mid-resolution.
      */
     public function forgetExtension(string $name): void
     {

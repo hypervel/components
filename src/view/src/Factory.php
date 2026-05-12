@@ -301,9 +301,9 @@ class Factory implements FactoryContract
     /**
      * Register a pre-render observer.
      *
-     * The observer is called before each view's engine executes, receiving
-     * the View instance. Registration is boot-time only — observers persist
-     * for the worker lifetime on this singleton.
+     * Boot-only. The observer is called before each view's engine executes,
+     * receiving the View instance. Observers persist for the worker lifetime
+     * on this singleton.
      */
     public function observeRendering(callable $observer): void
     {
@@ -473,6 +473,10 @@ class Factory implements FactoryContract
 
     /**
      * Set the view finder instance.
+     *
+     * Boot or tests only. Swaps the finder on the singleton View Factory used
+     * by every coroutine; per-request use races and changes resolution for all
+     * concurrent renders.
      */
     public function setFinder(ViewFinderInterface $finder): void
     {
@@ -481,6 +485,9 @@ class Factory implements FactoryContract
 
     /**
      * Flush the cache of views located by the finder.
+     *
+     * Boot or tests only. Clears the singleton finder's path cache shared
+     * across all coroutines.
      */
     public function flushFinderCache(): void
     {
@@ -497,6 +504,10 @@ class Factory implements FactoryContract
 
     /**
      * Set the event dispatcher instance.
+     *
+     * Tests only. Swaps the dispatcher on the singleton View Factory used by
+     * every coroutine; per-request use races and breaks every concurrent view
+     * event.
      */
     public function setDispatcher(Dispatcher $events): void
     {
@@ -513,6 +524,10 @@ class Factory implements FactoryContract
 
     /**
      * Set the IoC container instance.
+     *
+     * Tests only. Swaps the container on the singleton View Factory used by
+     * every coroutine; per-request use races and breaks every concurrent
+     * view resolution.
      */
     public function setContainer(Container $container): void
     {

@@ -402,6 +402,9 @@ abstract class Relation implements BuilderContract
 
     /**
      * Prevent polymorphic relationships from being used without model mappings.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every polymorphic resolution across all coroutines.
      */
     public static function requireMorphMap(bool $requireMorphMap = true): void
     {
@@ -419,6 +422,9 @@ abstract class Relation implements BuilderContract
     /**
      * Define the morph map for polymorphic relations and require all morphed models to be explicitly mapped.
      *
+     * Boot-only. Sets both worker-wide morph state (requireMorphMap + morphMap)
+     * shared by every coroutine.
+     *
      * @param array<string, class-string<\Hypervel\Database\Eloquent\Model>> $map
      */
     public static function enforceMorphMap(array $map, bool $merge = true): array
@@ -430,6 +436,10 @@ abstract class Relation implements BuilderContract
 
     /**
      * Set or get the morph map for polymorphic relations.
+     *
+     * Boot-only when setting. The map persists in a static property for the
+     * worker lifetime and applies to every polymorphic resolution across all
+     * coroutines.
      *
      * @param null|array<string, class-string<\Hypervel\Database\Eloquent\Model>> $map
      * @return array<string, class-string<\Hypervel\Database\Eloquent\Model>>

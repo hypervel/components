@@ -264,6 +264,9 @@ abstract class ObjectPool implements ObjectPoolContract
 
     /**
      * Set a callback to be executed when an object is destroyed.
+     *
+     * Boot-only. The callback persists on the pool for the worker lifetime and
+     * runs for every destroyed object in that pool.
      */
     public function setDestroyCallback(Closure $callback): static
     {
@@ -299,6 +302,9 @@ abstract class ObjectPool implements ObjectPoolContract
 
     /**
      * Set the recycle strategy for this pool.
+     *
+     * Boot or tests only. Replaces the strategy on a worker-lifetime pool;
+     * runtime use can race with the recycler checking the same pool.
      */
     public function setRecycleStrategy(RecycleStrategy $recycleStrategy): static
     {

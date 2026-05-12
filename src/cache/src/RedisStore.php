@@ -349,8 +349,8 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     /**
      * Set the tag mode.
      *
-     * Intended for boot-time configuration only — this mutates state on
-     * a per-worker singleton.
+     * Boot-only. Mutates state on a per-worker singleton; runtime mutation
+     * races across coroutines.
      */
     public function setTagMode(TagMode|string $mode): static
     {

@@ -566,6 +566,9 @@ class Migrator
     /**
      * Set the pending migrations to skip.
      *
+     * Boot or tests only. The list persists in a static property for the worker
+     * lifetime and applies to every subsequent migration run.
+     *
      * @param list<string> $migrations
      */
     public static function withoutMigrations(array $migrations): void
@@ -706,6 +709,9 @@ class Migrator
 
     /**
      * Set a connection resolver callback.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every migration's connection resolution.
      */
     public static function resolveConnectionsUsing(Closure $callback): void
     {

@@ -44,6 +44,9 @@ class ObjectRecycler implements Recycler
 
     /**
      * Set the time interval for recycling operations.
+     *
+     * Boot-only. The interval persists on the singleton recycler for the worker
+     * lifetime and controls every scheduled recycle loop.
      */
     public function setInterval(float $interval): void
     {
@@ -68,6 +71,9 @@ class ObjectRecycler implements Recycler
 
     /**
      * Set the timer for scheduling recycle operations.
+     *
+     * Boot or tests only. Replaces the timer on the singleton recycler;
+     * runtime use can diverge from an already-started recycle loop.
      */
     public function setTimer(Timer $timer): void
     {

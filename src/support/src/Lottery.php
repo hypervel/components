@@ -185,6 +185,9 @@ class Lottery
 
     /**
      * Set the sequence that will be used to determine lottery results.
+     *
+     * Tests only. The sequence factory persists in a static property for the
+     * worker lifetime and affects every subsequent lottery result.
      */
     public static function forceResultWithSequence(array $sequence, ?callable $whenMissing = null): void
     {
@@ -223,6 +226,9 @@ class Lottery
 
     /**
      * Indicate that the lottery results should be determined normally.
+     *
+     * Tests only. Clears the worker-wide result factory; concurrent coroutines
+     * may observe different lottery behavior depending on timing.
      */
     public static function determineResultNormally(): void
     {
@@ -231,6 +237,9 @@ class Lottery
 
     /**
      * Set the factory that should be used to determine the lottery results.
+     *
+     * Tests only. The factory persists in a static property for the worker
+     * lifetime and affects every subsequent lottery result.
      */
     public static function setResultFactory(callable $factory): void
     {

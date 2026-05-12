@@ -136,6 +136,9 @@ class CompilerEngine extends PhpEngine
 
     /**
      * Clear the cache of views that were compiled or not expired.
+     *
+     * Boot or tests only. Clears the worker-wide compile-check cache shared
+     * by every coroutine; concurrent compilations may re-check disk redundantly.
      */
     public static function forgetCompiledOrNotExpired(): void
     {

@@ -102,6 +102,9 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Register a console "starting" bootstrapper.
      *
+     * Boot-only. The bootstrapper persists in a static property for the worker
+     * lifetime and runs for every subsequent console application instance.
+     *
      * @param Closure(static): void $callback
      */
     public static function starting(Closure $callback): void
@@ -121,6 +124,9 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
 
     /**
      * Clear the console application bootstrappers.
+     *
+     * Boot or tests only. Clears worker-wide console bootstrappers; concurrent
+     * console application creation may observe different startup hooks.
      */
     public static function forgetBootstrappers(): void
     {

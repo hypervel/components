@@ -442,9 +442,9 @@ class BroadcastManager implements BroadcastingFactoryContract
     }
 
     /**
-     * Set the default driver name.
+     * Set the default broadcast driver name.
      *
-     * WARNING: Mutates process-global config. Not safe for per-request use under Swoole.
+     * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
     public function setDefaultDriver(string $name): void
     {
@@ -452,7 +452,11 @@ class BroadcastManager implements BroadcastingFactoryContract
     }
 
     /**
-     * Disconnect the given disk and remove from local cache.
+     * Disconnect the given driver and remove from local cache.
+     *
+     * Boot or tests only. Mutates the singleton's driver cache; concurrent
+     * coroutines may already hold a reference to the broadcaster and next
+     * resolution will rebuild.
      */
     public function purge(?string $name = null): void
     {
@@ -463,6 +467,10 @@ class BroadcastManager implements BroadcastingFactoryContract
 
     /**
      * Register a custom driver creator Closure.
+     *
+     * Boot-only. The callback persists in the singleton's customCreators array
+     * for the worker lifetime and applies to every subsequent broadcaster
+     * resolution.
      */
     public function extend(string $driver, Closure $callback): static
     {
@@ -493,6 +501,10 @@ class BroadcastManager implements BroadcastingFactoryContract
 
     /**
      * Set the application instance used by the manager.
+     *
+     * Tests only. Swaps the singleton's container reference; per-request use
+     * races across coroutines and breaks every concurrent request resolving
+     * broadcasters through this manager.
      */
     public function setApplication(Container $app): static
     {
@@ -503,6 +515,10 @@ class BroadcastManager implements BroadcastingFactoryContract
 
     /**
      * Forget all of the resolved driver instances.
+     *
+     * Boot or tests only. Clears the singleton's driver cache; concurrent
+     * coroutines may already hold references that next resolution will not
+     * share.
      */
     public function forgetDrivers(): static
     {

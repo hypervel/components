@@ -80,6 +80,10 @@ class RedisManager implements FactoryContract, ConnectionContract
      * Releases any context-pinned connection, clears the coroutine context
      * entry, and flushes the underlying pool so all connections are closed
      * and re-created on next use.
+     *
+     * Boot or tests only. Flushes the shared pool; concurrent coroutines
+     * checked out before this call may complete against the destroyed pool
+     * and other coroutines lose their cached proxy reference.
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
@@ -117,6 +121,9 @@ class RedisManager implements FactoryContract, ConnectionContract
      * The callback receives the container and connection name, and must
      * return a RedisProxy instance (or subclass).
      *
+     * Boot-only. The resolver persists in the singleton's customCreators array
+     * for the worker lifetime and applies to every subsequent connection.
+     *
      * @param callable(ContainerContract, string): RedisProxy $resolver
      */
     public function extend(string $name, callable $resolver): static
@@ -131,6 +138,10 @@ class RedisManager implements FactoryContract, ConnectionContract
 
     /**
      * Remove a custom connection creator.
+     *
+     * Boot or tests only. Mutates the singleton's customCreators and connections
+     * caches; concurrent coroutines may already hold a proxy reference that next
+     * resolution will not share.
      */
     public function forgetExtension(string $name): void
     {

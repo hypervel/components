@@ -56,9 +56,9 @@ class ConcurrencyManager extends MultipleInstanceManager
     }
 
     /**
-     * Set the default instance name.
+     * Set the default concurrency driver name.
      *
-     * WARNING: Mutates process-global config. Not safe for per-request use under Swoole.
+     * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
     public function setDefaultInstance(string $name): void
     {

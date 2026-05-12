@@ -574,6 +574,9 @@ class Repository implements ReplicableContext
     /**
      * Set the callback to handle unserialize exceptions.
      *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and handles every subsequent context hydration failure.
+     *
      * @return $this
      */
     public function handleUnserializeExceptionsUsing(?callable $callback): static
@@ -587,6 +590,9 @@ class Repository implements ReplicableContext
 
     /**
      * Reset all static state on the class.
+     *
+     * Boot or tests only. Clears worker-wide context hydration callbacks used
+     * by every subsequent queued context restore.
      */
     public static function flushState(): void
     {

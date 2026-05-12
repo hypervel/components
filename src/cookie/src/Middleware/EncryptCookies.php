@@ -55,8 +55,8 @@ class EncryptCookies
     /**
      * Disable encryption for the given cookie name(s).
      *
-     * Only call this once at boot (service provider). The list persists for
-     * the worker's lifetime and applies to every subsequent request.
+     * Boot-only. The list persists for the worker's lifetime and applies to
+     * every subsequent request.
      */
     public function disableFor(array|string $name): void
     {
@@ -193,6 +193,9 @@ class EncryptCookies
 
     /**
      * Indicate that the given cookies should never be encrypted.
+     *
+     * Boot-only. The list persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
     public static function except(array|string $cookies): void
     {
@@ -206,6 +209,9 @@ class EncryptCookies
      *
      * When set, all other cookies pass through unencrypted.
      * Takes precedence over except() and the $except property.
+     *
+     * Boot-only. The list persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
     public static function only(array|string $cookies): void
     {

@@ -15,6 +15,9 @@ trait FakesInputOutput
     /**
      * Fake the terminal and queue key presses to be simulated.
      *
+     * Tests only. Swaps prompt terminal and output state for the worker
+     * lifetime.
+     *
      * @param array<string> $keys
      */
     public static function fake(array $keys = []): void

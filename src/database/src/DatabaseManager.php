@@ -212,9 +212,10 @@ class DatabaseManager implements ConnectionResolverInterface
      * pooled connection), and flushes the pool. Use this when connection
      * configuration has changed and you need to fully reset.
      *
-     * Note: The current coroutine may briefly hold two pooled connections
-     * (the old one releases via defer at coroutine end). This is acceptable
-     * for purge's intended rare usage.
+     * Boot or tests only. Flushes the shared pool used by every coroutine;
+     * concurrent coroutines holding pooled connections will release them back
+     * into a discarded pool, and the current coroutine may briefly hold two
+     * pooled connections (the old one releases via defer at coroutine end).
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
@@ -408,6 +409,9 @@ class DatabaseManager implements ConnectionResolverInterface
      * Extensions are stored on the ConnectionFactory so they are consulted
      * by both the pooled path (PooledConnection → factory) and the non-pooled
      * path (DatabaseManager → factory).
+     *
+     * Boot-only. The resolver persists on the singleton ConnectionFactory for
+     * the worker lifetime and applies to every subsequent connection.
      */
     public function extend(string $name, callable $resolver): void
     {
@@ -416,6 +420,10 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Remove an extension connection resolver.
+     *
+     * Boot or tests only. Mutates the singleton ConnectionFactory's extension
+     * registry; concurrent coroutines establishing connections may see the
+     * resolver removed mid-resolution.
      */
     public function forgetExtension(string $name): void
     {
@@ -448,6 +456,10 @@ class DatabaseManager implements ConnectionResolverInterface
      * class_exists(), so any string that case-insensitively matches a loaded
      * PHP class name would falsely report bound. bound() only checks
      * bindings/instances/aliases.
+     *
+     * Boot or tests only. Calls purge() on every connection (flushes the
+     * shared pools); concurrent coroutines lose their cached connection
+     * references mid-request.
      */
     public static function purgeConnections(): void
     {
@@ -467,6 +479,10 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Set the database reconnector callback.
+     *
+     * Boot-only. The reconnector persists on the singleton DatabaseManager for
+     * the worker lifetime and is invoked for every disconnected connection
+     * across all coroutines.
      */
     public function setReconnector(callable $reconnector): void
     {
@@ -475,6 +491,9 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Set the application instance used by the manager.
+     *
+     * Tests only. Swaps the singleton's application reference; per-request use
+     * races across coroutines and breaks every concurrent database operation.
      */
     public function setApplication(Application $app): static
     {

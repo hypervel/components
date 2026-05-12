@@ -347,6 +347,9 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
 
     /**
      * Enable or disable auto-casting of data values.
+     *
+     * Boot-only. The auto-casting flag persists in a static property for the
+     * worker lifetime and affects every subsequent data object hydration.
      */
     public static function enableAutoCasting(): void
     {
@@ -363,6 +366,9 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
 
     /**
      * Disable auto-casting of data values.
+     *
+     * Boot-only. The auto-casting flag persists in a static property for the
+     * worker lifetime and affects every subsequent data object hydration.
      */
     public static function disableAutoCasting(): void
     {

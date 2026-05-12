@@ -80,6 +80,8 @@ abstract class Facade
 
     /**
      * Initiate a partial mock on the facade.
+     *
+     * Tests only. Swaps the resolved facade instance for the worker lifetime.
      */
     public static function partialMock()
     {
@@ -94,6 +96,8 @@ abstract class Facade
 
     /**
      * Initiate a mock expectation on the facade.
+     *
+     * Tests only. Swaps the resolved facade instance for the worker lifetime.
      */
     public static function shouldReceive()
     {
@@ -108,6 +112,8 @@ abstract class Facade
 
     /**
      * Initiate a mock expectation on the facade.
+     *
+     * Tests only. Swaps the resolved facade instance for the worker lifetime.
      */
     public static function expects()
     {
@@ -167,6 +173,10 @@ abstract class Facade
 
     /**
      * Hotswap the underlying instance behind the facade.
+     *
+     * Tests only. Replaces the worker-wide resolved facade instance and
+     * container binding; runtime use races across coroutines and changes every
+     * subsequent facade call.
      */
     public static function swap(mixed $instance)
     {
@@ -226,6 +236,9 @@ abstract class Facade
 
     /**
      * Clear a resolved facade instance.
+     *
+     * Boot or tests only. Clears a worker-wide facade cache entry; concurrent
+     * coroutines may still hold the previous resolved instance.
      */
     public static function clearResolvedInstance(?string $name = null): void
     {
@@ -234,6 +247,9 @@ abstract class Facade
 
     /**
      * Clear all of the resolved instances.
+     *
+     * Boot or tests only. Clears the worker-wide facade cache; concurrent
+     * coroutines may still hold previously resolved instances.
      */
     public static function clearResolvedInstances(): void
     {
@@ -309,6 +325,10 @@ abstract class Facade
 
     /**
      * Set the application instance.
+     *
+     * Tests only. Replaces the worker-wide facade application reference;
+     * runtime use races across coroutines and breaks every facade lookup.
+     *
      * @param mixed $app
      */
     public static function setFacadeApplication($app): void

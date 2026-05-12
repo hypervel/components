@@ -1005,6 +1005,9 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Define a custom callback that generates file download responses.
+     *
+     * Boot-only. The callback persists on the cached disk adapter for the
+     * worker lifetime and runs on every subsequent serve() call for that disk.
      */
     public function serveUsing(Closure $callback): void
     {
@@ -1013,6 +1016,10 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Define a custom temporary URL builder callback.
+     *
+     * Boot-only. The callback persists on the cached disk adapter for the
+     * worker lifetime and runs on every subsequent temporary URL generation for
+     * that disk.
      */
     public function buildTemporaryUrlsUsing(Closure $callback): void
     {
@@ -1021,6 +1028,10 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Define a custom temporary upload URL builder callback.
+     *
+     * Boot-only. The callback persists on the cached disk adapter for the
+     * worker lifetime and runs on every subsequent temporary upload URL
+     * generation for that disk.
      */
     public function buildTemporaryUploadUrlsUsing(Closure $callback): void
     {

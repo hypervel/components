@@ -58,6 +58,10 @@ class Horizon
 
     /**
      * Set the callback that should be used to authenticate Horizon users.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every Horizon dashboard request across all
+     * coroutines.
      */
     public static function auth(Closure $callback): static
     {
@@ -68,6 +72,9 @@ class Horizon
 
     /**
      * Configure the Redis databases that will store Horizon data.
+     *
+     * Boot-only. Mutates process-global config (database.redis.horizon);
+     * per-request use races across coroutines.
      *
      * @throws Exception
      */
@@ -140,6 +147,9 @@ class Horizon
 
     /**
      * Specify the email address to which email notifications should be routed.
+     *
+     * Boot-only. The address persists in a static property for the worker
+     * lifetime and is used by every Horizon notification dispatch.
      */
     public static function routeMailNotificationsTo(string $email): static
     {
@@ -150,6 +160,9 @@ class Horizon
 
     /**
      * Specify the webhook URL and channel to which Slack notifications should be routed.
+     *
+     * Boot-only. The URL and channel persist in static properties for the
+     * worker lifetime and are used by every Horizon notification dispatch.
      */
     public static function routeSlackNotificationsTo(string $url, ?string $channel = null): static
     {
@@ -161,6 +174,9 @@ class Horizon
 
     /**
      * Specify the phone number to which SMS notifications should be routed.
+     *
+     * Boot-only. The number persists in a static property for the worker
+     * lifetime and is used by every Horizon notification dispatch.
      */
     public static function routeSmsNotificationsTo(string $number): static
     {

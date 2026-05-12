@@ -79,6 +79,9 @@ class RouteServiceProvider extends ServiceProvider
 
     /**
      * Register the callback that will be used to load the application's routes.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs during route loading at boot.
      */
     public static function loadRoutesUsing(?Closure $routesCallback): void
     {
@@ -87,6 +90,9 @@ class RouteServiceProvider extends ServiceProvider
 
     /**
      * Register the callback that will be used to load the application's cached routes.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs during route loading at boot when route cache exists.
      */
     public static function loadCachedRoutesUsing(?Closure $routesCallback): void
     {

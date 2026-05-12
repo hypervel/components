@@ -40,6 +40,9 @@ class ConvertEmptyStringsToNull extends TransformsRequest
 
     /**
      * Register a callback that instructs the middleware to be skipped.
+     *
+     * Boot-only. Skip callbacks persist in a static property for the worker
+     * lifetime and run on every subsequent request.
      */
     public static function skipWhen(Closure $callback): void
     {

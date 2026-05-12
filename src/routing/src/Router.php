@@ -897,6 +897,9 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Register a short-hand name for a middleware.
      *
+     * Boot-only. The alias persists in the singleton Router for the worker
+     * lifetime and applies to every subsequent route resolution.
+     *
      * @return $this
      */
     public function aliasMiddleware(string $name, string|Closure $class): static
@@ -927,6 +930,9 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Register a group of middleware.
      *
+     * Boot-only. The middleware group persists in the singleton Router for the
+     * worker lifetime and applies to every subsequent route resolution.
+     *
      * @return $this
      */
     public function middlewareGroup(string $name, array $middleware): static
@@ -940,6 +946,9 @@ class Router implements BindingRegistrar, RegistrarContract
      * Add a middleware to the beginning of a middleware group.
      *
      * If the middleware is already in the group, it will not be added again.
+     *
+     * Boot-only. The middleware group persists in the singleton Router for the
+     * worker lifetime and applies to every subsequent route resolution.
      *
      * @return $this
      */
@@ -956,6 +965,9 @@ class Router implements BindingRegistrar, RegistrarContract
      * Add a middleware to the end of a middleware group.
      *
      * If the middleware is already in the group, it will not be added again.
+     *
+     * Boot-only. The middleware group persists in the singleton Router for the
+     * worker lifetime and applies to every subsequent route resolution.
      *
      * @return $this
      */
@@ -1001,6 +1013,10 @@ class Router implements BindingRegistrar, RegistrarContract
     /**
      * Flush the router's middleware groups.
      *
+     * Boot or tests only. Clears the singleton Router's middleware-group
+     * registry shared by every coroutine; concurrent requests lose middleware
+     * mid-dispatch.
+     *
      * @return $this
      */
     public function flushMiddlewareGroups(): static
@@ -1012,6 +1028,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Add a new route parameter binder.
+     *
+     * Boot-only. The binder persists in the singleton Router for the worker
+     * lifetime and runs on every subsequent route parameter resolution.
      */
     public function bind(string $key, string|callable $binder): void
     {
@@ -1023,6 +1042,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Register a model binder for a wildcard.
+     *
+     * Boot-only. The model binder persists in the singleton Router for the
+     * worker lifetime and runs on every subsequent route parameter resolution.
      */
     public function model(string $key, string $class, ?Closure $callback = null): void
     {
@@ -1053,6 +1075,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Set a global where pattern on all routes.
+     *
+     * Boot-only. The pattern persists in the singleton Router for the worker
+     * lifetime and applies to every subsequent route definition.
      */
     public function pattern(string $key, string $pattern): void
     {
@@ -1061,6 +1086,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Set a group of global where patterns on all routes.
+     *
+     * Boot-only. The patterns persist in the singleton Router for the worker
+     * lifetime and apply to every subsequent route definition.
      */
     public function patterns(array $patterns): void
     {
@@ -1193,6 +1221,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Set the unmapped global resource parameters to singular.
+     *
+     * Boot-only. Delegates to ResourceRegistrar::singularParameters() which
+     * persists in a static property for the worker lifetime.
      */
     public function singularResourceParameters(bool $singular = true): void
     {
@@ -1241,6 +1272,10 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Set the compiled route collection instance.
+     *
+     * Boot-only. Replaces the singleton Router's route collection and rebinds
+     * the container's 'routes' instance; runtime use breaks every concurrent
+     * request mid-dispatch.
      */
     public function setCompiledRoutes(array $routes): void
     {
@@ -1280,6 +1315,9 @@ class Router implements BindingRegistrar, RegistrarContract
      * Called from HttpServer\Server and WebSocketServer\Server after
      * Kernel::bootstrap() returns, before $server->start(). Idempotent —
      * safe to call from both servers in combined setups.
+     *
+     * Boot-only. Replaces the route collection and populates process-wide
+     * caches before fork.
      */
     public function compileAndWarm(): void
     {
@@ -1368,6 +1406,9 @@ class Router implements BindingRegistrar, RegistrarContract
 
     /**
      * Set the container instance used by the router.
+     *
+     * Tests only. Swaps the singleton Router's container reference; per-request
+     * use races across coroutines and breaks every concurrent route dispatch.
      *
      * @return $this
      */

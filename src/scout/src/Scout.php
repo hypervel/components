@@ -55,6 +55,9 @@ class Scout
     /**
      * Specify the job class that should make models searchable.
      *
+     * Boot-only. The job class persists in a static property for the worker
+     * lifetime and is used by every subsequent searchable import.
+     *
      * @param class-string<MakeSearchable> $class
      */
     public static function makeSearchableUsing(string $class): void
@@ -64,6 +67,9 @@ class Scout
 
     /**
      * Specify the job class that should remove models from the search index.
+     *
+     * Boot-only. The job class persists in a static property for the worker
+     * lifetime and is used by every subsequent searchable removal.
      *
      * @param class-string<RemoveFromSearch> $class
      */
@@ -107,6 +113,9 @@ class Scout
 
     /**
      * Flush all static state back to defaults.
+     *
+     * Boot or tests only. Resets worker-wide Scout job configuration; concurrent
+     * imports may use different job classes depending on timing.
      */
     public static function flushState(): void
     {

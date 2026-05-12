@@ -712,6 +712,11 @@ class UrlGenerator implements UrlGeneratorContract
 
     /**
      * Set the current request instance.
+     *
+     * Tests only. Per-request code should rely on RequestContext (read first by
+     * getRequest()); this setter writes the singleton UrlGenerator's fallback
+     * request used outside coroutine contexts, plus mutates the shared
+     * routeGenerator — runtime use races across coroutines.
      */
     public function setRequest(Request $request): void
     {

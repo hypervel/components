@@ -915,6 +915,10 @@ class Worker
 
     /**
      * Register a callback to be executed to pick jobs.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * process lifetime and runs on every job pop for the named worker. Passing
+     * null removes the callback.
      */
     public static function popUsing(string $workerName, ?callable $callback): void
     {

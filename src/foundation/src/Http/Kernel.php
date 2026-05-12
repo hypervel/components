@@ -323,6 +323,10 @@ class Kernel implements KernelContract
     /**
      * Add a new middleware to the beginning of the stack if it does not already exist.
      *
+     * Boot-only. Middleware persists in the singleton Kernel's global stack for
+     * the worker lifetime and runs on every subsequent request across all
+     * coroutines.
+     *
      * @return $this
      */
     public function prependMiddleware(string $middleware): static
@@ -337,6 +341,10 @@ class Kernel implements KernelContract
     /**
      * Add a new middleware to end of the stack if it does not already exist.
      *
+     * Boot-only. Middleware persists in the singleton Kernel's global stack for
+     * the worker lifetime and runs on every subsequent request across all
+     * coroutines.
+     *
      * @return $this
      */
     public function pushMiddleware(string $middleware): static
@@ -350,6 +358,9 @@ class Kernel implements KernelContract
 
     /**
      * Prepend the given middleware to the given middleware group.
+     *
+     * Boot-only. The middleware group persists in the singleton Kernel for the
+     * worker lifetime and runs on every subsequent request matching the group.
      *
      * @return $this
      *
@@ -373,6 +384,9 @@ class Kernel implements KernelContract
     /**
      * Append the given middleware to the given middleware group.
      *
+     * Boot-only. The middleware group persists in the singleton Kernel for the
+     * worker lifetime and runs on every subsequent request matching the group.
+     *
      * @return $this
      *
      * @throws InvalidArgumentException
@@ -395,6 +409,10 @@ class Kernel implements KernelContract
     /**
      * Prepend the given middleware to the middleware priority list.
      *
+     * Boot-only. The middleware priority list persists in the singleton Kernel
+     * for the worker lifetime and affects middleware ordering for every
+     * subsequent request.
+     *
      * @return $this
      */
     public function prependToMiddlewarePriority(string $middleware): static
@@ -410,6 +428,10 @@ class Kernel implements KernelContract
 
     /**
      * Append the given middleware to the middleware priority list.
+     *
+     * Boot-only. The middleware priority list persists in the singleton Kernel
+     * for the worker lifetime and affects middleware ordering for every
+     * subsequent request.
      *
      * @return $this
      */
@@ -623,6 +645,10 @@ class Kernel implements KernelContract
 
     /**
      * Set the application instance.
+     *
+     * Tests only. Swaps the singleton Kernel's application reference; per-request
+     * use races across coroutines and breaks every concurrent request the worker
+     * is handling.
      *
      * @return $this
      */

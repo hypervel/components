@@ -32,6 +32,9 @@ class Avatar
 
     /**
      * Register the Telescope user avatar callback.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every Telescope avatar lookup.
      */
     public static function register(Closure $callback): void
     {
@@ -40,6 +43,9 @@ class Avatar
 
     /**
      * Flush the avatar callback.
+     *
+     * Boot or tests only. Clears the worker-wide avatar callback; concurrent
+     * dashboard requests may render with different avatar behavior.
      */
     public static function flushState(): void
     {

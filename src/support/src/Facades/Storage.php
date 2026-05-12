@@ -106,6 +106,9 @@ class Storage extends Facade
     /**
      * Replace the given disk with a local testing disk.
      *
+     * Tests only. Swaps a cached filesystem disk on the shared filesystem
+     * manager for the worker lifetime.
+     *
      * @return \Hypervel\Contracts\Filesystem\Filesystem
      */
     public static function fake(UnitEnum|string|null $disk = null, array $config = [])
@@ -136,6 +139,9 @@ class Storage extends Facade
 
     /**
      * Replace the given disk with a persistent local testing disk.
+     *
+     * Tests only. Swaps a cached filesystem disk on the shared filesystem
+     * manager for the worker lifetime.
      *
      * @return \Hypervel\Contracts\Filesystem\Filesystem
      */

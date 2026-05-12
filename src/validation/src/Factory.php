@@ -150,6 +150,9 @@ class Factory implements FactoryContract
 
     /**
      * Register a custom validator extension.
+     *
+     * Boot-only. The extension persists on the singleton Factory for the
+     * worker lifetime and applies to every subsequent validator built.
      */
     public function extend(string $rule, Closure|string $extension, ?string $message = null): void
     {
@@ -162,6 +165,9 @@ class Factory implements FactoryContract
 
     /**
      * Register a custom implicit validator extension.
+     *
+     * Boot-only. The extension persists on the singleton Factory for the
+     * worker lifetime and applies to every subsequent validator built.
      */
     public function extendImplicit(string $rule, Closure|string $extension, ?string $message = null): void
     {
@@ -174,6 +180,9 @@ class Factory implements FactoryContract
 
     /**
      * Register a custom dependent validator extension.
+     *
+     * Boot-only. The extension persists on the singleton Factory for the
+     * worker lifetime and applies to every subsequent validator built.
      */
     public function extendDependent(string $rule, Closure|string $extension, ?string $message = null): void
     {
@@ -186,6 +195,9 @@ class Factory implements FactoryContract
 
     /**
      * Register a custom validator message replacer.
+     *
+     * Boot-only. The replacer persists on the singleton Factory for the
+     * worker lifetime and applies to every subsequent validator built.
      */
     public function replacer(string $rule, Closure|string $replacer): void
     {
@@ -250,6 +262,10 @@ class Factory implements FactoryContract
 
     /**
      * Set the container instance used by the validation factory.
+     *
+     * Tests only. Swaps the container on the singleton validation Factory;
+     * per-request use races across coroutines and breaks every concurrent
+     * validator build.
      */
     public function setContainer(Container $container): static
     {

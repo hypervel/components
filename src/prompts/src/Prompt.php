@@ -200,6 +200,9 @@ abstract class Prompt
 
     /**
      * Register a callback to be invoked when a user cancels a prompt.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every subsequent prompt cancellation.
      */
     public static function cancelUsing(?Closure $callback): void
     {
@@ -295,6 +298,9 @@ abstract class Prompt
     /**
      * Revert the prompt using the given callback.
      *
+     * Tests only. The callback persists in a static property for the worker
+     * lifetime and affects every subsequent prompt revert.
+     *
      * @internal
      */
     public static function revertUsing(Closure $callback): void
@@ -304,6 +310,9 @@ abstract class Prompt
 
     /**
      * Clear any previous revert callback.
+     *
+     * Tests only. Clears the worker-wide revert callback; concurrent prompts
+     * may observe different behavior depending on timing.
      *
      * @internal
      */

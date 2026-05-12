@@ -40,6 +40,9 @@ class CliDumper extends BaseCliDumper
     /**
      * Create a new CLI dumper instance and register it as the default dumper.
      *
+     * Boot-only. Registers a process-wide VarDumper handler for the worker
+     * lifetime.
+     *
      * @param string $basePath
      * @param string $compiledViewPath
      */

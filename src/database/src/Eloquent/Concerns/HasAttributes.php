@@ -1319,6 +1319,9 @@ trait HasAttributes
     /**
      * Set the encrypter instance that will be used to encrypt attributes.
      *
+     * Boot-only. The encrypter persists in a static property for the worker
+     * lifetime and is used by every encrypted attribute across all coroutines.
+     *
      * @param null|\Hypervel\Contracts\Encryption\Encrypter $encrypter
      */
     public static function encryptUsing(mixed $encrypter): void
@@ -1716,6 +1719,9 @@ trait HasAttributes
 
     /**
      * Flush the caster cache for the model.
+     *
+     * Boot or tests only. Clears the worker-wide caster instance cache shared
+     * by every coroutine; next attribute access rebuilds the casters.
      */
     public static function flushCasterCache(): void
     {

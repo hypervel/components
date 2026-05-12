@@ -224,6 +224,9 @@ class Markdown
 
     /**
      * Enable secured encoding when parsing Markdown.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every subsequent Markdown render across all coroutines.
      */
     public static function withSecuredEncoding(): void
     {
@@ -232,6 +235,9 @@ class Markdown
 
     /**
      * Disable secured encoding when parsing Markdown.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every subsequent Markdown render across all coroutines.
      */
     public static function withoutSecuredEncoding(): void
     {

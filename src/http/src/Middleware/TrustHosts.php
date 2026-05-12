@@ -72,6 +72,9 @@ class TrustHosts
     /**
      * Specify the hosts that should always be trusted.
      *
+     * Boot-only. The list persists in static properties for the worker lifetime
+     * and applies to every subsequent request.
+     *
      * @param array<int, string>|(Closure(): array<int, string>) $hosts
      */
     public static function at(array|Closure $hosts, bool $subdomains = true): void

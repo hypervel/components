@@ -61,6 +61,9 @@ trait RunsInParallel
 
     /**
      * Set the application resolver callback.
+     *
+     * Tests only. The resolver persists in a static property for the worker
+     * lifetime and affects every subsequent parallel test runner instance.
      */
     public static function resolveApplicationUsing(?Closure $resolver): void
     {
@@ -69,6 +72,9 @@ trait RunsInParallel
 
     /**
      * Set the runner resolver callback.
+     *
+     * Tests only. The resolver persists in a static property for the worker
+     * lifetime and affects every subsequent parallel test runner instance.
      */
     public static function resolveRunnerUsing(?Closure $resolver): void
     {

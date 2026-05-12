@@ -207,6 +207,9 @@ class PreventRequestForgery
 
     /**
      * Indicate that the given URIs should be excluded from CSRF verification.
+     *
+     * Boot-only. The list persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
     public static function except(array|string $uris): void
     {
@@ -217,6 +220,9 @@ class PreventRequestForgery
 
     /**
      * Indicate that requests from the same site should be allowed.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
     public static function allowSameSite(bool $allow = true): void
     {
@@ -225,6 +231,9 @@ class PreventRequestForgery
 
     /**
      * Indicate that only origin verification should be used.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
     public static function useOriginOnly(bool $originOnly = true): void
     {

@@ -83,6 +83,9 @@ class ValidateSignature
 
     /**
      * Indicate that the given parameters should be ignored during signature validation.
+     *
+     * Boot-only. The list persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
     public static function except(array|string $parameters): void
     {

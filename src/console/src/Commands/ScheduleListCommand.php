@@ -327,6 +327,9 @@ class ScheduleListCommand extends Command
 
     /**
      * Set a callback that should be used when resolving the terminal width.
+     *
+     * Tests only. The resolver persists in a static property for the worker
+     * lifetime and affects every subsequent schedule:list render.
      */
     public static function resolveTerminalWidthUsing(?Closure $resolver): void
     {
@@ -335,6 +338,9 @@ class ScheduleListCommand extends Command
 
     /**
      * Flush the static state of the command.
+     *
+     * Tests only. Clears the worker-wide terminal width resolver used by
+     * subsequent schedule:list renders.
      */
     public static function flushState(): void
     {

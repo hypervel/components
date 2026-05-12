@@ -413,6 +413,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * Set the message selector instance.
+     *
+     * Boot-only. The selector is held on the singleton Translator and used for
+     * every choice() call across all coroutines.
      */
     public function setSelector(MessageSelector $selector): void
     {
@@ -467,6 +470,10 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * Set the fallback locale being used.
+     *
+     * Boot-only. The fallback is shared across all coroutines on the singleton
+     * Translator; per-request use races and affects every concurrent lookup.
+     * For per-request locale overrides use setLocale(), which is Context-scoped.
      */
     public function setFallback(string $fallback): void
     {
@@ -475,6 +482,10 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
 
     /**
      * Set the loaded translation groups.
+     *
+     * Boot-only. Overwrites the singleton Translator's loaded-translation cache
+     * used across all coroutines; per-request use races and breaks concurrent
+     * lookups.
      */
     public function setLoaded(array $loaded): void
     {

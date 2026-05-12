@@ -340,6 +340,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the base path for the application.
      *
+     * Boot-only. Rebinds path instances on the singleton container; runtime use
+     * races across coroutines and breaks every concurrent path resolution.
+     *
      * @return $this
      */
     public function setBasePath(string $basePath): static
@@ -776,6 +779,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Set whether the application is running in the console.
+     *
+     * Boot-only. The flag persists on the singleton Application for the worker
+     * lifetime and is read by every runningInConsole() check across all
+     * coroutines.
      */
     public function setRunningInConsole(bool $runningInConsole): void
     {
@@ -862,6 +869,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Register a new registered listener.
+     *
+     * Boot-only. The callback persists in the Application's registeredCallbacks
+     * array and fires once per service provider registration during boot.
      */
     public function registered(callable $callback): void
     {
@@ -1075,6 +1085,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Register a new boot listener.
+     *
+     * Boot-only. The callback fires once during application boot; runtime use
+     * after boot stores the closure on the singleton Application with no
+     * future boot to listen for.
      */
     public function booting(callable $callback): void
     {
@@ -1083,6 +1097,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Register a new "booted" listener.
+     *
+     * Boot-only. If the app has already booted, the callback fires immediately
+     * and is never invoked again, but remains stored on the singleton
+     * Application for the worker lifetime.
      */
     public function booted(callable $callback): void
     {
@@ -1096,11 +1114,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Register a terminating callback with the application.
      *
-     * Only call this at boot (in a service provider). Callbacks persist for
-     * the worker's lifetime and fire on every subsequent request. Do not
-     * call from a controller or per-request code — the closure (and anything
-     * it captures) would leak across every request that worker handles. Use
-     * defer() for per-request "after the response" cleanup instead.
+     * Boot-only. Callbacks persist for the worker's lifetime and fire on every
+     * subsequent request — per-request use leaks the closure and anything it
+     * captures across every request the worker handles. Use defer() for
+     * per-request "after the response" cleanup.
      *
      * @return $this
      */

@@ -586,6 +586,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register a custom Blade compiler.
+     *
+     * Boot-only. The compiler persists on the singleton BladeCompiler for the
+     * worker lifetime and applies to every subsequent template compilation.
      */
     public function extend(callable $compiler): void
     {
@@ -602,6 +605,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register an "if" statement directive.
+     *
+     * Boot-only. The condition and its generated directives persist on the
+     * singleton BladeCompiler for the worker lifetime and apply to every
+     * subsequent template compilation.
      */
     public function if(string $name, callable $callback): void
     {
@@ -640,6 +647,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register a class-based component alias directive.
+     *
+     * Boot-only. The alias persists in the singleton BladeCompiler's class
+     * component aliases for the worker lifetime and applies to every subsequent
+     * template compilation.
      */
     public function component(string $alias, ?string $class = null, string $prefix = ''): void
     {
@@ -662,6 +673,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register an array of class-based components.
+     *
+     * Boot-only. Delegates to component() per entry; all aliases persist on the
+     * singleton BladeCompiler for the worker lifetime.
      */
     public function components(array $components, string $prefix = ''): void
     {
@@ -684,6 +698,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register a new anonymous component path.
+     *
+     * Boot-only. The path persists on the singleton BladeCompiler for the
+     * worker lifetime and applies to every subsequent template compilation.
+     * Also registers a namespace on the singleton ViewFactory.
      */
     public function anonymousComponentPath(string $path, ?string $prefix = null): void
     {
@@ -702,6 +720,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register an anonymous component namespace.
+     *
+     * Boot-only. The namespace persists on the singleton BladeCompiler for the
+     * worker lifetime and applies to every subsequent template compilation.
      */
     public function anonymousComponentNamespace(string $directory, ?string $prefix = null): void
     {
@@ -715,6 +736,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register a class-based component namespace.
+     *
+     * Boot-only. The namespace persists on the singleton BladeCompiler for the
+     * worker lifetime and applies to every subsequent template compilation.
      */
     public function componentNamespace(string $namespace, string $prefix): void
     {
@@ -747,6 +771,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register a component alias directive.
+     *
+     * Boot-only. Registers a directive on the singleton BladeCompiler for the
+     * worker lifetime.
      */
     public function aliasComponent(string $path, ?string $alias = null): void
     {
@@ -765,6 +792,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register an include alias directive.
+     *
+     * Boot-only. Registers a directive on the singleton BladeCompiler for the
+     * worker lifetime.
      */
     public function include(string $path, ?string $alias = null): void
     {
@@ -773,6 +803,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register an include alias directive.
+     *
+     * Boot-only. Registers a directive on the singleton BladeCompiler for the
+     * worker lifetime.
      */
     public function aliasInclude(string $path, ?string $alias = null): void
     {
@@ -788,6 +821,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Register a handler for custom directives, binding the handler to the compiler.
      *
+     * Boot-only. Delegates to directive() with bind=true; the handler persists
+     * on the singleton BladeCompiler for the worker lifetime.
+     *
      * @throws InvalidArgumentException
      */
     public function bindDirective(string $name, callable $handler): void
@@ -797,6 +833,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register a handler for custom directives.
+     *
+     * Boot-only. The handler persists in the singleton BladeCompiler's
+     * customDirectives array for the worker lifetime and applies to every
+     * subsequent template compilation.
      *
      * @throws InvalidArgumentException
      */
@@ -819,6 +859,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Indicate that the following callable should be used to prepare strings for compilation.
+     *
+     * Boot-only. The callback persists on the singleton BladeCompiler for the
+     * worker lifetime and runs on every subsequent template compilation.
      */
     public function prepareStringsForCompilationUsing(callable $callback): static
     {
@@ -829,6 +872,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
     /**
      * Register a new precompiler.
+     *
+     * Boot-only. The precompiler persists on the singleton BladeCompiler for
+     * the worker lifetime and runs on every subsequent template compilation.
      */
     public function precompiler(callable $precompiler): void
     {

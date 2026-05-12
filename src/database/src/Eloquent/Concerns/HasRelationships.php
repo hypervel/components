@@ -84,6 +84,10 @@ trait HasRelationships
 
     /**
      * Define a dynamic relation resolver.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every relation resolution for this model class
+     * across all coroutines.
      */
     public static function resolveRelationUsing(string $name, Closure $callback): void
     {

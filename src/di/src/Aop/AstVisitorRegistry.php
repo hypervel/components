@@ -35,6 +35,9 @@ class AstVisitorRegistry
 
     /**
      * Insert a visitor class name with optional priority.
+     *
+     * Boot-only. Visitor registrations persist in a static queue for the worker
+     * lifetime and are used by proxy generation.
      */
     public static function insert(string $value, int $priority = 0): bool
     {
@@ -52,6 +55,9 @@ class AstVisitorRegistry
 
     /**
      * Flush all registered visitors.
+     *
+     * Tests only. Clears the worker-wide visitor registry used by subsequent
+     * proxy generation.
      */
     public static function flushState(): void
     {

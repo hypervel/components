@@ -92,6 +92,9 @@ trait Themes
     /**
      * Get or set the active theme.
      *
+     * Boot-only when setting. The active theme persists in a static property
+     * for the worker lifetime and applies to every subsequent prompt render.
+     *
      * @throws InvalidArgumentException
      */
     public static function theme(?string $name = null): string
@@ -109,6 +112,9 @@ trait Themes
 
     /**
      * Add a new theme.
+     *
+     * Boot-only. Themes persist in a static property for the worker lifetime
+     * and are available to every subsequent prompt render.
      *
      * @param array<class-string<\Hypervel\Prompts\Prompt>, class-string<callable&object>> $renderers
      */
@@ -143,6 +149,9 @@ trait Themes
 
     /**
      * Reset theme state to defaults.
+     *
+     * Boot or tests only. Clears worker-wide prompt theme configuration;
+     * concurrent prompts may render with different themes depending on timing.
      */
     public static function resetTheme(): void
     {

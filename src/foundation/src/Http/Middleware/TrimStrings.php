@@ -74,6 +74,9 @@ class TrimStrings extends TransformsRequest
 
     /**
      * Indicate that the given attributes should never be trimmed.
+     *
+     * Boot-only. The list persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
     public static function except(array|string $attributes): void
     {
@@ -84,6 +87,9 @@ class TrimStrings extends TransformsRequest
 
     /**
      * Register a callback that instructs the middleware to be skipped.
+     *
+     * Boot-only. Skip callbacks persist in a static property for the worker
+     * lifetime and run on every subsequent request.
      */
     public static function skipWhen(Closure $callback): void
     {

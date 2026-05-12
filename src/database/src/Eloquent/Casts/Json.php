@@ -42,6 +42,9 @@ class Json
 
     /**
      * Encode all values using the given callable.
+     *
+     * Boot-only. The encoder persists in a static property for the worker
+     * lifetime and affects every subsequent JSON cast encode.
      */
     public static function encodeUsing(?callable $encoder): void
     {
@@ -50,6 +53,9 @@ class Json
 
     /**
      * Decode all values using the given callable.
+     *
+     * Boot-only. The decoder persists in a static property for the worker
+     * lifetime and affects every subsequent JSON cast decode.
      */
     public static function decodeUsing(?callable $decoder): void
     {

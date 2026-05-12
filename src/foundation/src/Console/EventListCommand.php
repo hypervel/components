@@ -226,6 +226,9 @@ class EventListCommand extends Command
 
     /**
      * Set a callback that should be used when resolving the events dispatcher.
+     *
+     * Tests only. The resolver persists in a static property for the worker
+     * lifetime and affects every subsequent event:list run.
      */
     public static function resolveEventsUsing(?Closure $resolver): void
     {

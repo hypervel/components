@@ -138,6 +138,9 @@ class AuthenticateSession implements AuthenticatesSessions
 
     /**
      * Specify the callback that should be used to generate the redirect path.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every subsequent session-mismatch.
      */
     public static function redirectUsing(callable $redirectToCallback): void
     {

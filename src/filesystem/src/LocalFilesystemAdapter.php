@@ -121,6 +121,10 @@ class LocalFilesystemAdapter extends FilesystemAdapter
 
     /**
      * Indicate that signed URLs should serve the corresponding files.
+     *
+     * Boot-only. The flag and resolver persist on the cached local disk adapter
+     * for the worker lifetime and apply to every subsequent signed URL request
+     * for that disk.
      */
     public function shouldServeSignedUrls(bool $serve = true, ?Closure $urlGeneratorResolver = null): static
     {

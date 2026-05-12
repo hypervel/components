@@ -28,6 +28,9 @@ class ClassMapManager
      * Each entry maps an original class name to the path of its replacement file.
      * Fails immediately if any target class is already loaded.
      *
+     * Boot-only. Class-map overrides mutate the worker's Composer autoloader and
+     * must be registered before any target class is autoloaded.
+     *
      * @param array<class-string, string> $map
      */
     public static function add(array $map): void
@@ -66,6 +69,9 @@ class ClassMapManager
 
     /**
      * Flush all registered entries.
+     *
+     * Tests only. Clears Hypervel's record of worker-wide class-map overrides;
+     * it does not remove entries already applied to Composer's autoloader.
      */
     public static function flushState(): void
     {

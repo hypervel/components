@@ -64,6 +64,9 @@ class EncodedHtmlString extends HtmlString
 
     /**
      * Set the callable that will be used to encode the HTML strings.
+     *
+     * Boot-only. The factory persists in a static property for the worker
+     * lifetime and applies to every encoded HTML string.
      */
     public static function encodeUsing(?callable $factory = null): void
     {
@@ -72,6 +75,9 @@ class EncodedHtmlString extends HtmlString
 
     /**
      * Flush the class's global state.
+     *
+     * Boot or tests only. Clears the worker-wide encoder factory; concurrent
+     * renders may encode output differently depending on timing.
      */
     public static function flushState(): void
     {

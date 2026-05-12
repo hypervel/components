@@ -132,6 +132,9 @@ class DateFactory
 
     /**
      * Use the default date class when generating dates.
+     *
+     * Boot or tests only. Clears the worker-wide date-generation overrides
+     * shared by every coroutine.
      */
     public static function useDefault(): void
     {
@@ -142,6 +145,9 @@ class DateFactory
 
     /**
      * Execute the given callable on each date creation.
+     *
+     * Boot-only. The callable persists in a static property for the worker
+     * lifetime and runs on every date creation across all coroutines.
      */
     public static function useCallable(callable $callable): void
     {
@@ -153,6 +159,9 @@ class DateFactory
 
     /**
      * Use the given date type (class) when generating dates.
+     *
+     * Boot-only. The class name persists in a static property for the worker
+     * lifetime and is used for every date creation across all coroutines.
      */
     public static function useClass(string $dateClass): void
     {
@@ -164,6 +173,9 @@ class DateFactory
 
     /**
      * Use the given Carbon factory when generating dates.
+     *
+     * Boot-only. The factory persists in a static property for the worker
+     * lifetime and is used for every date creation across all coroutines.
      */
     public static function useFactory(object $factory): void
     {

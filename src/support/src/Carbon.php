@@ -18,6 +18,10 @@ class Carbon extends BaseCarbon
     use Conditionable;
     use Dumpable;
 
+    /**
+     * Tests only. Sets Carbon's process-wide test clock for both mutable and
+     * immutable Carbon instances.
+     */
     public static function setTestNow(mixed $testNow = null): void
     {
         BaseCarbon::setTestNow($testNow);

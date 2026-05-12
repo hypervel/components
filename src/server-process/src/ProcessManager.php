@@ -16,6 +16,9 @@ class ProcessManager
 
     /**
      * Register a server process.
+     *
+     * Boot-only. Process registrations persist in static state and must be
+     * completed before the server process manager starts running.
      */
     public static function register(ProcessInterface $process): void
     {
@@ -38,6 +41,8 @@ class ProcessManager
 
     /**
      * Flush all static state back to defaults.
+     *
+     * Tests only. Clears worker-wide process registrations and running state.
      */
     public static function flushState(): void
     {

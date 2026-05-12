@@ -13,6 +13,9 @@ trait Prohibitable
 
     /**
      * Indicate whether the command should be prohibited from running.
+     *
+     * Boot-only. The prohibition flag persists in a static property for the
+     * worker lifetime and affects every subsequent execution of this command.
      */
     public static function prohibit(bool $prohibit = true): void
     {
@@ -21,6 +24,9 @@ trait Prohibitable
 
     /**
      * Flush the static state of the trait.
+     *
+     * Boot or tests only. Clears the worker-wide prohibition flag used by every
+     * subsequent execution of this command.
      */
     public static function flushState(): void
     {

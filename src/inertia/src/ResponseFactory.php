@@ -346,8 +346,7 @@ class ResponseFactory
     /**
      * Register a callback to handle HTTP exceptions for Inertia requests.
      *
-     * This is boot-time configuration — call once in a service provider's
-     * boot() method. The callback is stored on the exception handler singleton
+     * Boot-only. The callback is stored on the exception handler singleton
      * and applies to all requests for the worker lifetime.
      */
     public function handleExceptionsUsing(callable $callback): void

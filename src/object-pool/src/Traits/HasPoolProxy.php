@@ -41,6 +41,9 @@ trait HasPoolProxy
 
     /**
      * Set the release callback for the driver.
+     *
+     * Boot-only. The callback persists on the manager for the worker lifetime
+     * and is captured by every subsequently created pool proxy for the driver.
      */
     public function setReleaseCallback(string $driver, Closure $callback): static
     {
