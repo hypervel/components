@@ -6,6 +6,7 @@ namespace Hypervel\Http;
 
 use ArrayAccess;
 use Closure;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Session\SymfonySessionDecorator;
 use Hypervel\Support\Arr;
@@ -16,8 +17,12 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Uri;
 use Override;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Exception\ConflictingHeadersException;
 use Symfony\Component\HttpFoundation\Exception\SessionNotFoundException;
+use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\InputBag;
+use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
@@ -38,6 +43,28 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     use Concerns\InteractsWithInput;
     use Conditionable;
     use Macroable;
+
+    /**
+     * Forwarded-header parameter mapping.
+     */
+    protected const FORWARDED_PARAMS = [
+        self::HEADER_X_FORWARDED_FOR => 'for',
+        self::HEADER_X_FORWARDED_HOST => 'host',
+        self::HEADER_X_FORWARDED_PROTO => 'proto',
+        self::HEADER_X_FORWARDED_PORT => 'host',
+    ];
+
+    /**
+     * Mapping of trusted-header bitmask flags to header names.
+     */
+    protected const TRUSTED_HEADERS = [
+        self::HEADER_FORWARDED => 'FORWARDED',
+        self::HEADER_X_FORWARDED_FOR => 'X_FORWARDED_FOR',
+        self::HEADER_X_FORWARDED_HOST => 'X_FORWARDED_HOST',
+        self::HEADER_X_FORWARDED_PROTO => 'X_FORWARDED_PROTO',
+        self::HEADER_X_FORWARDED_PORT => 'X_FORWARDED_PORT',
+        self::HEADER_X_FORWARDED_PREFIX => 'X_FORWARDED_PREFIX',
+    ];
 
     /**
      * The decoded JSON content for the request.
@@ -67,6 +94,67 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     protected ?string $cachedAcceptHeader = null;
 
     /**
+     * Trusted proxy IP addresses / CIDR ranges for the current request.
+     *
+     * Stored per-instance instead of on Symfony's process-global statics so
+     * concurrent Swoole coroutines don't share trusted request configuration.
+     *
+     * @var string[]
+     */
+    protected array $trustedProxiesValue = [];
+
+    /**
+     * Bitmask of trusted forwarded-headers for the current request.
+     */
+    protected int $trustedHeaderSetValue = -1;
+
+    /**
+     * Compiled trusted-host regex patterns for the current request.
+     *
+     * @var string[]
+     */
+    protected array $trustedHostPatternsValue = [];
+
+    /**
+     * Memoized cache of host strings that matched a trusted pattern.
+     *
+     * @var string[]
+     */
+    protected array $trustedHostsValue = [];
+
+    /**
+     * Memoized cache of parsed trusted-header values for this request.
+     *
+     * @var array<string, array>
+     */
+    protected array $trustedValuesCacheValue = [];
+
+    /**
+     * One-shot flag preventing duplicate "Suspicious Host" exceptions per request.
+     */
+    protected bool $isHostValidValue = true;
+
+    /**
+     * One-shot flag preventing duplicate "ConflictingHeaders" exceptions per request.
+     */
+    protected bool $isForwardedValidValue = true;
+
+    /**
+     * Initialize the request data.
+     */
+    #[Override]
+    public function initialize(array $query = [], array $request = [], array $attributes = [], array $cookies = [], array $files = [], array $server = [], $content = null): void
+    {
+        parent::initialize($query, $request, $attributes, $cookies, $files, $server, $content);
+
+        $this->trustedProxiesValue = [];
+        $this->trustedHeaderSetValue = -1;
+        $this->trustedHostPatternsValue = [];
+        $this->trustedHostsValue = [];
+        $this->resetTrustedRequestCaches();
+    }
+
+    /**
      * Create a new HTTP request from PHP superglobals.
      *
      * @throws RuntimeException always — superglobals don't exist in Swoole workers
@@ -74,6 +162,92 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     public static function createFromGlobals(): static
     {
         throw new RuntimeException('Request::createFromGlobals() is not supported in Hypervel. Requests are created from Swoole request objects.');
+    }
+
+    /**
+     * Set the trusted proxies on the current request.
+     */
+    public static function setTrustedProxies(array $proxies, int $trustedHeaderSet): void
+    {
+        // Keep Symfony's static API, but write to the current coroutine request
+        // so concurrent requests never share proxy trust configuration.
+        $request = RequestContext::getOrNull();
+
+        if (! $request instanceof self) {
+            return;
+        }
+
+        if (false !== $i = array_search('REMOTE_ADDR', $proxies, true)) {
+            if (null !== $remote = $request->server->get('REMOTE_ADDR')) {
+                $proxies[$i] = $remote;
+            } else {
+                unset($proxies[$i]);
+                $proxies = array_values($proxies);
+            }
+        }
+
+        if (false !== ($i = array_search('PRIVATE_SUBNETS', $proxies, true))
+            || false !== ($i = array_search('private_ranges', $proxies, true))) {
+            unset($proxies[$i]);
+            $proxies = array_merge($proxies, IpUtils::PRIVATE_SUBNETS);
+        }
+
+        $request->trustedProxiesValue = $proxies;
+        $request->trustedHeaderSetValue = $trustedHeaderSet;
+        $request->resetTrustedRequestCaches();
+    }
+
+    /**
+     * Get the trusted proxies for the current request.
+     *
+     * @return string[]
+     */
+    public static function getTrustedProxies(): array
+    {
+        $request = RequestContext::getOrNull();
+
+        return $request instanceof self ? $request->trustedProxiesValue : [];
+    }
+
+    /**
+     * Get the trusted-header bitmask for the current request.
+     */
+    public static function getTrustedHeaderSet(): int
+    {
+        $request = RequestContext::getOrNull();
+
+        return $request instanceof self ? $request->trustedHeaderSetValue : -1;
+    }
+
+    /**
+     * Set the trusted host patterns for the current request.
+     */
+    public static function setTrustedHosts(array $hostPatterns): void
+    {
+        $request = RequestContext::getOrNull();
+
+        if (! $request instanceof self) {
+            return;
+        }
+
+        $request->trustedHostPatternsValue = array_map(
+            fn ($hostPattern) => sprintf('{%s}i', $hostPattern),
+            $hostPatterns,
+        );
+        $request->trustedHostsValue = [];
+        $request->resetTrustedRequestCaches();
+    }
+
+    /**
+     * Get the trusted host patterns for the current request.
+     *
+     * @return string[]
+     */
+    public static function getTrustedHosts(): array
+    {
+        $request = RequestContext::getOrNull();
+
+        return $request instanceof self ? $request->trustedHostPatternsValue : [];
     }
 
     /**
@@ -295,6 +469,137 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     }
 
     /**
+     * Get the client IP addresses.
+     */
+    #[Override]
+    public function getClientIps(): array
+    {
+        $ip = $this->server->get('REMOTE_ADDR');
+
+        if (! $this->isFromTrustedProxy()) {
+            return [$ip];
+        }
+
+        return $this->getTrustedValues(self::HEADER_X_FORWARDED_FOR, $ip) ?: [$ip];
+    }
+
+    /**
+     * Return the root URL from which this request is executed.
+     */
+    #[Override]
+    public function getBaseUrl(): string
+    {
+        $trustedPrefix = '';
+
+        if ($this->isFromTrustedProxy()
+            && $trustedPrefixValues = $this->getTrustedValues(self::HEADER_X_FORWARDED_PREFIX)) {
+            $trustedPrefix = rtrim($trustedPrefixValues[0], '/');
+        }
+
+        return $trustedPrefix . $this->getBaseUrlReal();
+    }
+
+    /**
+     * Return the port on which the request is made.
+     */
+    #[Override]
+    public function getPort(): int|string|null
+    {
+        if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_PORT)) {
+            $host = $host[0];
+        } elseif ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_HOST)) {
+            $host = $host[0];
+        } elseif (! $host = $this->headers->get('HOST')) {
+            return $this->server->get('SERVER_PORT');
+        }
+
+        if ($host[0] === '[') {
+            $pos = strpos($host, ':', strrpos($host, ']'));
+        } else {
+            $pos = strrpos($host, ':');
+        }
+
+        if ($pos !== false && $port = substr($host, $pos + 1)) {
+            return (int) $port;
+        }
+
+        return $this->getScheme() === 'https' ? 443 : 80;
+    }
+
+    /**
+     * Determine whether the request is secure.
+     */
+    #[Override]
+    public function isSecure(): bool
+    {
+        if ($this->isFromTrustedProxy()
+            && $proto = $this->getTrustedValues(self::HEADER_X_FORWARDED_PROTO)) {
+            return in_array(strtolower($proto[0]), ['https', 'on', 'ssl', '1'], true);
+        }
+
+        $https = $this->server->get('HTTPS');
+
+        return $https && (! is_string($https) || strtolower($https) !== 'off');
+    }
+
+    /**
+     * Return the host name.
+     */
+    #[Override]
+    public function getHost(): string
+    {
+        if ($this->isFromTrustedProxy() && $host = $this->getTrustedValues(self::HEADER_X_FORWARDED_HOST)) {
+            $host = $host[0];
+        } else {
+            $host = $this->headers->get('HOST') ?: $this->server->get('SERVER_NAME') ?: $this->server->get('SERVER_ADDR', '');
+        }
+
+        $host = strtolower(preg_replace('/:\d+$/', '', trim($host)));
+
+        if ($host && ! static::isHostValid($host)) {
+            if (! $this->isHostValidValue) {
+                return '';
+            }
+            $this->isHostValidValue = false;
+
+            throw new SuspiciousOperationException(sprintf('Invalid Host "%s".', $host));
+        }
+
+        if (count($this->trustedHostPatternsValue) > 0) {
+            if (in_array($host, $this->trustedHostsValue, true)) {
+                return $host;
+            }
+
+            foreach ($this->trustedHostPatternsValue as $pattern) {
+                if (preg_match($pattern, $host)) {
+                    $this->trustedHostsValue[] = $host;
+
+                    return $host;
+                }
+            }
+
+            if (! $this->isHostValidValue) {
+                return '';
+            }
+            $this->isHostValidValue = false;
+
+            throw new SuspiciousOperationException(sprintf('Untrusted Host "%s".', $host));
+        }
+
+        return $host;
+    }
+
+    /**
+     * Determine whether this request originated from a trusted proxy.
+     */
+    #[Override]
+    public function isFromTrustedProxy(): bool
+    {
+        return $this->trustedProxiesValue
+            && IpUtils::checkIp($this->server->get('REMOTE_ADDR', ''), $this->trustedProxiesValue);
+    }
+
+    /**
      * Get the client user agent.
      */
     public function userAgent(): ?string
@@ -447,6 +752,8 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
 
         $request->setRouteResolver($from->getRouteResolver());
 
+        $request->copyTrustedStateFrom($from);
+
         /** @var static $request */
         return $request;
     }
@@ -469,6 +776,10 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
             $newRequest->request = $newRequest->json();
         }
 
+        if ($request instanceof self) {
+            $newRequest->copyTrustedStateFrom($request);
+        }
+
         return $newRequest;
     }
 
@@ -476,6 +787,186 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     public function duplicate(?array $query = null, ?array $request = null, ?array $attributes = null, ?array $cookies = null, ?array $files = null, ?array $server = null): static
     {
         return parent::duplicate($query, $request, $attributes, $cookies, $this->filterFiles($files), $server);
+    }
+
+    /**
+     * Clone the current request.
+     */
+    #[Override]
+    public function __clone()
+    {
+        parent::__clone();
+
+        // Symfony's duplicate() clones the request internally, so this covers
+        // both direct clone calls and duplicate() without duplicating reset code.
+        $this->resetTrustedRequestCaches();
+    }
+
+    /**
+     * Copy trusted request configuration from another request.
+     */
+    protected function copyTrustedStateFrom(self $from): void
+    {
+        $this->trustedProxiesValue = $from->trustedProxiesValue;
+        $this->trustedHeaderSetValue = $from->trustedHeaderSetValue;
+        $this->trustedHostPatternsValue = $from->trustedHostPatternsValue;
+        $this->trustedHostsValue = $from->trustedHostsValue;
+
+        // Copy configuration only. Parsed forwarded values and one-shot
+        // exception flags belong to this distinct request object's lifecycle.
+        $this->resetTrustedRequestCaches();
+    }
+
+    /**
+     * Reset the trusted-values cache and one-shot exception flags.
+     */
+    protected function resetTrustedRequestCaches(): void
+    {
+        $this->trustedValuesCacheValue = [];
+        $this->isHostValidValue = true;
+        $this->isForwardedValidValue = true;
+    }
+
+    /**
+     * Return the real base URL without the trusted reverse proxy prefix.
+     */
+    protected function getBaseUrlReal(): string
+    {
+        // Symfony keeps this helper private, but getBaseUrl() needs the same
+        // unprefixed value before adding any trusted X-Forwarded-Prefix.
+        return $this->baseUrl ??= $this->prepareBaseUrl();
+    }
+
+    /**
+     * Parse the trusted forwarded-header values for the requested type.
+     */
+    protected function getTrustedValues(int $type, ?string $ip = null): array
+    {
+        // Header values are part of the key; trusted-proxy/header config changes
+        // clear this cache in the setters because they affect filtering too.
+        $cacheKey = $type . "\0"
+            . (($this->trustedHeaderSetValue & $type) ? $this->headers->get(self::TRUSTED_HEADERS[$type]) : '');
+        $cacheKey .= "\0" . $ip . "\0" . $this->headers->get(self::TRUSTED_HEADERS[self::HEADER_FORWARDED]);
+
+        if (isset($this->trustedValuesCacheValue[$cacheKey])) {
+            return $this->trustedValuesCacheValue[$cacheKey];
+        }
+
+        $clientValues = [];
+        $forwardedValues = [];
+
+        if (($this->trustedHeaderSetValue & $type)
+            && $this->headers->has(self::TRUSTED_HEADERS[$type])) {
+            foreach (explode(',', $this->headers->get(self::TRUSTED_HEADERS[$type])) as $value) {
+                $clientValues[] = ($type === self::HEADER_X_FORWARDED_PORT ? '0.0.0.0:' : '') . trim($value);
+            }
+        }
+
+        if (($this->trustedHeaderSetValue & self::HEADER_FORWARDED)
+            && isset(self::FORWARDED_PARAMS[$type])
+            && $this->headers->has(self::TRUSTED_HEADERS[self::HEADER_FORWARDED])) {
+            $forwarded = $this->headers->get(self::TRUSTED_HEADERS[self::HEADER_FORWARDED]);
+            $parts = HeaderUtils::split($forwarded, ',;=');
+            $param = self::FORWARDED_PARAMS[$type];
+
+            foreach ($parts as $subParts) {
+                if (null === $value = HeaderUtils::combine($subParts)[$param] ?? null) {
+                    continue;
+                }
+
+                if ($type === self::HEADER_X_FORWARDED_PORT) {
+                    if (str_ends_with($value, ']') || false === $value = strrchr($value, ':')) {
+                        $value = $this->isSecure() ? ':443' : ':80';
+                    }
+                    $value = '0.0.0.0' . $value;
+                }
+
+                $forwardedValues[] = $value;
+            }
+        }
+
+        if ($ip !== null) {
+            $clientValues = $this->normalizeAndFilterClientIps($clientValues, $ip);
+            $forwardedValues = $this->normalizeAndFilterClientIps($forwardedValues, $ip);
+        }
+
+        if ($forwardedValues === $clientValues || ! $clientValues) {
+            return $this->trustedValuesCacheValue[$cacheKey] = $forwardedValues;
+        }
+
+        if (! $forwardedValues) {
+            return $this->trustedValuesCacheValue[$cacheKey] = $clientValues;
+        }
+
+        if (! $this->isForwardedValidValue) {
+            return $this->trustedValuesCacheValue[$cacheKey] = $ip !== null
+                ? ['0.0.0.0', $ip]
+                : [];
+        }
+        $this->isForwardedValidValue = false;
+
+        throw new ConflictingHeadersException(sprintf(
+            'The request has both a trusted "%s" header and a trusted "%s" header, conflicting with each other.'
+            . ' You should either configure your proxy to remove one of them,'
+            . ' or configure your project to distrust the offending one.',
+            self::TRUSTED_HEADERS[self::HEADER_FORWARDED],
+            self::TRUSTED_HEADERS[$type],
+        ));
+    }
+
+    /**
+     * Normalize and filter trusted client IPs.
+     */
+    protected function normalizeAndFilterClientIps(array $clientIps, string $ip): array
+    {
+        if (! $clientIps) {
+            return [];
+        }
+
+        $clientIps[] = $ip;
+        $firstTrustedIp = null;
+
+        foreach ($clientIps as $key => $clientIp) {
+            if (strpos($clientIp, '.')) {
+                $index = strpos($clientIp, ':');
+                if ($index) {
+                    $clientIps[$key] = $clientIp = substr($clientIp, 0, $index);
+                }
+            } elseif (str_starts_with($clientIp, '[')) {
+                $index = strpos($clientIp, ']', 1);
+                $clientIps[$key] = $clientIp = substr($clientIp, 1, $index - 1);
+            }
+
+            if (! filter_var($clientIp, FILTER_VALIDATE_IP)) {
+                unset($clientIps[$key]);
+
+                continue;
+            }
+
+            if (IpUtils::checkIp($clientIp, $this->trustedProxiesValue)) {
+                unset($clientIps[$key]);
+                $firstTrustedIp ??= $clientIp;
+            }
+        }
+
+        return $clientIps ? array_reverse($clientIps) : [$firstTrustedIp];
+    }
+
+    /**
+     * Validate a host string per Symfony's URL-spec rules.
+     */
+    protected static function isHostValid(string $host): bool
+    {
+        if ($host[0] === '[') {
+            return $host[-1] === ']'
+                && filter_var(substr($host, 1, -1), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
+        }
+
+        if (preg_match('/\.[0-9]++\.?$/D', $host)) {
+            return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_NULL_ON_FAILURE) !== null;
+        }
+
+        return preg_replace('/[-a-zA-Z0-9_]++\.?/', '', $host) === '';
     }
 
     /**
