@@ -113,6 +113,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Mail\Mailer::flushState();
         \Hypervel\Mail\Markdown::flushState();
         \Hypervel\NestedSet\Eloquent\BaseRelation::flushState();
+        \Hypervel\Notifications\ChannelManager::flushState();
         \Hypervel\Pagination\AbstractCursorPaginator::flushState();
         \Hypervel\Pagination\AbstractPaginator::flushState();
         \Hypervel\Pipeline\Pipeline::flushState();
