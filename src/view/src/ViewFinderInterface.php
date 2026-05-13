@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\View;
 
+use Closure;
+
 interface ViewFinderInterface
 {
     /**
@@ -35,6 +37,11 @@ interface ViewFinderInterface
      * Replace the namespace hints for the given namespace.
      */
     public function replaceNamespace(string $namespace, string|array $hints): void;
+
+    /**
+     * Execute the given callback with a temporary namespace hint.
+     */
+    public function scopedNamespace(string $namespace, string|array $hints, Closure $callback): mixed;
 
     /**
      * Add a valid view extension to the finder.
