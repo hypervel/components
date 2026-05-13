@@ -795,6 +795,8 @@ Once your macro has been configured, you may invoke it from anywhere in your app
 $response = Http::github()->get('/');
 ```
 
+Macros are stored globally for the life of the PHP process. If you register a macro inside a test, flush the macro state before the test finishes.
+
 <a name="testing"></a>
 ## Testing
 

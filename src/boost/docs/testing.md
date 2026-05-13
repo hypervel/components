@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
 - [Environment](#environment)
 - [Creating Tests](#creating-tests)
+    - [Macro State](#macro-state)
 - [Running Tests](#running-tests)
     - [Running Tests in Parallel](#running-tests-in-parallel)
     - [Reporting Test Coverage](#reporting-test-coverage)
@@ -106,6 +107,41 @@ class ExampleTest extends TestCase
 
 > [!WARNING]
 > If you define your own `setUp` / `tearDown` methods within a test class, be sure to call the respective `parent::setUp()` / `parent::tearDown()` methods on the parent class. Typically, you should invoke `parent::setUp()` at the start of your own `setUp` method, and `parent::tearDown()` at the end of your `tearDown` method.
+
+<a name="macro-state"></a>
+### Macro State
+
+Macroable classes store registered macros in static state for the life of the PHP process. Typically, macros should be registered during application boot from a [service provider](/docs/{{version}}/providers).
+
+If you register a temporary macro from inside a test, flush that class's macro state before the test finishes so the macro does not affect later tests in the same process:
+
+```php tab=PHPUnit
+<?php
+
+namespace Tests\Feature;
+
+use Hypervel\Support\Collection;
+use Tests\TestCase;
+
+class CollectionMacroTest extends TestCase
+{
+    protected function tearDown(): void
+    {
+        Collection::flushMacros();
+
+        parent::tearDown();
+    }
+
+    public function test_collection_macro(): void
+    {
+        Collection::macro('summary', function () {
+            return $this->implode(', ');
+        });
+
+        $this->assertSame('first, second', collect(['first', 'second'])->summary());
+    }
+}
+```
 
 <a name="running-tests"></a>
 ## Running Tests
