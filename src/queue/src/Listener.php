@@ -175,6 +175,9 @@ class Listener
 
     /**
      * Set the output handler callback.
+     *
+     * Boot-only. The callback persists on the singleton listener for the
+     * command lifetime and handles every subsequent worker output line.
      */
     public function setOutputHandler(Closure $outputHandler): void
     {

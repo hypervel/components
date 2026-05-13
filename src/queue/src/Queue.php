@@ -413,6 +413,10 @@ abstract class Queue
 
     /**
      * Set the connection name for the queue.
+     *
+     * Boot or tests only. Queue connection instances are cached on
+     * QueueManager; runtime use races across coroutines and changes every
+     * concurrent dispatch through this connection.
      */
     public function setConnectionName(string $name): static
     {
@@ -431,6 +435,10 @@ abstract class Queue
 
     /**
      * Set the queue configuration array.
+     *
+     * Boot or tests only. Queue connection instances are cached on
+     * QueueManager; runtime use races across coroutines and changes every
+     * concurrent dispatch through this connection.
      */
     public function setConfig(array $config): static
     {
@@ -450,9 +458,9 @@ abstract class Queue
     /**
      * Set the IoC container instance.
      *
-     * Tests only. Queue connection instances are cached on QueueManager; per-
-     * request use races across coroutines and breaks every concurrent dispatch
-     * through this connection.
+     * Boot or tests only. Queue connection instances are cached on
+     * QueueManager; runtime use races across coroutines and changes every
+     * concurrent dispatch through this connection.
      */
     public function setContainer(Container $container): static
     {

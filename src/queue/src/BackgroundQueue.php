@@ -56,6 +56,9 @@ class BackgroundQueue extends SyncQueue
 
     /**
      * Set the exception callback for the background queue.
+     *
+     * Boot-only. The callback persists on the cached queue connection for the
+     * worker lifetime and handles every subsequent background job exception.
      */
     public function setExceptionCallback(?callable $callback): static
     {

@@ -122,6 +122,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Prompts\Terminal::flushState();
         \Hypervel\Queue\Console\WorkCommand::flushState();
         \Hypervel\Queue\Queue::flushState();
+        \Hypervel\Queue\Worker::flushState();
         \Hypervel\Reverb\Loggers\Log::flushState();
         \Hypervel\Reverb\Servers\Hypervel\WebSocketHandler::flushState();
         \Hypervel\Routing\CallableDispatcher::flushState();
