@@ -16,6 +16,7 @@ controllers.md
 csrf.md
 database.md
 database-testing.md
+deployment.md
 pagination.md
 requests.md
 routing.md

@@ -4,7 +4,8 @@
 - [Server Requirements](#server-requirements)
 - [Server Configuration](#server-configuration)
     - [Nginx](#nginx)
-    - [FrankenPHP](#frankenphp)
+    - [Nginx and WebSockets](#nginx-and-websockets)
+    - [Running the Hypervel Server](#running-the-hypervel-server)
     - [Directory Permissions](#directory-permissions)
 - [Optimization](#optimization)
     - [Caching Configuration](#optimizing-configuration-loading)
@@ -14,32 +15,38 @@
 - [Reloading Services](#reloading-services)
 - [Debug Mode](#debug-mode)
 - [The Health Route](#the-health-route)
-- [Deploying With Laravel Cloud or Forge](#deploying-with-cloud-or-forge)
+- [Deploying With SonicStack](#deploying-with-sonicstack)
 
 <a name="introduction"></a>
 ## Introduction
 
-When you're ready to deploy your Laravel application to production, there are some important things you can do to make sure your application is running as efficiently as possible. In this document, we'll cover some great starting points for making sure your Laravel application is deployed properly.
+When you're ready to deploy your Hypervel application to production, there are some important things you can do to make sure your application is running as efficiently as possible. In this document, we'll cover some great starting points for making sure your Hypervel application is deployed properly.
 
 <a name="server-requirements"></a>
 ## Server Requirements
 
-The Laravel framework has a few system requirements. You should ensure that your web server has the following minimum PHP version and extensions:
+The Hypervel framework has a few system requirements. Hypervel ships with its own Swoole-based application server, so your production server should run the long-running Hypervel server process instead of PHP-FPM. You should ensure that your server has the following minimum PHP version and commonly required extensions:
 
 <div class="content-list" markdown="1">
 
-- PHP >= 8.3
+- PHP >= 8.4
 - Ctype PHP Extension
 - cURL PHP Extension
 - DOM PHP Extension
 - Fileinfo PHP Extension
 - Filter PHP Extension
 - Hash PHP Extension
+- Intl PHP Extension
+- JSON PHP Extension
 - Mbstring PHP Extension
 - OpenSSL PHP Extension
+- PCNTL PHP Extension
 - PCRE PHP Extension
 - PDO PHP Extension
+- POSIX PHP Extension
+- Redis PHP Extension >= 6.1
 - Session PHP Extension
+- Swoole PHP Extension >= 6.2
 - Tokenizer PHP Extension
 - XML PHP Extension
 
@@ -51,9 +58,9 @@ The Laravel framework has a few system requirements. You should ensure that your
 <a name="nginx"></a>
 ### Nginx
 
-If you are deploying your application to a server that is running Nginx, you may use the following configuration file as a starting point for configuring your web server. Most likely, this file will need to be customized depending on your server's configuration. **If you would like assistance in managing your server, consider using a fully-managed Laravel platform like [Laravel Cloud](https://cloud.laravel.com).**
+If you are deploying your application to a server that is running Nginx, you may use the following configuration file as a starting point for configuring your web server. Most likely, this file will need to be customized depending on your server's configuration. **If you would like assistance in managing your server, consider using a fully-managed Hypervel platform like [SonicStack](https://sonicstack.io).**
 
-Please ensure, like the configuration below, your web server directs all requests to your application's `public/index.php` file. You should never attempt to move the `index.php` file to your project's root, as serving the application from the project root will expose many sensitive configuration files to the public Internet:
+Please ensure, like the configuration below, your web server proxies dynamic requests to your Hypervel server. The default Hypervel HTTP server listens on port `9501` and may be configured in your application's `config/server.php` file:
 
 ```nginx
 server {
@@ -62,27 +69,18 @@ server {
     server_name example.com;
     root /srv/example.com/public;
 
-    add_header X-Frame-Options "SAMEORIGIN";
-    add_header X-Content-Type-Options "nosniff";
-
-    index index.php;
-
-    charset utf-8;
-
     location / {
-        try_files $uri $uri/ /index.php?$query_string;
+        try_files $uri @hypervel;
     }
 
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
+    location @hypervel {
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
 
-    error_page 404 /index.php;
-
-    location ~ ^/index\.php(/|$) {
-        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        include fastcgi_params;
-        fastcgi_hide_header X-Powered-By;
+        proxy_pass http://127.0.0.1:9501;
     }
 
     location ~ /\.(?!well-known).* {
@@ -91,32 +89,60 @@ server {
 }
 ```
 
-<a name="frankenphp"></a>
-### FrankenPHP
+When using a web server such as Nginx, you should let the web server serve your application's static files directly and only proxy dynamic requests to Hypervel. This is more efficient than serving static files through PHP. Hypervel also includes a built-in static file handler for direct-to-client deployments; when using a web server to serve static files as shown above, you may disable it by setting the `SERVER_STATIC_FILE_HANDLER` environment variable to `false`.
 
-[FrankenPHP](https://frankenphp.dev/) may also be used to serve your Laravel applications. FrankenPHP is a modern PHP application server written in Go. To serve a Laravel PHP application using FrankenPHP, you may simply invoke its `php-server` command:
+<a name="nginx-and-websockets"></a>
+### Nginx and WebSockets
 
-```shell
-frankenphp php-server -r public/
+If you are proxying WebSocket connections, your Nginx configuration should include the WebSocket upgrade headers. For example, Hypervel Reverb listens on port `8080` by default:
+
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name websocket.example.com;
+
+    location / {
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+
+        proxy_pass http://127.0.0.1:8080;
+    }
+}
 ```
 
-To take advantage of more powerful features supported by FrankenPHP, such as its [Laravel Octane](/docs/{{version}}/octane) integration, HTTP/3, modern compression, or the ability to package Laravel applications as standalone binaries, please consult FrankenPHP's [Laravel documentation](https://frankenphp.dev/docs/laravel/).
+<a name="running-the-hypervel-server"></a>
+### Running the Hypervel Server
+
+In production, your Hypervel server should be kept running by a process monitor, container orchestrator, or managed platform. The server may be started using the `serve` Artisan command:
+
+```shell
+php artisan serve
+```
+
+By default, the HTTP server binds to `0.0.0.0:9501`. You may configure the server host, port, worker count, and other Swoole settings using the `HTTP_SERVER_HOST`, `HTTP_SERVER_PORT`, and `SERVER_WORKERS_NUMBER` environment variables read by `config/server.php`.
 
 <a name="directory-permissions"></a>
 ### Directory Permissions
 
-Laravel will need to write to the `bootstrap/cache` and `storage` directories, so you should ensure the web server process owner has permission to write to these directories.
+Hypervel will need to write to the `bootstrap/cache` and `storage` directories, so you should ensure the user running the Hypervel server has permission to write to these directories.
 
 <a name="optimization"></a>
 ## Optimization
 
-When deploying your application to production, there are a variety of files that should be cached, including your configuration, events, routes, and views. Laravel provides a single, convenient `optimize` Artisan command that will cache all of these files. This command should typically be invoked as part of your application's deployment process:
+When deploying your application to production, there are a variety of files that should be cached, including your configuration, events, routes, and views. Hypervel provides a single, convenient `optimize` Artisan command that will cache all of these files. This command should typically be invoked as part of your application's deployment process:
 
 ```shell
 php artisan optimize
 ```
 
-The `optimize:clear` method may be used to remove all of the cache files generated by the `optimize` command as well as all keys in the default cache driver:
+The `optimize:clear` command may be used to remove all of the cache files generated by the `optimize` command as well as all keys in the default cache driver:
 
 ```shell
 php artisan optimize:clear
@@ -133,7 +159,7 @@ When deploying your application to production, you should make sure that you run
 php artisan config:cache
 ```
 
-This command will combine all of Laravel's configuration files into a single, cached file, which greatly reduces the number of trips the framework must make to the filesystem when loading your configuration values.
+This command will combine all of Hypervel's configuration files into a single, cached file, which greatly reduces the number of trips the framework must make to the filesystem when loading your configuration values.
 
 > [!WARNING]
 > If you execute the `config:cache` command during your deployment process, you should be sure that you are only calling the `env` function from within your configuration files. Once the configuration has been cached, the `.env` file will not be loaded and all calls to the `env` function for `.env` variables will return `null`.
@@ -173,15 +199,15 @@ This command precompiles all your Blade views so they are not compiled on demand
 ## Reloading Services
 
 > [!NOTE]
-> When deploying to [Laravel Cloud](https://cloud.laravel.com), it is not necessary to use the `reload` command, as gracefully reloading of all services is handled automatically.
+> When deploying to [SonicStack](https://sonicstack.io), it is not necessary to use the `reload` command, as gracefully reloading all services is handled automatically.
 
-After deploying a new version of your application, any long-running services such as queue workers, Laravel Reverb, or Laravel Octane should be reloaded / restarted to use the new code. Laravel provides a single `reload` Artisan command that will terminate these services:
+After deploying a new version of your application, any long-running services such as the Hypervel server (which serves both HTTP and Hypervel Reverb), queue workers, and scheduler should be reloaded / restarted to use the new code. Hypervel provides a single `reload` Artisan command that will signal these services:
 
 ```shell
 php artisan reload
 ```
 
-If you are not using [Laravel Cloud](https://cloud.laravel.com), you should manually configure a process monitor that can detect when your reloadable processes exit and automatically restart them.
+The `reload` command gracefully reloads the Hypervel server and signals queue workers and the scheduler to restart. If you are not using [SonicStack](https://sonicstack.io), you should manually configure a process monitor that can detect when your reloadable processes exit and automatically restart them.
 
 <a name="debug-mode"></a>
 ## Debug Mode
@@ -194,9 +220,9 @@ The debug option in your `config/app.php` configuration file determines how much
 <a name="the-health-route"></a>
 ## The Health Route
 
-Laravel includes a built-in health check route that can be used to monitor the status of your application. In production, this route may be used to report the status of your application to an uptime monitor, load balancer, or orchestration system such as Kubernetes.
+Hypervel includes a built-in health check route that can be used to monitor the status of your application. In production, this route may be used to report the status of your application to an uptime monitor, load balancer, or orchestration system such as Kubernetes.
 
-By default, the health check route is served at `/up` and will return a 200 HTTP response if the application has booted without exceptions. Otherwise, a 500 HTTP response will be returned. You may configure the URI for this route in your application's `bootstrap/app` file:
+When your application's `bootstrap/app.php` file enables the health route, it is typically served at `/up`, which will return a 200 HTTP response if the application has booted without exceptions. Otherwise, a 500 HTTP response will be returned. You may configure the URI for this route in your application's `bootstrap/app.php` file:
 
 ```php
 ->withRouting(
@@ -207,21 +233,11 @@ By default, the health check route is served at `/up` and will return a 200 HTTP
 )
 ```
 
-When HTTP requests are made to this route, Laravel will also dispatch a `Hypervel\Foundation\Events\DiagnosingHealth` event, allowing you to perform additional health checks relevant to your application. Within a [listener](/docs/{{version}}/events) for this event, you may check your application's database or cache status. If you detect a problem with your application, you may simply throw an exception from the listener.
+When HTTP requests are made to this route, Hypervel will also dispatch a `Hypervel\Foundation\Events\DiagnosingHealth` event, allowing you to perform additional health checks relevant to your application. Within a [listener](/docs/{{version}}/events) for this event, you may check your application's database or cache status. If you detect a problem with your application, you may simply throw an exception from the listener.
 
-<a name="deploying-with-cloud-or-forge"></a>
-## Deploying With Laravel Cloud or Forge
+<a name="deploying-with-sonicstack"></a>
+## Deploying With SonicStack
 
-<a name="laravel-cloud"></a>
-#### Laravel Cloud
+If you would like a fully-managed, auto-scaling deployment platform tuned for Hypervel, check out [SonicStack](https://sonicstack.io). SonicStack is a robust deployment platform for Hypervel applications, offering managed compute, databases, caches, and object storage.
 
-If you would like a fully-managed, auto-scaling deployment platform tuned for Laravel, check out [Laravel Cloud](https://cloud.laravel.com). Laravel Cloud is a robust deployment platform for Laravel, offering managed compute, databases, caches, and object storage.
-
-Launch your Laravel application on Cloud and fall in love with the scalable simplicity. Laravel Cloud is fine-tuned by Laravel's creators to work seamlessly with the framework so you can keep writing your Laravel applications exactly like you're used to.
-
-<a name="laravel-forge"></a>
-#### Laravel Forge
-
-If you prefer to manage your own servers but aren't comfortable configuring all of the various services needed to run a robust Laravel application, [Laravel Forge](https://forge.laravel.com) is a VPS server management platform for Laravel applications.
-
-Laravel Forge can create servers on various infrastructure providers such as DigitalOcean, Linode, AWS, and more. In addition, Forge installs and manages all of the tools needed to build robust Laravel applications, such as Nginx, MySQL, Redis, Memcached, Beanstalk, and more.
+Launch your Hypervel application on SonicStack and fall in love with the scalable simplicity. Because SonicStack is built and maintained by the Hypervel team, it works seamlessly with the framework and directly supports the framework's ongoing development.
