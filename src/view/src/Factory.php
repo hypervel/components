@@ -406,6 +406,14 @@ class Factory implements FactoryContract
     }
 
     /**
+     * Execute the given callback with a temporary namespace hint.
+     */
+    public function scopedNamespace(string $namespace, string|array $hints, Closure $callback): mixed
+    {
+        return $this->finder->scopedNamespace($namespace, $hints, $callback);
+    }
+
+    /**
      * Register a valid view extension and its engine.
      */
     public function addExtension(string $extension, string $engine, ?Closure $resolver = null): void
