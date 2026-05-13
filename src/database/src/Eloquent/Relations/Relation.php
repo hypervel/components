@@ -496,6 +496,17 @@ abstract class Relation implements BuilderContract
     }
 
     /**
+     * Flush the relation's global state.
+     */
+    public static function flushState(): void
+    {
+        static::$morphMap = [];
+        static::$requireMorphMap = false;
+        static::$selfJoinCount = 0;
+        static::flushMacros();
+    }
+
+    /**
      * Handle dynamic method calls to the relationship.
      */
     public function __call(string $method, array $parameters): mixed
@@ -513,16 +524,5 @@ abstract class Relation implements BuilderContract
     public function __clone(): void
     {
         $this->query = clone $this->query;
-    }
-
-    /**
-     * Flush the relation's global state.
-     */
-    public static function flushState(): void
-    {
-        static::$morphMap = [];
-        static::$requireMorphMap = false;
-        static::$selfJoinCount = 0;
-        static::flushMacros();
     }
 }
