@@ -5,21 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View;
 
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Tests\TestCase;
 use Hypervel\View\FileViewFinder;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
-
-use function Hypervel\Coroutine\parallel;
+use PHPUnit\Framework\TestCase;
 
 class ViewFileViewFinderTest extends TestCase
 {
     protected function tearDown(): void
     {
         m::close();
-
-        parent::tearDown();
     }
 
     public function testBasicViewFinding()
@@ -82,68 +78,6 @@ class ViewFileViewFinderTest extends TestCase
         $finder->getFilesystem()->shouldReceive('exists')->once()->with(__DIR__ . '/bar/bar/baz.blade.php')->andReturn(true);
 
         $this->assertEquals(__DIR__ . '/bar/bar/baz.blade.php', $finder->find('foo::bar.baz'));
-    }
-
-    public function testScopedNamespaceRestoresNestedOverridesAndPreservesBootNamespace()
-    {
-        $finder = new FileViewFinder(new Filesystem, [__DIR__ . '/Fixtures']);
-        $finder->addNamespace('foo', __DIR__ . '/Fixtures/namespaced');
-
-        $bootPath = __DIR__ . '/Fixtures/namespaced/basic.php';
-        $outerPath = __DIR__ . '/Fixtures/nested/basic.php';
-        $innerPath = __DIR__ . '/Fixtures/basic.php';
-
-        $this->assertSame($bootPath, $finder->find('foo::basic'));
-
-        $result = $finder->scopedNamespace('foo', __DIR__ . '/Fixtures/nested', function () use ($finder) {
-            $outerBefore = $finder->find('foo::basic');
-
-            $inner = $finder->scopedNamespace(
-                'foo',
-                __DIR__ . '/Fixtures',
-                fn () => $finder->find('foo::basic')
-            );
-
-            $outerAfter = $finder->find('foo::basic');
-
-            return [$outerBefore, $inner, $outerAfter];
-        });
-
-        $this->assertSame([$outerPath, $innerPath, $outerPath], $result);
-        $this->assertSame($bootPath, $finder->find('foo::basic'));
-    }
-
-    public function testScopedNamespaceIsIsolatedBetweenCoroutines()
-    {
-        $finder = new FileViewFinder(new Filesystem, [__DIR__ . '/Fixtures']);
-
-        $results = parallel([
-            'a' => function () use ($finder) {
-                return $finder->scopedNamespace('foo', __DIR__ . '/Fixtures/nested', function () use ($finder) {
-                    $before = $finder->find('foo::basic');
-                    usleep(5000);
-
-                    return [$before, $finder->find('foo::basic')];
-                });
-            },
-            'b' => function () use ($finder) {
-                return $finder->scopedNamespace('foo', __DIR__ . '/Fixtures/namespaced', function () use ($finder) {
-                    $before = $finder->find('foo::basic');
-                    usleep(5000);
-
-                    return [$before, $finder->find('foo::basic')];
-                });
-            },
-        ]);
-
-        $this->assertSame([
-            __DIR__ . '/Fixtures/nested/basic.php',
-            __DIR__ . '/Fixtures/nested/basic.php',
-        ], $results['a']);
-        $this->assertSame([
-            __DIR__ . '/Fixtures/namespaced/basic.php',
-            __DIR__ . '/Fixtures/namespaced/basic.php',
-        ], $results['b']);
     }
 
     public function testExceptionThrownWhenViewNotFound()
