@@ -85,9 +85,10 @@ class MailChannel
      */
     protected function buildMarkdownHtml(MailMessage $message): Closure
     {
-        return fn ($data) => $this->markdownRenderer($message)->render(
+        return fn ($data) => $this->markdown->render(
             $message->markdown,
             array_merge($data, $message->data()),
+            theme: $this->markdownTheme($message)
         );
     }
 
@@ -96,23 +97,21 @@ class MailChannel
      */
     protected function buildMarkdownText(MailMessage $message): Closure
     {
-        return fn ($data) => $this->markdownRenderer($message)->renderText(
+        return fn ($data) => $this->markdown->renderText(
             $message->markdown,
             array_merge($data, $message->data()),
         );
     }
 
     /**
-     * Get the Markdown implementation.
+     * Resolve the Markdown theme for the notification.
      */
-    protected function markdownRenderer(MailMessage $message): Markdown
+    protected function markdownTheme(MailMessage $message): string
     {
         $config = Container::getInstance()
             ->make('config');
 
-        $theme = $message->theme ?? $config->get('mail.markdown.theme', 'default');
-
-        return $this->markdown->theme($theme);
+        return $message->theme ?? $config->get('mail.markdown.theme', 'default');
     }
 
     /**
