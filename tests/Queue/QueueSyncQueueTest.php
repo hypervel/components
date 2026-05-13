@@ -17,6 +17,7 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Events\Dispatcher as EventsDispatcher;
+use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Queue\SyncQueue;
@@ -26,6 +27,15 @@ use PHPUnit\Framework\TestCase;
 
 class QueueSyncQueueTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (! class_exists('Illuminate\Queue\CallQueuedHandler', autoload: false)) {
+            class_alias(CallQueuedHandler::class, 'Illuminate\Queue\CallQueuedHandler');
+        }
+    }
+
     protected function tearDown(): void
     {
         SyncQueue::createPayloadUsing(null);

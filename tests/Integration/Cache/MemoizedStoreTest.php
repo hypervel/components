@@ -13,6 +13,7 @@ use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
@@ -511,5 +512,58 @@ class MemoizedStoreTest extends TestCase
         $restoredLock = Cache::memo()->restoreLock('foo', $owner);
 
         $this->assertSame($owner, $restoredLock->owner());
+    }
+
+    public function testNullSentinelRoundTripsThroughMemoizedStoreIntegration()
+    {
+        $count = 0;
+        $result1 = Cache::memo()->rememberNullable('k', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+        $result2 = Cache::memo()->rememberNullable('k', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+
+        $this->assertNull($result1);
+        $this->assertNull($result2);
+        $this->assertSame(1, $count, 'Callback runs once — sentinel is served from memo on the second call');
+
+        // Raw inner-store access confirms the sentinel landed in the underlying store.
+        $this->assertSame(NullSentinel::VALUE, Cache::getStore()->get('k'));
+    }
+
+    public function testPlainRememberTreatsCachedSentinelAsHitThroughRealMemoizedStack()
+    {
+        Cache::memo()->rememberNullable('k', 60, fn () => null);
+
+        // Plain remember on the sentinel-stored key via the memoized stack: without
+        // RawReadable on MemoizedStore, the inner Repository would unwrap the sentinel
+        // early and this remember() would loop forever.
+        $invoked = false;
+        $result = Cache::memo()->remember('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testPlainFlexibleTreatsCachedSentinelAsHitThroughRealMemoizedStack()
+    {
+        Cache::memo()->flexibleNullable('k', [60, 120], fn () => null);
+
+        // Plain flexible() reads via manyRaw() — must see the sentinel across the memo
+        // layer and return null without re-running or triggering a background refresh.
+        $invoked = false;
+        $result = Cache::memo()->flexible('k', [60, 120], function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
     }
 }

@@ -12,12 +12,12 @@ use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\Factory as FactoryContract;
 use Hypervel\Contracts\View\View as ViewContract;
 use Hypervel\Support\HtmlString;
+use Hypervel\Tests\TestCase;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentSlot;
 use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 class ComponentTest extends TestCase
 {
@@ -163,6 +163,20 @@ class ComponentTest extends TestCase
         $component = TestInlineViewComponentWithContainerDependenciesAndProps::resolve(['content' => 'foo']);
         $this->assertSame($this->viewFactory, $component->dependency);
         $this->assertSame('foo', $component->render());
+    }
+
+    public function testResolveReturnsFreshInstancesAcrossCalls()
+    {
+        // Components capture per-render state in their constructors, so resolve()
+        // must hand back a fresh instance every time — even when the constructor
+        // has parameters with defaults and no data is supplied.
+        TestStatefulInlineComponent::$constructed = 0;
+
+        $first = TestStatefulInlineComponent::resolve([]);
+        $second = TestStatefulInlineComponent::resolve([]);
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame(2, TestStatefulInlineComponent::$constructed);
     }
 
     public function testResolveComponentsUsing()
@@ -401,6 +415,21 @@ class TestInlineViewComponentWithoutDependencies extends Component
     public function render(): ViewContract|Htmlable|Closure|string
     {
         return 'alert';
+    }
+}
+
+class TestStatefulInlineComponent extends Component
+{
+    public static int $constructed = 0;
+
+    public function __construct(public string $title = 'foo')
+    {
+        ++self::$constructed;
+    }
+
+    public function render(): ViewContract|Htmlable|Closure|string
+    {
+        return '';
     }
 }
 

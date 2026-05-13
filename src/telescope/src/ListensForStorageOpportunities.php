@@ -28,6 +28,9 @@ trait ListensForStorageOpportunities
 
     /**
      * Register listeners that store the recorded Telescope entries.
+     *
+     * Boot-only. Registers worker-lifetime event listeners; runtime use would
+     * accumulate duplicate listeners for every subsequent request/job.
      */
     public static function listenForStorageOpportunities(Container $app): void
     {
@@ -38,6 +41,9 @@ trait ListensForStorageOpportunities
 
     /**
      * Set the callback that determines if Telescope should start recording.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and is checked before every Telescope recording opportunity.
      */
     public static function shouldListenUsing(?Closure $callback): void
     {
@@ -58,6 +64,9 @@ trait ListensForStorageOpportunities
 
     /**
      * Record the entries in queue before the request termination.
+     *
+     * Boot-only. Registers a worker-lifetime request listener; runtime use
+     * would accumulate duplicate listeners.
      */
     public static function recordEntriesForRequests(Container $app): void
     {
@@ -73,6 +82,9 @@ trait ListensForStorageOpportunities
 
     /**
      * Manage starting and stopping the recording state for commands.
+     *
+     * Boot-only. Registers a worker-lifetime command listener; runtime use
+     * would accumulate duplicate listeners.
      */
     public static function manageRecordingStateForCommands(Container $app): void
     {

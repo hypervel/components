@@ -68,6 +68,10 @@ class Hub implements HubContract
 
     /**
      * Set the container instance used by the hub.
+     *
+     * Tests only. Swaps the container on the singleton Hub used by every
+     * coroutine; per-request use races across coroutines and breaks every
+     * concurrent pipeline dispatch.
      */
     public function setContainer(Container $container): static
     {

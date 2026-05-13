@@ -318,6 +318,9 @@ class Sleep
 
     /**
      * Stay awake and capture any attempts to sleep.
+     *
+     * Tests only. Sleep fakes persist in static state for the worker lifetime
+     * and affect every subsequent sleep call.
      */
     public static function fake(bool $value = true, bool $syncWithCarbon = false): void
     {
@@ -446,6 +449,9 @@ class Sleep
 
     /**
      * Specify a callback that should be invoked when faking sleep within a test.
+     *
+     * Tests only. The callback persists in static state for the worker lifetime
+     * and runs for every subsequent faked sleep.
      */
     public static function whenFakingSleep(callable $callback): void
     {
@@ -454,6 +460,9 @@ class Sleep
 
     /**
      * Indicate that Carbon's "now" should be kept in sync when sleeping.
+     *
+     * Tests only. The flag persists in static state for the worker lifetime and
+     * affects every subsequent faked sleep.
      */
     public static function syncWithCarbon(bool $value = true): void
     {
@@ -462,6 +471,9 @@ class Sleep
 
     /**
      * Flush all sleep state back to defaults.
+     *
+     * Tests only. Clears worker-wide sleep fake state used by subsequent sleep
+     * calls.
      */
     public static function flushState(): void
     {

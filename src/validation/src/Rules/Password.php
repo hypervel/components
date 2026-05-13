@@ -114,6 +114,10 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
      *
      * If no arguments are passed, the default password rule configuration will be returned.
      *
+     * Boot-only when setting. The default callback persists in a static
+     * property for the worker lifetime and is used by every Password::default()
+     * call across all coroutines.
+     *
      * @param null|callable|static $callback
      */
     public static function defaults(mixed $callback = null): ?static

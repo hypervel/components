@@ -98,6 +98,9 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
 
     /**
      * Use the given callback to resolve master supervisor names.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every master-name lookup.
      */
     public static function determineNameUsing(Closure $callback): void
     {

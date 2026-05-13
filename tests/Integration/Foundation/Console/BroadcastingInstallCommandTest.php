@@ -322,30 +322,26 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame(1, substr_count($appJsContent, './echo'));
     }
 
-    public function testInjectsEchoConfigIntoVueAppJs()
+    public function testVueAppsUseStandardEchoConfiguration()
     {
         Process::fake();
 
         $this->createdFiles[] = $this->app->basePath('routes/channels.php');
+        $this->createdFiles[] = $this->app->resourcePath('js/echo.js');
 
         // Create a package.json that declares Vue as a dependency.
         $packageJsonPath = $this->app->basePath('package.json');
         file_put_contents($packageJsonPath, json_encode(['dependencies' => ['vue' => '^3.0']]));
         $this->createdFiles[] = $packageJsonPath;
 
-        // resources/js/app.js already exists from setUp (the second candidate — app.ts does NOT exist).
-        // This is the exact scenario the Arr::first fix addresses.
-
         $this->artisan('install:broadcasting', ['--reverb' => true, '--without-reverb' => true, '--without-node' => true])
-            ->expectsOutputToContain('Echo configuration added to [app.js].')
             ->assertSuccessful();
 
         $appJsContent = file_get_contents($this->app->resourcePath('js/app.js'));
-        $this->assertStringContainsString("import { configureEcho } from '@laravel/echo-vue'", $appJsContent);
-        $this->assertStringContainsString("broadcaster: 'reverb'", $appJsContent);
+        $this->assertStringContainsString("import './echo'", $appJsContent);
+        $this->assertStringNotContainsString('@laravel/echo-vue', $appJsContent);
 
-        // Framework-specific path should NOT create echo.js.
-        $this->assertFileDoesNotExist($this->app->resourcePath('js/echo.js'));
+        $this->assertFileExists($this->app->resourcePath('js/echo.js'));
     }
 
     public function testInjectsEchoConfigIntoReactAppJsx()

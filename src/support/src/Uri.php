@@ -382,6 +382,9 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
 
     /**
      * Set the URL generator resolver.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and is used by every subsequent URI route/action helper.
      */
     public static function setUrlGeneratorResolver(Closure $urlGeneratorResolver): void
     {
@@ -414,6 +417,9 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
 
     /**
      * Flush the URI helper's global state.
+     *
+     * Boot or tests only. Clears worker-wide URI resolver and macro state used
+     * by every subsequent URI helper call.
      */
     public static function flushState(): void
     {

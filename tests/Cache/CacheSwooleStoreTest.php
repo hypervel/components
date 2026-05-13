@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
+use Hypervel\Cache\NullSentinel;
+use Hypervel\Cache\Repository;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Contracts\Container\Container;
@@ -88,6 +90,27 @@ class CacheSwooleStoreTest extends TestCase
         $store->put('foo', 'bar', 5);
 
         $this->assertEquals('bar', $store->get('foo'));
+    }
+
+    public function testNullSentinelRoundTripsThroughSwooleStore()
+    {
+        $store = $this->createStore($this->createSwooleTable());
+        $repo = new Repository($store);
+
+        $repo->rememberNullable('k', 60, fn () => null);
+
+        // Raw store-level access: the sentinel survives Swoole Table serialize/unserialize.
+        $this->assertSame(NullSentinel::VALUE, $store->get('k'));
+        $this->assertNull($repo->get('k'));
+
+        $invoked = false;
+        $result = $repo->rememberNullable('k', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
     }
 
     public function testPutManyStoresValueInTable()

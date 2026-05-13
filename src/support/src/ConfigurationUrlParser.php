@@ -156,6 +156,9 @@ class ConfigurationUrlParser
 
     /**
      * Add the given driver alias to the driver aliases array.
+     *
+     * Boot-only. Driver aliases persist in a static property for the worker
+     * lifetime and apply to every subsequent configuration URL parse.
      */
     public static function addDriverAlias(string $alias, string $driver): void
     {

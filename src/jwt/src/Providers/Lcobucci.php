@@ -167,6 +167,19 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
+     * Rebuild cached derived state after a configuration change.
+     *
+     * Signer is rebuilt before config because buildConfig() reads $this->signer.
+     *
+     * @throws \Hypervel\JWT\Exceptions\JWTException
+     */
+    protected function onConfigurationChanged(): void
+    {
+        $this->signer = $this->getSigner();
+        $this->config = $this->buildConfig();
+    }
+
+    /**
      * Get the signer instance.
      *
      * @throws \Hypervel\JWT\Exceptions\JWTException

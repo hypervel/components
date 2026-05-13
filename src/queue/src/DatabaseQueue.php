@@ -37,7 +37,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
         protected string $table,
         protected string $default = 'default',
         protected ?int $retryAfter = 60,
-        protected ?bool $dispatchAfterCommit = false
+        protected bool $dispatchAfterCommit = false
     ) {
     }
 

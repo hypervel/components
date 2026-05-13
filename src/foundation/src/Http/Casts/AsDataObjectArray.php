@@ -50,22 +50,6 @@ class AsDataObjectArray implements Castable
                     array_map(fn ($item) => $dataClass::make($item), $value)
                 );
             }
-
-            public function set(string $key, mixed $value, array $inputs): array
-            {
-                if ($value === null) {
-                    return [$key => null];
-                }
-
-                $storable = array_map(function ($item) {
-                    if (method_exists($item, 'toArray')) {
-                        return $item->toArray();
-                    }
-                    return $item;
-                }, (array) $value);
-
-                return [$key => $storable];
-            }
         };
     }
 }

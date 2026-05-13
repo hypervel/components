@@ -86,6 +86,9 @@ class ResetPassword extends Notification
     /**
      * Set a callback that should be used when creating the reset password button URL.
      *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every reset-password notification.
+     *
      * @param Closure(mixed, string): string $callback
      */
     public static function createUrlUsing(Closure $callback): void
@@ -95,6 +98,9 @@ class ResetPassword extends Notification
 
     /**
      * Set a callback that should be used when building the notification mail message.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every reset-password notification.
      *
      * @param Closure(mixed, string): MailMessage $callback
      */

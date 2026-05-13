@@ -40,6 +40,9 @@ class PoolManager implements FactoryContract
 
     /**
      * Create and register a new object pool.
+     *
+     * Boot-only. Pools persist on the singleton PoolManager for the worker
+     * lifetime and are shared by every coroutine.
      */
     public function create(string $name, callable $callback, array $options = []): ObjectPool
     {
@@ -66,6 +69,9 @@ class PoolManager implements FactoryContract
 
     /**
      * Set a pool to the manager.
+     *
+     * Boot or tests only. Replaces a pool on the singleton PoolManager;
+     * concurrent coroutines may already hold a reference to the prior pool.
      */
     public function set(string $name, ObjectPool $pool): static
     {
@@ -76,6 +82,9 @@ class PoolManager implements FactoryContract
 
     /**
      * Set multiple pools the manager.
+     *
+     * Boot or tests only. Delegates to set() for each pool, mutating the
+     * singleton PoolManager shared by every coroutine.
      */
     public function setPools(array $pools): static
     {
@@ -96,6 +105,9 @@ class PoolManager implements FactoryContract
 
     /**
      * Remove a pool from the manager.
+     *
+     * Boot or tests only. Removes a pool from the singleton PoolManager;
+     * concurrent coroutines may already hold a reference to the removed pool.
      */
     public function remove(string $name): static
     {
@@ -106,6 +118,9 @@ class PoolManager implements FactoryContract
 
     /**
      * Flush all pools.
+     *
+     * Boot or tests only. Clears the singleton PoolManager registry; concurrent
+     * coroutines may already hold pool references that next lookup cannot find.
      */
     public function flush(): static
     {

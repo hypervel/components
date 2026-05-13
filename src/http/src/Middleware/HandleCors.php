@@ -18,24 +18,25 @@ class HandleCors
     protected Container $container;
 
     /**
-     * The CORS service instance.
+     * The closure used to resolve CORS configuration for the current request.
+     *
+     * @var null|Closure(Request): array
      */
-    protected CorsService $cors;
+    protected static ?Closure $configResolver = null;
 
     /**
      * All of the registered skip callbacks.
      *
-     * @var array<int, Closure(\Hypervel\Http\Request): bool>
+     * @var array<int, Closure(Request): bool>
      */
     protected static array $skipCallbacks = [];
 
     /**
      * Create a new middleware instance.
      */
-    public function __construct(Container $container, CorsService $cors)
+    public function __construct(Container $container)
     {
         $this->container = $container;
-        $this->cors = $cors;
     }
 
     /**
@@ -53,12 +54,16 @@ class HandleCors
             return $next($request);
         }
 
-        $this->cors->setOptions($this->container['config']->get('cors', []));
+        $config = static::$configResolver !== null
+            ? (static::$configResolver)($request)
+            : $this->container['config']->get('cors', []);
 
-        if ($this->cors->isPreflightRequest($request)) {
-            $response = $this->cors->handlePreflightRequest($request);
+        $cors = new CorsService($config);
 
-            $this->cors->varyHeader($response, 'Access-Control-Request-Method');
+        if ($cors->isPreflightRequest($request)) {
+            $response = $cors->handlePreflightRequest($request);
+
+            $cors->varyHeader($response, 'Access-Control-Request-Method');
 
             return $response;
         }
@@ -66,10 +71,10 @@ class HandleCors
         $response = $next($request);
 
         if ($request->getMethod() === 'OPTIONS') {
-            $this->cors->varyHeader($response, 'Access-Control-Request-Method');
+            $cors->varyHeader($response, 'Access-Control-Request-Method');
         }
 
-        return $this->cors->addActualRequestHeaders($response, $request);
+        return $cors->addActualRequestHeaders($response, $request);
     }
 
     /**
@@ -109,7 +114,24 @@ class HandleCors
     }
 
     /**
+     * Register a closure that resolves CORS configuration for the current request.
+     *
+     * Boot-only. The closure receives the current request and returns the CORS
+     * options array; useful for multi-tenant CORS where the config varies by
+     * host or other request data. Persists for the worker lifetime.
+     *
+     * @param null|Closure(Request): array $callback
+     */
+    public static function resolveConfigUsing(?Closure $callback): void
+    {
+        static::$configResolver = $callback;
+    }
+
+    /**
      * Register a callback that instructs the middleware to be skipped.
+     *
+     * Boot-only. Skip callbacks persist for the worker lifetime and run on
+     * every subsequent request.
      */
     public static function skipWhen(Closure $callback): void
     {
@@ -121,6 +143,7 @@ class HandleCors
      */
     public static function flushState(): void
     {
+        static::$configResolver = null;
         static::$skipCallbacks = [];
     }
 }

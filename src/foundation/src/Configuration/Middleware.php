@@ -344,6 +344,7 @@ class Middleware
             $this->trustHosts ? \Hypervel\Http\Middleware\TrustHosts::class : null,
             \Hypervel\Http\Middleware\TrustProxies::class,
             \Hypervel\Http\Middleware\HandleCors::class,
+            \Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class,
             \Hypervel\Http\Middleware\ValidatePostSize::class,
             \Hypervel\Foundation\Http\Middleware\TrimStrings::class,
             \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
@@ -650,12 +651,16 @@ class Middleware
     {
         return [
             'auth' => \Hypervel\Auth\Middleware\Authenticate::class,
+            'auth.basic' => \Hypervel\Auth\Middleware\AuthenticateWithBasicAuth::class,
             'auth.session' => \Hypervel\Session\Middleware\AuthenticateSession::class,
             'cache.headers' => \Hypervel\Http\Middleware\SetCacheHeaders::class,
             'can' => \Hypervel\Auth\Middleware\Authorize::class,
+            'guest' => \Hypervel\Auth\Middleware\RedirectIfAuthenticated::class,
+            'password.confirm' => \Hypervel\Auth\Middleware\RequirePassword::class,
             'precognitive' => \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
             'signed' => \Hypervel\Routing\Middleware\ValidateSignature::class,
             'throttle' => \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            'verified' => \Hypervel\Auth\Middleware\EnsureEmailIsVerified::class,
         ];
     }
 

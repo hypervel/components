@@ -131,6 +131,9 @@ class DB extends Facade
      * Indicate that destructive Artisan commands should be prohibited.
      *
      * Prohibits: db:wipe, migrate:fresh, migrate:refresh, migrate:reset, and migrate:rollback
+     *
+     * Boot-only. The prohibition flags persist in static command state for the
+     * worker lifetime and affect every subsequent destructive database command.
      */
     public static function prohibitDestructiveCommands(bool $prohibit = true): void
     {

@@ -194,6 +194,10 @@ class LoadConfiguration
     /**
      * Set a callback to return the permanent, static configuration values.
      *
+     * Boot-only. The callback persists in a static property used during the
+     * LoadConfiguration bootstrapper; runtime use has no effect on already-
+     * loaded config.
+     *
      * @param null|(Closure(Application): array<array-key, mixed>) $alwaysUseConfig
      */
     public static function alwaysUse(?Closure $alwaysUseConfig): void

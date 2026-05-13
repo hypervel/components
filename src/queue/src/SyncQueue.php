@@ -6,11 +6,8 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Bus\UniqueLock;
-use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
-use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobProcessed;
@@ -24,7 +21,7 @@ class SyncQueue extends Queue implements QueueContract
      * Create a new sync queue instance.
      */
     public function __construct(
-        protected ?bool $dispatchAfterCommit = false
+        protected bool $dispatchAfterCommit = false
     ) {
     }
 
@@ -78,13 +75,7 @@ class SyncQueue extends Queue implements QueueContract
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
-            if ($job instanceof ShouldBeUnique) {
-                $this->container->make('db.transactions')->addCallbackForRollback(
-                    function () use ($job) {
-                        (new UniqueLock($this->container->make(Cache::class)))->release($job);
-                    }
-                );
-            }
+            $this->addUniqueJobRollbackCallback($job);
 
             return $this->container->make('db.transactions')
                 ->addCallback(

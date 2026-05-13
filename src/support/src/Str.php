@@ -891,6 +891,9 @@ class Str
     /**
      * Set the callable that will be used to generate random strings.
      *
+     * Tests only. The factory persists in a static property for the worker
+     * lifetime and affects every subsequent random string generation.
+     *
      * @param null|(callable(int): string) $factory
      */
     public static function createRandomStringsUsing(?callable $factory = null): void
@@ -900,6 +903,9 @@ class Str
 
     /**
      * Set the sequence that will be used to generate random strings.
+     *
+     * Tests only. The sequence factory persists in a static property for the
+     * worker lifetime and affects every subsequent random string generation.
      *
      * @param string[] $sequence
      * @param null|(callable(int): string) $whenMissing
@@ -933,6 +939,10 @@ class Str
 
     /**
      * Indicate that random strings should be created normally and not using a custom factory.
+     *
+     * Tests only. Clears the worker-wide random string factory; concurrent
+     * coroutines may observe different random string behavior depending on
+     * timing.
      */
     public static function createRandomStringsNormally(): void
     {
@@ -1578,6 +1588,9 @@ class Str
     /**
      * Set the callable that will be used to generate UUIDs.
      *
+     * Tests only. The factory persists in a static property for the worker
+     * lifetime and affects every subsequent UUID generation.
+     *
      * @param null|(callable(): Uuid) $factory
      */
     public static function createUuidsUsing(?callable $factory = null): void
@@ -1587,6 +1600,9 @@ class Str
 
     /**
      * Set the sequence that will be used to generate UUIDs.
+     *
+     * Tests only. The sequence factory persists in a static property for the
+     * worker lifetime and affects every subsequent UUID generation.
      *
      * @param Uuid[] $sequence
      * @param null|(callable(): Uuid) $whenMissing
@@ -1621,6 +1637,10 @@ class Str
     /**
      * Always return the same UUID when generating new UUIDs.
      *
+     * Tests only unless a callback is supplied. Without a callback, the factory
+     * persists in a static property for the worker lifetime and affects every
+     * subsequent UUID generation.
+     *
      * @param null|(Closure(Uuid): mixed) $callback
      */
     public static function freezeUuids(?Closure $callback = null): Uuid
@@ -1642,6 +1662,9 @@ class Str
 
     /**
      * Indicate that UUIDs should be created normally and not using a custom factory.
+     *
+     * Tests only. Clears the worker-wide UUID factory; concurrent coroutines
+     * may observe different UUID behavior depending on timing.
      */
     public static function createUuidsNormally(): void
     {
@@ -1666,6 +1689,9 @@ class Str
 
     /**
      * Indicate that ULIDs should be created normally and not using a custom factory.
+     *
+     * Tests only. Clears the worker-wide ULID factory; concurrent coroutines
+     * may observe different ULID behavior depending on timing.
      */
     public static function createUlidsNormally(): void
     {
@@ -1674,6 +1700,9 @@ class Str
 
     /**
      * Set the callable that will be used to generate ULIDs.
+     *
+     * Tests only. The factory persists in a static property for the worker
+     * lifetime and affects every subsequent ULID generation.
      *
      * @param null|(callable(): Ulid) $factory
      */
@@ -1684,6 +1713,9 @@ class Str
 
     /**
      * Set the sequence that will be used to generate ULIDs.
+     *
+     * Tests only. The sequence factory persists in a static property for the
+     * worker lifetime and affects every subsequent ULID generation.
      *
      * @param Ulid[] $sequence
      * @param null|(callable(): Ulid) $whenMissing

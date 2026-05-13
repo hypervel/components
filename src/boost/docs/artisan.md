@@ -1,11 +1,14 @@
 # Artisan Console
 
 - [Introduction](#introduction)
+    - [Hypervel Sail](#hypervel-sail)
     - [Tinker (REPL)](#tinker)
 - [Writing Commands](#writing-commands)
     - [Generating Commands](#generating-commands)
     - [Command Structure](#command-structure)
+        - [Command Attributes](#command-attributes)
     - [Closure Commands](#closure-commands)
+    - [Coroutine Execution](#coroutine-execution)
     - [Isolatable Commands](#isolatable-commands)
 - [Defining Input Expectations](#defining-input-expectations)
     - [Arguments](#arguments)
@@ -27,7 +30,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Artisan is the command line interface included with Laravel. Artisan exists at the root of your application as the `artisan` script and provides a number of helpful commands that can assist you while you build your application. To view a list of all available Artisan commands, you may use the `list` command:
+Artisan is the command line interface included with Hypervel. Artisan exists at the root of your application as the `artisan` script and provides a number of helpful commands that can assist you while you build your application. To view a list of all available Artisan commands, you may use the `list` command:
 
 ```shell
 php artisan list
@@ -39,10 +42,10 @@ Every command also includes a "help" screen which displays and describes the com
 php artisan help migrate
 ```
 
-<a name="laravel-sail"></a>
-#### Laravel Sail
+<a name="hypervel-sail"></a>
+#### Hypervel Sail
 
-If you are using [Laravel Sail](/docs/{{version}}/sail) as your local development environment, remember to use the `sail` command line to invoke Artisan commands. Sail will execute your Artisan commands within your application's Docker containers:
+If you are using [Hypervel Sail](/docs/{{version}}/sail) as your local development environment, remember to use the `sail` command line to invoke Artisan commands. Sail will execute your Artisan commands within your application's Docker containers:
 
 ```shell
 ./vendor/bin/sail artisan list
@@ -51,30 +54,33 @@ If you are using [Laravel Sail](/docs/{{version}}/sail) as your local developmen
 <a name="tinker"></a>
 ### Tinker (REPL)
 
-[Laravel Tinker](https://github.com/laravel/tinker) is a powerful REPL for the Laravel framework, powered by the [PsySH](https://github.com/bobthecow/psysh) package.
+[Hypervel Tinker](https://github.com/hypervel/tinker) is a powerful REPL for the Hypervel framework, powered by the [PsySH](https://github.com/bobthecow/psysh) package.
 
 <a name="installation"></a>
 #### Installation
 
-All Laravel applications include Tinker by default. However, you may install Tinker using Composer if you have previously removed it from your application:
+All Hypervel applications include Tinker by default. However, you may install Tinker using Composer if you have previously removed it from your application:
 
 ```shell
-composer require laravel/tinker
+composer require hypervel/tinker
 ```
-
-> [!NOTE]
-> Looking for hot reloading, multiline code editing, and autocompletion when interacting with your Laravel application? Check out [Tinkerwell](https://tinkerwell.app)!
 
 <a name="usage"></a>
 #### Usage
 
-Tinker allows you to interact with your entire Laravel application on the command line, including your Eloquent models, jobs, events, and more. To enter the Tinker environment, run the `tinker` Artisan command:
+Tinker allows you to interact with your entire Hypervel application on the command line, including your Eloquent models, jobs, events, and more. To enter the Tinker environment, run the `tinker` Artisan command:
 
 ```shell
 php artisan tinker
 ```
 
-You can publish Tinker's configuration file using the `vendor:publish` command:
+You can publish Tinker's configuration file using the `vendor:publish` command and Tinker's publish tag:
+
+```shell
+php artisan vendor:publish --tag=tinker-config
+```
+
+You may also publish the configuration file by provider:
 
 ```shell
 php artisan vendor:publish --provider="Hypervel\Tinker\TinkerServiceProvider"
@@ -82,6 +88,9 @@ php artisan vendor:publish --provider="Hypervel\Tinker\TinkerServiceProvider"
 
 > [!WARNING]
 > The `dispatch` helper function and `dispatch` method on the `Dispatchable` class depend on garbage collection to place the job on the queue. Therefore, when using Tinker, you should use `Bus::dispatch` or `Queue::push` to dispatch jobs.
+
+> [!NOTE]
+> Hypervel Tinker disables PsySH's pcntl support because `pcntl_fork` is incompatible with Swoole's coroutine scheduler.
 
 <a name="command-allow-list"></a>
 #### Command Allow List
@@ -108,7 +117,7 @@ Typically, Tinker automatically aliases classes as you interact with them in Tin
 <a name="writing-commands"></a>
 ## Writing Commands
 
-In addition to the commands provided with Artisan, you may build your own custom commands. Commands are typically stored in the `app/Console/Commands` directory; however, you are free to choose your own storage location as long as you instruct Laravel to [scan other directories for Artisan commands](#registering-commands).
+In addition to the commands provided with Artisan, you may build your own custom commands. Commands are typically stored in the `app/Console/Commands` directory; however, you are free to choose your own storage location as long as you instruct Hypervel to [scan other directories for Artisan commands](#registering-commands).
 
 <a name="generating-commands"></a>
 ### Generating Commands
@@ -122,9 +131,9 @@ php artisan make:command SendEmails
 <a name="command-structure"></a>
 ### Command Structure
 
-After generating your command, you should define the command's signature and description using the `Signature` and `Description` attributes. The `Signature` attribute also allows you to define [your command's input expectations](#defining-input-expectations). The `handle` method will be called when your command is executed. You may place your command logic in this method.
+After generating your command, you should define the command's signature and description using the `$signature` and `$description` properties. The `$signature` property also allows you to define [your command's input expectations](#defining-input-expectations). Generated commands use properties because they keep longer command signatures easy to read and edit. The `handle` method will be called when your command is executed. You may place your command logic in this method.
 
-Let's take a look at an example command. Note that we are able to request any dependencies we need via the command's `handle` method. The Laravel [service container](/docs/{{version}}/container) will automatically inject all dependencies that are type-hinted in this method's signature:
+Let's take a look at an example command. Note that we are able to request any dependencies we need via the command's `handle` method. The Hypervel [service container](/docs/{{version}}/container) will automatically inject all dependencies that are type-hinted in this method's signature:
 
 ```php
 <?php
@@ -133,14 +142,25 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Support\DripEmailer;
-use Hypervel\Console\Attributes\Description;
-use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Command;
 
-#[Signature('mail:send {user}')]
-#[Description('Send a marketing email to a user')]
 class SendEmails extends Command
 {
+    /**
+     * The name and signature of the console command.
+     */
+    protected ?string $signature = 'mail:send {user}';
+
+    /**
+     * The console command description.
+     */
+    protected string $description = 'Send a marketing email to a user';
+
+    /**
+     * The console command name aliases.
+     */
+    protected array $aliases = ['mail:drip'];
+
     /**
      * Execute the console command.
      */
@@ -151,8 +171,28 @@ class SendEmails extends Command
 }
 ```
 
+You may define command aliases using the `$aliases` property. If you would like to hide a command from the command list while keeping it executable, define a `$hidden` property with a value of `true`.
+
 > [!NOTE]
 > For greater code reuse, it is good practice to keep your console commands light and let them defer to application services to accomplish their tasks. In the example above, note that we inject a service class to do the "heavy lifting" of sending the e-mails.
+
+<a name="command-attributes"></a>
+#### Command Attributes
+
+Hypervel also supports the `Signature` and `Description` attributes if you prefer to define command metadata above the class:
+
+```php
+use Hypervel\Console\Attributes\Description;
+use Hypervel\Console\Attributes\Signature;
+use Hypervel\Console\Command;
+
+#[Signature('mail:send {user}')]
+#[Description('Send a marketing email to a user')]
+class SendEmails extends Command
+{
+    // ...
+}
+```
 
 <a name="exit-codes"></a>
 #### Exit Codes
@@ -179,6 +219,8 @@ Closure-based commands provide an alternative to defining console commands as cl
 Even though the `routes/console.php` file does not define HTTP routes, it defines console-based entry points (routes) into your application. Within this file, you may define all of your closure-based console commands using the `Artisan::command` method. The `command` method accepts two arguments: the [command signature](#defining-input-expectations) and a closure which receives the command's arguments and options:
 
 ```php
+use Hypervel\Support\Facades\Artisan;
+
 Artisan::command('mail:send {user}', function (string $user) {
     $this->info("Sending email to: {$user}!");
 });
@@ -212,11 +254,36 @@ Artisan::command('mail:send {user}', function (string $user) {
 })->purpose('Send a marketing email to a user');
 ```
 
+The `describe` method is also available as an alias for `purpose`.
+
+<a name="coroutine-execution"></a>
+### Coroutine Execution
+
+Hypervel runs console commands inside a Swoole coroutine by default, so blocking I/O operations can benefit from Swoole's hooks. Most commands do not need to change this behavior.
+
+If a command must run outside a coroutine, define a `$coroutine` property with a value of `false`:
+
+```php
+/**
+ * Determine if the command should run in a coroutine.
+ */
+protected bool $coroutine = false;
+```
+
+You may also customize the Swoole hook flags used when the command coroutine is created:
+
+```php
+/**
+ * The hook flags for the command coroutine.
+ */
+protected int $hookFlags = SWOOLE_HOOK_ALL & ~SWOOLE_HOOK_CURL;
+```
+
 <a name="isolatable-commands"></a>
 ### Isolatable Commands
 
 > [!WARNING]
-> To utilize this feature, your application must be using the `memcached`, `redis`, `dynamodb`, `database`, `file`, or `array` cache driver as your application's default cache driver. In addition, all servers must be communicating with the same central cache server.
+> To use this feature across multiple processes or servers, your application should use a shared cache store such as `redis` or `database`. The `file` and `array` stores can coordinate commands only within the same filesystem or process.
 
 Sometimes you may wish to ensure that only one instance of a command can run at a time. To accomplish this, you may implement the `Hypervel\Contracts\Console\Isolatable` interface on your command class:
 
@@ -234,7 +301,7 @@ class SendEmails extends Command implements Isolatable
 }
 ```
 
-When you mark a command as `Isolatable`, Laravel automatically makes the `--isolated` option available for the command without needing to explicitly define it in the command's options. When the command is invoked with that option, Laravel will ensure that no other instances of that command are already running. Laravel accomplishes this by attempting to acquire an atomic lock using your application's default cache driver. If other instances of the command are running, the command will not execute; however, the command will still exit with a successful exit status code:
+When you mark a command as `Isolatable`, Hypervel automatically makes the `--isolated` option available for the command without needing to explicitly define it in the command's options. When the command is invoked with that option, Hypervel will ensure that no other instances of that command are already running. Hypervel accomplishes this by attempting to acquire an atomic lock using your application's default cache driver. If other instances of the command are running, the command will not execute; however, the command will still exit with a successful exit status code:
 
 ```shell
 php artisan mail:send 1 --isolated
@@ -249,7 +316,7 @@ php artisan mail:send 1 --isolated=12
 <a name="lock-id"></a>
 #### Lock ID
 
-By default, Laravel will use the command's name to generate the string key that is used to acquire the atomic lock in your application's cache. However, you may customize this key by defining an `isolatableId` method on your Artisan command class, allowing you to integrate the command's arguments or options into the key:
+By default, Hypervel will use the command's name to generate the string key that is used to acquire the atomic lock in your application's cache. However, you may customize this key by defining an `isolatableId` method on your Artisan command class, allowing you to integrate the command's arguments or options into the key:
 
 ```php
 /**
@@ -282,7 +349,7 @@ public function isolationLockExpiresAt(): DateTimeInterface|DateInterval
 <a name="defining-input-expectations"></a>
 ## Defining Input Expectations
 
-When writing console commands, it is common to gather input from the user through arguments or options. Laravel makes it very convenient to define the input you expect from the user using the `signature` property on your commands. The `signature` property allows you to define the name, arguments, and options for the command in a single, expressive, route-like syntax.
+When writing console commands, it is common to gather input from the user through arguments or options. Hypervel makes it very convenient to define the input you expect from the user using the `$signature` property on your commands. The `$signature` property allows you to define the name, arguments, and options for the command in a single, expressive, route-like syntax.
 
 <a name="arguments"></a>
 ### Arguments
@@ -292,10 +359,8 @@ All user supplied arguments and options are wrapped in curly braces. In the foll
 ```php
 /**
  * The name and signature of the console command.
- *
- * @var string
  */
-protected $signature = 'mail:send {user}';
+protected ?string $signature = 'mail:send {user}';
 ```
 
 You may also make arguments optional or define default values for arguments:
@@ -316,10 +381,8 @@ Options, like arguments, are another form of user input. Options are prefixed by
 ```php
 /**
  * The name and signature of the console command.
- *
- * @var string
  */
-protected $signature = 'mail:send {user} {--queue}';
+protected ?string $signature = 'mail:send {user} {--queue}';
 ```
 
 In this example, the `--queue` switch may be specified when calling the Artisan command. If the `--queue` switch is passed, the value of the option will be `true`. Otherwise, the value will be `false`:
@@ -336,10 +399,8 @@ Next, let's take a look at an option that expects a value. If the user must spec
 ```php
 /**
  * The name and signature of the console command.
- *
- * @var string
  */
-protected $signature = 'mail:send {user} {--queue=}';
+protected ?string $signature = 'mail:send {user} {--queue=}';
 ```
 
 In this example, the user may pass a value for the option like so. If the option is not specified when invoking the command, its value will be `null`:
@@ -413,10 +474,8 @@ You may assign descriptions to input arguments and options by separating the arg
 ```php
 /**
  * The name and signature of the console command.
- *
- * @var string
  */
-protected $signature = 'mail:send
+protected ?string $signature = 'mail:send
                         {user : The ID of the user}
                         {--queue : Whether the job should be queued}';
 ```
@@ -438,16 +497,14 @@ class SendEmails extends Command implements PromptsForMissingInput
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'mail:send {user}';
+    protected ?string $signature = 'mail:send {user}';
 
     // ...
 }
 ```
 
-If Laravel needs to gather a required argument from the user, it will automatically ask the user for the argument by intelligently phrasing the question using either the argument name or description. If you wish to customize the question used to gather the required argument, you may implement the `promptForMissingArgumentsUsing` method, returning an array of questions keyed by the argument names:
+If Hypervel needs to gather a required argument from the user, it will automatically ask the user for the argument by intelligently phrasing the question using either the argument name or description. If you wish to customize the question used to gather the required argument, you may implement the `promptForMissingArgumentsUsing` method, returning an array of questions keyed by the argument names:
 
 ```php
 /**
@@ -491,7 +548,7 @@ return [
 ```
 
 > [!NOTE]
-The comprehensive [Laravel Prompts](/docs/{{version}}/prompts) documentation includes additional information on the available prompts and their usage.
+> The comprehensive [Hypervel Prompts](/docs/{{version}}/prompts) documentation includes additional information on the available prompts and their usage.
 
 If you wish to prompt the user to select or enter [options](#options), you may include prompts in your command's `handle` method. However, if you only wish to prompt the user when they have also been automatically prompted for missing arguments, then you may implement the `afterPromptingForMissingArguments` method:
 
@@ -552,7 +609,7 @@ $options = $this->options();
 ### Prompting for Input
 
 > [!NOTE]
-> [Laravel Prompts](/docs/{{version}}/prompts) is a PHP package for adding beautiful and user-friendly forms to your command-line applications, with browser-like features including placeholder text and validation.
+> [Hypervel Prompts](/docs/{{version}}/prompts) is a PHP package for adding beautiful and user-friendly forms to your command-line applications, with browser-like features including placeholder text and validation.
 
 In addition to displaying output, you may also ask the user to provide input during the execution of your command. The `ask` method will prompt the user with the given question, accept their input, and then return the user's input back to your command:
 
@@ -688,7 +745,7 @@ $this->newLine(3);
 <a name="tables"></a>
 #### Tables
 
-The `table` method makes it easy to correctly format multiple rows / columns of data. All you need to do is provide the column names and the data for the table and Laravel will automatically calculate the appropriate width and height of the table for you:
+The `table` method makes it easy to correctly format multiple rows / columns of data. All you need to do is provide the column names and the data for the table and Hypervel will automatically calculate the appropriate width and height of the table for you:
 
 ```php
 use App\Models\User;
@@ -702,7 +759,7 @@ $this->table(
 <a name="progress-bars"></a>
 #### Progress Bars
 
-For long running tasks, it can be helpful to show a progress bar that informs users how complete the task is. Using the `withProgressBar` method, Laravel will display a progress bar and advance its progress for each iteration over a given iterable value:
+For long running tasks, it can be helpful to show a progress bar that informs users how complete the task is. Using the `withProgressBar` method, Hypervel will display a progress bar and advance its progress for each iteration over a given iterable value:
 
 ```php
 use App\Models\User;
@@ -736,7 +793,7 @@ $bar->finish();
 <a name="registering-commands"></a>
 ## Registering Commands
 
-By default, Laravel automatically registers all commands within the `app/Console/Commands` directory. However, you can instruct Laravel to scan other directories for Artisan commands using the `withCommands` method in your application's `bootstrap/app.php` file:
+By default, Hypervel automatically registers all commands within the `app/Console/Commands` directory. However, you can instruct Hypervel to scan other directories for Artisan commands using the `withCommands` method in your application's `bootstrap/app.php` file:
 
 ```php
 ->withCommands([
@@ -751,6 +808,14 @@ use App\Domain\Orders\Commands\SendEmails;
 
 ->withCommands([
     SendEmails::class,
+])
+```
+
+You may also pass console route files to the `withCommands` method. Console route files may register closure commands using the `Artisan::command` method:
+
+```php
+->withCommands([
+    __DIR__.'/../routes/console.php',
 ])
 ```
 
@@ -903,4 +968,6 @@ The published stubs will be located within a `stubs` directory in the root of yo
 <a name="events"></a>
 ## Events
 
-Artisan dispatches three events when running commands: `Hypervel\Console\Events\ArtisanStarting`, `Hypervel\Console\Events\CommandStarting`, and `Hypervel\Console\Events\CommandFinished`. The `ArtisanStarting` event is dispatched immediately when Artisan starts running. Next, the `CommandStarting` event is dispatched immediately before a command runs. Finally, the `CommandFinished` event is dispatched once a command finishes executing.
+Artisan dispatches three framework-level events outside the command coroutine: `Hypervel\Console\Events\ArtisanStarting`, `Hypervel\Console\Events\CommandStarting`, and `Hypervel\Console\Events\CommandFinished`. The `ArtisanStarting` event is dispatched immediately when Artisan starts running. Next, the `CommandStarting` event is dispatched immediately before a command runs. Finally, the `CommandFinished` event is dispatched once a command finishes executing.
+
+Hypervel also dispatches command lifecycle events inside the command coroutine, where coroutine context is available: `Hypervel\Console\Events\BeforeHandle`, `Hypervel\Console\Events\AfterHandle`, and `Hypervel\Console\Events\AfterExecute`. The `BeforeHandle` event is dispatched immediately before the command's `handle` method is called. The `AfterHandle` event is dispatched after the `handle` method completes successfully. The `AfterExecute` event is dispatched after execution completes, whether the command succeeded or failed, and receives the thrown exception when one was thrown.

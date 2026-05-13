@@ -358,9 +358,10 @@ class Mailable implements MailableContract, Renderable
      */
     protected function buildMarkdownHtml(array $viewData): Closure
     {
-        return fn ($data) => $this->markdownRenderer()->render(
+        return fn ($data) => Container::getInstance()->make(Markdown::class)->render(
             $this->markdown,
             array_merge($data, $viewData),
+            theme: $this->markdownTheme()
         );
     }
 
@@ -376,7 +377,7 @@ class Mailable implements MailableContract, Renderable
                 ]);
             }
 
-            return $this->textView ?? $this->markdownRenderer()->renderText(
+            return $this->textView ?? Container::getInstance()->make(Markdown::class)->renderText(
                 $this->markdown,
                 array_merge($data, $viewData)
             );
@@ -384,18 +385,14 @@ class Mailable implements MailableContract, Renderable
     }
 
     /**
-     * Resolves a Markdown instance with the mail's theme.
+     * Resolve the Markdown theme for this message.
      */
-    protected function markdownRenderer(): Markdown
+    protected function markdownTheme(): string
     {
-        return tap(Container::getInstance()->make(Markdown::class), function ($markdown) {
-            $markdown->theme(
-                $this->theme ?: Container::getInstance()->make('config')->get(
-                    'mail.markdown.theme',
-                    'default'
-                )
-            );
-        });
+        return $this->theme ?: Container::getInstance()->make('config')->get(
+            'mail.markdown.theme',
+            'default'
+        );
     }
 
     /**
@@ -1566,6 +1563,9 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Register a callback to be called while building the view data.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every Mailable render across all coroutines.
      */
     public static function buildViewDataUsing(callable $callback): void
     {

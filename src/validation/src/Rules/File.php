@@ -78,6 +78,10 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
      *
      * If no arguments are passed, the default file rule configuration will be returned.
      *
+     * Boot-only when setting. The default callback persists in a static
+     * property for the worker lifetime and is used by every File::default()
+     * call across all coroutines.
+     *
      * @param null|callable|static $callback
      */
     public static function defaults(mixed $callback = null): ?static

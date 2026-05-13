@@ -530,7 +530,7 @@ class LogManager implements LoggerInterface
     /**
      * Set the default log driver name.
      *
-     * WARNING: Mutates process-global config. Not safe for per-request use under Swoole.
+     * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
     public function setDefaultDriver(string $name): void
     {
@@ -539,6 +539,9 @@ class LogManager implements LoggerInterface
 
     /**
      * Register a custom driver creator Closure.
+     *
+     * Boot-only. The callback persists in the singleton's customCreators array
+     * for the worker lifetime and applies to every subsequent channel resolution.
      *
      * @return $this
      */
@@ -551,6 +554,10 @@ class LogManager implements LoggerInterface
 
     /**
      * Unset the given channel instance.
+     *
+     * Boot or tests only. Mutates the singleton's channel cache; concurrent
+     * coroutines may already hold a reference to the channel and next
+     * resolution will rebuild with fresh handlers (file handles, etc.).
      */
     public function forgetChannel(?string $driver = null): void
     {
@@ -674,6 +681,10 @@ class LogManager implements LoggerInterface
 
     /**
      * Set the application instance used by the manager.
+     *
+     * Tests only. Swaps the singleton's Application reference; per-request use
+     * races across coroutines and breaks every concurrent request resolving
+     * services through this manager.
      *
      * @return $this
      */

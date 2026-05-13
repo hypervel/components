@@ -413,4 +413,130 @@ class RememberIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertSame('forever_untagged', $result);
         $this->assertSame('forever_untagged', Cache::get('untagged_forever'));
     }
+
+    // =========================================================================
+    // NULLABLE OPERATIONS (rememberNullable / rememberForeverNullable)
+    // =========================================================================
+
+    public function testAllModeRememberNullableStoresSentinelAndReturnsNull(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        $count = 0;
+        $result1 = Cache::tags(['users'])->rememberNullable('profile', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+        $result2 = Cache::tags(['users'])->rememberNullable('profile', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+
+        $this->assertNull($result1);
+        $this->assertNull($result2);
+        $this->assertSame(1, $count, 'Callback should only run once — sentinel is recognized as a hit on the second call');
+    }
+
+    public function testAllModeTagFlushRemovesSentinelAndAllowsCallbackToReRun(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        $count = 0;
+        Cache::tags(['users'])->rememberNullable('profile', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+
+        Cache::tags(['users'])->flush();
+
+        Cache::tags(['users'])->rememberNullable('profile', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+
+        $this->assertSame(2, $count, 'Callback runs again after tag flush — sentinel was invalidated with the tag');
+    }
+
+    public function testAnyModeRememberNullableStoresSentinelAndReturnsNull(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        $count = 0;
+        $result1 = Cache::tags(['users'])->rememberNullable('profile', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+        $result2 = Cache::tags(['users'])->rememberNullable('profile', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+
+        $this->assertNull($result1);
+        $this->assertNull($result2);
+        $this->assertSame(1, $count);
+    }
+
+    public function testAnyModeTagFlushRemovesSentinelAndAllowsCallbackToReRun(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        $count = 0;
+        Cache::tags(['users'])->rememberNullable('profile', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+
+        Cache::tags(['users'])->flush();
+
+        Cache::tags(['users'])->rememberNullable('profile', 60, function () use (&$count) {
+            ++$count;
+            return null;
+        });
+
+        $this->assertSame(2, $count);
+    }
+
+    public function testAllModePlainRememberOnSentinelStoredKeyReturnsNullWithoutReRunning(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        Cache::tags(['users'])->rememberNullable('profile', 60, fn () => null);
+
+        // Plain remember() on the sentinel-stored key: Repository::remember() uses getRaw()
+        // internally, sees the sentinel as a hit, unwraps to null, and does NOT re-run the callback.
+        $invoked = false;
+        $result = Cache::tags(['users'])->remember('profile', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testAnyModePlainRememberOnSentinelStoredKeyReturnsNullWithoutReRunning(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        Cache::tags(['users'])->rememberNullable('profile', 60, fn () => null);
+
+        $invoked = false;
+        $result = Cache::tags(['users'])->remember('profile', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'should-not-run';
+        });
+
+        $this->assertNull($result);
+        $this->assertFalse($invoked);
+    }
+
+    public function testAllModeSentinelIsStoredAsExpected(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        Cache::tags(['users'])->rememberNullable('profile', 60, fn () => null);
+
+        // Reading the tagged key back via get() on the tagged cache still unwraps to null.
+        $this->assertNull(Cache::tags(['users'])->get('profile'));
+    }
 }

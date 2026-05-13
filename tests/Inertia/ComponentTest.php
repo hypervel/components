@@ -188,6 +188,22 @@ class ComponentTest extends TestCase
         $this->assertSame($cachedViews, glob($viewCachePath . '/*.php'));
     }
 
+    public function testAppComponentRendersCurrentPageNotPreviousRender()
+    {
+        Config::set(['inertia.ssr.enabled' => false]);
+
+        $view = '<x-inertia::app />';
+
+        $first = $this->renderView($view, ['page' => ['component' => 'FirstPage', 'props' => []]]);
+        $this->assertStringContainsString('"component":"FirstPage"', $first);
+
+        $this->resetInertiaState();
+
+        $second = $this->renderView($view, ['page' => ['component' => 'SecondPage', 'props' => []]]);
+        $this->assertStringContainsString('"component":"SecondPage"', $second);
+        $this->assertStringNotContainsString('"component":"FirstPage"', $second);
+    }
+
     public function testInertiaStateDoesNotLeakBetweenRequests()
     {
         Config::set(['inertia.ssr.enabled' => true]);

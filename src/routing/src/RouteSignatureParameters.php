@@ -65,6 +65,9 @@ class RouteSignatureParameters
 
     /**
      * Flush the static parameter cache.
+     *
+     * Boot or tests only. Clears the process-wide signature caches shared by
+     * every coroutine; next signature lookup re-reflects.
      */
     public static function flushCache(): void
     {
@@ -81,7 +84,20 @@ class RouteSignatureParameters
     {
         [$class, $method] = Str::parseCallback($uses);
 
-        if (! method_exists($class, $method) && Reflector::isCallable([$class, $method])) {
+        // Hypervel diverges from Laravel here. Laravel's equivalent calls
+        // Reflector::isCallable($class, $method) — a buggy two-scalar call where
+        // $method is passed as the $syntaxOnly bool, making is_callable() return
+        // true for any valid class string regardless of whether the method exists.
+        // The bug accidentally produces the right behavior — return [] for missing
+        // methods — via the wrong mechanism.
+        //
+        // Simply fixing the call to Reflector::isCallable([$class, $method]) would
+        // turn missing-method routes into ReflectionException during implicit
+        // binding, wayfinder:generate, route:cache, and any other tooling that
+        // walks the route collection. That's worse than the bug. We bypass
+        // isCallable entirely: lenient for missing methods (dispatch surfaces a
+        // clear error with route context), strict for missing classes.
+        if (class_exists($class) && ! method_exists($class, $method)) {
             return [];
         }
 

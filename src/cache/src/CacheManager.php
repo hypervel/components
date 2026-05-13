@@ -365,7 +365,7 @@ class CacheManager implements FactoryContract
     /**
      * Set the default cache driver name.
      *
-     * WARNING: Mutates process-global config. Not safe for per-request use under Swoole.
+     * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
     public function setDefaultDriver(string $name): void
     {
@@ -374,6 +374,10 @@ class CacheManager implements FactoryContract
 
     /**
      * Unset the given driver instances.
+     *
+     * Boot or tests only. Mutates the singleton's store cache; concurrent
+     * coroutines may already hold a reference to the store and next resolution
+     * will rebuild with fresh connections.
      */
     public function forgetDriver(array|string|null $name = null): static
     {
@@ -390,6 +394,10 @@ class CacheManager implements FactoryContract
 
     /**
      * Disconnect the given driver and remove from local cache.
+     *
+     * Boot or tests only. Mutates the singleton's store cache; concurrent
+     * coroutines may already hold a reference to the store and next resolution
+     * will rebuild with fresh connections.
      */
     public function purge(?string $name = null): void
     {
@@ -400,6 +408,9 @@ class CacheManager implements FactoryContract
 
     /**
      * Register a custom driver creator Closure.
+     *
+     * Boot-only. The callback persists in the singleton's customCreators array
+     * for the worker lifetime and applies to every subsequent store resolution.
      */
     public function extend(string $driver, Closure $callback): static
     {
@@ -410,6 +421,10 @@ class CacheManager implements FactoryContract
 
     /**
      * Set the application instance used by the manager.
+     *
+     * Tests only. Swaps the singleton's container reference; per-request use
+     * races across coroutines and breaks every concurrent request resolving
+     * stores through this manager.
      */
     public function setApplication(Container $app): static
     {

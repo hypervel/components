@@ -682,6 +682,9 @@ class PostgresGrammar extends Grammar
     /**
      * Set any Postgres grammar specific custom operators.
      *
+     * Boot-only. The operator list persists in a static property for the worker
+     * lifetime and applies to every Postgres query built across all coroutines.
+     *
      * @param string[] $operators
      */
     public static function customOperators(array $operators): void
@@ -693,6 +696,9 @@ class PostgresGrammar extends Grammar
 
     /**
      * Enable or disable the "cascade" option when compiling the truncate statement.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every truncate() across all coroutines.
      */
     public static function cascadeOnTruncate(bool $value = true): void
     {

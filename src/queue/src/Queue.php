@@ -55,7 +55,7 @@ abstract class Queue
     /**
      * Indicates that jobs should be dispatched after all database transactions have committed.
      */
-    protected ?bool $dispatchAfterCommit = false;
+    protected bool $dispatchAfterCommit = false;
 
     /**
      * The create payload callbacks.
@@ -272,6 +272,10 @@ abstract class Queue
 
     /**
      * Register a callback to be executed when creating job payloads.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every subsequent payload creation across all
+     * coroutines. Passing null clears the registry.
      */
     public static function createPayloadUsing(?callable $callback): void
     {
@@ -314,13 +318,7 @@ abstract class Queue
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has('db.transactions')
         ) {
-            if ($job instanceof ShouldBeUnique) {
-                $this->container->make('db.transactions')->addCallbackForRollback(
-                    function () use ($job) {
-                        (new UniqueLock($this->container->make(Cache::class)))->release($job);
-                    }
-                );
-            }
+            $this->addUniqueJobRollbackCallback($job);
 
             return $this->container->make('db.transactions')
                 ->addCallback(
@@ -356,7 +354,23 @@ abstract class Queue
             return $job->afterCommit;
         }
 
-        return $this->dispatchAfterCommit ?? false;
+        return $this->dispatchAfterCommit;
+    }
+
+    /**
+     * Register a transaction rollback callback that releases the unique lock for the given job.
+     */
+    protected function addUniqueJobRollbackCallback(object|string $job): void
+    {
+        if (! $job instanceof ShouldBeUnique) {
+            return;
+        }
+
+        $this->container->make('db.transactions')->addCallbackForRollback(
+            function () use ($job) {
+                (new UniqueLock($this->container->make(Cache::class)))->release($job);
+            }
+        );
     }
 
     /**
@@ -435,6 +449,10 @@ abstract class Queue
 
     /**
      * Set the IoC container instance.
+     *
+     * Tests only. Queue connection instances are cached on QueueManager; per-
+     * request use races across coroutines and breaks every concurrent dispatch
+     * through this connection.
      */
     public function setContainer(Container $container): static
     {

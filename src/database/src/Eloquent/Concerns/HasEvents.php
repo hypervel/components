@@ -76,6 +76,10 @@ trait HasEvents
     /**
      * Register observers with the model.
      *
+     * Boot-only. Observer listeners are registered on the worker-wide event
+     * dispatcher and persist for the worker lifetime; runtime use leaks
+     * listeners across every subsequent request.
+     *
      * @param array<class-string>|class-string|object $classes
      *
      * @throws InvalidArgumentException
@@ -264,6 +268,10 @@ trait HasEvents
     /**
      * Register a retrieved model event with the dispatcher.
      *
+     * Boot-only. Listener persists on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
+     *
      * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function retrieved(mixed $callback): void
@@ -273,6 +281,10 @@ trait HasEvents
 
     /**
      * Register a saving model event with the dispatcher.
+     *
+     * Boot-only. Listener persists on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
      *
      * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
@@ -284,6 +296,10 @@ trait HasEvents
     /**
      * Register a saved model event with the dispatcher.
      *
+     * Boot-only. Listener persists on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
+     *
      * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function saved(mixed $callback): void
@@ -293,6 +309,10 @@ trait HasEvents
 
     /**
      * Register an updating model event with the dispatcher.
+     *
+     * Boot-only. Listener persists on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
      *
      * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
@@ -304,6 +324,10 @@ trait HasEvents
     /**
      * Register an updated model event with the dispatcher.
      *
+     * Boot-only. Listener persists on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
+     *
      * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function updated(mixed $callback): void
@@ -313,6 +337,10 @@ trait HasEvents
 
     /**
      * Register a creating model event with the dispatcher.
+     *
+     * Boot-only. Listener persists on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
      *
      * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
@@ -324,6 +352,10 @@ trait HasEvents
     /**
      * Register a created model event with the dispatcher.
      *
+     * Boot-only. Listener persists on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
+     *
      * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function created(mixed $callback): void
@@ -333,6 +365,10 @@ trait HasEvents
 
     /**
      * Register a replicating model event with the dispatcher.
+     *
+     * Boot-only. Listener persists on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
      *
      * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
@@ -344,6 +380,10 @@ trait HasEvents
     /**
      * Register a deleting model event with the dispatcher.
      *
+     * Boot-only. Listener persists on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
+     *
      * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function deleting(mixed $callback): void
@@ -354,6 +394,10 @@ trait HasEvents
     /**
      * Register a deleted model event with the dispatcher.
      *
+     * Boot-only. Listener persists on the worker-wide event dispatcher for the
+     * worker lifetime; runtime use leaks listeners across every subsequent
+     * request.
+     *
      * @param array|callable|class-string|\Hypervel\Events\QueuedClosure $callback
      */
     public static function deleted(mixed $callback): void
@@ -363,6 +407,9 @@ trait HasEvents
 
     /**
      * Remove all the event listeners for the model.
+     *
+     * Boot or tests only. Removes listeners from the worker-wide event
+     * dispatcher; concurrent coroutines lose model events mid-request.
      */
     public static function flushEventListeners(): void
     {
@@ -408,6 +455,9 @@ trait HasEvents
 
     /**
      * Set the event dispatcher instance.
+     *
+     * Boot-only. The dispatcher persists in a static property for the worker
+     * lifetime and is used by every model event firing across all coroutines.
      */
     public static function setEventDispatcher(Dispatcher $dispatcher): void
     {
@@ -416,6 +466,9 @@ trait HasEvents
 
     /**
      * Unset the event dispatcher for models.
+     *
+     * Tests only. Clears the worker-wide event dispatcher shared by every
+     * coroutine; concurrent model operations will not fire events.
      */
     public static function unsetEventDispatcher(): void
     {

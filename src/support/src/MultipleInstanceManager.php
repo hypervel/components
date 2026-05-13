@@ -49,8 +49,8 @@ abstract class MultipleInstanceManager
     /**
      * Set the default instance name.
      *
-     * Implementations that mutate process-global config are not safe for per-request
-     * use under Swoole. Consider using coroutine context for request-scoped overrides.
+     * Boot-only. Implementations typically mutate process-global config; per-request
+     * use races across coroutines. Use coroutine Context for request-scoped overrides.
      */
     abstract public function setDefaultInstance(string $name): void;
 
@@ -140,6 +140,10 @@ abstract class MultipleInstanceManager
 
     /**
      * Disconnect the given instance and remove from local cache.
+     *
+     * Boot or tests only. Mutates the singleton's instance cache; concurrent
+     * coroutines may already hold a reference to the instance and next
+     * resolution will rebuild.
      */
     public function purge(?string $name = null): void
     {
@@ -150,6 +154,10 @@ abstract class MultipleInstanceManager
 
     /**
      * Register a custom instance creator Closure.
+     *
+     * Boot-only. The callback persists in the singleton's customCreators array
+     * for the worker lifetime and applies to every subsequent instance
+     * resolution.
      *
      * @param-closure-this $this $callback
      *
@@ -164,6 +172,10 @@ abstract class MultipleInstanceManager
 
     /**
      * Set the application instance used by the manager.
+     *
+     * Tests only. Swaps the singleton's application reference; per-request use
+     * races across coroutines and breaks every concurrent resolution through
+     * this manager.
      *
      * @return $this
      */

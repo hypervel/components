@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Socialite;
 
 use Hypervel\Socialite\Contracts\Factory;
-use Hypervel\Socialite\Facades\Socialite;
+use Hypervel\Socialite\Socialite;
 use Hypervel\Socialite\SocialiteServiceProvider;
 use Hypervel\Socialite\Testing\FakeProvider;
 use Hypervel\Socialite\Testing\SocialiteFake;

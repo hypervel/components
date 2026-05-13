@@ -261,6 +261,9 @@ class AuthManager implements FactoryContract
 
     /**
      * Register a custom driver creator Closure.
+     *
+     * Boot-only. The callback persists in the singleton's customCreators array
+     * for the worker lifetime and applies to every subsequent guard resolution.
      */
     public function extend(string $driver, Closure $callback): static
     {
@@ -271,6 +274,10 @@ class AuthManager implements FactoryContract
 
     /**
      * Register a custom provider creator Closure.
+     *
+     * Boot-only. The callback persists in the singleton's customProviderCreators
+     * array for the worker lifetime and applies to every subsequent user
+     * provider resolution.
      */
     public function provider(string $name, Closure $callback): static
     {
@@ -289,6 +296,11 @@ class AuthManager implements FactoryContract
 
     /**
      * Forget all of the resolved guard instances.
+     *
+     * Boot or tests only. Clears the singleton's guard cache; concurrent
+     * coroutines may already hold references to the prior guard instances
+     * (each holding its own coroutine-scoped state) that next resolution
+     * will not share.
      */
     public function forgetGuards(): static
     {
@@ -307,6 +319,10 @@ class AuthManager implements FactoryContract
 
     /**
      * Set the application instance used by the manager.
+     *
+     * Tests only. Swaps the singleton's container reference; per-request use
+     * races across coroutines and breaks every concurrent request's auth
+     * resolution.
      */
     public function setApplication(Container $app): static
     {

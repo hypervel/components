@@ -14,6 +14,7 @@
     - [Authorizing Form Requests](#authorizing-form-requests)
     - [Customizing the Error Messages](#customizing-the-error-messages)
     - [Preparing Input for Validation](#preparing-input-for-validation)
+    - [Casting Form Request Data](#casting-form-request-data)
 - [Manually Creating Validators](#manually-creating-validators)
     - [Automatic Redirection](#automatic-redirection)
     - [Named Error Bags](#named-error-bags)
@@ -39,14 +40,14 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel provides several different approaches to validate your application's incoming data. It is most common to use the `validate` method available on all incoming HTTP requests. However, we will discuss other approaches to validation as well.
+Hypervel provides several different approaches to validate your application's incoming data. It is most common to use the `validate` method available on all incoming HTTP requests. However, we will discuss other approaches to validation as well.
 
-Laravel includes a wide variety of convenient validation rules that you may apply to data, even providing the ability to validate if values are unique in a given database table. We'll cover each of these validation rules in detail so that you are familiar with all of Laravel's validation features.
+Hypervel includes a wide variety of convenient validation rules that you may apply to data, even providing the ability to validate if values are unique in a given database table. We'll cover each of these validation rules in detail so that you are familiar with all of Hypervel's validation features.
 
 <a name="validation-quickstart"></a>
 ## Validation Quickstart
 
-To learn about Laravel's powerful validation features, let's look at a complete example of validating a form and displaying the error messages back to the user. By reading this high-level overview, you'll be able to gain a good general understanding of how to validate incoming request data using Laravel:
+To learn about Hypervel's powerful validation features, let's look at a complete example of validating a form and displaying the error messages back to the user. By reading this high-level overview, you'll be able to gain a good general understanding of how to validate incoming request data using Hypervel:
 
 <a name="quick-defining-the-routes"></a>
 ### Defining the Routes
@@ -103,7 +104,7 @@ class PostController extends Controller
 <a name="quick-writing-the-validation-logic"></a>
 ### Writing the Validation Logic
 
-Now we are ready to fill in our `store` method with the logic to validate the new blog post. To do this, we will use the `validate` method provided by the `Hypervel\Http\Request` object. If the validation rules pass, your code will keep executing normally; however, if validation fails, an `Hypervel\Validation\ValidationException` exception will be thrown and the proper error response will automatically be sent back to the user.
+Now we are ready to fill in our `store` method with the logic to validate the new blog post. To do this, we will use the `validate` method provided by the `Hypervel\Http\Request` object. If the validation rules pass, your code will keep executing normally; however, if validation fails, a `Hypervel\Validation\ValidationException` exception will be thrown and the proper error response will automatically be sent back to the user.
 
 If validation fails during a traditional HTTP request, a redirect response to the previous URL will be generated. If the incoming request is an XHR request, a [JSON response containing the validation error messages](#validation-error-response-format) will be returned.
 
@@ -185,9 +186,9 @@ $request->validate([
 <a name="quick-displaying-the-validation-errors"></a>
 ### Displaying the Validation Errors
 
-So, what if the incoming request fields do not pass the given validation rules? As mentioned previously, Laravel will automatically redirect the user back to their previous location. In addition, all of the validation errors and [request input](/docs/{{version}}/requests#retrieving-old-input) will automatically be [flashed to the session](/docs/{{version}}/session#flash-data).
+So, what if the incoming request fields do not pass the given validation rules? As mentioned previously, Hypervel will automatically redirect the user back to their previous location. In addition, all of the validation errors and [request input](/docs/{{version}}/requests#retrieving-old-input) will automatically be [flashed to the session](/docs/{{version}}/session#flash-data).
 
-An `$errors` variable is shared with all of your application's views by the `Hypervel\View\Middleware\ShareErrorsFromSession` middleware, which is provided by the `web` middleware group. When this middleware is applied an `$errors` variable will always be available in your views, allowing you to conveniently assume the `$errors` variable is always defined and can be safely used. The `$errors` variable will be an instance of `Hypervel\Support\MessageBag`. For more information on working with this object, [check out its documentation](#working-with-error-messages).
+An `$errors` variable is shared with all of your application's views by the `Hypervel\View\Middleware\ShareErrorsFromSession` middleware, which is provided by the `web` middleware group. When this middleware is applied an `$errors` variable will always be available in your views, allowing you to conveniently assume the `$errors` variable is always defined and can be safely used. The `$errors` variable will be an instance of `Hypervel\Support\ViewErrorBag`, and each error bag is an instance of `Hypervel\Support\MessageBag`. For more information on working with these objects, [check out their documentation](#working-with-error-messages).
 
 So, in our example, the user will be redirected to our controller's `create` method when validation fails, allowing us to display the error messages in the view:
 
@@ -212,19 +213,19 @@ So, in our example, the user will be redirected to our controller's `create` met
 <a name="quick-customizing-the-error-messages"></a>
 #### Customizing the Error Messages
 
-Laravel's built-in validation rules each have an error message that is located in your application's `lang/en/validation.php` file. If your application does not have a `lang` directory, you may instruct Laravel to create it using the `lang:publish` Artisan command.
+Hypervel's built-in validation rules each have an error message that is located in your application's `lang/en/validation.php` file. If your application does not have a `lang` directory, you may instruct Hypervel to create it using the `lang:publish` Artisan command.
 
 Within the `lang/en/validation.php` file, you will find a translation entry for each validation rule. You are free to change or modify these messages based on the needs of your application.
 
-In addition, you may copy this file to another language directory to translate the messages for your application's language. To learn more about Laravel localization, check out the complete [localization documentation](/docs/{{version}}/localization).
+In addition, you may copy this file to another language directory to translate the messages for your application's language. To learn more about Hypervel localization, check out the complete [localization documentation](/docs/{{version}}/localization).
 
 > [!WARNING]
-> By default, the Laravel application skeleton does not include the `lang` directory. If you would like to customize Laravel's language files, you may publish them via the `lang:publish` Artisan command.
+> By default, the Hypervel application skeleton does not include the `lang` directory. If you would like to customize Hypervel's language files, you may publish them via the `lang:publish` Artisan command.
 
 <a name="quick-xhr-requests-and-validation"></a>
 #### XHR Requests and Validation
 
-In this example, we used a traditional form to send data to the application. However, many applications receive XHR requests from a JavaScript powered frontend. When using the `validate` method during an XHR request, Laravel will not generate a redirect response. Instead, Laravel generates a [JSON response containing all of the validation errors](#validation-error-response-format). This JSON response will be sent with a 422 HTTP status code.
+In this example, we used a traditional form to send data to the application. However, many applications receive XHR requests from a JavaScript powered frontend. When using the `validate` method during an XHR request, Hypervel will not generate a redirect response. Instead, Hypervel generates a [JSON response containing all of the validation errors](#validation-error-response-format). This JSON response will be sent with a 422 HTTP status code.
 
 <a name="the-at-error-directive"></a>
 #### The `@error` Directive
@@ -257,7 +258,7 @@ If you are using [named error bags](#named-error-bags), you may pass the name of
 <a name="repopulating-forms"></a>
 ### Repopulating Forms
 
-When Laravel generates a redirect response due to a validation error, the framework will automatically [flash all of the request's input to the session](/docs/{{version}}/session#flash-data). This is done so that you may conveniently access the input during the next request and repopulate the form that the user attempted to submit.
+When Hypervel generates a redirect response due to a validation error, the framework will automatically [flash all of the request's input to the session](/docs/{{version}}/session#flash-data). This is done so that you may conveniently access the input during the next request and repopulate the form that the user attempted to submit.
 
 To retrieve flashed input from the previous request, invoke the `old` method on an instance of `Hypervel\Http\Request`. The `old` method will pull the previously flashed input data from the [session](/docs/{{version}}/session):
 
@@ -265,7 +266,7 @@ To retrieve flashed input from the previous request, invoke the `old` method on 
 $title = $request->old('title');
 ```
 
-Laravel also provides a global `old` helper. If you are displaying old input within a [Blade template](/docs/{{version}}/blade), it is more convenient to use the `old` helper to repopulate the form. If no old input exists for the given field, `null` will be returned:
+Hypervel also provides a global `old` helper. If you are displaying old input within a [Blade template](/docs/{{version}}/blade), it is more convenient to use the `old` helper to repopulate the form. If no old input exists for the given field, `null` will be returned:
 
 ```blade
 <input type="text" name="title" value="{{ old('title') }}">
@@ -274,7 +275,7 @@ Laravel also provides a global `old` helper. If you are displaying old input wit
 <a name="a-note-on-optional-fields"></a>
 ### A Note on Optional Fields
 
-By default, Laravel includes the `TrimStrings` and `ConvertEmptyStringsToNull` middleware in your application's global middleware stack. Because of this, you will often need to mark your "optional" request fields as `nullable` if you do not want the validator to consider `null` values as invalid. For example:
+By default, Hypervel includes the `TrimStrings` and `ConvertEmptyStringsToNull` middleware in your application's global middleware stack. Because of this, you will often need to mark your "optional" request fields as `nullable` if you do not want the validator to consider `null` values as invalid. For example:
 
 ```php
 $request->validate([
@@ -289,7 +290,7 @@ In this example, we are specifying that the `publish_at` field may be either `nu
 <a name="validation-error-response-format"></a>
 ### Validation Error Response Format
 
-When your application throws a `Hypervel\Validation\ValidationException` exception and the incoming HTTP request is expecting a JSON response, Laravel will automatically format the error messages for you and return a `422 Unprocessable Entity` HTTP response.
+When your application throws a `Hypervel\Validation\ValidationException` exception and the incoming HTTP request is expecting a JSON response, Hypervel will automatically format the error messages for you and return a `422 Unprocessable Entity` HTTP response.
 
 Below, you can review an example of the JSON response format for validation errors. Note that nested error keys are flattened into "dot" notation format:
 
@@ -326,7 +327,7 @@ For more complex validation scenarios, you may wish to create a "form request". 
 php artisan make:request StorePostRequest
 ```
 
-The generated form request class will be placed in the `app/Http/Requests` directory. If this directory does not exist, it will be created when you run the `make:request` command. Each form request generated by Laravel has two methods: `authorize` and `rules`.
+The generated form request class will be placed in the `app/Http/Requests` directory. If this directory does not exist, it will be created when you run the `make:request` command. Each form request generated by Hypervel has two methods: `authorize` and `rules`.
 
 As you might have guessed, the `authorize` method is responsible for determining if the currently authenticated user can perform the action represented by the request, while the `rules` method returns the validation rules that should apply to the request's data:
 
@@ -346,7 +347,7 @@ public function rules(): array
 ```
 
 > [!NOTE]
-> You may type-hint any dependencies you require within the `rules` method's signature. They will automatically be resolved via the Laravel [service container](/docs/{{version}}/container).
+> You may type-hint any dependencies you require within the `rules` method's signature. They will automatically be resolved via the Hypervel [service container](/docs/{{version}}/container).
 
 So, how are the validation rules evaluated? All you need to do is type-hint the request on your controller method. The incoming form request is validated before the controller method is called, meaning you do not need to clutter your controller with any validation logic:
 
@@ -374,14 +375,14 @@ public function store(StorePostRequest $request): RedirectResponse
 If validation fails, a redirect response will be generated to send the user back to their previous location. The errors will also be flashed to the session so they are available for display. If the request was an XHR request, an HTTP response with a 422 status code will be returned to the user including a [JSON representation of the validation errors](#validation-error-response-format).
 
 > [!NOTE]
-> Need to add real-time form request validation to your Inertia powered Laravel frontend? Check out [Laravel Precognition](/docs/{{version}}/precognition).
+> Need to add real-time form request validation to your Inertia powered Hypervel frontend? Check out [Hypervel Precognition](/docs/{{version}}/precognition).
 
 <a name="performing-additional-validation-on-form-requests"></a>
 #### Performing Additional Validation
 
 Sometimes you need to perform additional validation after your initial validation is complete. You can accomplish this using the form request's `after` method.
 
-The `after` method should return an array of callables or closures which will be invoked after validation is complete. The given callables will receive an `Hypervel\Validation\Validator` instance, allowing you to raise additional error messages if necessary:
+The `after` method should return an array of callables or closures which will be invoked after validation is complete. The given callables will receive a `Hypervel\Validation\Validator` instance, allowing you to raise additional error messages if necessary:
 
 ```php
 use Hypervel\Validation\Validator;
@@ -404,7 +405,7 @@ public function after(): array
 }
 ```
 
-As noted, the array returned by the `after` method may also contain invokable classes. The `__invoke` method of these classes will receive an `Hypervel\Validation\Validator` instance:
+As noted, the array returned by the `after` method may also contain invokable classes. The `__invoke` method of these classes will receive a `Hypervel\Validation\Validator` instance:
 
 ```php
 use App\Validation\ValidateShippingTime;
@@ -446,10 +447,19 @@ class StorePostRequest extends FormRequest
 }
 ```
 
+Alternatively, you may define a `$stopOnFirstFailure` property on the form request:
+
+```php
+/**
+ * Indicates whether validation should stop after the first rule failure.
+ */
+protected bool $stopOnFirstFailure = true;
+```
+
 <a name="request-failing-on-unknown-fields"></a>
 #### Failing on Unknown Fields
 
-By adding the `FailOnUnknownFields` attribute to your request class, you may instruct Laravel to reject any incoming fields that are not defined by your request's validation rules:
+By adding the `FailOnUnknownFields` attribute to your request class, you may instruct Hypervel to reject any incoming fields that are not defined by your request's validation rules:
 
 ```php
 <?php
@@ -574,7 +584,7 @@ public function authorize(): bool
 }
 ```
 
-Since all form requests extend the base Laravel request class, we may use the `user` method to access the currently authenticated user. Also, note the call to the `route` method in the example above. This method grants you access to the URI parameters defined on the route being called, such as the `{comment}` parameter in the example below:
+Since all form requests extend the base Hypervel request class, we may use the `user` method to access the currently authenticated user. Also, note the call to the `route` method in the example above. This method grants you access to the URI parameters defined on the route being called, such as the `{comment}` parameter in the example below:
 
 ```php
 Route::post('/comment/{comment}');
@@ -601,7 +611,7 @@ public function authorize(): bool
 ```
 
 > [!NOTE]
-> You may type-hint any dependencies you need within the `authorize` method's signature. They will automatically be resolved via the Laravel [service container](/docs/{{version}}/container).
+> You may type-hint any dependencies you need within the `authorize` method's signature. They will automatically be resolved via the Hypervel [service container](/docs/{{version}}/container).
 
 <a name="customizing-the-error-messages"></a>
 ### Customizing the Error Messages
@@ -626,7 +636,7 @@ public function messages(): array
 <a name="customizing-the-validation-attributes"></a>
 #### Customizing the Validation Attributes
 
-Many of Laravel's built-in validation rule error messages contain an `:attribute` placeholder. If you would like the `:attribute` placeholder of your validation message to be replaced with a custom attribute name, you may specify the custom names by overriding the `attributes` method. This method should return an array of attribute / name pairs:
+Many of Hypervel's built-in validation rule error messages contain an `:attribute` placeholder. If you would like the `:attribute` placeholder of your validation message to be replaced with a custom attribute name, you may specify the custom names by overriding the `attributes` method. This method should return an array of attribute / name pairs:
 
 ```php
 /**
@@ -670,6 +680,233 @@ Likewise, if you need to normalize any request data after validation is complete
 protected function passedValidation(): void
 {
     $this->replace(['name' => 'Taylor']);
+}
+```
+
+<a name="casting-form-request-data"></a>
+### Casting Form Request Data
+
+Hypervel's form requests may cast validated input into the PHP types your application expects. This is useful when HTML forms or JSON payloads contain strings that should be handled as booleans, integers, dates, arrays, enums, or data objects after validation has passed.
+
+You may define casts using a `$casts` property on your form request:
+
+```php
+<?php
+
+namespace App\Http\Requests;
+
+use Hypervel\Foundation\Http\FormRequest;
+
+class StorePostRequest extends FormRequest
+{
+    /**
+     * The inputs that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected array $casts = [
+        'published_at' => 'datetime',
+        'views' => 'integer',
+        'is_featured' => 'boolean',
+        'tags' => 'array',
+        'metadata' => 'json',
+        'rating' => 'decimal:2',
+    ];
+
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, \Hypervel\Contracts\Validation\ValidationRule|array<mixed>|string>
+     */
+    public function rules(): array
+    {
+        return [
+            'title' => ['required', 'string', 'max:255'],
+            'published_at' => ['required', 'date'],
+            'views' => ['required', 'integer', 'min:0'],
+            'is_featured' => ['required', 'boolean'],
+            'tags' => ['required', 'array'],
+            'metadata' => ['required', 'json'],
+            'rating' => ['required', 'numeric', 'between:0,5'],
+        ];
+    }
+}
+```
+
+Alternatively, you may define casts using a `casts` method:
+
+```php
+/**
+ * Get the casts that apply to the request.
+ *
+ * @return array<string, string>
+ */
+protected function casts(): array
+{
+    return [
+        'price' => 'decimal:' . $this->input('currency_decimals', 2),
+        'settings' => 'json',
+    ];
+}
+```
+
+After defining your casts, you may retrieve the casted values using the `casted` method. By default, this method casts the request's validated input:
+
+```php
+$data = $request->casted();
+
+$publishedAt = $request->casted('published_at');
+
+$data = $request->casted(['published_at', 'views', 'is_featured']);
+```
+
+If you need to cast raw request input instead of validated input, pass `false` as the second argument:
+
+```php
+$data = $request->casted(validate: false);
+
+$publishedAt = $request->casted('published_at', validate: false);
+```
+
+Hypervel supports the following primitive cast types:
+
+<div class="content-list" markdown="1">
+
+- `array` - Decodes a JSON string to a PHP array
+- `bool` / `boolean` - Casts to a boolean
+- `collection` - Decodes a JSON string to a `Hypervel\Support\Collection`
+- `date` - Casts to a date with the time set to the start of the day
+- `datetime` - Casts to a date and time instance
+- `decimal:<digits>` - Casts to a decimal string with the given number of digits
+- `double` / `float` / `real` - Casts to a float
+- `int` / `integer` - Casts to an integer
+- `json` - Decodes a JSON string to a PHP array
+- `object` - Decodes a JSON string to an object
+- `string` - Casts to a string
+- `timestamp` - Casts to a Unix timestamp
+
+</div>
+
+You may also cast inputs to PHP enums:
+
+```php
+use App\Enums\PostStatus;
+
+protected array $casts = [
+    'status' => PostStatus::class,
+];
+```
+
+Inputs may also be cast to `Hypervel\Support\DataObject` classes:
+
+```php
+<?php
+
+namespace App\DataObjects;
+
+use Hypervel\Support\DataObject;
+
+class PostMetadata extends DataObject
+{
+    public function __construct(
+        public readonly string $author,
+        public readonly array $keywords,
+        public readonly ?string $description = null,
+    ) {
+    }
+}
+```
+
+```php
+use App\DataObjects\PostMetadata;
+
+protected array $casts = [
+    'metadata' => PostMetadata::class,
+];
+```
+
+Hypervel also provides cast helpers for arrays and collections of enums or data objects:
+
+```php
+use App\DataObjects\Contact;
+use App\Enums\PostStatus;
+use Hypervel\Foundation\Http\Casts\AsDataObjectArray;
+use Hypervel\Foundation\Http\Casts\AsDataObjectCollection;
+use Hypervel\Foundation\Http\Casts\AsEnumArrayObject;
+use Hypervel\Foundation\Http\Casts\AsEnumCollection;
+
+protected array $casts = [
+    'status_history' => AsEnumArrayObject::of(PostStatus::class),
+    'statuses' => AsEnumCollection::of(PostStatus::class),
+    'contact_list' => AsDataObjectArray::of(Contact::class),
+    'contacts' => AsDataObjectCollection::of(Contact::class),
+];
+```
+
+The `AsEnumArrayObject` and `AsDataObjectArray` helpers return an `ArrayObject`. The `AsEnumCollection` and `AsDataObjectCollection` helpers return a `Hypervel\Support\Collection`.
+
+For more complex casting logic, you may create a custom cast class that implements the `CastInputs` interface:
+
+```php
+<?php
+
+namespace App\Casts;
+
+use Hypervel\Foundation\Http\Contracts\CastInputs;
+
+class UppercaseCast implements CastInputs
+{
+    /**
+     * Transform the input value.
+     */
+    public function get(string $key, mixed $value, array $inputs): string
+    {
+        return strtoupper((string) $value);
+    }
+}
+```
+
+```php
+use App\Casts\UppercaseCast;
+
+protected array $casts = [
+    'title' => UppercaseCast::class,
+];
+```
+
+You may also make a class castable by implementing the `Castable` interface:
+
+```php
+<?php
+
+namespace App\ValueObjects;
+
+use Hypervel\Foundation\Http\Contracts\Castable;
+use Hypervel\Foundation\Http\Contracts\CastInputs;
+
+class Money implements Castable
+{
+    public function __construct(
+        public readonly int $amount,
+        public readonly string $currency,
+    ) {
+    }
+
+    /**
+     * Get the caster class to use for this value object.
+     */
+    public static function castUsing(array $arguments = []): CastInputs|string
+    {
+        return new class implements CastInputs {
+            public function get(string $key, mixed $value, array $inputs): Money
+            {
+                return new Money(
+                    amount: (int) ($value * 100),
+                    currency: $inputs['currency'] ?? 'USD',
+                );
+            }
+        };
+    }
 }
 ```
 
@@ -772,7 +1009,7 @@ You may then access the named `MessageBag` instance from the `$errors` variable:
 <a name="manual-customizing-the-error-messages"></a>
 ### Customizing the Error Messages
 
-If needed, you may provide custom error messages that a validator instance should use instead of the default error messages provided by Laravel. There are several ways to specify custom messages. First, you may pass the custom messages as the third argument to the `Validator::make` method:
+If needed, you may provide custom error messages that a validator instance should use instead of the default error messages provided by Hypervel. There are several ways to specify custom messages. First, you may pass the custom messages as the third argument to the `Validator::make` method:
 
 ```php
 $validator = Validator::make($input, $rules, $messages = [
@@ -805,7 +1042,7 @@ $messages = [
 <a name="specifying-custom-attribute-values"></a>
 #### Specifying Custom Attribute Values
 
-Many of Laravel's built-in error messages include an `:attribute` placeholder that is replaced with the name of the field or attribute under validation. To customize the values used to replace these placeholders for specific fields, you may pass an array of custom attributes as the fourth argument to the `Validator::make` method:
+Many of Hypervel's built-in error messages include an `:attribute` placeholder that is replaced with the name of the field or attribute under validation. To customize the values used to replace these placeholders for specific fields, you may pass an array of custom attributes as the fourth argument to the `Validator::make` method:
 
 ```php
 $validator = Validator::make($input, $rules, $messages, [
@@ -816,14 +1053,15 @@ $validator = Validator::make($input, $rules, $messages, [
 <a name="performing-additional-validation"></a>
 ### Performing Additional Validation
 
-Sometimes you need to perform additional validation after your initial validation is complete. You can accomplish this using the validator's `after` method. The `after` method accepts a closure or an array of callables which will be invoked after validation is complete. The given callables will receive an `Hypervel\Validation\Validator` instance, allowing you to raise additional error messages if necessary:
+Sometimes you need to perform additional validation after your initial validation is complete. You can accomplish this using the validator's `after` method. The `after` method accepts a closure or an array of callables which will be invoked after validation is complete. The given callables will receive a `Hypervel\Validation\Validator` instance, allowing you to raise additional error messages if necessary:
 
 ```php
 use Hypervel\Support\Facades\Validator;
+use Hypervel\Validation\Validator as ValidationValidator;
 
 $validator = Validator::make(/* ... */);
 
-$validator->after(function ($validator) {
+$validator->after(function (ValidationValidator $validator) {
     if ($this->somethingElseIsInvalid()) {
         $validator->errors()->add(
             'field', 'Something is wrong with this field!'
@@ -836,16 +1074,17 @@ if ($validator->fails()) {
 }
 ```
 
-As noted, the `after` method also accepts an array of callables, which is particularly convenient if your "after validation" logic is encapsulated in invokable classes, which will receive an `Hypervel\Validation\Validator` instance via their `__invoke` method:
+As noted, the `after` method also accepts an array of callables, which is particularly convenient if your "after validation" logic is encapsulated in invokable classes, which will receive a `Hypervel\Validation\Validator` instance via their `__invoke` method:
 
 ```php
 use App\Validation\ValidateShippingTime;
 use App\Validation\ValidateUserStatus;
+use Hypervel\Validation\Validator;
 
 $validator->after([
     new ValidateUserStatus,
     new ValidateShippingTime,
-    function ($validator) {
+    function (Validator $validator) {
         // ...
     },
 ]);
@@ -901,7 +1140,7 @@ $collection = $request->safe()->collect();
 <a name="working-with-error-messages"></a>
 ## Working With Error Messages
 
-After calling the `errors` method on a `Validator` instance, you will receive an `Hypervel\Support\MessageBag` instance, which has a variety of convenient methods for working with error messages. The `$errors` variable that is automatically made available to all views is also an instance of the `MessageBag` class.
+After calling the `errors` method on a `Validator` instance, you will receive a `Hypervel\Support\MessageBag` instance, which has a variety of convenient methods for working with error messages. The `$errors` variable that is automatically made available to all views is an instance of `Hypervel\Support\ViewErrorBag`, and each named error bag is a `Hypervel\Support\MessageBag` instance.
 
 <a name="retrieving-the-first-error-message-for-a-field"></a>
 #### Retrieving the First Error Message for a Field
@@ -958,14 +1197,14 @@ if ($errors->has('email')) {
 <a name="specifying-custom-messages-in-language-files"></a>
 ### Specifying Custom Messages in Language Files
 
-Laravel's built-in validation rules each have an error message that is located in your application's `lang/en/validation.php` file. If your application does not have a `lang` directory, you may instruct Laravel to create it using the `lang:publish` Artisan command.
+Hypervel's built-in validation rules each have an error message that is located in your application's `lang/en/validation.php` file. If your application does not have a `lang` directory, you may instruct Hypervel to create it using the `lang:publish` Artisan command.
 
 Within the `lang/en/validation.php` file, you will find a translation entry for each validation rule. You are free to change or modify these messages based on the needs of your application.
 
-In addition, you may copy this file to another language directory to translate the messages for your application's language. To learn more about Laravel localization, check out the complete [localization documentation](/docs/{{version}}/localization).
+In addition, you may copy this file to another language directory to translate the messages for your application's language. To learn more about Hypervel localization, check out the complete [localization documentation](/docs/{{version}}/localization).
 
 > [!WARNING]
-> By default, the Laravel application skeleton does not include the `lang` directory. If you would like to customize Laravel's language files, you may publish them via the `lang:publish` Artisan command.
+> By default, the Hypervel application skeleton does not include the `lang` directory. If you would like to customize Hypervel's language files, you may publish them via the `lang:publish` Artisan command.
 
 <a name="custom-messages-for-specific-attributes"></a>
 #### Custom Messages for Specific Attributes
@@ -984,7 +1223,7 @@ You may customize the error messages used for specified attribute and rule combi
 <a name="specifying-attribute-in-language-files"></a>
 ### Specifying Attributes in Language Files
 
-Many of Laravel's built-in error messages include an `:attribute` placeholder that is replaced with the name of the field or attribute under validation. If you would like the `:attribute` portion of your validation message to be replaced with a custom value, you may specify the custom attribute name in the `attributes` array of your `lang/xx/validation.php` language file:
+Many of Hypervel's built-in error messages include an `:attribute` placeholder that is replaced with the name of the field or attribute under validation. If you would like the `:attribute` portion of your validation message to be replaced with a custom value, you may specify the custom attribute name in the `attributes` array of your `lang/xx/validation.php` language file:
 
 ```php
 'attributes' => [
@@ -993,12 +1232,12 @@ Many of Laravel's built-in error messages include an `:attribute` placeholder th
 ```
 
 > [!WARNING]
-> By default, the Laravel application skeleton does not include the `lang` directory. If you would like to customize Laravel's language files, you may publish them via the `lang:publish` Artisan command.
+> By default, the Hypervel application skeleton does not include the `lang` directory. If you would like to customize Hypervel's language files, you may publish them via the `lang:publish` Artisan command.
 
 <a name="specifying-values-in-language-files"></a>
 ### Specifying Values in Language Files
 
-Some of Laravel's built-in validation rule error messages contain a `:value` placeholder that is replaced with the current value of the request attribute. However, you may occasionally need the `:value` portion of your validation message to be replaced with a custom representation of the value. For example, consider the following rule that specifies that a credit card number is required if the `payment_type` has a value of `cc`:
+Some of Hypervel's built-in validation rule error messages contain a `:value` placeholder that is replaced with the current value of the request attribute. However, you may occasionally need the `:value` portion of your validation message to be replaced with a custom representation of the value. For example, consider the following rule that specifies that a credit card number is required if the `payment_type` has a value of `cc`:
 
 ```php
 Validator::make($request->all(), [
@@ -1023,7 +1262,7 @@ Instead of displaying `cc` as the payment type value, you may specify a more use
 ```
 
 > [!WARNING]
-> By default, the Laravel application skeleton does not include the `lang` directory. If you would like to customize Laravel's language files, you may publish them via the `lang:publish` Artisan command.
+> By default, the Hypervel application skeleton does not include the `lang` directory. If you would like to customize Hypervel's language files, you may publish them via the `lang:publish` Artisan command.
 
 After defining this value, the validation rule will produce the following error message:
 
@@ -1191,6 +1430,7 @@ Below is a list of all available validation rules and their function:
 
 [Any Of](#rule-anyof)
 [Bail](#rule-bail)
+[Can](#rule-can)
 [Exclude](#rule-exclude)
 [Exclude If](#rule-exclude-if)
 [Exclude Unless](#rule-exclude-unless)
@@ -1387,6 +1627,21 @@ if ($validator->stopOnFirstFailure()->fails()) {
 }
 ```
 
+<a name="rule-can"></a>
+#### can
+
+The field under validation must be authorized by the given [gate or policy](/docs/{{version}}/authorization). The field's value will be passed to the authorization check after any additional arguments you provide:
+
+```php
+use App\Models\Company;
+use Hypervel\Validation\Rule;
+
+'company_id' => [
+    'required',
+    Rule::can('update-company', Company::class),
+],
+```
+
 <a name="rule-before"></a>
 #### before:_date_
 
@@ -1521,6 +1776,19 @@ use Hypervel\Validation\Rule;
     Rule::date()->format('Y-m-d'),
 ],
 ```
+
+The `Rule::dateTime` method may be used when the field should match the `Y-m-d H:i:s` format:
+
+```php
+use Hypervel\Validation\Rule;
+
+'published_at' => [
+    'required',
+    Rule::dateTime(),
+],
+```
+
+The fluent date builder also provides `afterToday`, `todayOrAfter`, `past`, `future`, `nowOrPast`, `nowOrFuture`, `between`, and `betweenOrEqual` methods.
 
 <a name="rule-decimal"></a>
 #### decimal:_min_,_max_
@@ -1669,7 +1937,7 @@ $request->validate([
 <a name="rule-encoding"></a>
 #### encoding:*encoding_type*
 
-The field under validation must match the specified character encoding. This rule uses PHP's `mb_check_encoding` function to verify the encoding of the given file or string value. For convenience, the `encoding` rule may be constructed using Laravel's fluent file rule builder:
+The field under validation must match the specified character encoding. This rule uses PHP's `mb_check_encoding` function to verify the encoding of the given file or string value. For convenience, the `encoding` rule may be constructed using Hypervel's fluent file rule builder:
 
 ```php
 use Hypervel\Support\Facades\Validator;
@@ -1846,7 +2114,7 @@ Sometimes, you may wish to validate whether an array of values exists in the dat
 'states' => ['array', Rule::exists('states', 'abbreviation')],
 ```
 
-When both of these rules are assigned to a field, Laravel will automatically build a single query to determine if all of the given values exist in the specified table.
+When both of these rules are assigned to a field, Hypervel will automatically build a single query to determine if all of the given values exist in the specified table.
 
 <a name="rule-extensions"></a>
 #### extensions:_foo_,_bar_,...
@@ -2124,6 +2392,19 @@ You may use the `strict` parameter to only consider the field valid if its value
 ```php
 'amount' => 'numeric:strict'
 ```
+
+For convenience, numeric rules may also be constructed using the fluent `numeric` rule builder:
+
+```php
+use Hypervel\Validation\Rule;
+
+'amount' => [
+    'required',
+    Rule::numeric()->between(1, 100)->decimal(2),
+],
+```
+
+The fluent numeric builder also provides `integer`, `min`, `max`, `greaterThan`, `greaterThanOrEqualTo`, `lessThan`, `lessThanOrEqualTo`, `digits`, `digitsBetween`, `minDigits`, `maxDigits`, `multipleOf`, `same`, `different`, and `exactly` methods.
 
 <a name="rule-present"></a>
 #### present
@@ -2457,7 +2738,7 @@ Validator::make($data, [
 > [!WARNING]
 > You should never pass any user controlled request input into the `ignore` method. Instead, you should only pass a system generated unique ID such as an auto-incrementing ID or UUID from an Eloquent model instance. Otherwise, your application will be vulnerable to an SQL injection attack.
 
-Instead of passing the model key's value to the `ignore` method, you may also pass the entire model instance. Laravel will automatically extract the key from the model:
+Instead of passing the model key's value to the `ignore` method, you may also pass the entire model instance. Hypervel will automatically extract the key from the model:
 
 ```php
 Rule::unique('users')->ignore($user)
@@ -2480,6 +2761,9 @@ Rule::unique('users', 'email_address')->ignore($user->id)
 You may specify additional query conditions by customizing the query using the `where` method. For example, let's add a query condition that scopes the query to only search records that have an `account_id` column value of `1`:
 
 ```php
+use Hypervel\Database\Query\Builder;
+use Hypervel\Validation\Rule;
+
 'email' => Rule::unique('users')->where(fn (Builder $query) => $query->where('account_id', 1))
 ```
 
@@ -2754,7 +3038,7 @@ If necessary, you may reference more deeply nested indexes and positions via `se
 <a name="validating-files"></a>
 ## Validating Files
 
-Laravel provides a variety of validation rules that may be used to validate uploaded files, such as `mimes`, `image`, `min`, and `max`. While you are free to specify these rules individually when validating files, Laravel also offers a fluent file validation rule builder that you may find convenient:
+Hypervel provides a variety of validation rules that may be used to validate uploaded files, such as `mimes`, `image`, `min`, and `max`. While you are free to specify these rules individually when validating files, Hypervel also offers a fluent file validation rule builder that you may find convenient:
 
 ```php
 use Hypervel\Support\Facades\Validator;
@@ -2839,7 +3123,7 @@ File::image()->dimensions(
 <a name="validating-passwords"></a>
 ## Validating Passwords
 
-To ensure that passwords have an adequate level of complexity, you may use Laravel's `Password` rule object:
+To ensure that passwords have an adequate level of complexity, you may use Hypervel's `Password` rule object:
 
 ```php
 use Hypervel\Support\Facades\Validator;
@@ -2942,7 +3226,7 @@ Password::defaults(function () {
 <a name="using-rule-objects"></a>
 ### Using Rule Objects
 
-Laravel provides a variety of helpful validation rules; however, you may wish to specify some of your own. One method of registering custom validation rules is using rule objects. To generate a new rule object, you may use the `make:rule` Artisan command. Let's use this command to generate a rule that verifies a string is uppercase. Laravel will place the new rule in the `app/Rules` directory. If this directory does not exist, Laravel will create it when you execute the Artisan command to create your rule:
+Hypervel provides a variety of helpful validation rules; however, you may wish to specify some of your own. One method of registering custom validation rules is using rule objects. To generate a new rule object, you may use the `make:rule` Artisan command. Let's use this command to generate a rule that verifies a string is uppercase. Hypervel will place the new rule in the `app/Rules` directory. If this directory does not exist, Hypervel will create it when you execute the Artisan command to create your rule:
 
 ```shell
 php artisan make:rule Uppercase
@@ -2984,7 +3268,7 @@ $request->validate([
 
 #### Translating Validation Messages
 
-Instead of providing a literal error message to the `$fail` closure, you may also provide a [translation string key](/docs/{{version}}/localization) and instruct Laravel to translate the error message:
+Instead of providing a literal error message to the `$fail` closure, you may also provide a [translation string key](/docs/{{version}}/localization) and instruct Hypervel to translate the error message:
 
 ```php
 if (strtoupper($value) !== $value) {
@@ -3002,7 +3286,7 @@ $fail('validation.location')->translate([
 
 #### Accessing Additional Data
 
-If your custom validation rule class needs to access all of the other data undergoing validation, your rule class may implement the `Hypervel\Contracts\Validation\DataAwareRule` interface. This interface requires your class to define a `setData` method. This method will automatically be invoked by Laravel (before validation proceeds) with all of the data under validation:
+If your custom validation rule class needs to access all of the other data undergoing validation, your rule class may implement the `Hypervel\Contracts\Validation\DataAwareRule` interface. This interface requires your class to define a `setData` method. This method will automatically be invoked by Hypervel (before validation proceeds) with all of the data under validation:
 
 ```php
 <?php
@@ -3019,7 +3303,7 @@ class Uppercase implements DataAwareRule, ValidationRule
      *
      * @var array<string, mixed>
      */
-    protected $data = [];
+    protected array $data = [];
 
     // ...
 
@@ -3053,9 +3337,9 @@ class Uppercase implements ValidationRule, ValidatorAwareRule
     /**
      * The validator instance.
      *
-     * @var \Hypervel\Validation\Validator
+     * @var \Hypervel\Validation\Validator|null
      */
-    protected $validator;
+    protected ?Validator $validator = null;
 
     // ...
 

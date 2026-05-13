@@ -402,6 +402,10 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Register a binding with the container.
      *
+     * Boot-only. Bindings persist on the worker-lifetime container; runtime
+     * use races across coroutines and changes resolution for every subsequent
+     * request.
+     *
      * @throws TypeError
      * @throws ReflectionException
      */
@@ -471,6 +475,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Bind a callback to resolve with Container::call.
+     *
+     * Boot-only. Method bindings persist on the worker-lifetime container and
+     * affect every subsequent Container::call() for the bound method.
      */
     public function bindMethod(array|string $method, Closure $callback): void
     {
@@ -499,6 +506,10 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Add a contextual binding to the container.
+     *
+     * Boot-only. Contextual bindings persist on the worker-lifetime container;
+     * runtime use races across coroutines and changes dependency resolution for
+     * every subsequent build of the concrete.
      */
     public function addContextualBinding(string $concrete, Closure|string $abstract, mixed $implementation): void
     {
@@ -507,6 +518,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Register a binding if it hasn't already been registered.
+     *
+     * Boot-only. Delegates to bind() when the abstract is unbound, mutating the
+     * worker-lifetime container for every subsequent request.
      */
     public function bindIf(Closure|string $abstract, Closure|string|null $concrete = null, bool $shared = false): void
     {
@@ -517,6 +531,10 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Register a shared binding in the container.
+     *
+     * Boot-only. Singleton bindings persist on the worker-lifetime container;
+     * runtime use races across coroutines and changes shared resolution for
+     * every subsequent request.
      */
     public function singleton(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
@@ -525,6 +543,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Register a shared binding if it hasn't already been registered.
+     *
+     * Boot-only. Delegates to singleton() when the abstract is unbound, mutating
+     * the worker-lifetime container for every subsequent request.
      */
     public function singletonIf(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
@@ -535,6 +556,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Register a scoped binding in the container.
+     *
+     * Boot-only. Scoped binding definitions persist on the worker-lifetime
+     * container; only their resolved instances are coroutine-scoped.
      */
     public function scoped(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
@@ -555,6 +579,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Register a scoped binding if it hasn't already been registered.
+     *
+     * Boot-only. Delegates to scoped() when the abstract is unbound, mutating
+     * the worker-lifetime container for every subsequent request.
      */
     public function scopedIf(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
@@ -579,6 +606,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * "Extend" an abstract type in the container.
+     *
+     * Boot-only. The extender persists in the container's $extenders array for
+     * the worker lifetime and runs on every subsequent resolution of $abstract.
      *
      * @throws InvalidArgumentException
      */
@@ -612,6 +642,10 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Register an existing instance as shared in the container.
+     *
+     * Tests only. Replaces a worker-lifetime shared instance; runtime use races
+     * across coroutines and changes the object returned to every subsequent
+     * resolver.
      *
      * @template TInstance of mixed
      *
@@ -658,6 +692,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Assign a set of tags to a given binding.
+     *
+     * Boot-only. Tags persist on the worker-lifetime container and affect every
+     * subsequent tagged() resolution.
      */
     public function tag(array|string $abstracts, array|string $tags): void
     {
@@ -693,6 +730,10 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Alias a type to a different name.
      *
+     * Boot-only. Aliases persist on the worker-lifetime container; runtime use
+     * races across coroutines and changes resolution for every subsequent
+     * request.
+     *
      * @throws LogicException
      */
     public function alias(string $abstract, string $alias): void
@@ -710,6 +751,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Bind a new callback to an abstract's rebind event.
+     *
+     * Boot-only. Rebinding callbacks persist on the worker-lifetime container
+     * and run whenever the abstract is rebound later in the worker.
      */
     public function rebinding(string $abstract, Closure $callback): mixed
     {
@@ -724,6 +768,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Refresh an instance on the given target and method.
+     *
+     * Boot-only. Registers a rebinding callback on the worker-lifetime
+     * container; runtime use leaks the callback across later rebindings.
      */
     public function refresh(string $abstract, mixed $target, string $method): mixed
     {
@@ -1390,6 +1437,33 @@ class Container implements ArrayAccess, ContainerContract
     }
 
     /**
+     * Instantiate a concrete instance with the given parameter overrides.
+     *
+     * Bypasses all binding lookups and the auto-singleton cache, so the
+     * returned instance is always freshly constructed. Class-typed
+     * dependencies are still resolved via the container.
+     *
+     * @template TClass of object
+     *
+     * @param class-string<TClass>|Closure(static, array): TClass $concrete
+     * @param array<string, mixed> $parameters
+     * @return ($concrete is class-string<TClass> ? TClass : mixed)
+     *
+     * @throws BindingResolutionException
+     * @throws CircularDependencyException
+     */
+    public function buildWith(Closure|string $concrete, array $parameters = []): mixed
+    {
+        $this->pushParameterOverrides($parameters);
+
+        try {
+            return $this->build($concrete);
+        } finally {
+            $this->popParameterOverrides();
+        }
+    }
+
+    /**
      * Instantiate a concrete instance of the given type.
      *
      * @template TClass of object
@@ -1702,6 +1776,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Register a new before resolving callback for all types.
+     *
+     * Boot-only. The callback persists on the worker-lifetime container and
+     * runs before every matching future resolution.
      */
     public function beforeResolving(Closure|string $abstract, ?Closure $callback = null): void
     {
@@ -1718,6 +1795,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Register a new resolving callback.
+     *
+     * Boot-only. The callback persists on the worker-lifetime container and
+     * runs during every matching future resolution.
      */
     public function resolving(Closure|string $abstract, ?Closure $callback = null): void
     {
@@ -1734,6 +1814,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Register a new after resolving callback for all types.
+     *
+     * Boot-only. The callback persists on the worker-lifetime container and
+     * runs after every matching future resolution.
      */
     public function afterResolving(Closure|string $abstract, ?Closure $callback = null): void
     {
@@ -1750,6 +1833,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Register a new after resolving attribute callback for all types.
+     *
+     * Boot-only. The callback persists on the worker-lifetime container and
+     * runs after every future resolution with the matching attribute.
      */
     public function afterResolvingAttribute(string $attribute, Closure $callback): void
     {
@@ -1911,6 +1997,10 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Remove all of the extender callbacks for a given type.
+     *
+     * Boot or tests only. Clears worker-lifetime extender callbacks; concurrent
+     * resolutions may diverge depending on whether they resolved before or
+     * after the removal.
      */
     public function forgetExtenders(string $abstract): void
     {
@@ -1929,6 +2019,10 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Remove a resolved instance from the instance cache.
+     *
+     * Boot or tests only. Clears a worker-lifetime shared instance and current
+     * coroutine scoped instance; concurrent coroutines may still hold references
+     * that next resolution will not share.
      */
     public function forgetInstance(string $abstract): void
     {
@@ -1939,6 +2033,10 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Clear all of the instances from the container.
+     *
+     * Boot or tests only. Clears worker-lifetime shared instances and all scoped
+     * context entries known to this container; concurrent coroutines may still
+     * hold references that next resolution will not share.
      */
     public function forgetInstances(): void
     {
@@ -1949,6 +2047,10 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Clear all of the scoped instances from the container.
+     *
+     * Boot or tests only. Clears scoped context entries known to this container;
+     * runtime use can invalidate scoped services while a coroutine is still
+     * handling a request.
      */
     public function forgetScopedInstances(): void
     {
@@ -1959,6 +2061,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Set the callback which determines the current container environment.
+     *
+     * Boot-only. The resolver persists on the worker-lifetime container and is
+     * used by every currentEnvironmentIs() call.
      *
      * @param null|(callable(array<int, string>|string): (bool|string)) $callback
      */
@@ -1981,6 +2086,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Flush the container of all bindings and resolved instances.
+     *
+     * Tests only. Clears the worker-lifetime container registry; runtime use
+     * breaks every concurrent resolution in the worker.
      */
     public function flush(): void
     {
@@ -2014,6 +2122,9 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Set the shared instance of the container.
+     *
+     * Tests only. Replaces the process-wide container singleton; runtime use
+     * races across coroutines and breaks every facade/global container lookup.
      */
     public static function setInstance(?ContainerContract $container = null): ?ContainerContract
     {

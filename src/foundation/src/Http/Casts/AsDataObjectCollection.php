@@ -50,26 +50,6 @@ class AsDataObjectCollection implements Castable
                     array_map(fn ($item) => $dataClass::make($item), $value)
                 );
             }
-
-            public function set(string $key, mixed $value, array $inputs): array
-            {
-                if ($value === null) {
-                    return [$key => null];
-                }
-
-                if (! $value instanceof Collection) {
-                    return [$key => $value];
-                }
-
-                $storable = $value->map(function ($item) {
-                    if (method_exists($item, 'toArray')) {
-                        return $item->toArray();
-                    }
-                    return $item;
-                })->toArray();
-
-                return [$key => $storable];
-            }
         };
     }
 }

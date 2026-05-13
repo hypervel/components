@@ -11,6 +11,10 @@ class PaginationState
 {
     /**
      * Bind the pagination state resolvers using the given application container as a base.
+     *
+     * Boot-only. Registers worker-lifetime resolvers (path, page, query string,
+     * cursor) on Paginator/CursorPaginator that capture the application
+     * container; each resolver itself reads per-request data via RequestContext.
      */
     public static function resolveUsing(Container $app): void
     {

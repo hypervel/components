@@ -302,6 +302,7 @@ class MiddlewareTest extends TestCase
             \Hypervel\Foundation\Http\Middleware\InvokeDeferredCallbacks::class,
             \Hypervel\Http\Middleware\TrustProxies::class,
             \Hypervel\Http\Middleware\HandleCors::class,
+            \Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::class,
             \Hypervel\Http\Middleware\ValidatePostSize::class,
             \Hypervel\Foundation\Http\Middleware\TrimStrings::class,
             \Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
@@ -348,12 +349,16 @@ class MiddlewareTest extends TestCase
 
         $this->assertSame([
             'auth' => \Hypervel\Auth\Middleware\Authenticate::class,
+            'auth.basic' => \Hypervel\Auth\Middleware\AuthenticateWithBasicAuth::class,
             'auth.session' => \Hypervel\Session\Middleware\AuthenticateSession::class,
             'cache.headers' => \Hypervel\Http\Middleware\SetCacheHeaders::class,
             'can' => \Hypervel\Auth\Middleware\Authorize::class,
+            'guest' => \Hypervel\Auth\Middleware\RedirectIfAuthenticated::class,
+            'password.confirm' => \Hypervel\Auth\Middleware\RequirePassword::class,
             'precognitive' => \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
             'signed' => \Hypervel\Routing\Middleware\ValidateSignature::class,
             'throttle' => \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            'verified' => \Hypervel\Auth\Middleware\EnsureEmailIsVerified::class,
         ], $middleware->getMiddlewareAliases());
     }
 

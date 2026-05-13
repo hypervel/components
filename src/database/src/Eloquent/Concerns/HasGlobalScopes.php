@@ -44,6 +44,10 @@ trait HasGlobalScopes
     /**
      * Register a new global scope on the model.
      *
+     * Boot-only. The scope persists in a static property for the worker
+     * lifetime and applies to every query for this model class across all
+     * coroutines.
+     *
      * @param (Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|\Hypervel\Database\Eloquent\Scope|string $scope
      * @param null|(Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|\Hypervel\Database\Eloquent\Scope $implementation
      *
@@ -69,6 +73,9 @@ trait HasGlobalScopes
 
     /**
      * Register multiple global scopes on the model.
+     *
+     * Boot-only. Delegates to addGlobalScope() per entry; each scope persists
+     * in a static property for the worker lifetime.
      */
     public static function addGlobalScopes(array $scopes): void
     {
@@ -116,6 +123,10 @@ trait HasGlobalScopes
 
     /**
      * Set the current global scopes.
+     *
+     * Boot or tests only. Replaces the worker-wide global scopes registry
+     * shared by every coroutine; per-request use changes scope behavior for
+     * every concurrent model query.
      */
     public static function setAllGlobalScopes(array $scopes): void
     {

@@ -454,6 +454,9 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
 
     /**
      * Set the current request path resolver callback.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every subsequent paginator's path lookup.
      */
     public static function currentPathResolver(Closure $resolver): void
     {
@@ -474,6 +477,9 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
 
     /**
      * Set the current page resolver callback.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every subsequent paginator's page lookup.
      */
     public static function currentPageResolver(Closure $resolver): void
     {
@@ -494,6 +500,9 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
 
     /**
      * Set with query string resolver callback.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every subsequent paginator's query-string lookup.
      */
     public static function queryStringResolver(Closure $resolver): void
     {
@@ -510,6 +519,9 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
 
     /**
      * Set the view factory resolver callback.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every subsequent paginator render.
      */
     public static function viewFactoryResolver(Closure $resolver): void
     {
@@ -518,6 +530,9 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
 
     /**
      * Set the default pagination view.
+     *
+     * Boot-only. The view name persists in a static property for the worker
+     * lifetime and applies to every subsequent paginator render.
      */
     public static function defaultView(string $view): void
     {
@@ -526,6 +541,9 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
 
     /**
      * Set the default "simple" pagination view.
+     *
+     * Boot-only. The view name persists in a static property for the worker
+     * lifetime and applies to every subsequent simple-paginator render.
      */
     public static function defaultSimpleView(string $view): void
     {
@@ -534,46 +552,14 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
 
     /**
      * Indicate that Tailwind styling should be used for generated links.
+     *
+     * Boot-only. Sets the default view names in static properties for the
+     * worker lifetime; applies to every subsequent paginator render.
      */
     public static function useTailwind(): void
     {
         static::defaultView('pagination::tailwind');
         static::defaultSimpleView('pagination::simple-tailwind');
-    }
-
-    /**
-     * Indicate that Bootstrap 4 styling should be used for generated links.
-     */
-    public static function useBootstrap(): void
-    {
-        static::useBootstrapFour();
-    }
-
-    /**
-     * Indicate that Bootstrap 3 styling should be used for generated links.
-     */
-    public static function useBootstrapThree(): void
-    {
-        static::defaultView('pagination::default');
-        static::defaultSimpleView('pagination::simple-default');
-    }
-
-    /**
-     * Indicate that Bootstrap 4 styling should be used for generated links.
-     */
-    public static function useBootstrapFour(): void
-    {
-        static::defaultView('pagination::bootstrap-4');
-        static::defaultSimpleView('pagination::simple-bootstrap-4');
-    }
-
-    /**
-     * Indicate that Bootstrap 5 styling should be used for generated links.
-     */
-    public static function useBootstrapFive(): void
-    {
-        static::defaultView('pagination::bootstrap-5');
-        static::defaultSimpleView('pagination::simple-bootstrap-5');
     }
 
     /**

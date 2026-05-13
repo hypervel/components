@@ -179,6 +179,20 @@ class ViewBladeCompilerTest extends TestCase
         $this->assertEquals(['prefix-forms:input' => 'App\View\Components\Forms\Input'], $compiler->getClassComponentAliases());
     }
 
+    public function testComponentAliasesUseAliasFirstOrder()
+    {
+        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
+
+        $compiler->component('package-alert', 'App\View\Components\Alert');
+        $this->assertEquals(['package-alert' => 'App\View\Components\Alert'], $compiler->getClassComponentAliases());
+
+        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
+
+        $compiler->component('App\View\Components\Alert', 'package-alert');
+        $this->assertArrayNotHasKey('package-alert', $compiler->getClassComponentAliases());
+        $this->assertEquals(['App\View\Components\Alert' => 'package-alert'], $compiler->getClassComponentAliases());
+    }
+
     public function testAnonymousComponentNamespacesCanBeStored()
     {
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);

@@ -10,6 +10,10 @@ class ServerManager
 
     /**
      * Add a server entry to the registry.
+     *
+     * Boot-only. The registry is process-wide static state populated during
+     * server boot (before fork); runtime use mutates state shared across every
+     * coroutine in the worker.
      */
     public static function add(string $name, array $value): void
     {

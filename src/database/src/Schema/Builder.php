@@ -60,6 +60,9 @@ class Builder
 
     /**
      * Set the default string length for migrations.
+     *
+     * Boot-only. The length persists in a static property for the worker
+     * lifetime and applies to every Blueprint::string() across all coroutines.
      */
     public static function defaultStringLength(int $length): void
     {
@@ -68,6 +71,9 @@ class Builder
 
     /**
      * Set the default time precision for migrations.
+     *
+     * Boot-only. The precision persists in a static property for the worker
+     * lifetime and applies to every time/datetime column across all coroutines.
      */
     public static function defaultTimePrecision(?int $precision): void
     {
@@ -76,6 +82,9 @@ class Builder
 
     /**
      * Set the default morph key type for migrations.
+     *
+     * Boot-only. The type persists in a static property for the worker lifetime
+     * and applies to every morph() column across all coroutines.
      *
      * @throws InvalidArgumentException
      */
@@ -101,6 +110,8 @@ class Builder
 
     /**
      * Set the default morph key type for migrations to UUIDs.
+     *
+     * Boot-only. Sets the worker-wide morph type via defaultMorphKeyType().
      */
     public static function morphUsingUuids(): void
     {
@@ -109,6 +120,8 @@ class Builder
 
     /**
      * Set the default morph key type for migrations to ULIDs.
+     *
+     * Boot-only. Sets the worker-wide morph type via defaultMorphKeyType().
      */
     public static function morphUsingUlids(): void
     {

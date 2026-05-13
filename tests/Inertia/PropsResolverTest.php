@@ -9,11 +9,14 @@ use Hypervel\Http\Request;
 use Hypervel\Http\Response as BaseResponse;
 use Hypervel\Inertia\Inertia;
 use Hypervel\Inertia\MergeProp;
+use Hypervel\Inertia\PropertyContext;
 use Hypervel\Inertia\ProvidesInertiaProperties;
+use Hypervel\Inertia\ProvidesInertiaProperty;
 use Hypervel\Inertia\ProvidesScrollMetadata;
 use Hypervel\Inertia\RenderContext;
 use Hypervel\Inertia\Response;
 use Hypervel\Inertia\ScrollProp;
+use RuntimeException;
 
 class PropsResolverTest extends TestCase
 {
@@ -170,6 +173,37 @@ class PropsResolverTest extends TestCase
         $this->assertSame('Jonathan', $page['props']['auth']['user']);
         $this->assertArrayNotHasKey('notifications', $page['props']['auth']);
         $this->assertFalse($resolved, 'DeferProp closure should not be resolved on initial load');
+    }
+
+    public function testRescuedDeferPropIsOmittedAndMetadataOnPartialRequest(): void
+    {
+        $page = $this->makePage($this->makePartialRequest('auth.notifications'), [
+            'auth' => [
+                'notifications' => Inertia::defer(function () {
+                    throw new RuntimeException('Rescue this deferred prop');
+                }, rescue: true),
+            ],
+        ]);
+
+        $this->assertArrayNotHasKey('notifications', $page['props']['auth']);
+        $this->assertSame(['auth.notifications'], $page['rescuedProps']);
+    }
+
+    public function testRescuedDeferPropIsOmittedWhenProvidesInertiaPropertyThrows(): void
+    {
+        $page = $this->makePage($this->makePartialRequest('stats'), [
+            'stats' => Inertia::defer(function () {
+                return new class implements ProvidesInertiaProperty {
+                    public function toInertiaProperty(PropertyContext $prop): mixed
+                    {
+                        throw new RuntimeException('Failed to resolve stats');
+                    }
+                };
+            }, rescue: true),
+        ]);
+
+        $this->assertArrayNotHasKey('stats', $page['props']);
+        $this->assertSame(['stats'], $page['rescuedProps']);
     }
 
     public function testExcludedPropsAreNotResolvedOnInitialLoad(): void

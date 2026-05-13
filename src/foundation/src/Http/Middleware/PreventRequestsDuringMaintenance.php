@@ -146,6 +146,9 @@ class PreventRequestsDuringMaintenance
 
     /**
      * Indicate that the given URIs should always be accessible.
+     *
+     * Boot-only. The list persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
     public static function except(array|string $uris): void
     {

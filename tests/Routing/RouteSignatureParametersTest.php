@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Routing\RouteSignatureParameters;
 use Hypervel\Tests\Routing\RoutingTestCase;
 use Laravel\SerializableClosure\SerializableClosure;
+use ReflectionException;
 use ReflectionFunction;
 use ReflectionParameter;
 use ReflectionProperty;
@@ -72,6 +73,43 @@ class RouteSignatureParametersTest extends RoutingTestCase
         }
     }
 
+    public function testItExtractsParametersFromExistingControllerMethod()
+    {
+        $parameters = RouteSignatureParameters::fromAction([
+            'uses' => SignatureParametersController::class . '@show',
+        ]);
+
+        $this->assertCount(1, $parameters);
+        $this->assertSame('user', $parameters[0]->getName());
+    }
+
+    public function testItReturnsEmptyForMissingMethodOnExistingClass()
+    {
+        $parameters = RouteSignatureParameters::fromAction([
+            'uses' => SignatureParametersController::class . '@nonExistent',
+        ]);
+
+        $this->assertSame([], $parameters);
+    }
+
+    public function testItReturnsEmptyForMagicCallControllerMethod()
+    {
+        $parameters = RouteSignatureParameters::fromAction([
+            'uses' => SignatureParametersMagicController::class . '@anything',
+        ]);
+
+        $this->assertSame([], $parameters);
+    }
+
+    public function testItThrowsForMissingControllerClass()
+    {
+        $this->expectException(ReflectionException::class);
+
+        RouteSignatureParameters::fromAction([
+            'uses' => 'Hypervel\Tests\Routing\RouteSignatureParametersTest\NonExistentController@show',
+        ]);
+    }
+
     protected function seedRouteSignatureCacheWithStaleParameters(
         Closure $staleClosure,
         Closure $targetClosure,
@@ -100,4 +138,20 @@ class RouteSignatureParametersTest extends RoutingTestCase
 
 class SignatureParametersUser extends Model
 {
+}
+
+class SignatureParametersController
+{
+    public function show(SignatureParametersUser $user)
+    {
+        return $user;
+    }
+}
+
+class SignatureParametersMagicController
+{
+    public function __call(string $method, array $arguments): mixed
+    {
+        return null;
+    }
 }

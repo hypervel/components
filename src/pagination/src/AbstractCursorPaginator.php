@@ -476,6 +476,9 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
 
     /**
      * Set the current cursor resolver callback.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every subsequent cursor-paginator's cursor lookup.
      */
     public static function currentCursorResolver(Closure $resolver): void
     {

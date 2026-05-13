@@ -9,8 +9,6 @@ use Hypervel\Foundation\Http\Contracts\Castable;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
 use Hypervel\Support\Collection;
 
-use function Hypervel\Support\enum_value;
-
 class AsEnumCollection implements Castable
 {
     /**
@@ -50,28 +48,6 @@ class AsEnumCollection implements Castable
                         ? $enumClass::from($item)
                         : constant($enumClass . '::' . $item);
                 });
-            }
-
-            public function set(string $key, mixed $value, array $inputs): array
-            {
-                if ($value === null) {
-                    return [$key => null];
-                }
-
-                $storable = (new Collection($value))->map(function ($enum) {
-                    return $this->getStorableEnumValue($enum);
-                })->toArray();
-
-                return [$key => $storable];
-            }
-
-            protected function getStorableEnumValue(mixed $enum): mixed
-            {
-                if (is_string($enum) || is_int($enum)) {
-                    return $enum;
-                }
-
-                return enum_value($enum);
             }
         };
     }

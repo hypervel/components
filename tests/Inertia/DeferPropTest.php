@@ -53,4 +53,11 @@ class DeferPropTest extends TestCase
         $this->assertSame('custom-key', $deferProp->getKey());
         $this->assertNotNull($deferProp->expiresAt());
     }
+
+    public function testCanBeMarkedAsRescuable(): void
+    {
+        $deferProp = new DeferProp(fn () => 'value', rescue: true);
+
+        $this->assertTrue($deferProp->shouldRescue());
+    }
 }

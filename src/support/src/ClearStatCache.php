@@ -55,6 +55,9 @@ class ClearStatCache
 
     /**
      * Set the clear interval in seconds.
+     *
+     * Boot-only. The interval persists in a static property for the worker
+     * lifetime and affects every subsequent stat-cache clear check.
      */
     public static function setInterval(int $interval): void
     {

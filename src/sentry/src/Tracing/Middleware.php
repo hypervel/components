@@ -90,6 +90,9 @@ class Middleware
     /**
      * Set the timestamp of application bootstrap completion.
      *
+     * Boot-only. Sets a process-wide static used by the first-request boot
+     * span. Runtime use would race across coroutines.
+     *
      * @internal this method should only be invoked right after the application has finished "booting"
      */
     public static function setBootedTimestamp(?float $timestamp = null): void

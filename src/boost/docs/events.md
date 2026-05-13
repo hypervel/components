@@ -6,6 +6,7 @@
     - [Event Discovery](#event-discovery)
     - [Manually Registering Events](#manually-registering-events)
     - [Closure Listeners](#closure-listeners)
+    - [Passive Observers](#passive-observers)
 - [Defining Events](#defining-events)
 - [Defining Listeners](#defining-listeners)
 - [Queued Event Listeners](#queued-event-listeners)
@@ -18,6 +19,7 @@
         - [Unique Listener Locks](#unique-listener-locks)
     - [Handling Failed Jobs](#handling-failed-jobs)
 - [Dispatching Events](#dispatching-events)
+    - [Checking for Listeners](#checking-for-listeners)
     - [Dispatching Events After Database Transactions](#dispatching-events-after-database-transactions)
     - [Deferring Events](#deferring-events)
 - [Event Subscribers](#event-subscribers)
@@ -217,6 +219,43 @@ Event::listen('event.*', function (string $eventName, array $data) {
     // ...
 });
 ```
+
+> [!NOTE]
+> A bare `'*'` (with no prefix) is a catch-all that is automatically routed through `Event::observe()` as a [passive observer](#passive-observers), not a regular wildcard listener. Targeted wildcards like `'event.*'` are unaffected and behave as shown above.
+
+<a name="passive-observers"></a>
+### Passive Observers
+
+For observability tooling — tracing, metrics, logging dashboards, request profilers — that should watch events without influencing whether or how they are dispatched, register a passive observer using `Event::observe()` instead of `Event::listen()`:
+
+```php
+use Hypervel\Support\Facades\Event;
+
+Event::observe('eloquent.*', function (string $eventName, array $data) {
+    // record metrics, write to a profiler, etc.
+});
+```
+
+Observers behave differently from listeners in four ways:
+
+- **Not counted by `hasListeners()`.** Passive observers do not contribute to the listener count that determines whether a [guarded event](#checking-for-listeners) will fire — they receive events only when something else (a regular listener or a targeted wildcard registered via `listen()`) makes the dispatch happen.
+- **Run after all listeners.** Observers fire once listener invocation has completed.
+- **No halt or propagation-stop semantics.** Observer return values are ignored; an observer can't stop other listeners or observers from running.
+- **Synchronous only.** Observers do not support queueing — `ShouldQueue` on the callback's class has no effect.
+
+A bare `Event::listen('*', ...)` registration is automatically routed through `observe()` so observability tooling can't accidentally defeat `hasListeners()` guards. Targeted wildcards (e.g. `'App\Events\*'`) registered via `listen()` are still counted as listeners and will cause guarded events to fire.
+
+Two examples from Hypervel's Telescope package:
+
+```php
+// EventWatcher — record every dispatched event for the events panel
+$dispatcher->observe('*', [$this, 'recordEvent']);
+
+// ModelWatcher — record Eloquent lifecycle events for the models panel
+$dispatcher->observe('eloquent.*', [$this, 'recordAction']);
+```
+
+In both cases, registering with `observe()` (rather than `listen()`) is critical: it lets Telescope record what is fired without forcing the framework to construct events nothing else is listening to.
 
 <a name="defining-events"></a>
 ## Defining Events
@@ -863,6 +902,24 @@ OrderShipped::dispatchUnless($condition, $order);
 
 > [!NOTE]
 > When testing, it can be helpful to assert that certain events were dispatched without actually triggering their listeners. Laravel's [built-in testing helpers](#testing) make it a cinch.
+
+<a name="checking-for-listeners"></a>
+### Checking for Listeners
+
+To skip constructing and dispatching an event when nothing is listening, call `Event::hasListeners()` first. The check is a cached in-memory lookup, so it's near-free — and skipping the dispatch entirely avoids the per-event construction and dispatch overhead whenever no listener is registered:
+
+```php
+use App\Events\OrderShipped;
+use Hypervel\Support\Facades\Event;
+
+if (Event::hasListeners(OrderShipped::class)) {
+    OrderShipped::dispatch($order);
+}
+```
+
+Hypervel's framework code uses this pattern extensively — many internal events (route matching, query execution, cache hits, queue lifecycle, view composition, etc.) are wrapped in `hasListeners()` guards so they are only constructed and dispatched when something is actually listening. This is a Hypervel-specific optimization; Laravel always constructs and dispatches events regardless of listener count.
+
+A bare `Event::listen('*', ...)` registration is **not** counted by `hasListeners()` — it is automatically routed through [`Event::observe()`](#passive-observers) as a passive observer, so observability tooling cannot accidentally force every event to fire. Targeted wildcards (e.g. `'App\Events\*'`) registered via `listen()` *are* counted and will cause guarded events to fire.
 
 <a name="dispatching-events-after-database-transactions"></a>
 ### Dispatching Events After Database Transactions

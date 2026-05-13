@@ -14,6 +14,7 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -23,7 +24,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Foundation\Auth\User as FoundationUser;
 use Hypervel\Http\Request;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use ReflectionClass;
@@ -190,20 +191,18 @@ class AuthManagerTest extends TestCase
 
     public function testViaRequest()
     {
-        $manager = new AuthManager($container = $this->getContainer());
-        $container->instance('request', m::mock(Request::class));
+        $manager = new AuthManager($this->app);
+        RequestContext::set(Request::create('/'));
 
-        Container::setInstance($container);
-
-        $container->make('config')
+        $this->app->make('config')
             ->set('auth.providers.foo', [
                 'driver' => 'foo',
             ]);
-        $container->make('config')
+        $this->app->make('config')
             ->set('auth.guards.foo', [
                 'driver' => 'custom',
             ]);
-        $container->make('config')
+        $this->app->make('config')
             ->set('auth.defaults.provider', 'foo');
 
         $provider = m::mock(UserProvider::class);

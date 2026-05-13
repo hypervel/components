@@ -487,9 +487,22 @@ abstract class RedisConnection extends BaseConnection
 
     /**
      * Close the current connection.
+     *
+     * Calling the native phpredis close() releases the underlying socket
+     * deterministically rather than relying on PHP refcount destruction -
+     * connections trapped in pool/connection reference cycles would otherwise
+     * keep their FDs open until the cycle collector runs.
      */
     public function close(): bool
     {
+        try {
+            $this->connection?->close();
+        } catch (Throwable) {
+            // Swallow errors from the underlying client (already-disconnected
+            // socket, broken connection, RedisCluster variants without close, etc.).
+            // PHP frees the client either way - we just want to null our reference.
+        }
+
         $this->connection = null;
 
         return true;

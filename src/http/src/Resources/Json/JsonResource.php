@@ -216,6 +216,10 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
 
     /**
      * Set the string that should wrap the outer-most resource array.
+     *
+     * Boot-only. The wrap value persists in a static property for the worker
+     * lifetime and applies to every resource serialization across all
+     * coroutines.
      */
     public static function wrap(string $value): void
     {
@@ -224,6 +228,10 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
 
     /**
      * Disable wrapping of the outer-most resource array.
+     *
+     * Boot-only. The wrap value persists in a static property for the worker
+     * lifetime and applies to every resource serialization across all
+     * coroutines.
      */
     public static function withoutWrapping(): void
     {

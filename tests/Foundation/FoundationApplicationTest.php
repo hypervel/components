@@ -14,6 +14,7 @@ use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 use stdClass;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -63,6 +64,7 @@ class FoundationApplicationTest extends TestCase
     {
         $provider = m::mock(ApplicationBasicServiceProviderStub::class);
         $class = get_class($provider);
+        $provider->shouldReceive('isEnabled')->andReturn(true);
         $provider->shouldReceive('register')->once();
         $app = new Application;
         $app->register($provider);
@@ -114,6 +116,7 @@ class FoundationApplicationTest extends TestCase
     {
         $provider = m::mock(ServiceProvider::class);
         $class = get_class($provider);
+        $provider->shouldReceive('isEnabled')->andReturn(true);
         $provider->shouldReceive('register')->once();
         $app = new Application;
         $app->register($provider);
@@ -125,12 +128,70 @@ class FoundationApplicationTest extends TestCase
     {
         $provider = m::mock(ServiceProvider::class);
         $class = get_class($provider);
+        $provider->shouldReceive('isEnabled')->andReturn(true);
         $provider->shouldReceive('register')->once();
         $app = new Application;
         $app->register($provider);
 
         $this->assertTrue($app->providerIsLoaded($class));
         $this->assertFalse($app->providerIsLoaded(ApplicationBasicServiceProviderStub::class));
+    }
+
+    public function testDisabledServiceProviderIsNotRegisteredOrTracked()
+    {
+        $app = new Application;
+        $app->register($provider = new ApplicationDisabledServiceProviderStub($app));
+
+        $this->assertArrayNotHasKey(get_class($provider), $app->getLoadedProviders());
+        $this->assertFalse($app->providerIsLoaded(get_class($provider)));
+        $this->assertNull($app->getProvider(get_class($provider)));
+        $this->assertSame([], $app->getProviders(get_class($provider)));
+    }
+
+    public function testDisabledServiceProviderBindingsArrayIsSkipped()
+    {
+        $app = new Application;
+        $app->register(new class($app) extends ServiceProvider {
+            public $bindings = [
+                AbstractClass::class => ConcreteClass::class,
+            ];
+
+            public function isEnabled(): bool
+            {
+                return false;
+            }
+        });
+
+        $this->assertFalse($app->bound(AbstractClass::class));
+    }
+
+    public function testDisabledServiceProviderSingletonsArrayIsSkipped()
+    {
+        $app = new Application;
+        $app->register(new class($app) extends ServiceProvider {
+            public $singletons = [
+                AbstractClass::class => ConcreteClass::class,
+            ];
+
+            public function isEnabled(): bool
+            {
+                return false;
+            }
+        });
+
+        $this->assertFalse($app->bound(AbstractClass::class));
+    }
+
+    public function testDisabledServiceProviderIsNotBootedWhenAppAlreadyBooted()
+    {
+        $app = new Application;
+        $app->boot();
+
+        // boot() throws if called — passing the late-register branch without
+        // the isEnabled() check would call bootProvider() and trigger it.
+        $app->register(new ApplicationDisabledServiceProviderStub($app));
+
+        $this->assertTrue($app->isBooted());
     }
 
     public function testEnvironment()
@@ -666,6 +727,24 @@ class ApplicationBasicServiceProviderStub extends ServiceProvider
 
     public function register(): void
     {
+    }
+}
+
+class ApplicationDisabledServiceProviderStub extends ServiceProvider
+{
+    public function isEnabled(): bool
+    {
+        return false;
+    }
+
+    public function register(): void
+    {
+        throw new RuntimeException('register() must not be called on a disabled provider');
+    }
+
+    public function boot(): void
+    {
+        throw new RuntimeException('boot() must not be called on a disabled provider');
     }
 }
 

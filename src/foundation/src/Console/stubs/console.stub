@@ -4,14 +4,20 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
-use Hypervel\Console\Attributes\Description;
-use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Command;
 
-#[Signature('{{ command }}')]
-#[Description('Command description')]
 class {{ class }} extends Command
 {
+    /**
+     * The name and signature of the console command.
+     */
+    protected ?string $signature = '{{ command }}';
+
+    /**
+     * The console command description.
+     */
+    protected string $description = 'Command description';
+
     /**
      * Execute the console command.
      */

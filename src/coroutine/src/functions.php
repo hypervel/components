@@ -12,10 +12,13 @@ use Swoole\Runtime;
 /**
  * @param callable[] $callables
  * @param int $concurrent if $concurrent is equal to 0, that means unlimited
+ * @param array<string>|bool $copyContext When set, parent coroutine context is copied to each child.
+ *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
+ *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
  */
-function parallel(array $callables, int $concurrent = 0): array
+function parallel(array $callables, int $concurrent = 0, bool|array $copyContext = false): array
 {
-    $parallel = new Parallel($concurrent);
+    $parallel = new Parallel($concurrent, $copyContext);
     foreach ($callables as $key => $callable) {
         $parallel->add($callable, $key);
     }
@@ -35,9 +38,17 @@ function wait(Closure $closure, ?float $timeout = null)
         ->wait($closure, $timeout);
 }
 
-function co(callable $callable): bool|int
+/**
+ * @param array<string>|bool $copyContext When set, parent coroutine context is copied to the child.
+ *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
+ *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
+ */
+function co(callable $callable, bool|array $copyContext = false): bool|int
 {
-    $id = Coroutine::create($callable);
+    $id = $copyContext === false
+        ? Coroutine::create($callable)
+        : Coroutine::fork($callable, is_array($copyContext) ? $copyContext : []);
+
     return $id > 0 ? $id : false;
 }
 
@@ -46,9 +57,17 @@ function co(callable $callable): bool|int
 // lifecycle-aware deferred callbacks — having two functions named "defer" with different
 // semantics caused import ambiguity bugs. Do not re-add this wrapper.
 
-function go(callable $callable): bool|int
+/**
+ * @param array<string>|bool $copyContext When set, parent coroutine context is copied to the child.
+ *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
+ *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
+ */
+function go(callable $callable, bool|array $copyContext = false): bool|int
 {
-    $id = Coroutine::create($callable);
+    $id = $copyContext === false
+        ? Coroutine::create($callable)
+        : Coroutine::fork($callable, is_array($copyContext) ? $copyContext : []);
+
     return $id > 0 ? $id : false;
 }
 

@@ -140,6 +140,9 @@ class TrustProxies
 
     /**
      * Specify the IP addresses of proxies that should always be trusted.
+     *
+     * Boot-only. The list persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
     public static function at(array|string $proxies): void
     {
@@ -148,6 +151,9 @@ class TrustProxies
 
     /**
      * Specify the proxy headers that should always be trusted.
+     *
+     * Boot-only. The header set persists in a static property for the worker
+     * lifetime and applies to every subsequent request.
      */
     public static function withHeaders(int $headers): void
     {

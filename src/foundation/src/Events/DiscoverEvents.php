@@ -114,6 +114,9 @@ class DiscoverEvents
     /**
      * Specify a callback to be used to guess class names.
      *
+     * Boot-only. The callback persists in a static property used during event
+     * discovery; runtime use has no effect on already-discovered listeners.
+     *
      * @param callable(SplFileInfo, string): class-string $callback
      */
     public static function guessClassNamesUsing(callable $callback): void

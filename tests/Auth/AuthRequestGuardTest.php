@@ -5,21 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\RequestGuard;
-use Hypervel\Container\Container;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Http\Request;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
 class AuthRequestGuardTest extends TestCase
 {
     public function testCallbackReceivesRequestAndProvider()
     {
-        $container = new Container;
-        $request = m::mock(Request::class);
+        $request = Request::create('/');
         $provider = m::mock(UserProvider::class);
-        $container->instance('request', $request);
+        RequestContext::set($request);
 
         $receivedRequest = null;
         $receivedProvider = null;
@@ -29,7 +28,7 @@ class AuthRequestGuardTest extends TestCase
             $receivedProvider = $prov;
 
             return m::mock(Authenticatable::class);
-        }, $container, $provider);
+        }, $this->app, $provider);
 
         $guard->user();
 
@@ -39,8 +38,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testUserReturnsCachedUserOnSubsequentCalls()
     {
-        $container = new Container;
-        $container->instance('request', m::mock(Request::class));
+        RequestContext::set(Request::create('/'));
 
         $callCount = 0;
         $user = m::mock(Authenticatable::class);
@@ -49,7 +47,7 @@ class AuthRequestGuardTest extends TestCase
             ++$callCount;
 
             return $user;
-        }, $container);
+        }, $this->app);
 
         $this->assertSame($user, $guard->user());
         $this->assertSame($user, $guard->user());
@@ -58,8 +56,7 @@ class AuthRequestGuardTest extends TestCase
 
     public function testNullUserIsCachedViaSentinel()
     {
-        $container = new Container;
-        $container->instance('request', m::mock(Request::class));
+        RequestContext::set(Request::create('/'));
 
         $callCount = 0;
 
@@ -67,7 +64,7 @@ class AuthRequestGuardTest extends TestCase
             ++$callCount;
 
             return null;
-        }, $container);
+        }, $this->app);
 
         $this->assertNull($guard->user());
         $this->assertNull($guard->user());
@@ -76,10 +73,9 @@ class AuthRequestGuardTest extends TestCase
 
     public function testHasUserReturnsTrueWhenUserExists()
     {
-        $container = new Container;
-        $container->instance('request', m::mock(Request::class));
+        RequestContext::set(Request::create('/'));
 
-        $guard = new RequestGuard('custom', fn () => m::mock(Authenticatable::class), $container);
+        $guard = new RequestGuard('custom', fn () => m::mock(Authenticatable::class), $this->app);
         $guard->user();
 
         $this->assertTrue($guard->hasUser());
@@ -87,19 +83,16 @@ class AuthRequestGuardTest extends TestCase
 
     public function testHasUserReturnsFalseWhenNoUser()
     {
-        $container = new Container;
-
-        $guard = new RequestGuard('custom', fn () => null, $container);
+        $guard = new RequestGuard('custom', fn () => null, $this->app);
 
         $this->assertFalse($guard->hasUser());
     }
 
     public function testHasUserReturnsFalseAfterNullUserCached()
     {
-        $container = new Container;
-        $container->instance('request', m::mock(Request::class));
+        RequestContext::set(Request::create('/'));
 
-        $guard = new RequestGuard('custom', fn () => null, $container);
+        $guard = new RequestGuard('custom', fn () => null, $this->app);
         $guard->user();
 
         $this->assertFalse($guard->hasUser());
@@ -107,13 +100,12 @@ class AuthRequestGuardTest extends TestCase
 
     public function testSetUserOverridesCachedUser()
     {
-        $container = new Container;
-        $container->instance('request', m::mock(Request::class));
+        RequestContext::set(Request::create('/'));
 
         $originalUser = m::mock(Authenticatable::class);
         $newUser = m::mock(Authenticatable::class);
 
-        $guard = new RequestGuard('custom', fn () => $originalUser, $container);
+        $guard = new RequestGuard('custom', fn () => $originalUser, $this->app);
         $guard->user();
 
         $guard->setUser($newUser);
@@ -124,10 +116,9 @@ class AuthRequestGuardTest extends TestCase
 
     public function testForgetUserClearsCachedUser()
     {
-        $container = new Container;
-        $container->instance('request', m::mock(Request::class));
+        RequestContext::set(Request::create('/'));
 
-        $guard = new RequestGuard('custom', fn () => m::mock(Authenticatable::class), $container);
+        $guard = new RequestGuard('custom', fn () => m::mock(Authenticatable::class), $this->app);
         $guard->user();
 
         $this->assertTrue($guard->hasUser());
@@ -139,25 +130,23 @@ class AuthRequestGuardTest extends TestCase
 
     public function testTwoGuardNamesDoNotCollideInContext()
     {
-        $container = new Container;
-        $container->instance('request', m::mock(Request::class));
+        RequestContext::set(Request::create('/'));
 
         $user1 = m::mock(Authenticatable::class);
         $user2 = m::mock(Authenticatable::class);
 
-        $guard1 = new RequestGuard('guard_one', fn () => $user1, $container);
-        $guard2 = new RequestGuard('guard_two', fn () => $user2, $container);
+        $guard1 = new RequestGuard('guard_one', fn () => $user1, $this->app);
+        $guard2 = new RequestGuard('guard_two', fn () => $user2, $this->app);
 
         $this->assertSame($user1, $guard1->user());
         $this->assertSame($user2, $guard2->user());
     }
 
-    public function testReplacingRequestInContainerChangesWhatGuardSees()
+    public function testReplacingRequestInContextChangesWhatGuardSees()
     {
-        $container = new Container;
-        $request1 = m::mock(Request::class);
-        $request2 = m::mock(Request::class);
-        $container->instance('request', $request1);
+        $request1 = Request::create('/one');
+        $request2 = Request::create('/two');
+        RequestContext::set($request1);
 
         $seenRequests = [];
 
@@ -165,13 +154,13 @@ class AuthRequestGuardTest extends TestCase
             $seenRequests[] = $req;
 
             return m::mock(Authenticatable::class);
-        }, $container);
+        }, $this->app);
 
         // First call sees request1
         $guard->user();
 
         // Replace request and clear cached user
-        $container->instance('request', $request2);
+        RequestContext::set($request2);
         $guard->forgetUser();
 
         // Second call should see request2
@@ -183,23 +172,21 @@ class AuthRequestGuardTest extends TestCase
 
     public function testValidateCallsCallbackWithCredentialsRequest()
     {
-        $container = new Container;
-        $request = m::mock(Request::class);
+        $request = Request::create('/');
         $provider = m::mock(UserProvider::class);
 
         $guard = new RequestGuard('custom', function ($req) {
             return $req instanceof Request ? m::mock(Authenticatable::class) : null;
-        }, $container, $provider);
+        }, $this->app, $provider);
 
         $this->assertTrue($guard->validate(['request' => $request]));
     }
 
     public function testValidateReturnsFalseWhenCallbackReturnsNull()
     {
-        $container = new Container;
-        $request = m::mock(Request::class);
+        $request = Request::create('/');
 
-        $guard = new RequestGuard('custom', fn () => null, $container);
+        $guard = new RequestGuard('custom', fn () => null, $this->app);
 
         $this->assertFalse($guard->validate(['request' => $request]));
     }

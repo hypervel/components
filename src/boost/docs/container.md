@@ -3,6 +3,9 @@
 - [Introduction](#introduction)
     - [Zero Configuration Resolution](#zero-configuration-resolution)
     - [When to Utilize the Container](#when-to-use-the-container)
+- [Resolution Lifecycles](#resolution-lifecycles)
+    - [Choosing a Lifecycle](#choosing-a-lifecycle)
+    - [Per-Call State on Shared Instances](#per-call-state-on-shared-instances)
 - [Binding](#binding)
     - [Binding Basics](#binding-basics)
     - [Binding Interfaces to Implementations](#binding-interfaces-to-implementations)
@@ -14,6 +17,8 @@
     - [Extending Bindings](#extending-bindings)
 - [Resolving](#resolving)
     - [The Make Method](#the-make-method)
+    - [Forcing a Fresh Instance](#forcing-a-fresh-instance)
+    - [Self-Building Classes](#self-building-classes)
     - [Automatic Injection](#automatic-injection)
 - [Method Invocation and Injection](#method-invocation-and-injection)
 - [Container Events](#container-events)
@@ -23,7 +28,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-The Laravel service container is a powerful tool for managing class dependencies and performing dependency injection. Dependency injection is a fancy phrase that essentially means this: class dependencies are "injected" into the class via the constructor or, in some cases, "setter" methods.
+The Hypervel service container is a powerful tool for managing class dependencies and performing dependency injection. "Dependency injection" essentially means this: class dependencies are "injected" into the class via the constructor or, in some cases, "setter" methods.
 
 Let's look at a simple example:
 
@@ -58,7 +63,7 @@ class PodcastController extends Controller
 
 In this example, the `PodcastController` needs to retrieve podcasts from a data source such as Apple Music. So, we will **inject** a service that is able to retrieve podcasts. Since the service is injected, we are able to easily "mock", or create a dummy implementation of the `AppleMusic` service when testing our application.
 
-A deep understanding of the Laravel service container is essential to building a powerful, large application, as well as for contributing to the Laravel core itself.
+Hypervel's container is similar to Laravel's but resolves under a long-running Swoole worker. The bindings, attributes, and resolution helpers all behave like Laravel's, but instance caching is more aggressive and the per-request lifecycle is keyed to a coroutine rather than a fresh PHP process. See [Resolution Lifecycles](#resolution-lifecycles) for the behaviors that differ.
 
 <a name="zero-configuration-resolution"></a>
 ### Zero Configuration Resolution
@@ -80,7 +85,10 @@ Route::get('/', function (Service $service) {
 
 In this example, hitting your application's `/` route will automatically resolve the `Service` class and inject it into your route's handler. This is game changing. It means you can develop your application and take advantage of dependency injection without worrying about bloated configuration files.
 
-Thankfully, many of the classes you will be writing when building a Laravel application automatically receive their dependencies via the container, including [controllers](/docs/{{version}}/controllers), [event listeners](/docs/{{version}}/events), [middleware](/docs/{{version}}/middleware), and more. Additionally, you may type-hint dependencies in the `handle` method of [queued jobs](/docs/{{version}}/queues). Once you taste the power of automatic and zero configuration dependency injection it feels impossible to develop without it.
+Thankfully, many of the classes you will be writing when building a Hypervel application automatically receive their dependencies via the container, including [controllers](/docs/{{version}}/controllers), [event listeners](/docs/{{version}}/events), [middleware](/docs/{{version}}/middleware), and more. Additionally, you may type-hint dependencies in the `handle` method of [queued jobs](/docs/{{version}}/queues). Once you taste the power of automatic and zero configuration dependency injection it feels impossible to develop without it.
+
+> [!NOTE]
+> Hypervel will auto-singleton (automatically cache) unbound concrete classes for the worker's lifetime — the first resolution of `Service` constructs an instance, and every subsequent resolution returns that same instance until the worker restarts. This is the right default for stateless services. Classes whose constructors capture per-call state should be [bound explicitly](#binding) or resolved with [`build()`](#forcing-a-fresh-instance).
 
 <a name="when-to-use-the-container"></a>
 ### When to Utilize the Container
@@ -95,9 +103,66 @@ Route::get('/', function (Request $request) {
 });
 ```
 
-In many cases, thanks to automatic dependency injection and [facades](/docs/{{version}}/facades), you can build Laravel applications without **ever** manually binding or resolving anything from the container. **So, when would you ever manually interact with the container?** Let's examine two situations.
+In many cases, thanks to automatic dependency injection and [facades](/docs/{{version}}/facades), you can build Hypervel applications without **ever** manually binding or resolving anything from the container. **So, when would you ever manually interact with the container?** Let's examine two situations.
 
-First, if you write a class that implements an interface and you wish to type-hint that interface on a route or class constructor, you must [tell the container how to resolve that interface](#binding-interfaces-to-implementations). Secondly, if you are [writing a Laravel package](/docs/{{version}}/packages) that you plan to share with other Laravel developers, you may need to bind your package's services into the container.
+First, if you write a class that implements an interface and you wish to type-hint that interface on a route or class constructor, you must [tell the container how to resolve that interface](#binding-interfaces-to-implementations). Secondly, if you are [writing a package](/docs/{{version}}/packages) that you plan to share with other Hypervel developers, you may need to bind your package's services into the container.
+
+<a name="resolution-lifecycles"></a>
+## Resolution Lifecycles
+
+Because Hypervel runs inside a long-running Swoole worker, instance lifecycles are different from a traditional PHP-FPM application. The same worker process handles thousands of requests, so the container caches instances aggressively to avoid rebuilding stateless services on every call. The table below summarizes the public resolution methods and what each one returns:
+
+| Need | Method | Behavior |
+|---|---|---|
+| Fresh instance every call, ignoring all bindings and caches | `build($class)` | Always constructs a new instance. Nested constructor dependencies are still resolved through the container. |
+| Fresh instance with parameter overrides | `buildWith($class, $params)` | Same as `build()` but applies the given parameter overrides during construction. |
+| Class declares its own factory | `implements SelfBuilding` + static `newInstance()` | Container invokes the static factory with DI on its parameters. Skips auto-singletoning by default; honors any explicit `singleton()` / `scoped()` binding. |
+| Resolve respecting bindings and caching | `make($class)` | Honors `bind()` / `singleton()` / `scoped()`. Auto-singletons unbound concrete classes for the worker's lifetime. |
+| Resolve with parameter overrides | `make($class, $params)` / `makeWith()` | Same as `make()` but contextual parameters bypass all caching. |
+| One instance per worker | `$app->singleton($abstract, ...)` or `#[Singleton]` | Cached for the worker's lifetime. Lives until the worker restarts. |
+| One instance per coroutine (per request / job) | `$app->scoped($abstract, ...)` or `#[Scoped]` | Cached in [CoroutineContext](/docs/{{version}}/context) for the lifetime of the coroutine handling the request or job. |
+| Fresh every call by binding | `$app->bind($abstract, ...)` | A new instance every `make()`. |
+| Pre-constructed instance | `$app->instance($abstract, $obj)` | Returns the exact object that was passed, every time. |
+| PSR-11 compliance | `get($id)` / `has($id)` | PSR-11 wrappers around `make()` and `bound()`. |
+
+<a name="choosing-a-lifecycle"></a>
+### Choosing a Lifecycle
+
+Most application code does not pick a lifecycle deliberately — it just type-hints a dependency and lets the container do the rest. When you do need to choose:
+
+- **Stateless service that does the same work on every call** (formatters, parsers, manager classes): no binding needed. Auto-singletoning gives you the right behavior for free.
+- **Service that should hold per-request state** (request-derived caches, accumulated context): `scoped()`. The instance dies at the end of the coroutine (request / job).
+- **Service that should be built once and shared for the worker's lifetime** (heavy bootstrap, immutable configuration): `singleton()` is explicit; auto-singletoning achieves the same thing for unbound classes.
+- **Object that takes per-call inputs in its constructor** (builders, view components, form-request-style classes): `bind()` so each `make()` returns fresh, or skip the binding entirely and call `build()` / `buildWith()` at the resolution site.
+
+<a name="per-call-state-on-shared-instances"></a>
+### Per-Call State on Shared Instances
+
+A class whose `__construct` reads request data, session data, or other per-call context into instance properties is not safe to auto-singleton. The first resolution freezes the captured values, and every subsequent `make()` hands back the frozen instance. Make sure such classes are either registered with `bind()` or instantiated with [`build()`](#forcing-a-fresh-instance):
+
+```php
+class ReportBuilder
+{
+    protected array $filters;
+
+    public function __construct(Request $request)
+    {
+        $this->filters = $request->input('filters', []);
+    }
+}
+
+// Wrong — auto-singletoned on first call, captured filters become stale.
+$report = $this->app->make(ReportBuilder::class);
+
+// Right — fresh instance per call.
+$report = $this->app->build(ReportBuilder::class);
+```
+
+Alternatively, mark the class with [`SelfBuilding`](#self-building-classes) and leave it unbound — every `make()` will then call `newInstance` and rebuild the instance from scratch.
+
+The same caution applies to mutating state on a worker-lifetime singleton at runtime — anything you assign to `$this->foo` on a shared instance persists across every request that worker handles. For per-request state that lives on a shared service, use [CoroutineContext](/docs/{{version}}/context) instead of instance properties.
+
+Framework code that ships with Hypervel — view components, form requests, and so on — already routes through the fresh-instance path when needed, so you only need to think about this for your own classes.
 
 <a name="binding"></a>
 ## Binding
@@ -144,7 +209,7 @@ $this->app->bindIf(Transistor::class, function (Application $app) {
 });
 ```
 
-For convenience, you may omit providing the class or interface name that you wish to register as a separate argument and instead allow Laravel to infer the type from the return type of the closure you provide to the `bind` method:
+For convenience, you may omit providing the class or interface name that you wish to register as a separate argument and instead allow Hypervel to infer the type from the return type of the closure you provide to the `bind` method:
 
 ```php
 App::bind(function (Application $app): Transistor {
@@ -153,12 +218,12 @@ App::bind(function (Application $app): Transistor {
 ```
 
 > [!NOTE]
-> There is no need to bind classes into the container if they do not depend on any interfaces. The container does not need to be instructed on how to build these objects, since it can automatically resolve these objects using reflection.
+> You don't need to bind classes the container can resolve via reflection. Hypervel will auto-singleton the resolved instance for the worker's lifetime, which is the right behavior for stateless services. Bind the class explicitly with `bind()` if you need a fresh instance per call, or call [`build()`](#forcing-a-fresh-instance) at the resolution site.
 
 <a name="binding-a-singleton"></a>
 #### Binding A Singleton
 
-The `singleton` method binds a class or interface into the container that should only be resolved one time. Once a singleton binding is resolved, the same object instance will be returned on subsequent calls into the container:
+The `singleton` method binds a class or interface into the container that should only be resolved one time for the lifetime of the worker process. Once a singleton binding is resolved, the same object instance will be returned on every subsequent call into the container until the worker restarts:
 
 ```php
 use App\Services\Transistor;
@@ -200,7 +265,7 @@ class Transistor
 <a name="binding-scoped"></a>
 #### Binding Scoped Singletons
 
-The `scoped` method binds a class or interface into the container that should only be resolved one time within a given Laravel request / job lifecycle. While this method is similar to the `singleton` method, instances registered using the `scoped` method will be flushed whenever the Laravel application starts a new "lifecycle", such as when a [Laravel Octane](/docs/{{version}}/octane) worker processes a new request or when a Laravel [queue worker](/docs/{{version}}/queues) processes a new job:
+The `scoped` method binds a class or interface into the container that should only be resolved one time per coroutine. Each HTTP request and each queued job runs in its own coroutine, so a scoped binding behaves like a per-request singleton. The instance is stored in [CoroutineContext](/docs/{{version}}/context) and is automatically discarded when the coroutine ends:
 
 ```php
 use App\Services\Transistor;
@@ -223,7 +288,7 @@ $this->app->scopedIf(Transistor::class, function (Application $app) {
 <a name="scoped-attribute"></a>
 #### Scoped Attribute
 
-Alternatively, you may mark an interface or class with the `#[Scoped]` attribute to indicate to the container that it should be resolved one time within a given Laravel request / job lifecycle:
+Alternatively, you may mark an interface or class with the `#[Scoped]` attribute to indicate to the container that it should be resolved one time per coroutine (the equivalent of one time per request or queued job):
 
 ```php
 <?php
@@ -265,7 +330,7 @@ use App\Services\RedisEventPusher;
 $this->app->bind(EventPusher::class, RedisEventPusher::class);
 ```
 
-This statement tells the container that it should inject the `RedisEventPusher` when a class needs an implementation of `EventPusher`. Now we can type-hint the `EventPusher` interface in the constructor of a class that is resolved by the container. Remember, controllers, event listeners, middleware, and various other types of classes within Laravel applications are always resolved using the container:
+This statement tells the container that it should inject the `RedisEventPusher` when a class needs an implementation of `EventPusher`. Now we can type-hint the `EventPusher` interface in the constructor of a class that is resolved by the container. Remember, controllers, event listeners, middleware, and various other types of classes within Hypervel applications are always resolved using the container:
 
 ```php
 use App\Contracts\EventPusher;
@@ -281,7 +346,7 @@ public function __construct(
 <a name="bind-attribute"></a>
 #### Bind Attribute
 
-Laravel also provides a `Bind` attribute for added convenience. You can apply this attribute to any interface to tell Laravel which implementation should be automatically injected whenever that interface is requested. When using the `Bind` attribute, there is no need to perform any additional service registration in your application's service providers.
+Hypervel also provides a `Bind` attribute for added convenience. You can apply this attribute to any interface to tell Hypervel which implementation should be automatically injected whenever that interface is requested. When using the `Bind` attribute, there is no need to perform any additional service registration in your application's service providers.
 
 In addition, multiple `Bind` attributes may be placed on an interface in order to configure a different implementation that should be injected for a given set of environments:
 
@@ -302,7 +367,7 @@ interface EventPusher
 }
 ```
 
-Furthermore, [Singleton](#singleton-attribute) and [Scoped](#scoped-attribute) attributes may be applied to indicate if the container bindings should be resolved once or once per request / job lifecycle:
+Furthermore, [Singleton](#singleton-attribute) and [Scoped](#scoped-attribute) attributes may be applied to indicate if the container bindings should be resolved once or once per coroutine (per request / job lifecycle):
 
 ```php
 use App\Services\RedisEventPusher;
@@ -320,7 +385,7 @@ interface EventPusher
 <a name="contextual-binding"></a>
 ### Contextual Binding
 
-Sometimes you may have two classes that utilize the same interface, but you wish to inject different implementations into each class. For example, two controllers may depend on different implementations of the `Hypervel\Contracts\Filesystem\Filesystem` [contract](/docs/{{version}}/contracts). Laravel provides a simple, fluent interface for defining this behavior:
+Sometimes you may have two classes that utilize the same interface, but you wish to inject different implementations into each class. For example, two controllers may depend on different implementations of the `Hypervel\Contracts\Filesystem\Filesystem` [contract](/docs/{{version}}/contracts). Hypervel provides a simple, fluent interface for defining this behavior:
 
 ```php
 use App\Http\Controllers\PhotoController;
@@ -345,7 +410,7 @@ $this->app->when([VideoController::class, UploadController::class])
 <a name="contextual-attributes"></a>
 ### Contextual Attributes
 
-Since contextual binding is often used to inject implementations of drivers or configuration values, Laravel offers a variety of contextual binding attributes that allow to inject these types of values without manually defining the contextual bindings in your service providers.
+Since contextual binding is often used to inject implementations of drivers or configuration values, Hypervel offers a variety of contextual binding attributes that allow to inject these types of values without manually defining the contextual bindings in your service providers.
 
 For example, the `Storage` attribute may be used to inject a specific [storage disk](/docs/{{version}}/filesystem):
 
@@ -367,7 +432,7 @@ class PhotoController extends Controller
 }
 ```
 
-In addition to the `Storage` attribute, Laravel offers `Auth`, `Cache`, `Config`, `Context`, `DB`, `Give`, `Log`, `RouteParameter`, and [Tag](#tagging) attributes:
+In addition to the `Storage` attribute, Hypervel offers `Auth`, `Cache`, `Config`, `Context`, `Database` (with `DB` as a short alias), `Give`, `Log`, `RouteParameter`, and [Tag](#tagging) attributes:
 
 ```php
 <?php
@@ -410,21 +475,27 @@ class PhotoController extends Controller
 }
 ```
 
-Furthermore, Laravel provides a `CurrentUser` attribute for injecting the currently authenticated user into a given route or class:
+Furthermore, Hypervel provides `CurrentUser` and `Authenticated` attributes for injecting the currently authenticated user into a given route or class. `CurrentUser` requires that a user is authenticated; `Authenticated` returns `null` when no user is authenticated, which is useful for optional auth:
 
 ```php
 use App\Models\User;
+use Hypervel\Container\Attributes\Authenticated;
 use Hypervel\Container\Attributes\CurrentUser;
+use Hypervel\Contracts\Auth\Authenticatable;
 
 Route::get('/user', function (#[CurrentUser] User $user) {
     return $user;
 })->middleware('auth');
+
+Route::get('/profile', function (#[Authenticated('web')] ?Authenticatable $user) {
+    return $user?->name ?? 'guest';
+});
 ```
 
 <a name="defining-custom-attributes"></a>
 #### Defining Custom Attributes
 
-You can create your own contextual attributes by implementing the `Hypervel\Contracts\Container\ContextualAttribute` contract. The container will call your attribute's `resolve` method, which should resolve the value that should be injected into the class utilizing the attribute. In the example below, we will re-implement Laravel's built-in `Config` attribute:
+You can create your own contextual attributes by implementing the `Hypervel\Contracts\Container\ContextualAttribute` contract. The container will call your attribute's `resolve` method, which should resolve the value that should be injected into the class utilizing the attribute. In the example below, we will re-implement Hypervel's built-in `Config` attribute:
 
 ```php
 <?php
@@ -634,7 +705,7 @@ $transistor = App::make(Transistor::class);
 $transistor = app(Transistor::class);
 ```
 
-If you would like to have the Laravel container instance itself injected into a class that is being resolved by the container, you may type-hint the `Hypervel\Container\Container` class on your class's constructor:
+If you would like to have the container instance itself injected into a class that is being resolved by the container, you may type-hint the `Hypervel\Container\Container` class on your class's constructor:
 
 ```php
 use Hypervel\Container\Container;
@@ -646,6 +717,60 @@ public function __construct(
     protected Container $container,
 ) {}
 ```
+
+<a name="forcing-a-fresh-instance"></a>
+### Forcing a Fresh Instance
+
+When you need an instance that is guaranteed not to come from any cache, use the `build` or `buildWith` methods. These methods bypass binding lookups, scoped and singleton caching, and the auto-singleton optimization, so each call returns a freshly constructed instance:
+
+```php
+use App\Services\Transistor;
+
+$fresh = $this->app->build(Transistor::class);
+
+$fresh = $this->app->buildWith(Transistor::class, ['id' => 1]);
+```
+
+Nested constructor dependencies are still resolved through the container, so they pick up bindings, contextual bindings, resolving callbacks, and constructor-parameter attribute injection as normal. For the class being built itself, `build` and `buildWith` skip the container's lifecycle machinery — they bypass binding lookups, contextual binding for that abstract, and resolving callbacks. Class-level attribute callbacks registered via `afterResolvingAttribute()` still fire. `#[Singleton]` and `#[Scoped]` are intentionally ignored by `build()` — they're caching markers that only apply via `make()`. This is what makes `build()` reliable as "always fresh."
+
+`buildWith` is the right choice when a class needs parameter overrides and must not be cached, for example a builder object or a class whose constructor captures per-call state. Internally, Hypervel uses this method to instantiate view components so each render gets a fresh instance even though the component class has no explicit binding.
+
+<a name="self-building-classes"></a>
+### Self-Building Classes
+
+When a class needs fresh construction *and* container-resolvable dependencies, mark it with the `Hypervel\Contracts\Container\SelfBuilding` marker interface and provide a static `newInstance` method. The container calls `newInstance` on every resolution and resolves its parameters via dependency injection, the same way it resolves a controller method:
+
+```php
+<?php
+
+namespace App\Services;
+
+use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Http\Request;
+
+class WeeklyDigest implements SelfBuilding
+{
+    public function __construct(
+        public readonly string $audience,
+        public readonly array $filters,
+    ) {
+    }
+
+    public static function newInstance(Request $current): static
+    {
+        return new static(
+            audience: $current->user()->email,
+            filters: $current->input('filters', []),
+        );
+    }
+}
+```
+
+By default, self-building classes are excluded from auto-singletoning, so every `make()` calls `newInstance` and returns a fresh instance. The container still fires `resolving` and `afterResolving` callbacks around the result, so anything layered on top of resolution (for example, validation callbacks) keeps working.
+
+`SelfBuilding` is the right choice when fresh construction depends on container-resolvable values that aren't available at the call site. `buildWith` covers the inverse case — fresh construction with caller-supplied parameters. Hypervel uses `SelfBuilding` internally for `FormRequest`: every controller method that type-hints a form request gets a new instance hydrated from the current coroutine's `Request`.
+
+Explicit caching bindings still apply on top of `SelfBuilding`. Bind a self-building class with `singleton()` / `scoped()` (or apply `#[Singleton]` / `#[Scoped]`) and the container runs `newInstance` once and caches the result — a useful pattern for lazy custom construction of a service that's stateless once built. Only do this when the cached instance is safe to share. Classes whose `newInstance` reads per-call state must stay unbound so each resolution rebuilds from the current request; that's why nothing in the framework binds `FormRequest`.
 
 <a name="automatic-injection"></a>
 ### Automatic Injection
@@ -773,7 +898,7 @@ $this->app->bind(PodcastPublisher::class, TransistorPublisher::class);
 <a name="psr-11"></a>
 ## PSR-11
 
-Laravel's service container implements the [PSR-11](https://github.com/php-fig/fig-standards/blob/master/accepted/PSR-11-container.md) interface. Therefore, you may type-hint the PSR-11 container interface to obtain an instance of the Laravel container:
+Hypervel's service container implements the [PSR-11](https://github.com/php-fig/fig-standards/blob/master/accepted/PSR-11-container.md) interface. Therefore, you may type-hint the PSR-11 container interface to obtain an instance of the container:
 
 ```php
 use App\Services\Transistor;
@@ -786,4 +911,4 @@ Route::get('/', function (ContainerInterface $container) {
 });
 ```
 
-An exception is thrown if the given identifier can't be resolved. The exception will be an instance of `Psr\Container\NotFoundExceptionInterface` if the identifier was never bound. If the identifier was bound but was unable to be resolved, an instance of `Psr\Container\ContainerExceptionInterface` will be thrown.
+`get()` is a PSR-11 wrapper around `make()` — it honors all the same caching rules. An exception is thrown if the given identifier can't be resolved. The exception will be an instance of `Psr\Container\NotFoundExceptionInterface` if the identifier was never bound. If the identifier was bound but was unable to be resolved, an instance of `Psr\Container\ContainerExceptionInterface` will be thrown.

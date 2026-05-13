@@ -65,6 +65,24 @@ class PoolFactoryTest extends TestCase
         $this->assertSame(0, $pool2->getConnectionsInChannel());
     }
 
+    public function testFlushAllClearsCachedPools()
+    {
+        $container = $this->mockContainerWithPools();
+
+        $factory = new PoolFactory($container);
+
+        $original = $factory->getPool('default');
+
+        $factory->flushAll();
+
+        // After flushAll, the cached pool entry should be evicted so the next
+        // getPool() returns a fresh instance - this lets the previous Pool's
+        // Channel/Connection graph be refcount-collected instead of trapped.
+        $fresh = $factory->getPool('default');
+
+        $this->assertNotSame($original, $fresh);
+    }
+
     public function testFlushPoolOnlyFlushesNamedPool()
     {
         $container = $this->mockContainerWithPools();

@@ -78,6 +78,45 @@ interface Repository extends CacheInterface
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed;
 
     /**
+     * Get an item from the cache, or execute the given Closure and store the result.
+     *
+     * Unlike remember(), a null return from $callback is stored and returned on
+     * subsequent calls rather than triggering re-execution.
+     *
+     * @template TCacheValue
+     *
+     * @param Closure(): TCacheValue $callback
+     * @return TCacheValue
+     */
+    public function rememberNullable(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed;
+
+    /**
+     * Get an item from the cache, or execute the given Closure and store the result forever.
+     *
+     * Unlike rememberForever(), a null return from $callback is stored and returned
+     * on subsequent calls rather than triggering re-execution.
+     *
+     * @template TCacheValue
+     *
+     * @param Closure(): TCacheValue $callback
+     * @return TCacheValue
+     */
+    public function searNullable(UnitEnum|string $key, Closure $callback): mixed;
+
+    /**
+     * Get an item from the cache, or execute the given Closure and store the result forever.
+     *
+     * Unlike rememberForever(), a null return from $callback is stored and returned
+     * on subsequent calls rather than triggering re-execution.
+     *
+     * @template TCacheValue
+     *
+     * @param Closure(): TCacheValue $callback
+     * @return TCacheValue
+     */
+    public function rememberForeverNullable(UnitEnum|string $key, Closure $callback): mixed;
+
+    /**
      * Set the expiration of a cached item; null TTL will retain the item forever.
      */
     public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool;

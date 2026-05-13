@@ -155,6 +155,9 @@ class EventServiceProvider extends ServiceProvider
     /**
      * Add the given event discovery paths to the application's event discovery paths.
      *
+     * Boot-only. The path list persists in a static property used during
+     * provider boot; runtime use has no effect on already-discovered events.
+     *
      * @param iterable<int, string>|string $paths
      */
     public static function addEventDiscoveryPaths(iterable|string $paths): void
@@ -167,6 +170,9 @@ class EventServiceProvider extends ServiceProvider
 
     /**
      * Set the globally configured event discovery paths.
+     *
+     * Boot-only. The path list persists in a static property used during
+     * provider boot; runtime use has no effect on already-discovered events.
      *
      * @param iterable<int, string> $paths
      */
@@ -185,6 +191,9 @@ class EventServiceProvider extends ServiceProvider
 
     /**
      * Disable event discovery for the application.
+     *
+     * Boot-only. The flag persists in a static property used during provider
+     * boot; runtime use has no effect on already-discovered events.
      */
     public static function disableEventDiscovery(): void
     {
@@ -204,6 +213,9 @@ class EventServiceProvider extends ServiceProvider
 
     /**
      * Flush the class's static state.
+     *
+     * Tests only. Clears worker-wide event discovery configuration used during
+     * subsequent provider boot.
      */
     public static function flushState(): void
     {

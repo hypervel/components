@@ -16,6 +16,10 @@ trait AuthorizesRequests
 
     /**
      * Register the Telescope authentication callback.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every Telescope dashboard request across all
+     * coroutines.
      */
     public static function auth(?Closure $callback): static
     {

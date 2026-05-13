@@ -146,7 +146,7 @@ class SendingMarkdownMailTest extends TestCase
         $this->assertSame('default', $this->app->make(Markdown::class)->getTheme());
 
         Mail::to('test@mail.com')->send(new MarkdownBasicMailableWithTheme);
-        $this->assertSame('taylor', $this->app->make(Markdown::class)->getTheme());
+        $this->assertSame('default', $this->app->make(Markdown::class)->getTheme());
 
         Mail::to('test@mail.com')->send(new MarkdownBasicMailable);
         $this->assertSame('default', $this->app->make(Markdown::class)->getTheme());

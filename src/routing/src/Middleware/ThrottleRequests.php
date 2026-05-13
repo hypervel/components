@@ -279,6 +279,9 @@ class ThrottleRequests
 
     /**
      * Specify whether rate limiter keys should be hashed.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
      */
     public static function shouldHashKeys(bool $shouldHashKeys = true): void
     {

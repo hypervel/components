@@ -208,7 +208,5 @@ class PaginationResolverTest extends TestCase
 
         $request = Request::create($fullUrl);
         RequestContext::set($request);
-
-        $this->app->instance('request', $request);
     }
 }

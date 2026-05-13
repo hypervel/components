@@ -41,7 +41,10 @@ class CacheWatcher extends Watcher
 
     /**
      * Enable Cache events.
-     * This function needs to be called before the Cache is initialized.
+     *
+     * Boot-only. Must be called before the Cache is initialized. Mutates
+     * process-global config and a static flag; runtime use races across
+     * coroutines.
      */
     public static function enableCacheEvents(Application $app): void
     {

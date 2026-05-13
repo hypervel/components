@@ -34,6 +34,11 @@ class RedisWatcher extends Watcher
 
     /**
      * Enable Redis events.
+     *
+     * Boot-only. Must be called before Redis connections are created. Mutates
+     * process-global config and a static flag; runtime use races across
+     * coroutines.
+     *
      * This function needs to be called before the Redis connection is created.
      */
     public static function enableRedisEvents(Application $app): void

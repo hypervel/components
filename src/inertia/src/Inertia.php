@@ -21,7 +21,7 @@ use Hypervel\Support\Facades\Facade;
  * @method static void disableSsr(\Closure|bool $condition = true)
  * @method static void withoutSsr(array<int, string>|string $paths)
  * @method static \Hypervel\Inertia\OptionalProp optional(callable $callback)
- * @method static \Hypervel\Inertia\DeferProp defer(callable $callback, string $group = 'default')
+ * @method static \Hypervel\Inertia\DeferProp defer(callable $callback, string $group = 'default', bool $rescue = false)
  * @method static \Hypervel\Inertia\MergeProp merge(mixed $value)
  * @method static \Hypervel\Inertia\MergeProp deepMerge(mixed $value)
  * @method static \Hypervel\Inertia\AlwaysProp always(mixed $value)

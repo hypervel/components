@@ -4,6 +4,7 @@
 - [Writing Controllers](#writing-controllers)
     - [Basic Controllers](#basic-controllers)
     - [Single Action Controllers](#single-action-controllers)
+    - [Customizing Action Dispatch](#customizing-action-dispatch)
 - [Controller Middleware](#controller-middleware)
     - [Middleware Attributes](#middleware-attributes)
     - [Authorization Attributes](#authorization-attributes)
@@ -112,6 +113,32 @@ php artisan make:controller ProvisionServer --invokable
 > [!NOTE]
 > Controller stubs may be customized using [stub publishing](/docs/{{version}}/artisan#stub-customization).
 
+<a name="customizing-action-dispatch"></a>
+### Customizing Action Dispatch
+
+If your controller extends the base `Hypervel\Routing\Controller` class, you may customize how controller actions are dispatched by overriding the `callAction` method. This is useful when you need to run logic before an action is invoked:
+
+```php
+<?php
+
+namespace App\Http\Controllers;
+
+use Hypervel\Routing\Controller;
+
+class UserController extends Controller
+{
+    /**
+     * Execute an action on the controller.
+     */
+    public function callAction(string $method, array $parameters): mixed
+    {
+        // ...
+
+        return parent::callAction($method, $parameters);
+    }
+}
+```
+
 <a name="controller-middleware"></a>
 ## Controller Middleware
 
@@ -196,8 +223,6 @@ You may place middleware attributes on individual controller methods as well. Mi
 
 namespace App\Http\Controllers;
 
-use Closure;
-use Hypervel\Http\Request;
 use Hypervel\Routing\Attributes\Controllers\Middleware;
 
 #[Middleware('auth')]
@@ -210,11 +235,7 @@ class UserController
         // ...
     }
 
-    #[Middleware(static function (Request $request, Closure $next) {
-        // ...
-
-        return $next($request);
-    })]
+    #[Middleware('throttle:uploads')]
     public function store()
     {
         // ...
@@ -259,7 +280,7 @@ The first argument is the ability you wish to authorize. The second argument is 
 
 If you think of each Eloquent model in your application as a "resource", it is typical to perform the same sets of actions against each resource in your application. For example, imagine your application contains a `Photo` model and a `Movie` model. It is likely that users can create, read, update, or delete these resources.
 
-Because of this common use case, Laravel resource routing assigns the typical create, read, update, and delete ("CRUD") routes to a controller with a single line of code. To get started, we can use the `make:controller` Artisan command's `--resource` option to quickly create a controller to handle these actions:
+Because of this common use case, Hypervel resource routing assigns the typical create, read, update, and delete ("CRUD") routes to a controller with a single line of code. To get started, we can use the `make:controller` Artisan command's `--resource` option to quickly create a controller to handle these actions:
 
 ```shell
 php artisan make:controller PhotoController --resource
@@ -284,7 +305,7 @@ Route::resources([
 ]);
 ```
 
-The `softDeletableResources` method registers many resources controllers that all use the `withTrashed` method:
+The `softDeletableResources` method registers many resource controllers that all use the `withTrashed` method:
 
 ```php
 Route::softDeletableResources([
@@ -427,7 +448,7 @@ This route will register a nested resource that may be accessed with URIs like t
 <a name="scoping-nested-resources"></a>
 #### Scoping Nested Resources
 
-Laravel's [implicit model binding](/docs/{{version}}/routing#implicit-model-binding-scoping) feature can automatically scope nested bindings such that the resolved child model is confirmed to belong to the parent model. By using the `scoped` method when defining your nested resource, you may enable automatic scoping as well as instruct Laravel which field the child resource should be retrieved by. For more information on how to accomplish this, please see the documentation on [scoping resource routes](#restful-scoping-resource-routes).
+Hypervel's [implicit model binding](/docs/{{version}}/routing#implicit-model-binding-scoping) feature can automatically scope nested bindings such that the resolved child model is confirmed to belong to the parent model. By using the `scoped` method when defining your nested resource, you may enable automatic scoping as well as instruct Hypervel which field the child resource should be retrieved by. For more information on how to accomplish this, please see the documentation on [scoping resource routes](#restful-scoping-resource-routes).
 
 <a name="shallow-nesting"></a>
 #### Shallow Nesting
@@ -491,7 +512,7 @@ The example above generates the following URI for the resource's `show` route:
 <a name="restful-scoping-resource-routes"></a>
 ### Scoping Resource Routes
 
-Laravel's [scoped implicit model binding](/docs/{{version}}/routing#implicit-model-binding-scoping) feature can automatically scope nested bindings such that the resolved child model is confirmed to belong to the parent model. By using the `scoped` method when defining your nested resource, you may enable automatic scoping as well as instruct Laravel which field the child resource should be retrieved by:
+Hypervel's [scoped implicit model binding](/docs/{{version}}/routing#implicit-model-binding-scoping) feature can automatically scope nested bindings such that the resolved child model is confirmed to belong to the parent model. By using the `scoped` method when defining your nested resource, you may enable automatic scoping as well as instruct Hypervel which field the child resource should be retrieved by:
 
 ```php
 use App\Http\Controllers\PhotoCommentController;
@@ -507,7 +528,7 @@ This route will register a scoped nested resource that may be accessed with URIs
 /photos/{photo}/comments/{comment:slug}
 ```
 
-When using a custom keyed implicit binding as a nested route parameter, Laravel will automatically scope the query to retrieve the nested model by its parent using conventions to guess the relationship name on the parent. In this case, it will be assumed that the `Photo` model has a relationship named `comments` (the plural of the route parameter name) which can be used to retrieve the `Comment` model.
+When using a custom keyed implicit binding as a nested route parameter, Hypervel will automatically scope the query to retrieve the nested model by its parent using conventions to guess the relationship name on the parent. In this case, it will be assumed that the `Photo` model has a relationship named `comments` (the plural of the route parameter name) which can be used to retrieve the `Comment` model.
 
 <a name="restful-localizing-resource-uris"></a>
 ### Localizing Resource URIs
@@ -527,7 +548,7 @@ public function boot(): void
 }
 ```
 
-Laravel's pluralizer supports [several different languages which you may configure based on your needs](/docs/{{version}}/localization#pluralization-language). Once the verbs and pluralization language have been customized, a resource route registration such as `Route::resource('publicacion', PublicacionController::class)` will produce the following URIs:
+Hypervel's pluralizer supports [several different languages which you may configure based on your needs](/docs/{{version}}/localization#pluralization-language). Once the verbs and pluralization language have been customized, a resource route registration such as `Route::resource('publicacion', PublicacionController::class)` will produce the following URIs:
 
 ```text
 /publicacion/crear
@@ -541,7 +562,7 @@ Laravel's pluralizer supports [several different languages which you may configu
 If you need to add additional routes to a resource controller beyond the default set of resource routes, you should define those routes before your call to the `Route::resource` method; otherwise, the routes defined by the `resource` method may unintentionally take precedence over your supplemental routes:
 
 ```php
-use App\Http\Controller\PhotoController;
+use App\Http\Controllers\PhotoController;
 
 Route::get('/photos/popular', [PhotoController::class, 'popular']);
 Route::resource('photos', PhotoController::class);
@@ -616,7 +637,7 @@ In this example, the following routes will be registered. As you can see, a `DEL
 
 </div>
 
-If you would like Laravel to register the `DELETE` route for a singleton resource but not register the creation or storage routes, you may utilize the `destroyable` method:
+If you would like Hypervel to register the `DELETE` route for a singleton resource but not register the creation or storage routes, you may utilize the `destroyable` method:
 
 ```php
 Route::singleton(...)->destroyable();
@@ -639,7 +660,7 @@ Route::apiSingleton('photos.thumbnail', ProfileController::class)->creatable();
 <a name="middleware-and-resource-controllers"></a>
 ### Middleware and Resource Controllers
 
-Laravel allows you to assign middleware to all, or only specific, methods of resource routes using the `middleware`, `middlewareFor`, and `withoutMiddlewareFor` methods. These methods provide fine-grained control over which middleware is applied to each resource action.
+Hypervel allows you to assign middleware to all, or only specific, methods of resource routes using the `middleware`, `middlewareFor`, and `withoutMiddlewareFor` methods. These methods provide fine-grained control over which middleware is applied to each resource action.
 
 #### Applying Middleware to all Methods
 
@@ -701,7 +722,9 @@ Route::middleware(['auth', 'verified', 'subscribed'])->group(function () {
 <a name="constructor-injection"></a>
 #### Constructor Injection
 
-The Laravel [service container](/docs/{{version}}/container) is used to resolve all Laravel controllers. As a result, you are able to type-hint any dependencies your controller may need in its constructor. The declared dependencies will automatically be resolved and injected into the controller instance:
+The Hypervel [service container](/docs/{{version}}/container) is used to resolve all Hypervel controllers. As a result, you are able to type-hint any dependencies your controller may need in its constructor. The declared dependencies will automatically be resolved and injected into the controller instance.
+
+In Hypervel, unbound controller classes are auto-singletoned and reused for the worker's lifetime after they are first resolved. Constructor injection is best suited to stateless services. If your controller needs request-specific state, inject it into the controller method, store the value in coroutine context, or mark the controller as `#[Scoped]` or bind it explicitly so the container resolves it with per-coroutine semantics:
 
 ```php
 <?php

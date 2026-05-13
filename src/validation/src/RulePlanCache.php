@@ -88,6 +88,9 @@ final class RulePlanCache
 
     /**
      * Reset cache. Called by AfterEachTestSubscriber between tests.
+     *
+     * Tests only. Clears the worker-wide validation rule plan cache and resets
+     * its capacity for subsequent validation runs.
      */
     public static function flushState(): void
     {
@@ -97,6 +100,9 @@ final class RulePlanCache
 
     /**
      * Set the maximum cache size. Intended for tests.
+     *
+     * Tests only. The cache size persists in a static property for the worker
+     * lifetime and affects every subsequent validation rule plan cache write.
      */
     public static function setMaxSize(int $size): void
     {

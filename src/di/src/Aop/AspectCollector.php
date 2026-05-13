@@ -32,6 +32,10 @@ class AspectCollector
 
     /**
      * Register an aspect with its class targeting rules.
+     *
+     * Boot-only. Aspect rules persist in a static property used by the
+     * compile-time proxy generator; runtime use cannot retroactively apply
+     * aspects to already-loaded classes.
      */
     public static function setAround(string $aspect, array $classes, ?int $priority = null): void
     {
@@ -71,6 +75,9 @@ class AspectCollector
 
     /**
      * Set metadata by dot-notated key.
+     *
+     * Boot-only. Aspect metadata persists in static properties used by the
+     * proxy generator and runtime aspect resolver.
      */
     public static function set(string $key, mixed $value): void
     {
@@ -79,6 +86,9 @@ class AspectCollector
 
     /**
      * Remove a specific aspect from the registry.
+     *
+     * Tests only. Mutates the worker-wide aspect registry; runtime use cannot
+     * retroactively update already-generated proxies.
      */
     public static function forgetAspect(string $aspect): void
     {
@@ -87,6 +97,9 @@ class AspectCollector
 
     /**
      * Flush all registered aspects and metadata.
+     *
+     * Tests only. Clears the worker-wide aspect registry used by subsequent
+     * proxy generation and aspect resolution.
      */
     public static function flushState(): void
     {

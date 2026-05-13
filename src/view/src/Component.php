@@ -95,7 +95,9 @@ abstract class Component
             return new static(...array_intersect_key($data, array_flip($parameters)));
         }
 
-        return Container::getInstance()->make(static::class, $data);
+        // buildWith() not make() — components capture per-render state in their
+        // constructors and must always be freshly instantiated.
+        return Container::getInstance()->buildWith(static::class, $data);
     }
 
     /**
@@ -376,6 +378,9 @@ abstract class Component
 
     /**
      * Flush the component's cached state.
+     *
+     * Boot or tests only. Clears the worker-wide reflection and view caches
+     * shared by every coroutine; next render rebuilds them.
      */
     public static function flushCache(): void
     {
@@ -387,6 +392,9 @@ abstract class Component
 
     /**
      * Forget the component's factory instance.
+     *
+     * Boot or tests only. Clears the worker-wide ViewFactory reference shared
+     * by every coroutine; next render re-resolves it from the container.
      */
     public static function forgetFactory(): void
     {
@@ -395,6 +403,9 @@ abstract class Component
 
     /**
      * Forget the component's resolver callback.
+     *
+     * Boot or tests only. Clears the worker-wide resolver shared by every
+     * coroutine; next component resolution falls back to default behavior.
      *
      * @internal
      */
@@ -405,6 +416,9 @@ abstract class Component
 
     /**
      * Set the callback that should be used to resolve components within views.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every subsequent component resolution.
      *
      * @param Closure(string $component, array $data): static $resolver
      *

@@ -367,6 +367,9 @@ class CompiledRouteCollection extends AbstractRouteCollection
 
     /**
      * Flush the static route cache.
+     *
+     * Boot or tests only. Clears the process-wide name → Route cache shared by
+     * every coroutine; next named-route lookup rebuilds.
      */
     public static function flushCache(): void
     {
@@ -387,6 +390,9 @@ class CompiledRouteCollection extends AbstractRouteCollection
 
     /**
      * Set the container instance on the route.
+     *
+     * Tests only. Swaps the container reference on the route collection used
+     * by the singleton Router; per-request use races across coroutines.
      *
      * @return $this
      */

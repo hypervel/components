@@ -427,6 +427,9 @@ class RouteListCommand extends Command
 
     /**
      * Set a callback that should be used when resolving the terminal width.
+     *
+     * Tests only. The resolver persists in a static property for the worker
+     * lifetime and affects every subsequent route:list render.
      */
     public static function resolveTerminalWidthUsing(?Closure $resolver): void
     {
@@ -435,6 +438,9 @@ class RouteListCommand extends Command
 
     /**
      * Flush the static state of the command.
+     *
+     * Tests only. Clears the worker-wide terminal width resolver used by
+     * subsequent route:list renders.
      */
     public static function flushState(): void
     {

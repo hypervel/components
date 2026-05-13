@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Support;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 class SupportServiceProviderTest extends TestCase
 {
@@ -16,6 +16,8 @@ class SupportServiceProviderTest extends TestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
+
         $this->app = $app = m::mock(Application::class)->makePartial();
 
         $config = new ConfigRepository([
@@ -27,6 +29,33 @@ class SupportServiceProviderTest extends TestCase
         $one->boot();
         $two = new ServiceProviderForTestingTwo($app);
         $two->boot();
+    }
+
+    public function testIsEnabledReturnsTrueByDefault()
+    {
+        $provider = new ServiceProviderForTestingOne($this->app);
+
+        $this->assertTrue($provider->isEnabled());
+    }
+
+    public function testIsEnabledCanBeOverriddenToReturnFalse()
+    {
+        $provider = new ServiceProviderForTestingDisabled($this->app);
+
+        $this->assertFalse($provider->isEnabled());
+    }
+
+    public function testIsEnabledCanReadFromContainerAndConfig()
+    {
+        $config = new ConfigRepository(['package' => ['enabled' => true]]);
+        $app = m::mock(Application::class)->makePartial();
+        $app->shouldReceive('make')->with('config')->andReturn($config);
+
+        $provider = new ServiceProviderForTestingConditionallyEnabled($app);
+        $this->assertTrue($provider->isEnabled());
+
+        $config->set('package.enabled', false);
+        $this->assertFalse($provider->isEnabled());
     }
 
     public function testPublishableServiceProviders()
@@ -473,6 +502,22 @@ class ServiceProviderForTestingTwo extends ServiceProvider
         $this->publishes(['source/unmarked/two/c' => 'destination/tagged/two/a']);
         $this->publishes(['source/tagged/two/a' => 'destination/tagged/two/a'], 'some_tag');
         $this->publishes(['source/tagged/two/b' => 'destination/tagged/two/b'], 'some_tag');
+    }
+}
+
+class ServiceProviderForTestingDisabled extends ServiceProvider
+{
+    public function isEnabled(): bool
+    {
+        return false;
+    }
+}
+
+class ServiceProviderForTestingConditionallyEnabled extends ServiceProvider
+{
+    public function isEnabled(): bool
+    {
+        return (bool) $this->app->make('config')->get('package.enabled', false);
     }
 }
 

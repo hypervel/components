@@ -480,7 +480,7 @@ class MailManager implements FactoryContract
     /**
      * Set the default mail driver name.
      *
-     * WARNING: Mutates process-global config. Not safe for per-request use under Swoole.
+     * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
     public function setDefaultDriver(string $name): void
     {
@@ -489,6 +489,10 @@ class MailManager implements FactoryContract
 
     /**
      * Disconnect the given mailer and remove from local cache.
+     *
+     * Boot or tests only. Mutates the singleton's mailer cache; concurrent
+     * coroutines may already hold a reference to the mailer and next
+     * resolution will rebuild with fresh transports.
      */
     public function purge(?string $name = null): void
     {
@@ -499,6 +503,10 @@ class MailManager implements FactoryContract
 
     /**
      * Register a custom driver creator Closure.
+     *
+     * Boot-only. The callback persists in the singleton's customCreators array
+     * (and the poolable list if $poolable is true) for the worker lifetime and
+     * applies to every subsequent transport resolution.
      *
      * @return $this
      */
@@ -523,6 +531,9 @@ class MailManager implements FactoryContract
 
     /**
      * Set the application instance used by the manager.
+     *
+     * Tests only. Swaps the singleton's container reference; per-request use
+     * races across coroutines and breaks every concurrent mail send.
      */
     public function setApplication(Container $app): static
     {
@@ -533,6 +544,10 @@ class MailManager implements FactoryContract
 
     /**
      * Forget all of the resolved mailer instances.
+     *
+     * Boot or tests only. Clears the singleton's mailer cache; concurrent
+     * coroutines may already hold references that next resolution will not
+     * share.
      */
     public function forgetMailers(): static
     {

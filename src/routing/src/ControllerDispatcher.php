@@ -99,7 +99,8 @@ class ControllerDispatcher implements ControllerDispatcherContract
     /**
      * Pre-warm the reflection parameter cache for a controller action.
      *
-     * Called during server boot to populate reflection data before fork.
+     * Boot-only. Called during server boot to populate reflection data in a
+     * process-wide cache before fork so workers inherit it copy-on-write.
      */
     public static function warmReflection(string $class, string $method): void
     {
@@ -109,6 +110,9 @@ class ControllerDispatcher implements ControllerDispatcherContract
 
     /**
      * Flush the static reflection cache.
+     *
+     * Boot or tests only. Clears the process-wide reflection cache shared by
+     * every coroutine; next dispatch re-reflects.
      */
     public static function flushCache(): void
     {

@@ -261,6 +261,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Add a queue connection resolver.
+     *
+     * Boot-only. The resolver persists in the singleton's connectors array for
+     * the worker lifetime and applies to every subsequent connection.
      */
     public function extend(string $driver, Closure $resolver): void
     {
@@ -269,6 +272,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Add a queue connection resolver.
+     *
+     * Boot-only. The resolver persists in the singleton's connectors array for
+     * the worker lifetime and applies to every subsequent connection.
      */
     public function addConnector(string $driver, Closure $resolver): void
     {
@@ -298,7 +304,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * Set the name of the default queue connection.
      *
-     * WARNING: Mutates process-global config. Not safe for per-request use under Swoole.
+     * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
     public function setDefaultDriver(string $name): void
     {
@@ -323,6 +329,10 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Set the application instance used by the manager.
+     *
+     * Tests only. Swaps the container reference on the singleton and on every
+     * cached queue connection; per-request use races across coroutines and
+     * breaks every concurrent dispatch.
      */
     public function setApplication(Container $app): static
     {

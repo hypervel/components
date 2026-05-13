@@ -246,6 +246,10 @@ class PackageManifest
      * Used by testbench to suppress package discovery at runtime
      * without modifying the project's composer.json.
      *
+     * Boot or tests only. The list persists in a static property used during
+     * package discovery; runtime use has no effect on already-discovered
+     * providers.
+     *
      * @param array<int, string> $packages
      */
     public static function ignorePackageDiscoveriesFrom(array $packages): void

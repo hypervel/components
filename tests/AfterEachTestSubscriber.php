@@ -56,7 +56,6 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Database\Console\Migrations\RollbackCommand::flushState();
         \Hypervel\Database\Console\Seeds\SeedCommand::flushState();
         \Hypervel\Database\Console\WipeCommand::flushState();
-        \Hypervel\Database\DatabaseManager::purgeConnections();
         \Hypervel\Database\DatabaseTransactionsManager::flushState();
         \Hypervel\Database\Eloquent\Builder::flushState();
         \Hypervel\Database\Eloquent\Factories\Factory::flushState();
@@ -174,6 +173,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\View\Component::forgetComponentsResolver();
         \Hypervel\View\Component::forgetFactory();
         \Hypervel\View\Engines\CompilerEngine::forgetCompiledOrNotExpired();
+        \Hypervel\Wayfinder\BindingResolver::flushState();
         \Hypervel\WebSocketServer\Collector\FdCollector::flushState();
         \Hypervel\WebSocketServer\Context::flushState();
     }

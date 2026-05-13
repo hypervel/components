@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
+use Carbon\Carbon;
+use Hypervel\Config\Repository;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Events\Terminating;
@@ -13,6 +15,8 @@ use Hypervel\Http\Response;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+
+use function Hypervel\Coroutine\parallel;
 
 class KernelTest extends TestCase
 {
@@ -254,6 +258,55 @@ class KernelTest extends TestCase
             'terminating middleware',
             'terminating callback',
         ], $called);
+    }
+
+    public function testRequestStartedAtIsIsolatedBetweenConcurrentCoroutines()
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
+        $app->bootstrapWith([]);
+
+        $router = m::mock(Router::class);
+        $router->shouldReceive('dispatch')->andReturn(new Response);
+
+        $kernel = new Kernel($app, $router);
+
+        $captured = [];
+        $kernel->whenRequestLifecycleIsLongerThan(0, function (Carbon $startedAt, Request $request) use (&$captured) {
+            $captured[$request->headers->get('X-Coroutine')] = $startedAt;
+        });
+
+        parallel([
+            function () use ($kernel) {
+                $request = Request::create('/');
+                $request->headers->set('X-Coroutine', 'A');
+                $response = $kernel->handle($request);
+                usleep(20000);
+                $kernel->terminate($request, $response);
+            },
+            function () use ($kernel) {
+                usleep(10000);
+                $request = Request::create('/');
+                $request->headers->set('X-Coroutine', 'B');
+                $response = $kernel->handle($request);
+                usleep(20000);
+                $kernel->terminate($request, $response);
+            },
+        ]);
+
+        $this->assertArrayHasKey('A', $captured, 'Coroutine A duration handler did not fire — its requestStartedAt was wiped by coroutine B.');
+        $this->assertArrayHasKey('B', $captured, 'Coroutine B duration handler did not fire — its requestStartedAt was wiped by coroutine A.');
+
+        $this->assertTrue(
+            $captured['A']->lt($captured['B']),
+            sprintf(
+                'requestStartedAt leaked between coroutines: A captured %s, B captured %s (expected A < B because A started first).',
+                $captured['A']->toIso8601String(),
+                $captured['B']->toIso8601String()
+            )
+        );
     }
 
     protected function getKernel(): Kernel

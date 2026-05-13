@@ -15,14 +15,19 @@
 <a name="introduction"></a>
 ## Introduction
 
-All of the configuration files for the Laravel framework are stored in the `config` directory. Each option is documented, so feel free to look through the files and get familiar with the options available to you.
+All of the configuration files for the Hypervel framework are stored in the `config` directory. Each option is documented, so feel free to look through the files and get familiar with the options available to you.
 
 These configuration files allow you to configure things like your database connection information, your mail server information, as well as various other core configuration values such as your application URL and encryption key.
+
+Hypervel ships framework configuration defaults with the framework itself. Your application's `config` files override those defaults, while common nested options like authentication guards and providers, broadcasting connections, cache stores, database connections and Redis settings, filesystem disks, logging channels, mailers, and queue connections are merged so you may customize only the values you need.
+
+> [!NOTE]
+> Configuration files are loaded in alphabetical order during application bootstrap. Cross-references via the `config` function depend on file load order, so you should prefer `env` or local PHP values inside configuration files.
 
 <a name="the-about-command"></a>
 #### The `about` Command
 
-Laravel can display an overview of your application's configuration, drivers, and environment via the `about` Artisan command.
+Hypervel can display an overview of your application's configuration, drivers, and environment via the `about` Artisan command.
 
 ```shell
 php artisan about
@@ -45,9 +50,9 @@ php artisan config:show database
 
 It is often helpful to have different configuration values based on the environment where the application is running. For example, you may wish to use a different cache driver locally than you do on your production server.
 
-To make this a cinch, Laravel utilizes the [DotEnv](https://github.com/vlucas/phpdotenv) PHP library. In a fresh Laravel installation, the root directory of your application will contain a `.env.example` file that defines many common environment variables. During the Laravel installation process, this file will automatically be copied to `.env`.
+To make this a cinch, Hypervel utilizes the [DotEnv](https://github.com/vlucas/phpdotenv) PHP library. In a fresh Hypervel installation, the root directory of your application will contain a `.env.example` file that defines many common environment variables. During the Hypervel installation process, this file will automatically be copied to `.env`.
 
-Laravel's default `.env` file contains some common configuration values that may differ based on whether your application is running locally or on a production web server. These values are then read by the configuration files within the `config` directory using Laravel's `env` function.
+Hypervel's default `.env` file contains some common configuration values that may differ based on whether your application is running locally or on a production web server. These values are then read by the configuration files within the `config` directory using Hypervel's `env` function.
 
 If you are developing with a team, you may wish to continue including and updating the `.env.example` file with your application. By putting placeholder values in the example configuration file, other developers on your team can clearly see which environment variables are needed to run your application.
 
@@ -59,12 +64,12 @@ If you are developing with a team, you may wish to continue including and updati
 
 Your `.env` file should not be committed to your application's source control, since each developer / server using your application could require a different environment configuration. Furthermore, this would be a security risk in the event an intruder gains access to your source control repository, since any sensitive credentials would get exposed.
 
-However, it is possible to encrypt your environment file using Laravel's built-in [environment encryption](#encrypting-environment-files). Encrypted environment files may be placed in source control safely.
+However, it is possible to encrypt your environment file using Hypervel's built-in [environment encryption](#encrypting-environment-files). Encrypted environment files may be placed in source control safely.
 
 <a name="additional-environment-files"></a>
 #### Additional Environment Files
 
-Before loading your application's environment variables, Laravel determines if an `APP_ENV` environment variable has been externally provided or if the `--env` CLI argument has been specified. If so, Laravel will attempt to load an `.env.[APP_ENV]` file if it exists. If it does not exist, the default `.env` file will be loaded.
+Before loading your application's environment variables, Hypervel determines if an `APP_ENV` environment variable has been externally provided or if the `--env` CLI argument has been specified. If so, Hypervel will attempt to load an `.env.[APP_ENV]` file if it exists. If it does not exist, the default `.env` file will be loaded.
 
 <a name="environment-variable-types"></a>
 ### Environment Variable Types
@@ -95,7 +100,7 @@ APP_NAME="My Application"
 <a name="retrieving-environment-configuration"></a>
 ### Retrieving Environment Configuration
 
-All of the variables listed in the `.env` file will be loaded into the `$_ENV` PHP super-global when your application receives a request. However, you may use the `env` function to retrieve values from these variables in your configuration files. In fact, if you review the Laravel configuration files, you will notice many of the options are already using this function:
+All of the variables listed in the `.env` file will be loaded into the `$_ENV` PHP super-global when your application boots. For HTTP traffic, this happens when Hypervel's workers boot, not once per request. However, you may use the `env` function to retrieve values from these variables in your configuration files. In fact, if you review the Hypervel configuration files, you will notice many of the options are already using this function:
 
 ```php
 'debug' => (bool) env('APP_DEBUG', false),
@@ -132,7 +137,7 @@ if (App::environment(['local', 'staging'])) {
 <a name="encrypting-environment-files"></a>
 ### Encrypting Environment Files
 
-Unencrypted environment files should never be stored in source control. However, Laravel allows you to encrypt your environment files so that they may safely be added to source control with the rest of your application.
+Unencrypted environment files should never be stored in source control. However, Hypervel allows you to encrypt your environment files so that they may safely be added to source control with the rest of your application.
 
 <a name="encryption"></a>
 #### Encryption
@@ -150,12 +155,24 @@ php artisan env:encrypt --key=3UVsEgGVK36XN82KKeyLFMhvosbZN1aF
 ```
 
 > [!NOTE]
-> The length of the key provided should match the key length required by the encryption cipher being used. By default, Laravel will use the `AES-256-CBC` cipher which requires a 32 character key. You are free to use any cipher supported by Laravel's [encrypter](/docs/{{version}}/encryption) by passing the `--cipher` option when invoking the command.
+> The length of the key provided should match the key length required by the encryption cipher being used. By default, Hypervel will use the `AES-256-CBC` cipher which requires a 32 character key. You are free to use any cipher supported by Hypervel's [encrypter](/docs/{{version}}/encryption) by passing the `--cipher` option when invoking the command.
 
 If your application has multiple environment files, such as `.env` and `.env.staging`, you may specify the environment file that should be encrypted by providing the environment name via the `--env` option:
 
 ```shell
 php artisan env:encrypt --env=staging
+```
+
+To overwrite an existing encrypted environment file, provide the `--force` option:
+
+```shell
+php artisan env:encrypt --force
+```
+
+To delete the original environment file after writing the encrypted file, provide the `--prune` option:
+
+```shell
+php artisan env:encrypt --prune
 ```
 
 <a name="readable-variable-names"></a>
@@ -179,7 +196,7 @@ APP_URL=eyJpdiI6...
 
 Using the readable format allows you to see which environment variables exist without exposing sensitive data. It also makes reviewing pull requests much easier since you can see which variables were added, removed, or renamed without needing to decrypt the file.
 
-When decrypting environment files, Laravel automatically detects which format was used, so no additional options are needed for the `env:decrypt` command.
+When decrypting environment files, Hypervel automatically detects which format was used, so no additional options are needed for the `env:decrypt` command.
 
 > [!NOTE]
 > When using the `--readable` option, comments, and blank lines from the original environment file are not included in the encrypted output.
@@ -187,7 +204,7 @@ When decrypting environment files, Laravel automatically detects which format wa
 <a name="decryption"></a>
 #### Decryption
 
-To decrypt an environment file, you may use the `env:decrypt` command. This command requires a decryption key, which Laravel will retrieve from the `LARAVEL_ENV_ENCRYPTION_KEY` environment variable:
+To decrypt an environment file, you may use the `env:decrypt` command. This command requires a decryption key, which Hypervel will retrieve from the `HYPERVEL_ENV_ENCRYPTION_KEY` environment variable:
 
 ```shell
 php artisan env:decrypt
@@ -199,7 +216,7 @@ Or, the key may be provided directly to the command via the `--key` option:
 php artisan env:decrypt --key=3UVsEgGVK36XN82KKeyLFMhvosbZN1aF
 ```
 
-When the `env:decrypt` command is invoked, Laravel will decrypt the contents of the `.env.encrypted` file and place the decrypted contents in the `.env` file.
+When the `env:decrypt` command is invoked, Hypervel will decrypt the contents of the `.env.encrypted` file and place the decrypted contents in the `.env` file.
 
 The `--cipher` option may be provided to the `env:decrypt` command in order to use a custom encryption cipher:
 
@@ -217,6 +234,12 @@ In order to overwrite an existing environment file, you may provide the `--force
 
 ```shell
 php artisan env:decrypt --force
+```
+
+You may also write the decrypted environment file to a different path or filename using the `--path` and `--filename` options:
+
+```shell
+php artisan env:decrypt --path=/secure/envs --filename=.env
 ```
 
 <a name="accessing-configuration-values"></a>
@@ -243,6 +266,9 @@ Config::set('app.timezone', 'America/Chicago');
 config(['app.timezone' => 'America/Chicago']);
 ```
 
+> [!WARNING]
+> In Hypervel's Swoole workers, runtime configuration mutations are process-global within the worker. Every concurrent coroutine in that worker may observe the changed value, so you should only mutate configuration during bootstrapping or tests. For request-specific state, use request data, middleware-managed state, or coroutine context instead.
+
 To assist with static analysis, the `Config` facade also provides typed configuration retrieval methods. If the retrieved configuration value does not match the expected type, an exception will be thrown:
 
 ```php
@@ -263,7 +289,7 @@ You should typically run the `php artisan config:cache` command as part of your 
 
 Once the configuration has been cached, your application's `.env` file will not be loaded by the framework during requests or Artisan commands; therefore, the `env` function will only return external, system level environment variables.
 
-For this reason, you should ensure you are only calling the `env` function from within your application's configuration (`config`) files. You can see many examples of this by examining Laravel's default configuration files. Configuration values may be accessed from anywhere in your application using the `config` function [described above](#accessing-configuration-values).
+For this reason, you should ensure you are only calling the `env` function from within your application's configuration (`config`) files. You can see many examples of this by examining Hypervel's default configuration files. Configuration values may be accessed from anywhere in your application using the `config` function [described above](#accessing-configuration-values).
 
 The `config:clear` command may be used to purge the cached configuration:
 
@@ -277,12 +303,14 @@ php artisan config:clear
 <a name="configuration-publishing"></a>
 ## Configuration Publishing
 
-Most of Laravel's configuration files are already published in your application's `config` directory; however, certain configuration files like `cors.php` and `view.php` are not published by default, as most applications will never need to modify them.
+Most of Hypervel's configuration files are provided by the framework defaults and do not need to be present in your application's `config` directory. When you need to customize one of these files directly, you may publish it to your application.
 
-However, you may use the `config:publish` Artisan command to publish any configuration files that are not published by default:
+You may use the `config:publish` Artisan command to publish any configuration files that are not published by default:
 
 ```shell
 php artisan config:publish
+
+php artisan config:publish cache --force
 
 php artisan config:publish --all
 ```
@@ -318,6 +346,12 @@ You may also provide a `retry` option to the `down` command, which will be set a
 php artisan down --retry=60
 ```
 
+The `retry` option may be specified as a number of seconds or as a date / time string:
+
+```shell
+php artisan down --retry="tomorrow 14:00"
+```
+
 <a name="bypassing-maintenance-mode"></a>
 #### Bypassing Maintenance Mode
 
@@ -327,13 +361,13 @@ To allow maintenance mode to be bypassed using a secret token, you may use the `
 php artisan down --secret="1630542a-246b-4b66-afa1-dd72a4c43515"
 ```
 
-After placing the application in maintenance mode, you may navigate to the application URL matching this token and Laravel will issue a maintenance mode bypass cookie to your browser:
+After placing the application in maintenance mode, you may navigate to the application URL matching this token and Hypervel will issue a maintenance mode bypass cookie to your browser:
 
 ```shell
 https://example.com/1630542a-246b-4b66-afa1-dd72a4c43515
 ```
 
-If you would like Laravel to generate the secret token for you, you may use the `with-secret` option. The secret will be displayed to you once the application is in maintenance mode:
+If you would like Hypervel to generate the secret token for you, you may use the `with-secret` option. The secret will be displayed to you once the application is in maintenance mode:
 
 ```shell
 php artisan down --with-secret
@@ -344,24 +378,28 @@ When accessing this hidden route, you will then be redirected to the `/` route o
 > [!NOTE]
 > Your maintenance mode secret should typically consist of alpha-numeric characters and, optionally, dashes. You should avoid using characters that have special meaning in URLs such as `?` or `&`.
 
+Hypervel stores the bypass token in a `hypervel_maintenance` cookie.
+
 <a name="maintenance-mode-on-multiple-servers"></a>
 #### Maintenance Mode on Multiple Servers
 
-By default, Laravel determines if your application is in maintenance mode using a file-based system. This means to activate maintenance mode, the `php artisan down` command has to be executed on each server hosting your application.
+By default, Hypervel determines if your application is in maintenance mode using a file-based system. This means to activate maintenance mode, the `php artisan down` command has to be executed on each server hosting your application.
 
-Alternatively, Laravel offers a cache-based method for handling maintenance mode. This method requires running the `php artisan down` command on just one server. To use this approach, modify the maintenance mode variables in your application's `.env` file. You should select a cache `store` that is accessible by all of your servers. This ensures the maintenance mode status is consistently maintained across every server:
+Alternatively, Hypervel offers a cache-based method for handling maintenance mode. This method requires running the `php artisan down` command on just one server. To use this approach, modify the maintenance mode variables in your application's `.env` file. You should select a cache `store` that is accessible by all of your servers. This ensures the maintenance mode status is consistently maintained across every server:
 
 ```ini
 APP_MAINTENANCE_DRIVER=cache
 APP_MAINTENANCE_STORE=database
 ```
 
+When maintenance mode is enabled or disabled, Hypervel will send a `SIGUSR1` reload signal to the server process listed in your configured `server.settings.pid_file` so workers on the current server refresh their maintenance state. The default PID file is `storage/framework/hypervel.pid`; the signal is only sent when that file exists.
+
 <a name="pre-rendering-the-maintenance-mode-view"></a>
 #### Pre-Rendering the Maintenance Mode View
 
-If you utilize the `php artisan down` command during deployment, your users may still occasionally encounter errors if they access the application while your Composer dependencies or other infrastructure components are updating. This occurs because a significant part of the Laravel framework must boot in order to determine your application is in maintenance mode and render the maintenance mode view using the templating engine.
+If you utilize the `php artisan down` command during deployment, your users may still occasionally encounter errors if they access the application while your Composer dependencies or other infrastructure components are updating. This occurs because a significant part of the Hypervel framework must boot in order to determine your application is in maintenance mode and render the maintenance mode view using the templating engine.
 
-For this reason, Laravel allows you to pre-render a maintenance mode view that will be returned at the very beginning of the request cycle. This view is rendered before any of your application's dependencies have loaded. You may pre-render a template of your choice using the `down` command's `render` option:
+For this reason, Hypervel allows you to pre-render a maintenance mode view that will be returned at the very beginning of the request cycle. This view is rendered before any of your application's dependencies have loaded. You may pre-render a template of your choice using the `down` command's `render` option:
 
 ```shell
 php artisan down --render="errors::503"
@@ -370,7 +408,7 @@ php artisan down --render="errors::503"
 <a name="redirecting-maintenance-mode-requests"></a>
 #### Redirecting Maintenance Mode Requests
 
-While in maintenance mode, Laravel will display the maintenance mode view for all application URLs the user attempts to access. If you wish, you may instruct Laravel to redirect all requests to a specific URL. This may be accomplished using the `redirect` option. For example, you may wish to redirect all requests to the `/` URI:
+While in maintenance mode, Hypervel will display the maintenance mode view for all application URLs the user attempts to access. If you wish, you may instruct Hypervel to redirect all requests to a specific URL. This may be accomplished using the `redirect` option. For example, you may wish to redirect all requests to the `/` URI:
 
 ```shell
 php artisan down --redirect=/
@@ -392,8 +430,3 @@ php artisan up
 #### Maintenance Mode and Queues
 
 While your application is in maintenance mode, no [queued jobs](/docs/{{version}}/queues) will be handled. The jobs will continue to be handled as normal once the application is out of maintenance mode.
-
-<a name="alternatives-to-maintenance-mode"></a>
-#### Alternatives to Maintenance Mode
-
-Since maintenance mode requires your application to have several seconds of downtime, consider running your applications on a fully-managed platform like [Laravel Cloud](https://cloud.laravel.com) to accomplish zero-downtime deployment with Laravel.

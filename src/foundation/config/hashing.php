@@ -49,4 +49,17 @@ return [
         'threads' => 1,
         'time' => 4,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rehash On Login
+    |--------------------------------------------------------------------------
+    |
+    | Setting this option to true will tell Hypervel to automatically rehash
+    | the user's password during login if the configured work factor for
+    | the algorithm has changed, allowing graceful upgrades of hashes.
+    |
+    */
+
+    'rehash_on_login' => true,
 ];

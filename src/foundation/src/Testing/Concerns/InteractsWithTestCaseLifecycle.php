@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Testing\Concerns;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Attributes\SetUp;
 use Hypervel\Foundation\Testing\Attributes\TearDown;
@@ -104,6 +105,20 @@ trait InteractsWithTestCaseLifecycle
             $this->runInCoroutine(
                 fn () => $this->callBeforeApplicationDestroyedCallbacks()
             );
+
+            // Flush the DB connection pool in a separate coroutine so the
+            // pooled connections checked out during the destroyed callbacks
+            // (e.g. migrate:rollback) are first released by their Coroutine::defer
+            // when the previous coroutine ends. flushAll() can only drain
+            // connections already in the channel. Without the second coroutine,
+            // the flush runs while connections are still pinned and is a no-op.
+            // The resolved() gate skips the work for tests that never touched
+            // the DB pool factory.
+            if ($this->app->resolved(PoolFactory::class)) {
+                $this->runInCoroutine(
+                    fn () => $this->app->make(PoolFactory::class)->flushAll()
+                );
+            }
 
             ParallelTesting::callTearDownTestCaseCallbacks($this);
 

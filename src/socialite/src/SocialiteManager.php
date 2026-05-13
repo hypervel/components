@@ -240,6 +240,10 @@ class SocialiteManager extends Manager implements Contracts\Factory
 
     /**
      * Forget all of the resolved driver instances.
+     *
+     * Boot or tests only. Clears the singleton's driver cache; concurrent
+     * coroutines may already hold references that next resolution will not
+     * share.
      */
     public function forgetDrivers(): static
     {
@@ -250,6 +254,10 @@ class SocialiteManager extends Manager implements Contracts\Factory
 
     /**
      * Set the container instance used by the manager.
+     *
+     * Tests only. Swaps the singleton's container and config references;
+     * per-request use races across coroutines and breaks every concurrent
+     * socialite resolution.
      */
     public function setContainer(Container $container): static
     {

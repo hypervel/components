@@ -31,12 +31,8 @@ class BeanstalkdQueue extends Queue implements QueueContract
         protected string $default,
         protected int $timeToRun,
         protected int $blockFor = 0,
-        protected ?bool $dispatchAfterCommit = false
+        bool $dispatchAfterCommit = false
     ) {
-        $this->default = $default;
-        $this->blockFor = $blockFor;
-        $this->timeToRun = $timeToRun;
-        $this->pheanstalk = $pheanstalk;
         $this->dispatchAfterCommit = $dispatchAfterCommit;
     }
 

@@ -561,6 +561,9 @@ class ResourceRegistrar
 
     /**
      * Set or unset the unmapped global parameters to singular.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every subsequent resource-route registration.
      */
     public static function singularParameters(bool $singular = true): void
     {
@@ -577,6 +580,9 @@ class ResourceRegistrar
 
     /**
      * Set the global parameter mapping.
+     *
+     * Boot-only. The map persists in a static property for the worker lifetime
+     * and applies to every subsequent resource-route registration.
      */
     public static function setParameters(array $parameters = []): void
     {
@@ -585,6 +591,9 @@ class ResourceRegistrar
 
     /**
      * Get or set the action verbs used in the resource URIs.
+     *
+     * Boot-only when setting. Verbs persist in a static property for the
+     * worker lifetime and apply to every subsequent resource-route URI.
      */
     public static function verbs(array $verbs = []): array
     {

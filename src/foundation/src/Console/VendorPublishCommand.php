@@ -324,6 +324,9 @@ class VendorPublishCommand extends Command
 
     /**
      * Instruct the command to not update the dates on migrations when publishing.
+     *
+     * Boot-only. The publishing mode persists in a static property for the
+     * worker lifetime and affects every subsequent vendor:publish run.
      */
     public static function dontUpdateMigrationDates(): void
     {

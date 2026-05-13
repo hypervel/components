@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Cache;
 use DateInterval;
 use DateTime;
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Tests\TestCase;
 use TypeError;
 
@@ -58,6 +59,25 @@ class CacheTaggedCacheTest extends TestCase
         $store->tags('zap')->flush();
         $this->assertNull($store->tags($tags1)->get('foo'));
         $this->assertSame('bar', $store->tags($tags2)->get('foo'));
+    }
+
+    public function testTagFlushRemovesSentinelAndReRunsCallbackOnRememberNullable()
+    {
+        $store = new ArrayStore(serializesValues: true);
+        $repo = new Repository($store);
+
+        $repo->tags(['users'])->rememberNullable('profile', 60, fn () => null);
+
+        $repo->tags(['users'])->flush();
+
+        $invoked = false;
+        $result = $repo->tags(['users'])->rememberNullable('profile', 60, function () use (&$invoked) {
+            $invoked = true;
+            return 'fresh';
+        });
+
+        $this->assertSame('fresh', $result);
+        $this->assertTrue($invoked);
     }
 
     public function testTagsWithStringArgument()

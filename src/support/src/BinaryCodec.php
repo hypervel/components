@@ -15,6 +15,9 @@ class BinaryCodec
 
     /**
      * Register a custom codec.
+     *
+     * Boot-only. Codecs persist in a static property for the worker lifetime
+     * and apply to every subsequent encode/decode call.
      */
     public static function register(string $name, callable $encode, callable $decode): void
     {
@@ -84,6 +87,9 @@ class BinaryCodec
 
     /**
      * Flush all static state.
+     *
+     * Boot or tests only. Clears worker-wide custom codecs; concurrent
+     * coroutines may encode/decode with different codec registries.
      */
     public static function flushState(): void
     {

@@ -140,6 +140,30 @@ class ConcurrencyLimiterTest extends TestCase
         $limiter->block(5);
     }
 
+    public function testBlockWithZeroLimitDoesNotCallEvalAndTimesOut()
+    {
+        $redis = $this->mockRedis();
+
+        // limit(0) means no slots — acquire must short-circuit before calling eval,
+        // otherwise Lua hits redis.call('mget') with no args and errors.
+        $redis->shouldNotReceive('eval');
+
+        $this->expectException(LimiterTimeoutException::class);
+
+        (new ConcurrencyLimiter($redis, 'zero', 0, 5))->block(0);
+    }
+
+    public function testBlockWithNegativeLimitDoesNotCallEvalAndTimesOut()
+    {
+        $redis = $this->mockRedis();
+
+        $redis->shouldNotReceive('eval');
+
+        $this->expectException(LimiterTimeoutException::class);
+
+        (new ConcurrencyLimiter($redis, 'neg', -1, 5))->block(0);
+    }
+
     /**
      * Create a mock RedisProxy.
      */

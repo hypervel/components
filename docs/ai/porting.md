@@ -106,7 +106,9 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 
   Keep everything else: behavioral descriptions, `@see` links, `@throws` annotations, warnings, contract explanations, usage notes. Modernize the title line to imperative form ("Returns" → "Return", "Retrieves" → "Retrieve") but do not remove or rewrite the body content beneath it. Translate non-English comments to English and fix grammar errors in place.
 - **Replace framework names in code** — any occurrence of the word `laravel` or `hyperf` in ported code (string literals, comments, prefixes, identifiers, etc.) must be replaced with `hypervel`, preserving the original casing. For example: `laravel_reserved_` → `hypervel_reserved_`, `LaravelExcelExporter` → `HypervelExcelExporter`, `HYPERF_VERSION` → `HYPERVEL_VERSION`. This does not apply to namespaces (which have their own conversion rules) or to references that describe the upstream source (e.g., docblock `@see` links to Laravel/Hyperf source).
+- **Always use American English spelling** — e.g., "behavior" vs "behaviour", "utilize" vs "utilise".
 - **Don't copy Laravel/Hyperf-specific framework details just to stay 1:1** — keep the behavior the same, but if something only exists because of the upstream framework's own packages, providers, bootstrap system, or architecture, translate it to the Hypervel equivalent or stop and ask if there isn't one.
+- **Grep broadly — never assume a subdir.** When searching for any symbol, class, method, or pattern, grep across the whole `src/` (or `tests/`) tree, not a specific package subdir. Assumptions about where something lives produce false negatives.
 - **Stop on anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Explain the situation and your recommended solution. Do not proceed without approval.
 - **Never skip or stub things out** — no removing code, no commenting out with "TODO once X is ported" placeholders. If such a situation arises, stop and explain with your recommendation.
 - **Mark temporary compatibility paths with `@TODO:`** — when you add a real transitional fallback/shim during porting, add an inline `@TODO:` with the removal condition. Do not use `@TODO` to avoid implementing behavior now.
@@ -118,6 +120,12 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as reference, then trace real control flow in method bodies and callers/callees.
 - **Modernize types only in touched code** — do not refactor unrelated files unless required by confirmed control flow or a failing test.
 - **Review worker-lifetime state explicitly** — whenever a change introduces or modifies static properties/caches/singletons, STOP and report the Swoole persistence impact (memory growth, cross-request behavior) with a recommendation: keep as-is for performance parity, or adapt for worker safety.
+- **Document worker-lifetime mutators** — when adding or touching a public method that mutates static state, singleton-held configuration, manager registries, cached drivers, global callbacks, or other worker-lifetime state, add a short warning to the method docblock if the method is intended only for boot-time configuration or tests. Use the tag-first format so humans and LLMs can recognize it quickly:
+  - `Boot-only.` — for startup configuration methods
+  - `Tests only.` — for test fakes, swaps, and resolver overrides
+  - `Boot or tests only.` — for cache/registry clearing methods used during boot reconfiguration or test cleanup
+
+  The second sentence should name the concrete failure mode, e.g. "The callback persists in a static property for the worker lifetime and affects every subsequent request." Do not add these warnings to methods that are genuinely safe for normal runtime/per-request use. If a method is commonly expected to be used dynamically but mutates shared worker-lifetime state, treat that as a coroutine-safety bug and STOP with a recommendation instead of just documenting it.
 - **Flag cache opportunities with recommendation** — if a ported path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, STOP and recommend it (what to cache, expected benefit, and safety constraints).
 - **Enum cases use PascalCase by default** — `case Pending` not `case pending`, `case OauthToken` not `case OAUTH_TOKEN`. Applies to both backed and unit enums. **Exception:** when `->name` is used as an external identifier (cache keys, cookie names, filesystem disks, rate limiter names, timezone strings) or appears in serialized output (e.g., `toArray()` returning `'name' => $this->name`), match the consuming system's convention (typically lowercase or snake_case).
 
@@ -299,7 +307,7 @@ Four places need updating:
 
 2. **Package `composer.json` `extra.hypervel.providers`** — Replace `extra.hyperf.config` with `extra.hypervel.providers` listing the new service provider. This is how apps discover providers when the package is installed as a standalone dependency.
 
-3. **`DefaultProviders`** (`src/support/src/DefaultProviders.php`) — Add to the providers list (alphabetical order). This is how the testbench and default app configs load the provider. Without this, tests using `Testbench\TestCase` won't have the bindings available.
+3. **`DefaultProviders`** (`src/support/src/DefaultProviders.php`) — Only add the provider here if the package is **core framework infrastructure** that every Hypervel app needs (auth, cache, database, session, encryption, validation, view, pagination, plus Swoole infra like engine/server/object-pool/signal). For **optional/standalone packages** (Reverb, Scout, Horizon, Sanctum, Telescope, Wayfinder, etc.) do NOT add to DefaultProviders — the `extra.hypervel.providers` entry in the package composer.json handles auto-discovery, and tests register the provider explicitly via `getPackageProviders()` or equivalent setUp wiring.
 
 4. **Remove from `extra.hyperf.config`** — Remove the ConfigProvider from both the root `composer.json` and the package `composer.json` `extra.hyperf.config` entries (since the ConfigProvider is deleted).
 
@@ -528,6 +536,15 @@ Always call `parent::setUp()` in your setUp method.
 
 All **standalone** test support files — PHP classes, non-class PHP files, and non-PHP files (JSON, SQL, images, templates, etc.) — go in a single **`Fixtures/`** directory (capital F). This matches Laravel's predominant convention. PHP classes in `Fixtures/` are PSR-4 autoloaded like any other test file. Helper classes used only by a single test file may be defined inline within that file (matching Laravel's convention).
 
+#### Workbench Fixtures from Upstream Packages
+
+Laravel packages sometimes ship a `workbench/` directory with controllers, models, middleware, and a `routes/web.php`. Hypervel's testbench workbench is shared across every package's tests, so port these into the package-scoped pattern:
+
+- **Controllers, models, middleware** → `tests/{Package}/Fixtures/...`, namespace `Hypervel\Tests\{Package}\Fixtures\...`.
+- **Routes** → `tests/{Package}/Fixtures/routes.php`. Load only from tests that need them (test setUp, or a small bootstrap script for CLI subprocesses). Never always-load.
+
+Update upstream test imports to point at the new Fixtures namespace.
+
 #### Temp Directories for File I/O
 
 Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the directory table above). For unit/lightweight tests that just need a scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, create in `setUp`, delete via `Filesystem::deleteDirectory()` in `tearDown`. See `FoundationViteTest` or `OptionTest` for the pattern.
@@ -549,6 +566,21 @@ All tests run inside coroutines by default. The `RunTestsInCoroutine` trait is o
 - `tearDownInCoroutine()` — runs inside the coroutine after the test method
 
 These are primarily useful for DB operations or external service setup that needs coroutine context. Most ported Laravel tests won't need them.
+
+#### Testing coroutine state isolation
+
+To prove state is per-coroutine (not shared on a worker-lifetime singleton), spawn concurrent coroutines via `parallel()` from `Hypervel\Coroutine` and `usleep()` between mutation and read — the sleep forces the runtime to interleave them; without it tasks may complete sequentially and the leak won't reproduce.
+
+```php
+use function Hypervel\Coroutine\parallel;
+
+[$a, $b] = parallel([
+    function () use ($service) { $service->set('A'); usleep(5000); return $service->get(); },
+    function () use ($service) { $service->set('B'); usleep(5000); return $service->get(); },
+]);
+```
+
+Examples: `tests/Inertia/CoroutineIsolationTest.php`, `tests/Container/CoroutineSafetyTest.php`. Name new tests `CoroutineIsolationTest` / `CoroutineSafetyTest` for discoverability.
 
 #### Request Context in Tests
 

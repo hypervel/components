@@ -159,6 +159,10 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     /**
      * Register a custom driver creator Closure.
      *
+     * Boot-only. The callback persists in the singleton's customCreators array
+     * (and the poolable list if $poolable is true) for the worker lifetime and
+     * applies to every subsequent channel resolution.
+     *
      * @return $this
      */
     public function extend(string $driver, Closure $callback, bool $poolable = false): static
@@ -172,6 +176,10 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
 
     /**
      * Register pool config for custom driver.
+     *
+     * Boot-only. The pool config persists in the singleton ChannelManager's
+     * poolConfig array for the worker lifetime and applies to every subsequent
+     * driver resolution.
      *
      * @return $this
      */

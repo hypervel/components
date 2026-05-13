@@ -93,6 +93,9 @@ abstract class Manager
     /**
      * Register a custom driver creator Closure.
      *
+     * Boot-only. The callback persists in the singleton's customCreators array
+     * for the worker lifetime and applies to every subsequent driver resolution.
+     *
      * @return $this
      */
     public function extend(string $driver, Closure $callback): static
@@ -121,6 +124,10 @@ abstract class Manager
     /**
      * Set the container instance used by the manager.
      *
+     * Tests only. Swaps the singleton's container reference; per-request use
+     * races across coroutines and breaks every concurrent driver resolution
+     * through this manager.
+     *
      * @return $this
      */
     public function setContainer(Container $container): static
@@ -132,6 +139,10 @@ abstract class Manager
 
     /**
      * Forget all of the resolved driver instances.
+     *
+     * Boot or tests only. Clears the singleton's driver cache; concurrent
+     * coroutines may already hold references that next resolution will not
+     * share.
      *
      * @return $this
      */

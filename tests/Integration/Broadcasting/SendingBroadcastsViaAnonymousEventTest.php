@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Broadcasting;
 use Hypervel\Broadcasting\AnonymousEvent;
 use Hypervel\Broadcasting\PresenceChannel;
 use Hypervel\Broadcasting\PrivateChannel;
+use Hypervel\Context\RequestContext;
 use Hypervel\Http\Request;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Event;
@@ -111,7 +112,8 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
 
         $request = m::mock(Request::class);
         $request->shouldReceive('header')->with('X-Socket-ID')->andReturn('12345');
-        $this->app->instance('request', $request);
+        $request->shouldReceive('setUserResolver')->andReturnSelf();
+        RequestContext::set($request);
 
         Broadcast::on('test-channel')->send();
 

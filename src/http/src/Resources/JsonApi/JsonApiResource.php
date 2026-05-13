@@ -42,6 +42,9 @@ class JsonApiResource extends JsonResource
 
     /**
      * Set the JSON:API version for the request.
+     *
+     * Boot-only. The configuration persists in a static property for the worker
+     * lifetime and applies to every JSON:API response across all coroutines.
      */
     public static function configure(?string $version = null, array $ext = [], array $profile = [], array $meta = []): void
     {

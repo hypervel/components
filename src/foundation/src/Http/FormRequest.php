@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Http;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Contracts\Validation\Factory as ValidationFactory;
 use Hypervel\Contracts\Validation\ValidatesWhenResolved;
 use Hypervel\Contracts\Validation\Validator;
@@ -17,12 +18,11 @@ use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
 use Hypervel\Foundation\Http\Traits\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
-use Hypervel\Support\Arr;
 use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
 use ReflectionClass;
 
-class FormRequest extends Request implements ValidatesWhenResolved
+class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 {
     use HasCasts;
     use ValidatesWhenResolvedTrait;
@@ -75,14 +75,17 @@ class FormRequest extends Request implements ValidatesWhenResolved
     protected ?Validator $validator = null;
 
     /**
-     * The scenes defined by developer.
+     * Build a fresh form request hydrated from the current request.
+     *
+     * Invoked by the container's SelfBuilding path. Each resolution returns a
+     * new instance so per-request data does not leak across the worker.
      */
-    protected array $scenes = [];
-
-    /**
-     * The current validation scene.
-     */
-    protected ?string $currentScene = null;
+    public static function newInstance(Request $current, Container $container, Redirector $redirector): static
+    {
+        return static::createFrom($current)
+            ->setContainer($container)
+            ->setRedirector($redirector);
+    }
 
     /**
      * Get the validator instance for the request.
@@ -208,22 +211,12 @@ class FormRequest extends Request implements ValidatesWhenResolved
 
     /**
      * Get the validation rules for this form request.
-     *
-     * Applies scene filtering when a scene is active.
      */
     protected function validationRules(): array
     {
-        $rules = method_exists($this, 'rules')
+        return method_exists($this, 'rules')
             ? $this->container->call([$this, 'rules'])
             : [];
-
-        $scene = $this->getScene();
-
-        if ($scene && isset($this->scenes[$scene]) && is_array($this->scenes[$scene])) {
-            return Arr::only($rules, $this->scenes[$scene]);
-        }
-
-        return $rules;
     }
 
     /**
@@ -360,23 +353,5 @@ class FormRequest extends Request implements ValidatesWhenResolved
     public static function flushState(): void
     {
         static::$attributeConfiguration = [];
-    }
-
-    /**
-     * Set the active validation scene.
-     */
-    public function scene(string $scene): static
-    {
-        $this->currentScene = $scene;
-
-        return $this;
-    }
-
-    /**
-     * Get the active validation scene.
-     */
-    public function getScene(): ?string
-    {
-        return $this->currentScene;
     }
 }

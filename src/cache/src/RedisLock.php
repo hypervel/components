@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Redis\LuaScripts;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use InvalidArgumentException;

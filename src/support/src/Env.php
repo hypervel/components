@@ -45,6 +45,9 @@ class Env
 
     /**
      * Enable the putenv adapter.
+     *
+     * Boot-only. The setting and cached repository persist in static properties
+     * for the worker lifetime and affect every subsequent env lookup.
      */
     public static function enablePutenv(): void
     {
@@ -54,6 +57,9 @@ class Env
 
     /**
      * Flush the environment repository.
+     *
+     * Boot or tests only. Clears the worker-wide repository cache; concurrent
+     * env lookups may rebuild with different adapter state.
      *
      * Clears the cached repository so the next getRepository() call creates
      * a fresh instance with a new ImmutableWriter. This is required before
@@ -69,6 +75,9 @@ class Env
 
     /**
      * Reset all static state including custom adapters and putenv config.
+     *
+     * Tests only. Clears worker-wide env repository state and custom adapters;
+     * runtime use changes env lookup behavior for every coroutine.
      *
      * This is a full teardown intended for testing. Unlike flushRepository(),
      * which preserves custom adapters and putenv configuration, this method
@@ -109,6 +118,9 @@ class Env
 
     /**
      * Disable the putenv adapter.
+     *
+     * Boot-only. The setting and cached repository persist in static properties
+     * for the worker lifetime and affect every subsequent env lookup.
      */
     public static function disablePutenv(): void
     {
@@ -118,6 +130,9 @@ class Env
 
     /**
      * Register a custom adapter creator Closure.
+     *
+     * Boot-only. Custom adapters persist in a static property for the worker
+     * lifetime and affect every subsequent env repository build.
      */
     public static function extend(Closure $callback, ?string $name = null): void
     {

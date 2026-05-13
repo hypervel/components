@@ -254,6 +254,9 @@ class AboutCommand extends Command
 
     /**
      * Add additional data to the output of the "about" command.
+     *
+     * Boot-only. The data resolver persists in a static property for the worker
+     * lifetime and affects every subsequent about command run.
      */
     public static function add(string $section, callable|string|array $data, ?string $value = null): void
     {

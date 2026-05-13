@@ -93,6 +93,10 @@ class Sanctum
     /**
      * Set the personal access token model name.
      *
+     * Boot-only. The model class name persists in a static property for the
+     * worker lifetime and is used for every token resolution across all
+     * coroutines.
+     *
      * @param class-string<TToken> $model
      */
     public static function usePersonalAccessTokenModel(string $model): void
@@ -102,6 +106,9 @@ class Sanctum
 
     /**
      * Specify a callback that should be used to fetch the access token from the request.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every token retrieval across all coroutines.
      */
     public static function getAccessTokenFromRequestUsing(?callable $callback): void
     {
@@ -110,6 +117,9 @@ class Sanctum
 
     /**
      * Specify a callback that should be used to authenticate access tokens.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every token authentication across all coroutines.
      */
     public static function authenticateAccessTokensUsing(callable $callback): void
     {
@@ -128,6 +138,9 @@ class Sanctum
 
     /**
      * Flush all static state back to defaults.
+     *
+     * Boot or tests only. Resets worker-wide Sanctum model and callback
+     * configuration used by every subsequent token resolution.
      */
     public static function flushState(): void
     {

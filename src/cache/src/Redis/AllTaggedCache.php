@@ -12,6 +12,7 @@ use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Contracts\Cache\Store;
@@ -66,7 +67,7 @@ class AllTaggedCache extends TaggedCache
             );
 
             if ($result) {
-                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value));
+                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
             }
 
             return $result;
@@ -104,7 +105,7 @@ class AllTaggedCache extends TaggedCache
         );
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value, $seconds));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value), $seconds));
         }
 
         return $result;
@@ -134,7 +135,7 @@ class AllTaggedCache extends TaggedCache
 
         if ($result) {
             foreach ($values as $key => $value) {
-                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, (string) $key, $value, $seconds));
+                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, (string) $key, NullSentinel::unwrap($value), $seconds));
             }
         }
 
@@ -179,7 +180,7 @@ class AllTaggedCache extends TaggedCache
         );
 
         if ($result) {
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
         }
 
         return $result;
@@ -242,13 +243,13 @@ class AllTaggedCache extends TaggedCache
         );
 
         if ($wasHit) {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, $value));
+            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, NullSentinel::unwrap($value)));
         } else {
             $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value, $seconds));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value), $seconds));
         }
 
-        return $value;
+        return NullSentinel::unwrap($value);
     }
 
     /**
@@ -271,13 +272,13 @@ class AllTaggedCache extends TaggedCache
         );
 
         if ($wasHit) {
-            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, $value));
+            $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, NullSentinel::unwrap($value)));
         } else {
             $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, $value));
+            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
         }
 
-        return $value;
+        return NullSentinel::unwrap($value);
     }
 
     /**

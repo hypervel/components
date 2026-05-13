@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Inertia;
 
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
@@ -1635,11 +1636,11 @@ class ResponseTest extends TestCase
 
     public function testThePageUrlIsPrefixedWithTheProxyPrefix(): void
     {
-        Request::setTrustedProxies(['1.2.3.4'], Request::HEADER_X_FORWARDED_PREFIX);
-
         $request = Request::create('/user/123', 'GET');
         $request->server->set('REMOTE_ADDR', '1.2.3.4');
         $request->headers->set('X_FORWARDED_PREFIX', '/sub/directory');
+        RequestContext::set($request);
+        Request::setTrustedProxies(['1.2.3.4'], Request::HEADER_X_FORWARDED_PREFIX);
 
         $user = ['name' => 'Jonathan'];
         $response = new Response('User/Edit', [], ['user' => $user], 'app', '123');

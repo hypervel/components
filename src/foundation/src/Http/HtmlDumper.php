@@ -47,6 +47,9 @@ class HtmlDumper extends BaseHtmlDumper
     /**
      * Create a new HTML dumper instance and register it as the default dumper.
      *
+     * Boot-only. Registers a process-wide VarDumper handler for the worker
+     * lifetime.
+     *
      * @param string $basePath
      * @param string $compiledViewPath
      */

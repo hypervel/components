@@ -20,6 +20,9 @@ trait Macroable
     /**
      * Register a custom macro.
      *
+     * Boot-only. Macros persist in a static property for the worker lifetime
+     * and apply to every subsequent call on the macroable class.
+     *
      * @param-closure-this static  $macro
      */
     public static function macro(string $name, callable|object $macro): void
@@ -29,6 +32,9 @@ trait Macroable
 
     /**
      * Mix another object into the class.
+     *
+     * Boot-only. Delegates to macro() for each method; registered macros persist
+     * in a static property for the worker lifetime.
      *
      * @throws ReflectionException
      */
@@ -55,6 +61,9 @@ trait Macroable
 
     /**
      * Flush the existing macros.
+     *
+     * Boot or tests only. Clears worker-wide macros; concurrent coroutines may
+     * resolve different methods depending on timing.
      */
     public static function flushMacros(): void
     {

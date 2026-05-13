@@ -429,6 +429,10 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Set the given disk instance.
+     *
+     * Boot or tests only. Mutates the singleton's disk cache; concurrent
+     * coroutines may already hold a reference to the prior disk and next
+     * resolution will return the replacement.
      */
     public function set(string $name, mixed $disk): static
     {
@@ -463,6 +467,10 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Unset the given disk instances.
+     *
+     * Boot or tests only. Mutates the singleton's disk cache; concurrent
+     * coroutines may already hold a reference to the disk and next resolution
+     * will rebuild with fresh adapters.
      */
     public function forgetDisk(array|string $disk): static
     {
@@ -475,6 +483,10 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Disconnect the given disk and remove from local cache.
+     *
+     * Boot or tests only. Mutates the singleton's disk cache; concurrent
+     * coroutines may already hold a reference to the disk and next resolution
+     * will rebuild with fresh adapters.
      */
     public function purge(?string $name = null): void
     {
@@ -485,6 +497,10 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Register a custom driver creator Closure.
+     *
+     * Boot-only. The callback persists in the singleton's customCreators array
+     * (and the poolable list if $poolable is true) for the worker lifetime and
+     * applies to every subsequent disk resolution.
      */
     public function extend(string $driver, Closure $callback, bool $poolable = false): static
     {
@@ -499,6 +515,9 @@ class FilesystemManager implements FactoryContract
 
     /**
      * Set the application instance used by the manager.
+     *
+     * Tests only. Swaps the singleton's container reference; per-request use
+     * races across coroutines and breaks every concurrent filesystem operation.
      */
     public function setApplication(Container $app): static
     {
