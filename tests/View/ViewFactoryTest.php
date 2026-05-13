@@ -19,6 +19,7 @@ use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Engines\PhpEngine;
+use Hypervel\View\FileViewFinder;
 use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Hypervel\View\ViewFinderInterface;
@@ -33,6 +34,29 @@ class ViewFactoryTest extends TestCase
     protected function tearDown(): void
     {
         m::close();
+    }
+
+    public function testCloneIsolatesFinderAndSharedEnvironment()
+    {
+        $factory = new Factory(
+            m::mock(EngineResolver::class),
+            new FileViewFinder(new Filesystem, [__DIR__ . '/Fixtures']),
+            m::mock(DispatcherContract::class)
+        );
+
+        $clone = clone $factory;
+        $clone->replaceNamespace('foo', __DIR__ . '/Fixtures/namespaced');
+        $clone->share('scoped', 'value');
+
+        $this->assertSame(__DIR__ . '/Fixtures/namespaced/basic.php', $clone->getFinder()->find('foo::basic'));
+        $this->assertSame($factory, $factory->shared('__env'));
+        $this->assertSame($clone, $clone->shared('__env'));
+        $this->assertNull($factory->shared('scoped'));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('No hint path defined for [foo].');
+
+        $factory->getFinder()->find('foo::basic');
     }
 
     public function testMakeCreatesNewViewInstanceWithProperPathAndEngine()
