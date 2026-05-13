@@ -44,6 +44,11 @@
 
 - Port FailOnUnknownFields form request support
 
+## Routing
+
+- Merge controller middleware from all supported sources. `Hypervel\Routing\Route::controllerMiddleware()` currently returns middleware from `HasMiddleware`, or the base controller's `getMiddleware()`, or controller attributes, but does not combine them. Laravel merges attribute middleware with the static / instance middleware path. Correct fix: port Laravel's merge behavior and add coverage for controllers that use attributes together with `HasMiddleware` or base-controller middleware.
+- Align `Hypervel\Routing\Attributes\Controllers\Middleware` with Laravel's attribute API. Laravel accepts `Closure|string $middleware` and exposes the middleware value on a `$middleware` property; Hypervel currently accepts only `string $value`, and `Route::attributeProvidedControllerMiddleware()` reads `$instance->value`. Correct fix: port the Laravel constructor / property shape and update route extraction accordingly. Documentation should continue avoiding closure literals inside attributes while PHP does not allow them as attribute arguments.
+
 ## Queue
 
 - Port `Hypervel\Contracts\Queue\PreparesForDispatch` and wire it into `Hypervel\Foundation\Bus\PendingDispatch::shouldDispatch()`. Laravel lets a job implement `prepareForDispatch()` and return `false` to abort dispatch before uniqueness locks are acquired; Hypervel currently has no contract and `PendingDispatch::shouldDispatch()` only checks `ShouldBeUnique`.
