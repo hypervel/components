@@ -116,6 +116,9 @@ class SesV2Transport extends AbstractTransport implements Stringable
 
     /**
      * Set the transmission options being used by the transport.
+     *
+     * Boot-only. Mutates the shared transport's SES send options; per-request
+     * use races across coroutines.
      */
     public function setOptions(array $options): array
     {
