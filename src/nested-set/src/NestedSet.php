@@ -69,6 +69,6 @@ class NestedSet
      */
     public static function isNode(mixed $node): bool
     {
-        return is_object($node) && in_array(HasNode::class, (array) $node);
+        return is_object($node) && in_array(HasNode::class, class_uses_recursive($node), true);
     }
 }
