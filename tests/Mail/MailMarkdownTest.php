@@ -29,10 +29,7 @@ class MailMarkdownTest extends TestCase
             ->andReturnUsing(fn ($echoFormat, $callback) => $callback());
 
         $markdown = new Markdown($viewFactory);
-        $viewFactory->shouldReceive('scopedNamespace')
-            ->once()
-            ->with('mail', $markdown->htmlComponentPaths(), m::type('Closure'))
-            ->andReturnUsing(fn ($namespace, $hints, $callback) => $callback());
+        $viewFactory->shouldReceive('replaceNamespace')->once()->with('mail', $markdown->htmlComponentPaths())->andReturnSelf();
         $viewFactory->shouldReceive('exists')->with('mail.default')->andReturn(false);
         $viewFactory->shouldReceive('make')->with('view', [])->andReturn($viewInterface);
         $viewFactory->shouldReceive('make')->with('mail::themes.default', [])->andReturn($viewInterface);
@@ -58,10 +55,7 @@ class MailMarkdownTest extends TestCase
 
         $markdown = new Markdown($viewFactory);
         $markdown->theme('yaz');
-        $viewFactory->shouldReceive('scopedNamespace')
-            ->once()
-            ->with('mail', $markdown->htmlComponentPaths(), m::type('Closure'))
-            ->andReturnUsing(fn ($namespace, $hints, $callback) => $callback());
+        $viewFactory->shouldReceive('replaceNamespace')->once()->with('mail', $markdown->htmlComponentPaths())->andReturnSelf();
         $viewFactory->shouldReceive('exists')->with('mail.yaz')->andReturn(true);
         $viewFactory->shouldReceive('make')->with('view', [])->andReturn($viewInterface);
         $viewFactory->shouldReceive('make')->with('mail.yaz', [])->andReturn($viewInterface);
@@ -87,10 +81,7 @@ class MailMarkdownTest extends TestCase
 
         $markdown = new Markdown($viewFactory);
         $markdown->theme('mail.yaz');
-        $viewFactory->shouldReceive('scopedNamespace')
-            ->once()
-            ->with('mail', $markdown->htmlComponentPaths(), m::type('Closure'))
-            ->andReturnUsing(fn ($namespace, $hints, $callback) => $callback());
+        $viewFactory->shouldReceive('replaceNamespace')->once()->with('mail', $markdown->htmlComponentPaths())->andReturnSelf();
         $viewFactory->shouldReceive('exists')->with('mail.yaz')->andReturn(true);
         $viewFactory->shouldReceive('make')->with('view', [])->andReturn($viewInterface);
         $viewFactory->shouldReceive('make')->with('mail.yaz', [])->andReturn($viewInterface);
@@ -107,10 +98,7 @@ class MailMarkdownTest extends TestCase
 
         $viewFactory = m::mock(ViewFactory::class);
         $markdown = new Markdown($viewFactory);
-        $viewFactory->shouldReceive('scopedNamespace')
-            ->once()
-            ->with('mail', $markdown->textComponentPaths(), m::type('Closure'))
-            ->andReturnUsing(fn ($namespace, $hints, $callback) => $callback());
+        $viewFactory->shouldReceive('replaceNamespace')->once()->with('mail', $markdown->textComponentPaths())->andReturnSelf();
         $viewFactory->shouldReceive('make')->with('view', [])->andReturn($viewInterface);
 
         $result = $markdown->renderText('view', [])->toHtml();
