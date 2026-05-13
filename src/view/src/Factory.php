@@ -95,6 +95,17 @@ class Factory implements FactoryContract
     }
 
     /**
+     * Clone the factory for isolated render-time namespace changes.
+     */
+    public function __clone(): void
+    {
+        // Cloned factories may change namespace hints for one render; the
+        // singleton finder and Blade's $__env shared binding must stay isolated.
+        $this->finder = clone $this->finder;
+        $this->shared['__env'] = $this;
+    }
+
+    /**
      * Get the evaluated view contents for the given view.
      */
     public function file(string $path, Arrayable|array $data = [], array $mergeData = []): ViewContract
@@ -403,14 +414,6 @@ class Factory implements FactoryContract
         $this->finder->replaceNamespace($namespace, $hints);
 
         return $this;
-    }
-
-    /**
-     * Execute the given callback with a temporary namespace hint.
-     */
-    public function scopedNamespace(string $namespace, string|array $hints, Closure $callback): mixed
-    {
-        return $this->finder->scopedNamespace($namespace, $hints, $callback);
     }
 
     /**
