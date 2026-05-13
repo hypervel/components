@@ -26,6 +26,13 @@ class PoolFactory
     ) {
     }
 
+    /**
+     * Register a pool config on the factory.
+     *
+     * Boot-only. The config persists on the factory for the worker lifetime
+     * and is used to construct the named Pool on first resolution.
+     * Per-request registration races across coroutines.
+     */
     public function addConfig(Config $config): static
     {
         $this->configs[$config->getName()] = $config;
