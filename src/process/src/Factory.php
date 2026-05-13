@@ -261,6 +261,14 @@ class Factory
     }
 
     /**
+     * Flush the factory's global state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Dynamically proxy methods to a new pending process instance.
      */
     public function __call(string $method, array $parameters): mixed
