@@ -138,6 +138,22 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->twice();
     }
 
+    public function testDaemonSleepsWhenQueueIsEmptyAtStartup()
+    {
+        // Regression: the idle branch must sleep even when $jobsProcessed is still 0
+        // (i.e. on the very first loop iteration with an empty queue).
+        $workerOptions = new WorkerOptions;
+        $workerOptions->stopWhenEmpty = true;
+        $workerOptions->sleep = 5;
+
+        $worker = $this->getWorker('default', ['queue' => []]);
+
+        $status = $worker->daemon('default', 'queue', $workerOptions);
+
+        $this->assertEquals(5, $worker->sleptFor);
+        $this->assertSame(Worker::EXIT_SUCCESS, $status);
+    }
+
     public function testWorkerStopsWhenMemoryExceeded()
     {
         $workerOptions = new WorkerOptions;
