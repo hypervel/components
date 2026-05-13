@@ -120,6 +120,12 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as reference, then trace real control flow in method bodies and callers/callees.
 - **Modernize types only in touched code** — do not refactor unrelated files unless required by confirmed control flow or a failing test.
 - **Review worker-lifetime state explicitly** — whenever a change introduces or modifies static properties/caches/singletons, STOP and report the Swoole persistence impact (memory growth, cross-request behavior) with a recommendation: keep as-is for performance parity, or adapt for worker safety.
+- **Document worker-lifetime mutators** — when adding or touching a public method that mutates static state, singleton-held configuration, manager registries, cached drivers, global callbacks, or other worker-lifetime state, add a short warning to the method docblock if the method is intended only for boot-time configuration or tests. Use the tag-first format so humans and LLMs can recognize it quickly:
+  - `Boot-only.` — for startup configuration methods
+  - `Tests only.` — for test fakes, swaps, and resolver overrides
+  - `Boot or tests only.` — for cache/registry clearing methods used during boot reconfiguration or test cleanup
+
+  The second sentence should name the concrete failure mode, e.g. "The callback persists in a static property for the worker lifetime and affects every subsequent request." Do not add these warnings to methods that are genuinely safe for normal runtime/per-request use. If a method is commonly expected to be used dynamically but mutates shared worker-lifetime state, treat that as a coroutine-safety bug and STOP with a recommendation instead of just documenting it.
 - **Flag cache opportunities with recommendation** — if a ported path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, STOP and recommend it (what to cache, expected benefit, and safety constraints).
 - **Enum cases use PascalCase by default** — `case Pending` not `case pending`, `case OauthToken` not `case OAUTH_TOKEN`. Applies to both backed and unit enums. **Exception:** when `->name` is used as an external identifier (cache keys, cookie names, filesystem disks, rate limiter names, timezone strings) or appears in serialized output (e.g., `toArray()` returning `'name' => $this->name`), match the consuming system's convention (typically lowercase or snake_case).
 
