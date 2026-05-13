@@ -26,7 +26,6 @@ namespace Hypervel\Support\Facades;
  * @method static \Hypervel\View\Factory addNamespace(string $namespace, array|string $hints)
  * @method static \Hypervel\View\Factory prependNamespace(string $namespace, array|string $hints)
  * @method static \Hypervel\View\Factory replaceNamespace(string $namespace, array|string $hints)
- * @method static mixed scopedNamespace(string $namespace, array|string $hints, \Closure $callback)
  * @method static void addExtension(string $extension, string $engine, \Closure|null $resolver = null)
  * @method static void flushState()
  * @method static void flushStateIfDoneRendering()
