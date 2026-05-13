@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
     - [Configuration](#configuration)
     - [Read and Write Connections](#read-and-write-connections)
+    - [Connection Pooling](#connection-pooling)
 - [Running SQL Queries](#running-queries)
     - [Using Multiple Database Connections](#using-multiple-database-connections)
     - [Listening for Query Events](#listening-for-query-events)
@@ -15,7 +16,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Almost every modern web application interacts with a database. Laravel makes interacting with databases extremely simple across a variety of supported databases using raw SQL, a [fluent query builder](/docs/{{version}}/queries), and the [Eloquent ORM](/docs/{{version}}/eloquent). Currently, Laravel provides first-party support for five databases:
+Almost every modern web application interacts with a database. Hypervel makes interacting with databases extremely simple across a variety of supported databases using raw SQL, a [fluent query builder](/docs/{{version}}/queries), and the [Eloquent ORM](/docs/{{version}}/eloquent). Currently, Hypervel provides first-party support for four databases:
 
 <div class="content-list" markdown="1">
 
@@ -23,18 +24,15 @@ Almost every modern web application interacts with a database. Laravel makes int
 - MySQL 5.7+ ([Version Policy](https://en.wikipedia.org/wiki/MySQL#Release_history))
 - PostgreSQL 10.0+ ([Version Policy](https://www.postgresql.org/support/versioning/))
 - SQLite 3.26.0+
-- SQL Server 2017+ ([Version Policy](https://docs.microsoft.com/en-us/lifecycle/products/?products=sql-server))
 
 </div>
-
-Additionally, MongoDB is supported via the `mongodb/laravel-mongodb` package, which is officially maintained by MongoDB. Check out the [Laravel MongoDB](https://www.mongodb.com/docs/drivers/php/laravel-mongodb/) documentation for more information.
 
 <a name="configuration"></a>
 ### Configuration
 
-The configuration for Laravel's database services is located in your application's `config/database.php` configuration file. In this file, you may define all of your database connections, as well as specify which connection should be used by default. Most of the configuration options within this file are driven by the values of your application's environment variables. Examples for most of Laravel's supported database systems are provided in this file.
+The configuration for Hypervel's database services is located in your application's `config/database.php` configuration file. In this file, you may define all of your database connections, as well as specify which connection should be used by default. Most of the configuration options within this file are driven by the values of your application's environment variables. Examples for most of Hypervel's supported database systems are provided in this file.
 
-By default, Laravel's sample [environment configuration](/docs/{{version}}/configuration#environment-configuration) is ready to use with [Laravel Sail](/docs/{{version}}/sail), which is a Docker configuration for developing Laravel applications on your local machine. However, you are free to modify your database configuration as needed for your local database.
+By default, Hypervel's sample [environment configuration](/docs/{{version}}/configuration#environment-configuration) is ready to use with [Hypervel Sail](/docs/{{version}}/sail), which is a Docker configuration for developing Hypervel applications on your local machine. However, you are free to modify your database configuration as needed for your local database.
 
 <a name="sqlite-configuration"></a>
 #### SQLite Configuration
@@ -51,14 +49,6 @@ By default, foreign key constraints are enabled for SQLite connections. If you w
 ```ini
 DB_FOREIGN_KEYS=false
 ```
-
-> [!NOTE]
-> If you use the [Laravel installer](/docs/{{version}}/installation#creating-a-laravel-project) to create your Laravel application and select SQLite as your database, Laravel will automatically create a `database/database.sqlite` file and run the default [database migrations](/docs/{{version}}/migrations) for you.
-
-<a name="mssql-configuration"></a>
-#### Microsoft SQL Server Configuration
-
-To use a Microsoft SQL Server database, you should ensure that you have the `sqlsrv` and `pdo_sqlsrv` PHP extensions installed as well as any dependencies they may require such as the Microsoft SQL ODBC driver.
 
 <a name="configuration-using-urls"></a>
 #### Configuration Using URLs
@@ -77,19 +67,19 @@ These URLs typically follow a standard schema convention:
 driver://username:password@host:port/database?options
 ```
 
-For convenience, Laravel supports these URLs as an alternative to configuring your database with multiple configuration options. If the `url` (or corresponding `DB_URL` environment variable) configuration option is present, it will be used to extract the database connection and credential information.
+For convenience, Hypervel supports these URLs as an alternative to configuring your database with multiple configuration options. If the `url` configuration option is present, it will be used to extract the database connection and credential information. In Hypervel's default database configuration file, SQLite uses the `DATABASE_URL` environment variable while MariaDB, MySQL, and PostgreSQL use the `DB_URL` environment variable.
 
 <a name="read-and-write-connections"></a>
 ### Read and Write Connections
 
-Sometimes you may wish to use one database connection for SELECT statements, and another for INSERT, UPDATE, and DELETE statements. Laravel makes this a breeze, and the proper connections will always be used whether you are using raw queries, the query builder, or the Eloquent ORM.
+Sometimes you may wish to use one database connection for SELECT statements, and another for INSERT, UPDATE, and DELETE statements. Hypervel makes this a breeze, and the proper connections will always be used whether you are using raw queries, the query builder, or the Eloquent ORM.
 
 To see how read / write connections should be configured, let's look at this example:
 
 ```php
 'mysql' => [
     'driver' => 'mysql',
-    
+
     'read' => [
         'host' => [
             '192.168.1.1',
@@ -102,32 +92,68 @@ To see how read / write connections should be configured, let's look at this exa
         ],
     ],
     'sticky' => true,
-    
-    'port' => env('DB_PORT', '3306'),
-    'database' => env('DB_DATABASE', 'laravel'),
+
+    'port' => env('DB_PORT', 3306),
+    'database' => env('DB_DATABASE', 'hypervel'),
     'username' => env('DB_USERNAME', 'root'),
     'password' => env('DB_PASSWORD', ''),
     'unix_socket' => env('DB_SOCKET', ''),
     'charset' => env('DB_CHARSET', 'utf8mb4'),
     'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-    'prefix' => '',
+    'prefix' => env('DB_PREFIX', ''),
     'prefix_indexes' => true,
     'strict' => true,
     'engine' => null,
     'options' => extension_loaded('pdo_mysql') ? array_filter([
         (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
     ]) : [],
+    'pool' => [
+        'min_connections' => (int) env('DB_MIN_CONNECTIONS', 1),
+        'max_connections' => (int) env('DB_MAX_CONNECTIONS', 10),
+        'connect_timeout' => 10.0,
+        'wait_timeout' => 3.0,
+        'heartbeat' => -1,
+        'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
+    ],
 ],
 ```
 
 Note that three keys have been added to the configuration array: `read`, `write` and `sticky`. The `read` and `write` keys have array values containing a single key: `host`. The rest of the database options for the `read` and `write` connections will be merged from the main `mysql` configuration array.
 
-You only need to place items in the `read` and `write` arrays if you wish to override the values from the main `mysql` array. So, in this case, `192.168.1.1` will be used as the host for the "read" connection, while `192.168.1.3` will be used for the "write" connection. The database credentials, prefix, character set, and all other options in the main `mysql` array will be shared across both connections. When multiple values exist in the `host` configuration array, a database host will be randomly chosen for each request.
+You only need to place items in the `read` and `write` arrays if you wish to override the values from the main `mysql` array. So, in this case, `192.168.1.1` will be used as the host for the "read" connection, while `192.168.1.3` will be used for the "write" connection. The database credentials, prefix, character set, pool configuration, and all other options in the main `mysql` array will be shared across both connections. When multiple values exist in the `host` configuration array, a database host will be randomly chosen when a new connection is established.
 
 <a name="the-sticky-option"></a>
 #### The `sticky` Option
 
-The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. It is up to you to decide if this is the desired behavior for your application.
+The `sticky` option is an *optional* value that can be used to allow the immediate reading of records that have been written to the database during the current request cycle. If the `sticky` option is enabled and a "write" operation has been performed against the database during the current request cycle, any further "read" operations will use the "write" connection. This ensures that any data written during the request cycle can be immediately read back from the database during that same request. In Hypervel, sticky state is reset when the coroutine's connection is returned to the pool, so it will not leak into another request. It is up to you to decide if this is the desired behavior for your application.
+
+<a name="connection-pooling"></a>
+### Connection Pooling
+
+Hypervel uses connection pools to keep database access efficient within long-lived Swoole workers. When a coroutine needs a database connection, Hypervel borrows a connection from the worker's pool, stores it for the current coroutine, and returns it to the pool when the coroutine ends. Before a connection is returned to the pool, Hypervel resets per-request state such as query logs, query duration tracking, transaction callbacks, read / write routing state, and uncommitted transactions.
+
+Each connection may define its own `pool` configuration:
+
+```php
+'mysql' => [
+    // ...
+
+    'pool' => [
+        'min_connections' => (int) env('DB_MIN_CONNECTIONS', 1),
+        'max_connections' => (int) env('DB_MAX_CONNECTIONS', 10),
+        'connect_timeout' => 10.0,
+        'wait_timeout' => 3.0,
+        'heartbeat' => -1,
+        'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
+    ],
+],
+```
+
+The `min_connections` option determines the minimum number of connections kept in the pool, while the `max_connections` option determines the maximum number of connections that may be opened for the worker. The `connect_timeout` option controls how long Hypervel will wait while opening a new database connection. The `wait_timeout` option controls how long a coroutine may wait for an available connection when the pool is exhausted. The `heartbeat` option controls how often idle pooled connections are pinged to keep them alive and detect broken sockets; set this value to `-1` to disable heartbeats. The `max_idle_time` option controls how long an idle connection may remain in the pool before it is closed.
+
+Hypervel's default database configuration also includes a `pgsql-pooled` connection. This connection is intended for PostgreSQL transaction poolers such as PgBouncer and uses separate `DB_POOLED_*` environment variables. It also sets `migrations_connection` to `pgsql`, allowing your application to use the pooled connection at runtime while migration commands use the direct PostgreSQL connection.
+
+You may use `migrations_connection` on any database connection to instruct migration commands to run against another configured connection. This is useful when a runtime connection points at a database pooler that does not support every operation required by migrations.
 
 <a name="running-queries"></a>
 ## Running SQL Queries
@@ -178,7 +204,7 @@ foreach ($users as $user) {
 <a name="selecting-scalar-values"></a>
 #### Selecting Scalar Values
 
-Sometimes your database query may result in a single, scalar value. Instead of being required to retrieve the query's scalar result from a record object, Laravel allows you to retrieve this value directly using the `scalar` method:
+Sometimes your database query may result in a single, scalar value. Instead of being required to retrieve the query's scalar result from a record object, Hypervel allows you to retrieve this value directly using the `scalar` method:
 
 ```php
 $burgers = DB::scalar(
@@ -193,7 +219,7 @@ If your application calls stored procedures that return multiple result sets, yo
 
 ```php
 [$options, $notifications] = DB::selectResultSets(
-    "CALL get_user_options_and_notifications(?)", $request->user()->id
+    "CALL get_user_options_and_notifications(?)", [$request->user()->id]
 );
 ```
 
@@ -266,7 +292,7 @@ DB::unprepared('update users set votes = 100 where name = "Dries"');
 <a name="implicit-commits-in-transactions"></a>
 #### Implicit Commits
 
-When using the `DB` facade's `statement` and `unprepared` methods within transactions you must be careful to avoid statements that cause [implicit commits](https://dev.mysql.com/doc/refman/8.0/en/implicit-commit.html). These statements will cause the database engine to indirectly commit the entire transaction, leaving Laravel unaware of the database's transaction level. An example of such a statement is creating a database table:
+When using the `DB` facade's `statement` and `unprepared` methods within transactions you must be careful to avoid statements that cause [implicit commits](https://dev.mysql.com/doc/refman/8.0/en/implicit-commit.html). These statements will cause the database engine to indirectly commit the entire transaction, leaving Hypervel unaware of the database's transaction level. An example of such a statement is creating a database table:
 
 ```php
 DB::unprepared('create table a (col varchar(1) null)');
@@ -277,13 +303,15 @@ Please refer to the MySQL manual for [a list of all statements](https://dev.mysq
 <a name="using-multiple-database-connections"></a>
 ### Using Multiple Database Connections
 
-If your application defines multiple connections in your `config/database.php` configuration file, you may access each connection via the `connection` method provided by the `DB` facade. The connection name passed to the `connection` method should correspond to one of the connections listed in your `config/database.php` configuration file or configured at runtime using the `config` helper:
+If your application defines multiple connections in your `config/database.php` configuration file, you may access each connection via the `connection` method provided by the `DB` facade. The connection name passed to the `connection` method should correspond to one of the connections listed in your `config/database.php` configuration file:
 
 ```php
 use Hypervel\Support\Facades\DB;
 
 $users = DB::connection('sqlite')->select(/* ... */);
 ```
+
+Hypervel applications should define database connections in the configuration file before the worker boots. Runtime connection configuration is not supported because database pools are worker-level resources and configuration mutation would affect concurrent coroutines in the same worker.
 
 You may access the raw, underlying PDO instance of a connection using the `getPdo` method on a connection instance:
 
@@ -333,7 +361,7 @@ class AppServiceProvider extends ServiceProvider
 <a name="monitoring-cumulative-query-time"></a>
 ### Monitoring Cumulative Query Time
 
-A common performance bottleneck of modern web applications is the amount of time they spend querying databases. Thankfully, Laravel can invoke a closure or callback of your choice when it spends too much time querying the database during a single request. To get started, provide a query time threshold (in milliseconds) and closure to the `whenQueryingForLongerThan` method. You may invoke this method in the `boot` method of a [service provider](/docs/{{version}}/providers):
+A common performance bottleneck of modern web applications is the amount of time they spend querying databases. Thankfully, Hypervel can invoke a closure or callback of your choice when it spends too much time querying the database during a single request. To get started, provide a query time threshold (in milliseconds) and closure to the `whenQueryingForLongerThan` method. You may invoke this method in the `boot` method of a [service provider](/docs/{{version}}/providers):
 
 ```php
 <?php
@@ -438,6 +466,12 @@ If needed, you may specify a database connection name to connect to a database c
 php artisan db mysql
 ```
 
+If the connection has separate read and write hosts, you may connect to either host using the `--read` or `--write` options:
+
+```shell
+php artisan db mysql --read
+```
+
 <a name="inspecting-your-databases"></a>
 ## Inspecting Your Databases
 
@@ -459,6 +493,8 @@ If you would like to include table row counts and database view details within t
 php artisan db:show --counts --views
 ```
 
+The `db:show` command may also return JSON output using the `--json` option. If you would like to include user-defined database types in the output, you may provide the `--types` option.
+
 In addition, you may use the following `Schema` methods to inspect your database:
 
 ```php
@@ -466,6 +502,7 @@ use Hypervel\Support\Facades\Schema;
 
 $tables = Schema::getTables();
 $views = Schema::getViews();
+$types = Schema::getTypes();
 $columns = Schema::getColumns('users');
 $indexes = Schema::getIndexes('users');
 $foreignKeys = Schema::getForeignKeys('users');
@@ -486,10 +523,16 @@ If you would like to get an overview of an individual table within your database
 php artisan db:table users
 ```
 
+If you do not provide a table name, Hypervel will prompt you to select a table to inspect. You may also specify a database connection using the `--database` option or return JSON output using the `--json` option:
+
+```shell
+php artisan db:table users --database=pgsql --json
+```
+
 <a name="monitoring-your-databases"></a>
 ## Monitoring Your Databases
 
-Using the `db:monitor` Artisan command, you can instruct Laravel to dispatch an `Hypervel\Database\Events\DatabaseBusy` event if your database is managing more than a specified number of open connections.
+Using the `db:monitor` Artisan command, you can instruct Hypervel to dispatch a `Hypervel\Database\Events\DatabaseBusy` event if your database is managing more than a specified number of open connections.
 
 To get started, you should schedule the `db:monitor` command to [run every minute](/docs/{{version}}/scheduling). The command accepts the names of the database connection configurations that you wish to monitor as well as the maximum number of open connections that should be tolerated before dispatching an event:
 

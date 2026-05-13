@@ -40,9 +40,18 @@
 - Port `SortDirection` enum support in collection and array sorting APIs. Laravel accepts the global `SortDirection::Ascending` / `SortDirection::Descending` enum values in `Collection::sortBy()`, multi-column sort definitions, `sortKeys()`, `sortKeysDesc()`, `Arr::sortRecursive()`, and `Arr::sortRecursiveDesc()`. Hypervel currently supports the older bool / string direction forms only. Correct fix: port Laravel's enum handling and related tests.
 - Port depth-aware `dot()` support. Laravel supports `Arr::dot($array, $prepend = '', $depth = INF)`, `Collection::dot($depth = INF)`, and `LazyCollection::dot($depth = INF)`. Hypervel currently flattens all nested levels and does not accept a depth argument. Correct fix: port Laravel's depth parameter and behavior across `Arr`, `Collection`, and `LazyCollection`.
 
+## Database
+
+- Make `DB::whenQueryingForLongerThan()` registration work correctly with pooled connections. The copied Laravel docs register the handler once in a service provider, but Hypervel's `DatabaseManager::__call()` currently forwards that call to the current borrowed connection. Pooled connections are separate worker-level resources, and `Connection::resetForPool()` clears query duration handlers when a connection is returned to the pool, so one boot-time registration does not reliably apply to request connections. Correct fix: make query-duration monitoring manager / pool aware so one boot-time registration applies to every pooled connection while query duration and "has run" state still reset per request / coroutine.
+- Wire opt-in heartbeat support for database pools. `src/foundation/config/database.php` and the database docs advertise a `heartbeat` option in every database pool block, but `Hypervel\Database\Pool\PooledConnection` implements `Hypervel\Contracts\Pool\ConnectionInterface` directly and never consumes `PoolOption::getHeartbeat()`. Do not switch `PooledConnection` wholesale to `Hypervel\Pool\KeepaliveConnection`: that class uses a different `call()`-based lifecycle, makes `getConnection()` throw, stores the wrapped connection in a one-slot channel, treats `heartbeat <= 0` as a 10-second interval, and would bypass existing DB-specific release behavior such as state reset, transaction rollback, error-count handling, release events, and shared in-memory SQLite handling. Correct fix: keep `heartbeat => -1` as disabled with zero timer / ping overhead; when `heartbeat > 0`, have each worker-local `DbPool` start one timer for that pool, inspect only idle pooled connections, skip borrowed connections, close connections older than `max_idle_time`, and run a lightweight raw PDO ping such as `SELECT 1` on remaining idle connections without firing query events or mutating query logs / query-duration state. If the ping fails, close / discard the pooled connection so the next borrow creates a fresh connection. This is useful for long-lived workers behind load balancers, firewalls, NAT, or managed database proxies that drop idle TCP connections.
+
 ## Http
 
 - Port FailOnUnknownFields form request support
+
+## Pool
+
+- Make `Hypervel\Pool\KeepaliveConnection` honor disabled heartbeat configuration. `PoolOption` documents `heartbeat => -1` as disabled, but `KeepaliveConnection::getHeartbeatSeconds()` currently turns any non-positive heartbeat into a 10-second interval and `addHeartbeat()` always creates a timer. Correct fix: only create the heartbeat timer when `PoolOption::getHeartbeat() > 0`; when heartbeat is `<= 0`, do not start a timer or run heartbeat work. Keep `max_idle_time` behavior separate from heartbeat.
 
 ## Routing
 

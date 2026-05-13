@@ -14,6 +14,7 @@ container.md
 contracts.md
 controllers.md
 csrf.md
+database.md
 pagination.md
 requests.md
 routing.md
