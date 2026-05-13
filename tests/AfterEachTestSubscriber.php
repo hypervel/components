@@ -119,6 +119,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Pipeline\Pipeline::flushState();
         \Hypervel\Process\Factory::flushState();
         \Hypervel\Prompts\Prompt::flushState();
+        \Hypervel\Prompts\Terminal::flushState();
         \Hypervel\Queue\Console\WorkCommand::flushState();
         \Hypervel\Queue\Queue::flushState();
         \Hypervel\Reverb\Loggers\Log::flushState();

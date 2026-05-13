@@ -500,6 +500,8 @@ abstract class Prompt
      */
     public static function flushState(): void
     {
+        Terminal::flushState();
+
         static::$cancelUsing = null;
         static::$validateUsing = null;
         static::$revertUsing = null;

@@ -7,14 +7,20 @@ namespace Hypervel\Tests\Prompts;
 use Closure;
 use Hypervel\Engine\Channel;
 use Hypervel\Prompts\ConfirmPrompt;
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\SelectPrompt;
+use Hypervel\Prompts\Support\Logger;
+use Hypervel\Prompts\Terminal;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Tests\TestCase;
+use ReflectionProperty;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 
 use function Hypervel\Coroutine\go;
+use function Hypervel\Prompts\spin;
+use function Hypervel\Prompts\task;
 
 class CoroutineSafetyTest extends TestCase
 {
@@ -191,5 +197,80 @@ class CoroutineSafetyTest extends TestCase
 
         // Parent coroutine's output should not be the BufferedOutput set in the child
         $this->assertNotInstanceOf(BufferedOutput::class, $output);
+    }
+
+    public function testSpinnerAnimationCoroutineInheritsPromptContext()
+    {
+        $output = new BufferedConsoleOutput;
+
+        Prompt::setOutput($output);
+        Prompt::fake();
+        Prompt::setOutput($output);
+
+        spin(function () use ($output) {
+            usleep(150_000);
+
+            $this->assertGreaterThan(1, substr_count($output->content(), 'Loading context'));
+
+            return 'done';
+        }, 'Loading context');
+
+        $this->assertStringContainsString('Loading context', $output->content());
+    }
+
+    public function testTaskAnimationCoroutineInheritsPromptContext()
+    {
+        $output = new BufferedConsoleOutput;
+
+        Prompt::setOutput($output);
+        Prompt::fake();
+        Prompt::setOutput($output);
+
+        task(
+            label: 'Running context',
+            callback: function (Logger $logger) use ($output) {
+                usleep(150_000);
+
+                $this->assertGreaterThan(1, substr_count($output->content(), 'Running context'));
+
+                return 'done';
+            },
+        );
+
+        $this->assertStringContainsString('Running context', $output->content());
+    }
+
+    public function testTerminalFlushStateResetsTerminalCaches()
+    {
+        $trueColorSupport = new ReflectionProperty(Terminal::class, 'trueColorSupport');
+        $foregroundColor = new ReflectionProperty(Terminal::class, 'foregroundColor');
+        $backgroundColor = new ReflectionProperty(Terminal::class, 'backgroundColor');
+
+        $trueColorSupport->setValue(null, true);
+        $foregroundColor->setValue(null, [1, 2, 3]);
+        $backgroundColor->setValue(null, [4, 5, 6]);
+
+        Terminal::flushState();
+
+        $this->assertNull($trueColorSupport->getValue());
+        $this->assertNull($foregroundColor->getValue());
+        $this->assertNull($backgroundColor->getValue());
+    }
+
+    public function testPromptFlushStateResetsTerminalCaches()
+    {
+        $trueColorSupport = new ReflectionProperty(Terminal::class, 'trueColorSupport');
+        $foregroundColor = new ReflectionProperty(Terminal::class, 'foregroundColor');
+        $backgroundColor = new ReflectionProperty(Terminal::class, 'backgroundColor');
+
+        $trueColorSupport->setValue(null, true);
+        $foregroundColor->setValue(null, [1, 2, 3]);
+        $backgroundColor->setValue(null, [4, 5, 6]);
+
+        Prompt::flushState();
+
+        $this->assertNull($trueColorSupport->getValue());
+        $this->assertNull($foregroundColor->getValue());
+        $this->assertNull($backgroundColor->getValue());
     }
 }

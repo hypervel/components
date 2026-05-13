@@ -52,7 +52,7 @@ class Spinner extends Prompt
         $this->hideCursor();
         $this->render();
 
-        Coroutine::create(function () {
+        Coroutine::fork(function () {
             while (! $this->hasFinished) {
                 $this->render();
 

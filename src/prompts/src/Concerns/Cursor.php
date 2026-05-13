@@ -81,6 +81,10 @@ trait Cursor
 
     /**
      * Reset cursor state to defaults.
+     *
+     * Boot or tests only. Clears worker-wide cursor visibility tracking;
+     * concurrent prompts may restore cursor state differently depending on
+     * timing.
      */
     public static function resetCursor(): void
     {

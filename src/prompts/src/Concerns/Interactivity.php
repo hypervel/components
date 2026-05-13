@@ -48,6 +48,10 @@ trait Interactivity
 
     /**
      * Reset interactivity state to defaults.
+     *
+     * Boot or tests only. Clears worker-wide prompt interactivity
+     * configuration; concurrent prompts may render with different
+     * interactivity depending on timing.
      */
     public static function resetInteractivity(): void
     {
