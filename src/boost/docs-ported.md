@@ -13,6 +13,7 @@ context.md
 container.md
 contracts.md
 controllers.md
+csrf.md
 pagination.md
 requests.md
 routing.md
