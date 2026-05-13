@@ -109,6 +109,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Inertia\Ssr\HttpGateway::flushState();
         \Hypervel\Log\Context\Repository::flushState();
         \Hypervel\Mail\Attachment::flushState();
+        \Hypervel\Mail\Mailable::flushState();
         \Hypervel\Mail\Mailer::flushState();
         \Hypervel\Mail\Markdown::flushState();
         \Hypervel\Pagination\AbstractCursorPaginator::flushState();
