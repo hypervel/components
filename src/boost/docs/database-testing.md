@@ -9,12 +9,12 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel provides a variety of helpful tools and assertions to make it easier to test your database driven applications. In addition, Laravel model factories and seeders make it painless to create test database records using your application's Eloquent models and relationships. We'll discuss all of these powerful features in the following documentation.
+Hypervel provides a variety of helpful tools and assertions to make it easier to test your database driven applications. In addition, Hypervel model factories and seeders make it painless to create test database records using your application's Eloquent models and relationships. We'll discuss all of these powerful features in the following documentation.
 
 <a name="resetting-the-database-after-each-test"></a>
 ### Resetting the Database After Each Test
 
-Before proceeding much further, let's discuss how to reset your database after each of your tests so that data from a previous test does not interfere with subsequent tests. Laravel's included `Hypervel\Foundation\Testing\RefreshDatabase` trait will take care of this for you. Simply use the trait on your test class:
+Before proceeding much further, let's discuss how to reset your database after each of your tests so that data from a previous test does not interfere with subsequent tests. Hypervel's included `Hypervel\Foundation\Testing\RefreshDatabase` trait will take care of this for you. Simply use the trait on your test class:
 
 ```php tab=Pest
 <?php
@@ -56,12 +56,14 @@ class ExampleTest extends TestCase
 
 The `Hypervel\Foundation\Testing\RefreshDatabase` trait does not migrate your database if your schema is up to date. Instead, it will only execute the test within a database transaction. Therefore, any records added to the database by test cases that do not use this trait may still exist in the database.
 
+Hypervel application tests run inside a coroutine by default. When a transaction-based trait such as `RefreshDatabase` is used, database transactions are started and rolled back inside the test coroutine so transaction state remains isolated across pooled database connections.
+
 If you would like to totally reset the database, you may use the `Hypervel\Foundation\Testing\DatabaseMigrations` or `Hypervel\Foundation\Testing\DatabaseTruncation` traits instead. However, both of these options are significantly slower than the `RefreshDatabase` trait.
 
 <a name="model-factories"></a>
 ## Model Factories
 
-When testing, you may need to insert a few records into your database before executing your test. Instead of manually specifying the value of each column when you create this test data, Laravel allows you to define a set of default attributes for each of your [Eloquent models](/docs/{{version}}/eloquent) using [model factories](/docs/{{version}}/eloquent-factories).
+When testing, you may need to insert a few records into your database before executing your test. Instead of manually specifying the value of each column when you create this test data, Hypervel allows you to define a set of default attributes for each of your [Eloquent models](/docs/{{version}}/eloquent) using [model factories](/docs/{{version}}/eloquent-factories).
 
 To learn more about creating and utilizing model factories to create models, please consult the complete [model factory documentation](/docs/{{version}}/eloquent-factories). Once you have defined a model factory, you may utilize the factory within your test to create models:
 
@@ -89,7 +91,7 @@ public function test_models_can_be_instantiated(): void
 <a name="running-seeders"></a>
 ## Running Seeders
 
-If you would like to use [database seeders](/docs/{{version}}/seeding) to populate your database during a feature test, you may invoke the `seed` method. By default, the `seed` method will execute the `DatabaseSeeder`, which should execute all of your other seeders. Alternatively, you pass a specific seeder class name to the `seed` method:
+If you would like to use [database seeders](/docs/{{version}}/seeding) to populate your database during a feature test, you may invoke the `seed` method. By default, the `seed` method will execute the `DatabaseSeeder`, which should execute all of your other seeders. Alternatively, you may pass a specific seeder class name to the `seed` method:
 
 ```php tab=Pest
 <?php
@@ -155,7 +157,7 @@ class ExampleTest extends TestCase
 }
 ```
 
-Alternatively, you may instruct Laravel to automatically seed the database before each test that uses the `RefreshDatabase` trait. You may accomplish this by adding the `Seed` attribute to your base test class:
+Alternatively, you may instruct Hypervel to automatically seed the database before each test that uses the `RefreshDatabase` trait. You may accomplish this by adding the `Seed` attribute to your base test class:
 
 ```php
 <?php
@@ -195,7 +197,7 @@ class OrderTest extends TestCase
 <a name="available-assertions"></a>
 ## Available Assertions
 
-Laravel provides several database assertions for your [Pest](https://pestphp.com) or [PHPUnit](https://phpunit.de) feature tests. We'll discuss each of these assertions below.
+Hypervel provides several database assertions for your [Pest](https://pestphp.com) or [PHPUnit](https://phpunit.de) feature tests. We'll discuss each of these assertions below.
 
 <a name="assert-database-count"></a>
 #### assertDatabaseCount

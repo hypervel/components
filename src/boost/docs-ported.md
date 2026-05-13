@@ -15,6 +15,7 @@ contracts.md
 controllers.md
 csrf.md
 database.md
+database-testing.md
 pagination.md
 requests.md
 routing.md
