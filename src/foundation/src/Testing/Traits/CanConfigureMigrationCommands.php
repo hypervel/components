@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Traits;
 
+use Hypervel\Foundation\Testing\Attributes\Seed;
+use Hypervel\Foundation\Testing\Attributes\Seeder;
+use ReflectionClass;
+
 trait CanConfigureMigrationCommands
 {
     /**
@@ -43,6 +47,14 @@ trait CanConfigureMigrationCommands
      */
     protected function shouldSeed(): bool
     {
+        $class = new ReflectionClass($this);
+
+        do {
+            if ($class->getAttributes(Seed::class) !== []) {
+                return true;
+            }
+        } while ($class = $class->getParentClass());
+
         return property_exists($this, 'seed') ? $this->seed : false;
     }
 
@@ -51,6 +63,16 @@ trait CanConfigureMigrationCommands
      */
     protected function seeder(): mixed
     {
+        $class = new ReflectionClass($this);
+
+        do {
+            $seeder = $class->getAttributes(Seeder::class);
+
+            if ($seeder !== []) {
+                return $seeder[0]->newInstance()->class;
+            }
+        } while ($class = $class->getParentClass());
+
         return property_exists($this, 'seeder') ? $this->seeder : false;
     }
 }
