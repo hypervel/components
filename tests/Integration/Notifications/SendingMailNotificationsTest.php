@@ -72,8 +72,9 @@ class SendingMailNotificationsTest extends TestCase
             'email' => 'taylor@laravel.com',
         ]);
 
-        $this->markdown->shouldReceive('theme')->twice()->with('default')->andReturn($this->markdown);
-        $this->markdown->shouldReceive('render')->once()->andReturn(new HtmlString('htmlContent'));
+        $this->markdown->shouldReceive('render')->once()
+            ->withArgs(fn (...$args) => ($args['theme'] ?? $args[3] ?? null) === 'default')
+            ->andReturn(new HtmlString('htmlContent'));
         $this->markdown->shouldReceive('renderText')->once()->andReturn(new HtmlString('textContent'));
 
         $this->setMailerSendAssertions($notification, $user, function ($closure) {
@@ -110,8 +111,9 @@ class SendingMailNotificationsTest extends TestCase
             'email' => 'taylor@laravel.com',
         ]);
 
-        $this->markdown->shouldReceive('theme')->twice()->with('my-custom-theme')->andReturn($this->markdown);
-        $this->markdown->shouldReceive('render')->once()->andReturn(new HtmlString('htmlContent'));
+        $this->markdown->shouldReceive('render')->once()
+            ->withArgs(fn (...$args) => ($args['theme'] ?? $args[3] ?? null) === 'my-custom-theme')
+            ->andReturn(new HtmlString('htmlContent'));
         $this->markdown->shouldReceive('renderText')->once()->andReturn(new HtmlString('textContent'));
 
         $this->setMailerSendAssertions($notification, $user, function ($closure) {
@@ -184,8 +186,9 @@ class SendingMailNotificationsTest extends TestCase
             'name' => 'Taylor Otwell',
         ]);
 
-        $this->markdown->shouldReceive('theme')->twice()->with('default')->andReturn($this->markdown);
-        $this->markdown->shouldReceive('render')->once()->andReturn(new HtmlString('htmlContent'));
+        $this->markdown->shouldReceive('render')->once()
+            ->withArgs(fn (...$args) => ($args['theme'] ?? $args[3] ?? null) === 'default')
+            ->andReturn(new HtmlString('htmlContent'));
         $this->markdown->shouldReceive('renderText')->once()->andReturn(new HtmlString('textContent'));
 
         $this->setMailerSendAssertions($notification, $user, function ($closure) {
@@ -222,8 +225,9 @@ class SendingMailNotificationsTest extends TestCase
             'email' => 'taylor@laravel.com',
         ]);
 
-        $this->markdown->shouldReceive('theme')->with('default')->twice()->andReturn($this->markdown);
-        $this->markdown->shouldReceive('render')->once()->andReturn(new HtmlString('htmlContent'));
+        $this->markdown->shouldReceive('render')->once()
+            ->withArgs(fn (...$args) => ($args['theme'] ?? $args[3] ?? null) === 'default')
+            ->andReturn(new HtmlString('htmlContent'));
         $this->markdown->shouldReceive('renderText')->once()->andReturn(new HtmlString('textContent'));
 
         $this->setMailerSendAssertions($notification, $user, function ($closure) {
@@ -250,8 +254,9 @@ class SendingMailNotificationsTest extends TestCase
             'email' => 'taylor@laravel.com',
         ]);
 
-        $this->markdown->shouldReceive('theme')->with('default')->twice()->andReturn($this->markdown);
-        $this->markdown->shouldReceive('render')->once()->andReturn(new HtmlString('htmlContent'));
+        $this->markdown->shouldReceive('render')->once()
+            ->withArgs(fn (...$args) => ($args['theme'] ?? $args[3] ?? null) === 'default')
+            ->andReturn(new HtmlString('htmlContent'));
         $this->markdown->shouldReceive('renderText')->once()->andReturn(new HtmlString('textContent'));
 
         $this->setMailerSendAssertions($notification, $user, function ($closure) {

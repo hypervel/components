@@ -6,12 +6,18 @@ namespace Hypervel\Support;
 
 use BackedEnum;
 use Closure;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
 use Override;
 
 class EncodedHtmlString extends HtmlString
 {
+    /**
+     * Context key for temporarily scoped encoder callbacks.
+     */
+    protected const ENCODER_CONTEXT_KEY = '__support.encoded_html.encoder';
+
     /**
      * The callback that should be used to encode the HTML strings.
      */
@@ -57,7 +63,9 @@ class EncodedHtmlString extends HtmlString
             $value = $value->value;
         }
 
-        return (static::$encodeUsingFactory ?? function ($value, $doubleEncode) {
+        $factory = CoroutineContext::get(self::ENCODER_CONTEXT_KEY) ?? static::$encodeUsingFactory;
+
+        return ($factory ?? function ($value, $doubleEncode) {
             return static::convert($value, doubleEncode: $doubleEncode);
         })($value, $this->doubleEncode);
     }
@@ -74,6 +82,29 @@ class EncodedHtmlString extends HtmlString
     }
 
     /**
+     * Execute the given callback using a temporary encoder.
+     */
+    public static function withEncoding(callable $factory, callable $callback): mixed
+    {
+        // Preserve an outer scoped encoder so nested Markdown renders restore
+        // the previous coroutine-local state instead of falling back globally.
+        $hadPreviousFactory = CoroutineContext::has(self::ENCODER_CONTEXT_KEY);
+        $previousFactory = CoroutineContext::get(self::ENCODER_CONTEXT_KEY);
+
+        CoroutineContext::set(self::ENCODER_CONTEXT_KEY, $factory);
+
+        try {
+            return $callback();
+        } finally {
+            if ($hadPreviousFactory) {
+                CoroutineContext::set(self::ENCODER_CONTEXT_KEY, $previousFactory);
+            } else {
+                CoroutineContext::forget(self::ENCODER_CONTEXT_KEY);
+            }
+        }
+    }
+
+    /**
      * Flush the class's global state.
      *
      * Boot or tests only. Clears the worker-wide encoder factory; concurrent
@@ -82,5 +113,6 @@ class EncodedHtmlString extends HtmlString
     public static function flushState(): void
     {
         static::$encodeUsingFactory = null;
+        CoroutineContext::forget(self::ENCODER_CONTEXT_KEY);
     }
 }

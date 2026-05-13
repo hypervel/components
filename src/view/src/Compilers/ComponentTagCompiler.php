@@ -235,8 +235,10 @@ class ComponentTagCompiler
         // component and pass the component as a view parameter to the data so it
         // can be accessed within the component and we can render out the view.
         if (! class_exists($class)) {
+            // Markdown renders mail components through cloned view factories, so
+            // mail:: tags must resolve through the current $__env, not the singleton.
             $view = Str::startsWith($component, 'mail::')
-                ? "\$__env->getContainer()->make(Hypervel\\View\\Factory::class)->make('{$component}')"
+                ? "\$__env->make('{$component}')"
                 : "'{$class}'";
 
             $parameters = [

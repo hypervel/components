@@ -1,0 +1,2 @@
+html-layout
+{{ $slot }}

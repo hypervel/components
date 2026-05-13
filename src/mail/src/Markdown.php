@@ -46,20 +46,26 @@ class Markdown
     /**
      * Render the Markdown template into HTML.
      */
-    public function render(string $view, array $data = [], mixed $inliner = null): HtmlString
+    public function render(string $view, array $data = [], mixed $inliner = null, ?string $theme = null): HtmlString
     {
-        $this->view->flushFinderCache();
+        $viewFactory = $this->viewFactoryWithMailNamespace($this->htmlComponentPaths());
 
-        $bladeCompiler = $this->view
+        $bladeCompiler = $viewFactory
             ->getEngineResolver() // @phpstan-ignore method.notFound
             ->resolve('blade')
             ->getCompiler();
 
         $contents = $bladeCompiler->usingEchoFormat(
             'new \Hypervel\Support\EncodedHtmlString(%s)',
-            function () use ($view, $data) {
-                if (static::$withSecuredEncoding === true) {
-                    EncodedHtmlString::encodeUsing(function ($value) {
+            function () use ($viewFactory, $view, $data) {
+                $render = fn () => $viewFactory->make($view, $data)->render();
+
+                if (static::$withSecuredEncoding === false) {
+                    return $render();
+                }
+
+                return EncodedHtmlString::withEncoding(
+                    function ($value) {
                         $replacements = [
                             '[' => '\[',
                             '<' => '&lt;',
@@ -67,33 +73,25 @@ class Markdown
                         ];
 
                         return str_replace(array_keys($replacements), array_values($replacements), $value);
-                    });
-                }
-
-                try {
-                    $contents = $this->view->replaceNamespace(
-                        'mail',
-                        $this->htmlComponentPaths()
-                    )->make($view, $data)->render();
-                } finally {
-                    EncodedHtmlString::flushState();
-                }
-
-                return $contents;
+                    },
+                    $render
+                );
             }
         );
 
-        if ($this->view->exists($customTheme = Str::start($this->theme, 'mail.'))) {
+        $theme ??= $this->theme;
+
+        if ($viewFactory->exists($customTheme = Str::start($theme, 'mail.'))) {
             $theme = $customTheme;
         } else {
-            $theme = str_contains($this->theme, '::')
-                ? $this->theme
-                : 'mail::themes.' . $this->theme;
+            $theme = str_contains($theme, '::')
+                ? $theme
+                : 'mail::themes.' . $theme;
         }
 
         return new HtmlString(($inliner ?: new CssToInlineStyles)->convert(
             str_replace('\[', '[', $contents),
-            $this->view->make($theme, $data)->render()
+            $viewFactory->make($theme, $data)->render()
         ));
     }
 
@@ -102,12 +100,9 @@ class Markdown
      */
     public function renderText(string $view, array $data = []): HtmlString
     {
-        $this->view->flushFinderCache();
-
-        $contents = $this->view->replaceNamespace(
-            'mail',
-            $this->textComponentPaths()
-        )->make($view, $data)->render();
+        $contents = $this->viewFactoryWithMailNamespace($this->textComponentPaths())
+            ->make($view, $data)
+            ->render();
 
         return new HtmlString(
             html_entity_decode(preg_replace("/[\r\n]{2,}/", "\n\n", $contents), ENT_QUOTES, 'UTF-8')
@@ -123,28 +118,21 @@ class Markdown
             return new HtmlString(static::converter()->convert((string) $text)->getContent());
         }
 
-        EncodedHtmlString::encodeUsing(function ($value) {
-            $replacements = [
-                '[' => '\[',
-                '<' => '\<',
-            ];
+        return new HtmlString(EncodedHtmlString::withEncoding(
+            function ($value) {
+                $replacements = [
+                    '[' => '\[',
+                    '<' => '\<',
+                ];
 
-            $html = str_replace(array_keys($replacements), array_values($replacements), $value);
+                $html = str_replace(array_keys($replacements), array_values($replacements), $value);
 
-            return static::converter([
-                'html_input' => 'escape',
-            ])->convert($html)->getContent();
-        });
-
-        $html = '';
-
-        try {
-            $html = static::converter()->convert((string) $text)->getContent();
-        } finally {
-            EncodedHtmlString::flushState();
-        }
-
-        return new HtmlString($html);
+                return static::converter([
+                    'html_input' => 'escape',
+                ])->convert($html)->getContent();
+            },
+            fn () => static::converter()->convert((string) $text)->getContent()
+        ));
     }
 
     /**
@@ -187,6 +175,20 @@ class Markdown
     }
 
     /**
+     * Clone the view factory with render-local mail component paths.
+     */
+    protected function viewFactoryWithMailNamespace(array $paths): ViewFactory
+    {
+        // Markdown swaps mail:: between HTML and text component paths while
+        // rendering. Keep that namespace change on a short-lived clone so the
+        // singleton view finder stays untouched for concurrent coroutines.
+        $viewFactory = clone $this->view;
+        $viewFactory->replaceNamespace('mail', $paths);
+
+        return $viewFactory;
+    }
+
+    /**
      * Get the component paths.
      */
     protected function componentPaths(): array
@@ -198,6 +200,9 @@ class Markdown
 
     /**
      * Register new mail component paths.
+     *
+     * Boot-only. Mutates the shared Markdown renderer's component paths; use
+     * scoped view namespaces for per-render component path changes.
      */
     public function loadComponentsFrom(array $paths = []): void
     {
@@ -206,6 +211,9 @@ class Markdown
 
     /**
      * Set the default theme to be used.
+     *
+     * Boot-only. Mutates the shared Markdown renderer's default theme; pass a
+     * per-render theme to render() for message-specific themes.
      */
     public function theme(string $theme): static
     {
@@ -246,6 +254,9 @@ class Markdown
 
     /**
      * Flush the class's global state.
+     *
+     * Boot or tests only. Clears worker-wide Markdown flags; concurrent renders
+     * may switch encoding behavior depending on timing.
      */
     public static function flushState(): void
     {
