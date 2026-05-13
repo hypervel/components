@@ -33,6 +33,10 @@ class SimpleObjectPool extends ObjectPool
     /**
      * Sets a new callback function for object creation.
      *
+     * Boot-only. The callback persists on the pool for the worker lifetime and
+     * is used to create every subsequent object in that pool. Per-request use
+     * races across coroutines.
+     *
      * @param callable $callback The function to create new objects
      */
     public function setCallback(callable $callback): static

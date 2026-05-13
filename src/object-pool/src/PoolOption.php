@@ -38,6 +38,10 @@ class PoolOption
 
     /**
      * Set the maximum number of objects the pool can have.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
      */
     public function setMaxObjects(int $maxObjects): static
     {
@@ -56,6 +60,10 @@ class PoolOption
 
     /**
      * Set the minimum number of objects the pool should maintain.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
      */
     public function setMinObjects(int $minObjects): static
     {
@@ -74,6 +82,10 @@ class PoolOption
 
     /**
      * Set the timeout when waiting for an object from the pool.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
      */
     public function setWaitTimeout(float $waitTimeout): static
     {
@@ -92,6 +104,10 @@ class PoolOption
 
     /**
      * Set the maximum lifetime of an object in the pool.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
      */
     public function setMaxLifetime(float $maxLifetime): static
     {
@@ -110,6 +126,10 @@ class PoolOption
 
     /**
      * Set the class name of the recycle strategy to use.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
      */
     public function setStrategy(?string $strategy): static
     {
@@ -128,6 +148,10 @@ class PoolOption
 
     /**
      * Set the ratio of objects to recycle when recycling.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
      */
     public function setRecycleRatio(float $recycleRatio): static
     {
