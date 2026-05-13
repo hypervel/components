@@ -182,4 +182,12 @@ class Redirector
 
         return $this;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

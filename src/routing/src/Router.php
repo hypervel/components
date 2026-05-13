@@ -1420,6 +1420,14 @@ class Router implements BindingRegistrar, RegistrarContract
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Dynamically handle calls into the router instance.
      */
     public function __call(string $method, array $parameters): mixed

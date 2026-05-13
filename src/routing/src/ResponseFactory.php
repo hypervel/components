@@ -273,4 +273,12 @@ class ResponseFactory implements FactoryContract
     {
         return $this->redirector->intended($default, $status, $headers, $secure);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

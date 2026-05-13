@@ -231,6 +231,14 @@ class RouteRegistrar
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Dynamically handle calls into the route registrar.
      *
      * @return \Hypervel\Routing\Route|static

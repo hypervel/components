@@ -1383,6 +1383,7 @@ class Route
     {
         static::$validators = null;
         static::flushMacros();
+        static::flushEnumCache();
     }
 
     /**
