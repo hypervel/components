@@ -55,11 +55,6 @@ interface Factory
     public function replaceNamespace(string $namespace, string|array $hints): static;
 
     /**
-     * Execute the given callback with a temporary namespace hint.
-     */
-    public function scopedNamespace(string $namespace, string|array $hints, Closure $callback): mixed;
-
-    /**
      * Flush the cache of located views.
      */
     public function flushFinderCache(): void;
