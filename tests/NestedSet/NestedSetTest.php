@@ -14,12 +14,12 @@ class NestedSetTest extends TestCase
 {
     public function testIsNodeReturnsTrueForModelUsingHasNode(): void
     {
-        $this->assertTrue(NestedSet::isNode(new NestedSetTestNodeModel()));
+        $this->assertTrue(NestedSet::isNode(new NestedSetTestNodeModel));
     }
 
     public function testIsNodeReturnsFalseForPlainEloquentModel(): void
     {
-        $this->assertFalse(NestedSet::isNode(new NestedSetTestPlainModel()));
+        $this->assertFalse(NestedSet::isNode(new NestedSetTestPlainModel));
     }
 
     public function testIsNodeReturnsFalseForNonObject(): void
@@ -32,7 +32,7 @@ class NestedSetTest extends TestCase
 
     public function testIsNodeReturnsFalseForArbitraryObject(): void
     {
-        $this->assertFalse(NestedSet::isNode(new stdClass()));
+        $this->assertFalse(NestedSet::isNode(new stdClass));
     }
 }
 
