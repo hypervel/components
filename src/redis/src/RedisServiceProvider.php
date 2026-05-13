@@ -6,7 +6,6 @@ namespace Hypervel\Redis;
 
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Support\ServiceProvider;
-use Redis;
 
 class RedisServiceProvider extends ServiceProvider
 {
@@ -22,7 +21,5 @@ class RedisServiceProvider extends ServiceProvider
         ));
 
         $this->app->bind('redis.connection', fn ($app) => $app['redis']->connection());
-
-        $this->app->singleton(Redis::class, RedisManager::class);
     }
 }

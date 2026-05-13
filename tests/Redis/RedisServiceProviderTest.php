@@ -9,6 +9,7 @@ use Hypervel\Contracts\Redis\Factory as FactoryContract;
 use Hypervel\Redis\RedisManager;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Testbench\TestCase;
+use Redis;
 
 /**
  * Tests for RedisServiceProvider container bindings and alias resolution.
@@ -35,6 +36,11 @@ class RedisServiceProviderTest extends TestCase
         $byClass = $this->app->make(RedisManager::class);
 
         $this->assertSame($byKey, $byClass);
+    }
+
+    public function testNativeRedisClassIsNotBoundToRedisManager()
+    {
+        $this->assertFalse($this->app->bound(Redis::class));
     }
 
     public function testFactoryContractResolvesToSameInstanceAsRedisBinding()

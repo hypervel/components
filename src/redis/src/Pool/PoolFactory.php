@@ -20,6 +20,10 @@ class PoolFactory
 
     /**
      * Flush all connections from all pools and clear the cached pool instances.
+     *
+     * Boot or tests only. Flushes shared pools without a per-coroutine release
+     * path; concurrent coroutines may still hold checked-out connections from
+     * pools that have been destroyed.
      */
     public function flushAll(): void
     {
@@ -32,6 +36,9 @@ class PoolFactory
 
     /**
      * Flush a specific pool, closing all connections.
+     *
+     * Boot or tests only. Flushes a shared pool; concurrent coroutines may
+     * still hold checked-out connections from the destroyed pool.
      */
     public function flushPool(string $name): void
     {
