@@ -7,11 +7,13 @@ namespace Hypervel\Tests\Mail;
 use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
-use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Mail\Factory as MailFactory;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Markdown;
 use Hypervel\Notifications\Channels\MailChannel;
@@ -19,6 +21,13 @@ use Hypervel\Notifications\Messages\MailMessage as NotificationMailMessage;
 use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Support\HtmlString;
 use Hypervel\Tests\TestCase;
+use Hypervel\View\Compilers\BladeCompiler;
+use Hypervel\View\Engines\CompilerEngine;
+use Hypervel\View\Engines\EngineResolver;
+use Hypervel\View\Engines\FileEngine;
+use Hypervel\View\Engines\PhpEngine;
+use Hypervel\View\Factory as ViewFactory;
+use Hypervel\View\FileViewFinder;
 use Mockery as m;
 
 use function Hypervel\Coroutine\parallel;
@@ -99,23 +108,33 @@ class MarkdownCoroutineSafetyTest extends TestCase
 
     public function testRenderAndRenderTextUseIsolatedMailNamespaces(): void
     {
-        $factory = null;
-        $factory = new MarkdownTestViewFactory(function () use (&$factory) {
-            $before = basename($factory->currentMailNamespacePath());
-            usleep(5000);
-
-            return $before . ':' . basename($factory->currentMailNamespacePath());
-        });
-
-        $markdown = new Markdown($factory);
-
-        $results = parallel([
-            'html' => fn () => $markdown->render('view', inliner: new MarkdownPassthroughInliner)->toHtml(),
-            'text' => fn () => $markdown->renderText('view')->toHtml(),
+        $markdown = new Markdown($this->makeRealViewFactory(), [
+            'paths' => [$this->markdownComponentsPath()],
         ]);
 
-        $this->assertSame('html:html', $results['html']);
-        $this->assertSame('text:text', $results['text']);
+        $results = parallel([
+            'html' => fn () => $markdown->render('mail::probe', inliner: new MarkdownPassthroughInliner)->toHtml(),
+            'text' => fn () => $markdown->renderText('mail::probe')->toHtml(),
+        ]);
+
+        $this->assertStringContainsString('html-start', $results['html']);
+        $this->assertStringContainsString('html-end', $results['html']);
+        $this->assertStringNotContainsString('text-start', $results['html']);
+        $this->assertStringContainsString('text-start', $results['text']);
+        $this->assertStringContainsString('text-end', $results['text']);
+        $this->assertStringNotContainsString('html-start', $results['text']);
+    }
+
+    public function testMailComponentTagsResolveThroughClonedFactory(): void
+    {
+        $markdown = new Markdown($this->makeRealViewFactory(), [
+            'paths' => [$this->markdownComponentsPath()],
+        ]);
+
+        $result = $markdown->render('component-tag', inliner: new MarkdownPassthroughInliner)->toHtml();
+
+        $this->assertStringContainsString('html-layout', $result);
+        $this->assertStringContainsString('Component Body', $result);
     }
 
     public function testConcurrentMailablesUseTheirOwnThemes(): void
@@ -189,46 +208,57 @@ class MarkdownCoroutineSafetyTest extends TestCase
             ? 'scoped'
             : 'default';
     }
+
+    protected function makeRealViewFactory(): ViewFactory
+    {
+        $container = new Container;
+        $filesystem = new Filesystem;
+        $resolver = new EngineResolver;
+        $application = m::mock(ApplicationContract::class);
+        $compiledPath = sys_get_temp_dir() . '/hypervel-markdown-coroutine-safety-views';
+        $bladeCompiler = new BladeCompiler($filesystem, $compiledPath, shouldCache: false);
+
+        $application->shouldReceive('getNamespace')->andReturn('App\\');
+        $filesystem->ensureDirectoryExists($compiledPath);
+
+        $resolver->register('blade', fn () => new CompilerEngine($bladeCompiler, $filesystem));
+        $resolver->register('file', fn () => new FileEngine($filesystem));
+        $resolver->register('php', fn () => new PhpEngine($filesystem));
+
+        $factory = new ViewFactory(
+            $resolver,
+            new FileViewFinder($filesystem, [$this->markdownViewsPath()]),
+            new Dispatcher($container)
+        );
+
+        $factory->setContainer($container);
+        $container->instance(ApplicationContract::class, $application);
+        $container->instance(ViewFactory::class, $factory);
+        $container->instance(ViewFactoryContract::class, $factory);
+        Container::setInstance($container);
+
+        return $factory;
+    }
+
+    protected function markdownViewsPath(): string
+    {
+        return __DIR__ . '/Fixtures/Markdown/views';
+    }
+
+    protected function markdownComponentsPath(): string
+    {
+        return __DIR__ . '/Fixtures/Markdown/components';
+    }
 }
 
-class MarkdownTestViewFactory implements ViewFactory
+class MarkdownTestViewFactory implements ViewFactoryContract
 {
-    protected const NAMESPACE_CONTEXT_KEY = '__tests.markdown.mail_namespace';
-
     protected array $cachedViews = [];
 
     public function __construct(
         protected Closure $renderer,
         protected ?Closure $themeRenderer = null
     ) {
-    }
-
-    public function scopedNamespace(string $namespace, string|array $hints, Closure $callback): mixed
-    {
-        $overrides = CoroutineContext::get(self::NAMESPACE_CONTEXT_KEY, []);
-        $hadPreviousHints = array_key_exists($namespace, $overrides);
-        $previousHints = $overrides[$namespace] ?? null;
-
-        $overrides[$namespace] = (array) $hints;
-        CoroutineContext::set(self::NAMESPACE_CONTEXT_KEY, $overrides);
-
-        try {
-            return $callback();
-        } finally {
-            $overrides = CoroutineContext::get(self::NAMESPACE_CONTEXT_KEY, []);
-
-            if ($hadPreviousHints) {
-                $overrides[$namespace] = $previousHints;
-            } else {
-                unset($overrides[$namespace]);
-            }
-
-            if ($overrides === []) {
-                CoroutineContext::forget(self::NAMESPACE_CONTEXT_KEY);
-            } else {
-                CoroutineContext::set(self::NAMESPACE_CONTEXT_KEY, $overrides);
-            }
-        }
     }
 
     public function exists(string $view): bool
@@ -300,13 +330,6 @@ class MarkdownTestViewFactory implements ViewFactory
     public function cachedView(string $name): ?string
     {
         return $this->cachedViews[$name] ?? null;
-    }
-
-    public function currentMailNamespacePath(): string
-    {
-        $overrides = CoroutineContext::get(self::NAMESPACE_CONTEXT_KEY, []);
-
-        return $overrides['mail'][0] ?? '';
     }
 }
 
