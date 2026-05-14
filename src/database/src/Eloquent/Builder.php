@@ -1895,7 +1895,7 @@ class Builder implements BuilderContract
     }
 
     /**
-     * Flush the Eloquent builder's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

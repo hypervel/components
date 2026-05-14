@@ -344,7 +344,7 @@ class WorkCommand extends Command
     }
 
     /**
-     * Reset static variables.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

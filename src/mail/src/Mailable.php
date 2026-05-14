@@ -1573,7 +1573,7 @@ class Mailable implements MailableContract, Renderable
     }
 
     /**
-     * Flush the class's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

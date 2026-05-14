@@ -556,7 +556,7 @@ class Store implements Session
     }
 
     /**
-     * Flush per-request session state from context.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

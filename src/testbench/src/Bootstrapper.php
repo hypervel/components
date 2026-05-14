@@ -68,7 +68,7 @@ class Bootstrapper
     }
 
     /**
-     * Flush the cached bootstrap state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

@@ -125,7 +125,7 @@ class DiscoverEvents
     }
 
     /**
-     * Flush the class's static state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

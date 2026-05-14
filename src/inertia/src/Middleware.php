@@ -261,7 +261,7 @@ class Middleware
     }
 
     /**
-     * Reset the cached version state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

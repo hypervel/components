@@ -1377,7 +1377,7 @@ class Route
     }
 
     /**
-     * Flush the route's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

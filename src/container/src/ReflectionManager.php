@@ -66,7 +66,7 @@ class ReflectionManager
     }
 
     /**
-     * Flush all cached reflection objects.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

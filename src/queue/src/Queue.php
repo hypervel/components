@@ -287,7 +287,7 @@ abstract class Queue
     }
 
     /**
-     * Flush the static state of the class.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

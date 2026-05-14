@@ -1101,7 +1101,7 @@ class Arr
     }
 
     /**
-     * Flush the array helper's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

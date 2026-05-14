@@ -546,7 +546,7 @@ class Mailer implements MailerContract, MailQueueContract
     }
 
     /**
-     * Flush the mailer's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

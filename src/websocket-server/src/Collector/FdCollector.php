@@ -52,7 +52,7 @@ class FdCollector
     }
 
     /**
-     * Reset all registered file descriptors.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

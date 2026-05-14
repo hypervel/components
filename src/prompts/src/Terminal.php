@@ -215,7 +215,7 @@ class Terminal
     }
 
     /**
-     * Flush terminal color capability caches.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

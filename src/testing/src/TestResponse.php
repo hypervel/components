@@ -1659,7 +1659,7 @@ class TestResponse implements ArrayAccess
     }
 
     /**
-     * Flush the test response's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

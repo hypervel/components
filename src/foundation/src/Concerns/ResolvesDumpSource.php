@@ -202,7 +202,7 @@ trait ResolvesDumpSource
     }
 
     /**
-     * Flush the static state of the trait.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

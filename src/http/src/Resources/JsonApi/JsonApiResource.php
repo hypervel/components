@@ -212,7 +212,7 @@ class JsonApiResource extends JsonResource
     }
 
     /**
-     * Flush the resource's global state.
+     * Flush all static state.
      */
     #[Override]
     public static function flushState(): void

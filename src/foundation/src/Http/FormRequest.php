@@ -348,7 +348,7 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     }
 
     /**
-     * Flush the cached attribute configuration.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

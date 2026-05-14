@@ -194,7 +194,7 @@ class Attachment
     }
 
     /**
-     * Flush the attachment's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

@@ -275,7 +275,7 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
     }
 
     /**
-     * Reset static state for testing.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

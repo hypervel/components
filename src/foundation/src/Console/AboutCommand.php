@@ -320,7 +320,7 @@ class AboutCommand extends Command
     }
 
     /**
-     * Flush the registered about data.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

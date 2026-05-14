@@ -959,9 +959,7 @@ class Gate implements GateContract
     }
 
     /**
-     * Flush all static caches.
-     *
-     * Called between tests by AfterEachTestSubscriber for test isolation.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

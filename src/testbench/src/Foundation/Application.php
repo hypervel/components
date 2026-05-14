@@ -168,7 +168,9 @@ class Application
     }
 
     /**
-     * Flush the application state used by lightweight Testbench tests.
+     * Flush all static state.
+     *
+     * @param object $instance Active test instance, used to thread the running TestCase through to HandleExceptions::flushState().
      */
     public static function flushState(object $instance): void
     {

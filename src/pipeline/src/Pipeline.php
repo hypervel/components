@@ -269,7 +269,7 @@ class Pipeline implements PipelineContract
     }
 
     /**
-     * Flush the pipeline's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

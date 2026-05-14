@@ -51,7 +51,7 @@ class BundleDetector
     }
 
     /**
-     * Reset the cached bundle detection state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

@@ -388,7 +388,7 @@ class EloquentUserProvider implements UserProvider
     }
 
     /**
-     * Flush static state for test isolation.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

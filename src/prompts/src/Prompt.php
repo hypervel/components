@@ -496,7 +496,7 @@ abstract class Prompt
     }
 
     /**
-     * Flush all prompt static state back to defaults.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

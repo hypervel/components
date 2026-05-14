@@ -131,7 +131,7 @@ class ResponseSequence
     }
 
     /**
-     * Flush the response sequence's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

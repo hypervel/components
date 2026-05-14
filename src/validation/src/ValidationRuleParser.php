@@ -507,7 +507,7 @@ class ValidationRuleParser
     }
 
     /**
-     * Reset parse cache. Called by AfterEachTestSubscriber between tests.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

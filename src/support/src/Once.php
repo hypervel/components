@@ -85,7 +85,7 @@ class Once
     }
 
     /**
-     * Reset all static state on the class.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

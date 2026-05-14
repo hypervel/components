@@ -52,7 +52,7 @@ class BindingResolver
     }
 
     /**
-     * Reset cached resolver state. Called between tests via AfterEachTestSubscriber.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

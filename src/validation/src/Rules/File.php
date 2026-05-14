@@ -340,7 +340,7 @@ class File implements Rule, DataAwareRule, ValidatorAwareRule
     }
 
     /**
-     * Flush the file rule's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

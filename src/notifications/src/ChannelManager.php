@@ -241,7 +241,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     }
 
     /**
-     * Flush the manager's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

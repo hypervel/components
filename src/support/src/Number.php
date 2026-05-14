@@ -333,7 +333,7 @@ class Number
     }
 
     /**
-     * Flush per-request locale and currency state from context.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

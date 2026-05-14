@@ -305,7 +305,7 @@ class DatabaseTransactionsManager
     }
 
     /**
-     * Flush all transaction state from the current coroutine's Context.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

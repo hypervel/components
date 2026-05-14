@@ -74,14 +74,7 @@ class Env
     }
 
     /**
-     * Reset all static state including custom adapters and putenv config.
-     *
-     * Tests only. Clears worker-wide env repository state and custom adapters;
-     * runtime use changes env lookup behavior for every coroutine.
-     *
-     * This is a full teardown intended for testing. Unlike flushRepository(),
-     * which preserves custom adapters and putenv configuration, this method
-     * restores Env to its initial state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

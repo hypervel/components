@@ -258,7 +258,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     }
 
     /**
-     * Flush the fluent instance's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

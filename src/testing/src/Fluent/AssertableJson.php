@@ -152,7 +152,7 @@ class AssertableJson implements Arrayable
     }
 
     /**
-     * Flush the assertable JSON global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

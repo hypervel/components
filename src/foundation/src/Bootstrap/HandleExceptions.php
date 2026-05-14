@@ -256,7 +256,9 @@ class HandleExceptions
     }
 
     /**
-     * Flush the bootstrapper's global state.
+     * Flush all static state.
+     *
+     * @param \PHPUnit\Framework\TestCase|null $testCase
      */
     public static function flushState(?TestCase $testCase = null): void
     {
