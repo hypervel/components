@@ -7,7 +7,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-All Eloquent methods that return more than one model result will return instances of the `Hypervel\Database\Eloquent\Collection` class, including results retrieved via the `get` method or accessed via a relationship. The Eloquent collection object extends Laravel's [base collection](/docs/{{version}}/collections), so it naturally inherits dozens of methods used to fluently work with the underlying array of Eloquent models. Be sure to review the Laravel collection documentation to learn all about these helpful methods!
+All Eloquent methods that return more than one model result will return instances of the `Hypervel\Database\Eloquent\Collection` class, including results retrieved via the `get` method or accessed via a relationship. The Eloquent collection object extends Hypervel's [base collection](/docs/{{version}}/collections), so it naturally inherits dozens of methods used to fluently work with the underlying array of Eloquent models. Be sure to review the Hypervel collection documentation to learn all about these helpful methods!
 
 All collections also serve as iterators, allowing you to loop over them as if they were simple PHP arrays:
 
@@ -34,14 +34,14 @@ $names = User::all()->reject(function (User $user) {
 <a name="eloquent-collection-conversion"></a>
 #### Eloquent Collection Conversion
 
-While most Eloquent collection methods return a new instance of an Eloquent collection, the `collapse`, `flatten`, `flip`, `keys`, `pluck`, and `zip` methods return a [base collection](/docs/{{version}}/collections) instance. Likewise, if a `map` operation returns a collection that does not contain any Eloquent models, it will be converted to a base collection instance.
+While most Eloquent collection methods return a new instance of an Eloquent collection, the `collapse`, `countBy`, `flatten`, `flip`, `keys`, `pad`, `partition`, `pluck`, and `zip` methods return a [base collection](/docs/{{version}}/collections) instance. Likewise, if a `map` or `mapWithKeys` operation returns a collection that does not contain any Eloquent models, it will be converted to a base collection instance.
 
 <a name="available-methods"></a>
 ## Available Methods
 
-All Eloquent collections extend the base [Laravel collection](/docs/{{version}}/collections#available-methods) object; therefore, they inherit all of the powerful methods provided by the base collection class.
+All Eloquent collections extend the base [Hypervel collection](/docs/{{version}}/collections#available-methods) object; therefore, they inherit all of the powerful methods provided by the base collection class.
 
-In addition, the `Hypervel\Database\Eloquent\Collection` class provides a superset of methods to aid with managing your model collections. Most methods return `Hypervel\Database\Eloquent\Collection` instances; however, some methods, like `modelKeys`, return an `Hypervel\Support\Collection` instance.
+In addition, the `Hypervel\Database\Eloquent\Collection` class provides a superset of methods to aid with managing your model collections. Most methods return `Hypervel\Database\Eloquent\Collection` instances; however, some methods, such as `modelKeys`, return arrays.
 
 <style>
     .collection-method-list > p {
@@ -154,6 +154,12 @@ The `findOrFail` method returns the model that has a primary key matching the gi
 $users = User::all();
 
 $user = $users->findOrFail(1);
+```
+
+If `$key` is an array of keys, `findOrFail` will return all models which have a primary key in the given array or throw an exception if any of the requested keys cannot be found:
+
+```php
+$users = $users->findOrFail([1, 2, 3]);
 ```
 
 <a name="method-fresh"></a>
@@ -315,6 +321,8 @@ $users->toQuery()->update([
 ]);
 ```
 
+The collection may not be empty and must contain models of the same type.
+
 <a name="method-unique"></a>
 #### `unique($key = null, $strict = false)` {.collection-method}
 
@@ -362,7 +370,6 @@ Alternatively, you may define a `newCollection` method on your model:
 namespace App\Models;
 
 use App\Support\UserCollection;
-use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
@@ -370,10 +377,9 @@ class User extends Model
     /**
      * Create a new Eloquent Collection instance.
      *
-     * @param  array<int, \Hypervel\Database\Eloquent\Model>  $models
-     * @return \Hypervel\Database\Eloquent\Collection<int, \Hypervel\Database\Eloquent\Model>
+     * @param  array<array-key, \Hypervel\Database\Eloquent\Model>  $models
      */
-    public function newCollection(array $models = []): Collection
+    public function newCollection(array $models = []): UserCollection
     {
         $collection = new UserCollection($models);
 
