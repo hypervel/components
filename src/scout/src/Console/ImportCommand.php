@@ -48,7 +48,7 @@ class ImportCommand extends Command
 
             Scout::whileReportingImportProgress(
                 function (Collection $models) use ($class): void {
-                    /** @var (Model&SearchableInterface)|null $lastModel */
+                    /** @var null|(Model&SearchableInterface) $lastModel */
                     $lastModel = $models->last();
                     $key = $lastModel?->getScoutKey();
 
