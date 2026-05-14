@@ -24,17 +24,17 @@ use Typesense\Client as TypesenseClient;
 /**
  * Manages search engine instances and driver creation.
  *
- * Engine instances are cached statically because they hold no request-specific
- * state and are safe to share across coroutines.
+ * EngineManager is auto-singletoned by the container, so its instance cache is
+ * shared across coroutines for the worker lifetime.
  */
 class EngineManager
 {
     /**
-     * The resolved engine instances (process-global cache).
+     * The resolved engine instances.
      *
      * @var array<string, Engine>
      */
-    private static array $engines = [];
+    protected array $engines = [];
 
     /**
      * The registered custom driver creators.
@@ -58,7 +58,7 @@ class EngineManager
     {
         $name ??= $this->getDefaultDriver();
 
-        return self::$engines[$name] ??= $this->resolve($name);
+        return $this->engines[$name] ??= $this->resolve($name);
     }
 
     /**
@@ -221,13 +221,13 @@ class EngineManager
     /**
      * Forget all of the resolved engine instances.
      *
-     * Boot or tests only. Clears the process-wide engine cache; concurrent
+     * Boot or tests only. Clears the manager's engine cache; concurrent
      * coroutines may already hold references that next resolution will not
      * share.
      */
     public function forgetEngines(): static
     {
-        self::$engines = [];
+        $this->engines = [];
 
         return $this;
     }
@@ -235,13 +235,13 @@ class EngineManager
     /**
      * Forget a specific resolved engine instance.
      *
-     * Boot or tests only. Mutates the process-wide engine cache; concurrent
-     * coroutines may already hold a reference to the engine and next
-     * resolution will rebuild.
+     * Boot or tests only. Mutates the manager's engine cache; concurrent
+     * coroutines may already hold a reference to the engine and next resolution
+     * will rebuild.
      */
     public function forgetEngine(string $name): static
     {
-        unset(self::$engines[$name]);
+        unset($this->engines[$name]);
 
         return $this;
     }
