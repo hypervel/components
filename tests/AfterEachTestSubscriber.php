@@ -146,6 +146,8 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Sanctum\SanctumGuard::flushState();
         \Hypervel\Scout\Builder::flushState();
         \Hypervel\Scout\Scout::flushState();
+        \Hypervel\Sentry\Http\HypervelRequestFetcher::flushState();
+        \Hypervel\Sentry\Tracing\Middleware::flushState();
         \Hypervel\Server\ServerManager::flushState();
         \Hypervel\ServerProcess\ProcessCollector::flushState();
         \Hypervel\ServerProcess\ProcessManager::flushState();

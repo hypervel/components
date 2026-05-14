@@ -73,6 +73,20 @@ class MiddlewareTest extends SentryTestCase
         $property->setValue(null, null);
     }
 
+    public function testFlushStateClearsBootedTimestamp()
+    {
+        Middleware::setBootedTimestamp(1234567890.123);
+
+        $reflection = new ReflectionClass(Middleware::class);
+        $property = $reflection->getProperty('bootedTimestamp');
+
+        $this->assertSame(1234567890.123, $property->getValue());
+
+        Middleware::flushState();
+
+        $this->assertNull($property->getValue());
+    }
+
     public function testAfterResponseSpansAreCapturedOnTransaction()
     {
         $middleware = $this->app->make(Middleware::class);
