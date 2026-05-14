@@ -72,6 +72,7 @@ class ClassMapManager
      */
     public static function flushState(): void
     {
+        // Does not remove entries already applied to Composer's autoloader.
         static::$entries = [];
     }
 }
