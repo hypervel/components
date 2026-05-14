@@ -24,9 +24,9 @@ class RetryJobTest extends IntegrationTestCase
 
     protected function tearDown(): void
     {
-        parent::tearDown();
-
         unset($_SERVER['horizon.fail']);
+
+        parent::tearDown();
     }
 
     public function testNothingHappensForFailedJobThatDoesntExist()
