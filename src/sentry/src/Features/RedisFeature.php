@@ -23,8 +23,7 @@ class RedisFeature extends Feature
     /**
      * Indicates whether to attempt to detect the session key when running in the console.
      *
-     * Instance property (not static) because this feature is a container singleton —
-     * a static would persist across worker lifetime and leak between tests.
+     * Tests only. This mutates the feature singleton and should not be used at runtime.
      *
      * @internal this is mainly intended for testing purposes
      */
