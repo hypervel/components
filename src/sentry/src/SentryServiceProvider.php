@@ -77,6 +77,10 @@ class SentryServiceProvider extends ServiceProvider
 
     /**
      * The abstract type to bind Sentry as in the service container.
+     *
+     * Boot-only. This value is read while registering container aliases and
+     * config paths; runtime changes split later config reads from the
+     * already-registered binding.
      */
     public static string $abstract = 'sentry';
 
