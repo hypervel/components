@@ -82,7 +82,7 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
         $request = Request::create('http://localhost', server: ['HTTP_ORIGIN' => 'https://wrong.com']);
 
-        (new EnsureFrontendRequestsAreStateful())->handle($request, fn () => new Response('ok'));
+        (new EnsureFrontendRequestsAreStateful)->handle($request, fn () => new Response('ok'));
 
         $this->assertFalse($this->app->make('config')->get('session.http_only'));
         $this->assertSame('strict', $this->app->make('config')->get('session.same_site'));

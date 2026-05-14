@@ -74,7 +74,7 @@ class FrontendCookieHardeningTest extends TestCase
             'HTTP_ORIGIN' => 'https://test.com',
         ]);
 
-        return (new EnsureFrontendRequestsAreStateful())
+        return (new EnsureFrontendRequestsAreStateful)
             ->handle($request, fn () => new Response('ok'));
     }
 
