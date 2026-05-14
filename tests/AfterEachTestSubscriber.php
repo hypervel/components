@@ -143,12 +143,14 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Routing\SortedMiddleware::flushCache();
         \Hypervel\Routing\UrlGenerator::flushState();
         \Hypervel\Sanctum\Sanctum::flushState();
+        \Hypervel\Sanctum\SanctumGuard::flushState();
         \Hypervel\Scout\Builder::flushState();
         \Hypervel\Scout\Scout::flushState();
         \Hypervel\Server\ServerManager::flushState();
         \Hypervel\ServerProcess\ProcessCollector::flushState();
         \Hypervel\ServerProcess\ProcessManager::flushState();
         \Hypervel\Session\Middleware\AuthenticateSession::flushState();
+        \Hypervel\Session\Middleware\StartSession::flushState();
         \Hypervel\Session\Store::flushState();
         \Hypervel\Support\Arr::flushState();
         \Hypervel\Support\BinaryCodec::flushState();
