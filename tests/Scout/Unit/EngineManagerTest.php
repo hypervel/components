@@ -24,14 +24,6 @@ use Typesense\Client as TypesenseClient;
 
 class EngineManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        // Reset static engines cache between tests
-        (new EngineManager(m::mock(Container::class)))->forgetEngines();
-    }
-
     public function testResolveNullEngine()
     {
         $container = $this->createMockContainer(['driver' => 'null']);
@@ -318,7 +310,7 @@ class EngineManagerTest extends TestCase
         $this->assertSame('null', $manager->getDefaultDriver());
     }
 
-    public function testStaticCacheIsSharedAcrossInstances()
+    public function testSeparateManagerInstancesDoNotShareEngineCache()
     {
         $container = $this->createMockContainer(['driver' => 'collection']);
 
@@ -328,8 +320,7 @@ class EngineManagerTest extends TestCase
         $manager2 = new EngineManager($container);
         $engine2 = $manager2->engine('collection');
 
-        // Static cache means same instance
-        $this->assertSame($engine1, $engine2);
+        $this->assertNotSame($engine1, $engine2);
     }
 
     protected function createMockContainer(array $config): m\MockInterface&Container
