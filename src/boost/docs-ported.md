@@ -17,6 +17,8 @@ csrf.md
 database.md
 database-testing.md
 deployment.md
+eloquent-collections.md
+eloquent-factories.md
 pagination.md
 requests.md
 routing.md
