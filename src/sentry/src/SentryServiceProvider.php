@@ -365,6 +365,20 @@ class SentryServiceProvider extends ServiceProvider
             return;
         }
 
+        $viewObserver = static function (ViewFactory $viewFactory): void {
+            $viewFactory->observeRendering(static function (View $view): void {
+                // The decorator reads this during the same render call; keep it
+                // coroutine-local so concurrent renders do not swap view names.
+                CoroutineContext::set(ViewEngineDecorator::CONTEXT_KEY, $view->name());
+            });
+        };
+
+        if ($this->app->resolved('view')) {
+            $viewObserver($this->app->make('view'));
+        } else {
+            $this->app->afterResolving('view', $viewObserver);
+        }
+
         $viewEngineWrapper = function (EngineResolver $engineResolver): void {
             foreach (['file', 'php', 'blade'] as $engineName) {
                 try {
@@ -396,14 +410,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     private function wrapViewEngine(Engine $realEngine): Engine
     {
-        /** @var ViewFactory $viewFactory */
-        $viewFactory = $this->app->make('view');
-
-        $viewFactory->observeRendering(static function (View $view) use ($viewFactory): void {
-            $viewFactory->share(ViewEngineDecorator::SHARED_KEY, $view->name());
-        });
-
-        return new ViewEngineDecorator($realEngine, $viewFactory);
+        return new ViewEngineDecorator($realEngine);
     }
 
     /**

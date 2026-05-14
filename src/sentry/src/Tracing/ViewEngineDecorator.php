@@ -4,21 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Tracing;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\View\Engine;
-use Hypervel\View\Factory;
 use Sentry\SentrySdk;
 use Sentry\Tracing\SpanContext;
 
 final class ViewEngineDecorator implements Engine
 {
-    public const SHARED_KEY = '__sentry_tracing_view_name';
+    public const CONTEXT_KEY = '__sentry.view_name';
 
     /**
      * Create a new view engine decorator instance.
      */
     public function __construct(
         private readonly Engine $engine,
-        private readonly Factory $viewFactory,
     ) {
     }
 
@@ -38,18 +37,18 @@ final class ViewEngineDecorator implements Engine
             SpanContext::make()
                 ->setOp('view.render')
                 ->setOrigin('auto.view')
-                ->setDescription($this->viewFactory->shared(self::SHARED_KEY, basename($path)))
+                ->setDescription(CoroutineContext::get(self::CONTEXT_KEY, basename($path)))
         );
 
         SentrySdk::getCurrentHub()->setSpan($span);
 
-        $result = $this->engine->get($path, $data);
+        try {
+            return $this->engine->get($path, $data);
+        } finally {
+            $span->finish();
 
-        $span->finish();
-
-        SentrySdk::getCurrentHub()->setSpan($parentSpan);
-
-        return $result;
+            SentrySdk::getCurrentHub()->setSpan($parentSpan);
+        }
     }
 
     /**

@@ -221,6 +221,9 @@ class SentryHandler extends AbstractProcessingHandler
 
     /**
      * Set the release.
+     *
+     * Boot-only. Mutates the release on the worker-lifetime log handler; per-request
+     * use races across coroutines and affects every subsequent log event.
      */
     public function setRelease(string $value): self
     {
@@ -231,6 +234,9 @@ class SentryHandler extends AbstractProcessingHandler
 
     /**
      * Set the current application environment.
+     *
+     * Boot-only. Mutates the environment on the worker-lifetime log handler;
+     * per-request use races across coroutines and affects every subsequent log event.
      */
     public function setEnvironment(string $value): self
     {
