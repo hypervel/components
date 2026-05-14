@@ -23,10 +23,7 @@ trait Prohibitable
     }
 
     /**
-     * Flush the static state of the trait.
-     *
-     * Boot or tests only. Clears the worker-wide prohibition flag used by every
-     * subsequent execution of this command.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

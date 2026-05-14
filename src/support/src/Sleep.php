@@ -470,10 +470,7 @@ class Sleep
     }
 
     /**
-     * Flush all sleep state back to defaults.
-     *
-     * Tests only. Clears worker-wide sleep fake state used by subsequent sleep
-     * calls.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

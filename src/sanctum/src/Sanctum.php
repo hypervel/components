@@ -137,10 +137,7 @@ class Sanctum
     }
 
     /**
-     * Flush all static state back to defaults.
-     *
-     * Boot or tests only. Resets worker-wide Sanctum model and callback
-     * configuration used by every subsequent token resolution.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

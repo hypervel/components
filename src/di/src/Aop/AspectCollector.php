@@ -96,10 +96,7 @@ class AspectCollector
     }
 
     /**
-     * Flush all registered aspects and metadata.
-     *
-     * Tests only. Clears the worker-wide aspect registry used by subsequent
-     * proxy generation and aspect resolution.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

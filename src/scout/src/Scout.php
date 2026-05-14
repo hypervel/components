@@ -157,10 +157,7 @@ class Scout
     }
 
     /**
-     * Flush all static state back to defaults.
-     *
-     * Boot or tests only. Resets worker-wide Scout job configuration; concurrent
-     * imports may use different job classes depending on timing.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

@@ -596,6 +596,16 @@ When porting source classes that use static properties for caching (e.g., `$boot
 
 Place `flushState()` immediately before the first magic method (`__call`, `__get`, `__set`, etc.). If the class has no magic methods, place it at the end of the class. Magic methods should remain the class tail; `flushState()` is a normal public static cleanup method.
 
+Use the standard title docblock for `flushState()` methods:
+
+```php
+/**
+ * Flush all static state.
+ */
+```
+
+Do not add `Boot-only.`, `Tests only.`, or `Boot or tests only.` warning paragraphs to `flushState()` docblocks. Those warnings belong on public mutators and registrars that userland might call incorrectly, not on this test cleanup hook that is only registered in `AfterEachTestSubscriber`.
+
 #### Per-Package Base Test Cases
 
 Do **not** create per-package abstract test case classes (e.g., `EngineTestCase`, `CoroutineTestCase`) just for coroutine support — it's already on the base class.

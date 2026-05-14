@@ -40,9 +40,7 @@ class ProcessManager
     }
 
     /**
-     * Flush all static state back to defaults.
-     *
-     * Tests only. Clears worker-wide process registrations and running state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

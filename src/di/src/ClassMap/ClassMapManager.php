@@ -68,10 +68,7 @@ class ClassMapManager
     }
 
     /**
-     * Flush all registered entries.
-     *
-     * Tests only. Clears Hypervel's record of worker-wide class-map overrides;
-     * it does not remove entries already applied to Composer's autoloader.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

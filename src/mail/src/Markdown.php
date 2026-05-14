@@ -253,10 +253,7 @@ class Markdown
     }
 
     /**
-     * Flush the class's global state.
-     *
-     * Boot or tests only. Clears worker-wide Markdown flags; concurrent renders
-     * may switch encoding behavior depending on timing.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

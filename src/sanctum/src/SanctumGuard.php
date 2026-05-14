@@ -277,9 +277,7 @@ class SanctumGuard implements GuardContract
     }
 
     /**
-     * Flush all static state back to defaults.
-     *
-     * Boot or tests only. Resets registered macros on the guard class.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

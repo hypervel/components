@@ -589,10 +589,7 @@ class Repository implements ReplicableContext
     }
 
     /**
-     * Reset all static state on the class.
-     *
-     * Boot or tests only. Clears worker-wide context hydration callbacks used
-     * by every subsequent queued context restore.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

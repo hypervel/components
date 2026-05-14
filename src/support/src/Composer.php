@@ -262,10 +262,7 @@ class Composer
     }
 
     /**
-     * Flush all static state back to defaults.
-     *
-     * Tests only. Clears the cached Composer loader used by subsequent
-     * class-map registration and package discovery.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

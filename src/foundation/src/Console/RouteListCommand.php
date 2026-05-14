@@ -437,10 +437,7 @@ class RouteListCommand extends Command
     }
 
     /**
-     * Flush the static state of the command.
-     *
-     * Tests only. Clears the worker-wide terminal width resolver used by
-     * subsequent route:list renders.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

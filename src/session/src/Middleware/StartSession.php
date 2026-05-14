@@ -303,9 +303,7 @@ class StartSession
     }
 
     /**
-     * Flush all static state back to defaults.
-     *
-     * Boot or tests only. Resets the registered cookie configuration callbacks.
+     * Flush all static state.
      */
     public static function flushState(): void
     {
