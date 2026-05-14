@@ -606,6 +606,8 @@ Use the standard title docblock for `flushState()` methods:
 
 Do not add `Boot-only.`, `Tests only.`, or `Boot or tests only.` warning paragraphs to `flushState()` docblocks. Those warnings belong on public mutators and registrars that userland might call incorrectly, not on this test cleanup hook that is only registered in `AfterEachTestSubscriber`.
 
+Keep the docblock to the title only — no extra paragraphs. If the method body has a non-obvious WHY worth explaining (ordering constraints, late-static-binding subtleties, etc.), put it as an inline comment above the relevant line inside the method, not as an extra paragraph under the title.
+
 #### Per-Package Base Test Cases
 
 Do **not** create per-package abstract test case classes (e.g., `EngineTestCase`, `CoroutineTestCase`) just for coroutine support — it's already on the base class.
