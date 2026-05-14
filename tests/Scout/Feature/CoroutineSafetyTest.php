@@ -7,9 +7,13 @@ namespace Hypervel\Tests\Scout\Feature;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
+use Hypervel\Scout\ModelObserver;
 use Hypervel\Scout\Scout;
+use Hypervel\Scout\Searchable;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
@@ -18,11 +22,10 @@ use RuntimeException;
 use function Hypervel\Coroutine\go;
 
 /**
- * Tests that Scout's sync disable mechanism is coroutine-safe.
+ * Tests that Scout's coroutine-sensitive state is isolated.
  *
- * The Searchable trait uses Context::set/get for per-coroutine state,
- * ensuring that disabling syncing in one coroutine doesn't affect
- * other concurrent coroutines.
+ * Scout uses Context::set/get for per-coroutine state, ensuring that one
+ * coroutine's import, sync-disable, or force-save state doesn't affect another.
  */
 class CoroutineSafetyTest extends ScoutTestCase
 {
@@ -361,6 +364,54 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertFalse($results['b_has_runner']);
     }
 
+    public function testModelObserverForceSavingIsCoroutineIsolated()
+    {
+        $observer = new ModelObserver;
+        $forcingModel = new ForceSavingSearchableModel;
+        $blockedModel = new ForceSavingSearchableModel;
+        $forcingModel->searchableDelayUs = 10000;
+
+        $results = [];
+        $waiter = new WaitGroup;
+
+        $waiter->add(1);
+        go(function () use ($observer, $forcingModel, &$results, $waiter) {
+            $observer->restored($forcingModel);
+            $results['forcing_searchable_calls'] = $forcingModel->searchableCalls;
+            $waiter->done();
+        });
+
+        $waiter->add(1);
+        go(function () use ($observer, $blockedModel, &$results, $waiter) {
+            usleep(5000);
+            $observer->saved($blockedModel);
+            $results['blocked_searchable_calls'] = $blockedModel->searchableCalls;
+            $results['blocked_update_checks'] = $blockedModel->searchIndexUpdateChecks;
+            $waiter->done();
+        });
+
+        $waiter->wait();
+
+        $this->assertSame(1, $results['forcing_searchable_calls']);
+        $this->assertSame(
+            0,
+            $results['blocked_searchable_calls'],
+            'forceSaving leaked into a concurrent coroutine, causing an unwanted searchable() call'
+        );
+        $this->assertSame(1, $results['blocked_update_checks']);
+    }
+
+    public function testModelObserverRestoredForcesSearchableUpdate()
+    {
+        $observer = new ModelObserver;
+        $model = new ForceSavingSearchableModel;
+
+        $observer->restored($model);
+
+        $this->assertSame(1, $model->searchableCalls);
+        $this->assertSame(0, $model->searchIndexUpdateChecks);
+    }
+
     public function testWhileImportingIsNestingSafe()
     {
         $results = [];
@@ -384,5 +435,46 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertTrue($results['inner']);
         $this->assertTrue($results['outer_after_inner']);
         $this->assertFalse($results['after']);
+    }
+}
+
+class ForceSavingSearchableModel extends Model implements SearchableInterface
+{
+    use Searchable;
+
+    protected ?string $table = 'searchable_models';
+
+    protected array $guarded = [];
+
+    public int $searchableCalls = 0;
+
+    public int $searchIndexUpdateChecks = 0;
+
+    public int $searchableDelayUs = 0;
+
+    public function searchIndexShouldBeUpdated(): bool
+    {
+        ++$this->searchIndexUpdateChecks;
+
+        return false;
+    }
+
+    public function shouldBeSearchable(): bool
+    {
+        return true;
+    }
+
+    public function searchable(): void
+    {
+        ++$this->searchableCalls;
+
+        if ($this->searchableDelayUs > 0) {
+            usleep($this->searchableDelayUs);
+        }
+    }
+
+    public function toSearchableArray(): array
+    {
+        return [];
     }
 }
