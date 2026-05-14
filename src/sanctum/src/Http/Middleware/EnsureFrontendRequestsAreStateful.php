@@ -19,8 +19,6 @@ class EnsureFrontendRequestsAreStateful
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $this->configureSecureCookieSessions();
-
         return (new Pipeline(app()))->send($request)->through(
             static::fromFrontend($request) ? $this->frontendMiddleware() : []
         )->then(function ($request) use ($next) {
@@ -84,16 +82,5 @@ class EnsureFrontendRequestsAreStateful
     public static function statefulDomains(): array
     {
         return config('sanctum.stateful', []);
-    }
-
-    /**
-     * Configure secure cookie sessions.
-     */
-    protected function configureSecureCookieSessions(): void
-    {
-        config([
-            'session.http_only' => true,
-            'session.same_site' => 'lax',
-        ]);
     }
 }

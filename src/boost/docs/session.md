@@ -11,6 +11,7 @@
     - [Regenerating the Session ID](#regenerating-the-session-id)
 - [Session Cache](#session-cache)
 - [Session Blocking](#session-blocking)
+- [Configuring the Session Cookie](#configuring-the-session-cookie)
 - [Adding Custom Session Drivers](#adding-custom-session-drivers)
     - [Implementing the Driver](#implementing-the-driver)
     - [Registering the Driver](#registering-the-driver)
@@ -328,6 +329,42 @@ Route::post('/profile', function () {
     // ...
 })->block();
 ```
+
+<a name="configuring-the-session-cookie"></a>
+## Configuring the Session Cookie
+
+Session cookie attributes are normally configured using your application's `config/session.php` configuration file. If you need to determine session cookie attributes dynamically for each request, you may register a callback using the `configureSessionCookieUsing` method on the `StartSession` middleware.
+
+This method should typically be called from the `boot` method of a [service provider](/docs/{{version}}/providers):
+
+```php
+<?php
+
+namespace App\Providers;
+
+use Hypervel\Http\Request;
+use Hypervel\Session\Middleware\StartSession;
+use Hypervel\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        StartSession::configureSessionCookieUsing(function (Request $request, array $cookie): array {
+            return array_replace($cookie, [
+                'domain' => tenant()->sessionCookieDomain(),
+            ]);
+        });
+    }
+}
+```
+
+The callback receives the current request and the session cookie configuration, and should return the modified cookie configuration. This is useful when cookie attributes, such as the cookie domain, depend on the current request. In this example, `tenant()` represents an application-specific helper that returns the current tenant.
+
+If multiple callbacks are registered, they will be executed in the order they were registered. Each callback receives the cookie configuration returned by the previous callback.
 
 <a name="adding-custom-session-drivers"></a>
 ## Adding Custom Session Drivers

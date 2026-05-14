@@ -24,6 +24,13 @@ use Throwable;
 class StartSession
 {
     /**
+     * The callbacks used to configure the session cookie attributes.
+     *
+     * @var array<int, Closure>
+     */
+    protected static array $sessionCookieCallbacks = [];
+
+    /**
      * Create a new session middleware.
      */
     public function __construct(
@@ -106,7 +113,7 @@ class StartSession
 
             $this->storeCurrentUrl($request, $session);
 
-            $this->addCookieToResponse($response, $session);
+            $this->addCookieToResponse($request, $response, $session);
 
             // Again, if the session has been configured we will need to close out the session
             // so that the attributes may be persisted to some storage medium. We will also
@@ -189,10 +196,10 @@ class StartSession
     /**
      * Add the session cookie to the application response.
      */
-    protected function addCookieToResponse(Response $response, Session $session): void
+    protected function addCookieToResponse(Request $request, Response $response, Session $session): void
     {
         if ($this->sessionIsPersistent($config = $this->manager->getSessionConfig())) {
-            $cookieConfig = $this->getSessionCookieConfig($config);
+            $cookieConfig = $this->resolveSessionCookieConfig($request, $config);
 
             $response->headers->setCookie(new Cookie(
                 $session->getName(),
@@ -212,14 +219,11 @@ class StartSession
     /**
      * Get the session cookie configuration.
      *
-     * Extracted as an extension point so subclasses can provide dynamic
-     * cookie settings without duplicating the rest of addCookieToResponse.
-     *
      * @return array{path: string, domain: string, secure: ?bool, http_only: bool, same_site: ?string, partitioned: bool}
      */
-    protected function getSessionCookieConfig(array $config): array
+    protected function resolveSessionCookieConfig(Request $request, array $config): array
     {
-        return [
+        $cookieConfig = [
             'path' => $config['path'] ?? '/',
             'domain' => $config['domain'] ?? '',
             'secure' => $config['secure'] ?? null,
@@ -227,6 +231,27 @@ class StartSession
             'same_site' => $config['same_site'] ?? null,
             'partitioned' => $config['partitioned'] ?? false,
         ];
+
+        foreach (static::$sessionCookieCallbacks as $callback) {
+            $cookieConfig = $callback($request, $cookieConfig);
+        }
+
+        return $cookieConfig;
+    }
+
+    /**
+     * Register a callback to configure the session cookie attributes.
+     *
+     * Boot-only. The callback persists in a static property for the worker
+     * lifetime and runs on every session cookie write across all coroutines.
+     * Callbacks run in registration order; later callbacks receive the values
+     * returned by earlier callbacks and may overwrite them.
+     *
+     * @param Closure(Request, array): array $callback
+     */
+    public static function configureSessionCookieUsing(Closure $callback): void
+    {
+        static::$sessionCookieCallbacks[] = $callback;
     }
 
     /**
@@ -275,5 +300,15 @@ class StartSession
         $config = $config ?: $this->manager->getSessionConfig();
 
         return ! is_null($config['driver'] ?? null);
+    }
+
+    /**
+     * Flush all static state back to defaults.
+     *
+     * Boot or tests only. Resets the registered cookie configuration callbacks.
+     */
+    public static function flushState(): void
+    {
+        static::$sessionCookieCallbacks = [];
     }
 }

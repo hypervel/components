@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Http\Request;
+use Hypervel\Http\Response;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Hypervel\Testbench\TestCase;
 
@@ -70,6 +71,21 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
         // Custom middleware with overridden statefulDomains SHOULD match
         $this->assertTrue(CustomStatefulMiddleware::fromFrontend($request));
+    }
+
+    public function testMiddlewareDoesNotMutateSessionConfig(): void
+    {
+        $this->app->make('config')->set([
+            'session.http_only' => false,
+            'session.same_site' => 'strict',
+        ]);
+
+        $request = Request::create('http://localhost', server: ['HTTP_ORIGIN' => 'https://wrong.com']);
+
+        (new EnsureFrontendRequestsAreStateful)->handle($request, fn () => new Response('ok'));
+
+        $this->assertFalse($this->app->make('config')->get('session.http_only'));
+        $this->assertSame('strict', $this->app->make('config')->get('session.same_site'));
     }
 }
 

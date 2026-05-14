@@ -275,4 +275,14 @@ class SanctumGuard implements GuardContract
 
         return "__auth.guards.{$this->name}.user." . md5($token);
     }
+
+    /**
+     * Flush all static state back to defaults.
+     *
+     * Boot or tests only. Resets registered macros on the guard class.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

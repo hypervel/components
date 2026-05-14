@@ -12,8 +12,8 @@ use Hypervel\Routing\Redirector;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\RouteCollection;
-use Hypervel\Routing\RouteRegistrar;
 use Hypervel\Routing\Router;
+use Hypervel\Routing\RouteRegistrar;
 use Hypervel\Routing\UrlGenerator;
 use Hypervel\Tests\Routing\RoutingTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -36,12 +36,24 @@ class RoutingStaticStateTest extends RoutingTestCase
         $this->assertFalse($class::hasMacro('routingFlushProbe'));
     }
 
+    public static function macroableRoutingClasses(): array
+    {
+        return [
+            [PendingResourceRegistration::class],
+            [PendingSingletonResourceRegistration::class],
+            [Redirector::class],
+            [ResponseFactory::class],
+            [RouteRegistrar::class],
+            [Router::class],
+        ];
+    }
+
     public function testRouteFlushStateClearsEnumCache(): void
     {
         $enumCache = new ReflectionProperty(Route::class, 'enumCache');
-        $enumCache->setValue(null, ['Some\\Enum' => true]);
+        $enumCache->setValue(null, ['Some\Enum' => true]);
 
-        $this->assertSame(['Some\\Enum' => true], $enumCache->getValue());
+        $this->assertSame(['Some\Enum' => true], $enumCache->getValue());
 
         Route::flushState();
 
@@ -78,17 +90,5 @@ class RoutingStaticStateTest extends RoutingTestCase
         ThrottleRequests::flushState();
 
         $this->assertTrue($shouldHashKeys->getValue());
-    }
-
-    public static function macroableRoutingClasses(): array
-    {
-        return [
-            [PendingResourceRegistration::class],
-            [PendingSingletonResourceRegistration::class],
-            [Redirector::class],
-            [ResponseFactory::class],
-            [RouteRegistrar::class],
-            [Router::class],
-        ];
     }
 }
