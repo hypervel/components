@@ -19,6 +19,7 @@ database-testing.md
 deployment.md
 eloquent-collections.md
 eloquent-factories.md
+eloquent-mutators.md
 pagination.md
 requests.md
 routing.md
