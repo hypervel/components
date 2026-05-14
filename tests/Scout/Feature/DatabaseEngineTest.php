@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Feature;
 
+use Hypervel\Scout\Attributes\SearchUsingFullText;
+use Hypervel\Scout\Attributes\SearchUsingPrefix;
 use Hypervel\Scout\Engines\DatabaseEngine;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Scout\Models\PrefixSearchableModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
@@ -168,6 +171,30 @@ class DatabaseEngineTest extends ScoutTestCase
         $engine->flush($model);
 
         $this->assertTrue(true);
+    }
+
+    public function testSearchAttributeMetadataIsCachedPerEngineInstance(): void
+    {
+        $engine = new DatabaseEngine;
+        $invoker = new ClassInvoker($engine);
+
+        $prefixBuilder = PrefixSearchableModel::search('hello');
+        $plainBuilder = SearchableModel::search('hello');
+
+        $this->assertSame(['title'], $invoker->getPrefixColumns($prefixBuilder));
+        $this->assertSame(['title'], $invoker->getPrefixColumns($prefixBuilder));
+        $this->assertSame([], $invoker->getFullTextColumns($plainBuilder));
+        $this->assertSame([], $invoker->getFullTextOptions($plainBuilder));
+
+        $this->assertSame(
+            ['title'],
+            $invoker->attributeColumns[PrefixSearchableModel::class][SearchUsingPrefix::class]
+        );
+        $this->assertSame(
+            [],
+            $invoker->attributeColumns[SearchableModel::class][SearchUsingFullText::class]
+        );
+        $this->assertSame([], $invoker->fullTextOptions[SearchableModel::class]);
     }
 
     public function testCreateAndDeleteIndexAreNoOps(): void
