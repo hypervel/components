@@ -33,6 +33,20 @@ use function blank;
 class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatabase
 {
     /**
+     * Cached searchable attribute columns by model class and attribute class.
+     *
+     * @var array<class-string<Model>, array<class-string, array<string>>>
+     */
+    protected array $attributeColumns = [];
+
+    /**
+     * Cached full-text options by model class.
+     *
+     * @var array<class-string<Model>, array<string, mixed>>
+     */
+    protected array $fullTextOptions = [];
+
+    /**
      * Perform a search against the engine.
      *
      * @return array{results: EloquentCollection<int, Model&SearchableInterface>, total: int}
@@ -367,6 +381,12 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      */
     protected function getAttributeColumns(Builder $builder, string $attributeClass): array
     {
+        $modelClass = $builder->model::class;
+
+        if (array_key_exists($attributeClass, $this->attributeColumns[$modelClass] ?? [])) {
+            return $this->attributeColumns[$modelClass][$attributeClass];
+        }
+
         $columns = [];
 
         $reflection = new ReflectionMethod($builder->model, 'toSearchableArray');
@@ -379,7 +399,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             $columns = array_merge($columns, Arr::wrap($attribute->getArguments()[0]));
         }
 
-        return $columns;
+        return $this->attributeColumns[$modelClass][$attributeClass] = $columns;
     }
 
     /**
@@ -389,6 +409,12 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
      */
     protected function getFullTextOptions(Builder $builder): array
     {
+        $modelClass = $builder->model::class;
+
+        if (array_key_exists($modelClass, $this->fullTextOptions)) {
+            return $this->fullTextOptions[$modelClass];
+        }
+
         $options = [];
 
         $reflection = new ReflectionMethod($builder->model, 'toSearchableArray');
@@ -398,7 +424,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
             $options = array_merge($options, Arr::wrap($arguments));
         }
 
-        return $options;
+        return $this->fullTextOptions[$modelClass] = $options;
     }
 
     /**
