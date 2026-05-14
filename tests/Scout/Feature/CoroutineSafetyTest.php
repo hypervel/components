@@ -256,6 +256,53 @@ class CoroutineSafetyTest extends ScoutTestCase
         $this->assertFalse($afterException);
     }
 
+    public function testImportProgressReportingIsCoroutineIsolated()
+    {
+        $results = [];
+        $waiter = new WaitGroup;
+
+        $waiter->add(1);
+        go(function () use (&$results, $waiter) {
+            Scout::whileReportingImportProgress(
+                function (Collection $models) use (&$results): void {
+                    $results['a'][] = $models->first()->title;
+                },
+                function (): void {
+                    usleep(5000);
+                    Scout::reportImportProgress(new Collection([
+                        new SearchableModel(['title' => 'A']),
+                    ]));
+                }
+            );
+
+            $waiter->done();
+        });
+
+        $waiter->add(1);
+        go(function () use (&$results, $waiter) {
+            usleep(2500);
+
+            Scout::whileReportingImportProgress(
+                function (Collection $models) use (&$results): void {
+                    $results['b'][] = $models->first()->title;
+                },
+                function (): void {
+                    Scout::reportImportProgress(new Collection([
+                        new SearchableModel(['title' => 'B']),
+                    ]));
+                    usleep(5000);
+                }
+            );
+
+            $waiter->done();
+        });
+
+        $waiter->wait();
+
+        $this->assertSame(['A'], $results['a']);
+        $this->assertSame(['B'], $results['b']);
+    }
+
     public function testQueueMakeSearchableBypassIsCoroutineIsolated()
     {
         $this->app->make('config')->set('scout.queue.enabled', true);
