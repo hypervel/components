@@ -25,6 +25,7 @@ eloquent-relationships.md
 eloquent-resources.md
 eloquent-serialization.md
 encryption.md
+errors.md
 pagination.md
 requests.md
 routing.md

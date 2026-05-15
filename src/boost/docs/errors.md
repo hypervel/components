@@ -15,7 +15,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-When you start a new Laravel project, error and exception handling is already configured for you; however, at any point, you may use the `withExceptions` method in your application's `bootstrap/app.php` to manage how exceptions are reported and rendered by your application.
+When you start a new Hypervel project, error and exception handling is already configured for you; however, at any point, you may use the `withExceptions` method in your application's `bootstrap/app.php` to manage how exceptions are reported and rendered by your application.
 
 The `$exceptions` object provided to the `withExceptions` closure is an instance of `Hypervel\Foundation\Configuration\Exceptions` and is responsible for managing exception handling in your application. We'll dive deeper into this object throughout this documentation.
 
@@ -27,7 +27,7 @@ The `debug` option in your `config/app.php` configuration file determines how mu
 During local development, you should set the `APP_DEBUG` environment variable to `true`.
 
 > [!WARNING]
-> In your production environment, the value of `APP_DEBUG` should always be `false`. If the value is set to `true` in production, you risk exposing sensitive configuration values to your application's end users.**
+> In your production environment, the value of `APP_DEBUG` should always be `false`. If the value is set to `true` in production, you risk exposing sensitive configuration values to your application's end users.
 
 <a name="handling-exceptions"></a>
 ## Handling Exceptions
@@ -35,9 +35,9 @@ During local development, you should set the `APP_DEBUG` environment variable to
 <a name="reporting-exceptions"></a>
 ### Reporting Exceptions
 
-In Laravel, exception reporting is used to log exceptions or send them to an external service like [Sentry](https://github.com/getsentry/sentry-laravel) or [Flare](https://flareapp.io). By default, exceptions will be logged based on your [logging](/docs/{{version}}/logging) configuration. However, you are free to log exceptions however you wish.
+In Hypervel, exception reporting is used to log exceptions or send them to an external service like [SonicStack](https://sonicstack.io) or [Sentry](https://github.com/hypervel/sentry). By default, exceptions will be logged based on your [logging](/docs/{{version}}/logging) configuration. However, you are free to log exceptions however you wish.
 
-If you need to report different types of exceptions in different ways, you may use the `report` exception method in your application's `bootstrap/app.php` to register a closure that should be executed when an exception of a given type needs to be reported. Laravel will determine what type of exception the closure reports by examining the type-hint of the closure:
+If you need to report different types of exceptions in different ways, you may use the `report` exception method in your application's `bootstrap/app.php` to register a closure that should be executed when an exception of a given type needs to be reported. Hypervel will determine what type of exception the closure reports by examining the type-hint of the closure:
 
 ```php
 use App\Exceptions\InvalidOrderException;
@@ -49,7 +49,7 @@ use App\Exceptions\InvalidOrderException;
 })
 ```
 
-When you register a custom exception reporting callback using the `report` method, Laravel will still log the exception using the default logging configuration for the application. If you wish to stop the propagation of the exception to the default logging stack, you may use the `stop` method when defining your reporting callback or return `false` from the callback:
+When you register a custom exception reporting callback using the `report` method, Hypervel will still log the exception using the default logging configuration for the application. If you wish to stop the propagation of the exception to the default logging stack, you may use the `stop` method when defining your reporting callback or return `false` from the callback:
 
 ```php
 use App\Exceptions\InvalidOrderException;
@@ -71,7 +71,7 @@ use App\Exceptions\InvalidOrderException;
 <a name="global-log-context"></a>
 #### Global Log Context
 
-If available, Laravel automatically adds the current user's ID to every exception's log message as contextual data. You may define your own global contextual data using the `context` exception method in your application's `bootstrap/app.php` file. This information will be included in every exception's log message written by your application:
+If available, Hypervel automatically adds the current user's ID to every exception's log message as contextual data. You may define your own global contextual data using the `context` exception method in your application's `bootstrap/app.php` file. This information will be included in every exception's log message written by your application:
 
 ```php
 ->withExceptions(function (Exceptions $exceptions): void {
@@ -162,7 +162,7 @@ report($caught); // ignored
 
 When messages are written to your application's [logs](/docs/{{version}}/logging), the messages are written at a specified [log level](/docs/{{version}}/logging#log-levels), which indicates the severity or importance of the message being logged.
 
-As noted above, even when you register a custom exception reporting callback using the `report` method, Laravel will still log the exception using the default logging configuration for the application; however, since the log level can sometimes influence the channels on which a message is logged, you may wish to configure the log level that certain exceptions are logged at.
+As noted above, even when you register a custom exception reporting callback using the `report` method, Hypervel will still log the exception using the default logging configuration for the application; however, since the log level can sometimes influence the channels on which a message is logged, you may wish to configure the log level that certain exceptions are logged at.
 
 To accomplish this, you may use the `level` exception method in your application's `bootstrap/app.php` file. This method receives the exception type as its first argument and the log level as its second argument:
 
@@ -190,7 +190,7 @@ use App\Exceptions\InvalidOrderException;
 })
 ```
 
-Alternatively, you may simply "mark" an exception class with the `Hypervel\Contracts\Debug\ShouldntReport` interface. When an exception is marked with this interface, it will never be reported by Laravel's exception handler:
+Alternatively, you may simply "mark" an exception class with the `Hypervel\Contracts\Debug\ShouldntReport` interface. When an exception is marked with this interface, it will never be reported by Hypervel's exception handler:
 
 ```php
 <?php
@@ -209,7 +209,7 @@ class PodcastProcessingException extends Exception implements ShouldntReport
 If you need even more control over when a particular type of exception is ignored, you may provide a closure to the `dontReportWhen` method:
 
 ```php
-use App\Exceptions\InvalidOrderException;
+use App\Exceptions\PodcastProcessingException;
 use Throwable;
 
 ->withExceptions(function (Exceptions $exceptions): void {
@@ -220,7 +220,7 @@ use Throwable;
 })
 ```
 
-Internally, Laravel already ignores some types of errors for you, such as exceptions resulting from 404 HTTP errors, 403 HTTP responses generated by origin mismatches, or 419 HTTP responses generated by invalid CSRF tokens. If you would like to instruct Laravel to stop ignoring a given type of exception, you may use the `stopIgnoring` exception method in your application's `bootstrap/app.php` file:
+Internally, Hypervel already ignores some types of errors for you, such as exceptions resulting from 404 HTTP errors, 403 HTTP responses generated by origin mismatches, or 419 HTTP responses generated by invalid CSRF tokens. If you would like to instruct Hypervel to stop ignoring a given type of exception, you may use the `stopIgnoring` exception method in your application's `bootstrap/app.php` file:
 
 ```php
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -233,9 +233,9 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 <a name="rendering-exceptions"></a>
 ### Rendering Exceptions
 
-By default, the Laravel exception handler will convert exceptions into an HTTP response for you. However, you are free to register a custom rendering closure for exceptions of a given type. You may accomplish this by using the `render` exception method in your application's `bootstrap/app.php` file.
+By default, the Hypervel exception handler will convert exceptions into an HTTP response for you. However, you are free to register a custom rendering closure for exceptions of a given type. You may accomplish this by using the `render` exception method in your application's `bootstrap/app.php` file.
 
-The closure passed to the `render` method should return an instance of `Hypervel\Http\Response`, which may be generated via the `response` helper. Laravel will determine what type of exception the closure renders by examining the type-hint of the closure:
+The closure passed to the `render` method should return an instance of `Hypervel\Http\Response`, which may be generated via the `response` helper. Hypervel will determine what type of exception the closure renders by examining the type-hint of the closure:
 
 ```php
 use App\Exceptions\InvalidOrderException;
@@ -248,7 +248,7 @@ use Hypervel\Http\Request;
 })
 ```
 
-You may also use the `render` method to override the rendering behavior for built-in Laravel or Symfony exceptions such as `NotFoundHttpException`. If the closure given to the `render` method does not return a value, Laravel's default exception rendering will be utilized:
+You may also use the `render` method to override the rendering behavior for built-in Hypervel or Symfony exceptions such as `NotFoundHttpException`. If the closure given to the `render` method does not return a value, Hypervel's default exception rendering will be utilized:
 
 ```php
 use Hypervel\Http\Request;
@@ -268,7 +268,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 <a name="rendering-exceptions-as-json"></a>
 #### Rendering Exceptions as JSON
 
-When rendering an exception, Laravel will automatically determine if the exception should be rendered as an HTML or JSON response based on the `Accept` header of the request. If you would like to customize how Laravel determines whether to render HTML or JSON exception responses, you may utilize the `shouldRenderJsonWhen` method:
+When rendering an exception, Hypervel will automatically determine if the exception should be rendered as an HTML or JSON response based on the `Accept` header of the request. If you would like to customize how Hypervel determines whether to render HTML or JSON exception responses, you may utilize the `shouldRenderJsonWhen` method:
 
 ```php
 use Hypervel\Http\Request;
@@ -288,7 +288,7 @@ use Throwable;
 <a name="customizing-the-exception-response"></a>
 #### Customizing the Exception Response
 
-Rarely, you may need to customize the entire HTTP response rendered by Laravel's exception handler. To accomplish this, you may register a response customization closure using the `respond` method:
+Rarely, you may need to customize the entire HTTP response rendered by Hypervel's exception handler. To accomplish this, you may register a response customization closure using the `respond` method:
 
 ```php
 use Symfony\Component\HttpFoundation\Response;
@@ -340,7 +340,7 @@ class InvalidOrderException extends Exception
 }
 ```
 
-If your exception extends an exception that is already renderable, such as a built-in Laravel or Symfony exception, you may return `false` from the exception's `render` method to render the exception's default HTTP response:
+If your exception extends an exception that is already renderable, such as a built-in Hypervel or Symfony exception, you may return `false` from the exception's `render` method to render the exception's default HTTP response:
 
 ```php
 /**
@@ -357,7 +357,7 @@ public function render(Request $request): Response|bool
 }
 ```
 
-If your exception contains custom reporting logic that is only necessary when certain conditions are met, you may need to instruct Laravel to sometimes report the exception using the default exception handling configuration. To accomplish this, you may return `false` from the exception's `report` method:
+If your exception contains custom reporting logic that is only necessary when certain conditions are met, you may need to instruct Hypervel to sometimes report the exception using the default exception handling configuration. To accomplish this, you may return `false` from the exception's `report` method:
 
 ```php
 /**
@@ -377,7 +377,7 @@ public function report(): bool
 ```
 
 > [!NOTE]
-> You may type-hint any required dependencies of the `report` method and they will automatically be injected into the method by Laravel's [service container](/docs/{{version}}/container).
+> You may type-hint any required dependencies of the `report` method and they will automatically be injected into the method by Hypervel's [service container](/docs/{{version}}/container).
 
 <a name="throttling-reported-exceptions"></a>
 ### Throttling Reported Exceptions
@@ -477,16 +477,16 @@ abort(404);
 <a name="custom-http-error-pages"></a>
 ### Custom HTTP Error Pages
 
-Laravel makes it easy to display custom error pages for various HTTP status codes. For example, to customize the error page for 404 HTTP status codes, create a `resources/views/errors/404.blade.php` view template. This view will be rendered for all 404 errors generated by your application. The views within this directory should be named to match the HTTP status code they correspond to. The `Symfony\Component\HttpKernel\Exception\HttpException` instance raised by the `abort` function will be passed to the view as an `$exception` variable:
+Hypervel makes it easy to display custom error pages for various HTTP status codes. For example, to customize the error page for 404 HTTP status codes, create a `resources/views/errors/404.blade.php` view template. This view will be rendered for all 404 errors generated by your application. The views within this directory should be named to match the HTTP status code they correspond to. The `Symfony\Component\HttpKernel\Exception\HttpException` instance raised by the `abort` function will be passed to the view as an `$exception` variable:
 
 ```blade
 <h2>{{ $exception->getMessage() }}</h2>
 ```
 
-You may publish Laravel's default error page templates using the `vendor:publish` Artisan command. Once the templates have been published, you may customize them to your liking:
+You may publish Hypervel's default error page templates using the `vendor:publish` Artisan command. Once the templates have been published, you may customize them to your liking:
 
 ```shell
-php artisan vendor:publish --tag=laravel-errors
+php artisan vendor:publish --tag=hypervel-errors
 ```
 
 <a name="fallback-http-error-pages"></a>
@@ -494,4 +494,4 @@ php artisan vendor:publish --tag=laravel-errors
 
 You may also define a "fallback" error page for a given series of HTTP status codes. This page will be rendered if there is not a corresponding page for the specific HTTP status code that occurred. To accomplish this, define a `4xx.blade.php` template and a `5xx.blade.php` template in your application's `resources/views/errors` directory.
 
-When defining fallback error pages, the fallback pages will not affect `404`, `500`, and `503` error responses since Laravel has internal, dedicated pages for these status codes. To customize the pages rendered for these status codes, you should define a custom error page for each of them individually.
+When defining fallback error pages, the fallback pages will not affect `404`, `500`, and `503` error responses since Hypervel has internal, dedicated pages for these status codes. To customize the pages rendered for these status codes, you should define a custom error page for each of them individually.
