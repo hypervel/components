@@ -8,26 +8,28 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel's encryption services provide a simple, convenient interface for encrypting and decrypting text via OpenSSL using AES-256 and AES-128 encryption. All of Laravel's encrypted values are signed using a message authentication code (MAC) so that their underlying value cannot be modified or tampered with once encrypted.
+Hypervel's encryption services provide a simple, convenient interface for encrypting and decrypting text via OpenSSL using AES-256 and AES-128 encryption. All of Hypervel's encrypted values are authenticated so that their underlying value cannot be modified or tampered with once encrypted. CBC encrypted values are signed using a message authentication code (MAC), while GCM encrypted values use an authentication tag.
 
 <a name="configuration"></a>
 ## Configuration
 
-Before using Laravel's encrypter, you must set the `key` configuration option in your `config/app.php` configuration file. This configuration value is driven by the `APP_KEY` environment variable. You should use the `php artisan key:generate` command to generate this variable's value since the `key:generate` command will use PHP's secure random bytes generator to build a cryptographically secure key for your application. Typically, the value of the `APP_KEY` environment variable will be generated for you during [Laravel's installation](/docs/{{version}}/installation).
+Before using Hypervel's encrypter, you must set the `key` configuration option in your `config/app.php` configuration file. This configuration value is driven by the `APP_KEY` environment variable. You should use the `php artisan key:generate` command to generate this variable's value since the `key:generate` command will use PHP's secure random bytes generator to build a cryptographically secure key for your application. Typically, the value of the `APP_KEY` environment variable will be generated for you during [Hypervel's installation](/docs/{{version}}/installation).
+
+Hypervel supports `AES-128-CBC`, `AES-256-CBC`, `AES-128-GCM`, and `AES-256-GCM`. By default, Hypervel uses the `AES-256-CBC` cipher.
 
 <a name="gracefully-rotating-encryption-keys"></a>
 ### Gracefully Rotating Encryption Keys
 
-If you change your application's encryption key, all authenticated user sessions will be logged out of your application. This is because every cookie, including session cookies, are encrypted by Laravel. In addition, it will no longer be possible to decrypt any data that was encrypted with your previous encryption key.
+If you change your application's encryption key, all authenticated user sessions will be logged out of your application. This is because every cookie, including session cookies, are encrypted by Hypervel. In addition, it will no longer be possible to decrypt any data that was encrypted with your previous encryption key.
 
-To mitigate this issue, Laravel allows you to list your previous encryption keys in your application's `APP_PREVIOUS_KEYS` environment variable. This variable may contain a comma-delimited list of all of your previous encryption keys:
+To mitigate this issue, Hypervel allows you to list your previous encryption keys in your application's `APP_PREVIOUS_KEYS` environment variable. This variable may contain a comma-delimited list of all of your previous encryption keys:
 
 ```ini
 APP_KEY="base64:J63qRTDLub5NuZvP+kb8YIorGS6qFYHKVo6u7179stY="
 APP_PREVIOUS_KEYS="base64:2nLsGFGzyoae2ax3EF2Lyq/hH6QghBGLIq5uL+Gp8/w="
 ```
 
-When you set this environment variable, Laravel will always use the "current" encryption key when encrypting values. However, when decrypting values, Laravel will first try the current key, and if decryption fails using the current key, Laravel will try all previous keys until one of the keys is able to decrypt the value.
+When you set this environment variable, Hypervel will always use the "current" encryption key when encrypting values. However, when decrypting values, Hypervel will first try the current key, and if decryption fails using the current key, Hypervel will try all previous keys until one of the keys is able to decrypt the value.
 
 This approach to graceful decryption allows users to keep using your application uninterrupted even if your encryption key is rotated.
 
@@ -37,7 +39,7 @@ This approach to graceful decryption allows users to keep using your application
 <a name="encrypting-a-value"></a>
 #### Encrypting a Value
 
-You may encrypt a value using the `encryptString` method provided by the `Crypt` facade. All encrypted values are encrypted using OpenSSL and the AES-256-CBC cipher. Furthermore, all encrypted values are signed with a message authentication code (MAC). The integrated message authentication code will prevent the decryption of any values that have been tampered with by malicious users:
+You may encrypt a value using the `encryptString` method provided by the `Crypt` facade. All encrypted values are encrypted using OpenSSL and the configured cipher. Furthermore, encrypted values are authenticated to prevent the decryption of any values that have been tampered with by malicious users:
 
 ```php
 <?php
@@ -67,7 +69,7 @@ class DigitalOceanTokenController extends Controller
 <a name="decrypting-a-value"></a>
 #### Decrypting a Value
 
-You may decrypt values using the `decryptString` method provided by the `Crypt` facade. If the value cannot be properly decrypted, such as when the message authentication code is invalid, an `Hypervel\Contracts\Encryption\DecryptException` will be thrown:
+You may decrypt values using the `decryptString` method provided by the `Crypt` facade. If the value cannot be properly decrypted, such as when the encrypted payload cannot be authenticated, an `Hypervel\Contracts\Encryption\DecryptException` will be thrown:
 
 ```php
 use Hypervel\Contracts\Encryption\DecryptException;
