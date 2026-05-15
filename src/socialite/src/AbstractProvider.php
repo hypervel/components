@@ -125,10 +125,8 @@ abstract class AbstractProvider
      */
     protected function getRequest(): Request
     {
-        /** @var Request $request */
-        $request = $this->getContext('request', $this->request);
-
-        return $request;
+        // @phpstan-ignore-next-line getContext('request') is only written by setRequest(Request).
+        return $this->getContext('request', $this->request);
     }
 
     /**
