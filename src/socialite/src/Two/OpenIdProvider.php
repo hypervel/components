@@ -48,15 +48,15 @@ abstract class OpenIdProvider extends AbstractProvider
         $nonce = null;
 
         if ($this->usesState()) {
-            $this->request->session()->put('state', $state = $this->getState());
+            $this->getRequest()->session()->put('state', $state = $this->getState());
         }
 
         if ($this->usesPKCE()) {
-            $this->request->session()->put('code_verifier', $this->getCodeVerifier());
+            $this->getRequest()->session()->put('code_verifier', $this->getCodeVerifier());
         }
 
         if ($this->usesNonce()) {
-            $this->request->session()->put('nonce', $nonce = $this->getNonce());
+            $this->getRequest()->session()->put('nonce', $nonce = $this->getNonce());
         }
 
         return new RedirectResponse($this->getAuthUrl($state, $nonce));
@@ -143,8 +143,8 @@ abstract class OpenIdProvider extends AbstractProvider
     {
         $nonce = null;
 
-        if ($this->request->session()->has('nonce')) {
-            $nonce = $this->request->session()->get('nonce');
+        if ($this->getRequest()->session()->has('nonce')) {
+            $nonce = $this->getRequest()->session()->get('nonce');
         }
 
         return $nonce;

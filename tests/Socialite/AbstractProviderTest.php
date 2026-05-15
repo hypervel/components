@@ -10,8 +10,9 @@ use Hypervel\Http\Request;
 use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use ReflectionProperty;
 use Swoole\Coroutine\Channel;
+
+use function Hypervel\Coroutine\parallel;
 
 /**
  * Tests for the protocol-agnostic AbstractProvider base class.
@@ -94,9 +95,34 @@ class AbstractProviderTest extends TestCase
         $provider = new GenericTestProviderStub($originalRequest);
         $provider->setRequest($newRequest);
 
-        // Verify the request was updated by accessing the protected property via reflection
-        $reflection = new ReflectionProperty($provider, 'request');
-        $this->assertSame($newRequest, $reflection->getValue($provider));
+        $this->assertSame($newRequest, $provider->getProviderRequest());
+    }
+
+    public function testSetRequestIsIsolatedPerCoroutine()
+    {
+        $provider = new GenericTestProviderStub(
+            Request::create('/baseline'),
+        );
+
+        [$pathA, $pathB] = parallel([
+            function () use ($provider): string {
+                $provider->setRequest(Request::create('/tenant-a'));
+
+                usleep(5000);
+
+                return $provider->getProviderRequest()->getPathInfo();
+            },
+            function () use ($provider): string {
+                usleep(2500);
+
+                $provider->setRequest(Request::create('/tenant-b'));
+
+                return $provider->getProviderRequest()->getPathInfo();
+            },
+        ]);
+
+        $this->assertSame('/tenant-a', $pathA);
+        $this->assertSame('/tenant-b', $pathB);
     }
 
     public function testBaselineConfigSurvivesAcrossCoroutines()

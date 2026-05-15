@@ -29,7 +29,7 @@ class GitlabProvider extends AbstractProvider implements ProviderInterface
     public function setHost(?string $host): static
     {
         if (! empty($host)) {
-            $this->host = rtrim($host, '/');
+            $this->setContext('host', rtrim($host, '/'));
         }
 
         return $this;
@@ -37,21 +37,39 @@ class GitlabProvider extends AbstractProvider implements ProviderInterface
 
     protected function getAuthUrl(?string $state): string
     {
-        return $this->buildAuthUrlFromBase($this->host . '/oauth/authorize', $state);
+        return $this->buildAuthUrlFromBase($this->getHost() . '/oauth/authorize', $state);
     }
 
     protected function getTokenUrl(): string
     {
-        return $this->host . '/oauth/token';
+        return $this->getHost() . '/oauth/token';
     }
 
     protected function getUserByToken(string $token): array
     {
-        $response = $this->getHttpClient()->get($this->host . '/api/v3/user', [
+        $response = $this->getHttpClient()->get($this->getHost() . '/api/v3/user', [
             RequestOptions::QUERY => ['access_token' => $token],
         ]);
 
         return json_decode((string) $response->getBody(), true);
+    }
+
+    /**
+     * Get the Gitlab instance host.
+     */
+    protected function getHost(): string
+    {
+        /** @var string|null $host */
+        $host = $this->getContext('host');
+
+        if (! empty($host)) {
+            return rtrim($host, '/');
+        }
+
+        /** @var string|null $configuredHost */
+        $configuredHost = $this->getConfig('host');
+
+        return rtrim(! empty($configuredHost) ? $configuredHost : $this->host, '/');
     }
 
     protected function mapUserToObject(array $user): User
