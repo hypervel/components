@@ -20,6 +20,7 @@ deployment.md
 eloquent-collections.md
 eloquent-factories.md
 eloquent-mutators.md
+eloquent-relationships.md
 pagination.md
 requests.md
 routing.md
