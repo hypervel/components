@@ -46,6 +46,27 @@ class SignalManagerTest extends TestCase
         $this->assertInstanceOf(SignalHandlerStub::class, $manager->getHandlers()[SignalHandler::WORKER][SIGTERM][1]);
     }
 
+    public function testInitReplacesExistingHandlers()
+    {
+        $container = $this->getContainer();
+        $container->shouldReceive('make')->with(ConfigContract::class)->andReturnUsing(function () {
+            return new Repository([
+                'signal' => [
+                    'handlers' => [
+                        SignalHandlerStub::class,
+                        SignalHandler2Stub::class,
+                    ],
+                ],
+            ]);
+        });
+
+        $manager = new SignalManager($container);
+        $manager->init();
+        $manager->init();
+
+        $this->assertCount(2, $manager->getHandlers()[SignalHandler::WORKER][SIGTERM]);
+    }
+
     public function testSetAndGetStopped()
     {
         $container = $this->getContainer();
