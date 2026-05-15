@@ -21,6 +21,7 @@ eloquent-collections.md
 eloquent-factories.md
 eloquent-mutators.md
 eloquent-relationships.md
+eloquent-resources.md
 pagination.md
 requests.md
 routing.md
