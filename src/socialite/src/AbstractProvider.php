@@ -126,9 +126,7 @@ abstract class AbstractProvider
     protected function getRequest(): Request
     {
         /** @var Request $request */
-        $request = $this->getContext('request', $this->request);
-
-        return $request;
+        return $this->getContext('request', $this->request);
     }
 
     /**

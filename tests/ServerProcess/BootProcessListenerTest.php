@@ -19,7 +19,7 @@ class BootProcessListenerTest extends TestCase
     public function testBootsProcessesFromConfig()
     {
         $server = m::mock(Server::class);
-        $process = new BootProcessListenerFakeProcess();
+        $process = new BootProcessListenerFakeProcess;
 
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('make')
@@ -45,7 +45,7 @@ class BootProcessListenerTest extends TestCase
     public function testBootsProcessesFromServerConfig()
     {
         $server = m::mock(Server::class);
-        $process = new BootProcessListenerFakeProcess();
+        $process = new BootProcessListenerFakeProcess;
 
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('make')
@@ -70,7 +70,7 @@ class BootProcessListenerTest extends TestCase
     {
         $server = m::mock(Server::class);
 
-        $process = new BootProcessListenerFakeProcess();
+        $process = new BootProcessListenerFakeProcess;
         ProcessManager::register($process);
 
         $container = m::mock(ContainerContract::class);
@@ -135,7 +135,7 @@ class BootProcessListenerTest extends TestCase
     public function testDedupesDuplicateClassStringRegistration()
     {
         $server = m::mock(Server::class);
-        $process = new BootProcessListenerFakeProcess();
+        $process = new BootProcessListenerFakeProcess;
 
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('make')
@@ -161,8 +161,8 @@ class BootProcessListenerTest extends TestCase
     {
         $server = m::mock(Server::class);
 
-        $process1 = new BootProcessListenerFakeProcess();
-        $process2 = new BootProcessListenerFakeProcess();
+        $process1 = new BootProcessListenerFakeProcess;
+        $process2 = new BootProcessListenerFakeProcess;
         ProcessManager::register($process1);
         ProcessManager::register($process2);
 

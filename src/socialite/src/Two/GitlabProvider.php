@@ -59,14 +59,14 @@ class GitlabProvider extends AbstractProvider implements ProviderInterface
      */
     protected function getHost(): string
     {
-        /** @var string|null $host */
+        /** @var null|string $host */
         $host = $this->getContext('host');
 
         if (! empty($host)) {
             return rtrim($host, '/');
         }
 
-        /** @var string|null $configuredHost */
+        /** @var null|string $configuredHost */
         $configuredHost = $this->getConfig('host');
 
         return rtrim(! empty($configuredHost) ? $configuredHost : $this->host, '/');
