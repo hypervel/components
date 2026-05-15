@@ -27,6 +27,11 @@ use WeakMap;
 trait ResolvesJsonApiElements
 {
     /**
+     * The default maximum relationship depth.
+     */
+    protected const int DEFAULT_MAX_RELATIONSHIP_DEPTH = 5;
+
+    /**
      * Determine whether resources respect inclusions and fields from the request.
      */
     protected bool $usesRequestQueryString = true;
@@ -51,7 +56,7 @@ trait ResolvesJsonApiElements
     /**
      * The maximum relationship depth.
      */
-    public static int $maxRelationshipDepth = 5;
+    public static int $maxRelationshipDepth = self::DEFAULT_MAX_RELATIONSHIP_DEPTH;
 
     /**
      * Specify the maximum relationship depth.
