@@ -594,7 +594,7 @@ When porting source classes that use static properties for caching (e.g., `$boot
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
 2. Check whether the subscriber (`tests/Support/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
 
-Place `flushState()` immediately before the first magic method (`__call`, `__get`, `__set`, etc.). If the class has no magic methods, place it at the end of the class. Magic methods should remain the class tail; `flushState()` is a normal public static cleanup method.
+Place `flushState()` at the end of the class. The only exception is when the class has trailing magic dispatch/lifecycle methods (`__call`, `__callStatic`, `__get`, `__set`, `__isset`, `__unset`, `__destruct`) at the end; in that case, place `flushState()` immediately before that trailing magic-method block. `__invoke()` is not a placement anchor.
 
 Use the standard title docblock for `flushState()` methods:
 
