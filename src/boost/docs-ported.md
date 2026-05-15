@@ -17,6 +17,7 @@ csrf.md
 database.md
 database-testing.md
 deployment.md
+eloquent.md
 eloquent-collections.md
 eloquent-factories.md
 eloquent-mutators.md
