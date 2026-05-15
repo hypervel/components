@@ -266,6 +266,10 @@ class Server implements BootstrapsForServer, OnHandShakeInterface, OnCloseInterf
     /**
      * Set the server name.
      *
+     * Boot-only. Mutates the worker-lifetime WebSocket handler before Swoole
+     * starts; runtime use races across connections and changes emitted server
+     * context.
+     *
      * @return $this
      */
     public function setServerName(string $serverName): static

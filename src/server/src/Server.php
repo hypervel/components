@@ -33,6 +33,9 @@ class Server implements ServerInterface
 
     /**
      * Initialize the server with the given configuration.
+     *
+     * Boot-only. Mutates the underlying Swoole server and registered callbacks;
+     * runtime use races with active workers and request handling.
      */
     public function init(ServerConfig $config): ServerInterface
     {

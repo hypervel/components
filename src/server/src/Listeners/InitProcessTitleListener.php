@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Listeners;
 
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\OnManagerStart;
@@ -19,7 +20,10 @@ class InitProcessTitleListener
     public function __construct(Container $container)
     {
         if ($container->has('config')) {
-            if ($name = $container->make('config')->get('app.name')) {
+            /** @var Repository $config */
+            $config = $container->make('config');
+
+            if ($name = $config->string('app.name', '')) {
                 $this->name = $name;
             }
         }

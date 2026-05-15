@@ -60,6 +60,9 @@ class ServerFactory
 
     /**
      * Set the server instance.
+     *
+     * Boot-only. Mutates the shared ServerFactory before startup; runtime use
+     * races across coroutines and changes the server used by later calls.
      */
     public function setServer(Server $server): static
     {
@@ -80,6 +83,9 @@ class ServerFactory
 
     /**
      * Set the event dispatcher instance.
+     *
+     * Boot-only. Set before configure(); the constructed Server captures this
+     * dispatcher and does not pick up later changes.
      */
     public function setEventDispatcher(DispatcherContract $eventDispatcher): static
     {
@@ -100,6 +106,9 @@ class ServerFactory
 
     /**
      * Set the logger instance.
+     *
+     * Boot-only. Set before configure(); the constructed Server captures this
+     * logger and does not pick up later changes.
      */
     public function setLogger(LoggerInterface $logger): static
     {
