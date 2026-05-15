@@ -40,6 +40,12 @@ class SymfonySessionDecorator implements SessionInterface
         return $this->store->getName();
     }
 
+    /**
+     * Set the session name.
+     *
+     * Boot-only. Delegates to the shared session store name; per-request use
+     * races across coroutines and changes the cookie name for concurrent requests.
+     */
     public function setName(string $name): void
     {
         $this->store->setName($name);

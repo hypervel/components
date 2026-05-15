@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cookie\QueueingFactory as CookieJar;
 use Hypervel\Http\Request;
 use Hypervel\Support\InteractsWithTime;
@@ -14,9 +15,9 @@ class CookieSessionHandler implements SessionHandlerInterface
     use InteractsWithTime;
 
     /**
-     * The request instance.
+     * Context key prefix for the current request.
      */
-    protected Request $request;
+    protected const REQUEST_CONTEXT_KEY_PREFIX = '__session.cookie.request.';
 
     /**
      * Create a new cookie driven handler instance.
@@ -44,7 +45,7 @@ class CookieSessionHandler implements SessionHandlerInterface
 
     public function read(string $sessionId): false|string
     {
-        $value = $this->request->cookies->get($sessionId) ?: '';
+        $value = $this->getRequest()->cookies->get($sessionId) ?: '';
 
         if (! is_null($decoded = json_decode($value, true))
             && is_array($decoded)
@@ -84,6 +85,14 @@ class CookieSessionHandler implements SessionHandlerInterface
      */
     public function setRequest(Request $request): void
     {
-        $this->request = $request;
+        CoroutineContext::set(self::REQUEST_CONTEXT_KEY_PREFIX . spl_object_id($this), $request);
+    }
+
+    /**
+     * Get the request instance for the current coroutine.
+     */
+    protected function getRequest(): Request
+    {
+        return CoroutineContext::get(self::REQUEST_CONTEXT_KEY_PREFIX . spl_object_id($this));
     }
 }
