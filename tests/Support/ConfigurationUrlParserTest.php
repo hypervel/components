@@ -445,4 +445,22 @@ class ConfigurationUrlParserTest extends TestCase
             'driver' => 'mysql',
         ], (new ConfigurationUrlParser)->parseConfiguration('some-particular-alias://null'));
     }
+
+    public function testFlushStateRestoresDriverAliases()
+    {
+        ConfigurationUrlParser::addDriverAlias('some-particular-alias', 'mysql');
+        $this->assertArrayHasKey('some-particular-alias', ConfigurationUrlParser::getDriverAliases());
+
+        ConfigurationUrlParser::flushState();
+
+        $this->assertEquals([
+            'mssql' => 'sqlsrv',
+            'mysql2' => 'mysql',
+            'postgres' => 'pgsql',
+            'postgresql' => 'pgsql',
+            'sqlite3' => 'sqlite',
+            'redis' => 'tcp',
+            'rediss' => 'tls',
+        ], ConfigurationUrlParser::getDriverAliases());
+    }
 }

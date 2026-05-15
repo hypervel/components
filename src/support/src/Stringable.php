@@ -1217,6 +1217,14 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Proxy dynamic properties onto methods.
      */
     public function __get(string $key): mixed

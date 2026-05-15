@@ -51,6 +51,16 @@ class DateFacadeTest extends TestCase
         $this->assertBetweenStartAndNow($start, Date::now()->getTimestamp());
     }
 
+    public function testFlushStateRestoresDefaultDateFactory()
+    {
+        DateFactory::use(DateTime::class);
+        $this->assertSame(DateTime::class, get_class(Date::now()));
+
+        DateFactory::flushState();
+
+        $this->assertSame(Carbon::class, get_class(Date::now()));
+    }
+
     public function testCarbonImmutable()
     {
         DateFactory::use(CarbonImmutable::class);

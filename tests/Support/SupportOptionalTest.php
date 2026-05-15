@@ -102,4 +102,14 @@ class SupportOptionalTest extends TestCase
 
         $this->assertFalse(isset($optional->item));
     }
+
+    public function testFlushStateClearsMacros()
+    {
+        Optional::macro('flushable', fn () => true);
+        $this->assertTrue(Optional::hasMacro('flushable'));
+
+        Optional::flushState();
+
+        $this->assertFalse(Optional::hasMacro('flushable'));
+    }
 }

@@ -29,6 +29,16 @@ class SupportStringableTest extends TestCase
         return new Stringable($string);
     }
 
+    public function testFlushStateClearsMacros()
+    {
+        Stringable::macro('flushable', fn () => true);
+        $this->assertTrue(Stringable::hasMacro('flushable'));
+
+        Stringable::flushState();
+
+        $this->assertFalse(Stringable::hasMacro('flushable'));
+    }
+
     public function testClassBasename()
     {
         $this->assertEquals(

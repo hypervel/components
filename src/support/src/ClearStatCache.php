@@ -63,4 +63,13 @@ class ClearStatCache
     {
         self::$interval = $interval;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$interval = 1;
+        self::$lastCleared = 0;
+    }
 }

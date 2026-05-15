@@ -11,6 +11,16 @@ use Doctrine\Inflector\InflectorFactory;
 class Pluralizer
 {
     /**
+     * Default uncountable non-nouns word forms.
+     *
+     * @var list<string>
+     */
+    protected const DEFAULT_UNCOUNTABLE = [
+        'recommended',
+        'related',
+    ];
+
+    /**
      * The cached inflector instance.
      */
     protected static ?Inflector $inflector = null;
@@ -25,10 +35,7 @@ class Pluralizer
      *
      * @var list<string>
      */
-    public static array $uncountable = [
-        'recommended',
-        'related',
-    ];
+    public static array $uncountable = self::DEFAULT_UNCOUNTABLE;
 
     /**
      * Get the plural form of an English word.
@@ -39,7 +46,7 @@ class Pluralizer
             $count = count($count);
         }
 
-        if ((int) abs($count) === 1 || static::uncountable($value) || preg_match('/^(.*)[A-Za-z0-9\x{0080}-\x{FFFF}]$/u', $value) == 0) {
+        if ((int) abs($count) === 1 || static::uncountable($value) || preg_match('/^(.*)[A-Za-z0-9\x{0080}-\x{FFFF}]$/u', $value) !== 1) {
             return $value;
         }
 
@@ -105,5 +112,15 @@ class Pluralizer
     {
         static::$language = $language;
         static::$inflector = null;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$inflector = null;
+        static::$language = 'english';
+        static::$uncountable = self::DEFAULT_UNCOUNTABLE;
     }
 }

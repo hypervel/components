@@ -7,9 +7,10 @@ namespace Hypervel\Tests\Support;
 use DateTime;
 use Hypervel\Support\DataObject;
 use Hypervel\Support\Str;
+use Hypervel\Tests\TestCase;
 use LogicException;
 use OutOfBoundsException;
-use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 use RuntimeException;
 use stdClass;
 
@@ -378,6 +379,25 @@ class DataObjectTest extends TestCase
         $this->assertSame(TestGenderEnum::Male, $user->gender);
     }
 
+    public function testFlushStateRestoresStaticDefaults(): void
+    {
+        TestDataObject::make($this->getData());
+        TestDataObject::disableAutoCasting();
+        $this->setDataObjectStaticProperty('dateFormat', 'Y/m/d');
+
+        $this->assertNotSame([], $this->getDataObjectStaticProperty('reflectionParametersCache'));
+        $this->assertFalse(TestDataObject::isAutoCasting());
+
+        TestDataObject::flushState();
+
+        $this->assertSame([], $this->getDataObjectStaticProperty('reflectionParametersCache'));
+        $this->assertSame([], $this->getDataObjectStaticProperty('propertyMapCache'));
+        $this->assertSame([], $this->getDataObjectStaticProperty('reversedPropertyMapCache'));
+        $this->assertSame([], $this->getDataObjectStaticProperty('dependenciesMapCache'));
+        $this->assertTrue(TestDataObject::isAutoCasting());
+        $this->assertSame('Y-m-d H:i:s', $this->getDataObjectStaticProperty('dateFormat'));
+    }
+
     protected function getData(): array
     {
         return [
@@ -388,6 +408,16 @@ class DataObjectTest extends TestCase
             'array_value' => ['item1', 'item2'],
             'object_value' => new stdClass,
         ];
+    }
+
+    private function getDataObjectStaticProperty(string $name): mixed
+    {
+        return (new ReflectionClass(DataObject::class))->getStaticPropertyValue($name);
+    }
+
+    private function setDataObjectStaticProperty(string $name, mixed $value): void
+    {
+        (new ReflectionClass(DataObject::class))->setStaticPropertyValue($name, $value);
     }
 }
 

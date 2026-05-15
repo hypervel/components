@@ -91,6 +91,14 @@ class Optional implements ArrayAccess
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Dynamically pass a method to the underlying object.
      */
     public function __call(string $method, array $parameters): mixed

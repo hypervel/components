@@ -36,4 +36,14 @@ class SupportBenchmarkTest extends TestCase
         $this->assertTrue(Benchmark::hasMacro($macroName));
         $this->assertTrue(Benchmark::$macroName());
     }
+
+    public function testFlushStateClearsMacros()
+    {
+        Benchmark::macro('flushable', fn () => true);
+        $this->assertTrue(Benchmark::hasMacro('flushable'));
+
+        Benchmark::flushState();
+
+        $this->assertFalse(Benchmark::hasMacro('flushable'));
+    }
 }

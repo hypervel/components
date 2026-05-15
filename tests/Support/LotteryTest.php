@@ -141,6 +141,16 @@ class LotteryTest extends TestCase
         Lottery::odds(1, 10000)->winner(fn () => 'winner')->loser(fn () => 'loser')->choose();
     }
 
+    public function testFlushStateRestoresNormalResultFactory()
+    {
+        Lottery::alwaysLose();
+        $this->assertFalse(Lottery::odds(1, 1)->choose());
+
+        Lottery::flushState();
+
+        $this->assertTrue(Lottery::odds(1, 1)->choose());
+    }
+
     public function testItThrowsForFloatsOverOne()
     {
         $this->expectException(RuntimeException::class);
