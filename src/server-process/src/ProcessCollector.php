@@ -18,6 +18,10 @@ class ProcessCollector
 
     /**
      * Add a process to the collector under the given name.
+     *
+     * Boot-only. The collector is process-wide static state populated during
+     * server boot; runtime use mutates state shared across every coroutine in
+     * the worker.
      */
     public static function add(string $name, Process $process): void
     {

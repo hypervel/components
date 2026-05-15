@@ -58,6 +58,10 @@ class ProcessManager
 
     /**
      * Set the running state.
+     *
+     * Boot-only. Part of the server lifecycle; also called by the SIGTERM
+     * handler at shutdown. Mutates worker-lifetime static state; per-request
+     * use races across coroutines and disables the register() guard.
      */
     public static function setRunning(bool $running): void
     {
