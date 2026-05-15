@@ -10,7 +10,7 @@ use Attribute;
  * Declare the Eloquent builder class for a model using an attribute.
  *
  * When placed on a model class, the model will use the specified builder
- * class when creating new query builder instances via newModelBuilder().
+ * class when creating new query builder instances via newEloquentBuilder().
  *
  * @example
  * ```php
