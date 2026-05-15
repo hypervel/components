@@ -181,6 +181,8 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\Stringable::flushState();
         \Hypervel\Support\Uri::flushState();
         \Hypervel\Telescope\Telescope::flushState();
+        \Hypervel\Telescope\Watchers\CacheWatcher::flushState();
+        \Hypervel\Telescope\Watchers\RedisWatcher::flushState();
         \Hypervel\Testbench\Bootstrapper::flushState();
         \Hypervel\Testbench\Foundation\Config::flush();
         \Hypervel\Testbench\Foundation\Console\TerminatingConsole::flush();

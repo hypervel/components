@@ -10,6 +10,7 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\CacheWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use ReflectionClass;
 
 #[WithConfig('telescope.watchers', [
     CacheWatcher::class => [
@@ -30,6 +31,15 @@ class CacheWatcherTest extends FeatureTestCase
         parent::setUp();
 
         CacheWatcher::enableCacheEvents($this->app);
+    }
+
+    public function testFlushStateDisablesCacheEvents()
+    {
+        $this->assertTrue($this->eventsAreEnabled());
+
+        CacheWatcher::flushState();
+
+        $this->assertFalse($this->eventsAreEnabled());
     }
 
     public function testCacheWatcherRegistersMissedEntries()
@@ -135,5 +145,10 @@ class CacheWatcherTest extends FeatureTestCase
         $this->assertSame('set', $entry->content['type']);
         $this->assertSame('my-key', $entry->content['key']);
         $this->assertSame('laravel', $entry->content['value']);
+    }
+
+    private function eventsAreEnabled(): bool
+    {
+        return (new ReflectionClass(CacheWatcher::class))->getStaticPropertyValue('eventsEnabled');
     }
 }

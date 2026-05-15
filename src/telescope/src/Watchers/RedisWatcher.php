@@ -100,4 +100,12 @@ class RedisWatcher extends Watcher
             'transaction',
         ]);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$eventsEnabled = false;
+    }
 }
