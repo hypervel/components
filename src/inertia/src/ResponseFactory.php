@@ -450,6 +450,6 @@ class ResponseFactory
      */
     public static function flushState(): void
     {
-        CoroutineContext::forget(InertiaState::CONTEXT_KEY);
+        static::flushMacros();
     }
 }

@@ -110,6 +110,5 @@ class EncodedHtmlString extends HtmlString
     public static function flushState(): void
     {
         static::$encodeUsingFactory = null;
-        CoroutineContext::forget(self::ENCODER_CONTEXT_KEY);
     }
 }

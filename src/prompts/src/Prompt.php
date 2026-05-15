@@ -508,9 +508,6 @@ abstract class Prompt
         static::$output = new ConsoleOutput;
         static::$terminal = new Terminal;
 
-        CoroutineContext::forget(self::OUTPUT_CONTEXT_KEY);
-        CoroutineContext::forget(self::VALIDATE_USING_CONTEXT_KEY);
-
         static::resetCursor();
         static::resetFallback();
         static::resetInteractivity();

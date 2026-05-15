@@ -163,7 +163,5 @@ class Scout
     {
         static::$makeSearchableJob = MakeSearchable::class;
         static::$removeFromSearchJob = RemoveFromSearch::class;
-        CoroutineContext::forget(self::IMPORTING_CONTEXT_KEY);
-        CoroutineContext::forget(self::IMPORT_PROGRESS_CONTEXT_KEY);
     }
 }

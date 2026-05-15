@@ -561,11 +561,6 @@ class Store implements Session
     public static function flushState(): void
     {
         static::flushMacros();
-
-        CoroutineContext::forget(self::CONTEXT_KEY);
-        CoroutineContext::forget(self::STARTED_CONTEXT_KEY);
-        CoroutineContext::forget(self::ID_CONTEXT_KEY);
-        CoroutineContext::forget(self::ATTRIBUTES_CONTEXT_KEY);
     }
 
     /**
