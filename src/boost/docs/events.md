@@ -32,7 +32,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel's events provide a simple observer pattern implementation, allowing you to subscribe and listen for various events that occur within your application. Event classes are typically stored in the `app/Events` directory, while their listeners are stored in `app/Listeners`. Don't worry if you don't see these directories in your application as they will be created for you as you generate events and listeners using Artisan console commands.
+Hypervel's events provide a simple observer pattern implementation, allowing you to subscribe and listen for various events that occur within your application. Event classes are typically stored in the `app/Events` directory, while their listeners are stored in `app/Listeners`. Don't worry if you don't see these directories in your application as they will be created for you as you generate events and listeners using Artisan console commands.
 
 Events serve as a great way to decouple various aspects of your application, since a single event can have multiple listeners that do not depend on each other. For example, you may wish to send a Slack notification to your user each time an order has shipped. Instead of coupling your order processing code to your Slack notification code, you can raise an `App\Events\OrderShipped` event which a listener can receive and use to dispatch a Slack notification.
 
@@ -47,7 +47,7 @@ php artisan make:event PodcastProcessed
 php artisan make:listener SendPodcastNotification --event=PodcastProcessed
 ```
 
-For convenience, you may also invoke the `make:event` and `make:listener` Artisan commands without additional arguments. When you do so, Laravel will automatically prompt you for the class name and, when creating a listener, the event it should listen to:
+For convenience, you may also invoke the `make:event` and `make:listener` Artisan commands without additional arguments. When you do so, Hypervel will automatically prompt you for the class name and, when creating a listener, the event it should listen to:
 
 ```shell
 php artisan make:event
@@ -61,7 +61,7 @@ php artisan make:listener
 <a name="event-discovery"></a>
 ### Event Discovery
 
-By default, Laravel will automatically find and register your event listeners by scanning your application's `Listeners` directory. When Laravel finds any listener class method that begins with `handle` or `__invoke`, Laravel will register those methods as event listeners for the event that is type-hinted in the method's signature:
+By default, Hypervel will automatically find and register your event listeners by scanning your application's `Listeners` directory. When Hypervel finds any listener class method that begins with `handle` or `__invoke`, Hypervel will register those methods as event listeners for the event that is type-hinted in the method's signature:
 
 ```php
 use App\Events\PodcastProcessed;
@@ -90,7 +90,7 @@ public function handle(PodcastProcessed|PodcastPublished $event): void
 }
 ```
 
-If you plan to store your listeners in a different directory or within multiple directories, you may instruct Laravel to scan those directories using the `withEvents` method in your application's `bootstrap/app.php` file:
+If you plan to store your listeners in a different directory or within multiple directories, you may instruct Hypervel to scan those directories using the `withEvents` method in your application's `bootstrap/app.php` file:
 
 ```php
 ->withEvents(discover: [
@@ -145,6 +145,9 @@ The `event:list` command may be used to list all of the listeners registered wit
 php artisan event:list
 ```
 
+> [!NOTE]
+> Event listener, observer, and subscriber registrations should be performed during application boot. Registrations made while handling a request, job, or command remain registered for subsequent work handled by that worker.
+
 <a name="closure-listeners"></a>
 ### Closure Listeners
 
@@ -168,7 +171,7 @@ public function boot(): void
 <a name="queueable-anonymous-event-listeners"></a>
 #### Queueable Anonymous Event Listeners
 
-When registering closure-based event listeners, you may wrap the listener closure within the `Hypervel\Events\queueable` function to instruct Laravel to execute the listener using the [queue](/docs/{{version}}/queues):
+When registering closure-based event listeners, you may wrap the listener closure within the `Hypervel\Events\queueable` function to instruct Hypervel to execute the listener using the [queue](/docs/{{version}}/queues):
 
 ```php
 use App\Events\PodcastProcessed;
@@ -317,7 +320,7 @@ class SendShipmentNotification
 ```
 
 > [!NOTE]
-> Your event listeners may also type-hint any dependencies they need on their constructors. All event listeners are resolved via the Laravel [service container](/docs/{{version}}/container), so dependencies will be injected automatically.
+> Your event listeners may also type-hint any dependencies they need on their constructors. All event listeners are resolved via the Hypervel [service container](/docs/{{version}}/container), so dependencies will be injected automatically.
 
 <a name="stopping-the-propagation-of-an-event"></a>
 #### Stopping The Propagation Of An Event
@@ -345,7 +348,7 @@ class SendShipmentNotification implements ShouldQueue
 }
 ```
 
-That's it! Now, when an event handled by this listener is dispatched, the listener will automatically be queued by the event dispatcher using Laravel's [queue system](/docs/{{version}}/queues). If no exceptions are thrown when the listener is executed by the queue, the queued job will automatically be deleted after it has finished processing.
+That's it! Now, when an event handled by this listener is dispatched, the listener will automatically be queued by the event dispatcher using Hypervel's [queue system](/docs/{{version}}/queues). If no exceptions are thrown when the listener is executed by the queue, the queued job will automatically be deleted after it has finished processing.
 
 <a name="customizing-the-queue-connection-queue-name"></a>
 #### Customizing The Queue Connection, Name, & Delay
@@ -525,7 +528,7 @@ class SendShipmentNotification implements ShouldQueue
 <a name="encrypted-queued-listeners"></a>
 #### Encrypted Queued Listeners
 
-Laravel allows you to ensure the privacy and integrity of a queued listener's data via [encryption](/docs/{{version}}/encryption). To get started, simply add the `ShouldBeEncrypted` interface to the listener class. Once this interface has been added to the class, Laravel will automatically encrypt your listener before pushing it onto a queue:
+Hypervel allows you to ensure the privacy and integrity of a queued listener's data via [encryption](/docs/{{version}}/encryption). To get started, simply add the `ShouldBeEncrypted` interface to the listener class. Once this interface has been added to the class, Hypervel will automatically encrypt your listener before pushing it onto a queue:
 
 ```php
 <?php
@@ -546,7 +549,7 @@ class SendShipmentNotification implements ShouldQueue, ShouldBeEncrypted
 ### Unique Event Listeners
 
 > [!WARNING]
-> Unique listeners require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `memcached`, `redis`, `dynamodb`, `database`, `file`, and `array` cache drivers support atomic locks.
+> Unique listeners require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). The `redis`, `database`, `file`, and `array` cache drivers support atomic locks.
 
 Sometimes, you may want to ensure that only one instance of a specific listener is on the queue at any point in time. You may do so by implementing the `ShouldBeUnique` interface on your listener class:
 
@@ -608,7 +611,7 @@ class AcquireProductKey implements ShouldQueue, ShouldBeUnique
 In the example above, the `AcquireProductKey` listener is unique by license ID. So, any new dispatches of the listener for the same license will be ignored until the existing listener has completed processing. This prevents duplicate product keys from being acquired for the same license. In addition, if the existing listener is not processed within one hour, the unique lock will be released and another listener with the same unique key can be queued.
 
 > [!WARNING]
-> If your application dispatches events from multiple web servers or containers, you should ensure that all of your servers are communicating with the same central cache server so that Laravel can accurately determine if a listener is unique.
+> If your application dispatches events from multiple web servers or containers, you should ensure that all of your servers are communicating with the same central cache server so that Hypervel can accurately determine if a listener is unique.
 
 <a name="keeping-listeners-unique-until-processing-begins"></a>
 #### Keeping Listeners Unique Until Processing Begins
@@ -633,7 +636,7 @@ class AcquireProductKey implements ShouldQueue, ShouldBeUniqueUntilProcessing
 <a name="unique-listener-locks"></a>
 #### Unique Listener Locks
 
-Behind the scenes, when a `ShouldBeUnique` listener is dispatched, Laravel attempts to acquire a [lock](/docs/{{version}}/cache#atomic-locks) with the `uniqueId` key. If the lock is already held, the listener is not dispatched. This lock is released when the listener completes processing or fails all of its retry attempts. By default, Laravel will use the default cache driver to obtain this lock. However, if you wish to use another driver for acquiring the lock, you may define a `uniqueVia` method that returns the cache driver that should be used:
+Behind the scenes, when a `ShouldBeUnique` listener is dispatched, Hypervel attempts to acquire a [lock](/docs/{{version}}/cache#atomic-locks) with the `uniqueId` key. If the lock is already held, the listener is not dispatched. This lock is released when the listener completes processing or fails all of its retry attempts. By default, Hypervel will use the default cache driver to obtain this lock. However, if you wish to use another driver for acquiring the lock, you may define a `uniqueVia` method that returns the cache driver that should be used:
 
 ```php
 <?php
@@ -701,7 +704,7 @@ class SendShipmentNotification implements ShouldQueue
 <a name="specifying-queued-listener-maximum-attempts"></a>
 #### Specifying Queued Listener Maximum Attempts
 
-If one of your queued listeners is encountering an error, you likely do not want it to keep retrying indefinitely. Therefore, Laravel provides various ways to specify how many times or for how long a listener may be attempted.
+If one of your queued listeners is encountering an error, you likely do not want it to keep retrying indefinitely. Therefore, Hypervel provides various ways to specify how many times or for how long a listener may be attempted.
 
 You may use the `Tries` attribute on your listener class to specify how many times the listener may be attempted before it is considered to have failed:
 
@@ -738,12 +741,12 @@ public function retryUntil(): DateTimeInterface
 }
 ```
 
-If both `retryUntil` and `tries` are defined, Laravel gives precedence to the `retryUntil` method.
+If both `retryUntil` and `tries` are defined, Hypervel gives precedence to the `retryUntil` method.
 
 <a name="specifying-queued-listener-backoff"></a>
 #### Specifying Queued Listener Backoff
 
-If you would like to configure how many seconds Laravel should wait before retrying a listener that has encountered an exception, you may use the `Backoff` attribute on your listener class:
+If you would like to configure how many seconds Hypervel should wait before retrying a listener that has encountered an exception, you may use the `Backoff` attribute on your listener class:
 
 ```php
 <?php
@@ -823,7 +826,7 @@ In this example, the listener will be retried up to 25 times. However, the liste
 <a name="specifying-queued-listener-timeout"></a>
 #### Specifying Queued Listener Timeout
 
-Often, you know roughly how long you expect your queued listeners to take. For this reason, Laravel allows you to specify a "timeout" value. If a listener is processing for longer than the number of seconds specified by the timeout value, the worker processing the listener will exit with an error. You may define the maximum number of seconds a listener should be allowed to run by using the `Timeout` attribute on your listener class:
+Often, you know roughly how long you expect your queued listeners to take. For this reason, Hypervel allows you to specify a "timeout" value. If a listener is processing for longer than the number of seconds specified by the timeout value, the worker processing the listener will exit with an error. You may define the maximum number of seconds a listener should be allowed to run by using the `Timeout` attribute on your listener class:
 
 ```php
 <?php
@@ -901,7 +904,7 @@ OrderShipped::dispatchUnless($condition, $order);
 ```
 
 > [!NOTE]
-> When testing, it can be helpful to assert that certain events were dispatched without actually triggering their listeners. Laravel's [built-in testing helpers](#testing) make it a cinch.
+> When testing, it can be helpful to assert that certain events were dispatched without actually triggering their listeners. Hypervel's [built-in testing helpers](#testing) make it a cinch.
 
 <a name="checking-for-listeners"></a>
 ### Checking for Listeners
@@ -924,9 +927,9 @@ A bare `Event::listen('*', ...)` registration is **not** counted by `hasListener
 <a name="dispatching-events-after-database-transactions"></a>
 ### Dispatching Events After Database Transactions
 
-Sometimes, you may want to instruct Laravel to only dispatch an event after the active database transaction has committed. To do so, you may implement the `ShouldDispatchAfterCommit` interface on the event class.
+Sometimes, you may want to instruct Hypervel to only dispatch an event after the active database transaction has committed. To do so, you may implement the `ShouldDispatchAfterCommit` interface on the event class.
 
-This interface instructs Laravel to not dispatch the event until the current database transaction is committed. If the transaction fails, the event will be discarded. If no database transaction is in progress when the event is dispatched, the event will be dispatched immediately:
+This interface instructs Hypervel to not dispatch the event until the current database transaction is committed. If the transaction fails, the event will be discarded. If no database transaction is in progress when the event is dispatched, the event will be dispatched immediately:
 
 ```php
 <?php
@@ -1032,7 +1035,7 @@ class UserEventSubscriber
 }
 ```
 
-If your event listener methods are defined within the subscriber itself, you may find it more convenient to return an array of events and method names from the subscriber's `subscribe` method. Laravel will automatically determine the subscriber's class name when registering the event listeners:
+If your event listener methods are defined within the subscriber itself, you may find it more convenient to return an array of events and method names from the subscriber's `subscribe` method. Hypervel will automatically determine the subscriber's class name when registering the event listeners:
 
 ```php
 <?php
@@ -1073,7 +1076,7 @@ class UserEventSubscriber
 <a name="registering-event-subscribers"></a>
 ### Registering Event Subscribers
 
-After writing the subscriber, Laravel will automatically register handler methods within the subscriber if they follow Laravel's [event discovery conventions](#event-discovery). Otherwise, you may manually register your subscriber using the `subscribe` method of the `Event` facade. Typically, this should be done within the `boot` method of your application's `AppServiceProvider`:
+After writing the subscriber, Hypervel will automatically register handler methods within the subscriber if they follow Hypervel's [event discovery conventions](#event-discovery). Otherwise, you may manually register your subscriber using the `subscribe` method of the `Event` facade. Typically, this should be done within the `boot` method of your application's `AppServiceProvider`:
 
 ```php
 <?php
@@ -1099,7 +1102,7 @@ class AppServiceProvider extends ServiceProvider
 <a name="testing"></a>
 ## Testing
 
-When testing code that dispatches events, you may wish to instruct Laravel to not actually execute the event's listeners, since the listener's code can be tested directly and separately of the code that dispatches the corresponding event. Of course, to test the listener itself, you may instantiate a listener instance and invoke the `handle` method directly in your test.
+When testing code that dispatches events, you may wish to instruct Hypervel to not actually execute the event's listeners, since the listener's code can be tested directly and separately of the code that dispatches the corresponding event. Of course, to test the listener itself, you may instantiate a listener instance and invoke the `handle` method directly in your test.
 
 Using the `Event` facade's `fake` method, you may prevent listeners from executing, execute the code under test, and then assert which events were dispatched by your application using the `assertDispatched`, `assertNotDispatched`, and `assertNothingDispatched` methods:
 

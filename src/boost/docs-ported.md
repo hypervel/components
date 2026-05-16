@@ -26,6 +26,7 @@ eloquent-resources.md
 eloquent-serialization.md
 encryption.md
 errors.md
+events.md
 pagination.md
 requests.md
 routing.md
