@@ -58,4 +58,12 @@ class UserFactory extends Factory
     {
         return $this->model ?? config('auth.providers.users.model') ?? User::class;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$password = null;
+    }
 }

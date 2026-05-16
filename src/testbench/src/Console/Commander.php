@@ -53,7 +53,7 @@ class Commander
      *
      * @var class-string<Testbench>
      */
-    protected static string $testbench = Testbench::class;
+    protected const string TESTBENCH = Testbench::class;
 
     /**
      * List of providers.
@@ -131,7 +131,7 @@ class Commander
             TerminatingConsole::beforeWhen(
                 ! is_symlink(join_paths($appBasePath, 'vendor')),
                 static function () use ($appBasePath) {
-                    static::$testbench::deleteVendorSymlink($appBasePath);
+                    (static::TESTBENCH)::deleteVendorSymlink($appBasePath);
                 }
             );
 
@@ -140,7 +140,7 @@ class Commander
             $hasEnvironmentFile = static fn () => is_file(join_paths($appBasePath, '.env'));
 
             tap(
-                static::$testbench::createVendorSymlink($appBasePath, $vendorPath),
+                (static::TESTBENCH)::createVendorSymlink($appBasePath, $vendorPath),
                 function ($app) use ($filesystem, $hasEnvironmentFile) {
                     $this->copyTestbenchConfigurationFile($app, $filesystem, $this->workingPath);
 
@@ -150,7 +150,7 @@ class Commander
                 }
             );
 
-            $this->app = static::$testbench::create(
+            $this->app = (static::TESTBENCH)::create(
                 basePath: $appBasePath,
                 resolvingCallback: $this->resolveApplicationCallback(),
                 options: array_filter([
@@ -209,7 +209,7 @@ class Commander
      */
     public static function applicationBasePath(): string
     {
-        return static::$testbench::applicationBasePath();
+        return (static::TESTBENCH)::applicationBasePath();
     }
 
     /**

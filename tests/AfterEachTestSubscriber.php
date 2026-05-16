@@ -59,15 +59,10 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Database\Console\WipeCommand::flushState();
         \Hypervel\Database\Eloquent\Builder::flushState();
         \Hypervel\Database\Eloquent\Factories\Factory::flushState();
-        \Hypervel\Database\Eloquent\Model::clearBootedModels();
-        \Hypervel\Database\Eloquent\Model::flushCasterCache();
-        \Hypervel\Database\Eloquent\Model::preventAccessingMissingAttributes(false);
-        \Hypervel\Database\Eloquent\Model::preventLazyLoading(false);
-        \Hypervel\Database\Eloquent\Model::preventSilentlyDiscardingAttributes(false);
-        \Hypervel\Database\Eloquent\Model::unsetConnectionResolver();
-        \Hypervel\Database\Eloquent\Model::unsetEventDispatcher();
+        \Hypervel\Database\Eloquent\Model::flushState();
         \Hypervel\Database\Eloquent\Relations\Relation::flushState();
         \Hypervel\Database\Grammar::flushState();
+        \Hypervel\Database\Migrations\Migrator::flushState();
         \Hypervel\Database\Schema\Blueprint::flushState();
         \Hypervel\Database\Schema\Builder::flushState();
         \Hypervel\Di\Aop\AspectCollector::flushState();
@@ -184,6 +179,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Telescope\Watchers\CacheWatcher::flushState();
         \Hypervel\Telescope\Watchers\RedisWatcher::flushState();
         \Hypervel\Testbench\Bootstrapper::flushState();
+        \Hypervel\Testbench\Factories\UserFactory::flushState();
         \Hypervel\Testbench\Foundation\Config::flush();
         \Hypervel\Testbench\Foundation\Console\TerminatingConsole::flush();
         \Hypervel\Testbench\Workbench\Workbench::flush();

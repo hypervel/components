@@ -9,6 +9,7 @@ use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\Factories\UserFactory;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionClass;
 use Workbench\App\Models\User;
 
 class UserFactoryTest extends TestCase
@@ -32,6 +33,20 @@ class UserFactoryTest extends TestCase
         $this->assertNotNull($user->email);
         $this->assertNotNull($user->email_verified_at);
         $this->assertInstanceOf(CarbonInterface::class, $user->email_verified_at);
+    }
+
+    #[Test]
+    public function itCanFlushTheCachedPassword(): void
+    {
+        $reflection = new ReflectionClass(UserFactory::class);
+
+        UserFactory::new()->make();
+
+        $this->assertNotNull($reflection->getStaticPropertyValue('password'));
+
+        UserFactory::flushState();
+
+        $this->assertNull($reflection->getStaticPropertyValue('password'));
     }
 
     #[Test]

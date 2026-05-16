@@ -13,6 +13,7 @@ use Hypervel\Testbench\Workbench\Workbench;
 use Hypervel\Tests\Testbench\Fixtures\MergeSeedersTestStub;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionClass;
 
 class WithWorkbenchTest extends TestCase
 {
@@ -47,6 +48,23 @@ class WithWorkbenchTest extends TestCase
         $this->assertInstanceOf(ConfigContract::class, $config);
 
         $this->assertSame($cachedConfig->toArray(), $config->toArray());
+    }
+
+    #[Test]
+    public function itCanFlushCachedCoreBindings()
+    {
+        $reflection = new ReflectionClass(Workbench::class);
+        $reflection->setStaticPropertyValue('cachedCoreBindings', [
+            'kernel' => ['console' => 'Workbench\App\Console\Kernel'],
+            'handler' => ['exception' => 'Workbench\App\Exceptions\Handler'],
+        ]);
+
+        Workbench::flushCachedClassAndNamespaces();
+
+        $this->assertSame([
+            'kernel' => [],
+            'handler' => [],
+        ], $reflection->getStaticPropertyValue('cachedCoreBindings'));
     }
 
     #[Test]
