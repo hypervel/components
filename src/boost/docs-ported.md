@@ -27,6 +27,7 @@ eloquent-serialization.md
 encryption.md
 errors.md
 events.md
+facades.md
 pagination.md
 requests.md
 routing.md
