@@ -28,6 +28,11 @@ class CallQueuedClosure implements ShouldQueue
     public array $failureCallbacks = [];
 
     /**
+     * The name assigned to the job.
+     */
+    public ?string $name = null;
+
+    /**
      * Indicate if the job should be deleted when models are missing.
      */
     public bool $deleteWhenMissingModels = true;
@@ -91,6 +96,18 @@ class CallQueuedClosure implements ShouldQueue
     {
         $reflection = new ReflectionFunction($this->closure->getClosure());
 
-        return 'Closure (' . basename($reflection->getFileName()) . ':' . $reflection->getStartLine() . ')';
+        $prefix = is_null($this->name) ? '' : "{$this->name} - ";
+
+        return $prefix . 'Closure (' . basename($reflection->getFileName()) . ':' . $reflection->getStartLine() . ')';
+    }
+
+    /**
+     * Assign a name to the job.
+     */
+    public function name(string $name): static
+    {
+        $this->name = $name;
+
+        return $this;
     }
 }
