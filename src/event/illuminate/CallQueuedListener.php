@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Illuminate\Events;
 
+use AllowDynamicProperties;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
@@ -13,6 +14,7 @@ use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Throwable;
 
+#[AllowDynamicProperties]
 class CallQueuedListener implements ShouldQueue
 {
     use InteractsWithQueue;
