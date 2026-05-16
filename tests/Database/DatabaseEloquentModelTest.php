@@ -3402,6 +3402,77 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertTrue($called);
     }
 
+    public function testFlushStateRestoresStaticState()
+    {
+        $reflection = new ReflectionClass(Model::class);
+
+        Model::setConnectionResolver(m::mock(Resolver::class));
+        Model::setEventDispatcher(m::mock(Dispatcher::class));
+        Model::preventLazyLoading();
+        Model::automaticallyEagerLoadRelationships();
+        Model::handleLazyLoadingViolationUsing(static function () {
+        });
+        Model::preventSilentlyDiscardingAttributes();
+        Model::handleDiscardedAttributeViolationUsing(static function () {
+        });
+        Model::preventAccessingMissingAttributes();
+        Model::handleMissingAttributeViolationUsing(static function () {
+        });
+        Model::$snakeAttributes = false;
+        Model::encryptUsing(new stdClass);
+
+        $reflection->setStaticPropertyValue('booted', [ModelStub::class => true]);
+        $reflection->setStaticPropertyValue('bootedCallbacks', [ModelStub::class => [static function () {
+        }]]);
+        $reflection->setStaticPropertyValue('traitInitializers', [ModelStub::class => ['initializeFoo']]);
+        $reflection->setStaticPropertyValue('globalScopes', [ModelStub::class => ['scope' => static function () {
+        }]]);
+        $reflection->setStaticPropertyValue('builder', CustomBuilder::class);
+        $reflection->setStaticPropertyValue('collectionClass', CustomEloquentCollection::class);
+        $reflection->setStaticPropertyValue('resolvedBuilderClasses', [ModelStub::class => Builder::class]);
+        $reflection->setStaticPropertyValue('isSoftDeletable', [ModelStub::class => true]);
+        $reflection->setStaticPropertyValue('isPrunable', [ModelStub::class => true]);
+        $reflection->setStaticPropertyValue('isMassPrunable', [ModelStub::class => true]);
+        $reflection->setStaticPropertyValue('resolvedCollectionClasses', [ModelStub::class => Collection::class]);
+        $reflection->setStaticPropertyValue('mutatorCache', [ModelStub::class => ['foo']]);
+        $reflection->setStaticPropertyValue('attributeMutatorCache', [ModelStub::class => ['foo' => true]]);
+        $reflection->setStaticPropertyValue('getAttributeMutatorCache', [ModelStub::class => ['foo' => true]]);
+        $reflection->setStaticPropertyValue('setAttributeMutatorCache', [ModelStub::class => ['foo' => true]]);
+        $reflection->setStaticPropertyValue('casterCache', [ModelStub::class => ['foo' => new stdClass]]);
+        $reflection->setStaticPropertyValue('castTypeCache', ['foo' => 'bar']);
+
+        Model::flushState();
+
+        $this->assertNull(Model::getConnectionResolver());
+        $this->assertNull($reflection->getStaticPropertyValue('dispatcher'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('booted'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('bootedCallbacks'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('traitInitializers'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('globalScopes'));
+        $this->assertFalse(Model::preventsLazyLoading());
+        $this->assertFalse(Model::isAutomaticallyEagerLoadingRelationships());
+        $this->assertNull($reflection->getStaticPropertyValue('lazyLoadingViolationCallback'));
+        $this->assertFalse(Model::preventsSilentlyDiscardingAttributes());
+        $this->assertNull($reflection->getStaticPropertyValue('discardedAttributeViolationCallback'));
+        $this->assertFalse(Model::preventsAccessingMissingAttributes());
+        $this->assertNull($reflection->getStaticPropertyValue('missingAttributeViolationCallback'));
+        $this->assertSame(Builder::class, $reflection->getStaticPropertyValue('builder'));
+        $this->assertSame(Collection::class, $reflection->getStaticPropertyValue('collectionClass'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('resolvedBuilderClasses'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('isSoftDeletable'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('isPrunable'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('isMassPrunable'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('resolvedCollectionClasses'));
+        $this->assertTrue(Model::$snakeAttributes);
+        $this->assertSame([], $reflection->getStaticPropertyValue('mutatorCache'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('attributeMutatorCache'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('getAttributeMutatorCache'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('setAttributeMutatorCache'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('casterCache'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('castTypeCache'));
+        $this->assertNull(Model::$encrypter);
+    }
+
     public function testThrowsWhenAccessingMissingAttributes()
     {
         $originalMode = Model::preventsAccessingMissingAttributes();

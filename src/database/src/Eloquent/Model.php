@@ -2198,6 +2198,41 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$resolver = null;
+        static::$dispatcher = null;
+        static::$booted = [];
+        static::$bootedCallbacks = [];
+        static::$traitInitializers = [];
+        static::$globalScopes = [];
+        static::$modelsShouldPreventLazyLoading = false;
+        static::$modelsShouldAutomaticallyEagerLoadRelationships = false;
+        static::$lazyLoadingViolationCallback = null;
+        static::$modelsShouldPreventSilentlyDiscardingAttributes = false;
+        static::$discardedAttributeViolationCallback = null;
+        static::$modelsShouldPreventAccessingMissingAttributes = false;
+        static::$missingAttributeViolationCallback = null;
+        static::$builder = Builder::class;
+        static::$collectionClass = Collection::class;
+        static::$resolvedBuilderClasses = [];
+        static::$isSoftDeletable = [];
+        static::$isPrunable = [];
+        static::$isMassPrunable = [];
+        static::$resolvedCollectionClasses = [];
+        static::$snakeAttributes = true;
+        static::$mutatorCache = [];
+        static::$attributeMutatorCache = [];
+        static::$getAttributeMutatorCache = [];
+        static::$setAttributeMutatorCache = [];
+        static::$casterCache = [];
+        static::$castTypeCache = [];
+        static::$encrypter = null;
+    }
+
+    /**
      * Dynamically retrieve attributes on the model.
      */
     public function __get(string $key): mixed

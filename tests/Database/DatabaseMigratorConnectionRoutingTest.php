@@ -21,15 +21,26 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
 {
     protected function tearDown(): void
     {
-        // Reset the static callback to prevent cross-test leakage.
-        $reflection = new ReflectionClass(Migrator::class);
-        $property = $reflection->getProperty('connectionResolverCallback');
-        $property->setValue(null, null);
+        Migrator::flushState();
 
         CoroutineContext::forget(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
         Container::setInstance(null);
 
         parent::tearDown();
+    }
+
+    public function testFlushStateRestoresStaticState()
+    {
+        $reflection = new ReflectionClass(Migrator::class);
+        $reflection->setStaticPropertyValue('connectionResolverCallback', static fn () => null);
+        $reflection->setStaticPropertyValue('requiredPathCache', ['migration.php' => null]);
+        $reflection->setStaticPropertyValue('withoutMigrations', ['2024_01_01_000000_create_users_table']);
+
+        Migrator::flushState();
+
+        $this->assertNull($reflection->getStaticPropertyValue('connectionResolverCallback'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('requiredPathCache'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('withoutMigrations'));
     }
 
     public function testResolveMigrationConnectionNameReturnsNullForNullInput()
