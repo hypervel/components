@@ -310,7 +310,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `cache` (round 2)
+**Next:** `collections` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -319,7 +319,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 3 | `boost` | ✓ (docs only) |
 | 4 | `broadcasting` | ✓ |
 | 5 | `bus` | ✓ |
-| 6 | `cache` |   |
+| 6 | `cache` | ✓ |
 | 7 | `collections` |   |
 | 8 | `concurrency` |   |
 | 9 | `conditionable` |   |

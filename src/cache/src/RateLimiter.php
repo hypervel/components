@@ -38,6 +38,10 @@ class RateLimiter
 
     /**
      * Register a named limiter configuration.
+     *
+     * Boot-only. The callback persists on the singleton rate limiter for the
+     * worker lifetime and applies to every subsequent limiter() lookup;
+     * per-request use races across coroutines.
      */
     public function for(UnitEnum|string $name, Closure $callback): static
     {

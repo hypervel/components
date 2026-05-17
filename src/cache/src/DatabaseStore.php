@@ -418,6 +418,9 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
 
     /**
      * Set the connection name for the cache store.
+     *
+     * Boot-only. Persists on the cached store for the worker lifetime;
+     * per-request use races across coroutines.
      */
     public function setConnection(string $connectionName): static
     {
@@ -436,6 +439,9 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
 
     /**
      * Specify the connection that should be used to manage locks.
+     *
+     * Boot-only. Persists on the cached store for the worker lifetime;
+     * per-request use races across coroutines.
      */
     public function setLockConnection(string $connectionName): static
     {
@@ -454,6 +460,9 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
 
     /**
      * Set the cache key prefix.
+     *
+     * Boot-only. Persists on the cached store for the worker lifetime;
+     * per-request use races across coroutines.
      */
     public function setPrefix(string $prefix): void
     {

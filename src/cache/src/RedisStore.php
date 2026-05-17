@@ -408,6 +408,10 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
 
     /**
      * Specify the name of the connection that should be used to store data.
+     *
+     * Boot-only. Persists on the cached store for the worker lifetime and
+     * triggers cache invalidation of resolved operations; per-request use
+     * races across coroutines.
      */
     public function setConnection(?string $connection): void
     {
@@ -417,6 +421,9 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
 
     /**
      * Specify the name of the connection that should be used to manage locks.
+     *
+     * Boot-only. Persists on the cached store for the worker lifetime;
+     * per-request use races across coroutines.
      */
     public function setLockConnection(string $connection): static
     {
@@ -443,6 +450,10 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
 
     /**
      * Set the cache key prefix.
+     *
+     * Boot-only. Persists on the cached store for the worker lifetime and
+     * triggers cache invalidation of resolved operations; per-request use
+     * races across coroutines.
      */
     public function setPrefix(?string $prefix): void
     {
