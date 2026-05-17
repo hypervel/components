@@ -189,10 +189,13 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Testing\TestComponent::flushState();
         \Hypervel\Testing\TestResponse::flushState();
         \Hypervel\Testing\TestView::flushState();
+        \Hypervel\Translation\Translator::flushState();
+        \Hypervel\Validation\Console\BenchmarkValidationCommand::flushState();
         \Hypervel\Validation\Rule::flushState();
         \Hypervel\Validation\Rules\Date::flushState();
         \Hypervel\Validation\Rules\Email::flushState();
         \Hypervel\Validation\Rules\File::flushState();
+        \Hypervel\Validation\Rules\Password::flushState();
         \Hypervel\Validation\RulePlanCache::flushState();
         \Hypervel\Validation\ValidationRuleParser::flushState();
         \Hypervel\Validation\Validator::flushState();

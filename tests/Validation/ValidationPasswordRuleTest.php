@@ -27,13 +27,6 @@ class ValidationPasswordRuleTest extends TestCase
         });
     }
 
-    public function tearDown(): void
-    {
-        parent::tearDown();
-
-        Password::$defaultCallback = null;
-    }
-
     public function testString()
     {
         $this->fails(Password::min(3), [['foo' => 'bar'], ['foo']], [
@@ -277,6 +270,17 @@ class ValidationPasswordRuleTest extends TestCase
         $this->assertSame($password2, Password::default());
         $this->assertInstanceOf(Password::class, Password::required());
         $this->assertInstanceOf(Password::class, Password::sometimes());
+    }
+
+    public function testItCanFlushDefaultConfiguration()
+    {
+        Password::defaults(Password::min(2)->mixedCase());
+
+        $this->assertSame(['string', 'min:2'], [...Password::default()]);
+
+        Password::flushState();
+
+        $this->assertSame(['string', 'min:8'], [...Password::default()]);
     }
 
     public function testItCannotSetDefaultUsingGivenString()

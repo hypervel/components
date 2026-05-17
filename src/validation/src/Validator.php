@@ -1952,6 +1952,9 @@ class Validator implements ValidatorContract
         }
 
         if ($this->presenceVerifier instanceof DatabasePresenceVerifierInterface) {
+            // WARNING: Keep setConnection() and the presence check in one synchronous chain.
+            // Database presence verifiers store the connection on a shared verifier instance,
+            // so yielding between this call and getCount()/getMultiCount() would race.
             $this->presenceVerifier->setConnection($connection);
         }
 

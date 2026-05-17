@@ -12,10 +12,12 @@ use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Translation\Fixtures\Enums\Bar;
 use Hypervel\Tests\Translation\Fixtures\Enums\Baz;
 use Hypervel\Tests\Translation\Fixtures\Enums\Foo;
+use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\MessageSelector;
 use Hypervel\Translation\Translator;
 use Mockery as m;
 
+use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
 
 class TranslationTranslatorTest extends TestCase
@@ -378,6 +380,57 @@ class TranslationTranslatorTest extends TestCase
         $this->assertSame('foo', $translator->get('foo'));
     }
 
+    public function testMissingKeyHandlingIsIsolatedPerCoroutine()
+    {
+        $translator = new Translator(new YieldingTranslationLoader, 'en');
+        $missingKeys = [];
+
+        $translator->handleMissingKeysUsing(function (string $key) use (&$missingKeys): string {
+            $missingKeys[] = $key;
+
+            return "missing:{$key}";
+        });
+
+        [$hasMissingKey, $translatedMissingKey] = parallel([
+            fn (): bool => $translator->has('messages.first', 'en'),
+            function () use ($translator): string {
+                usleep(2500);
+
+                return $translator->get('messages.second', [], 'fr');
+            },
+        ]);
+
+        $this->assertFalse($hasMissingKey);
+        $this->assertSame('missing:messages.second', $translatedMissingKey);
+        $this->assertSame(['messages.second'], $missingKeys);
+    }
+
+    public function testMissingKeyCallbackDoesNotRecurse()
+    {
+        $translator = new Translator(new ArrayLoader, 'en');
+        $calls = 0;
+
+        $translator->handleMissingKeysUsing(function (string $key) use ($translator, &$calls): string {
+            ++$calls;
+
+            return 'handled:' . $translator->get($key);
+        });
+
+        $this->assertSame('handled:messages.missing', $translator->get('messages.missing'));
+        $this->assertSame(1, $calls);
+    }
+
+    public function testFlushStateClearsMacros()
+    {
+        Translator::macro('translationStaticStateProbe', static fn (): string => 'ok');
+
+        $this->assertTrue(Translator::hasMacro('translationStaticStateProbe'));
+
+        Translator::flushState();
+
+        $this->assertFalse(Translator::hasMacro('translationStaticStateProbe'));
+    }
+
     public function testSetLocale()
     {
         $translator = new Translator($this->getLoader(), 'en');
@@ -400,5 +453,17 @@ class TranslationTranslatorTest extends TestCase
     protected function getLoader()
     {
         return m::mock(Loader::class);
+    }
+}
+
+class YieldingTranslationLoader extends ArrayLoader
+{
+    public function load(string $locale, string $group, ?string $namespace = null): array
+    {
+        if ($locale === 'en' && $group === '*') {
+            usleep(5000);
+        }
+
+        return parent::load($locale, $group, $namespace);
     }
 }

@@ -379,4 +379,12 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
             ...$this->customRules,
         ]);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$defaultCallback = null;
+    }
 }
