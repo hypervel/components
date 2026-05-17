@@ -66,6 +66,7 @@
 ## Http
 
 - Port FailOnUnknownFields form request support
+- Port `Hypervel\Http\Client\Factory::failedRequest()` fake-response parity. The HTTP client docs show Laravel's supported `Http::fake(['github.com/*' => Http::failedRequest(...)])` pattern, but Hypervel currently returns a bare `RequestException` from `failedRequest()` and the fake stub path does not handle that exception return as a failed HTTP response. Correct fix: match Laravel's behavior so `failedRequest()` works inside `Http::fake([...])`, while preserving the existing ability to instantiate the exception directly, and port Laravel's matching HTTP client tests.
 
 ## Pool
 

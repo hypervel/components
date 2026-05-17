@@ -33,6 +33,7 @@ frontend.md
 hashing.md
 helpers.md
 horizon.md
+http-client.md
 pagination.md
 requests.md
 routing.md

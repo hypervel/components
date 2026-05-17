@@ -5,10 +5,12 @@
     - [Request Data](#request-data)
     - [Headers](#headers)
     - [Authentication](#authentication)
+    - [Request Options](#request-options)
     - [Timeout](#timeout)
     - [Retries](#retries)
     - [Error Handling](#error-handling)
     - [Guzzle Middleware](#guzzle-middleware)
+    - [Request Callbacks](#request-callbacks)
     - [Guzzle Options](#guzzle-options)
     - [Telescope Recording](#telescope-recording)
 - [Concurrent Requests](#concurrent-requests)
@@ -46,8 +48,9 @@ The `get` method returns an instance of `Hypervel\Http\Client\Response`, which p
 ```php
 $response->body() : string;
 $response->json($key = null, $default = null) : mixed;
-$response->object() : object;
+$response->object() : array|object|null;
 $response->collect($key = null) : Hypervel\Support\Collection;
+$response->fluent($key = null) : Hypervel\Support\Fluent;
 $response->resource() : resource;
 $response->status() : int;
 $response->successful() : bool;
@@ -56,6 +59,10 @@ $response->failed() : bool;
 $response->clientError() : bool;
 $response->header($header) : string;
 $response->headers() : array;
+$response->reason() : string;
+$response->effectiveUri() : ?Psr\Http\Message\UriInterface;
+$response->handlerStats() : array;
+$response->toPsrResponse() : Psr\Http\Message\ResponseInterface;
 ```
 
 The `Hypervel\Http\Client\Response` object also implements the PHP `ArrayAccess` interface, allowing you to access JSON response data directly on the response:
@@ -81,7 +88,8 @@ $response->forbidden() : bool;           // 403 Forbidden
 $response->notFound() : bool;            // 404 Not Found
 $response->requestTimeout() : bool;      // 408 Request Timeout
 $response->conflict() : bool;            // 409 Conflict
-$response->unprocessableEntity() : bool; // 422 Unprocessable Entity
+$response->unprocessableContent() : bool; // 422 Unprocessable Content
+$response->unprocessableEntity() : bool;  // 422 Unprocessable Entity
 $response->tooManyRequests() : bool;     // 429 Too Many Requests
 $response->serverError() : bool;         // 500 Internal Server Error
 ```
@@ -229,7 +237,7 @@ $response = Http::withHeaders([
 <a name="authentication"></a>
 ### Authentication
 
-You may specify basic and digest authentication credentials using the `withBasicAuth` and `withDigestAuth` methods, respectively:
+You may specify basic, digest, and NTLM authentication credentials using the `withBasicAuth`, `withDigestAuth`, and `withNtlmAuth` methods, respectively:
 
 ```php
 // Basic authentication...
@@ -237,6 +245,9 @@ $response = Http::withBasicAuth('johndoe@example.com', 'secret')->post(/* ... */
 
 // Digest authentication...
 $response = Http::withDigestAuth('johndoe@example.com', 'secret')->post(/* ... */);
+
+// NTLM authentication...
+$response = Http::withNtlmAuth('johndoe@example.com', 'secret')->post(/* ... */);
 ```
 
 <a name="bearer-tokens"></a>
@@ -246,6 +257,43 @@ If you would like to quickly add a bearer token to the request's `Authorization`
 
 ```php
 $response = Http::withToken('token')->post(/* ... */);
+```
+
+<a name="request-options"></a>
+### Request Options
+
+The `withUserAgent` method may be used to specify the request's user agent:
+
+```php
+$response = Http::withUserAgent('Hypervel/1.0')->get(/* ... */);
+```
+
+You may also attach cookies to a request using the `withCookies` method:
+
+```php
+$response = Http::withCookies([
+    'session' => 'abc123',
+], 'example.com')->get(/* ... */);
+```
+
+By default, redirects will be followed. You may configure the maximum number of redirects using the `maxRedirects` method, or disable redirects entirely using the `withoutRedirecting` method:
+
+```php
+$response = Http::maxRedirects(3)->get(/* ... */);
+
+$response = Http::withoutRedirecting()->get(/* ... */);
+```
+
+If you would like to disable TLS certificate verification, you may use the `withoutVerifying` method:
+
+```php
+$response = Http::withoutVerifying()->get(/* ... */);
+```
+
+The `sink` method may be used to write the response body directly to a file path or stream resource:
+
+```php
+$response = Http::sink(storage_path('app/example.txt'))->get(/* ... */);
 ```
 
 <a name="timeout"></a>
@@ -381,10 +429,10 @@ $response->throwIfStatus(403);
 // Throw an exception unless the response has a specific status code...
 $response->throwUnlessStatus(200);
 
-// Throw an exception if a server error occurred (status >500)...
+// Throw an exception if a server error occurred (status >= 500)...
 $response->throwIfServerError();
 
-// Throw an exception if a client error occurred (status >400 and <500)...
+// Throw an exception if a client error occurred (status >= 400 and < 500)...
 $response->throwIfClientError();
 
 return $response['user']['id'];
@@ -409,17 +457,17 @@ return Http::post(/* ... */)->throw(function (Response $response, RequestExcepti
 })->json();
 ```
 
-By default, `RequestException` messages are truncated to 120 characters when logged or reported. To customize or disable this behavior, you may utilize the `truncateAt` and `dontTruncate` methods when configuring your application's registered behavior in your `bootstrap/app.php` file:
+By default, `RequestException` messages are truncated to 120 characters when logged or reported. To customize or disable this behavior, you may utilize the `truncateRequestExceptionsAt` and `dontTruncateRequestExceptions` methods when configuring your application's exception handling behavior in your `bootstrap/app.php` file:
 
 ```php
-use Hypervel\Http\Client\RequestException;
+use Hypervel\Foundation\Configuration\Exceptions;
 
-->registered(function (): void {
+->withExceptions(function (Exceptions $exceptions): void {
     // Truncate request exception messages to 240 characters...
-    RequestException::truncateAt(240);
+    $exceptions->truncateRequestExceptionsAt(240);
 
     // Disable request exception message truncation...
-    RequestException::dontTruncate();
+    $exceptions->dontTruncateRequestExceptions();
 })
 ```
 
@@ -477,6 +525,32 @@ Http::globalRequestMiddleware(fn ($request) => $request->withHeader(
 Http::globalResponseMiddleware(fn ($response) => $response->withHeader(
     'X-Finished-At', now()->toDateTimeString()
 ));
+```
+
+<a name="request-callbacks"></a>
+### Request Callbacks
+
+You may register a callback that is invoked before a request is sent using the `beforeSending` method. The callback receives the outgoing request, the request options, and the pending request instance:
+
+```php
+use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\Request;
+
+$response = Http::beforeSending(function (Request $request, array $options, PendingRequest $pendingRequest) {
+    // ...
+})->get('http://example.com');
+```
+
+Likewise, you may register a callback that is invoked after a response is received using the `afterResponse` method:
+
+```php
+use Hypervel\Http\Client\Response;
+
+$response = Http::afterResponse(function (Response $response) {
+    // ...
+
+    return $response;
+})->get('http://example.com');
 ```
 
 <a name="guzzle-options"></a>
@@ -866,11 +940,9 @@ Http::fake([
 To test your application's behavior if a `Hypervel\Http\Client\RequestException` is thrown, you may use the `failedRequest` method:
 
 ```php
-$this->mock(GithubService::class);
-    ->shouldReceive('getUser')
-    ->andThrow(
-        Http::failedRequest(['code' => 'not_found'], 404)
-    );
+Http::fake([
+    'github.com/*' => Http::failedRequest(['code' => 'not_found'], 404),
+]);
 ```
 
 <a name="faking-response-sequences"></a>
@@ -943,11 +1015,13 @@ Http::withHeaders([
 
 Http::assertSent(function (Request $request) {
     return $request->hasHeader('X-First', 'foo') &&
-           $request->url() == 'http://example.com/users' &&
-           $request['name'] == 'Taylor' &&
-           $request['role'] == 'Developer';
+           $request->url() === 'http://example.com/users' &&
+           $request['name'] === 'Taylor' &&
+           $request['role'] === 'Developer';
 });
 ```
+
+The `Hypervel\Http\Client\Request` instance provides a variety of methods that may be used to inspect the request, including `method`, `url`, `headers`, `body`, `data`, `query`, `hasFile`, `isJson`, `isForm`, and `isMultipart`.
 
 If needed, you may assert that a specific request was not sent using the `assertNotSent` method:
 
@@ -975,12 +1049,39 @@ Http::fake();
 Http::assertSentCount(5);
 ```
 
+You may use the `assertSentInOrder` method to assert that requests were sent in a given order:
+
+```php
+Http::fake();
+
+Http::get('https://hypervel.org');
+Http::get('https://api.hypervel.org');
+
+Http::assertSentInOrder([
+    'https://hypervel.org',
+    'https://api.hypervel.org',
+]);
+```
+
 Or, you may use the `assertNothingSent` method to assert that no requests were sent during the test:
 
 ```php
 Http::fake();
 
 Http::assertNothingSent();
+```
+
+If your test uses response sequences, you may use the `assertSequencesAreEmpty` method to assert that every created response sequence has been fully consumed:
+
+```php
+Http::fake([
+    'github.com/*' => Http::sequence()
+        ->push('Hello World', 200),
+]);
+
+Http::get('https://github.com/hypervel/components');
+
+Http::assertSequencesAreEmpty();
 ```
 
 <a name="recording-requests-and-responses"></a>
