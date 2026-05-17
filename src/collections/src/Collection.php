@@ -1891,5 +1891,6 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     public static function flushState(): void
     {
         static::flushMacros();
+        static::flushProxies();
     }
 }

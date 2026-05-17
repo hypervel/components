@@ -166,6 +166,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\Env::flushState();
         \Hypervel\Support\Facades\Facade::clearResolvedInstances();
         \Hypervel\Support\Fluent::flushState();
+        \Hypervel\Support\LazyCollection::flushState();
         \Hypervel\Support\Lottery::flushState();
         \Hypervel\Support\Number::flushState();
         \Hypervel\Support\Once::flushState();

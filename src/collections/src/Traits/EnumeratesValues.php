@@ -69,11 +69,9 @@ trait EnumeratesValues
     protected bool $escapeWhenCastingToString = false;
 
     /**
-     * The methods that can be proxied.
-     *
-     * @var array<int, string>
+     * The default methods that can be proxied.
      */
-    protected static array $proxies = [
+    protected const DEFAULT_PROXIES = [
         'average',
         'avg',
         'contains',
@@ -107,6 +105,13 @@ trait EnumeratesValues
         'until',
         'when',
     ];
+
+    /**
+     * The methods that can be proxied.
+     *
+     * @var array<int, string>
+     */
+    protected static array $proxies = self::DEFAULT_PROXIES;
 
     /**
      * Create a new collection instance if the value isn't one already.
@@ -958,10 +963,25 @@ trait EnumeratesValues
 
     /**
      * Add a method to the list of proxied methods.
+     *
+     * Boot or tests only. The method is registered on a worker-wide static and
+     * applies to every subsequent collection access; per-request use races
+     * across coroutines.
      */
     public static function proxy(string $method): void
     {
         static::$proxies[] = $method;
+    }
+
+    /**
+     * Flush the registered proxies, restoring the default list.
+     *
+     * Boot or tests only. Resets the worker-wide proxy registry; concurrent
+     * coroutines may resolve different proxies depending on timing.
+     */
+    public static function flushProxies(): void
+    {
+        static::$proxies = self::DEFAULT_PROXIES;
     }
 
     /**
