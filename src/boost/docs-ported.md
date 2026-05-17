@@ -29,6 +29,7 @@ errors.md
 events.md
 facades.md
 filesystem.md
+frontend.md
 pagination.md
 requests.md
 routing.md
