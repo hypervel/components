@@ -268,9 +268,9 @@ class WorkCommand extends Command
         ]);
 
         if ($status === 'starting') {
-            $this->latestStartedAt = microtime(true);
+            $this->setLatestStartedAt(microtime(true));
         } else {
-            $log['duration'] = round(microtime(true) - $this->latestStartedAt, 6);
+            $log['duration'] = round(microtime(true) - $this->getLatestStartedAt(), 6);
         }
 
         $this->output->writeln(json_encode($log));
