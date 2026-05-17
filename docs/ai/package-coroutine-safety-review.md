@@ -310,14 +310,14 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `boost` (round 2)
+**Next:** `bus` (round 2)
 
 | # | Package | Status |
 |---|---|---|
 | 1 | `api-client` | ✓ |
 | 2 | `auth` | ✓ |
-| 3 | `boost` |   |
-| 4 | `broadcasting` |   |
+| 3 | `boost` | ✓ (docs only) |
+| 4 | `broadcasting` | ✓ |
 | 5 | `bus` |   |
 | 6 | `cache` |   |
 | 7 | `collections` |   |
