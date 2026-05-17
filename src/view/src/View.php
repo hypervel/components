@@ -345,6 +345,14 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Get a piece of data from the view.
      */
     public function &__get(string $key): mixed

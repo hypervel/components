@@ -202,7 +202,11 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\View\Component::flushCache();
         \Hypervel\View\Component::forgetComponentsResolver();
         \Hypervel\View\Component::forgetFactory();
+        \Hypervel\View\ComponentAttributeBag::flushState();
+        \Hypervel\View\DynamicComponent::flushState();
         \Hypervel\View\Engines\CompilerEngine::forgetCompiledOrNotExpired();
+        \Hypervel\View\Factory::flushMacros();
+        \Hypervel\View\View::flushState();
         \Hypervel\Wayfinder\BindingResolver::flushState();
         \Hypervel\WebSocketServer\Collector\FdCollector::flushState();
         \Hypervel\WebSocketServer\Context::flushState();
