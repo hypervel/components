@@ -159,4 +159,12 @@ class TokenGuard implements Guard
 
         return "__auth.guards.{$this->name}.user." . md5($token);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
