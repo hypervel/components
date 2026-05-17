@@ -9,6 +9,7 @@
 ## Artisan
 
 - Create Hypervel Sail
+- Add a `composer dev` script to the `hypervel/hypervel` application skeleton and the `hypervel/react-starter-kit` skeleton. The script should start the Hypervel development server and frontend asset watcher together using the package manager tools already included with each skeleton, so new applications have a simple one-command local development workflow.
 - Port console command `Aliases`, `Help`, `Hidden`, and repeatable `Usage` attributes
 
 ## Configuration
@@ -32,6 +33,17 @@
 - Add missing `View::render(?callable $callback = null)` support. Hypervel has an internal `doRender(?callable $callback = null)` path, but the public `render()` method does not accept the optional callback that Laravel exposes.
 - Bring `Hypervel\View\ComponentAttributeBag` closer to Laravel by implementing `Hypervel\Contracts\Support\Arrayable`, adding `toArray()`, supporting `all($keys = null)`, and using `Hypervel\Support\Traits\InteractsWithData`. Laravel exposes typed attribute access helpers through this trait; Hypervel's attribute bag currently lacks that API surface.
 - Fix `CompilesComponents::compileProps()` helper variable cleanup. Laravel unsets `$__defined_vars`, `$__key`, and `$__value`; Hypervel currently only unsets `$__defined_vars`, so the generated component template can leak internal helper variables into scope.
+
+## Boost
+
+- Implement Hypervel Boost's installation flow and revisit the Boost section of `installation.md` once the implementation is complete. The current docs describe the intended `composer require hypervel/boost --dev` and `php artisan boost:install` workflow, but `src/boost` currently contains the documentation package only. Correct fix: add the interactive installer command and supporting tools, then update the installation docs for any differences from Laravel Boost.
+- Publish a Hypervel AI agent playbook at `hypervel.org/for/agents`. The copied installation docs include a Laravel agent prompt section, but Hypervel does not yet have an equivalent public playbook. Correct fix: write and publish a Hypervel-specific Markdown guide covering installation, project layout, Swoole / coroutine considerations, testing, and package conventions before adding the agent-prompt section back to the installation docs.
+
+## Documentation
+
+- Port the draft `src/boost/docs/coroutines.md` page from the 0.3 `docs/docs/coroutine.md` source for Hypervel 0.4. The copied draft still needs to be checked against the current coroutine package, rewritten into the current docs style, and updated for 0.4 naming, APIs, and runtime behavior.
+- Port the draft `src/boost/docs/coroutine-context.md` page from the 0.3 `docs/docs/context.md` source for Hypervel 0.4. The existing Boost `context.md` is Laravel's logging / cross-boundary context documentation, while Hypervel also needs a dedicated coroutine context page covering request / coroutine-local state in long-running Swoole workers.
+- Re-run the introduction benchmarks against Hypervel 0.4 before publishing externally. The benchmark tables currently preserve the 0.3 results so the comparison is not lost during the docs port, but Hypervel 0.4's decoupled runtime should have fresh measurements before those numbers are treated as current.
 
 ## Collections
 
