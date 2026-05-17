@@ -28,6 +28,7 @@ encryption.md
 errors.md
 events.md
 facades.md
+filesystem.md
 pagination.md
 requests.md
 routing.md

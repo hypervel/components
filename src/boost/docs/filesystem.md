@@ -5,6 +5,7 @@
     - [The Local Driver](#the-local-driver)
     - [The Public Disk](#the-public-disk)
     - [Driver Prerequisites](#driver-prerequisites)
+    - [Driver Pools](#driver-pools)
     - [Scoped and Read-Only Filesystems](#scoped-and-read-only-filesystems)
     - [Amazon S3 Compatible Filesystems](#amazon-s3-compatible-filesystems)
 - [Obtaining Disk Instances](#obtaining-disk-instances)
@@ -14,6 +15,7 @@
     - [File URLs](#file-urls)
     - [Temporary URLs](#temporary-urls)
     - [File Metadata](#file-metadata)
+    - [File Paths](#file-paths)
 - [Storing Files](#storing-files)
     - [Prepending and Appending To Files](#prepending-appending-to-files)
     - [Copying and Moving Files](#copying-moving-files)
@@ -28,14 +30,14 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel provides a powerful filesystem abstraction thanks to the wonderful [Flysystem](https://github.com/thephpleague/flysystem) PHP package by Frank de Jonge. The Laravel Flysystem integration provides simple drivers for working with local filesystems, SFTP, and Amazon S3. Even better, it's amazingly simple to switch between these storage options between your local development machine and production server as the API remains the same for each system.
+Hypervel provides a powerful filesystem abstraction thanks to the wonderful [Flysystem](https://github.com/thephpleague/flysystem) PHP package by Frank de Jonge. The Hypervel Flysystem integration provides simple drivers for working with local filesystems, FTP, SFTP, Amazon S3, and Google Cloud Storage. Even better, it's amazingly simple to switch between these storage options between your local development machine and production server as the API remains the same for each system.
 
 <a name="configuration"></a>
 ## Configuration
 
-Laravel's filesystem configuration file is located at `config/filesystems.php`. Within this file, you may configure all of your filesystem "disks". Each disk represents a particular storage driver and storage location. Example configurations for each supported driver are included in the configuration file so you can modify the configuration to reflect your storage preferences and credentials.
+Hypervel's filesystem configuration file is located at `config/filesystems.php`. Within this file, you may configure all of your filesystem "disks". Each disk represents a particular storage driver and storage location. Example configurations for each supported driver are included in the configuration file so you can modify the configuration to reflect your storage preferences and credentials.
 
-The `local` driver interacts with files stored locally on the server running the Laravel application, while the `sftp` storage driver is used for SSH key-based FTP. The `s3` driver is used to write to Amazon's S3 cloud storage service.
+The `local` driver interacts with files stored locally on the server running the Hypervel application, while the `ftp` and `sftp` storage drivers are used for FTP and SFTP. The `s3` and `gcs` drivers are used to write to Amazon S3 and Google Cloud Storage.
 
 > [!NOTE]
 > You may configure as many disks as you like and may even have multiple disks that use the same driver.
@@ -91,12 +93,6 @@ php artisan storage:unlink
 <a name="s3-driver-configuration"></a>
 #### S3 Driver Configuration
 
-Before using the S3 driver, you will need to install the Flysystem S3 package via the Composer package manager:
-
-```shell
-composer require league/flysystem-aws-s3-v3 "^3.0" --with-all-dependencies
-```
-
 An S3 disk configuration array is located in your `config/filesystems.php` configuration file. Typically, you should configure your S3 information and credentials using the following environment variables which are referenced by the `config/filesystems.php` configuration file:
 
 ```ini
@@ -118,7 +114,7 @@ Before using the FTP driver, you will need to install the Flysystem FTP package 
 composer require league/flysystem-ftp "^3.0"
 ```
 
-Laravel's Flysystem integrations work great with FTP; however, a sample configuration is not included with the framework's default `config/filesystems.php` configuration file. If you need to configure an FTP filesystem, you may use the configuration example below:
+Hypervel's Flysystem integrations work great with FTP; however, a sample configuration is not included with the framework's default `config/filesystems.php` configuration file. If you need to configure an FTP filesystem, you may use the configuration example below:
 
 ```php
 'ftp' => [
@@ -145,7 +141,7 @@ Before using the SFTP driver, you will need to install the Flysystem SFTP packag
 composer require league/flysystem-sftp-v3 "^3.0"
 ```
 
-Laravel's Flysystem integrations work great with SFTP; however, a sample configuration is not included with the framework's default `config/filesystems.php` configuration file. If you need to configure an SFTP filesystem, you may use the configuration example below:
+Hypervel's Flysystem integrations work great with SFTP; however, a sample configuration is not included with the framework's default `config/filesystems.php` configuration file. If you need to configure an SFTP filesystem, you may use the configuration example below:
 
 ```php
 'sftp' => [
@@ -175,14 +171,76 @@ Laravel's Flysystem integrations work great with SFTP; however, a sample configu
 ],
 ```
 
+<a name="gcs-driver-configuration"></a>
+#### Google Cloud Storage Driver Configuration
+
+Before using the Google Cloud Storage driver, you will need to install the Flysystem Google Cloud Storage package via the Composer package manager:
+
+```shell
+composer require league/flysystem-google-cloud-storage "^3.0"
+```
+
+A Google Cloud Storage disk configuration array is located in your `config/filesystems.php` configuration file. Typically, you should configure your Google Cloud Storage information and credentials using the following environment variables which are referenced by the `config/filesystems.php` configuration file:
+
+```ini
+GOOGLE_CLOUD_KEY_FILE=<path-to-service-account-json>
+GOOGLE_CLOUD_PROJECT_ID=<your-project-id>
+GOOGLE_CLOUD_STORAGE_BUCKET=<your-bucket-name>
+GOOGLE_CLOUD_STORAGE_PATH_PREFIX=
+GOOGLE_CLOUD_STORAGE_API_URI=
+GOOGLE_CLOUD_STORAGE_API_ENDPOINT=
+```
+
+If you need to configure a Google Cloud Storage filesystem manually, you may use the configuration example below:
+
+```php
+'gcs' => [
+    'driver' => 'gcs',
+    'key_file_path' => env('GOOGLE_CLOUD_KEY_FILE'),
+    'key_file' => [],
+    'project_id' => env('GOOGLE_CLOUD_PROJECT_ID', 'your-project-id'),
+    'bucket' => env('GOOGLE_CLOUD_STORAGE_BUCKET', 'your-bucket'),
+    'path_prefix' => env('GOOGLE_CLOUD_STORAGE_PATH_PREFIX', ''),
+    'storage_api_uri' => env('GOOGLE_CLOUD_STORAGE_API_URI'),
+    'api_endpoint' => env('GOOGLE_CLOUD_STORAGE_API_ENDPOINT'),
+    'visibility' => 'public',
+    'visibility_handler' => null,
+    'metadata' => ['cacheControl' => 'public,max-age=86400'],
+    'throw' => false,
+    'stream_reads' => false,
+    'pool' => [
+        'min_objects' => 1,
+        'max_objects' => 10,
+        'wait_timeout' => 3.0,
+        'max_lifetime' => 60.0,
+    ],
+],
+```
+
+<a name="driver-pools"></a>
+### Driver Pools
+
+The `s3` and `gcs` drivers are pooled by default, allowing Hypervel to safely reuse cloud storage driver instances across concurrent requests. You may configure the pool for these disks using the `pool` configuration option:
+
+```php
+'s3' => [
+    'driver' => 's3',
+    // ...
+    'pool' => [
+        'min_objects' => 1,
+        'max_objects' => 10,
+        'wait_timeout' => 3.0,
+        'max_lifetime' => 60.0,
+    ],
+],
+```
+
+The default pool settings are suitable for most applications, but you may tune them for workloads with high concurrent storage traffic, long-running uploads or downloads, or pool exhaustion errors. If all pooled objects are in use and no object becomes available before the configured `wait_timeout`, a `RuntimeException` will be thrown.
+
 <a name="scoped-and-read-only-filesystems"></a>
 ### Scoped and Read-Only Filesystems
 
-Scoped disks allow you to define a filesystem where all paths are automatically prefixed with a given path prefix. Before creating a scoped filesystem disk, you will need to install an additional Flysystem package via the Composer package manager:
-
-```shell
-composer require league/flysystem-path-prefixing "^3.0"
-```
+Scoped disks allow you to define a filesystem where all paths are automatically prefixed with a given path prefix.
 
 You may create a path scoped instance of any existing filesystem disk by defining a disk that utilizes the `scoped` driver. For example, you may create a disk which scopes your existing `s3` disk to a specific path prefix, and then every file operation using your scoped disk will utilize the specified prefix:
 
@@ -194,13 +252,7 @@ You may create a path scoped instance of any existing filesystem disk by definin
 ],
 ```
 
-"Read-only" disks allow you to create filesystem disks that do not allow write operations. Before using the `read-only` configuration option, you will need to install an additional Flysystem package via the Composer package manager:
-
-```shell
-composer require league/flysystem-read-only "^3.0"
-```
-
-Next, you may include the `read-only` configuration option in one or more of your disk's configuration arrays:
+"Read-only" disks allow you to create filesystem disks that do not allow write operations. You may include the `read-only` configuration option in one or more of your disk's configuration arrays:
 
 ```php
 's3-videos' => [
@@ -285,6 +337,18 @@ if (Storage::disk('s3')->missing('file.jpg')) {
 }
 ```
 
+If you need to determine whether a path specifically points to a file or a directory, you may use the `fileExists`, `fileMissing`, `directoryExists`, and `directoryMissing` methods:
+
+```php
+if (Storage::disk('s3')->fileExists('file.jpg')) {
+    // ...
+}
+
+if (Storage::disk('s3')->directoryMissing('photos')) {
+    // ...
+}
+```
+
 <a name="downloading-files"></a>
 ### Downloading Files
 
@@ -296,10 +360,16 @@ return Storage::download('file.jpg');
 return Storage::download('file.jpg', $name, $headers);
 ```
 
+If you would like to display a file, such as an image or PDF, directly in the user's browser instead of initiating a download, you may use the `response` method:
+
+```php
+return Storage::response('file.jpg');
+```
+
 <a name="file-urls"></a>
 ### File URLs
 
-You may use the `url` method to get the URL for a given file. If you are using the `local` driver, this will typically just prepend `/storage` to the given path and return a relative URL to the file. If you are using the `s3` driver, the fully qualified remote URL will be returned:
+You may use the `url` method to get the URL for a given file. If you are using the `local` driver, this will typically just prepend `/storage` to the given path and return a relative URL to the file. If you are using the `s3` or `gcs` driver, the fully qualified remote URL will be returned:
 
 ```php
 use Hypervel\Support\Facades\Storage;
@@ -330,7 +400,7 @@ If you would like to modify the host for URLs generated using the `Storage` faca
 <a name="temporary-urls"></a>
 ### Temporary URLs
 
-Using the `temporaryUrl` method, you may create temporary URLs to files stored using the `local` and `s3` drivers. This method accepts a path and a `DateTime` instance specifying when the URL should expire:
+Using the `temporaryUrl` method, you may create temporary URLs to files stored using the `local`, `s3`, and `gcs` drivers. This method accepts a path and a `DateTimeInterface` instance specifying when the URL should expire:
 
 ```php
 use Hypervel\Support\Facades\Storage;
@@ -343,7 +413,7 @@ $url = Storage::temporaryUrl(
 <a name="enabling-local-temporary-urls"></a>
 #### Enabling Local Temporary URLs
 
-If you started developing your application before support for temporary URLs was introduced to the `local` driver, you may need to enable local temporary URLs. To do so, add the `serve` option to your `local` disk's configuration array within the `config/filesystems.php` configuration file:
+To generate temporary URLs for files stored using the `local` driver, add the `serve` option to your `local` disk's configuration array within the `config/filesystems.php` configuration file:
 
 ```php
 'local' => [
@@ -380,7 +450,7 @@ If you need to customize how temporary URLs are created for a specific storage d
 
 namespace App\Providers;
 
-use DateTime;
+use DateTimeInterface;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Support\ServiceProvider;
@@ -393,7 +463,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Storage::disk('local')->buildTemporaryUrlsUsing(
-            function (string $path, DateTime $expiration, array $options) {
+            function (string $path, DateTimeInterface $expiration, array $options) {
                 return URL::temporarySignedRoute(
                     'files.download',
                     $expiration,
@@ -409,9 +479,11 @@ class AppServiceProvider extends ServiceProvider
 #### Temporary Upload URLs
 
 > [!WARNING]
-> The ability to generate temporary upload URLs is only supported by the `s3` and `local` drivers.
+> The ability to generate temporary upload URLs is only supported by the `local`, `s3`, and `gcs` drivers.
 
-If you need to generate a temporary URL that can be used to upload a file directly from your client-side application, you may use the `temporaryUploadUrl` method. This method accepts a path and a `DateTime` instance specifying when the URL should expire. The `temporaryUploadUrl` method returns an associative array which may be destructured into the upload URL and the headers that should be included with the upload request:
+If you need to generate a temporary URL that can be used to upload a file directly from your client-side application, you may use the `temporaryUploadUrl` method. This method accepts a path and a `DateTimeInterface` instance specifying when the URL should expire.
+
+For the `local` and `s3` drivers, the `temporaryUploadUrl` method returns an associative array which may be destructured into the upload URL and the headers that should be included with the upload request:
 
 ```php
 use Hypervel\Support\Facades\Storage;
@@ -421,12 +493,20 @@ use Hypervel\Support\Facades\Storage;
 );
 ```
 
-This method is primarily useful in serverless environments that require the client-side application to directly upload files to a cloud storage system such as Amazon S3.
+When using the `gcs` driver, the method returns a signed upload session URL string:
+
+```php
+$url = Storage::temporaryUploadUrl(
+    'file.jpg', now()->plus(minutes: 5)
+);
+```
+
+Google Cloud Storage determines the lifetime of the upload session. This method is primarily useful when your client-side application needs to upload files directly to a storage system such as Amazon S3 or Google Cloud Storage.
 
 <a name="file-metadata"></a>
 ### File Metadata
 
-In addition to reading and writing files, Laravel can also provide information about the files themselves. For example, the `size` method may be used to get the size of a file in bytes:
+In addition to reading and writing files, Hypervel can also provide information about the files themselves. For example, the `size` method may be used to get the size of a file in bytes:
 
 ```php
 use Hypervel\Support\Facades\Storage;
@@ -446,10 +526,16 @@ The MIME type of a given file may be obtained via the `mimeType` method:
 $mime = Storage::mimeType('file.jpg');
 ```
 
+The checksum of a given file may be obtained via the `checksum` method:
+
+```php
+$checksum = Storage::checksum('file.jpg');
+```
+
 <a name="file-paths"></a>
 #### File Paths
 
-You may use the `path` method to get the path for a given file. If you are using the `local` driver, this will return the absolute path to the file. If you are using the `s3` driver, this method will return the relative path to the file in the S3 bucket:
+You may use the `path` method to get the path for a given file. If you are using the `local` driver, this will return the absolute path to the file. If you are using a cloud driver, this method will return the relative path to the file in the remote bucket:
 
 ```php
 use Hypervel\Support\Facades\Storage;
@@ -516,7 +602,7 @@ Storage::move('old/file.jpg', 'new/file.jpg');
 <a name="automatic-streaming"></a>
 ### Automatic Streaming
 
-Streaming files to storage offers significantly reduced memory usage. If you would like Laravel to automatically manage streaming a given file to your storage location, you may use the `putFile` or `putFileAs` method. This method accepts either an `Hypervel\Http\File` or `Hypervel\Http\UploadedFile` instance and will automatically stream the file to your desired location:
+Streaming files to storage offers significantly reduced memory usage. If you would like Hypervel to automatically manage streaming a given file to your storage location, you may use the `putFile` or `putFileAs` method. This method accepts either a `Hypervel\Http\File` or `Hypervel\Http\UploadedFile` instance and will automatically stream the file to your desired location:
 
 ```php
 use Hypervel\Http\File;
@@ -540,7 +626,7 @@ Storage::putFile('photos', new File('/path/to/photo'), 'public');
 <a name="file-uploads"></a>
 ### File Uploads
 
-In web applications, one of the most common use-cases for storing files is storing user uploaded files such as photos and documents. Laravel makes it very easy to store uploaded files using the `store` method on an uploaded file instance. Call the `store` method with the path at which you wish to store the uploaded file:
+In web applications, one of the most common use-cases for storing files is storing user uploaded files such as photos and documents. Hypervel makes it very easy to store uploaded files using the `store` method on an uploaded file instance. Call the `store` method with the path at which you wish to store the uploaded file:
 
 ```php
 <?php
@@ -591,7 +677,7 @@ $path = Storage::putFileAs(
 ```
 
 > [!WARNING]
-> Unprintable and invalid unicode characters will automatically be removed from file paths. Therefore, you may wish to sanitize your file paths before passing them to Laravel's file storage methods. File paths are normalized using the `League\Flysystem\WhitespacePathNormalizer::normalizePath` method.
+> Unprintable and invalid unicode characters will automatically be removed from file paths. Therefore, you may wish to sanitize your file paths before passing them to Hypervel's file storage methods. File paths are normalized using the `League\Flysystem\WhitespacePathNormalizer::normalizePath` method.
 
 <a name="specifying-a-disk"></a>
 #### Specifying a Disk
@@ -638,7 +724,7 @@ $extension = $file->extension(); // Determine the file's extension based on the 
 <a name="file-visibility"></a>
 ### File Visibility
 
-In Laravel's Flysystem integration, "visibility" is an abstraction of file permissions across multiple platforms. Files may either be declared `public` or `private`. When a file is declared `public`, you are indicating that the file should generally be accessible to others. For example, when using the S3 driver, you may retrieve URLs for `public` files.
+In Hypervel's Flysystem integration, "visibility" is an abstraction of file permissions across multiple platforms. Files may either be declared `public` or `private`. When a file is declared `public`, you are indicating that the file should generally be accessible to others. For example, when using the S3 driver, you may retrieve URLs for `public` files.
 
 You can set the visibility when writing the file via the `put` method:
 
@@ -837,7 +923,7 @@ By default, the `fake` method will delete all files in its temporary directory. 
 <a name="custom-filesystems"></a>
 ## Custom Filesystems
 
-Laravel's Flysystem integration provides support for several "drivers" out of the box; however, Flysystem is not limited to these and has adapters for many other storage systems. You can create a custom driver if you want to use one of these additional adapters in your Laravel application.
+Hypervel's Flysystem integration provides support for several "drivers" out of the box; however, Flysystem is not limited to these and has adapters for many other storage systems. You can create a custom driver if you want to use one of these additional adapters in your Hypervel application.
 
 In order to define a custom filesystem you will need a Flysystem adapter. Let's add a community maintained Dropbox adapter to our project:
 
@@ -885,11 +971,13 @@ class AppServiceProvider extends ServiceProvider
                 $adapter,
                 $config
             );
-        });
+        }, poolable: true);
     }
 }
 ```
 
 The first argument of the `extend` method is the name of the driver and the second is a closure that receives the `$app` and `$config` variables. The closure must return an instance of `Hypervel\Filesystem\FilesystemAdapter`. The `$config` variable contains the values defined in `config/filesystems.php` for the specified disk.
+
+The optional `poolable` argument determines whether Hypervel should wrap the custom driver in an object pool. This value is `false` by default. You should set it to `true` for custom drivers that hold state that should not be shared across concurrent requests, such as cloud storage SDK clients.
 
 Once you have created and registered the extension's service provider, you may use the `dropbox` driver in your `config/filesystems.php` configuration file.
