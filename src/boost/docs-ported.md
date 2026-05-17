@@ -34,6 +34,7 @@ hashing.md
 helpers.md
 horizon.md
 http-client.md
+http-tests.md
 pagination.md
 requests.md
 routing.md

@@ -4,6 +4,7 @@
 - [Making Requests](#making-requests)
     - [Customizing Request Headers](#customizing-request-headers)
     - [Cookies](#cookies)
+    - [Additional Request Customization](#additional-request-customization)
     - [Session / Authentication](#session-and-authentication)
     - [Debugging Responses](#debugging-responses)
     - [Exception Handling](#exception-handling)
@@ -21,7 +22,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel provides a very fluent API for making HTTP requests to your application and examining the responses. For example, take a look at the feature test defined below:
+Hypervel provides a very fluent API for making HTTP requests to your application and examining the responses. For example, take a look at the feature test defined below:
 
 ```php tab=Pest
 <?php
@@ -54,12 +55,12 @@ class ExampleTest extends TestCase
 }
 ```
 
-The `get` method makes a `GET` request into the application, while the `assertStatus` method asserts that the returned response should have the given HTTP status code. In addition to this simple assertion, Laravel also contains a variety of assertions for inspecting the response headers, content, JSON structure, and more.
+The `get` method makes a `GET` request into the application, while the `assertStatus` method asserts that the returned response should have the given HTTP status code. In addition to this simple assertion, Hypervel also contains a variety of assertions for inspecting the response headers, content, JSON structure, and more.
 
 <a name="making-requests"></a>
 ## Making Requests
 
-To make a request to your application, you may invoke the `get`, `post`, `put`, `patch`, or `delete` methods within your test. These methods do not actually issue a "real" HTTP request to your application. Instead, the entire network request is simulated internally.
+To make a request to your application, you may invoke the `get`, `post`, `put`, `patch`, `delete`, `options`, or `head` methods within your test. These methods do not actually issue a "real" HTTP request to your application. Instead, the entire network request is simulated internally.
 
 Instead of returning an `Hypervel\Http\Response` instance, test request methods return an instance of `Hypervel\Testing\TestResponse`, which provides a [variety of helpful assertions](#available-assertions) that allow you to inspect your application's responses:
 
@@ -139,6 +140,34 @@ class ExampleTest extends TestCase
 }
 ```
 
+The `withHeader` method may be used to add a single header, while the `withoutHeader`, `withoutHeaders`, and `flushHeaders` methods may be used to remove previously configured headers:
+
+```php
+$response = $this->withHeader('X-Header', 'Value')->post('/user');
+
+$response = $this->withoutHeader('X-Header')->post('/user');
+
+$response = $this->flushHeaders()->post('/user');
+```
+
+If you need to include an authorization header with the request, you may use the `withToken` or `withBasicAuth` methods. The `withoutToken` method may be used to remove a previously configured bearer token:
+
+```php
+$response = $this->withToken('token')->get('/user');
+
+$response = $this->withBasicAuth('taylor@example.com', 'password')->get('/user');
+
+$response = $this->withoutToken()->get('/user');
+```
+
+The `withServerVariables` method may be used to set server variables before making a request:
+
+```php
+$response = $this->withServerVariables([
+    'REMOTE_ADDR' => '127.0.0.1',
+])->get('/');
+```
+
 <a name="cookies"></a>
 ### Cookies
 
@@ -182,10 +211,47 @@ class ExampleTest extends TestCase
 }
 ```
 
+If you need to send an unencrypted cookie value, you may use the `withUnencryptedCookie` or `withUnencryptedCookies` methods:
+
+```php
+$response = $this->withUnencryptedCookie('color', 'blue')->get('/');
+```
+
+The `disableCookieEncryption` method may be used to disable cookie encryption for the request:
+
+```php
+$response = $this->disableCookieEncryption()->get('/');
+```
+
+<a name="additional-request-customization"></a>
+### Additional Request Customization
+
+The `from` and `fromRoute` methods may be used to set the previous URL before making a request:
+
+```php
+$response = $this->from('/dashboard')->post('/user');
+
+$response = $this->fromRoute('dashboard')->post('/user');
+```
+
+If you would like the test client to follow redirects returned by your application, you may invoke the `followingRedirects` method before making your request:
+
+```php
+$response = $this->followingRedirects()->post('/login');
+```
+
+If you would like to disable middleware for a test, you may invoke the `withoutMiddleware` method before making your request. You may also restore middleware by invoking the `withMiddleware` method:
+
+```php
+$response = $this->withoutMiddleware()->get('/');
+
+$response = $this->withMiddleware()->get('/');
+```
+
 <a name="session-and-authentication"></a>
 ### Session / Authentication
 
-Laravel provides several helpers for interacting with the session during HTTP testing. First, you may set the session data to a given array using the `withSession` method. This is useful for loading the session with data before issuing a request to your application:
+Hypervel provides several helpers for interacting with the session during HTTP testing. First, you may set the session data to a given array using the `withSession` method. This is useful for loading the session with data before issuing a request to your application:
 
 ```php tab=Pest
 <?php
@@ -215,7 +281,7 @@ class ExampleTest extends TestCase
 }
 ```
 
-Laravel's session is typically used to maintain state for the currently authenticated user. Therefore, the `actingAs` helper method provides a simple way to authenticate a given user as the current user. For example, we may use a [model factory](/docs/{{version}}/eloquent-factories) to generate and authenticate a user:
+Hypervel's session is typically used to maintain state for the currently authenticated user. Therefore, the `actingAs` helper method provides a simple way to authenticate a given user as the current user. For example, we may use a [model factory](/docs/{{version}}/eloquent-factories) to generate and authenticate a user:
 
 ```php tab=Pest
 <?php
@@ -406,12 +472,14 @@ class ExampleTest extends TestCase
 }
 ```
 
-The `assertNotReported` and `assertNothingReported` methods may be used to assert that a given exception was not thrown during the request or that no exceptions were thrown:
+The `assertNotReported`, `assertNothingReported`, and `assertReportedCount` methods may be used to assert that a given exception was not thrown during the request, that no exceptions were thrown, or that a given number of exceptions were thrown:
 
 ```php
 Exceptions::assertNotReported(InvalidOrderException::class);
 
 Exceptions::assertNothingReported();
+
+Exceptions::assertReportedCount(1);
 ```
 
 You may totally disable exception handling for a given request by invoking the `withoutExceptionHandling` method before making your request:
@@ -453,7 +521,7 @@ $this->assertDoesntThrow(fn () => (new ProcessOrder)->execute());
 <a name="testing-json-apis"></a>
 ## Testing JSON APIs
 
-Laravel also provides several helpers for testing JSON APIs and their responses. For example, the `json`, `getJson`, `postJson`, `putJson`, `patchJson`, `deleteJson`, and `optionsJson` methods may be used to issue JSON requests with various HTTP verbs. You may also easily pass data and headers to these methods. To get started, let's write a test to make a `POST` request to `/api/user` and assert that the expected JSON data was returned:
+Hypervel also provides several helpers for testing JSON APIs and their responses. For example, the `json`, `getJson`, `postJson`, `putJson`, `patchJson`, `deleteJson`, and `optionsJson` methods may be used to issue JSON requests with various HTTP verbs. You may also easily pass data and headers to these methods. To get started, let's write a test to make a `POST` request to `/api/user` and assert that the expected JSON data was returned:
 
 ```php tab=Pest
 <?php
@@ -506,6 +574,14 @@ $this->assertTrue($response['created']);
 
 > [!NOTE]
 > The `assertJson` method converts the response to an array to verify that the given array exists within the JSON response returned by the application. So, if there are other properties in the JSON response, this test will still pass as long as the given fragment is present.
+
+If you would like JSON requests to include the cookies and authorization headers configured on the test client, you may invoke the `withCredentials` method before making the request:
+
+```php
+$response = $this->withCredentials()->postJson('/api/user', [
+    'name' => 'Sally',
+]);
+```
 
 <a name="verifying-exact-match"></a>
 #### Asserting Exact JSON Matches
@@ -600,7 +676,7 @@ $response->assertJsonPath('team.owner.name', fn (string $name) => strlen($name) 
 <a name="fluent-json-testing"></a>
 ### Fluent JSON Testing
 
-Laravel also offers a beautiful way to fluently test your application's JSON responses. To get started, pass a closure to the `assertJson` method. This closure will be invoked with an instance of `Hypervel\Testing\Fluent\AssertableJson` which can be used to make assertions against the JSON that was returned by your application. The `where` method may be used to make assertions against a particular attribute of the JSON, while the `missing` method may be used to assert that a particular attribute is missing from the JSON:
+Hypervel also offers a beautiful way to fluently test your application's JSON responses. To get started, pass a closure to the `assertJson` method. This closure will be invoked with an instance of `Hypervel\Testing\Fluent\AssertableJson` which can be used to make assertions against the JSON that was returned by your application. The `where` method may be used to make assertions against a particular attribute of the JSON, while the `missing` method may be used to assert that a particular attribute is missing from the JSON:
 
 ```php tab=Pest
 use Hypervel\Testing\Fluent\AssertableJson;
@@ -644,7 +720,7 @@ public function test_fluent_json(): void
 
 #### Understanding the `etc` Method
 
-In the example above, you may have noticed we invoked the `etc` method at the end of our assertion chain. This method informs Laravel that there may be other attributes present on the JSON object. If the `etc` method is not used, the test will fail if other attributes that you did not make assertions against exist on the JSON object.
+In the example above, you may have noticed we invoked the `etc` method at the end of our assertion chain. This method informs Hypervel that there may be other attributes present on the JSON object. If the `etc` method is not used, the test will fail if other attributes that you did not make assertions against exist on the JSON object.
 
 The intention behind this behavior is to protect you from unintentionally exposing sensitive information in your JSON responses by forcing you to either explicitly make an assertion against the attribute or explicitly allow additional attributes via the `etc` method.
 
@@ -882,7 +958,7 @@ UploadedFile::fake()->create(
 <a name="testing-views"></a>
 ## Testing Views
 
-Laravel also allows you to render a view without making a simulated HTTP request to the application. To accomplish this, you may call the `view` method within your test. The `view` method accepts the view name and an optional array of data. The method returns an instance of `Hypervel\Testing\TestView`, which offers several methods to conveniently make assertions about the view's contents:
+Hypervel also allows you to render a view without making a simulated HTTP request to the application. To accomplish this, you may call the `view` method within your test. The `view` method accepts the view name and an optional array of data. The method returns an instance of `Hypervel\Testing\TestView`, which offers several methods to conveniently make assertions about the view's contents:
 
 ```php tab=Pest
 <?php
@@ -912,7 +988,7 @@ class ExampleTest extends TestCase
 }
 ```
 
-The `TestView` class provides the following assertion methods: `assertSee`, `assertSeeInOrder`, `assertSeeText`, `assertSeeTextInOrder`, `assertDontSee`, and `assertDontSeeText`.
+The `TestView` class provides the following assertion methods: `assertSee`, `assertSeeInOrder`, `assertSeeText`, `assertSeeTextInOrder`, `assertDontSee`, `assertDontSeeText`, `assertViewHas`, `assertViewHasAll`, `assertViewMissing`, and `assertViewEmpty`.
 
 If needed, you may get the raw, rendered view contents by casting the `TestView` instance to a string:
 
@@ -923,7 +999,7 @@ $contents = (string) $this->view('welcome');
 <a name="sharing-errors"></a>
 #### Sharing Errors
 
-Some views may depend on errors shared in the [global error bag provided by Laravel](/docs/{{version}}/validation#quick-displaying-the-validation-errors). To hydrate the error bag with error messages, you may use the `withViewErrors` method:
+Some views may depend on errors shared in the [global error bag provided by Hypervel](/docs/{{version}}/validation#quick-displaying-the-validation-errors). To hydrate the error bag with error messages, you may use the `withViewErrors` method:
 
 ```php
 $view = $this->withViewErrors([
@@ -958,7 +1034,7 @@ $view->assertSee('Taylor');
 <a name="caching-routes"></a>
 ## Caching Routes
 
-Before a test runs, Laravel boots a fresh instance of the application, including collecting all defined routes. If your applications have many route files, you may wish to add the `Hypervel\Foundation\Testing\WithCachedRoutes` trait to your test cases. On tests which use this trait, routes are built once and stored in memory, meaning the route collection process is only run once for all tests in your suite:
+Before a test runs, Hypervel boots a fresh instance of the application, including collecting all defined routes. If your applications have many route files, you may wish to add the `Hypervel\Foundation\Testing\WithCachedRoutes` trait to your test cases. On tests which use this trait, routes are built once and stored in memory, meaning the route collection process is only run once for all tests in your suite:
 
 ```php tab=Pest
 <?php
@@ -1006,7 +1082,7 @@ class BasicTest extends TestCase
 <a name="response-assertions"></a>
 ### Response Assertions
 
-Laravel's `Hypervel\Testing\TestResponse` class provides a variety of custom assertion methods that you may utilize when testing your application. These assertions may be accessed on the response that is returned by the `json`, `get`, `post`, `put`, and `delete` test methods:
+Hypervel's `Hypervel\Testing\TestResponse` class provides a variety of custom assertion methods that you may utilize when testing your application. These assertions may be accessed on the response that is returned by the `json`, `get`, `post`, `put`, `patch`, `delete`, `options`, and `head` test methods:
 
 <style>
     .collection-method-list > p {
@@ -1033,10 +1109,12 @@ Laravel's `Hypervel\Testing\TestResponse` class provides a variety of custom ass
 [assertCookieMissing](#assert-cookie-missing)
 [assertCreated](#assert-created)
 [assertDontSee](#assert-dont-see)
+[assertDontSeeHtml](#assert-dont-see-html)
 [assertDontSeeText](#assert-dont-see-text)
 [assertDownload](#assert-download)
 [assertExactJson](#assert-exact-json)
 [assertExactJsonStructure](#assert-exact-json-structure)
+[assertFailedDependency](#assert-failed-dependency)
 [assertForbidden](#assert-forbidden)
 [assertFound](#assert-found)
 [assertGone](#assert-gone)
@@ -1047,14 +1125,17 @@ Laravel's `Hypervel\Testing\TestResponse` class provides a variety of custom ass
 [assertJson](#assert-json)
 [assertJsonCount](#assert-json-count)
 [assertJsonFragment](#assert-json-fragment)
+[assertJsonFragments](#assert-json-fragments)
 [assertJsonIsArray](#assert-json-is-array)
 [assertJsonIsObject](#assert-json-is-object)
 [assertJsonMissing](#assert-json-missing)
 [assertJsonMissingExact](#assert-json-missing-exact)
 [assertJsonMissingValidationErrors](#assert-json-missing-validation-errors)
 [assertJsonPath](#assert-json-path)
+[assertJsonPathCanonicalizing](#assert-json-path-canonicalizing)
 [assertJsonMissingPath](#assert-json-missing-path)
 [assertJsonStructure](#assert-json-structure)
+[assertOnlyJsonValidationErrors](#assert-only-json-validation-errors)
 [assertJsonValidationErrors](#assert-json-validation-errors)
 [assertJsonValidationErrorFor](#assert-json-validation-error-for)
 [assertLocation](#assert-location)
@@ -1062,26 +1143,35 @@ Laravel's `Hypervel\Testing\TestResponse` class provides a variety of custom ass
 [assertMovedPermanently](#assert-moved-permanently)
 [assertContent](#assert-content)
 [assertNoContent](#assert-no-content)
+[assertNotAcceptable](#assert-not-acceptable)
 [assertStreamed](#assert-streamed)
 [assertStreamedContent](#assert-streamed-content)
+[assertStreamedJsonContent](#assert-streamed-json-content)
 [assertNotFound](#assert-not-found)
+[assertNotModified](#assert-not-modified)
+[assertNotStreamed](#assert-not-streamed)
 [assertOk](#assert-ok)
 [assertPaymentRequired](#assert-payment-required)
+[assertPermanentRedirect](#assert-permanent-redirect)
 [assertPlainCookie](#assert-plain-cookie)
 [assertRedirect](#assert-redirect)
 [assertRedirectBack](#assert-redirect-back)
 [assertRedirectBackWithErrors](#assert-redirect-back-with-errors)
 [assertRedirectBackWithoutErrors](#assert-redirect-back-without-errors)
 [assertRedirectContains](#assert-redirect-contains)
+[assertRedirectToAction](#assert-redirect-to-action)
 [assertRedirectToRoute](#assert-redirect-to-route)
 [assertRedirectToSignedRoute](#assert-redirect-to-signed-route)
 [assertRequestTimeout](#assert-request-timeout)
 [assertSee](#assert-see)
+[assertSeeHtml](#assert-see-html)
+[assertSeeHtmlInOrder](#assert-see-html-in-order)
 [assertSeeInOrder](#assert-see-in-order)
 [assertSeeText](#assert-see-text)
 [assertSeeTextInOrder](#assert-see-text-in-order)
 [assertServerError](#assert-server-error)
 [assertServiceUnavailable](#assert-service-unavailable)
+[assertSimilarJson](#assert-similar-json)
 [assertSessionHas](#assert-session-has)
 [assertSessionHasInput](#assert-session-has-input)
 [assertSessionHasAll](#assert-session-has-all)
@@ -1092,6 +1182,8 @@ Laravel's `Hypervel\Testing\TestResponse` class provides a variety of custom ass
 [assertSessionMissing](#assert-session-missing)
 [assertStatus](#assert-status)
 [assertSuccessful](#assert-successful)
+[assertSuccessfulPrecognition](#assert-successful-precognition)
+[assertTemporaryRedirect](#assert-temporary-redirect)
 [assertTooManyRequests](#assert-too-many-requests)
 [assertUnauthorized](#assert-unauthorized)
 [assertUnprocessable](#assert-unprocessable)
@@ -1195,6 +1287,15 @@ Assert that the given string is not contained within the response returned by th
 $response->assertDontSee($value, $escape = true);
 ```
 
+<a name="assert-dont-see-html"></a>
+#### assertDontSeeHtml
+
+Assert that the given HTML string is not contained within the response:
+
+```php
+$response->assertDontSeeHtml($value);
+```
+
 <a name="assert-dont-see-text"></a>
 #### assertDontSeeText
 
@@ -1234,10 +1335,19 @@ $response->assertExactJson(array $data);
 Assert that the response contains an exact match of the given JSON structure:
 
 ```php
-$response->assertExactJsonStructure(array $data);
+$response->assertExactJsonStructure(?array $structure = null, ?array $responseData = null);
 ```
 
 This method is a more strict variant of [assertJsonStructure](#assert-json-structure). In contrast with `assertJsonStructure`, this method will fail if the response contains any keys that aren't explicitly included in the expected JSON structure.
+
+<a name="assert-failed-dependency"></a>
+#### assertFailedDependency
+
+Assert that the response has a failed dependency (424) HTTP status code:
+
+```php
+$response->assertFailedDependency();
+```
 
 <a name="assert-forbidden"></a>
 #### assertForbidden
@@ -1341,13 +1451,25 @@ Route::get('/users', function () {
 $response->assertJsonFragment(['name' => 'Taylor Otwell']);
 ```
 
+<a name="assert-json-fragments"></a>
+#### assertJsonFragments
+
+Assert that the response contains all of the given JSON fragments anywhere in the response:
+
+```php
+$response->assertJsonFragments([
+    ['name' => 'Taylor Otwell'],
+    ['name' => 'Abigail Otwell'],
+]);
+```
+
 <a name="assert-json-is-array"></a>
 #### assertJsonIsArray
 
 Assert that the response JSON is an array:
 
 ```php
-$response->assertJsonIsArray();
+$response->assertJsonIsArray($key = null);
 ```
 
 <a name="assert-json-is-object"></a>
@@ -1356,7 +1478,7 @@ $response->assertJsonIsArray();
 Assert that the response JSON is an object:
 
 ```php
-$response->assertJsonIsObject();
+$response->assertJsonIsObject($key = null);
 ```
 
 <a name="assert-json-missing"></a>
@@ -1365,7 +1487,7 @@ $response->assertJsonIsObject();
 Assert that the response does not contain the given JSON data:
 
 ```php
-$response->assertJsonMissing(array $data);
+$response->assertJsonMissing(array $data, $exact = false);
 ```
 
 <a name="assert-json-missing-exact"></a>
@@ -1414,6 +1536,15 @@ You may assert that the `name` property of the `user` object matches a given val
 $response->assertJsonPath('user.name', 'Steve Schoger');
 ```
 
+<a name="assert-json-path-canonicalizing"></a>
+#### assertJsonPathCanonicalizing
+
+Assert that the given path in the response contains all of the expected values without looking at their order:
+
+```php
+$response->assertJsonPathCanonicalizing($path, array $expectedValue);
+```
+
 <a name="assert-json-missing-path"></a>
 #### assertJsonMissingPath
 
@@ -1445,7 +1576,7 @@ $response->assertJsonMissingPath('user.email');
 Assert that the response has a given JSON structure:
 
 ```php
-$response->assertJsonStructure(array $structure);
+$response->assertJsonStructure(?array $structure = null, ?array $responseData = null);
 ```
 
 For example, if the JSON response returned by your application contains the following data:
@@ -1507,11 +1638,20 @@ $response->assertJsonStructure([
 Assert that the response has the given JSON validation errors for the given keys. This method should be used when asserting against responses where the validation errors are returned as a JSON structure instead of being flashed to the session:
 
 ```php
-$response->assertJsonValidationErrors(array $data, $responseKey = 'errors');
+$response->assertJsonValidationErrors($errors, $responseKey = 'errors');
 ```
 
 > [!NOTE]
 > The more generic [assertInvalid](#assert-invalid) method may be used to assert that a response has validation errors returned as JSON **or** that errors were flashed to session storage.
+
+<a name="assert-only-json-validation-errors"></a>
+#### assertOnlyJsonValidationErrors
+
+Assert that the response has the given JSON validation errors but does not have any other JSON validation errors:
+
+```php
+$response->assertOnlyJsonValidationErrors($errors, $responseKey = 'errors');
+```
 
 <a name="assert-json-validation-error-for"></a>
 #### assertJsonValidationErrorFor
@@ -1538,6 +1678,15 @@ Assert that the response has a moved permanently (301) HTTP status code:
 
 ```php
 $response->assertMovedPermanently();
+```
+
+<a name="assert-not-acceptable"></a>
+#### assertNotAcceptable
+
+Assert that the response has a not acceptable (406) HTTP status code:
+
+```php
+$response->assertNotAcceptable();
 ```
 
 <a name="assert-location"></a>
@@ -1572,7 +1721,9 @@ $response->assertNoContent($status = 204);
 
 Assert that the response was a streamed response:
 
-    $response->assertStreamed();
+```php
+$response->assertStreamed();
+```
 
 <a name="assert-streamed-content"></a>
 #### assertStreamedContent
@@ -1583,6 +1734,15 @@ Assert that the given string matches the streamed response content:
 $response->assertStreamedContent($value);
 ```
 
+<a name="assert-streamed-json-content"></a>
+#### assertStreamedJsonContent
+
+Assert that the given array matches the streamed JSON response content:
+
+```php
+$response->assertStreamedJsonContent(array $value);
+```
+
 <a name="assert-not-found"></a>
 #### assertNotFound
 
@@ -1590,6 +1750,24 @@ Assert that the response has a not found (404) HTTP status code:
 
 ```php
 $response->assertNotFound();
+```
+
+<a name="assert-not-modified"></a>
+#### assertNotModified
+
+Assert that the response has a not modified (304) HTTP status code:
+
+```php
+$response->assertNotModified();
+```
+
+<a name="assert-not-streamed"></a>
+#### assertNotStreamed
+
+Assert that the response was not a streamed response:
+
+```php
+$response->assertNotStreamed();
 ```
 
 <a name="assert-ok"></a>
@@ -1608,6 +1786,15 @@ Assert that the response has a payment required (402) HTTP status code:
 
 ```php
 $response->assertPaymentRequired();
+```
+
+<a name="assert-permanent-redirect"></a>
+#### assertPermanentRedirect
+
+Assert that the response has a permanent redirect (308) HTTP status code:
+
+```php
+$response->assertPermanentRedirect();
 ```
 
 <a name="assert-plain-cookie"></a>
@@ -1666,6 +1853,15 @@ Assert whether the response is redirecting to a URI that contains the given stri
 $response->assertRedirectContains($string);
 ```
 
+<a name="assert-redirect-to-action"></a>
+#### assertRedirectToAction
+
+Assert that the response is a redirect to the given controller action:
+
+```php
+$response->assertRedirectToAction($name, $parameters = []);
+```
+
 <a name="assert-redirect-to-route"></a>
 #### assertRedirectToRoute
 
@@ -1681,7 +1877,7 @@ $response->assertRedirectToRoute($name, $parameters = []);
 Assert that the response is a redirect to the given [signed route](/docs/{{version}}/urls#signed-urls):
 
 ```php
-$response->assertRedirectToSignedRoute($name = null, $parameters = []);
+$response->assertRedirectToSignedRoute($name = null, $parameters = [], $absolute = true);
 ```
 
 <a name="assert-request-timeout"></a>
@@ -1700,6 +1896,24 @@ Assert that the given string is contained within the response. This assertion wi
 
 ```php
 $response->assertSee($value, $escape = true);
+```
+
+<a name="assert-see-html"></a>
+#### assertSeeHtml
+
+Assert that the given HTML string is contained within the response:
+
+```php
+$response->assertSeeHtml($value);
+```
+
+<a name="assert-see-html-in-order"></a>
+#### assertSeeHtmlInOrder
+
+Assert that the given HTML strings are contained in order within the response:
+
+```php
+$response->assertSeeHtmlInOrder(array $values);
 ```
 
 <a name="assert-see-in-order"></a>
@@ -1732,7 +1946,7 @@ $response->assertSeeTextInOrder(array $values, $escape = true);
 <a name="assert-server-error"></a>
 #### assertServerError
 
-Assert that the response has a server error (>= 500 , < 600) HTTP status code:
+Assert that the response has a server error (>= 500 and < 600) HTTP status code:
 
 ```php
 $response->assertServerError();
@@ -1745,6 +1959,15 @@ Assert that the response has a "Service Unavailable" (503) HTTP status code:
 
 ```php
 $response->assertServiceUnavailable();
+```
+
+<a name="assert-similar-json"></a>
+#### assertSimilarJson
+
+Assert that the response has similar JSON as the given data:
+
+```php
+$response->assertSimilarJson(array $data);
 ```
 
 <a name="assert-session-has"></a>
@@ -1886,6 +2109,24 @@ Assert that the response has a successful (>= 200 and < 300) HTTP status code:
 $response->assertSuccessful();
 ```
 
+<a name="assert-successful-precognition"></a>
+#### assertSuccessfulPrecognition
+
+Assert that the response has a successful Precognition response:
+
+```php
+$response->assertSuccessfulPrecognition();
+```
+
+<a name="assert-temporary-redirect"></a>
+#### assertTemporaryRedirect
+
+Assert that the response has a temporary redirect (307) HTTP status code:
+
+```php
+$response->assertTemporaryRedirect();
+```
+
 <a name="assert-too-many-requests"></a>
 #### assertTooManyRequests
 
@@ -1983,7 +2224,15 @@ expect($response['name'])->toBe('Taylor');
 ```
 
 ```php tab=PHPUnit
-$this->assertEquals('Taylor', $response['name']);
+$this->assertSame('Taylor', $response['name']);
+```
+
+You may also retrieve all view data or a single piece of view data using the `viewData` method:
+
+```php
+$data = $response->viewData();
+
+$name = $response->viewData('name');
 ```
 
 <a name="assert-view-has-all"></a>
@@ -2034,7 +2283,7 @@ $response->assertViewMissing($key);
 <a name="authentication-assertions"></a>
 ### Authentication Assertions
 
-Laravel also provides a variety of authentication related assertions that you may utilize within your application's feature tests. Note that these methods are invoked on the test class itself and not the `Hypervel\Testing\TestResponse` instance returned by methods such as `get` and `post`.
+Hypervel also provides a variety of authentication related assertions that you may utilize within your application's feature tests. Note that these methods are invoked on the test class itself and not the `Hypervel\Testing\TestResponse` instance returned by methods such as `get` and `post`.
 
 <a name="assert-authenticated"></a>
 #### assertAuthenticated
@@ -2063,10 +2312,28 @@ Assert that a specific user is authenticated:
 $this->assertAuthenticatedAs($user, $guard = null);
 ```
 
+<a name="assert-credentials"></a>
+#### assertCredentials
+
+Assert that the given credentials are valid:
+
+```php
+$this->assertCredentials(array $credentials, $guard = null);
+```
+
+<a name="assert-invalid-credentials"></a>
+#### assertInvalidCredentials
+
+Assert that the given credentials are invalid:
+
+```php
+$this->assertInvalidCredentials(array $credentials, $guard = null);
+```
+
 <a name="validation-assertions"></a>
 ## Validation Assertions
 
-Laravel provides two primary validation related assertions that you may use to ensure the data provided in your request was either valid or invalid.
+Hypervel provides two primary validation related assertions that you may use to ensure the data provided in your request was either valid or invalid.
 
 <a name="validation-assert-valid"></a>
 #### assertValid
