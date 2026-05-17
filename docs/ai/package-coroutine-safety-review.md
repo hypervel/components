@@ -306,7 +306,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next: `watcher`**
+**All packages complete.**
 
 | # | Package | Status |
 |---|---|---|
@@ -376,9 +376,9 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 64 | `translation` | ✓ |
 | 65 | `validation` | ✓ |
 | 66 | `view` | ✓ |
-| 67 | `watcher` | |
-| 68 | `wayfinder` | |
-| 69 | `websocket-server` | |
+| 67 | `watcher` | ✓ |
+| 68 | `wayfinder` | ✓ |
+| 69 | `websocket-server` | ✓ |
 
 ---
 
