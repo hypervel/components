@@ -310,79 +310,79 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**All packages complete.**
+**Next:** `auth` (round 2)
 
 | # | Package | Status |
 |---|---|---|
 | 1 | `api-client` | ✓ |
-| 2 | `auth` | ✓ |
-| 3 | `boost` | ✓ (docs only) |
-| 4 | `broadcasting` | ✓ |
-| 5 | `bus` | ✓ |
-| 6 | `cache` | ✓ |
-| 7 | `collections` | ✓ |
-| 8 | `concurrency` | ✓ |
-| 9 | `conditionable` | ✓ |
-| 10 | `config` | ✓ |
-| 11 | `console` | ✓ |
-| 12 | `container` | ✓ |
-| 13 | `context` | ✓ |
-| 14 | `contracts` | ✓ |
-| 15 | `cookie` | ✓ |
-| 16 | `coordinator` | ✓ |
-| 17 | `core` | ✓ |
-| 18 | `coroutine` | ✓ |
-| 19 | `database` | ✓ |
-| 20 | `di` | ✓ |
-| 21 | `encryption` | ✓ |
-| 22 | `engine` | ✓ |
-| 23 | `events` | ✓ |
-| 24 | `facade-documenter` | ✓ |
-| 25 | `filesystem` | ✓ |
-| 26 | `foundation` | ✓ |
-| 27 | `hashing` | ✓ |
-| 28 | `horizon` | ✓ |
-| 29 | `http` | ✓ |
-| 30 | `http-server` | ✓ |
-| 31 | `inertia` | ✓ |
-| 32 | `json-schema` | ✓ |
-| 33 | `jwt` | ✓ |
-| 34 | `log` | ✓ |
-| 35 | `macroable` | ✓ |
-| 36 | `mail` | ✓ |
-| 37 | `nested-set` | ✓ |
-| 38 | `notifications` | ✓ |
-| 39 | `object-pool` | ✓ |
-| 40 | `pagination` | ✓ |
-| 41 | `permission` | ✓ |
-| 42 | `pipeline` | ✓ |
-| 43 | `pool` | ✓ |
-| 44 | `process` | ✓ |
-| 45 | `prompts` | ✓ |
-| 46 | `queue` | ✓ |
-| 47 | `redis` | ✓ |
-| 48 | `reflection` | ✓ |
-| 49 | `reverb` | ✓ |
-| 50 | `routing` | ✓ |
-| 51 | `sanctum` | ✓ |
-| 52 | `scout` | ✓ |
-| 53 | `sentry` | ✓ |
-| 54 | `server` | ✓ |
-| 55 | `server-process` | ✓ |
-| 56 | `session` | ✓ |
-| 57 | `signal` | ✓ |
-| 58 | `socialite` | ✓ |
-| 59 | `support` | ✓ |
-| 60 | `telescope` | ✓ |
-| 61 | `testbench` | ✓ |
-| 62 | `testing` | ✓ |
-| 63 | `tinker` | ✓ |
-| 64 | `translation` | ✓ |
-| 65 | `validation` | ✓ |
-| 66 | `view` | ✓ |
-| 67 | `watcher` | ✓ |
-| 68 | `wayfinder` | ✓ |
-| 69 | `websocket-server` | ✓ |
+| 2 | `auth` |   |
+| 3 | `boost` |   |
+| 4 | `broadcasting` |   |
+| 5 | `bus` |   |
+| 6 | `cache` |   |
+| 7 | `collections` |   |
+| 8 | `concurrency` |   |
+| 9 | `conditionable` |   |
+| 10 | `config` |   |
+| 11 | `console` |   |
+| 12 | `container` |   |
+| 13 | `context` |   |
+| 14 | `contracts` |   |
+| 15 | `cookie` |   |
+| 16 | `coordinator` |   |
+| 17 | `core` |   |
+| 18 | `coroutine` |   |
+| 19 | `database` |   |
+| 20 | `di` |   |
+| 21 | `encryption` |   |
+| 22 | `engine` |   |
+| 23 | `events` |   |
+| 24 | `facade-documenter` |   |
+| 25 | `filesystem` |   |
+| 26 | `foundation` |   |
+| 27 | `hashing` |   |
+| 28 | `horizon` |   |
+| 29 | `http` |   |
+| 30 | `http-server` |   |
+| 31 | `inertia` |   |
+| 32 | `json-schema` |   |
+| 33 | `jwt` |   |
+| 34 | `log` |   |
+| 35 | `macroable` |   |
+| 36 | `mail` |   |
+| 37 | `nested-set` |   |
+| 38 | `notifications` |   |
+| 39 | `object-pool` |   |
+| 40 | `pagination` |   |
+| 41 | `permission` |   |
+| 42 | `pipeline` |   |
+| 43 | `pool` |   |
+| 44 | `process` |   |
+| 45 | `prompts` |   |
+| 46 | `queue` |   |
+| 47 | `redis` |   |
+| 48 | `reflection` |   |
+| 49 | `reverb` |   |
+| 50 | `routing` |   |
+| 51 | `sanctum` |   |
+| 52 | `scout` |   |
+| 53 | `sentry` |   |
+| 54 | `server` |   |
+| 55 | `server-process` |   |
+| 56 | `session` |   |
+| 57 | `signal` |   |
+| 58 | `socialite` |   |
+| 59 | `support` |   |
+| 60 | `telescope` |   |
+| 61 | `testbench` |   |
+| 62 | `testing` |   |
+| 63 | `tinker` |   |
+| 64 | `translation` |   |
+| 65 | `validation` |   |
+| 66 | `view` |   |
+| 67 | `watcher` |   |
+| 68 | `wayfinder` |   |
+| 69 | `websocket-server` |   |
 
 ---
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\ApiClient;
 
 use Hypervel\Support\DataObject;
+use InvalidArgumentException;
 
 /**
  * @template TConfig of DataObject
@@ -34,6 +35,13 @@ class ApiClient
      * @var array<callable|object|string>
      */
     protected array $responseMiddleware = [];
+
+    /**
+     * The resolved middleware instances for this client.
+     *
+     * @var array<class-string, object>
+     */
+    protected array $middlewareCache = [];
 
     /**
      * Dynamically pass method calls to the pending request.
@@ -104,6 +112,20 @@ class ApiClient
     public function getResponseMiddleware(): array
     {
         return $this->responseMiddleware;
+    }
+
+    /**
+     * Resolve a middleware instance for this client.
+     */
+    public function resolveMiddleware(string $middleware): object
+    {
+        if (! class_exists($middleware)) {
+            throw new InvalidArgumentException(
+                sprintf('Middleware class `%s` does not exist', $middleware)
+            );
+        }
+
+        return $this->middlewareCache[$middleware] ??= new $middleware($this->getConfig());
     }
 
     /**

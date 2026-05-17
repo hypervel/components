@@ -49,8 +49,6 @@ class PendingRequest
 
     protected Pipeline $pipeline;
 
-    protected static $cachedMiddleware = [];
-
     public function __construct(
         protected ApiClient $client,
         ?Pipeline $pipeline = null,
@@ -245,14 +243,6 @@ class PendingRequest
     }
 
     /**
-     * Flush the cached middleware instances.
-     */
-    public static function flushCache(): void
-    {
-        static::$cachedMiddleware = [];
-    }
-
-    /**
      * Provide a dynamic method to pass calls to the pending request.
      */
     public function __call(string $method, array $parameters): static
@@ -311,16 +301,12 @@ class PendingRequest
     {
         $middleware = [];
         foreach ($middlewareClasses as $value) {
-            if (! class_exists($value)) {
-                throw new InvalidArgumentException(
-                    sprintf('Middleware class `%s` does not exist', $value)
-                );
-            }
-            if ($cache = static::$cachedMiddleware[$value] ?? null) {
-                $middleware[] = $cache;
+            if (is_string($value)) {
+                $middleware[] = $this->client->resolveMiddleware($value);
                 continue;
             }
-            $middleware[] = static::$cachedMiddleware[$value] = new $value($this->client->getConfig());
+
+            $middleware[] = $value;
         }
 
         return $middleware;

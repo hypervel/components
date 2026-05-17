@@ -28,7 +28,6 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Carbon\Carbon::serializeUsing(null);
         \Carbon\Carbon::setTestNow();
         \Carbon\CarbonImmutable::setTestNow();
-        \Hypervel\ApiClient\PendingRequest::flushCache();
         \Hypervel\Auth\Access\Gate::flushState();
         \Hypervel\Auth\AuthenticationException::flushState();
         \Hypervel\Auth\EloquentUserProvider::flushState();

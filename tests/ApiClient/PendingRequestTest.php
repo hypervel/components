@@ -199,18 +199,16 @@ class PendingRequestTest extends TestCase
         ResponseOptionsCheckingMiddleware::reset();
     }
 
-    public function testMiddlewareCaching(): void
+    public function testMiddlewareIsCachedAcrossRequestsForSameClient(): void
     {
         $client = new ApiClient;
 
-        // First request creates middleware instance
         $pendingA = $client->withRequestMiddleware([CachingTestMiddleware::class]);
         Http::fake(['test1' => Http::response('{"data": "test1"}')]);
         $pendingA->get('test1');
 
         $firstInstanceId = CachingTestMiddleware::$instanceId;
 
-        // Second request should reuse cached instance
         $pendingB = $client->withRequestMiddleware([CachingTestMiddleware::class]);
         Http::fake(['test2' => Http::response('{"data": "test2"}')]);
         $pendingB->get('test2');
@@ -219,27 +217,49 @@ class PendingRequestTest extends TestCase
         CachingTestMiddleware::reset();
     }
 
-    public function testFlushCacheClearsMiddlewareCache(): void
+    public function testDifferentClientsDoNotShareMiddlewareCache(): void
     {
-        $client = new ApiClient;
+        $clientA = new ApiClient;
+        $clientB = new ApiClient;
 
-        // First request creates middleware instance
-        $pendingA = $client->withRequestMiddleware([CachingTestMiddleware::class]);
+        $pendingA = $clientA->withRequestMiddleware([CachingTestMiddleware::class]);
         Http::fake(['test1' => Http::response('{"data": "test1"}')]);
         $pendingA->get('test1');
 
         $firstInstanceId = CachingTestMiddleware::$instanceId;
 
-        // Flush cache
-        $pendingA->flushCache();
-
-        // Second request creates new instance
-        $pendingB = $client->withRequestMiddleware([CachingTestMiddleware::class]);
+        $pendingB = $clientB->withRequestMiddleware([CachingTestMiddleware::class]);
         Http::fake(['test2' => Http::response('{"data": "test2"}')]);
         $pendingB->get('test2');
 
         $this->assertNotEquals($firstInstanceId, CachingTestMiddleware::$instanceId);
         CachingTestMiddleware::reset();
+    }
+
+    public function testMiddlewareCacheDoesNotLeakConfigAcrossClients(): void
+    {
+        $clientA = new FooApiClient([
+            'api_key' => 'first-key',
+            'base_url' => 'https://first.test',
+        ]);
+        $clientB = new FooApiClient([
+            'api_key' => 'second-key',
+            'base_url' => 'https://second.test',
+        ]);
+
+        ConfigRecordingMiddleware::reset();
+
+        Http::fake(['first' => Http::response('{"success": true}')]);
+        $clientA->withRequestMiddleware([ConfigRecordingMiddleware::class])->get('first');
+
+        Http::fake(['second' => Http::response('{"success": true}')]);
+        $clientB->withRequestMiddleware([ConfigRecordingMiddleware::class])->get('second');
+
+        $this->assertSame([
+            ['api_key' => 'first-key', 'base_url' => 'https://first.test'],
+            ['api_key' => 'second-key', 'base_url' => 'https://second.test'],
+        ], ConfigRecordingMiddleware::$receivedConfigs);
+        ConfigRecordingMiddleware::reset();
     }
 
     public function testInvalidMiddlewareClassThrowsException(): void
@@ -271,6 +291,44 @@ class PendingRequestTest extends TestCase
         // Verify both middleware were called in correct order
         $this->assertEquals(['first', 'second'], PipelineTestMiddleware::$calls);
         PipelineTestMiddleware::reset();
+    }
+
+    public function testRequestMiddlewareAcceptsCallable(): void
+    {
+        $client = new ApiClient;
+        $called = false;
+
+        $pending = $client->withRequestMiddleware([
+            function (ApiRequest $request, callable $next) use (&$called): ApiRequest {
+                $called = true;
+
+                return $next($request->withHeader('X-Callable-Middleware', 'yes'));
+            },
+        ]);
+
+        Http::fake(['test' => Http::response('{"success": true}')]);
+        $pending->get('test');
+
+        $this->assertTrue($called);
+        Http::assertSent(function (Request $request) {
+            return $request->header('X-Callable-Middleware')[0] === 'yes';
+        });
+    }
+
+    public function testRequestMiddlewareAcceptsObject(): void
+    {
+        $client = new ApiClient;
+        $middleware = new ObjectRequestMiddleware;
+
+        $pending = $client->withRequestMiddleware([$middleware]);
+
+        Http::fake(['test' => Http::response('{"success": true}')]);
+        $pending->get('test');
+
+        $this->assertTrue($middleware->called);
+        Http::assertSent(function (Request $request) {
+            return $request->header('X-Object-Middleware')[0] === 'yes';
+        });
     }
 
     public function testResponseMiddlewarePipelineFlow(): void
@@ -547,6 +605,18 @@ class PipelineTestMiddleware
     }
 }
 
+class ObjectRequestMiddleware
+{
+    public bool $called = false;
+
+    public function handle(ApiRequest $request, callable $next): ApiRequest
+    {
+        $this->called = true;
+
+        return $next($request->withHeader('X-Object-Middleware', 'yes'));
+    }
+}
+
 class FirstPipelineMiddleware
 {
     public function __construct(protected ?array $config = null)
@@ -616,6 +686,26 @@ class ConfigCheckingMiddleware
     public static function reset(): void
     {
         self::$receivedConfig = null;
+    }
+}
+
+class ConfigRecordingMiddleware
+{
+    public static array $receivedConfigs = [];
+
+    public function __construct(protected ?ConfigDataObject $config = null)
+    {
+        self::$receivedConfigs[] = $config?->toArray();
+    }
+
+    public function handle(ApiRequest $request, callable $next): ApiRequest
+    {
+        return $next($request);
+    }
+
+    public static function reset(): void
+    {
+        self::$receivedConfigs = [];
     }
 }
 
