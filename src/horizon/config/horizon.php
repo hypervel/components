@@ -204,6 +204,7 @@ return [
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 1,
+            'concurrency' => 1,
             'maxTime' => 0,
             'maxJobs' => 0,
             'memory' => 128,
