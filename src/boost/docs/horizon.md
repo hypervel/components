@@ -1,4 +1,4 @@
-# Laravel Horizon
+# Hypervel Horizon
 
 - [Introduction](#introduction)
 - [Installation](#installation)
@@ -9,6 +9,7 @@
     - [Job Backoff](#job-backoff)
     - [Silenced Jobs](#silenced-jobs)
 - [Balancing Strategies](#balancing-strategies)
+    - [Concurrency](#concurrency)
     - [Auto Balancing](#auto-balancing)
     - [Simple Balancing](#simple-balancing)
     - [No Balancing](#no-balancing)
@@ -25,24 +26,22 @@
 ## Introduction
 
 > [!NOTE]
-> Before digging into Laravel Horizon, you should familiarize yourself with Laravel's base [queue services](/docs/{{version}}/queues). Horizon augments Laravel's queue with additional features that may be confusing if you are not already familiar with the basic queue features offered by Laravel.
+> Before digging into Hypervel Horizon, you should familiarize yourself with Hypervel's base [queue services](/docs/{{version}}/queues). Horizon augments Hypervel's queue with additional features that may be confusing if you are not already familiar with the basic queue features offered by Hypervel.
 
-[Laravel Horizon](https://github.com/laravel/horizon) provides a beautiful dashboard and code-driven configuration for your Laravel powered [Redis queues](/docs/{{version}}/queues). Horizon allows you to easily monitor key metrics of your queue system such as job throughput, runtime, and job failures.
+[Hypervel Horizon](https://github.com/hypervel/horizon) provides a beautiful dashboard and code-driven configuration for your Hypervel-powered [Redis queues](/docs/{{version}}/queues). Horizon allows you to easily monitor key metrics of your queue system such as job throughput, runtime, and job failures.
 
 When using Horizon, all of your queue worker configuration is stored in a single, simple configuration file. By defining your application's worker configuration in a version controlled file, you may easily scale or modify your application's queue workers when deploying your application.
-
-<img src="https://laravel.com/img/docs/horizon-example.png">
 
 <a name="installation"></a>
 ## Installation
 
 > [!WARNING]
-> Laravel Horizon requires that you use [Redis](https://redis.io) to power your queue. Therefore, you should ensure that your queue connection is set to `redis` in your application's `config/queue.php` configuration file. Horizon is not compatible with Redis Cluster at this time.
+> Hypervel Horizon requires that you use [Redis](https://redis.io) to power your queue. Therefore, you should ensure that your queue connection is set to `redis` in your application's `config/queue.php` configuration file. Horizon is not compatible with Redis Cluster at this time.
 
 You may install Horizon into your project using the Composer package manager:
 
 ```shell
-composer require laravel/horizon
+composer require hypervel/horizon
 ```
 
 After installing Horizon, publish its assets using the `horizon:install` Artisan command:
@@ -57,7 +56,9 @@ php artisan horizon:install
 After publishing Horizon's assets, its primary configuration file will be located at `config/horizon.php`. This configuration file allows you to configure the queue worker options for your application. Each configuration option includes a description of its purpose, so be sure to thoroughly explore this file.
 
 > [!WARNING]
-> Horizon uses a Redis connection named `horizon` internally. This Redis connection name is reserved and should not be assigned to another Redis connection in the `database.php` configuration file or as the value of the `use` option in the `horizon.php` configuration file.
+> Horizon creates an internal Redis connection named `horizon` using the Redis connection specified by the `use` option in your `horizon.php` configuration file. The `horizon` connection name is reserved and should not be assigned to another Redis connection in your `database.php` configuration file or used as the value of the `use` option.
+
+You may also customize the name displayed in the Horizon dashboard and notifications using the `name` configuration option or `HORIZON_NAME` environment variable. If no name is configured, Horizon will use your application's name.
 
 <a name="environments"></a>
 #### Environments
@@ -142,9 +143,9 @@ The Horizon dashboard may be accessed via the `/horizon` route. By default, you 
  */
 protected function gate(): void
 {
-    Gate::define('viewHorizon', function (User $user) {
-        return in_array($user->email, [
-            'taylor@laravel.com',
+    Gate::define('viewHorizon', function ($user = null) {
+        return in_array(optional($user)->email, [
+            'example@example.com',
         ]);
     });
 }
@@ -153,13 +154,13 @@ protected function gate(): void
 <a name="alternative-authentication-strategies"></a>
 #### Alternative Authentication Strategies
 
-Remember that Laravel automatically injects the authenticated user into the gate closure. If your application is providing Horizon security via another method, such as IP restrictions, then your Horizon users may not need to "login". Therefore, you will need to change `function (User $user)` closure signature above to `function (User $user = null)` in order to force Laravel to not require authentication.
+Hypervel automatically passes the authenticated user to the gate closure when one is available. If your application is providing Horizon security via another method, such as IP restrictions, your Horizon users may not need to "login"; therefore, the generated gate accepts a nullable user by default.
 
 <a name="max-job-attempts"></a>
 ### Max Job Attempts
 
 > [!NOTE]
-> Before refining these options, make sure you are familiar with Laravel's default [queue services](/docs/{{version}}/queues#max-job-attempts-and-timeout) and the concept of 'attempts'.
+> Before refining these options, make sure you are familiar with Hypervel's default [queue services](/docs/{{version}}/queues#max-job-attempts-and-timeout) and the concept of 'attempts'.
 
 You can define the maximum number of attempts a job can consume within a supervisor's configuration:
 
@@ -266,7 +267,28 @@ class ProcessPodcast implements ShouldQueue, Silenced
 <a name="balancing-strategies"></a>
 ## Balancing Strategies
 
-Each supervisor can process one or more queues but unlike Laravel's default queue system, Horizon allows you to choose from three worker balancing strategies: `auto`, `simple`, and `false`.
+Each supervisor can process one or more queues. Horizon allows you to choose from three worker balancing strategies: `auto`, `simple`, and `false`.
+
+<a name="concurrency"></a>
+### Concurrency
+
+Hypervel queue workers support coroutine concurrency. In addition to controlling the number of worker processes with the `minProcesses` and `maxProcesses` configuration options, you may control how many jobs each worker process may run at once using the `concurrency` option:
+
+```php
+'environments' => [
+    'production' => [
+        'supervisor-1' => [
+            // ...
+            'maxProcesses' => 10,
+            'concurrency' => 10,
+        ],
+    ],
+],
+```
+
+In this example, Horizon may start up to 10 worker processes, and each process may run 10 jobs concurrently, for a total concurrent capacity of 100 jobs. If the `concurrency` option is not defined, each worker process will run one job at a time.
+
+Horizon's balancing strategies still scale worker processes across queues. Concurrency controls how many jobs each of those worker processes may run at the same time. The Horizon dashboard displays each supervisor's configured concurrency in the supervisor table.
 
 <a name="auto-balancing"></a>
 ### Auto Balancing
@@ -404,7 +426,7 @@ With this configuration, Horizon will assign 10 processes to the `default` queue
 <a name="no-balancing"></a>
 ### No Balancing
 
-When the `balance` option is set to `false`, Horizon processes queues strictly in the order they're listed, similar to Laravel's default queue system. However, it will still scale the number of worker processes if jobs begin to accumulate:
+When the `balance` option is set to `false`, Horizon processes queues strictly in the order they're listed, similar to Hypervel's default queue system. However, it will still scale the number of worker processes if jobs begin to accumulate:
 
 ```php
 'environments' => [
@@ -434,7 +456,7 @@ You can control Horizon's ability to scale worker processes using the `minProces
 <a name="upgrading-horizon"></a>
 ## Upgrading Horizon
 
-When upgrading to a new major version of Horizon, it's important that you carefully review [the upgrade guide](https://github.com/laravel/horizon/blob/master/UPGRADE.md).
+When upgrading to a new major version of Horizon, it's important that you carefully review [the release notes](https://github.com/hypervel/horizon/releases).
 
 <a name="running-horizon"></a>
 ## Running Horizon
@@ -482,13 +504,7 @@ php artisan horizon:terminate
 <a name="automatically-restarting-horizon"></a>
 #### Automatically Restarting Horizon
 
-During local development, you may run the `horizon:listen` command. When using the `horizon:listen` command, you don't have to manually restart Horizon when you want to reload your updated code. Before using this feature, you should ensure that [Node](https://nodejs.org) is installed within your local development environment. In addition, you should install the [Chokidar](https://github.com/paulmillr/chokidar) file-watching library within your project:
-
-```shell
-npm install --save-dev chokidar
-```
-
-Once Chokidar is installed, you may start Horizon using the `horizon:listen` command:
+During local development, you may run the `horizon:listen` command. When using the `horizon:listen` command, you don't have to manually restart Horizon when you want to reload your updated code:
 
 ```shell
 php artisan horizon:listen
@@ -500,18 +516,19 @@ When running within Docker or Vagrant, you should use the `--poll` option:
 php artisan horizon:listen --poll
 ```
 
-You may configure the directories and files that should be watched using the `watch` configuration option within your application's `config/horizon.php` configuration file:
+You may configure the directories and files that should be watched using the `watch` configuration option within your application's `config/horizon.php` configuration file. If this value is not set, Horizon will use your application's `config/watcher.php` configuration:
 
 ```php
 'watch' => [
     'app',
     'bootstrap',
-    'config',
-    'database',
+    'config/**/*.php',
+    'database/**/*.php',
     'public/**/*.php',
     'resources/**/*.php',
     'routes',
     'composer.lock',
+    'composer.json',
     '.env',
 ],
 ```
@@ -537,7 +554,7 @@ sudo apt-get install supervisor
 ```
 
 > [!NOTE]
-> If configuring Supervisor yourself sounds overwhelming, consider using [Laravel Cloud](https://cloud.laravel.com), which can manage background processes for your Laravel applications.
+> If configuring Supervisor yourself sounds overwhelming, consider using [SonicStack](https://sonicstack.io), the Hypervel team's deployment platform, which can manage background processes for your Hypervel applications. Running your Hypervel applications on SonicStack also supports the framework's continued development.
 
 <a name="supervisor-configuration"></a>
 #### Supervisor Configuration
@@ -547,12 +564,12 @@ Supervisor configuration files are typically stored within your server's `/etc/s
 ```ini
 [program:horizon]
 process_name=%(program_name)s
-command=php /home/forge/example.com/artisan horizon
+command=php /var/www/example.com/artisan horizon
 autostart=true
 autorestart=true
-user=forge
+user=www-data
 redirect_stderr=true
-stdout_logfile=/home/forge/example.com/horizon.log
+stdout_logfile=/var/www/example.com/storage/logs/horizon.log
 stopwaitsecs=3600
 ```
 

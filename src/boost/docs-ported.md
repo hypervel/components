@@ -32,6 +32,7 @@ filesystem.md
 frontend.md
 hashing.md
 helpers.md
+horizon.md
 pagination.md
 requests.md
 routing.md

@@ -59,6 +59,10 @@
 
 - Port Laravel's real-time facade loader. The copied facade docs show `Facades\App\Contracts\Publisher`, but Hypervel's `Hypervel\Foundation\Bootstrap\RegisterFacades` only registers configured aliases with `class_alias()` and has no equivalent of Laravel's `Illuminate\Foundation\AliasLoader` that intercepts `Facades\...` classes and generates facade stubs. Correct fix: port the alias loader using Hypervel namespaces, register it from `RegisterFacades`, generate real-time facade classes that extend `Hypervel\Support\Facades\Facade`, and add tests proving `Facades\App\Contracts\Publisher::shouldReceive(...)` resolves and mocks the underlying container binding.
 
+## Horizon
+
+- Wire SMS support for Hypervel Horizon long-wait notifications. The Horizon docs show `Horizon::routeSmsNotificationsTo(...)` and `Hypervel\Horizon\Horizon` stores the configured number, but `Hypervel\Horizon\Notifications\LongWaitDetected::via()` and `Hypervel\Horizon\Listeners\SendNotification` currently have the SMS / Nexmo route commented out because no SMS client is supported yet. Correct fix: add a supported SMS notification channel, route long-wait notifications to it when `Horizon::$smsNumber` is set, add the matching notification message method, document the channel prerequisite, and add coverage for mail, Slack, and SMS routing.
+
 ## Http
 
 - Port FailOnUnknownFields form request support
