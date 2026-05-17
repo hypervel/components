@@ -61,21 +61,37 @@ interface Repository
 
     /**
      * Set a given configuration value.
+     *
+     * Boot or tests only. The config repository is a process-global singleton;
+     * per-request mutation races across coroutines and affects every concurrent
+     * request.
      */
     public function set(array|string $key, mixed $value = null): void;
 
     /**
      * Set callback after calling `set` function.
+     *
+     * Boot or tests only. The callback persists on the singleton config
+     * repository for the worker lifetime and applies to every subsequent
+     * `set` call.
      */
     public function afterSettingCallback(?Closure $callback): void;
 
     /**
      * Prepend a value onto an array configuration value.
+     *
+     * Boot or tests only. The config repository is a process-global singleton;
+     * per-request mutation races across coroutines and affects every concurrent
+     * request.
      */
     public function prepend(string $key, mixed $value): void;
 
     /**
      * Push a value onto an array configuration value.
+     *
+     * Boot or tests only. The config repository is a process-global singleton;
+     * per-request mutation races across coroutines and affects every concurrent
+     * request.
      */
     public function push(string $key, mixed $value): void;
 }

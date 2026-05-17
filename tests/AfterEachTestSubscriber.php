@@ -43,6 +43,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Cache\Redis\Console\BenchmarkCommand::flushState();
         \Hypervel\Cache\Redis\Console\DoctorCommand::flushState();
         \Hypervel\Cache\Repository::flushState();
+        \Hypervel\Config\Repository::flushState();
         \Hypervel\Console\Application::forgetBootstrappers();
         \Hypervel\Console\Commands\ScheduleListCommand::flushState();
         \Hypervel\Console\Scheduling\Event::flushState();
