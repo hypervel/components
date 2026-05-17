@@ -30,6 +30,7 @@ events.md
 facades.md
 filesystem.md
 frontend.md
+hashing.md
 pagination.md
 requests.md
 routing.md
