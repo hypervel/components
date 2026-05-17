@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Testing\Concerns\TestDatabases;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -33,6 +34,8 @@ class TestDatabasesTest extends TestCase
             ->with('database.default', null)
             ->andReturn('mysql')
             ->getMock());
+
+        $container->singleton(ParallelTesting::class, fn ($app) => new ParallelTesting($app));
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = 1;
     }
@@ -116,6 +119,21 @@ class TestDatabasesTest extends TestCase
         ];
     }
 
+    public function testDatabaseNameDoesNotReuseCustomNameFromPreviousCall()
+    {
+        Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
+
+        $this->assertSame('custom_database_test_1', $this->testDatabase('custom_database'));
+        $this->assertSame('my_database_test_1', $this->testDatabase('my_database'));
+    }
+
+    public function testDatabaseNameDoesNotDoubleAppendToken()
+    {
+        Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
+
+        $this->assertSame('my_database_test_1', $this->testDatabase('my_database_test_1'));
+    }
+
     protected function switchToDatabase(string $database): void
     {
         $instance = new class {
@@ -124,5 +142,16 @@ class TestDatabasesTest extends TestCase
 
         $method = new ReflectionMethod($instance, 'switchToDatabase');
         $method->invoke($instance, $database);
+    }
+
+    protected function testDatabase(string $database): string
+    {
+        $instance = new class {
+            use TestDatabases;
+        };
+
+        $method = new ReflectionMethod($instance, 'testDatabase');
+
+        return $method->invoke($instance, $database);
     }
 }

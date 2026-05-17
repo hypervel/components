@@ -184,7 +184,11 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Testbench\Foundation\Console\TerminatingConsole::flush();
         \Hypervel\Testbench\Workbench\Workbench::flush();
         \Hypervel\Testing\Fluent\AssertableJson::flushState();
+        \Hypervel\Testing\ParallelRunner::flushState();
+        \Hypervel\Testing\PendingCommand::flushState();
+        \Hypervel\Testing\TestComponent::flushState();
         \Hypervel\Testing\TestResponse::flushState();
+        \Hypervel\Testing\TestView::flushState();
         \Hypervel\Validation\Rule::flushState();
         \Hypervel\Validation\Rules\Date::flushState();
         \Hypervel\Validation\Rules\Email::flushState();

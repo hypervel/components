@@ -9,11 +9,6 @@ use Hypervel\Support\Facades\ParallelTesting;
 trait TestCaches
 {
     /**
-     * The original cache prefix prior to appending the token.
-     */
-    protected static ?string $originalCachePrefix = null;
-
-    /**
      * Boot test cache for parallel testing.
      */
     protected function bootTestCache(): void
@@ -32,9 +27,13 @@ trait TestCaches
      */
     protected function parallelSafeCachePrefix(): string
     {
-        self::$originalCachePrefix ??= $this->app['config']->get('cache.prefix', '');
+        $token = ParallelTesting::token();
+        $suffix = "test_{$token}_";
+        $prefix = $this->app['config']->get('cache.prefix', '');
 
-        return self::$originalCachePrefix . 'test_' . ParallelTesting::token() . '_';
+        return str_ends_with($prefix, $suffix)
+            ? $prefix
+            : $prefix . $suffix;
     }
 
     /**

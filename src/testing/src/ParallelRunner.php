@@ -18,4 +18,13 @@ class ParallelRunner implements RunnerInterface
     {
         return $this->execute();
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$applicationResolver = null;
+        static::$runnerResolver = null;
+    }
 }
