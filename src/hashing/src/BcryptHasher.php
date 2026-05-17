@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Hashing;
 
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
+use InvalidArgumentException;
 use RuntimeException;
 
 class BcryptHasher extends AbstractHasher implements HasherContract
@@ -12,12 +13,17 @@ class BcryptHasher extends AbstractHasher implements HasherContract
     /**
      * The default cost factor.
      */
-    protected int $rounds = 10;
+    protected int $rounds = 12;
 
     /**
      * Indicates whether to perform an algorithm check.
      */
     protected bool $verifyAlgorithm = false;
+
+    /**
+     * The maximum allowed length of strings that can be hashed.
+     */
+    protected ?int $limit = null;
 
     /**
      * Create a new hasher instance.
@@ -26,15 +32,21 @@ class BcryptHasher extends AbstractHasher implements HasherContract
     {
         $this->rounds = (int) ($options['rounds'] ?? $this->rounds);
         $this->verifyAlgorithm = $options['verify'] ?? $this->verifyAlgorithm;
+        $this->limit = $options['limit'] ?? $this->limit;
     }
 
     /**
      * Hash the given value.
      *
      * @throws RuntimeException
+     * @throws InvalidArgumentException
      */
     public function make(string $value, array $options = []): string
     {
+        if ($this->limit && strlen($value) > $this->limit) {
+            throw new InvalidArgumentException('Value is too long to hash. Value must be less than ' . $this->limit . ' bytes.');
+        }
+
         $hash = password_hash($value, PASSWORD_BCRYPT, [
             'cost' => $this->cost($options),
         ]);

@@ -11,6 +11,7 @@ use Hypervel\Hashing\ArgonHasher;
 use Hypervel\Hashing\BcryptHasher;
 use Hypervel\Hashing\HashManager;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use RuntimeException;
 
@@ -55,6 +56,14 @@ class HasherTest extends TestCase
         $this->assertTrue($hasher->needsRehash($value, ['rounds' => 1]));
         $this->assertSame('bcrypt', password_get_info($value)['algoName']);
         $this->assertTrue($this->hashManager->isHashed($value));
+    }
+
+    public function testBcryptValueTooLong()
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $hasher = new BcryptHasher(['limit' => 72]);
+        $hasher->make(str_repeat('a', 73));
     }
 
     public function testBasicArgon2iHashing()
