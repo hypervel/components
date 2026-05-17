@@ -31,6 +31,7 @@ facades.md
 filesystem.md
 frontend.md
 hashing.md
+helpers.md
 pagination.md
 requests.md
 routing.md

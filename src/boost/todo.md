@@ -78,6 +78,10 @@
 - Port `Hypervel\Contracts\Queue\PreparesForDispatch` and wire it into `Hypervel\Foundation\Bus\PendingDispatch::shouldDispatch()`. Laravel lets a job implement `prepareForDispatch()` and return `false` to abort dispatch before uniqueness locks are acquired; Hypervel currently has no contract and `PendingDispatch::shouldDispatch()` only checks `ShouldBeUnique`.
 - Port queue interruption support. Laravel has `Illuminate\Contracts\Queue\Interruptible`, dispatches `WorkerInterrupted` when the worker receives `SIGQUIT`, `SIGTERM`, or `SIGINT`, and calls `interrupted($signal)` on the running queued command when it implements the contract. Hypervel's worker currently only flips `$shouldQuit` on those signals, has no `WorkerInterrupted` event, and never notifies the running command. Correct fix: add `Hypervel\Contracts\Queue\Interruptible`, port the event, track the current job/command path needed by `Worker::notifyJobOfSignal()`, dispatch the event, and call `interrupted($signal)` before the worker exits.
 
+## Support
+
+- Port `Hypervel\Support\Uri::authority()`. The copied helpers docs show `$uri->authority()` in the URI inspection example, but `Hypervel\Support\Uri` currently exposes `scheme()`, `user()`, `password()`, `host()`, `port()`, `path()`, `pathSegments()`, `query()`, and `fragment()` without the Laravel `authority()` method. Correct fix: add `authority(): ?string` returning the underlying URI authority and port Laravel's `SupportUriTest` coverage for user info, host, and authority inspection.
+
 ## Validation
 
 - Port Rule::string() fluent string rule builder
