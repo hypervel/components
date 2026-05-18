@@ -7,10 +7,6 @@ namespace Hypervel\Tests\Events;
 use Hypervel\Events\CallQueuedListener as HypervelCallQueuedListener;
 use Hypervel\Tests\TestCase;
 
-/**
- * @internal
- * @coversNothing
- */
 class CallQueuedListenerTest extends TestCase
 {
     public function testHypervelListenerToleratesUnknownPropertiesOnUnserialization()
