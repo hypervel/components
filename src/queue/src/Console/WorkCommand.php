@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Console;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
-use Hypervel\Context\Context;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Job;
@@ -349,11 +349,11 @@ class WorkCommand extends Command
 
     protected function getLatestStartedAt(): ?float
     {
-        return Context::get('__queue.worker.latest_started_at');
+        return CoroutineContext::get('__queue.worker.latest_started_at');
     }
 
     protected function setLatestStartedAt(?float $latestStartedAt): void
     {
-        Context::set('__queue.worker.latest_started_at', $latestStartedAt);
+        CoroutineContext::set('__queue.worker.latest_started_at', $latestStartedAt);
     }
 }
