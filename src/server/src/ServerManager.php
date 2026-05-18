@@ -45,7 +45,7 @@ class ServerManager
     }
 
     /**
-     * Flush all registered server entries.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

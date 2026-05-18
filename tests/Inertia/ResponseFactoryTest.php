@@ -996,4 +996,14 @@ class ResponseFactoryTest extends TestCase
 
         $this->assertContains('admin/*', app(HttpGateway::class)->getExcludedPaths());
     }
+
+    public function testFlushStateClearsMacros(): void
+    {
+        ResponseFactory::macro('foo', fn () => 'bar');
+        $this->assertTrue(ResponseFactory::hasMacro('foo'));
+
+        ResponseFactory::flushState();
+
+        $this->assertFalse(ResponseFactory::hasMacro('foo'));
+    }
 }

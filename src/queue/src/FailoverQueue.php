@@ -6,6 +6,7 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
@@ -16,11 +17,16 @@ use Throwable;
 class FailoverQueue extends Queue implements QueueContract
 {
     /**
-     * The queues which failed on the last action.
+     * Context key prefix for the queues which failed on the last action.
      *
-     * @var list<string>
+     * Scoped per instance via spl_object_id() so multiple failover queues
+     * in the same coroutine don't share failure history.
+     *
+     * Stored in coroutine Context instead of an instance property because this
+     * queue is cached in QueueManager::$connections. Instance state would leak
+     * across concurrent dispatches.
      */
-    protected array $failingQueues = [];
+    protected const string FAILING_QUEUES_CONTEXT_PREFIX = '__queue.failover.failing_queues.';
 
     /**
      * Create a new failover queue instance.
@@ -113,6 +119,9 @@ class FailoverQueue extends Queue implements QueueContract
      */
     protected function attemptOnAllConnections(string $method, array $arguments, object|string|null $job = null): mixed
     {
+        $contextKey = self::FAILING_QUEUES_CONTEXT_PREFIX . spl_object_id($this);
+        $failingQueues = CoroutineContext::get($contextKey, []);
+
         [$lastException, $failedQueues] = [null, []];
 
         try {
@@ -124,13 +133,13 @@ class FailoverQueue extends Queue implements QueueContract
 
                     $failedQueues[] = $connection;
 
-                    if ($job !== null && ! in_array($connection, $this->failingQueues)) {
+                    if ($job !== null && ! in_array($connection, $failingQueues, true)) {
                         $this->events->dispatch(new QueueFailedOver($connection, $job, $e));
                     }
                 }
             }
         } finally {
-            $this->failingQueues = $failedQueues;
+            CoroutineContext::set($contextKey, $failedQueues);
         }
 
         throw $lastException ?? new RuntimeException('All failover queue connections failed.');

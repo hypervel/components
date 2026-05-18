@@ -50,7 +50,7 @@ class AspectManager
     }
 
     /**
-     * Flush all cached aspect resolutions.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

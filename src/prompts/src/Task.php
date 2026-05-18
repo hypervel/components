@@ -405,7 +405,7 @@ class Task extends Prompt
         $this->hideCursor();
         $this->render();
 
-        Coroutine::create(function () {
+        Coroutine::fork(function () {
             while (! $this->finished) {
                 $this->render();
                 ++$this->count;

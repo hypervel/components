@@ -99,8 +99,11 @@ class ReverbServiceProvider extends ServiceProvider
      * Register the Reverb WebSocket server in the server configuration.
      *
      * Appends a WebSocket server entry to `server.servers` so Swoole binds
-     * the Reverb port alongside the main HTTP server. This runs during
-     * provider registration — before ServerStartCommand reads the config.
+     * the Reverb port alongside the main HTTP server. This is an intentional
+     * register-time config mutation: it must run before ServerStartCommand
+     * reads `server.servers` and before workers or coroutines exist. Do not
+     * move this into boot/runtime code; config is process-global in Swoole
+     * workers.
      */
     protected function registerWebSocketServer(): void
     {

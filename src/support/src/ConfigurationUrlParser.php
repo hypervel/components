@@ -9,9 +9,9 @@ use InvalidArgumentException;
 class ConfigurationUrlParser
 {
     /**
-     * The drivers aliases map.
+     * The default driver aliases map.
      */
-    protected static array $driverAliases = [
+    protected const DEFAULT_DRIVER_ALIASES = [
         'mssql' => 'sqlsrv',
         'mysql2' => 'mysql', // RDS
         'postgres' => 'pgsql',
@@ -20,6 +20,11 @@ class ConfigurationUrlParser
         'redis' => 'tcp',
         'rediss' => 'tls',
     ];
+
+    /**
+     * The drivers aliases map.
+     */
+    protected static array $driverAliases = self::DEFAULT_DRIVER_ALIASES;
 
     /**
      * Parse the database configuration, hydrating options using a database configuration URL if possible.
@@ -163,5 +168,13 @@ class ConfigurationUrlParser
     public static function addDriverAlias(string $alias, string $driver): void
     {
         static::$driverAliases[$alias] = $driver;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$driverAliases = self::DEFAULT_DRIVER_ALIASES;
     }
 }

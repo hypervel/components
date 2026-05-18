@@ -170,7 +170,7 @@ class WebSocketHandler implements OnOpenInterface, OnMessageInterface, OnCloseIn
     }
 
     /**
-     * Flush all stored connections.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

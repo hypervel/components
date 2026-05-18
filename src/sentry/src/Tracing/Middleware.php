@@ -229,7 +229,8 @@ class Middleware
 
         $this->addBootDetailTimeSpans($span);
 
-        // Consume the booted timestamp — only the first request after worker boot gets this span
+        // Consume the booted timestamp — this worker boot span is best-effort
+        // and only the first request after worker boot gets it.
         self::$bootedTimestamp = null;
 
         return $span;
@@ -280,5 +281,13 @@ class Middleware
     private function shouldRouteBeIgnored(): bool
     {
         return ! $this->didRouteMatch && config('sentry.tracing.missing_routes', false) === false;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$bootedTimestamp = null;
     }
 }

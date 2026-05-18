@@ -8,6 +8,7 @@ use Hypervel\Routing\Router;
 use Hypervel\Sentry\Http\HypervelRequestFetcher;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Psr\Http\Message\ServerRequestInterface;
+use ReflectionProperty;
 
 class HypervelRequestFetcherTest extends SentryTestCase
 {
@@ -27,5 +28,21 @@ class HypervelRequestFetcherTest extends SentryTestCase
         $request = $fetcher->fetchRequest();
 
         $this->assertInstanceOf(ServerRequestInterface::class, $request);
+    }
+
+    public function testFlushStateClearsPsrHttpFactoryCache()
+    {
+        $this->get('/');
+
+        $fetcher = new HypervelRequestFetcher;
+        $fetcher->fetchRequest();
+
+        $property = new ReflectionProperty(HypervelRequestFetcher::class, 'psrHttpFactory');
+
+        $this->assertNotNull($property->getValue());
+
+        HypervelRequestFetcher::flushState();
+
+        $this->assertNull($property->getValue());
     }
 }

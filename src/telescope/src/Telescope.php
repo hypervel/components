@@ -34,6 +34,16 @@ class Telescope
     use ListensForStorageOpportunities;
     use RegistersWatchers;
 
+    protected const DEFAULT_HIDDEN_REQUEST_HEADERS = [
+        'authorization',
+        'php-auth-pw',
+    ];
+
+    protected const DEFAULT_HIDDEN_REQUEST_PARAMETERS = [
+        'password',
+        'password_confirmation',
+    ];
+
     public const ENTRIES_QUEUE_CONTEXT_KEY = '__telescope.entries_queue';
 
     public const UPDATES_QUEUE_CONTEXT_KEY = '__telescope.updates_queue';
@@ -78,18 +88,12 @@ class Telescope
     /**
      * The list of hidden request headers.
      */
-    public static array $hiddenRequestHeaders = [
-        'authorization',
-        'php-auth-pw',
-    ];
+    public static array $hiddenRequestHeaders = self::DEFAULT_HIDDEN_REQUEST_HEADERS;
 
     /**
      * The list of hidden request parameters.
      */
-    public static array $hiddenRequestParameters = [
-        'password',
-        'password_confirmation',
-    ];
+    public static array $hiddenRequestParameters = self::DEFAULT_HIDDEN_REQUEST_PARAMETERS;
 
     /**
      * The list of hidden response parameters.
@@ -826,35 +830,6 @@ class Telescope
     }
 
     /**
-     * Flush all static state back to defaults.
-     */
-    public static function flushState(): void
-    {
-        static::$filterUsing = [];
-        static::$filterBatchUsing = [];
-        static::$afterRecordingHook = null;
-        static::$afterStoringHooks = [];
-        static::$tagUsing = [];
-        static::$hiddenRequestHeaders = [
-            'authorization',
-            'php-auth-pw',
-        ];
-        static::$hiddenRequestParameters = [
-            'password',
-            'password_confirmation',
-        ];
-        static::$hiddenResponseParameters = [];
-        static::$ignoreFrameworkEvents = true;
-        static::$useDarkTheme = false;
-        static::$started = false;
-        static::$ignoredUris = [];
-        static::$store = null;
-        static::$authUsing = null;
-        static::flushWatchers();
-        Avatar::flushState();
-    }
-
-    /**
      * Get the default JavaScript variables for Telescope.
      */
     public static function scriptVariables(): array
@@ -864,5 +839,29 @@ class Telescope
             'timezone' => config('app.timezone'),
             'recording' => ! cache('telescope:pause-recording'),
         ];
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$filterUsing = [];
+        static::$filterBatchUsing = [];
+        static::$afterRecordingHook = null;
+        static::$afterStoringHooks = [];
+        static::$tagUsing = [];
+        static::$hiddenRequestHeaders = self::DEFAULT_HIDDEN_REQUEST_HEADERS;
+        static::$hiddenRequestParameters = self::DEFAULT_HIDDEN_REQUEST_PARAMETERS;
+        static::$hiddenResponseParameters = [];
+        static::$ignoreFrameworkEvents = true;
+        static::$useDarkTheme = false;
+        static::$started = false;
+        static::$ignoredUris = [];
+        static::$store = null;
+        static::$authUsing = null;
+        static::$shouldListenCallback = null;
+        static::flushWatchers();
+        Avatar::flushState();
     }
 }

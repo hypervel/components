@@ -11,16 +11,16 @@
 <a name="introduction"></a>
 ## Introduction
 
-The Laravel `Hash` [facade](/docs/{{version}}/facades) provides secure Bcrypt and Argon2 hashing for storing user passwords. If you are using one of the [Laravel application starter kits](/docs/{{version}}/starter-kits), Bcrypt will be used for registration and authentication by default.
+The Hypervel `Hash` [facade](/docs/{{version}}/facades) provides secure Bcrypt and Argon2 hashing for storing user passwords. If you are using one of the [Hypervel application starter kits](/docs/{{version}}/starter-kits), Bcrypt will be used for registration and authentication by default.
 
 Bcrypt is a great choice for hashing passwords because its "work factor" is adjustable, which means that the time it takes to generate a hash can be increased as hardware power increases. When hashing passwords, slow is good. The longer an algorithm takes to hash a password, the longer it takes malicious users to generate "rainbow tables" of all possible string hash values that may be used in brute force attacks against applications.
 
 <a name="configuration"></a>
 ## Configuration
 
-By default, Laravel uses the `bcrypt` hashing driver when hashing data. However, several other hashing drivers are supported, including [argon](https://en.wikipedia.org/wiki/Argon2) and [argon2id](https://en.wikipedia.org/wiki/Argon2).
+By default, Hypervel uses the `bcrypt` hashing driver when hashing data. However, several other hashing drivers are supported, including [argon](https://en.wikipedia.org/wiki/Argon2) and [argon2id](https://en.wikipedia.org/wiki/Argon2).
 
-You may specify your application's hashing driver using the `HASH_DRIVER` environment variable. But, if you want to customize all of Laravel's hashing driver options, you should publish the complete `hashing` configuration file using the `config:publish` Artisan command:
+You may specify your application's hashing driver using the `HASH_DRIVER` environment variable. But, if you want to customize all of Hypervel's hashing driver options, you should publish the complete `hashing` configuration file using the `config:publish` Artisan command:
 
 ```shell
 php artisan config:publish hashing
@@ -64,7 +64,7 @@ class PasswordController extends Controller
 <a name="adjusting-the-bcrypt-work-factor"></a>
 #### Adjusting The Bcrypt Work Factor
 
-If you are using the Bcrypt algorithm, the `make` method allows you to manage the work factor of the algorithm using the `rounds` option; however, the default work factor managed by Laravel is acceptable for most applications:
+If you are using the Bcrypt algorithm, the `make` method allows you to manage the work factor of the algorithm using the `rounds` option; however, the default work factor managed by Hypervel is acceptable for most applications:
 
 ```php
 $hashed = Hash::make('password', [
@@ -75,7 +75,7 @@ $hashed = Hash::make('password', [
 <a name="adjusting-the-argon2-work-factor"></a>
 #### Adjusting The Argon2 Work Factor
 
-If you are using the Argon2 algorithm, the `make` method allows you to manage the work factor of the algorithm using the `memory`, `time`, and `threads` options; however, the default values managed by Laravel are acceptable for most applications:
+If you are using the Argon2 algorithm, the `make` method allows you to manage the work factor of the algorithm using the `memory`, `time`, and `threads` options; however, the default values managed by Hypervel are acceptable for most applications:
 
 ```php
 $hashed = Hash::make('password', [
@@ -113,7 +113,7 @@ if (Hash::needsRehash($hashed)) {
 <a name="hash-algorithm-verification"></a>
 ## Hash Algorithm Verification
 
-To prevent hash algorithm manipulation, Laravel's `Hash::check` method will first verify the given hash was generated using the application's selected hashing algorithm. If the algorithms are different, a `RuntimeException` exception will be thrown.
+To prevent hash algorithm manipulation, Hypervel's `Hash::check` method will first verify the given hash was generated using the application's selected hashing algorithm. If the algorithms are different, a `RuntimeException` exception will be thrown.
 
 This is the expected behavior for most applications, where the hashing algorithm is not expected to change and different algorithms can be an indication of a malicious attack. However, if you need to support multiple hashing algorithms within your application, such as when migrating from one algorithm to another, you can disable hash algorithm verification by setting the `HASH_VERIFY` environment variable to `false`:
 

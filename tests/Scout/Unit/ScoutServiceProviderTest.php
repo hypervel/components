@@ -113,16 +113,29 @@ class ScoutServiceProviderTest extends TestCase
         $this->assertInstanceOf(AlgoliaSearchClient::class, $client);
     }
 
+    public function testAlgoliaSdkUsesExplicitGuzzleAfterProviderBoot()
+    {
+        $wrapper = Algolia::getHttpClient();
+
+        $this->assertInstanceOf(GuzzleHttpClient::class, $wrapper);
+
+        $inner = (new ClassInvoker($wrapper))->client;
+
+        $this->assertInstanceOf(GuzzleClient::class, $inner);
+        $this->assertSame(
+            [TelescopeTag::Scout, TelescopeTag::Algolia],
+            $inner->getConfig('telescope_tags'),
+        );
+    }
+
     public function testAlgoliaClientUsesExplicitGuzzle()
     {
-        // Pins the behaviour: the Algolia binding calls
-        // Algolia::setHttpClient(new GuzzleHttpClient(new GuzzleClient))
-        // and that client is what the Algolia SDK uses afterwards.
+        // Pins the behaviour: provider boot configures the Algolia SDK to use
+        // our Guzzle-backed HTTP client before the client binding is resolved.
         $this->app->make('config')->set('scout.algolia.id', 'test-app-id');
         $this->app->make('config')->set('scout.algolia.secret', 'test-secret');
         $this->app->forgetInstance(AlgoliaSearchClient::class);
 
-        // Resolving triggers the binding closure which calls setHttpClient.
         $this->app->make(AlgoliaSearchClient::class);
 
         $wrapper = Algolia::getHttpClient();

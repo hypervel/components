@@ -416,10 +416,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     }
 
     /**
-     * Flush the URI helper's global state.
-     *
-     * Boot or tests only. Clears worker-wide URI resolver and macro state used
-     * by every subsequent URI helper call.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

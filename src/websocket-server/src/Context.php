@@ -116,7 +116,7 @@ class Context
     }
 
     /**
-     * Reset the entire context storage.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

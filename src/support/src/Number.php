@@ -333,12 +333,11 @@ class Number
     }
 
     /**
-     * Flush per-request locale and currency state from context.
+     * Flush all static state.
      */
     public static function flushState(): void
     {
-        CoroutineContext::forget(self::LOCALE_CONTEXT_KEY);
-        CoroutineContext::forget(self::CURRENCY_CONTEXT_KEY);
+        static::flushMacros();
     }
 
     /**

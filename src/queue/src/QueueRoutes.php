@@ -75,6 +75,9 @@ class QueueRoutes
     /**
      * Register the queue route for the given class.
      *
+     * Boot-only. The route persists on the singleton registry for the worker
+     * lifetime and affects every subsequent dispatch of that class.
+     *
      * @param array<class-string, array{null|string, null|string}|string>|class-string $class
      */
     public function set(array|string $class, ?string $queue = null, ?string $connection = null): void

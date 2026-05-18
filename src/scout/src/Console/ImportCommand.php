@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Scout\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Console\Traits\ResolvesScoutModelClass;
-use Hypervel\Scout\Events\ModelsImported;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Scout;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -38,32 +39,35 @@ class ImportCommand extends Command
      *
      * @throws ScoutException
      */
-    public function handle(Dispatcher $events): void
+    public function handle(): void
     {
-        Scout::whileImporting(function () use ($events): void {
+        Scout::whileImporting(function (): void {
             $class = $this->resolveModelClass((string) $this->argument('model'));
             $chunk = $this->option('chunk');
             $fresh = $this->option('fresh');
 
-            try {
-                $events->listen(ModelsImported::class, function (ModelsImported $event) use ($class): void {
-                    $lastModel = $event->models->last();
+            Scout::whileReportingImportProgress(
+                function (Collection $models) use ($class): void {
+                    /** @var null|(Model&SearchableInterface) $lastModel */
+                    $lastModel = $models->last();
                     $key = $lastModel?->getScoutKey();
 
                     if ($key !== null) {
                         $this->line("<comment>Imported [{$class}] models up to ID:</comment> {$key}");
                     }
-                });
+                },
+                function () use ($class, $chunk, $fresh): void {
+                    try {
+                        if ($fresh) {
+                            $class::removeAllFromSearch();
+                        }
 
-                if ($fresh) {
-                    $class::removeAllFromSearch();
+                        $class::makeAllSearchable($chunk !== null ? (int) $chunk : null);
+                    } finally {
+                        $class::waitForSearchableJobs();
+                    }
                 }
-
-                $class::makeAllSearchable($chunk !== null ? (int) $chunk : null);
-            } finally {
-                $class::waitForSearchableJobs();
-                $events->forget(ModelsImported::class);
-            }
+            );
 
             $this->info("All [{$class}] records have been imported.");
         });

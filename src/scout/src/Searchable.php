@@ -44,7 +44,7 @@ trait Searchable
     {
         static::addGlobalScope(new SearchableScope);
 
-        static::observe(new ModelObserver);
+        static::observe(ModelObserver::class);
 
         (new static)->registerSearchableMacros();
     }

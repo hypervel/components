@@ -260,7 +260,7 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
     }
 
     /**
-     * Flush the email rule's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

@@ -275,7 +275,7 @@ class PackageManifest
     }
 
     /**
-     * Flush the manifest cache and static state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

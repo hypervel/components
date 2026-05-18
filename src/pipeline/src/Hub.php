@@ -30,6 +30,11 @@ class Hub implements HubContract
 
     /**
      * Define the default named pipeline.
+     *
+     * Boot-only. The callback persists on the singleton Hub for the worker
+     * lifetime and is executed on every subsequent Hub::pipe() call that does
+     * not specify a pipeline name. Per-request registration races across
+     * coroutines.
      */
     public function defaults(Closure $callback): void
     {
@@ -38,6 +43,10 @@ class Hub implements HubContract
 
     /**
      * Define a new named pipeline.
+     *
+     * Boot-only. The callback persists on the singleton Hub for the worker
+     * lifetime and is executed on every subsequent Hub::pipe() call for this
+     * name. Per-request registration races across coroutines.
      */
     public function pipeline(string $name, Closure $callback): void
     {

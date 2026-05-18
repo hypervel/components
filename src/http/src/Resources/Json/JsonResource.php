@@ -265,7 +265,7 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
     }
 
     /**
-     * Flush the resource's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

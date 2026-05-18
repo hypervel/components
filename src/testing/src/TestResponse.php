@@ -1659,6 +1659,14 @@ class TestResponse implements ArrayAccess
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Dynamically access base response parameters.
      */
     public function __get(string $key): mixed
@@ -1724,13 +1732,5 @@ class TestResponse implements ArrayAccess
         }
 
         return $this->baseResponse->{$method}(...$args);
-    }
-
-    /**
-     * Flush the test response's global state.
-     */
-    public static function flushState(): void
-    {
-        static::flushMacros();
     }
 }

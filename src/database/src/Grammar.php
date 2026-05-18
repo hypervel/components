@@ -238,7 +238,7 @@ abstract class Grammar
     }
 
     /**
-     * Flush the grammar's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

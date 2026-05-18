@@ -29,6 +29,11 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     protected const LOCALE_CONTEXT_KEY = '__translation.locale';
 
     /**
+     * Context key for suppressing missing-key callbacks in the current coroutine.
+     */
+    protected const MISSING_KEY_HANDLING_CONTEXT_KEY = '__translation.handle_missing_keys';
+
+    /**
      * The fallback locale used by the translator.
      */
     protected ?string $fallback = '';
@@ -63,11 +68,6 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     protected $missingTranslationKeyCallback;
 
     /**
-     * Indicates whether missing translation keys should be handled.
-     */
-    protected bool $handleMissingTranslationKeys = true;
-
-    /**
      * Create a new translator instance.
      *
      * @param Loader $loader The loader implementation
@@ -95,16 +95,9 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     {
         $locale = $locale ?: $this->getLocale();
 
-        // We should temporarily disable the handling of missing translation keys
-        // while performing the existence check. After the check, we will turn
-        // the missing translation keys handling back to its original value.
-        $handleMissingTranslationKeys = $this->handleMissingTranslationKeys;
-
-        $this->handleMissingTranslationKeys = false;
-
-        $line = $this->get($key, [], $locale, $fallback);
-
-        $this->handleMissingTranslationKeys = $handleMissingTranslationKeys;
+        $line = $this->withoutMissingKeyHandling(
+            fn () => $this->get($key, [], $locale, $fallback)
+        );
 
         // For JSON translations, the loaded files will contain the correct line.
         // Otherwise, we must assume we are handling typical translation file
@@ -309,26 +302,45 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     protected function handleMissingTranslationKey(string $key, array $replace, ?string $locale, bool $fallback): string
     {
-        if (! $this->handleMissingTranslationKeys
+        if (! $this->shouldHandleMissingTranslationKeys()
             || ! isset($this->missingTranslationKeyCallback)
         ) {
             return $key;
         }
 
-        // Prevent infinite loops...
-        $this->handleMissingTranslationKeys = false;
+        return $this->withoutMissingKeyHandling(function () use ($key, $replace, $locale, $fallback) {
+            return call_user_func(
+                $this->missingTranslationKeyCallback,
+                $key,
+                $replace,
+                $locale,
+                $fallback
+            ) ?? $key;
+        });
+    }
 
-        $key = call_user_func(
-            $this->missingTranslationKeyCallback,
-            $key,
-            $replace,
-            $locale,
-            $fallback
-        ) ?? $key;
+    /**
+     * Determine if missing translation keys should be handled in this coroutine.
+     */
+    protected function shouldHandleMissingTranslationKeys(): bool
+    {
+        return (bool) CoroutineContext::get(self::MISSING_KEY_HANDLING_CONTEXT_KEY, true);
+    }
 
-        $this->handleMissingTranslationKeys = true;
+    /**
+     * Run the callback without firing missing-key callbacks in this coroutine.
+     */
+    protected function withoutMissingKeyHandling(callable $callback): mixed
+    {
+        $previous = CoroutineContext::get(self::MISSING_KEY_HANDLING_CONTEXT_KEY, true);
 
-        return $key;
+        CoroutineContext::set(self::MISSING_KEY_HANDLING_CONTEXT_KEY, false);
+
+        try {
+            return $callback();
+        } finally {
+            CoroutineContext::set(self::MISSING_KEY_HANDLING_CONTEXT_KEY, $previous);
+        }
     }
 
     /**
@@ -505,5 +517,13 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
         }
 
         $this->stringableHandlers[$class] = $handler;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

@@ -105,14 +105,10 @@ class EncodedHtmlString extends HtmlString
     }
 
     /**
-     * Flush the class's global state.
-     *
-     * Boot or tests only. Clears the worker-wide encoder factory; concurrent
-     * renders may encode output differently depending on timing.
+     * Flush all static state.
      */
     public static function flushState(): void
     {
         static::$encodeUsingFactory = null;
-        CoroutineContext::forget(self::ENCODER_CONTEXT_KEY);
     }
 }

@@ -186,6 +186,14 @@ class DateFactory
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::useDefault();
+    }
+
+    /**
      * Handle dynamic calls to generate dates.
      *
      * @throws RuntimeException

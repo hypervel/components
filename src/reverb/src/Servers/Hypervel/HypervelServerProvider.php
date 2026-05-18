@@ -93,6 +93,9 @@ class HypervelServerProvider extends ServerProvider
 
     /**
      * Enable publishing of events.
+     *
+     * Tests only. The flag persists on the cached server provider for the
+     * worker lifetime and cannot be turned back off.
      */
     public function withPublishing(): void
     {

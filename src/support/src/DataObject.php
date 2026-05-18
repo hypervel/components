@@ -22,6 +22,11 @@ use RuntimeException;
 abstract class DataObject implements ArrayAccess, JsonSerializable
 {
     /**
+     * The default date format for DateTime properties.
+     */
+    protected const DEFAULT_DATE_FORMAT = 'Y-m-d H:i:s';
+
+    /**
      * Reflection parameters cache (class name => [ReflectionParameter]).
      */
     public static array $reflectionParametersCache = [];
@@ -49,7 +54,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     /**
      * The date format for DateTime properties.
      */
-    protected static string $dateFormat = 'Y-m-d H:i:s';
+    protected static string $dateFormat = self::DEFAULT_DATE_FORMAT;
 
     /**
      * Cache for the array representation of the object.
@@ -590,5 +595,18 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         $this->arrayCache = [];
 
         return $this;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$reflectionParametersCache = [];
+        static::$propertyMapCache = [];
+        static::$reversedPropertyMapCache = [];
+        static::$autoCasting = true;
+        static::$dependenciesMapCache = [];
+        static::$dateFormat = self::DEFAULT_DATE_FORMAT;
     }
 }

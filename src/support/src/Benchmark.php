@@ -63,4 +63,12 @@ class Benchmark
 
         dd($result);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

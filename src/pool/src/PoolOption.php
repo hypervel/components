@@ -36,6 +36,13 @@ class PoolOption implements PoolOptionInterface
         return $this->maxConnections;
     }
 
+    /**
+     * Set the maximum number of connections in the pool.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
+     */
     public function setMaxConnections(int $maxConnections): static
     {
         $this->maxConnections = $maxConnections;
@@ -48,6 +55,13 @@ class PoolOption implements PoolOptionInterface
         return $this->minConnections;
     }
 
+    /**
+     * Set the minimum number of connections in the pool.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
+     */
     public function setMinConnections(int $minConnections): static
     {
         $this->minConnections = $minConnections;
@@ -60,6 +74,13 @@ class PoolOption implements PoolOptionInterface
         return $this->connectTimeout;
     }
 
+    /**
+     * Set the timeout for establishing a connection.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
+     */
     public function setConnectTimeout(float $connectTimeout): static
     {
         $this->connectTimeout = $connectTimeout;
@@ -72,6 +93,13 @@ class PoolOption implements PoolOptionInterface
         return $this->heartbeat;
     }
 
+    /**
+     * Set the heartbeat interval in seconds.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
+     */
     public function setHeartbeat(float $heartbeat): static
     {
         $this->heartbeat = $heartbeat;
@@ -84,6 +112,13 @@ class PoolOption implements PoolOptionInterface
         return $this->waitTimeout;
     }
 
+    /**
+     * Set the timeout for waiting to get a connection from the pool.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
+     */
     public function setWaitTimeout(float $waitTimeout): static
     {
         $this->waitTimeout = $waitTimeout;
@@ -96,6 +131,13 @@ class PoolOption implements PoolOptionInterface
         return $this->maxIdleTime;
     }
 
+    /**
+     * Set the maximum idle time before a connection is closed.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
+     */
     public function setMaxIdleTime(float $maxIdleTime): static
     {
         $this->maxIdleTime = $maxIdleTime;
@@ -108,6 +150,13 @@ class PoolOption implements PoolOptionInterface
         return $this->events;
     }
 
+    /**
+     * Set the events to trigger on connection lifecycle.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
+     */
     public function setEvents(array $events): static
     {
         $this->events = $events;

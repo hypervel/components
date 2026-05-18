@@ -446,10 +446,10 @@ class ResponseFactory
     }
 
     /**
-     * Reset the per-request Inertia state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {
-        CoroutineContext::forget(InertiaState::CONTEXT_KEY);
+        static::flushMacros();
     }
 }

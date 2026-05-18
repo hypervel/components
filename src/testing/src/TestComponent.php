@@ -122,6 +122,14 @@ class TestComponent implements Stringable
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Get the string contents of the rendered component.
      */
     public function __toString(): string

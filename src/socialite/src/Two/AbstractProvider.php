@@ -83,11 +83,11 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
         $state = null;
 
         if ($this->usesState()) {
-            $this->request->session()->put('state', $state = $this->getState());
+            $this->getRequest()->session()->put('state', $state = $this->getState());
         }
 
         if ($this->usesPKCE()) {
-            $this->request->session()->put('code_verifier', $this->getCodeVerifier());
+            $this->getRequest()->session()->put('code_verifier', $this->getCodeVerifier());
         }
 
         return new RedirectResponse($this->getAuthUrl($state));
@@ -202,9 +202,9 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
             return false;
         }
 
-        $state = $this->request->session()->pull('state');
+        $state = $this->getRequest()->session()->pull('state');
 
-        return empty($state) || ! hash_equals($state, (string) $this->request->input('state'));
+        return empty($state) || ! hash_equals($state, (string) $this->getRequest()->input('state'));
     }
 
     /**
@@ -242,7 +242,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
         ];
 
         if ($this->usesPKCE()) {
-            $fields['code_verifier'] = $this->request->session()->pull('code_verifier');
+            $fields['code_verifier'] = $this->getRequest()->session()->pull('code_verifier');
         }
 
         return array_merge($fields, $this->getParameters());
@@ -284,7 +284,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
      */
     protected function getCode(): string
     {
-        return $this->request->input('code');
+        return $this->getRequest()->input('code');
     }
 
     /**
@@ -387,7 +387,7 @@ abstract class AbstractProvider extends BaseProvider implements ProviderContract
      */
     protected function getCodeChallenge(): string
     {
-        $hashed = hash('sha256', $this->request->session()->get('code_verifier'), true);
+        $hashed = hash('sha256', $this->getRequest()->session()->get('code_verifier'), true);
 
         return rtrim(strtr(base64_encode($hashed), '+/', '-_'), '=');
     }

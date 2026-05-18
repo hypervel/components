@@ -47,10 +47,33 @@ class ScoutServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->configureAlgoliaSdk();
+
         if ($this->app->runningInConsole()) {
             $this->registerPublishing();
             $this->registerCommands();
         }
+    }
+
+    /**
+     * Configure Algolia's SDK-wide settings.
+     */
+    protected function configureAlgoliaSdk(): void
+    {
+        if (! class_exists(Algolia::class)) {
+            return;
+        }
+
+        // Pin the HTTP client to Guzzle explicitly rather than relying on
+        // Algolia::getHttpClient()'s internal auto-decide heuristic. The
+        // heuristic can change under ^4.0 minor releases (swap to PSR-18
+        // discovery, reorder Guzzle detection, etc.) with no semver signal.
+        // Explicit injection pins the HTTP client choice at our boundary.
+        Algolia::setHttpClient(new GuzzleHttpClient(new GuzzleClient([
+            'telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Algolia],
+        ])));
+
+        AlgoliaAgent::addAlgoliaAgent('Hypervel Scout', 'Hypervel Scout', HypervelApplication::VERSION);
     }
 
     /**
@@ -60,17 +83,6 @@ class ScoutServiceProvider extends ServiceProvider
     {
         $this->app->singleton(AlgoliaSearchClient::class, function () {
             $config = $this->app->make('config');
-
-            // Pin the HTTP client to Guzzle explicitly rather than relying on
-            // Algolia::getHttpClient()'s internal auto-decide heuristic. The
-            // heuristic can change under ^4.0 minor releases (swap to PSR-18
-            // discovery, reorder Guzzle detection, etc.) with no semver signal.
-            // Explicit injection pins the HTTP client choice at our boundary.
-            Algolia::setHttpClient(new GuzzleHttpClient(new GuzzleClient([
-                'telescope_tags' => [TelescopeTag::Scout, TelescopeTag::Algolia],
-            ])));
-
-            AlgoliaAgent::addAlgoliaAgent('Hypervel Scout', 'Hypervel Scout', HypervelApplication::VERSION);
 
             $algoliaConfig = new AlgoliaSearchConfig([
                 'appId' => $config->get('scout.algolia.id'),

@@ -287,4 +287,12 @@ class ThrottleRequests
     {
         self::$shouldHashKeys = $shouldHashKeys;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$shouldHashKeys = true;
+    }
 }

@@ -137,7 +137,7 @@ class SocialiteManager extends Manager implements Contracts\Factory
         return $this->buildOAuth2Provider(
             GitlabProvider::class,
             $config
-        )->setHost($config['host'] ?? null); // phpstan-ignore-line
+        );
     }
 
     /**

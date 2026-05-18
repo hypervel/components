@@ -228,6 +228,14 @@ class PendingSingletonResourceRegistration
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Handle the object's destruction.
      */
     public function __destruct()

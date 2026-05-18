@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit\Console;
 
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Exceptions\ScoutException;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Support\Facades\Bus;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
@@ -55,5 +58,29 @@ class ImportCommandTest extends ScoutTestCase
 
         Bus::assertNotDispatched(MakeSearchable::class);
         Bus::assertNotDispatched(RemoveFromSearch::class);
+    }
+
+    public function testScoutImportDoesNotForgetExistingModelsImportedListeners(): void
+    {
+        for ($i = 1; $i <= 3; ++$i) {
+            SearchableModel::create(['title' => "Title {$i}", 'body' => 'Body']);
+        }
+
+        $eventCount = 0;
+
+        Event::listen(ModelsImported::class, function () use (&$eventCount): void {
+            ++$eventCount;
+        });
+
+        $this->artisan('scout:import', ['model' => SearchableModel::class])
+            ->expectsOutputToContain('have been imported')
+            ->assertSuccessful();
+
+        $countAfterImport = $eventCount;
+
+        Event::dispatch(new ModelsImported(new Collection([new SearchableModel])));
+
+        $this->assertGreaterThan(0, $countAfterImport);
+        $this->assertSame($countAfterImport + 1, $eventCount);
     }
 }

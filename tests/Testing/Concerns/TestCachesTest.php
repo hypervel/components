@@ -54,19 +54,6 @@ class TestCachesTest extends TestCase
             $_SERVER['HYPERVEL_PARALLEL_TESTING'] = $this->originalParallelTesting;
         }
 
-        $instance = new class {
-            use TestCaches;
-
-            public $app;
-
-            public function __construct()
-            {
-                $this->app = Container::getInstance() ?? new Container;
-            }
-        };
-
-        (new ReflectionProperty($instance::class, 'originalCachePrefix'))->setValue(null, null);
-
         parent::tearDown();
     }
 
@@ -85,7 +72,7 @@ class TestCachesTest extends TestCase
         yield 'empty prefix' => ['', '3', 'test_3_'];
     }
 
-    public function testCachePrefixPreservesOriginalPrefix()
+    public function testCachePrefixReflectsCurrentToken()
     {
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
 
@@ -94,6 +81,27 @@ class TestCachesTest extends TestCase
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '2');
 
         $this->assertSame('myapp_cache_test_2_', $this->getParallelSafeCachePrefix());
+    }
+
+    public function testCachePrefixDoesNotReuseCustomPrefixFromPreviousCall()
+    {
+        Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
+
+        Container::getInstance()['config']->set('cache.prefix', 'custom_cache_');
+
+        $this->assertSame('custom_cache_test_1_', $this->getParallelSafeCachePrefix());
+
+        Container::getInstance()['config']->set('cache.prefix', 'myapp_cache_');
+
+        $this->assertSame('myapp_cache_test_1_', $this->getParallelSafeCachePrefix());
+    }
+
+    public function testCachePrefixDoesNotDoubleAppendToken()
+    {
+        Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
+        Container::getInstance()['config']->set('cache.prefix', 'myapp_cache_test_1_');
+
+        $this->assertSame('myapp_cache_test_1_', $this->getParallelSafeCachePrefix());
     }
 
     public function testSwitchToCachePrefixUpdatesConfig()
@@ -108,8 +116,6 @@ class TestCachesTest extends TestCase
         Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '7');
 
         $instance = $this->makeTestCachesInstance();
-
-        (new ReflectionProperty($instance::class, 'originalCachePrefix'))->setValue(null, null);
 
         $method = new ReflectionMethod($instance, 'bootTestCache');
         $method->invoke($instance);
@@ -126,7 +132,6 @@ class TestCachesTest extends TestCase
 
         $instance = $this->makeTestCachesInstance();
 
-        (new ReflectionProperty($instance::class, 'originalCachePrefix'))->setValue(null, null);
         (new ReflectionMethod($instance, 'bootTestCache'))->invoke($instance);
 
         $_SERVER['HYPERVEL_PARALLEL_TESTING_WITHOUT_CACHE'] = 1;
@@ -157,8 +162,6 @@ class TestCachesTest extends TestCase
     protected function getParallelSafeCachePrefix(): string
     {
         $instance = $this->makeTestCachesInstance();
-
-        (new ReflectionProperty($instance::class, 'originalCachePrefix'))->setValue(null, null);
 
         $method = new ReflectionMethod($instance, 'parallelSafeCachePrefix');
 

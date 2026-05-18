@@ -40,9 +40,7 @@ class ProcessManager
     }
 
     /**
-     * Flush all static state back to defaults.
-     *
-     * Tests only. Clears worker-wide process registrations and running state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {
@@ -60,6 +58,10 @@ class ProcessManager
 
     /**
      * Set the running state.
+     *
+     * Boot-only. Part of the server lifecycle; also called by the SIGTERM
+     * handler at shutdown. Mutates worker-lifetime static state; per-request
+     * use races across coroutines and disables the register() guard.
      */
     public static function setRunning(bool $running): void
     {

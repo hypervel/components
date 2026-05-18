@@ -212,10 +212,7 @@ class EventServiceProvider extends ServiceProvider
     }
 
     /**
-     * Flush the class's static state.
-     *
-     * Tests only. Clears worker-wide event discovery configuration used during
-     * subsequent provider boot.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

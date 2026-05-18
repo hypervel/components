@@ -594,6 +594,20 @@ When porting source classes that use static properties for caching (e.g., `$boot
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
 2. Check whether the subscriber (`tests/Support/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
 
+Place `flushState()` at the end of the class. The only exception is when the class has trailing magic dispatch/lifecycle methods (`__call`, `__callStatic`, `__get`, `__set`, `__isset`, `__unset`, `__destruct`) at the end; in that case, place `flushState()` immediately before that trailing magic-method block. `__invoke()` is not a placement anchor.
+
+Use the standard title docblock for `flushState()` methods:
+
+```php
+/**
+ * Flush all static state.
+ */
+```
+
+Do not add `Boot-only.`, `Tests only.`, or `Boot or tests only.` warning paragraphs to `flushState()` docblocks. Those warnings belong on public mutators and registrars that userland might call incorrectly, not on this test cleanup hook that is only registered in `AfterEachTestSubscriber`.
+
+Keep the docblock to the title only — no extra paragraphs. If the method body has a non-obvious WHY worth explaining (ordering constraints, late-static-binding subtleties, etc.), put it as an inline comment above the relevant line inside the method, not as an extra paragraph under the title.
+
 #### Per-Package Base Test Cases
 
 Do **not** create per-package abstract test case classes (e.g., `EngineTestCase`, `CoroutineTestCase`) just for coroutine support — it's already on the base class.

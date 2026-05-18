@@ -14,8 +14,7 @@ class ClearStatCacheTest extends TestCase
     {
         parent::setUp();
 
-        $this->setStaticProperty('interval', 1);
-        $this->setStaticProperty('lastCleared', 0);
+        ClearStatCache::flushState();
     }
 
     public function testGetAndSetInterval()
@@ -77,6 +76,17 @@ class ClearStatCacheTest extends TestCase
 
         // lastCleared should be updated — interval elapsed
         $this->assertGreaterThan($oldTimestamp, $this->getStaticProperty('lastCleared'));
+    }
+
+    public function testFlushStateRestoresDefaults()
+    {
+        ClearStatCache::setInterval(10);
+        $this->setStaticProperty('lastCleared', time());
+
+        ClearStatCache::flushState();
+
+        $this->assertSame(1, ClearStatCache::getInterval());
+        $this->assertSame(0, $this->getStaticProperty('lastCleared'));
     }
 
     private function getStaticProperty(string $name): mixed

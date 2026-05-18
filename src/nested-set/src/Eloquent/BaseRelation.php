@@ -141,4 +141,14 @@ abstract class BaseRelation extends Relation
         // resolvers which need this function.
         return NestedSet::PARENT_ID;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        // Relation::flushState() uses late static binding, so this resets the
+        // nested-set alias counter that shadows the parent relation counter.
+        parent::flushState();
+    }
 }

@@ -16,13 +16,12 @@ trait TestDatabases
 {
     /**
      * Indicates if the test database schema is up to date.
+     *
+     * Intentionally process-lifetime during a parallel test worker run. The
+     * worker should migrate its test database once, not before every test that
+     * uses DatabaseTransactions.
      */
     protected static bool $schemaIsUpToDate = false;
-
-    /**
-     * The root database name prior to concatenating the token.
-     */
-    protected static ?string $originalDatabaseName = null;
 
     /**
      * Boot a test database.
@@ -178,14 +177,11 @@ trait TestDatabases
      */
     protected function testDatabase(string $database): string
     {
-        if (! isset(self::$originalDatabaseName)) {
-            self::$originalDatabaseName = $database;
-        } else {
-            $database = self::$originalDatabaseName;
-        }
-
         $token = ParallelTesting::token();
+        $suffix = "_test_{$token}";
 
-        return "{$database}_test_{$token}";
+        return str_ends_with($database, $suffix)
+            ? $database
+            : "{$database}{$suffix}";
     }
 }

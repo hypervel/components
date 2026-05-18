@@ -377,4 +377,14 @@ class SupportNumberTest extends TestCase
         $this->assertSame(1234.56, Number::parseFloat('1.234,56', locale: 'de'));
         $this->assertSame(1234.56, Number::parseFloat('1 234,56', locale: 'fr'));
     }
+
+    public function testFlushStateClearsMacros()
+    {
+        Number::macro('foo', fn () => 'bar');
+        $this->assertTrue(Number::hasMacro('foo'));
+
+        Number::flushState();
+
+        $this->assertFalse(Number::hasMacro('foo'));
+    }
 }

@@ -109,12 +109,24 @@ abstract class AbstractProvider
 
     /**
      * Set the request instance.
+     *
+     * Stores the request in coroutine context so cached providers read the
+     * current request without leaking it to concurrent coroutines.
      */
     public function setRequest(Request $request): static
     {
-        $this->request = $request;
+        $this->setContext('request', $request);
 
         return $this;
+    }
+
+    /**
+     * Get the request instance.
+     */
+    protected function getRequest(): Request
+    {
+        // @phpstan-ignore-next-line getContext('request') is only written by setRequest(Request).
+        return $this->getContext('request', $this->request);
     }
 
     /**

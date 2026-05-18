@@ -33,6 +33,9 @@ trait CapsuleManagerTrait
 
     /**
      * Make this capsule instance available globally.
+     *
+     * Boot or tests only. Swaps the global Capsule instance used by static
+     * calls; request-time use races across coroutines.
      */
     public function setAsGlobal(): void
     {
@@ -49,9 +52,20 @@ trait CapsuleManagerTrait
 
     /**
      * Set the IoC container instance.
+     *
+     * Boot or tests only. Swaps the Capsule container used by this standalone
+     * manager; request-time use races across coroutines.
      */
     public function setContainer(Container $container): void
     {
         $this->container = $container;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$instance = null;
     }
 }

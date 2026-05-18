@@ -305,16 +305,6 @@ class DatabaseTransactionsManager
     }
 
     /**
-     * Flush all transaction state from the current coroutine's Context.
-     */
-    public static function flushState(): void
-    {
-        CoroutineContext::forget(self::COMMITTED_CONTEXT_KEY);
-        CoroutineContext::forget(self::PENDING_CONTEXT_KEY);
-        CoroutineContext::forget(self::CURRENT_CONTEXT_KEY);
-    }
-
-    /**
      * Check whether there are pending transactions in non-coroutine storage.
      */
     public static function hasNonCoroutinePendingTransactions(): bool

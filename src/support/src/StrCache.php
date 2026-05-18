@@ -150,7 +150,7 @@ class StrCache
     }
 
     /**
-     * Flush all caches.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

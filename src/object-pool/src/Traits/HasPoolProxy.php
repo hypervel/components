@@ -62,6 +62,10 @@ trait HasPoolProxy
 
     /**
      * Add a driver to the poolables list.
+     *
+     * Boot-only. The list persists on the manager for the worker lifetime and
+     * is consulted on subsequent driver creation. Per-request use races across
+     * coroutines and does not affect already-cached drivers.
      */
     public function addPoolable(string $driver): static
     {
@@ -74,6 +78,10 @@ trait HasPoolProxy
 
     /**
      * Remove a driver from the poolables list.
+     *
+     * Boot-only. The list persists on the manager for the worker lifetime and
+     * is consulted on subsequent driver creation. Per-request use races across
+     * coroutines and does not affect already-cached drivers.
      */
     public function removePoolable(string $driver): static
     {
@@ -97,6 +105,10 @@ trait HasPoolProxy
 
     /**
      * Set the poolables list.
+     *
+     * Boot-only. The list persists on the manager for the worker lifetime and
+     * is consulted on subsequent driver creation. Per-request use races across
+     * coroutines and does not affect already-cached drivers.
      */
     public function setPoolables(array $poolables): static
     {

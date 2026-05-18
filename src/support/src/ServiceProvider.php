@@ -428,10 +428,7 @@ abstract class ServiceProvider
     }
 
     /**
-     * Flush all static publish state.
-     *
-     * Tests only. Clears worker-wide publish and optimize command registries
-     * populated by service providers during boot.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

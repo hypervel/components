@@ -212,7 +212,7 @@ class JsonApiResource extends JsonResource
     }
 
     /**
-     * Flush the resource's global state.
+     * Flush all static state.
      */
     #[Override]
     public static function flushState(): void
@@ -220,6 +220,6 @@ class JsonApiResource extends JsonResource
         parent::flushState();
 
         static::$jsonApiInformation = [];
-        static::$maxRelationshipDepth = 3;
+        static::$maxRelationshipDepth = static::DEFAULT_MAX_RELATIONSHIP_DEPTH;
     }
 }

@@ -816,4 +816,14 @@ class Migrator
             $container[Dispatcher::class]->dispatch($event);
         }
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$connectionResolverCallback = null;
+        static::$requiredPathCache = [];
+        static::$withoutMigrations = [];
+    }
 }

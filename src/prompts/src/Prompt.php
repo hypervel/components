@@ -496,18 +496,17 @@ abstract class Prompt
     }
 
     /**
-     * Flush all prompt static state back to defaults.
+     * Flush all static state.
      */
     public static function flushState(): void
     {
+        Terminal::flushState();
+
         static::$cancelUsing = null;
         static::$validateUsing = null;
         static::$revertUsing = null;
         static::$output = new ConsoleOutput;
         static::$terminal = new Terminal;
-
-        CoroutineContext::forget(self::OUTPUT_CONTEXT_KEY);
-        CoroutineContext::forget(self::VALIDATE_USING_CONTEXT_KEY);
 
         static::resetCursor();
         static::resetFallback();

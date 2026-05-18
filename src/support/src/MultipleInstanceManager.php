@@ -123,6 +123,10 @@ abstract class MultipleInstanceManager
     /**
      * Unset the given instances.
      *
+     * Boot or tests only. Mutates the singleton's instance cache; concurrent
+     * coroutines may already hold a reference to the forgotten instance and
+     * next resolution will rebuild.
+     *
      * @return $this
      */
     public function forgetInstance(array|string|null $name = null): static

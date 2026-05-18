@@ -44,6 +44,13 @@ class Hub implements HubInterface
         return $this->client;
     }
 
+    /**
+     * Bind a new client to the hub.
+     *
+     * Boot-only. Mutates the shared client on the singleton Hub; per-request use
+     * races across coroutines, and existing coroutine layer stacks may already
+     * hold the previous client.
+     */
     public function bindClient(ClientInterface $client): void
     {
         $this->client = $client;

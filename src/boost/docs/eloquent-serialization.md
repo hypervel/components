@@ -11,7 +11,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-When building APIs using Laravel, you will often need to convert your models and relationships to arrays or JSON. Eloquent includes convenient methods for making these conversions, as well as controlling which attributes are included in the serialized representation of your models.
+When building APIs using Hypervel, you will often need to convert your models and relationships to arrays or JSON. Eloquent includes convenient methods for making these conversions, as well as controlling which attributes are included in the serialized representation of your models.
 
 > [!NOTE]
 > For an even more robust way of handling Eloquent model and collection JSON serialization, check out the documentation on [Eloquent API resources](/docs/{{version}}/eloquent-resources).
@@ -63,13 +63,19 @@ return $user->toJson();
 return $user->toJson(JSON_PRETTY_PRINT);
 ```
 
+As a convenience, the `toPrettyJson` method may be used to convert a model to pretty-printed JSON:
+
+```php
+return $user->toPrettyJson();
+```
+
 Alternatively, you may cast a model or collection to a string, which will automatically call the `toJson` method on the model or collection:
 
 ```php
 return (string) User::find(1);
 ```
 
-Since models and collections are converted to JSON when cast to a string, you can return Eloquent objects directly from your application's routes or controllers. Laravel will automatically serialize your Eloquent models and collections to JSON when they are returned from routes or controllers:
+Since models and collections are converted to JSON when cast to a string, you can return Eloquent objects directly from your application's routes or controllers. Hypervel will automatically serialize your Eloquent models and collections to JSON when they are returned from routes or controllers:
 
 ```php
 Route::get('/users', function () {
@@ -140,6 +146,14 @@ Likewise, if you would like to hide some attributes that are typically visible, 
 return $user->makeHidden('attribute')->toArray();
 
 return $user->mergeHidden(['name', 'email'])->toArray();
+```
+
+You may use the `makeVisibleIf` and `makeHiddenIf` methods to conditionally modify attribute visibility:
+
+```php
+return $user->makeVisibleIf($request->user()->isAdmin(), 'email')->toArray();
+
+return $user->makeHiddenIf(! $request->user()->isAdmin(), 'email')->toArray();
 ```
 
 If you wish to temporarily override all of the visible or hidden attributes, you may use the `setVisible` and `setHidden` methods respectively:
@@ -224,6 +238,8 @@ return $user->withoutAppends()->toArray();
 You may customize the default serialization format by overriding the `serializeDate` method. This method does not affect how your dates are formatted for storage in the database:
 
 ```php
+use DateTimeInterface;
+
 /**
  * Prepare a date for array / JSON serialization.
  */

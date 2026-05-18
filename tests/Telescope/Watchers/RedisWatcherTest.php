@@ -13,6 +13,7 @@ use Hypervel\Telescope\Watchers\RedisWatcher;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
+use ReflectionClass;
 
 #[WithConfig('telescope.watchers', [
     RedisWatcher::class => true,
@@ -30,6 +31,16 @@ class RedisWatcherTest extends FeatureTestCase
             $this->app->make('config')
                 ->get('database.redis.foo.event.enable', false)
         );
+    }
+
+    public function testFlushStateDisablesRedisEvents()
+    {
+        RedisWatcher::enableRedisEvents($this->app);
+        $this->assertTrue($this->eventsAreEnabled());
+
+        RedisWatcher::flushState();
+
+        $this->assertFalse($this->eventsAreEnabled());
     }
 
     public function testRedisWatcherRegistersEntries()
@@ -69,5 +80,10 @@ class RedisWatcherTest extends FeatureTestCase
         $watcher = new RedisWatcher([]);
 
         $watcher->register($app);
+    }
+
+    private function eventsAreEnabled(): bool
+    {
+        return (new ReflectionClass(RedisWatcher::class))->getStaticPropertyValue('eventsEnabled');
     }
 }

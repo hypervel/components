@@ -29,7 +29,7 @@ class ServerReloadCommand extends Command
 
     public function handle()
     {
-        $file = $this->config->get('server.settings.pid_file');
+        $file = $this->config->string('server.settings.pid_file');
         if (empty($file)) {
             throw new FileNotFoundException('The config of pid_file is not found.');
         }
@@ -39,7 +39,7 @@ class ServerReloadCommand extends Command
             return 0;
         }
 
-        $hasTaskWorkers = (bool) $this->config->get('server.settings.task_worker_num', 0);
+        $hasTaskWorkers = (bool) $this->config->integer('server.settings.task_worker_num', 0);
         $pid = $this->filesystem->get($file);
         try {
             $this->info('Reloading workers...');

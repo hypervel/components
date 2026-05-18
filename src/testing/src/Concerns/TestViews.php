@@ -10,11 +10,6 @@ use Hypervel\Support\Facades\ParallelTesting;
 trait TestViews
 {
     /**
-     * The original compiled view path prior to appending the token.
-     */
-    protected static ?string $originalCompiledViewPath = null;
-
-    /**
      * Boot test views for parallel testing.
      */
     protected function bootTestViews(): void
@@ -43,15 +38,18 @@ trait TestViews
      */
     protected function parallelSafeCompiledViewPath(): ?string
     {
-        self::$originalCompiledViewPath ??= $this->app['config']->get('view.compiled', '');
+        $path = $this->app['config']->get('view.compiled', '');
 
-        if (! self::$originalCompiledViewPath) {
+        if (! $path) {
             return null;
         }
 
-        return rtrim(self::$originalCompiledViewPath, '\/')
-            . '/test_'
-            . ParallelTesting::token();
+        $path = rtrim($path, '\/');
+        $suffix = '/test_' . ParallelTesting::token();
+
+        return str_ends_with($path, $suffix)
+            ? $path
+            : $path . $suffix;
     }
 
     /**

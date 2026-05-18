@@ -87,10 +87,7 @@ final class RulePlanCache
     }
 
     /**
-     * Reset cache. Called by AfterEachTestSubscriber between tests.
-     *
-     * Tests only. Clears the worker-wide validation rule plan cache and resets
-     * its capacity for subsequent validation runs.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

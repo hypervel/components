@@ -4,14 +4,31 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Hypervel\Support\Pluralizer;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
+use ReflectionClass;
 
 class SupportPluralizerTest extends TestCase
 {
     public function testBasicSingular()
     {
         $this->assertSame('child', Str::singular('children'));
+    }
+
+    public function testFlushStateRestoresDefaults()
+    {
+        Pluralizer::useLanguage('french');
+        Pluralizer::$uncountable[] = 'custom';
+        Pluralizer::inflector();
+
+        Pluralizer::flushState();
+
+        $reflection = new ReflectionClass(Pluralizer::class);
+
+        $this->assertNull($reflection->getStaticPropertyValue('inflector'));
+        $this->assertSame('english', $reflection->getStaticPropertyValue('language'));
+        $this->assertSame(['recommended', 'related'], Pluralizer::$uncountable);
     }
 
     public function testBasicPlural()

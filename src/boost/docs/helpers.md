@@ -15,7 +15,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel includes a variety of global "helper" PHP functions. Many of these functions are used by the framework itself; however, you are free to use them in your own applications if you find them convenient.
+Hypervel includes a variety of global "helper" PHP functions. Many of these functions are used by the framework itself; however, you are free to use them in your own applications if you find them convenient.
 
 <a name="available-methods"></a>
 ## Available Methods
@@ -87,6 +87,7 @@ Laravel includes a variety of global "helper" PHP functions. Many of these funct
 [Arr::sort](#method-array-sort)
 [Arr::sortDesc](#method-array-sort-desc)
 [Arr::sortRecursive](#method-array-sort-recursive)
+[Arr::sortRecursiveDesc](#method-array-sort-recursive-desc)
 [Arr::string](#method-array-string)
 [Arr::take](#method-array-take)
 [Arr::toCssClasses](#method-array-to-css-classes)
@@ -97,6 +98,7 @@ Laravel includes a variety of global "helper" PHP functions. Many of these funct
 [Arr::wrap](#method-array-wrap)
 [data_fill](#method-data-fill)
 [data_get](#method-data-get)
+[data_has](#method-data-has)
 [data_set](#method-data-set)
 [data_forget](#method-data-forget)
 [head](#method-head)
@@ -118,6 +120,7 @@ Laravel includes a variety of global "helper" PHP functions. Many of these funct
 [Number::format](#method-number-format)
 [Number::ordinal](#method-number-ordinal)
 [Number::pairs](#method-number-pairs)
+[Number::parse](#method-number-parse)
 [Number::parseInt](#method-number-parse-int)
 [Number::parseFloat](#method-number-parse-float)
 [Number::percentage](#method-number-percentage)
@@ -551,7 +554,7 @@ Arr::forget($array, 'products.desk');
 <a name="method-array-from"></a>
 #### `Arr::from()` {.collection-method}
 
-The `Arr::from` method converts various input types into a plain PHP array. It supports a range of input types, including arrays, objects, and several common Laravel interfaces, such as `Arrayable`, `Enumerable`, `Jsonable`, and `JsonSerializable`. Additionally, it handles `Traversable` and `WeakMap` instances:
+The `Arr::from` method converts various input types into a plain PHP array. It supports a range of input types, including arrays, objects, and several common Hypervel interfaces, such as `Arrayable`, `Enumerable`, `Jsonable`, and `JsonSerializable`. Additionally, it handles `Traversable` and `WeakMap` instances:
 
 ```php
 use Hypervel\Support\Arr;
@@ -712,15 +715,15 @@ The `Arr::join` method joins array elements with a string. Using this method's t
 ```php
 use Hypervel\Support\Arr;
 
-$array = ['Tailwind', 'Alpine', 'Laravel', 'Livewire'];
+$array = ['Tailwind', 'Alpine', 'Hypervel', 'Inertia'];
 
 $joined = Arr::join($array, ', ');
 
-// Tailwind, Alpine, Laravel, Livewire
+// Tailwind, Alpine, Hypervel, Inertia
 
 $joined = Arr::join($array, ', ', ', and ');
 
-// Tailwind, Alpine, Laravel, and Livewire
+// Tailwind, Alpine, Hypervel, and Inertia
 ```
 
 <a name="method-array-keyby"></a>
@@ -1274,7 +1277,10 @@ $sorted = Arr::sortRecursive($array);
 */
 ```
 
-If you would like the results sorted in descending order, you may use the `Arr::sortRecursiveDesc` method.
+<a name="method-array-sort-recursive-desc"></a>
+#### `Arr::sortRecursiveDesc()` {.collection-method}
+
+The `Arr::sortRecursiveDesc` method recursively sorts an array in descending order using the `rsort` function for numerically indexed sub-arrays and the `krsort` function for associative sub-arrays:
 
 ```php
 $sorted = Arr::sortRecursiveDesc($array);
@@ -1363,7 +1369,7 @@ $classes = Arr::toCssStyles($array);
 */
 ```
 
-This method powers Laravel's functionality allowing [merging classes with a Blade component's attribute bag](/docs/{{version}}/blade#conditionally-merge-classes) as well as the `@class` [Blade directive](/docs/{{version}}/blade#conditional-classes).
+This method powers Hypervel's functionality allowing [merging classes with a Blade component's attribute bag](/docs/{{version}}/blade#conditionally-merge-classes) as well as the `@class` [Blade directive](/docs/{{version}}/blade#conditional-classes).
 
 <a name="method-array-undot"></a>
 #### `Arr::undot()` {.collection-method}
@@ -1423,11 +1429,11 @@ The `Arr::wrap` method wraps the given value in an array. If the given value is 
 ```php
 use Hypervel\Support\Arr;
 
-$string = 'Laravel';
+$string = 'Hypervel';
 
 $array = Arr::wrap($string);
 
-// ['Laravel']
+// ['Hypervel']
 ```
 
 If the given value is `null`, an empty array will be returned:
@@ -1526,6 +1532,23 @@ $flight = [
 data_get($flight, 'segments.{first}.arrival');
 
 // 15:00
+```
+
+<a name="method-data-has"></a>
+#### `data_has()` {.collection-method}
+
+The `data_has` function checks whether a key exists within a nested array or object using "dot" notation:
+
+```php
+$data = ['products' => ['desk' => ['price' => 100]]];
+
+data_has($data, 'products.desk.price');
+
+// true
+
+data_has($data, 'products.desk.discount');
+
+// false
 ```
 
 <a name="method-data-set"></a>
@@ -1839,10 +1862,27 @@ $result = Number::pairs(25, 10, offset: 0);
 // [[0, 10], [10, 20], [20, 25]]
 ```
 
+<a name="method-number-parse"></a>
+#### `Number::parse()` {.collection-method}
+
+The `Number::parse` method parses a string into an integer or float according to the specified locale:
+
+```php
+use Hypervel\Support\Number;
+
+$result = Number::parse('1,234.56');
+
+// (float) 1234.56
+
+$result = Number::parse('1.234,56', locale: 'de');
+
+// (float) 1234.56
+```
+
 <a name="method-number-parse-int"></a>
 #### `Number::parseInt()` {.collection-method}
 
-The `Number::parseInt` method parse a string into an integer according to the specified locale:
+The `Number::parseInt` method parses a string into an integer according to the specified locale:
 
 ```php
 use Hypervel\Support\Number;
@@ -1859,7 +1899,7 @@ $result = Number::parseInt('10,123', locale: 'fr');
 <a name="method-number-parse-float"></a>
 #### `Number::parseFloat()` {.collection-method}
 
-The `Number::parseFloat` method parse a string into a float according to the specified locale:
+The `Number::parseFloat` method parses a string into a float according to the specified locale:
 
 ```php
 use Hypervel\Support\Number;
@@ -1980,18 +2020,16 @@ $number = Number::trim(12.30);
 <a name="method-number-use-locale"></a>
 #### `Number::useLocale()` {.collection-method}
 
-The `Number::useLocale` method sets the default number locale globally, which affects how numbers and currency are formatted by subsequent invocations to the `Number` class's methods:
+The `Number::useLocale` method sets the default number locale for the current execution context, which affects how numbers and currency are formatted by subsequent invocations to the `Number` class's methods:
 
 ```php
 use Hypervel\Support\Number;
 
-/**
- * Bootstrap any application services.
- */
-public function boot(): void
-{
-    Number::useLocale('de');
-}
+Number::useLocale('de');
+
+$number = Number::format(1500);
+
+// 1.500
 ```
 
 <a name="method-number-with-locale"></a>
@@ -2010,18 +2048,16 @@ $number = Number::withLocale('de', function () {
 <a name="method-number-use-currency"></a>
 #### `Number::useCurrency()` {.collection-method}
 
-The `Number::useCurrency` method sets the default number currency globally, which affects how the currency is formatted by subsequent invocations to the `Number` class's methods:
+The `Number::useCurrency` method sets the default number currency for the current execution context, which affects how the currency is formatted by subsequent invocations to the `Number` class's methods:
 
 ```php
 use Hypervel\Support\Number;
 
-/**
- * Bootstrap any application services.
- */
-public function boot(): void
-{
-    Number::useCurrency('GBP');
-}
+Number::useCurrency('GBP');
+
+$currency = Number::currency(1000);
+
+// £1,000.00
 ```
 
 <a name="method-number-with-currency"></a>
@@ -2096,7 +2132,7 @@ $path = lang_path('en/messages.php');
 ```
 
 > [!NOTE]
-> By default, the Laravel application skeleton does not include the `lang` directory. If you would like to customize Laravel's language files, you may publish them via the `lang:publish` Artisan command.
+> By default, the Hypervel application skeleton does not include the `lang` directory. If you would like to customize Hypervel's language files, you may publish them via the `lang:publish` Artisan command.
 
 <a name="method-public-path"></a>
 #### `public_path()` {.collection-method}
@@ -2227,7 +2263,7 @@ return to_action(
     [UserController::class, 'show'],
     ['user' => 1],
     302,
-    ['X-Framework' => 'Laravel']
+    ['X-Framework' => 'Hypervel']
 );
 ```
 
@@ -2243,7 +2279,7 @@ return to_route('users.show', ['user' => 1]);
 If necessary, you may pass the HTTP status code that should be assigned to the redirect and any additional response headers as the third and fourth arguments to the `to_route` method:
 
 ```php
-return to_route('users.show', ['user' => 1], 302, ['X-Framework' => 'Laravel']);
+return to_route('users.show', ['user' => 1], 302, ['X-Framework' => 'Hypervel']);
 ```
 
 <a name="method-uri"></a>
@@ -2273,7 +2309,7 @@ use App\Http\Controllers\UserIndexController;
 $uri = uri(UserIndexController::class);
 ```
 
-If the value given to the `uri` function matches the name of a [named route](/docs/{{version}}/routing#named-routes), a `Uri` instance will be generated for that route's path:
+If the string value given to the `uri` function contains a dot and matches the name of a [named route](/docs/{{version}}/routing#named-routes), a `Uri` instance will be generated for that route's path:
 
 ```php
 $uri = uri('users.show', ['user' => $user]);
@@ -2495,7 +2531,7 @@ $value = config('app.timezone');
 $value = config('app.timezone', $default);
 ```
 
-You may set configuration variables at runtime by passing an array of key / value pairs. However, note that this function only affects the configuration value for the current request and does not update your actual configuration values:
+You may set configuration variables at runtime by passing an array of key / value pairs. In Hypervel, configuration values are shared by the worker process, so this should only be done during application bootstrap or in tests. To store request-specific values, use the [context](#method-context) function:
 
 ```php
 config(['app.debug' => true]);
@@ -2574,7 +2610,7 @@ If you do not want to halt the execution of your script, use the [dump](#method-
 <a name="method-dispatch"></a>
 #### `dispatch()` {.collection-method}
 
-The `dispatch` function pushes the given [job](/docs/{{version}}/queues#creating-jobs) onto the Laravel [job queue](/docs/{{version}}/queues):
+The `dispatch` function pushes the given [job](/docs/{{version}}/queues#creating-jobs) onto the Hypervel [job queue](/docs/{{version}}/queues):
 
 ```php
 dispatch(new App\Jobs\SendEmails);
@@ -2763,7 +2799,7 @@ $value = old('value');
 $value = old('value', 'default');
 ```
 
-Since the "default value" provided as the second argument to the `old` function is often an attribute of an Eloquent model, Laravel allows you to simply pass the entire Eloquent model as the second argument to the `old` function. When doing so, Laravel will assume the first argument provided to the `old` function is the name of the Eloquent attribute that should be considered the "default value":
+Since the "default value" provided as the second argument to the `old` function is often an attribute of an Eloquent model, Hypervel allows you to simply pass the entire Eloquent model as the second argument to the `old` function. When doing so, Hypervel will assume the first argument provided to the `old` function is the name of the Eloquent attribute that should be considered the "default value":
 
 ```blade
 {{ old('name', $user->name) }}
@@ -3262,7 +3298,7 @@ Sometimes, you may want to benchmark the execution of a callback while still obt
 <a name="dates"></a>
 ### Dates and Time
 
-Laravel includes [Carbon](https://carbon.nesbot.com/guide/getting-started/introduction.html), a powerful date and time manipulation library. To create a new `Carbon` instance, you may invoke the `now` function. This function is globally available within your Laravel application:
+Hypervel includes [Carbon](https://carbon.nesbot.com/guide/getting-started/introduction.html), a powerful date and time manipulation library. To create a new `Carbon` instance, you may invoke the `now` function. This function is globally available within your Hypervel application:
 
 ```php
 $now = now();
@@ -3276,7 +3312,7 @@ use Hypervel\Support\Carbon;
 $now = Carbon::now();
 ```
 
-Laravel also augments `Carbon` instances with `plus` and `minus` methods, allowing easy manipulation of the instance's date and time:
+Hypervel also augments `Carbon` instances with `plus` and `minus` methods, allowing easy manipulation of the instance's date and time:
 
 ```php
 return now()->plus(minutes: 5);
@@ -3293,7 +3329,7 @@ For a thorough discussion of Carbon and its features, please consult the [offici
 <a name="interval-functions"></a>
 #### Interval Functions
 
-Laravel also offers `milliseconds`, `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, and `years` functions that return `CarbonInterval` instances, which extend PHP's [DateInterval](https://www.php.net/manual/en/class.dateinterval.php) class. These functions may be used anywhere that Laravel accepts a `DateInterval` instance:
+Hypervel also offers `milliseconds`, `seconds`, `minutes`, `hours`, `days`, `weeks`, `months`, and `years` functions that return `CarbonInterval` instances, which extend PHP's [DateInterval](https://www.php.net/manual/en/class.dateinterval.php) class. These functions may be used anywhere that Hypervel accepts a `DateInterval` instance:
 
 ```php
 use Hypervel\Support\Facades\Cache;
@@ -3306,7 +3342,7 @@ Cache::put('metrics', $metrics, minutes(10));
 <a name="deferred-functions"></a>
 ### Deferred Functions
 
-While Laravel's [queued jobs](/docs/{{version}}/queues) allow you to queue tasks for background processing, sometimes you may have simple tasks you would like to defer without configuring or maintaining a long-running queue worker.
+While Hypervel's [queued jobs](/docs/{{version}}/queues) allow you to queue tasks for background processing, sometimes you may have simple tasks you would like to defer without configuring or maintaining a long-running queue worker.
 
 Deferred functions allow you to defer the execution of a closure until after the HTTP response has been sent to the user, keeping your application feeling fast and responsive. To defer the execution of a closure, simply pass the closure to the `Hypervel\Support\defer` function:
 
@@ -3332,7 +3368,7 @@ defer(fn () => Metrics::reportOrder($order))->always();
 ```
 
 > [!WARNING]
-> If you have the [Swoole PHP extension](https://www.php.net/manual/en/book.swoole.php) installed, Laravel's `defer` function may conflict with Swoole's own global `defer` function, leading to web server errors. Make sure you call Laravel's `defer` helper by explicitly namespacing it: `use function Hypervel\Support\defer;`
+> Hypervel runs on Swoole, which exposes its own global `defer` function that conflicts with Hypervel's `defer` helper. Always call Hypervel's `defer` helper explicitly by namespace: `use function Hypervel\Support\defer;`
 
 <a name="cancelling-deferred-functions"></a>
 #### Cancelling Deferred Functions
@@ -3348,7 +3384,7 @@ defer()->forget('reportMetrics');
 <a name="disabling-deferred-functions-in-tests"></a>
 #### Disabling Deferred Functions in Tests
 
-When writing tests, it may be useful to disable deferred functions. You may call `withoutDefer` in your test to instruct Laravel to invoke all deferred functions immediately:
+When writing tests, it may be useful to disable deferred functions. You may call `withoutDefer` in your test to instruct Hypervel to invoke all deferred functions immediately:
 
 ```php tab=Pest
 test('without defer', function () {
@@ -3395,7 +3431,7 @@ abstract class TestCase extends BaseTestCase
 <a name="lottery"></a>
 ### Lottery
 
-Laravel's lottery class may be used to execute callbacks based on a set of given odds. This can be particularly useful when you only want to execute code for a percentage of your incoming requests:
+Hypervel's lottery class may be used to execute callbacks based on a set of given odds. This can be particularly useful when you only want to execute code for a percentage of your incoming requests:
 
 ```php
 use Hypervel\Support\Lottery;
@@ -3406,7 +3442,7 @@ Lottery::odds(1, 20)
     ->choose();
 ```
 
-You may combine Laravel's lottery class with other Laravel features. For example, you may wish to only report a small percentage of slow queries to your exception handler. And, since the lottery class is callable, we may pass an instance of the class into any method that accepts callables:
+You may combine Hypervel's lottery class with other Hypervel features. For example, you may wish to only report a small percentage of slow queries to your exception handler. And, since the lottery class is callable, we may pass an instance of the class into any method that accepts callables:
 
 ```php
 use Carbon\CarbonInterval;
@@ -3422,7 +3458,7 @@ DB::whenQueryingForLongerThan(
 <a name="testing-lotteries"></a>
 #### Testing Lotteries
 
-Laravel provides some simple methods to allow you to easily test your application's lottery invocations:
+Hypervel provides some simple methods to allow you to easily test your application's lottery invocations:
 
 ```php
 // Lottery will always win...
@@ -3441,7 +3477,7 @@ Lottery::determineResultsNormally();
 <a name="pipeline"></a>
 ### Pipeline
 
-Laravel's `Pipeline` facade provides a convenient way to "pipe" a given input through a series of invokable classes, closures, or callables, giving each class the opportunity to inspect or modify the input and invoke the next callable in the pipeline:
+Hypervel's `Pipeline` facade provides a convenient way to "pipe" a given input through a series of invokable classes, closures, or callables, giving each class the opportunity to inspect or modify the input and invoke the next callable in the pipeline:
 
 ```php
 use Closure;
@@ -3468,7 +3504,7 @@ As you can see, each invokable class or closure in the pipeline is provided the 
 
 When the last callable in the pipeline invokes the `$next` closure, the callable provided to the `then` method will be invoked. Typically, this callable will simply return the given input. For convenience, if you simply want to return the input after it has been processed, you may use the `thenReturn` method.
 
-Of course, as discussed previously, you are not limited to providing closures to your pipeline. You may also provide invokable classes. If a class name is provided, the class will be instantiated via Laravel's [service container](/docs/{{version}}/container), allowing dependencies to be injected into the invokable class:
+Of course, as discussed previously, you are not limited to providing closures to your pipeline. You may also provide invokable classes. If a class name is provided, the class will be instantiated via Hypervel's [service container](/docs/{{version}}/container), allowing dependencies to be injected into the invokable class:
 
 ```php
 $user = Pipeline::send($user)
@@ -3496,7 +3532,7 @@ $user = Pipeline::send($user)
 <a name="sleep"></a>
 ### Sleep
 
-Laravel's `Sleep` class is a light-weight wrapper around PHP's native `sleep` and `usleep` functions, offering greater testability while also exposing a developer friendly API for working with time:
+Hypervel's `Sleep` class is a light-weight wrapper around PHP's native `sleep` and `usleep` functions, offering greater testability while also exposing a developer friendly API for working with time:
 
 ```php
 use Hypervel\Support\Sleep;
@@ -3637,7 +3673,7 @@ Sleep::assertNeverSlept();
 Sleep::assertInsomniac();
 ```
 
-Sometimes it may be useful to perform an action whenever a fake sleep occurs. To achieve this, you may provide a callback to the `whenFakingSleep` method. In the following example, we use Laravel's [time manipulation helpers](/docs/{{version}}/mocking#interacting-with-time) to instantly progress time by the duration of each sleep:
+Sometimes it may be useful to perform an action whenever a fake sleep occurs. To achieve this, you may provide a callback to the `whenFakingSleep` method. In the following example, we use Hypervel's [time manipulation helpers](/docs/{{version}}/mocking#interacting-with-time) to instantly progress time by the duration of each sleep:
 
 ```php
 use Carbon\CarbonInterval as Duration;
@@ -3664,12 +3700,12 @@ Sleep::for(1)->second();
 $start->diffForHumans(); // 1 second ago
 ```
 
-Laravel uses the `Sleep` class internally whenever it is pausing execution. For example, the [retry](#method-retry) helper uses the `Sleep` class when sleeping, allowing for improved testability when using that helper.
+Hypervel uses the `Sleep` class internally whenever it is pausing execution. For example, the [retry](#method-retry) helper uses the `Sleep` class when sleeping, allowing for improved testability when using that helper.
 
 <a name="timebox"></a>
 ### Timebox
 
-Laravel's `Timebox` class ensures that the given callback always takes a fixed amount of time to execute, even if its actual execution completes sooner. This is particularly useful for cryptographic operations and user authentication checks, where attackers might exploit variations in execution time to infer sensitive information.
+Hypervel's `Timebox` class ensures that the given callback always takes a fixed amount of time to execute, even if its actual execution completes sooner. This is particularly useful for cryptographic operations and user authentication checks, where attackers might exploit variations in execution time to infer sensitive information.
 
 If the execution exceeds the fixed duration, `Timebox` has no effect. It is up to the developer to choose a sufficiently long time as the fixed duration to account for worst-case scenarios.
 
@@ -3688,7 +3724,7 @@ If an exception is thrown within the closure, this class will respect the define
 <a name="uri"></a>
 ### URI
 
-Laravel's `Uri` class provides a convenient and fluent interface for creating and manipulating URIs. This class wraps the functionality provided by the underlying League URI package and integrates seamlessly with Laravel's routing system.
+Hypervel's `Uri` class provides a convenient and fluent interface for creating and manipulating URIs. This class wraps the functionality provided by the underlying League URI package and integrates seamlessly with Hypervel's routing system.
 
 You can create a `Uri` instance easily using static methods:
 

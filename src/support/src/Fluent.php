@@ -258,6 +258,14 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Handle dynamic calls to the fluent instance to set attributes.
      *
      * @param array<int, TValue> $parameters
@@ -305,13 +313,5 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     public function __unset(string $key): void
     {
         $this->offsetUnset($key);
-    }
-
-    /**
-     * Flush the fluent instance's global state.
-     */
-    public static function flushState(): void
-    {
-        static::flushMacros();
     }
 }

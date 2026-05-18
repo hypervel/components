@@ -30,7 +30,7 @@ class Log
     }
 
     /**
-     * Reset the cached logger instance.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

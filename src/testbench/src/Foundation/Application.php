@@ -168,7 +168,9 @@ class Application
     }
 
     /**
-     * Flush the application state used by lightweight Testbench tests.
+     * Flush all static state.
+     *
+     * @param object $instance active test instance, used to thread the running TestCase through to HandleExceptions::flushState()
      */
     public static function flushState(object $instance): void
     {
@@ -185,25 +187,19 @@ class Application
         JsonResource::flushState();
         JsonApiResource::flushState();
         Markdown::flushState();
-        Migrator::withoutMigrations([]);
-        Model::automaticallyEagerLoadRelationships(false);
-        Model::handleDiscardedAttributeViolationUsing(null);
-        Model::handleLazyLoadingViolationUsing(null);
-        Model::handleMissingAttributeViolationUsing(null);
-        Model::preventAccessingMissingAttributes(false);
-        Model::preventLazyLoading(false);
-        Model::preventSilentlyDiscardingAttributes(false);
+        Migrator::flushState();
+        Model::flushState();
         Once::flushState();
         PreventRequestForgery::flushState();
         PreventRequestsDuringMaintenance::flushState();
-        Queue::createPayloadUsing(null);
+        Queue::flushState();
         RegisterProviders::flushState();
-        RouteListCommand::resolveTerminalWidthUsing(null);
-        ScheduleListCommand::resolveTerminalWidthUsing(null);
+        RouteListCommand::flushState();
+        ScheduleListCommand::flushState();
         SchemaBuilder::flushState();
         Sleep::flushState();
         Str::flushState();
-        ThrottleRequests::shouldHashKeys();
+        ThrottleRequests::flushState();
         TrimStrings::flushState();
         TrustProxies::flushState();
         TrustHosts::flushState();

@@ -96,6 +96,17 @@ class TelescopeTest extends FeatureTestCase
 
         $this->assertFalse(Telescope::isRecording());
     }
+
+    public function testFlushStateClearsShouldListenCallback()
+    {
+        Telescope::shouldListenUsing(fn () => false);
+
+        $this->assertFalse(Telescope::shouldListen());
+
+        Telescope::flushState();
+
+        $this->assertTrue(Telescope::shouldListen());
+    }
 }
 
 class MySyncJob implements ShouldQueue

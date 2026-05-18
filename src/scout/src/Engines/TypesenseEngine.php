@@ -28,13 +28,6 @@ use Typesense\Exceptions\TypesenseClientError;
 class TypesenseEngine extends Engine
 {
     /**
-     * The specified search parameters.
-     *
-     * @var array<string, mixed>
-     */
-    protected array $searchParameters = [];
-
-    /**
      * The maximum number of results that can be fetched per page.
      */
     private int $maxPerPage = 250;

@@ -27,20 +27,36 @@ class BootProcessListener
         $serverConfig = $event->serverConfig;
 
         $serverProcesses = $serverConfig['processes'] ?? [];
-        $configProcesses = $this->config->get('processes', []);
+        $configProcesses = $this->config->array('processes', []);
 
         ProcessManager::setRunning(true);
 
         $processes = array_merge($serverProcesses, $configProcesses, ProcessManager::all());
+        $seenClasses = [];
+        $seen = [];
         foreach ($processes as $process) {
             if (is_string($process)) {
+                if (isset($seenClasses[$process])) {
+                    continue;
+                }
+
+                $seenClasses[$process] = true;
                 $instance = $this->container->make($process);
             } else {
                 $instance = $process;
             }
-            if ($instance instanceof ProcessInterface) {
-                $instance->isEnable($server) && $instance->bind($server);
+
+            if (! $instance instanceof ProcessInterface) {
+                continue;
             }
+
+            $id = spl_object_id($instance);
+            if (isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+
+            $instance->isEnable($server) && $instance->bind($server);
         }
     }
 }

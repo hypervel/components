@@ -159,6 +159,10 @@ class Server implements OnRequestInterface, BootstrapsForServer
     /**
      * Set the server name.
      *
+     * Boot-only. Mutates the worker-lifetime request handler before Swoole
+     * starts; runtime use races across requests and changes emitted server
+     * context.
+     *
      * @return $this
      */
     public function setServerName(string $serverName): static

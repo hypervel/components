@@ -64,6 +64,8 @@ $upper = $collection->toUpper();
 
 Typically, you should declare collection macros in the `boot` method of a [service provider](/docs/{{version}}/providers).
 
+If you register a macro inside a test, flush the macro state before the test finishes. Macros are stored globally for the life of the PHP process.
+
 <a name="macro-arguments"></a>
 #### Macro Arguments
 

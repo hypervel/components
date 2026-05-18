@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
 use Hypervel\Tests\TestCase;
+use ReflectionClass;
 
 class SupportCapsuleManagerTraitTest extends TestCase
 {
@@ -31,5 +32,20 @@ class SupportCapsuleManagerTraitTest extends TestCase
         $this->setupContainer($app);
         $this->assertEquals($app, $this->getContainer());
         $this->assertInstanceOf(Repository::class, $app['config']);
+    }
+
+    public function testFlushStateClearsGlobalInstance()
+    {
+        $this->setAsGlobal();
+        $this->assertSame($this, $this->getStaticInstance());
+
+        static::flushState();
+
+        $this->assertNull($this->getStaticInstance());
+    }
+
+    private function getStaticInstance(): ?object
+    {
+        return (new ReflectionClass(static::class))->getStaticPropertyValue('instance');
     }
 }

@@ -6,6 +6,7 @@ namespace Hypervel\Socialite\Two;
 
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
+use Firebase\JWT\SignatureInvalidException;
 use GuzzleHttp\RequestOptions;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Socialite\Two\Exceptions\ConfigurationFetchingException;
@@ -15,6 +16,7 @@ use Hypervel\Socialite\Two\Exceptions\InvalidNonceException;
 use Hypervel\Socialite\Two\Exceptions\InvalidUserInfoUrlException;
 use Hypervel\Support\Str;
 use Throwable;
+use UnexpectedValueException;
 
 abstract class OpenIdProvider extends AbstractProvider
 {
@@ -35,6 +37,16 @@ abstract class OpenIdProvider extends AbstractProvider
     protected ?array $jwks = null;
 
     /**
+     * The timestamp of the last forced JWKS refresh attempt.
+     */
+    protected ?int $jwksRefreshAttemptedAt = null;
+
+    /**
+     * The minimum seconds between forced JWKS refreshes.
+     */
+    protected int $jwksRefreshCooldownSeconds = 10;
+
+    /**
      * Get the base URL for the OIDC provider.
      */
     abstract protected function getBaseUrl(): string;
@@ -48,15 +60,15 @@ abstract class OpenIdProvider extends AbstractProvider
         $nonce = null;
 
         if ($this->usesState()) {
-            $this->request->session()->put('state', $state = $this->getState());
+            $this->getRequest()->session()->put('state', $state = $this->getState());
         }
 
         if ($this->usesPKCE()) {
-            $this->request->session()->put('code_verifier', $this->getCodeVerifier());
+            $this->getRequest()->session()->put('code_verifier', $this->getCodeVerifier());
         }
 
         if ($this->usesNonce()) {
-            $this->request->session()->put('nonce', $nonce = $this->getNonce());
+            $this->getRequest()->session()->put('nonce', $nonce = $this->getNonce());
         }
 
         return new RedirectResponse($this->getAuthUrl($state, $nonce));
@@ -101,9 +113,9 @@ abstract class OpenIdProvider extends AbstractProvider
     /**
      * Get the jwks URI for the provider.
      */
-    protected function getJwksUri(): string
+    protected function getJwksUri(bool $refresh = false): string
     {
-        return $this->getOpenIdConfig()['jwks_uri'];
+        return $this->getOpenIdConfig($refresh)['jwks_uri'];
     }
 
     /**
@@ -143,8 +155,8 @@ abstract class OpenIdProvider extends AbstractProvider
     {
         $nonce = null;
 
-        if ($this->request->session()->has('nonce')) {
-            $nonce = $this->request->session()->get('nonce');
+        if ($this->getRequest()->session()->has('nonce')) {
+            $nonce = $this->getRequest()->session()->get('nonce');
         }
 
         return $nonce;
@@ -153,9 +165,9 @@ abstract class OpenIdProvider extends AbstractProvider
     /**
      * @throws ConfigurationFetchingException
      */
-    protected function getOpenIdConfig(): array
+    protected function getOpenIdConfig(bool $refresh = false): array
     {
-        if ($this->openidConfig) {
+        if ($this->openidConfig && ! $refresh) {
             return $this->openidConfig;
         }
 
@@ -182,18 +194,36 @@ abstract class OpenIdProvider extends AbstractProvider
     /**
      * Get the JSON Web Key Set (JWKS) for the provider.
      */
-    protected function getJwks(): array
+    protected function getJwks(bool $refresh = false): array
     {
-        if ($this->jwks) {
+        if ($this->jwks && ! $refresh) {
             return $this->jwks;
         }
 
+        if ($this->jwks && ! $this->canRefreshJwks($refresh)) {
+            return $this->jwks;
+        }
+
+        if ($refresh) {
+            $this->jwksRefreshAttemptedAt = time();
+        }
+
         $response = $this->getHttpClient()
-            ->get($this->getJwksUri());
+            ->get($this->getJwksUri($refresh));
 
         return $this->jwks = JWK::parseKeySet(
             json_decode((string) $response->getBody(), true)
         );
+    }
+
+    /**
+     * Determine if the JWKS can be force-refreshed.
+     */
+    protected function canRefreshJwks(bool $refresh): bool
+    {
+        return ! $refresh
+            || $this->jwksRefreshAttemptedAt === null
+            || (time() - $this->jwksRefreshAttemptedAt) >= $this->jwksRefreshCooldownSeconds;
     }
 
     /**
@@ -243,9 +273,20 @@ abstract class OpenIdProvider extends AbstractProvider
      */
     protected function getUserByOIDCToken(string $token): ?array
     {
-        $this->validateOIDCPayload(
-            $data = (array) JWT::decode($token, $this->getJwks())
-        );
+        try {
+            $data = (array) JWT::decode($token, $this->getJwks());
+        } catch (SignatureInvalidException) {
+            // Some providers briefly replace key material under an existing kid.
+            $data = (array) JWT::decode($token, $this->getJwks(refresh: true));
+        } catch (UnexpectedValueException $e) {
+            if (! str_contains($e->getMessage(), '"kid" invalid')) {
+                throw $e;
+            }
+
+            $data = (array) JWT::decode($token, $this->getJwks(refresh: true));
+        }
+
+        $this->validateOIDCPayload($data);
 
         return $data;
     }

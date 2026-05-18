@@ -54,10 +54,7 @@ class AstVisitorRegistry
     }
 
     /**
-     * Flush all registered visitors.
-     *
-     * Tests only. Clears the worker-wide visitor registry used by subsequent
-     * proxy generation.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

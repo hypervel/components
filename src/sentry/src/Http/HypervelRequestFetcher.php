@@ -65,4 +65,12 @@ class HypervelRequestFetcher implements RequestFetcherInterface
 
         return self::$psrHttpFactory;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$psrHttpFactory = null;
+    }
 }

@@ -1895,6 +1895,14 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$macros = [];
+    }
+
+    /**
      * Dynamically access builder proxies.
      *
      * @throws Exception
@@ -2028,13 +2036,5 @@ class Builder implements BuilderContract
         foreach ($this->onCloneCallbacks as $onCloneCallback) {
             $onCloneCallback($this);
         }
-    }
-
-    /**
-     * Flush the Eloquent builder's global state.
-     */
-    public static function flushState(): void
-    {
-        static::$macros = [];
     }
 }

@@ -156,4 +156,12 @@ class CacheWatcher extends Watcher
             'telescope:*',
         ]), $event->key);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$eventsEnabled = false;
+    }
 }

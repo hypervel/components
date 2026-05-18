@@ -109,16 +109,25 @@ class Worker
 
     /**
      * The custom exit code to be used when memory is exceeded.
+     *
+     * Boot-only. Mutates process-global worker configuration; runtime use
+     * races across coroutines and changes every concurrent worker stop check.
      */
     public static ?int $memoryExceededExitCode = null;
 
     /**
      * Indicates if the worker should check for the restart signal in the cache.
+     *
+     * Boot-only. Mutates process-global worker configuration; runtime use
+     * races across coroutines and changes every concurrent restart check.
      */
     public static bool $restartable = true;
 
     /**
      * Indicates if the worker should check for the paused signal in the cache.
+     *
+     * Boot-only. Mutates process-global worker configuration; runtime use
+     * races across coroutines and changes every concurrent pause check.
      */
     public static bool $pausable = true;
 
@@ -895,6 +904,9 @@ class Worker
 
     /**
      * Set the cache repository implementation.
+     *
+     * Boot-only. The repository persists on the singleton worker for the
+     * worker lifetime and is read by every subsequent pause or restart check.
      */
     public function setCache(CacheContract $cache): static
     {
@@ -905,6 +917,9 @@ class Worker
 
     /**
      * Set the name of the worker.
+     *
+     * Boot-only. The name persists on the singleton worker for the worker
+     * lifetime and selects the static pop callback used by every job pop.
      */
     public function setName(string $name): static
     {
@@ -939,9 +954,23 @@ class Worker
 
     /**
      * Set the queue manager instance.
+     *
+     * Tests only. Swaps the manager reference on the singleton worker; runtime
+     * use races across coroutines and changes every concurrent queue lookup.
      */
     public function setManager(QueueManager $manager): void
     {
         $this->manager = $manager;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$popCallbacks = [];
+        static::$memoryExceededExitCode = null;
+        static::$restartable = true;
+        static::$pausable = true;
     }
 }

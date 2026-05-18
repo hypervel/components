@@ -148,7 +148,7 @@ class AuthenticateSession implements AuthenticatesSessions
     }
 
     /**
-     * Flush the state of the middleware.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

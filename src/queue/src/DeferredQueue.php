@@ -56,6 +56,9 @@ class DeferredQueue extends SyncQueue
 
     /**
      * Set the exception callback for the deferred queue.
+     *
+     * Boot-only. The callback persists on the cached queue connection for the
+     * worker lifetime and handles every subsequent deferred job exception.
      */
     public function setExceptionCallback(?callable $callback): static
     {

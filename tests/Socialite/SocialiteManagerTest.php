@@ -11,10 +11,13 @@ use Hypervel\Http\Request;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\SocialiteManager;
 use Hypervel\Socialite\Two\GithubProvider;
+use Hypervel\Socialite\Two\GitlabProvider;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Socialite\Fixtures\GenericTestProviderStub;
 use ReflectionProperty;
 use Swoole\Coroutine\Channel;
+
+use function Hypervel\Coroutine\parallel;
 
 class SocialiteManagerTest extends TestCase
 {
@@ -37,6 +40,78 @@ class SocialiteManagerTest extends TestCase
         $provider = $factory->driver('github');
 
         $this->assertInstanceOf(GithubProvider::class, $provider);
+    }
+
+    public function testGitlabDriverUsesConfiguredHost()
+    {
+        $this->app->make('config')
+            ->set('services.gitlab', [
+                'client_id' => 'gitlab-client-id',
+                'client_secret' => 'gitlab-client-secret',
+                'redirect' => 'http://your-callback-url',
+                'host' => 'https://gitlab.example.com/',
+            ]);
+
+        $factory = $this->app->make(SocialiteManager::class);
+
+        $provider = $factory->driver('gitlab')->stateless();
+
+        $this->assertStringStartsWith(
+            'https://gitlab.example.com/oauth/authorize?',
+            $provider->redirect()->getTargetUrl()
+        );
+    }
+
+    public function testGitlabDriverFallsBackToDefaultHostWhenHostIsNull()
+    {
+        $this->app->make('config')
+            ->set('services.gitlab', [
+                'client_id' => 'gitlab-client-id',
+                'client_secret' => 'gitlab-client-secret',
+                'redirect' => 'http://your-callback-url',
+                'host' => null,
+            ]);
+
+        $factory = $this->app->make(SocialiteManager::class);
+
+        $provider = $factory->driver('gitlab')->stateless();
+
+        $this->assertStringStartsWith(
+            'https://gitlab.com/oauth/authorize?',
+            $provider->redirect()->getTargetUrl()
+        );
+    }
+
+    public function testGitlabHostOverrideIsIsolatedPerCoroutine()
+    {
+        $provider = new GitlabProvider(
+            Request::create('/'),
+            'client_id',
+            'client_secret',
+            'redirect'
+        );
+
+        [$urlA, $urlB] = parallel([
+            function () use ($provider): string {
+                $provider->stateless()->setHost('https://gitlab-a.example.com/');
+
+                usleep(5000);
+
+                return $provider->redirect()->getTargetUrl();
+            },
+            function () use ($provider): string {
+                usleep(2500);
+
+                return $provider
+                    ->stateless()
+                    ->setHost('https://gitlab-b.example.com/')
+                    ->redirect()
+                    ->getTargetUrl();
+            },
+        ]);
+
+        $this->assertStringStartsWith('https://gitlab-a.example.com/oauth/authorize?', $urlA);
+        $this->assertStringStartsWith('https://gitlab-b.example.com/oauth/authorize?', $urlB);
     }
 
     public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArray()
@@ -248,12 +323,12 @@ class SocialiteManagerTest extends TestCase
         ));
 
         $provider = $factory->driver('generic');
-        $this->assertSame($firstRequest, (new ReflectionProperty($provider, 'request'))->getValue($provider));
+        $this->assertSame($firstRequest, $provider->getProviderRequest());
 
         RequestContext::set($secondRequest);
 
         $provider = $factory->driver('generic');
-        $this->assertSame($secondRequest, (new ReflectionProperty($provider, 'request'))->getValue($provider));
+        $this->assertSame($secondRequest, $provider->getProviderRequest());
     }
 
     public function testSetContainerRefreshesConfig()

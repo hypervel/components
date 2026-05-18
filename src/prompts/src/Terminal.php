@@ -213,4 +213,14 @@ class Terminal
         static::$foregroundColor = isset($matches[0]) ? $parse($matches[0]) : [204, 204, 204];
         static::$backgroundColor = isset($matches[1]) ? $parse($matches[1]) : [0, 0, 0];
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$trueColorSupport = null;
+        static::$foregroundColor = null;
+        static::$backgroundColor = null;
+    }
 }

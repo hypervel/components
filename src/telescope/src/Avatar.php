@@ -42,10 +42,7 @@ class Avatar
     }
 
     /**
-     * Flush the avatar callback.
-     *
-     * Boot or tests only. Clears the worker-wide avatar callback; concurrent
-     * dashboard requests may render with different avatar behavior.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

@@ -11,11 +11,11 @@
 <a name="introduction"></a>
 ## Introduction
 
-Throughout the Laravel documentation, you will see examples of code that interacts with Laravel's features via "facades". Facades provide a "static" interface to classes that are available in the application's [service container](/docs/{{version}}/container). Laravel ships with many facades which provide access to almost all of Laravel's features.
+Throughout the Hypervel documentation, you will see examples of code that interacts with Hypervel's features via "facades". Facades provide a "static" interface to classes that are available in the application's [service container](/docs/{{version}}/container). Hypervel ships with many facades which provide access to almost all of Hypervel's features.
 
-Laravel facades serve as "static proxies" to underlying classes in the service container, providing the benefit of a terse, expressive syntax while maintaining more testability and flexibility than traditional static methods. It's perfectly fine if you don't totally understand how facades work - just go with the flow and continue learning about Laravel.
+Hypervel facades serve as "static proxies" to underlying classes in the service container, providing the benefit of a terse, expressive syntax while maintaining more testability and flexibility than traditional static methods. It's perfectly fine if you don't totally understand how facades work - just go with the flow and continue learning about Hypervel.
 
-All of Laravel's facades are defined in the `Hypervel\Support\Facades` namespace. So, we can easily access a facade like so:
+All of Hypervel's facades are defined in the `Hypervel\Support\Facades` namespace. So, we can easily access a facade like so:
 
 ```php
 use Hypervel\Support\Facades\Cache;
@@ -26,12 +26,12 @@ Route::get('/cache', function () {
 });
 ```
 
-Throughout the Laravel documentation, many of the examples will use facades to demonstrate various features of the framework.
+Throughout the Hypervel documentation, many of the examples will use facades to demonstrate various features of the framework.
 
 <a name="helper-functions"></a>
 #### Helper Functions
 
-To complement facades, Laravel offers a variety of global "helper functions" that make it even easier to interact with common Laravel features. Some of the common helper functions you may interact with are `view`, `response`, `url`, `config`, and more. Each helper function offered by Laravel is documented with their corresponding feature; however, a complete list is available within the dedicated [helper documentation](/docs/{{version}}/helpers).
+To complement facades, Hypervel offers a variety of global "helper functions" that make it even easier to interact with common Hypervel features. Some of the common helper functions you may interact with are `view`, `response`, `url`, `config`, and more. Each helper function offered by Hypervel is documented with their corresponding feature; however, a complete list is available within the dedicated [helper documentation](/docs/{{version}}/helpers).
 
 For example, instead of using the `Hypervel\Support\Facades\Response` facade to generate a JSON response, we may simply use the `response` function. Because helper functions are globally available, you do not need to import any classes in order to use them:
 
@@ -54,7 +54,7 @@ Route::get('/users', function () {
 <a name="when-to-use-facades"></a>
 ## When to Utilize Facades
 
-Facades have many benefits. They provide a terse, memorable syntax that allows you to use Laravel's features without remembering long class names that must be injected or configured manually. Furthermore, because of their unique usage of PHP's dynamic methods, they are easy to test.
+Facades have many benefits. They provide a terse, memorable syntax that allows you to use Hypervel's features without remembering long class names that must be injected or configured manually. Furthermore, because of their unique usage of PHP's dynamic methods, they are easy to test.
 
 However, some care must be taken when using facades. The primary danger of facades is class "scope creep". Since facades are so easy to use and do not require injection, it can be easy to let your classes continue to grow and use many facades in a single class. Using dependency injection, this potential is mitigated by the visual feedback a large constructor gives you that your class is growing too large. So, when using facades, pay special attention to the size of your class so that its scope of responsibility stays narrow. If your class is getting too large, consider splitting it into multiple smaller classes.
 
@@ -73,7 +73,7 @@ Route::get('/cache', function () {
 });
 ```
 
-Using Laravel's facade testing methods, we can write the following test to verify that the `Cache::get` method was called with the argument we expected:
+Using Hypervel's facade testing methods, we can write the following test to verify that the `Cache::get` method was called with the argument we expected:
 
 ```php tab=Pest
 use Hypervel\Support\Facades\Cache;
@@ -110,7 +110,7 @@ public function test_basic_example(): void
 <a name="facades-vs-helper-functions"></a>
 ### Facades vs. Helper Functions
 
-In addition to facades, Laravel includes a variety of "helper" functions which can perform common tasks like generating views, firing events, dispatching jobs, or sending HTTP responses. Many of these helper functions perform the same function as a corresponding facade. For example, this facade call and helper call are equivalent:
+In addition to facades, Hypervel includes a variety of "helper" functions which can perform common tasks like generating views, firing events, dispatching jobs, or sending HTTP responses. Many of these helper functions perform the same function as a corresponding facade. For example, this facade call and helper call are equivalent:
 
 ```php
 return Hypervel\Support\Facades\View::make('profile');
@@ -149,9 +149,9 @@ public function test_basic_example(): void
 <a name="how-facades-work"></a>
 ## How Facades Work
 
-In a Laravel application, a facade is a class that provides access to an object from the container. The machinery that makes this work is in the `Facade` class. Laravel's facades, and any custom facades you create, will extend the base `Hypervel\Support\Facades\Facade` class.
+In a Hypervel application, a facade is a class that provides access to an object from the container. The machinery that makes this work is in the `Facade` class. Hypervel's facades, and any custom facades you create, will extend the base `Hypervel\Support\Facades\Facade` class.
 
-The `Facade` base class makes use of the `__callStatic()` magic-method to defer calls from your facade to an object resolved from the container. In the example below, a call is made to the Laravel cache system. By glancing at this code, one might assume that the static `get` method is being called on the `Cache` class:
+The `Facade` base class makes use of the `__callStatic()` magic-method to defer calls from your facade to an object resolved from the container. In the example below, a call is made to the Hypervel cache system. By glancing at this code, one might assume that the static `get` method is being called on the `Cache` class:
 
 ```php
 <?php
@@ -175,7 +175,7 @@ class UserController extends Controller
 }
 ```
 
-Notice that near the top of the file we are "importing" the `Cache` facade. This facade serves as a proxy for accessing the underlying implementation of the `Hypervel\Contracts\Cache\Factory` interface. Any calls we make using the facade will be passed to the underlying instance of Laravel's cache service.
+Notice that near the top of the file we are "importing" the `Cache` facade. This facade serves as a proxy for accessing the underlying implementation of the `Hypervel\Contracts\Cache\Factory` interface. Any calls we make using the facade will be passed to the underlying instance of Hypervel's cache service.
 
 If we look at that `Hypervel\Support\Facades\Cache` class, you'll see that there is no static method `get`:
 
@@ -192,7 +192,7 @@ class Cache extends Facade
 }
 ```
 
-Instead, the `Cache` facade extends the base `Facade` class and defines the method `getFacadeAccessor()`. This method's job is to return the name of a service container binding. When a user references any static method on the `Cache` facade, Laravel resolves the `cache` binding from the [service container](/docs/{{version}}/container) and runs the requested method (in this case, `get`) against that object.
+Instead, the `Cache` facade extends the base `Facade` class and defines the method `getFacadeAccessor()`. This method's job is to return the name of a service container binding. When a user references any static method on the `Cache` facade, Hypervel resolves the `cache` binding from the [service container](/docs/{{version}}/container) and runs the requested method (in this case, `get`) against that object.
 
 <a name="real-time-facades"></a>
 ## Real-Time Facades
@@ -248,7 +248,7 @@ class Podcast extends Model
 }
 ```
 
-When the real-time facade is used, the publisher implementation will be resolved out of the service container using the portion of the interface or class name that appears after the `Facades` prefix. When testing, we can use Laravel's built-in facade testing helpers to mock this method call:
+When the real-time facade is used, the publisher implementation will be resolved out of the service container using the portion of the interface or class name that appears after the `Facades` prefix. When testing, we can use Hypervel's built-in facade testing helpers to mock this method call:
 
 ```php tab=Pest
 <?php
@@ -299,7 +299,7 @@ class PodcastTest extends TestCase
 <a name="facade-class-reference"></a>
 ## Facade Class Reference
 
-Below you will find every facade and its underlying class. This is a useful tool for quickly digging into the API documentation for a given facade root. The [service container binding](/docs/{{version}}/container) key is also included where applicable.
+Below you will find many of Hypervel's facades and their underlying classes. This is a useful tool for quickly digging into the API documentation for a given facade root. The [service container binding](/docs/{{version}}/container) key is also included where applicable.
 
 <div class="overflow-auto">
 
@@ -315,6 +315,7 @@ Below you will find every facade and its underlying class. This is a useful tool
 | Bus | [Hypervel\Contracts\Bus\Dispatcher](https://api.hypervel.org/docs/{{version}}/Hypervel/Contracts/Bus/Dispatcher.html) | &nbsp; |
 | Cache (Instance) | [Hypervel\Cache\Repository](https://api.hypervel.org/docs/{{version}}/Hypervel/Cache/Repository.html) | `cache.store` |
 | Cache | [Hypervel\Cache\CacheManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Cache/CacheManager.html) | `cache` |
+| Concurrency | [Hypervel\Concurrency\ConcurrencyManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Concurrency/ConcurrencyManager.html) | &nbsp; |
 | Config | [Hypervel\Config\Repository](https://api.hypervel.org/docs/{{version}}/Hypervel/Config/Repository.html) | `config` |
 | Context | [Hypervel\Log\Context\Repository](https://api.hypervel.org/docs/{{version}}/Hypervel/Log/Context/Repository.html) | &nbsp; |
 | Cookie | [Hypervel\Cookie\CookieJar](https://api.hypervel.org/docs/{{version}}/Hypervel/Cookie/CookieJar.html) | `cookie` |
@@ -329,6 +330,7 @@ Below you will find every facade and its underlying class. This is a useful tool
 | Gate | [Hypervel\Contracts\Auth\Access\Gate](https://api.hypervel.org/docs/{{version}}/Hypervel/Contracts/Auth/Access/Gate.html) | &nbsp; |
 | Hash | [Hypervel\Contracts\Hashing\Hasher](https://api.hypervel.org/docs/{{version}}/Hypervel/Contracts/Hashing/Hasher.html) | `hash` |
 | Http | [Hypervel\Http\Client\Factory](https://api.hypervel.org/docs/{{version}}/Hypervel/Http/Client/Factory.html) | &nbsp; |
+| JWT | [Hypervel\JWT\JWTManager](https://api.hypervel.org/docs/{{version}}/Hypervel/JWT/JWTManager.html) | `jwt` |
 | Lang | [Hypervel\Translation\Translator](https://api.hypervel.org/docs/{{version}}/Hypervel/Translation/Translator.html) | `translator` |
 | Log | [Hypervel\Log\LogManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Log/LogManager.html) | `log` |
 | Mail | [Hypervel\Mail\Mailer](https://api.hypervel.org/docs/{{version}}/Hypervel/Mail/Mailer.html) | `mailer` |
@@ -342,7 +344,7 @@ Below you will find every facade and its underlying class. This is a useful tool
 | Queue | [Hypervel\Queue\QueueManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Queue/QueueManager.html) | `queue` |
 | RateLimiter | [Hypervel\Cache\RateLimiter](https://api.hypervel.org/docs/{{version}}/Hypervel/Cache/RateLimiter.html) | &nbsp; |
 | Redirect | [Hypervel\Routing\Redirector](https://api.hypervel.org/docs/{{version}}/Hypervel/Routing/Redirector.html) | `redirect` |
-| Redis (Instance) | [Hypervel\Redis\Connections\Connection](https://api.hypervel.org/docs/{{version}}/Hypervel/Redis/Connections/Connection.html) | `redis.connection` |
+| Redis (Instance) | [Hypervel\Redis\RedisProxy](https://api.hypervel.org/docs/{{version}}/Hypervel/Redis/RedisProxy.html) | `redis.connection` |
 | Redis | [Hypervel\Redis\RedisManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Redis/RedisManager.html) | `redis` |
 | Request | [Hypervel\Http\Request](https://api.hypervel.org/docs/{{version}}/Hypervel/Http/Request.html) | `request` |
 | Response (Instance) | [Hypervel\Http\Response](https://api.hypervel.org/docs/{{version}}/Hypervel/Http/Response.html) | &nbsp; |

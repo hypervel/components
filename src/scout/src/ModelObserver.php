@@ -26,6 +26,11 @@ class ModelObserver
     protected const SYNCING_DISABLED_CONTEXT_KEY_PREFIX = '__scout.syncing_disabled.';
 
     /**
+     * Context key for storing whether the current coroutine is forcing a search update.
+     */
+    protected const FORCE_SAVING_CONTEXT_KEY = '__scout.force_saving';
+
+    /**
      * Indicates if Scout will dispatch the observer's events after all database transactions have committed.
      */
     public bool $afterCommit;
@@ -34,11 +39,6 @@ class ModelObserver
      * Indicates if Scout will keep soft deleted records in the search indexes.
      */
     protected bool $usingSoftDeletes;
-
-    /**
-     * Indicates if the model is currently force saving.
-     */
-    protected bool $forceSaving = false;
 
     /**
      * Create a new observer instance.
@@ -98,8 +98,10 @@ class ModelObserver
             return;
         }
 
+        $forceSaving = (bool) CoroutineContext::get(self::FORCE_SAVING_CONTEXT_KEY, false);
+
         /* @phpstan-ignore method.notFound (provided by Searchable trait) */
-        if (! $this->forceSaving && ! $model->searchIndexShouldBeUpdated()) {
+        if (! $forceSaving && ! $model->searchIndexShouldBeUpdated()) {
             return;
         }
 
@@ -171,12 +173,13 @@ class ModelObserver
      */
     protected function whileForcingUpdate(Closure $callback): mixed
     {
-        $this->forceSaving = true;
+        $previous = CoroutineContext::get(self::FORCE_SAVING_CONTEXT_KEY, false);
+        CoroutineContext::set(self::FORCE_SAVING_CONTEXT_KEY, true);
 
         try {
             return $callback();
         } finally {
-            $this->forceSaving = false;
+            CoroutineContext::set(self::FORCE_SAVING_CONTEXT_KEY, $previous);
         }
     }
 

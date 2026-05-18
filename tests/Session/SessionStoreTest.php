@@ -834,6 +834,19 @@ class SessionStoreTest extends TestCase
         $this->assertSame('macroable', $this->getSession()->foo());
     }
 
+    public function testFlushStateClearsMacros()
+    {
+        Store::macro('foo', function () {
+            return 'macroable';
+        });
+
+        $this->assertTrue(Store::hasMacro('foo'));
+
+        Store::flushState();
+
+        $this->assertFalse(Store::hasMacro('foo'));
+    }
+
     public function testSessionIdLengthConstant()
     {
         $session = $this->getSession();

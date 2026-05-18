@@ -144,4 +144,13 @@ EOF;
 
         return static::$compiler;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$compiler = null;
+        static::$componentClasses = [];
+    }
 }

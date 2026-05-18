@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\Engine;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
@@ -43,6 +46,11 @@ class Scout
      * same process don't leak the import flag into each other.
      */
     public const IMPORTING_CONTEXT_KEY = '__scout.importing';
+
+    /**
+     * Coroutine-local context key for the active scout:import progress reporter.
+     */
+    public const IMPORT_PROGRESS_CONTEXT_KEY = '__scout.import_progress';
 
     /**
      * Get a Scout engine instance by name.
@@ -112,15 +120,48 @@ class Scout
     }
 
     /**
-     * Flush all static state back to defaults.
+     * Run the given callback with an import progress reporter in the current coroutine.
      *
-     * Boot or tests only. Resets worker-wide Scout job configuration; concurrent
-     * imports may use different job classes depending on timing.
+     * @param callable(EloquentCollection<int, Model&SearchableInterface>): void $reporter
+     */
+    public static function whileReportingImportProgress(callable $reporter, callable $callback): mixed
+    {
+        $hadReporter = CoroutineContext::has(self::IMPORT_PROGRESS_CONTEXT_KEY);
+        $previous = CoroutineContext::get(self::IMPORT_PROGRESS_CONTEXT_KEY);
+
+        CoroutineContext::set(self::IMPORT_PROGRESS_CONTEXT_KEY, $reporter);
+
+        try {
+            return $callback();
+        } finally {
+            if ($hadReporter) {
+                CoroutineContext::set(self::IMPORT_PROGRESS_CONTEXT_KEY, $previous);
+            } else {
+                CoroutineContext::forget(self::IMPORT_PROGRESS_CONTEXT_KEY);
+            }
+        }
+    }
+
+    /**
+     * Report imported models to the current coroutine's scout:import progress reporter.
+     *
+     * @param EloquentCollection<int, Model&SearchableInterface> $models
+     */
+    public static function reportImportProgress(EloquentCollection $models): void
+    {
+        $reporter = CoroutineContext::get(self::IMPORT_PROGRESS_CONTEXT_KEY);
+
+        if (is_callable($reporter)) {
+            $reporter($models);
+        }
+    }
+
+    /**
+     * Flush all static state.
      */
     public static function flushState(): void
     {
         static::$makeSearchableJob = MakeSearchable::class;
         static::$removeFromSearchJob = RemoveFromSearch::class;
-        CoroutineContext::forget(self::IMPORTING_CONTEXT_KEY);
     }
 }

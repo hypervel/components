@@ -30,6 +30,13 @@ class Config
         return $this->name;
     }
 
+    /**
+     * Set the pool name.
+     *
+     * Boot-only. The value persists on the worker-lifetime SimplePool config
+     * and is captured by the Pool on its first resolution. Per-request use
+     * races across coroutines.
+     */
     public function setName(string $name): static
     {
         $this->name = $name;
@@ -42,6 +49,13 @@ class Config
         return $this->callback;
     }
 
+    /**
+     * Set the connection-creation callback.
+     *
+     * Boot-only. The callback persists on the worker-lifetime SimplePool
+     * config and is captured by the Pool on its first resolution. Per-request
+     * use races across coroutines.
+     */
     public function setCallback(callable $callback): static
     {
         $this->callback = $callback;
@@ -58,6 +72,12 @@ class Config
     }
 
     /**
+     * Set the pool option array.
+     *
+     * Boot-only. The value persists on the worker-lifetime SimplePool config
+     * and is captured by the Pool on its first resolution. Per-request use
+     * races across coroutines.
+     *
      * @param array<string, mixed> $option
      */
     public function setOption(array $option): static

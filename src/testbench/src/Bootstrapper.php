@@ -68,13 +68,13 @@ class Bootstrapper
     }
 
     /**
-     * Flush the cached bootstrap state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {
         static::$configuration = null;
-        static::$runtimePath = null;
-        static::$filesystem = null;
+        // The runtime path and filesystem are process-wide infrastructure:
+        // runtimePath must survive until shutdown cleanup, and Filesystem is reusable.
     }
 
     /**

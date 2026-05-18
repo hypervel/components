@@ -353,6 +353,9 @@ class RedisProxy implements ConnectionContract
 
     /**
      * Register a Redis command listener with the connection.
+     *
+     * Boot-only. The listener persists on the singleton event dispatcher for
+     * the worker lifetime and runs for every subsequent Redis command event.
      */
     public function listen(Closure $callback): void
     {
@@ -365,6 +368,9 @@ class RedisProxy implements ConnectionContract
 
     /**
      * Register a Redis command failure listener with the connection.
+     *
+     * Boot-only. The listener persists on the singleton event dispatcher for
+     * the worker lifetime and runs for every subsequent Redis failure event.
      */
     public function listenForFailures(Closure $callback): void
     {

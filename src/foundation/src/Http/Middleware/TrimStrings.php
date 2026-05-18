@@ -97,7 +97,7 @@ class TrimStrings extends TransformsRequest
     }
 
     /**
-     * Flush the middleware's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

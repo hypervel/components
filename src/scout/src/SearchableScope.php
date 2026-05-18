@@ -45,6 +45,7 @@ class SearchableScope implements Scope
                 $models->filter(fn ($m) => $m->shouldBeSearchable())->searchable();
 
                 static::dispatchEvent(new ModelsImported($models));
+                Scout::reportImportProgress($models);
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
         });
 

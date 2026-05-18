@@ -246,7 +246,7 @@ class BenchmarkValidationCommand extends Command
     }
 
     /**
-     * Flush global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

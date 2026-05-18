@@ -556,14 +556,11 @@ class Store implements Session
     }
 
     /**
-     * Flush per-request session state from context.
+     * Flush all static state.
      */
     public static function flushState(): void
     {
-        CoroutineContext::forget(self::CONTEXT_KEY);
-        CoroutineContext::forget(self::STARTED_CONTEXT_KEY);
-        CoroutineContext::forget(self::ID_CONTEXT_KEY);
-        CoroutineContext::forget(self::ATTRIBUTES_CONTEXT_KEY);
+        static::flushMacros();
     }
 
     /**
@@ -576,6 +573,9 @@ class Store implements Session
 
     /**
      * Set the name of the session.
+     *
+     * Boot-only. Mutates the shared session store name; per-request use races
+     * across coroutines and changes the cookie name for concurrent requests.
      */
     public function setName(string $name): void
     {
@@ -723,6 +723,10 @@ class Store implements Session
 
     /**
      * Set the underlying session handler implementation.
+     *
+     * Boot-only. Replaces the handler on the shared session store; per-request
+     * use races across coroutines and can route session reads or writes through
+     * the wrong handler.
      */
     public function setHandler(SessionHandlerInterface $handler): SessionHandlerInterface
     {

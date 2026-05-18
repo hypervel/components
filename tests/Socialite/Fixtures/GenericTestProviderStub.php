@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Socialite\Fixtures;
 
 use GuzzleHttp\Client;
+use Hypervel\Http\Request;
 use Hypervel\Socialite\AbstractProvider;
 
 /**
@@ -37,5 +38,13 @@ class GenericTestProviderStub extends AbstractProvider
     public function getProviderHttpClient(): Client
     {
         return $this->getHttpClient();
+    }
+
+    /**
+     * Expose getRequest() publicly for testing.
+     */
+    public function getProviderRequest(): Request
+    {
+        return $this->getRequest();
     }
 }

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use Hypervel\Auth\AuthManager;
+use Hypervel\Http\Request;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;
+use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 
@@ -28,6 +30,8 @@ class SanctumServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerSanctumGuard();
+        $this->configureSessionCookies();
+
         if ($this->app->runningInConsole()) {
             $this->registerPublishing();
             $this->registerCommands();
@@ -51,6 +55,23 @@ class SanctumServiceProvider extends ServiceProvider
                     expiration: $app['config']->get('sanctum.expiration'),
                 );
             });
+        });
+    }
+
+    /**
+     * Configure session cookies for stateful frontend requests.
+     */
+    protected function configureSessionCookies(): void
+    {
+        StartSession::configureSessionCookieUsing(function (Request $request, array $cookie): array {
+            if (! $request->attributes->get('sanctum')) {
+                return $cookie;
+            }
+
+            return array_replace($cookie, [
+                'http_only' => true,
+                'same_site' => 'lax',
+            ]);
         });
     }
 

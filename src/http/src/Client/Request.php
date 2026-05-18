@@ -301,7 +301,7 @@ class Request implements ArrayAccess
     }
 
     /**
-     * Flush the client request's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

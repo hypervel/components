@@ -959,7 +959,7 @@ abstract class Factory
     }
 
     /**
-     * Flush the factory's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

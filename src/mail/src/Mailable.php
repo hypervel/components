@@ -1573,6 +1573,15 @@ class Mailable implements MailableContract, Renderable
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$viewDataCallback = null;
+        static::flushMacros();
+    }
+
+    /**
      * Dynamically bind parameters to the message.
      *
      * @throws BadMethodCallException

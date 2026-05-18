@@ -100,7 +100,7 @@ class RouteServiceProvider extends ServiceProvider
     }
 
     /**
-     * Flush the static state of the provider.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

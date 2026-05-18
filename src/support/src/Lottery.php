@@ -245,4 +245,12 @@ class Lottery
     {
         self::$resultFactory = $factory;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::determineResultNormally();
+    }
 }

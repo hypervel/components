@@ -82,6 +82,27 @@ class TestViewsTest extends TestCase
         $this->assertSame('/var/www/storage/views/test_42', $this->getCompiledViewPath());
     }
 
+    public function testCompiledViewPathDoesNotReuseCustomPathFromPreviousCall()
+    {
+        Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
+
+        Container::getInstance()['config']->set('view.compiled', '/custom/views');
+
+        $this->assertSame('/custom/views/test_1', $this->getCompiledViewPath());
+
+        Container::getInstance()['config']->set('view.compiled', '/path/to/compiled/views');
+
+        $this->assertSame('/path/to/compiled/views/test_1', $this->getCompiledViewPath());
+    }
+
+    public function testCompiledViewPathDoesNotDoubleAppendToken()
+    {
+        Container::getInstance()->make(ParallelTesting::class)->resolveTokenUsing(fn () => '1');
+        Container::getInstance()['config']->set('view.compiled', '/path/to/compiled/views/test_1');
+
+        $this->assertSame('/path/to/compiled/views/test_1', $this->getCompiledViewPath());
+    }
+
     public function testCompiledViewPathReturnsNullWhenEmpty()
     {
         Container::getInstance()['config']->set('view.compiled', '');
@@ -115,8 +136,6 @@ class TestViewsTest extends TestCase
 
         $instance = $this->makeTestViewsInstance();
 
-        (new ReflectionProperty($instance::class, 'originalCompiledViewPath'))->setValue(null, null);
-
         $method = new ReflectionMethod($instance, 'bootTestViews');
         $method->invoke($instance);
 
@@ -129,8 +148,6 @@ class TestViewsTest extends TestCase
     protected function getCompiledViewPath(): ?string
     {
         $instance = $this->makeTestViewsInstance();
-
-        (new ReflectionProperty($instance::class, 'originalCompiledViewPath'))->setValue(null, null);
 
         $method = new ReflectionMethod($instance, 'parallelSafeCompiledViewPath');
 

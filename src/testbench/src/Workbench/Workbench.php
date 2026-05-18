@@ -37,6 +37,16 @@ use function Hypervel\Testbench\workbench_path;
 class Workbench
 {
     /**
+     * The default cached core workbench bindings.
+     *
+     * @var array{kernel: array{console?: null|string, http?: null|string}, handler: array{exception?: null|string}}
+     */
+    protected const array DEFAULT_CORE_BINDINGS = [
+        'kernel' => [],
+        'handler' => [],
+    ];
+
+    /**
      * The cached test case configuration.
      */
     protected static ?ConfigContract $cachedConfiguration = null;
@@ -60,10 +70,7 @@ class Workbench
      *
      * @var array{kernel: array{console?: null|string, http?: null|string}, handler: array{exception?: null|string}}
      */
-    public static array $cachedCoreBindings = [
-        'kernel' => [],
-        'handler' => [],
-    ];
+    public static array $cachedCoreBindings = self::DEFAULT_CORE_BINDINGS;
 
     /**
      * Start Workbench.
@@ -410,9 +417,6 @@ class Workbench
         static::$cachedUserModel = null;
         static::$cachedNamespaces = [];
 
-        static::$cachedCoreBindings = [
-            'kernel' => [],
-            'handler' => [],
-        ];
+        static::$cachedCoreBindings = self::DEFAULT_CORE_BINDINGS;
     }
 }

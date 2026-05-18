@@ -44,6 +44,8 @@ class QueueWorkerTest extends TestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
+
         $this->events = m::spy(EventDispatcher::class);
         $this->events->shouldReceive('hasListeners')->byDefault()->andReturn(true);
         $this->exceptionHandler = m::spy(ExceptionHandlerContract::class);
@@ -479,6 +481,33 @@ class QueueWorkerTest extends TestCase
         $this->assertTrue($customJob->fired);
 
         Worker::popUsing('myworker', null);
+    }
+
+    public function testFlushStateResetsWorkerStaticState()
+    {
+        Worker::popUsing('myworker', function ($pop) {
+            return $pop('custom');
+        });
+        Worker::$memoryExceededExitCode = 99;
+        Worker::$restartable = false;
+        Worker::$pausable = false;
+
+        Worker::flushState();
+
+        $this->assertNull(Worker::$memoryExceededExitCode);
+        $this->assertTrue(Worker::$restartable);
+        $this->assertTrue(Worker::$pausable);
+
+        $worker = $this->getWorker('default', [
+            'default' => [$defaultJob = new WorkerFakeJob],
+            'custom' => [$customJob = new WorkerFakeJob],
+        ]);
+        $worker->setName('myworker');
+
+        $worker->runNextJob('default', 'default', new WorkerOptions);
+
+        $this->assertTrue($defaultJob->fired);
+        $this->assertFalse($customJob->fired);
     }
 
     public function testWorkerStartingIsDispatched()

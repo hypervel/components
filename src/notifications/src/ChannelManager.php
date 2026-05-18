@@ -239,4 +239,12 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     {
         return CoroutineContext::get(self::DEFAULT_LOCALE_CONTEXT_KEY, $this->locale);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

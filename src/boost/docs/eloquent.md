@@ -33,6 +33,7 @@
     - [Global Scopes](#global-scopes)
     - [Local Scopes](#local-scopes)
     - [Pending Attributes](#pending-attributes)
+    - [Custom Eloquent Builders](#custom-eloquent-builders)
 - [Comparing Models](#comparing-models)
 - [Events](#events)
     - [Using Closures](#events-using-closures)
@@ -42,7 +43,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel includes Eloquent, an object-relational mapper (ORM) that makes it enjoyable to interact with your database. When using Eloquent, each database table has a corresponding "Model" that is used to interact with that table. In addition to retrieving records from the database table, Eloquent models allow you to insert, update, and delete records from the table as well.
+Hypervel includes Eloquent, an object-relational mapper (ORM) that makes it enjoyable to interact with your database. When using Eloquent, each database table has a corresponding "Model" that is used to interact with that table. In addition to retrieving records from the database table, Eloquent models allow you to insert, update, and delete records from the table as well.
 
 > [!NOTE]
 > Before getting started, be sure to configure a database connection in your application's `config/database.php` configuration file. For more information on configuring your database, check out [the database configuration documentation](/docs/{{version}}/database#configuration).
@@ -81,6 +82,9 @@ php artisan make:model Flight -c
 php artisan make:model Flight --controller --resource --requests
 php artisan make:model Flight -crR
 
+# Generate a model and an API resource controller class...
+php artisan make:model Flight --api
+
 # Generate a model and a FlightPolicy class...
 php artisan make:model Flight --policy
 
@@ -94,6 +98,9 @@ php artisan make:model Flight -a
 # Generate a pivot model...
 php artisan make:model Member --pivot
 php artisan make:model Member -p
+
+# Generate a polymorphic pivot model...
+php artisan make:model Member --morph-pivot
 ```
 
 <a name="inspecting-models"></a>
@@ -411,7 +418,7 @@ class Flight extends Model
      *
      * @var array<string, mixed>
      */
-    protected $attributes = [
+    protected array $attributes = [
         'options' => '[]',
         'delayed' => false,
     ];
@@ -421,7 +428,7 @@ class Flight extends Model
 <a name="configuring-eloquent-strictness"></a>
 ### Configuring Eloquent Strictness
 
-Laravel offers several methods that allow you to configure Eloquent's behavior and "strictness" in a variety of situations.
+Hypervel offers several methods that allow you to configure Eloquent's behavior and "strictness" in a variety of situations.
 
 First, the `preventLazyLoading` method accepts an optional boolean argument that indicates if lazy loading should be prevented. For example, you may wish to only disable lazy loading in non-production environments so that your production environment will continue to function normally even if a lazy loaded relationship is accidentally present in production code. Typically, this method should be invoked in the `boot` method of your application's `AppServiceProvider`:
 
@@ -437,11 +444,28 @@ public function boot(): void
 }
 ```
 
-Also, you may instruct Laravel to throw an exception when attempting to fill an unfillable attribute by invoking the `preventSilentlyDiscardingAttributes` method. This can help prevent unexpected errors during local development when attempting to set an attribute that has not been added to the model's `fillable` array:
+Also, you may instruct Hypervel to throw an exception when attempting to fill an unfillable attribute by invoking the `preventSilentlyDiscardingAttributes` method. This can help prevent unexpected errors during local development when attempting to set an attribute that has not been added to the model's `fillable` array:
 
 ```php
 Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());
 ```
+
+You may also instruct Hypervel to throw an exception when attempting to access an attribute that was not retrieved from the database by invoking the `preventAccessingMissingAttributes` method:
+
+```php
+Model::preventAccessingMissingAttributes(! $this->app->isProduction());
+```
+
+If you would like to enable all three strictness behaviors, you may invoke the `shouldBeStrict` method:
+
+```php
+Model::shouldBeStrict(! $this->app->isProduction());
+```
+
+Hypervel also allows you to customize how lazy loading violations, discarded attributes, and missing attributes are handled using the `handleLazyLoadingViolationUsing`, `handleDiscardedAttributeViolationUsing`, and `handleMissingAttributeViolationUsing` methods.
+
+> [!WARNING]
+> Eloquent strictness methods configure worker-wide static state in Hypervel. These methods should be called while your application is booting, such as from a service provider, and not from request-specific code.
 
 <a name="retrieving-models"></a>
 ## Retrieving Models
@@ -469,7 +493,7 @@ $flights = Flight::where('active', 1)
 ```
 
 > [!NOTE]
-> Since Eloquent models are query builders, you should review all of the methods provided by Laravel's [query builder](/docs/{{version}}/queries). You may use any of these methods when writing your Eloquent queries.
+> Since Eloquent models are query builders, you should review all of the methods provided by Hypervel's [query builder](/docs/{{version}}/queries). You may use any of these methods when writing your Eloquent queries.
 
 <a name="refreshing-models"></a>
 #### Refreshing Models
@@ -499,7 +523,7 @@ $flight->number; // "FR 900"
 
 As we have seen, Eloquent methods like `all` and `get` retrieve multiple records from the database. However, these methods don't return a plain PHP array. Instead, an instance of `Hypervel\Database\Eloquent\Collection` is returned.
 
-The Eloquent `Collection` class extends Laravel's base `Hypervel\Support\Collection` class, which provides a [variety of helpful methods](/docs/{{version}}/collections#available-methods) for interacting with data collections. For example, the `reject` method may be used to remove models from a collection based on the results of an invoked closure:
+The Eloquent `Collection` class extends Hypervel's base `Hypervel\Support\Collection` class, which provides a [variety of helpful methods](/docs/{{version}}/collections#available-methods) for interacting with data collections. For example, the `reject` method may be used to remove models from a collection based on the results of an invoked closure:
 
 ```php
 $flights = Flight::where('destination', 'Paris')->get();
@@ -509,9 +533,9 @@ $flights = $flights->reject(function (Flight $flight) {
 });
 ```
 
-In addition to the methods provided by Laravel's base collection class, the Eloquent collection class provides [a few extra methods](/docs/{{version}}/eloquent-collections#available-methods) that are specifically intended for interacting with collections of Eloquent models.
+In addition to the methods provided by Hypervel's base collection class, the Eloquent collection class provides [a few extra methods](/docs/{{version}}/eloquent-collections#available-methods) that are specifically intended for interacting with collections of Eloquent models.
 
-Since all of Laravel's collections implement PHP's iterable interfaces, you may loop over collections as if they were an array:
+Since all of Hypervel's collections implement PHP's iterable interfaces, you may loop over collections as if they were an array:
 
 ```php
 foreach ($flights as $flight) {
@@ -604,7 +628,7 @@ foreach (Flight::where('destination', 'Zurich')->cursor() as $flight) {
 }
 ```
 
-The `cursor` returns an `Hypervel\Support\LazyCollection` instance. [Lazy collections](/docs/{{version}}/collections#lazy-collections) allow you to use many of the collection methods available on typical Laravel collections while only loading a single model into memory at a time:
+The `cursor` returns an `Hypervel\Support\LazyCollection` instance. [Lazy collections](/docs/{{version}}/collections#lazy-collections) allow you to use many of the collection methods available on typical Hypervel collections while only loading a single model into memory at a time:
 
 ```php
 use App\Models\User;
@@ -742,7 +766,7 @@ $flight = Flight::firstOrNew(
 <a name="retrieving-aggregates"></a>
 ### Retrieving Aggregates
 
-When interacting with Eloquent models, you may also use the `count`, `sum`, `max`, and other [aggregate methods](/docs/{{version}}/queries#aggregates) provided by the Laravel [query builder](/docs/{{version}}/queries). As you might expect, these methods return a scalar value instead of an Eloquent model instance:
+When interacting with Eloquent models, you may also use the `count`, `sum`, `max`, and other [aggregate methods](/docs/{{version}}/queries#aggregates) provided by the Hypervel [query builder](/docs/{{version}}/queries). As you might expect, these methods return a scalar value instead of an Eloquent model instance:
 
 ```php
 $count = Flight::where('active', 1)->count();
@@ -1017,7 +1041,7 @@ $flight->fill(['name' => 'Amsterdam to Frankfurt']);
 <a name="mass-assignment-json-columns"></a>
 #### Mass Assignment and JSON Columns
 
-When assigning JSON columns, each column's mass assignable key must be specified in your model's `Fillable` attribute. For security, Laravel does not support updating nested JSON attributes when using the `Guarded` attribute:
+When assigning JSON columns, each column's mass assignable key must be specified in your model's `Fillable` attribute. For security, Hypervel does not support updating nested JSON attributes when using the `Guarded` attribute:
 
 ```php
 use Hypervel\Database\Eloquent\Attributes\Fillable;
@@ -1054,7 +1078,7 @@ class Flight extends Model
 
 By default, attributes that are not included in the `Fillable` attribute are silently discarded when performing mass-assignment operations. In production, this is expected behavior; however, during local development it can lead to confusion as to why model changes are not taking effect.
 
-If you wish, you may instruct Laravel to throw an exception when attempting to fill an unfillable attribute by invoking the `preventSilentlyDiscardingAttributes` method. Typically, this method should be invoked in the `boot` method of your application's `AppServiceProvider` class:
+If you wish, you may instruct Hypervel to throw an exception when attempting to fill an unfillable attribute by invoking the `preventSilentlyDiscardingAttributes` method. Typically, this method should be invoked in the `boot` method of your application's `AppServiceProvider` class:
 
 ```php
 use Hypervel\Database\Eloquent\Model;
@@ -1081,7 +1105,7 @@ Flight::upsert([
 ```
 
 > [!WARNING]
-> All databases except SQL Server require the columns in the second argument of the `upsert` method to have a "primary" or "unique" index. In addition, the MariaDB and MySQL database drivers ignore the second argument of the `upsert` method and always use the "primary" and "unique" indexes of the table to detect existing records.
+> PostgreSQL and SQLite require the columns in the second argument of the `upsert` method to have a "primary" or "unique" index. In addition, the MariaDB and MySQL database drivers ignore the second argument of the `upsert` method and always use the "primary" and "unique" indexes of the table to detect existing records.
 
 <a name="deleting-models"></a>
 ## Deleting Models
@@ -1166,7 +1190,7 @@ class Flight extends Model
 > [!NOTE]
 > The `SoftDeletes` trait will automatically cast the `deleted_at` attribute to a `DateTime` / `Carbon` instance for you.
 
-You should also add the `deleted_at` column to your database table. The Laravel [schema builder](/docs/{{version}}/migrations) contains a helper method to create this column:
+You should also add the `deleted_at` column to your database table. The Hypervel [schema builder](/docs/{{version}}/migrations) contains a helper method to create this column:
 
 ```php
 use Hypervel\Database\Schema\Blueprint;
@@ -1408,7 +1432,7 @@ $flight = $flight->replicate([
 <a name="global-scopes"></a>
 ### Global Scopes
 
-Global scopes allow you to add constraints to all queries for a given model. Laravel's own [soft delete](#soft-deleting) functionality utilizes global scopes to only retrieve "non-deleted" models from the database. Writing your own global scopes can provide a convenient, easy way to make sure every query for a given model receives certain constraints.
+Global scopes allow you to add constraints to all queries for a given model. Hypervel's own [soft delete](#soft-deleting) functionality utilizes global scopes to only retrieve "non-deleted" models from the database. Writing your own global scopes can provide a convenient, easy way to make sure every query for a given model receives certain constraints.
 
 <a name="generating-scopes"></a>
 #### Generating Scopes
@@ -1489,6 +1513,9 @@ class User extends Model
     }
 }
 ```
+
+> [!WARNING]
+> Global scopes are stored in worker-wide static state in Hypervel. Register global scopes while your model boots, not from request-specific code.
 
 After adding the scope in the example above to the `App\Models\User` model, a call to the `User::all()` method will execute the following SQL query:
 
@@ -1612,7 +1639,7 @@ $users = User::popular()->orWhere(function (Builder $query) {
 })->get();
 ```
 
-However, since this can be cumbersome, Laravel provides a "higher order" `orWhere` method that allows you to fluently chain scopes together without the use of closures:
+However, since this can be cumbersome, Hypervel provides a "higher order" `orWhere` method that allows you to fluently chain scopes together without the use of closures:
 
 ```php
 $users = User::popular()->orWhere->active()->get();
@@ -1696,6 +1723,48 @@ $query->withAttributes([
 ], asConditions: false);
 ```
 
+<a name="custom-eloquent-builders"></a>
+### Custom Eloquent Builders
+
+If you would like a model to use a custom Eloquent query builder, you may place the `UseEloquentBuilder` attribute on the model:
+
+```php
+<?php
+
+namespace App\Models;
+
+use App\Models\Builders\UserBuilder;
+use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
+use Hypervel\Database\Eloquent\Model;
+
+#[UseEloquentBuilder(UserBuilder::class)]
+class User extends Model
+{
+    // ...
+}
+```
+
+Your custom builder should extend Hypervel's base Eloquent builder:
+
+```php
+<?php
+
+namespace App\Models\Builders;
+
+use Hypervel\Database\Eloquent\Builder;
+
+class UserBuilder extends Builder
+{
+    /**
+     * Scope the query to only include active users.
+     */
+    public function whereActive(): static
+    {
+        return $this->where('active', true);
+    }
+}
+```
+
 <a name="comparing-models"></a>
 ## Comparing Models
 
@@ -1723,7 +1792,7 @@ if ($post->author()->is($user)) {
 ## Events
 
 > [!NOTE]
-> Want to broadcast your Eloquent events directly to your client-side application? Check out Laravel's [model event broadcasting](/docs/{{version}}/broadcasting#model-broadcasting).
+> Want to broadcast your Eloquent events directly to your client-side application? Check out Hypervel's [model event broadcasting](/docs/{{version}}/broadcasting#model-broadcasting).
 
 Eloquent models dispatch several events, allowing you to hook into the following moments in a model's lifecycle: `retrieved`, `creating`, `created`, `updating`, `updated`, `saving`, `saved`, `deleting`, `deleted`, `trashed`, `forceDeleting`, `forceDeleted`, `restoring`, `restored`, and `replicating`.
 
@@ -1750,7 +1819,7 @@ class User extends Authenticatable
      *
      * @var array<string, string>
      */
-    protected $dispatchesEvents = [
+    protected array $dispatchesEvents = [
         'saved' => UserSaved::class,
         'deleted' => UserDeleted::class,
     ];
@@ -1788,7 +1857,7 @@ class User extends Model
 }
 ```
 
-If needed, you may utilize [queueable anonymous event listeners](/docs/{{version}}/events#queueable-anonymous-event-listeners) when registering model events. This will instruct Laravel to execute the model event listener in the background using your application's [queue](/docs/{{version}}/queues):
+If needed, you may utilize [queueable anonymous event listeners](/docs/{{version}}/events#queueable-anonymous-event-listeners) when registering model events. This will instruct Hypervel to execute the model event listener in the background using your application's [queue](/docs/{{version}}/queues):
 
 ```php
 use function Hypervel\Events\queueable;
@@ -1797,6 +1866,9 @@ static::created(queueable(function (User $user) {
     // ...
 }));
 ```
+
+> [!WARNING]
+> Model event listeners and observers are registered on the worker-wide event dispatcher in Hypervel. Register them while your application or model boots, not from request-specific code.
 
 <a name="observers"></a>
 ### Observers
@@ -1934,6 +2006,8 @@ $user = User::withoutEvents(function () {
 });
 ```
 
+In Hypervel, `withoutEvents` only mutes model events for the current coroutine. Concurrent requests handled by the same worker continue dispatching their own model events normally.
+
 <a name="saving-a-single-model-without-events"></a>
 #### Saving a Single Model Without Events
 
@@ -1950,7 +2024,9 @@ $user->saveQuietly();
 You may also "update", "delete", "soft delete", "restore", and "replicate" a given model without dispatching any events:
 
 ```php
+$user->updateQuietly(['name' => 'Victoria Faith']);
 $user->deleteQuietly();
 $user->forceDeleteQuietly();
 $user->restoreQuietly();
+$user->replicateQuietly();
 ```

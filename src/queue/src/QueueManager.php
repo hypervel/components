@@ -54,6 +54,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Register an event listener for the before job event.
+     *
+     * Boot-only. The listener persists on the singleton event dispatcher for
+     * the worker lifetime and runs for every subsequent matching queue event.
      */
     public function before(mixed $callback): void
     {
@@ -63,6 +66,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Register an event listener for the after job event.
+     *
+     * Boot-only. The listener persists on the singleton event dispatcher for
+     * the worker lifetime and runs for every subsequent matching queue event.
      */
     public function after(mixed $callback): void
     {
@@ -72,6 +78,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Register an event listener for the exception occurred job event.
+     *
+     * Boot-only. The listener persists on the singleton event dispatcher for
+     * the worker lifetime and runs for every subsequent matching queue event.
      */
     public function exceptionOccurred(mixed $callback): void
     {
@@ -81,6 +90,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Register an event listener for the daemon queue loop.
+     *
+     * Boot-only. The listener persists on the singleton event dispatcher for
+     * the worker lifetime and runs for every subsequent matching queue event.
      */
     public function looping(mixed $callback): void
     {
@@ -90,6 +102,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Register an event listener for the failed job event.
+     *
+     * Boot-only. The listener persists on the singleton event dispatcher for
+     * the worker lifetime and runs for every subsequent matching queue event.
      */
     public function failing(mixed $callback): void
     {
@@ -99,6 +114,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Register an event listener for the daemon queue starting.
+     *
+     * Boot-only. The listener persists on the singleton event dispatcher for
+     * the worker lifetime and runs for every subsequent matching queue event.
      */
     public function starting(mixed $callback): void
     {
@@ -108,6 +126,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Register an event listener for the daemon queue stopping.
+     *
+     * Boot-only. The listener persists on the singleton event dispatcher for
+     * the worker lifetime and runs for every subsequent matching queue event.
      */
     public function stopping(mixed $callback): void
     {
@@ -117,6 +138,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Register the default queue route for a given class.
+     *
+     * Boot-only. The route persists on the singleton QueueRoutes registry for
+     * the worker lifetime and affects every subsequent dispatch of that class.
      *
      * @param array|class-string $class
      */
@@ -183,6 +207,9 @@ class QueueManager implements FactoryContract, MonitorContract
 
     /**
      * Indicate that queue workers should not poll for restart or pause signals.
+     *
+     * Boot-only. Mutates process-global worker flags; runtime use races across
+     * coroutines and changes every concurrent worker pause or restart check.
      */
     public function withoutInterruptionPolling(): void
     {

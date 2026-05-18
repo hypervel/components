@@ -179,7 +179,7 @@ class Date implements Stringable
     }
 
     /**
-     * Flush the date rule's global state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

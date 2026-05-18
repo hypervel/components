@@ -12,6 +12,7 @@
     - [Adding Meta Data](#adding-meta-data)
 - [JSON:API Resources](#jsonapi-resources)
     - [Generating JSON:API Resources](#generating-jsonapi-resources)
+    - [Configuring JSON:API Information](#configuring-jsonapi-information)
     - [Defining Attributes](#defining-jsonapi-attributes)
     - [Defining Relationships](#defining-jsonapi-relationships)
     - [Resource Type and ID](#jsonapi-resource-type-and-id)
@@ -40,7 +41,7 @@ php artisan make:resource UserResource
 
 In addition to generating resources that transform individual models, you may generate resources that are responsible for transforming collections of models. This allows your JSON responses to include links and other meta information that is relevant to an entire collection of a given resource.
 
-To create a resource collection, you should use the `--collection` flag when creating the resource. Or, including the word `Collection` in the resource name will indicate to Laravel that it should create a collection resource. Collection resources extend the `Hypervel\Http\Resources\Json\ResourceCollection` class:
+To create a resource collection, you should use the `--collection` flag when creating the resource. Or, including the word `Collection` in the resource name will indicate to Hypervel that it should create a collection resource. Collection resources extend the `Hypervel\Http\Resources\Json\ResourceCollection` class:
 
 ```shell
 php artisan make:resource User --collection
@@ -54,7 +55,7 @@ php artisan make:resource UserCollection
 > [!NOTE]
 > This is a high-level overview of resources and resource collections. You are highly encouraged to read the other sections of this documentation to gain a deeper understanding of the customization and power offered to you by resources.
 
-Before diving into all of the options available to you when writing resources, let's first take a high-level look at how resources are used within Laravel. A resource class represents a single model that needs to be transformed into a JSON structure. For example, here is a simple `UserResource` resource class:
+Before diving into all of the options available to you when writing resources, let's first take a high-level look at how resources are used within Hypervel. A resource class represents a single model that needs to be transformed into a JSON structure. For example, here is a simple `UserResource` resource class:
 
 ```php
 <?php
@@ -103,7 +104,7 @@ For convenience, you may use the model's `toResource` method, which will use fra
 return User::findOrFail($id)->toResource();
 ```
 
-When invoking the `toResource` method, Laravel will attempt to locate a resource that matches the model's name and is optionally suffixed with `Resource` within the `Http\Resources` namespace closest to the model's namespace.
+When invoking the `toResource` method, Hypervel will attempt to locate a resource that matches the model's name and is optionally suffixed with `Resource` within the `Http\Resources` namespace closest to the model's namespace.
 
 If your resource class doesn't follow this naming convention or is located in a different namespace, you may specify the default resource for the model using the `UseResource` attribute:
 
@@ -123,7 +124,7 @@ class User extends Model
 }
 ```
 
-Alternatively, you may specify resource class by passing it to the `toResource` method:
+Alternatively, you may specify the resource class by passing it to the `toResource` method:
 
 ```php
 return User::findOrFail($id)->toResource(CustomUserResource::class);
@@ -149,7 +150,7 @@ Or, for convenience, you may use the Eloquent collection's `toResourceCollection
 return User::all()->toResourceCollection();
 ```
 
-When invoking the `toResourceCollection` method, Laravel will attempt to locate a resource collection that matches the model's name and is suffixed with `Collection` within the `Http\Resources` namespace closest to the model's namespace.
+When invoking the `toResourceCollection` method, Hypervel will attempt to locate a resource collection that matches the model's name and is suffixed with `Collection` within the `Http\Resources` namespace closest to the model's namespace.
 
 If your resource collection class doesn't follow this naming convention or is located in a different namespace, you may specify the default resource collection for the model using the `UseResourceCollection` attribute:
 
@@ -230,12 +231,12 @@ Or, for convenience, you may use the Eloquent collection's `toResourceCollection
 return User::all()->toResourceCollection();
 ```
 
-When invoking the `toResourceCollection` method, Laravel will attempt to locate a resource collection that matches the model's name and is suffixed with `Collection` within the `Http\Resources` namespace closest to the model's namespace.
+When invoking the `toResourceCollection` method, Hypervel will attempt to locate a resource collection that matches the model's name and is suffixed with `Collection` within the `Http\Resources` namespace closest to the model's namespace.
 
 <a name="preserving-collection-keys"></a>
 #### Preserving Collection Keys
 
-When returning a resource collection from a route, Laravel resets the collection's keys so that they are in numerical order. However, you may use the `PreserveKeys` attribute on your resource class indicating whether a collection's original keys should be preserved:
+When returning a resource collection from a route, Hypervel resets the collection's keys so that they are in numerical order. However, you may use the `PreserveKeys` attribute on your resource class indicating whether a collection's original keys should be preserved:
 
 ```php
 <?php
@@ -252,7 +253,7 @@ class UserResource extends JsonResource
 }
 ```
 
-When the `preserveKeys` property is set to `true`, collection keys will be preserved when the collection is returned from a route or controller:
+When the `PreserveKeys` attribute is present, collection keys will be preserved when the collection is returned from a route or controller:
 
 ```php
 use App\Http\Resources\UserResource;
@@ -278,7 +279,7 @@ namespace App\Http\Resources;
 use Hypervel\Http\Resources\Attributes\Collects;
 use Hypervel\Http\Resources\Json\ResourceCollection;
 
-#[Collects(Member::class)]
+#[Collects(MemberResource::class)]
 class UserCollection extends ResourceCollection
 {
     // ...
@@ -327,7 +328,7 @@ Once a resource has been defined, it may be returned directly from a route or co
 use App\Models\User;
 
 Route::get('/user/{id}', function (string $id) {
-    return User::findOrFail($id)->toUserResource();
+    return User::findOrFail($id)->toResource();
 });
 ```
 
@@ -420,7 +421,7 @@ Or, for convenience, you may use the Eloquent collection's `toResourceCollection
 return User::all()->toResourceCollection();
 ```
 
-When invoking the `toResourceCollection` method, Laravel will attempt to locate a resource collection that matches the model's name and is suffixed with `Collection` within the `Http\Resources` namespace closest to the model's namespace.
+When invoking the `toResourceCollection` method, Hypervel will attempt to locate a resource collection that matches the model's name and is suffixed with `Collection` within the `Http\Resources` namespace closest to the model's namespace.
 
 <a name="data-wrapping"></a>
 ### Data Wrapping
@@ -444,7 +445,7 @@ By default, your outermost resource is wrapped in a `data` key when the resource
 }
 ```
 
-If you would like to disable the wrapping of the outermost resource, you should invoke the `withoutWrapping` method on the base `Hypervel\Http\Resources\Json\JsonResource` class. Typically, you should call this method from your `AppServiceProvider` or another [service provider](/docs/{{version}}/providers) that is loaded on every request to your application:
+If you would like to disable the wrapping of the outermost resource, you should invoke the `withoutWrapping` method on the base `Hypervel\Http\Resources\Json\JsonResource` class. Typically, you should call this method during application boot from your `AppServiceProvider` or another [service provider](/docs/{{version}}/providers):
 
 ```php
 <?php
@@ -477,18 +478,22 @@ class AppServiceProvider extends ServiceProvider
 > [!WARNING]
 > The `withoutWrapping` method only affects the outermost response and will not remove `data` keys that you manually add to your own resource collections.
 
+> [!WARNING]
+> The `withoutWrapping` and `wrap` methods mutate static state for the worker lifetime. Configure resource wrapping during application boot, not while handling an individual request.
+
 <a name="wrapping-nested-resources"></a>
 #### Wrapping Nested Resources
 
 You have total freedom to determine how your resource's relationships are wrapped. If you would like all resource collections to be wrapped in a `data` key, regardless of their nesting, you should define a resource collection class for each resource and return the collection within a `data` key.
 
-You may be wondering if this will cause your outermost resource to be wrapped in two `data` keys. Don't worry, Laravel will never let your resources be accidentally double-wrapped, so you don't have to be concerned about the nesting level of the resource collection you are transforming:
+You may be wondering if this will cause your outermost resource to be wrapped in two `data` keys. Don't worry, Hypervel will never let your resources be accidentally double-wrapped, so you don't have to be concerned about the nesting level of the resource collection you are transforming:
 
 ```php
 <?php
 
 namespace App\Http\Resources;
 
+use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\ResourceCollection;
 
 class CommentsCollection extends ResourceCollection
@@ -508,7 +513,7 @@ class CommentsCollection extends ResourceCollection
 <a name="data-wrapping-and-pagination"></a>
 #### Data Wrapping and Pagination
 
-When returning paginated collections via a resource response, Laravel will wrap your resource data in a `data` key even if the `withoutWrapping` method has been called. This is because paginated responses always contain `meta` and `links` keys with information about the paginator's state:
+When returning paginated collections via a resource response, Hypervel will wrap your resource data in a `data` key even if the `withoutWrapping` method has been called. This is because paginated responses always contain `meta` and `links` keys with information about the paginator's state:
 
 ```json
 {
@@ -545,7 +550,7 @@ When returning paginated collections via a resource response, Laravel will wrap 
 <a name="pagination"></a>
 ### Pagination
 
-You may pass a Laravel paginator instance to the `collection` method of a resource or to a custom resource collection:
+You may pass a Hypervel paginator instance to the `collection` method of a resource or to a custom resource collection:
 
 ```php
 use App\Http\Resources\UserCollection;
@@ -596,21 +601,34 @@ Paginated responses always contain `meta` and `links` keys with information abou
 }
 ```
 
+If you would like pagination links to include all of the current request's query string values, you may call the `preserveQuery` method when returning the resource collection:
+
+```php
+return UserResource::collection(User::paginate())->preserveQuery();
+```
+
+You may use the `withQuery` method if you would like to specify which query string values should be included in pagination links:
+
+```php
+return UserResource::collection(User::paginate())->withQuery([
+    'sort' => 'votes',
+]);
+```
+
 <a name="customizing-the-pagination-information"></a>
 #### Customizing the Pagination Information
 
 If you would like to customize the information included in the `links` or `meta` keys of the pagination response, you may define a `paginationInformation` method on the resource. This method will receive the `$paginated` data and the array of `$default` information, which is an array containing the `links` and `meta` keys:
 
 ```php
+use Hypervel\Http\Request;
+
 /**
  * Customize the pagination information for the resource.
  *
- * @param  \Hypervel\Http\Request  $request
- * @param  array  $paginated
- * @param  array  $default
- * @return array
+ * @return array<string, mixed>
  */
-public function paginationInformation($request, $paginated, $default)
+public function paginationInformation(Request $request, array $paginated, array $default): array
 {
     $default['links']['custom'] = 'https://example.com';
 
@@ -621,7 +639,7 @@ public function paginationInformation($request, $paginated, $default)
 <a name="conditional-attributes"></a>
 ### Conditional Attributes
 
-Sometimes you may wish to only include an attribute in a resource response if a given condition is met. For example, you may wish to only include a value if the current user is an "administrator". Laravel provides a variety of helper methods to assist you in this situation. The `when` method may be used to conditionally add an attribute to a resource response:
+Sometimes you may wish to only include an attribute in a resource response if a given condition is met. For example, you may wish to only include a value if the current user is an "administrator". Hypervel provides a variety of helper methods to assist you in this situation. The `when` method may be used to conditionally add an attribute to a resource response:
 
 ```php
 /**
@@ -767,6 +785,12 @@ Other types of aggregates, such as `avg`, `sum`, `min`, and `max` may also be co
 'words_max' => $this->whenAggregated('posts', 'words', 'max'),
 ```
 
+If you have loaded the existence of a relationship using the `withExists` method, you may use the `whenExistsLoaded` method to conditionally include the relationship existence value in your resource response:
+
+```php
+'posts_exists' => $this->whenExistsLoaded('posts'),
+```
+
 <a name="conditional-pivot-information"></a>
 #### Conditional Pivot Information
 
@@ -840,7 +864,7 @@ public function toArray(Request $request): array
 }
 ```
 
-When returning additional meta data from your resources, you never have to worry about accidentally overriding the `links` or `meta` keys that are automatically added by Laravel when returning paginated responses. Any additional `links` you define will be merged with the links provided by the paginator.
+When returning additional meta data from your resources, you never have to worry about accidentally overriding the `links` or `meta` keys that are automatically added by Hypervel when returning paginated responses. Any additional `links` you define will be merged with the links provided by the paginator.
 
 <a name="top-level-meta-data"></a>
 #### Top Level Meta Data
@@ -852,6 +876,7 @@ Sometimes you may wish to only include certain meta data with a resource respons
 
 namespace App\Http\Resources;
 
+use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\ResourceCollection;
 
 class UserCollection extends ResourceCollection
@@ -899,10 +924,10 @@ return User::all()
 <a name="jsonapi-resources"></a>
 ## JSON:API Resources
 
-Laravel ships with `JsonApiResource`, a resource class that produces responses compliant with the [JSON:API specification](https://jsonapi.org/). It extends the standard `JsonResource` class and automatically handles resource object structure, relationships, sparse fieldsets, includes, lazy attribute evaluation, and sets the `Content-Type` header to `application/vnd.api+json`.
+Hypervel ships with `JsonApiResource`, a resource class that produces responses compliant with the [JSON:API specification](https://jsonapi.org/). It extends the standard `JsonResource` class and automatically handles resource object structure, relationships, sparse fieldsets, includes, lazy attribute evaluation, and sets the `Content-Type` header to `application/vnd.api+json`.
 
 > [!NOTE]
-> Laravel's JSON:API resources handle the serialization of your responses. If you also need to parse incoming JSON:API query parameters such as filters and sorts, [Spatie's Laravel Query Builder](https://spatie.be/docs/laravel-query-builder) is a great companion package.
+> Hypervel's JSON:API resources handle the serialization of your responses. If you also need to parse incoming JSON:API query parameters such as filters and sorts, apply those constraints in your query layer before returning the resource.
 
 <a name="generating-jsonapi-resources"></a>
 ### Generating JSON:API Resources
@@ -983,6 +1008,30 @@ return PostResource::collection(Post::all());
 return Post::all()->toResourceCollection();
 ```
 
+<a name="configuring-jsonapi-information"></a>
+### Configuring JSON:API Information
+
+You may include a top-level `jsonapi` object in every JSON:API response by calling the `configure` method during application boot:
+
+```php
+use Hypervel\Http\Resources\JsonApi\JsonApiResource;
+
+JsonApiResource::configure(version: '1.1');
+```
+
+You may also provide extension, profile, or meta information:
+
+```php
+JsonApiResource::configure(
+    version: '1.1',
+    profile: ['https://example.com/profiles/posts'],
+    meta: ['api' => 'public'],
+);
+```
+
+> [!WARNING]
+> The `configure` method mutates static state for the worker lifetime. Configure JSON:API information during application boot, not while handling an individual request.
+
 <a name="defining-jsonapi-attributes"></a>
 ### Defining Attributes
 
@@ -1036,7 +1085,7 @@ public $relationships = [
 ];
 ```
 
-When listing a relationship name as a value, Laravel will resolve the corresponding Eloquent relationship and automatically discover the appropriate resource class. If you need to specify the resource class explicitly, you may define the relationship as a key / class pair:
+When listing a relationship name as a value, Hypervel will resolve the corresponding Eloquent relationship and automatically discover the appropriate resource class. If you need to specify the resource class explicitly, you may define the relationship as a key / class pair:
 
 ```php
 use App\Http\Resources\UserResource;
@@ -1131,13 +1180,16 @@ GET /api/posts/1?include=comments.author
 <a name="jsonapi-relationship-depth"></a>
 #### Relationship Depth
 
-By default, nested relationship includes are limited to a maximum depth. You may customize this limit using the `maxRelationshipDepth` method, typically in one of you application's service provider:
+By default, nested relationship includes are limited to a maximum depth. You may customize this limit using the `maxRelationshipDepth` method during application boot, typically in one of your application's service providers:
 
 ```php
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 
 JsonApiResource::maxRelationshipDepth(3);
 ```
+
+> [!WARNING]
+> The `maxRelationshipDepth` method mutates static state for the worker lifetime. Configure the relationship depth during application boot, not while handling an individual request.
 
 <a name="jsonapi-resource-type-and-id"></a>
 ### Resource Type and ID
@@ -1258,7 +1310,7 @@ Route::get('/user/{id}', function (string $id) {
 });
 ```
 
-However, sometimes you may need to customize the outgoing HTTP response before it is sent to the client. There are two ways to accomplish this. First, you may chain the `response` method onto the resource. This method will return an `Hypervel\Http\JsonResponse` instance, giving you full control over the response's headers:
+However, sometimes you may need to customize the outgoing HTTP response before it is sent to the client. There are two ways to accomplish this. First, you may chain the `response` method onto the resource. This method will return a `Hypervel\Http\JsonResponse` instance, giving you full control over the response's headers:
 
 ```php
 use App\Http\Resources\UserResource;

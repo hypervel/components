@@ -87,9 +87,6 @@ class BinaryCodec
 
     /**
      * Flush all static state.
-     *
-     * Boot or tests only. Clears worker-wide custom codecs; concurrent
-     * coroutines may encode/decode with different codec registries.
      */
     public static function flushState(): void
     {

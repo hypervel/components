@@ -98,7 +98,7 @@ class ReloadDotenvAndConfig
     }
 
     /**
-     * Flush the listener's static mutation tracking state.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

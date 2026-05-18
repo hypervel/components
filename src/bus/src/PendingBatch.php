@@ -388,7 +388,7 @@ class PendingBatch
     }
 
     /**
-     * Flush the internal state of the pending batch.
+     * Flush all static state.
      */
     public static function flushState(): void
     {

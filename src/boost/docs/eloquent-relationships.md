@@ -71,6 +71,9 @@ $user->posts()->where('active', 1)->get();
 
 But, before diving too deep into using relationships, let's learn how to define each type of relationship supported by Eloquent.
 
+> [!WARNING]
+> You should not define a relationship with the same name as an attribute since Eloquent may not be able to determine which value to resolve.
+
 <a name="one-to-one"></a>
 ### One to One / Has One
 
@@ -259,7 +262,7 @@ class Post extends Model
 }
 ```
 
-Or, if you would like to opt-in to automatic parent hydration at run time, you may invoke the `chaperone` model when eager loading the relationship:
+Or, if you would like to opt-in to automatic parent hydration at run time, you may invoke the `chaperone` method when eager loading the relationship:
 
 ```php
 use App\Models\Post;
@@ -388,7 +391,7 @@ However, you may find it more convenient to use the `whereBelongsTo` method, whi
 $posts = Post::whereBelongsTo($user)->get();
 ```
 
-You may also provide a [collection](/docs/{{version}}/eloquent-collections) instance to the `whereBelongsTo` method. When doing so, Laravel will retrieve models that belong to any of the parent models within the collection:
+You may also provide a [collection](/docs/{{version}}/eloquent-collections) instance to the `whereBelongsTo` method. When doing so, Hypervel will retrieve models that belong to any of the parent models within the collection:
 
 ```php
 $users = User::where('vip', true)->get();
@@ -396,7 +399,7 @@ $users = User::where('vip', true)->get();
 $posts = Post::whereBelongsTo($users)->get();
 ```
 
-By default, Laravel will determine the relationship associated with the given model based on the class name of the model; however, you may specify the relationship name manually by providing it as the second argument to the `whereBelongsTo` method:
+By default, Hypervel will determine the relationship associated with the given model based on the class name of the model; however, you may specify the relationship name manually by providing it as the second argument to the `whereBelongsTo` method:
 
 ```php
 $posts = Post::whereBelongsTo($user, 'author')->get();
@@ -449,7 +452,7 @@ public function largestOrder(): HasOne
 <a name="converting-many-relationships-to-has-one-relationships"></a>
 #### Converting "Many" Relationships to Has One Relationships
 
-Often, when retrieving a single model using the `latestOfMany`, `oldestOfMany`, or `ofMany` methods, you already have a "has many" relationship defined for the same model. For convenience, Laravel allows you to easily convert this relationship into a "has one" relationship by invoking the `one` method on the relationship:
+Often, when retrieving a single model using the `latestOfMany`, `oldestOfMany`, or `ofMany` methods, you already have a "has many" relationship defined for the same model. For convenience, Hypervel allows you to easily convert this relationship into a "has one" relationship by invoking the `one` method on the relationship:
 
 ```php
 /**
@@ -595,7 +598,7 @@ return $this->throughCars()->hasOwner();
 <a name="has-many-through"></a>
 ### Has Many Through
 
-The "has-many-through" relationship provides a convenient way to access distant relations via an intermediate relation. For example, let's assume we are building a deployment platform like [Laravel Cloud](https://cloud.laravel.com). An `Application` model might access many `Deployment` models through an intermediate `Environment` model. Using this example, you could easily gather all deployments for a given application. Let's look at the tables required to define this relationship:
+The "has-many-through" relationship provides a convenient way to access distant relations via an intermediate relation. For example, let's assume we are building a deployment platform like [SonicStack](https://sonicstack.io). An `Application` model might access many `Deployment` models through an intermediate `Environment` model. Using this example, you could easily gather all deployments for a given application. Let's look at the tables required to define this relationship:
 
 ```text
 applications
@@ -637,7 +640,7 @@ class Application extends Model
 
 The first argument passed to the `hasManyThrough` method is the name of the final model we wish to access, while the second argument is the name of the intermediate model.
 
-Or, if the relevant relationships have already been defined on all of the models involved in the relationship, you may fluently define a "has-many-through" relationship by invoking the `through` method and supplying the names of those relationships. For example, if the `Application` model has a `environments` relationship and the `Environment` model has a `deployments` relationship, you may define a "has-many-through" relationship connecting the application and the deployments like so:
+Or, if the relevant relationships have already been defined on all of the models involved in the relationship, you may fluently define a "has-many-through" relationship by invoking the `through` method and supplying the names of those relationships. For example, if the `Application` model has an `environments` relationship and the `Environment` model has a `deployments` relationship, you may define a "has-many-through" relationship connecting the application and the deployments like so:
 
 ```php
 // String based syntax...
@@ -1276,7 +1279,7 @@ class Post extends Model
 }
 ```
 
-Or, if you would like to opt-in to automatic parent hydration at run time, you may invoke the `chaperone` model when eager loading the relationship:
+Or, if you would like to opt-in to automatic parent hydration at run time, you may invoke the `chaperone` method when eager loading the relationship:
 
 ```php
 use App\Models\Post;
@@ -1456,7 +1459,7 @@ foreach ($tag->videos as $video) {
 <a name="custom-polymorphic-types"></a>
 ### Custom Polymorphic Types
 
-By default, Laravel will use the fully qualified class name to store the "type" of the related model. For instance, given the one-to-many relationship example above where a `Comment` model may belong to a `Post` or a `Video` model, the default `commentable_type` would be either `App\Models\Post` or `App\Models\Video`, respectively. However, you may wish to decouple these values from your application's internal structure.
+By default, Hypervel will use the fully qualified class name to store the "type" of the related model. For instance, given the one-to-many relationship example above where a `Comment` model may belong to a `Post` or a `Video` model, the default `commentable_type` would be either `App\Models\Post` or `App\Models\Video`, respectively. However, you may wish to decouple these values from your application's internal structure.
 
 For example, instead of using the model names as the "type", we may use simple strings such as `post` and `video`. By doing so, the polymorphic "type" column values in our database will remain valid even if the models are renamed:
 
@@ -1487,7 +1490,7 @@ $class = Relation::getMorphedModel($alias);
 <a name="dynamic-relationships"></a>
 ### Dynamic Relationships
 
-You may use the `resolveRelationUsing` method to define relations between Eloquent models at runtime. While not typically recommended for normal application development, this may occasionally be useful when developing Laravel packages.
+You may use the `resolveRelationUsing` method to define relations between Eloquent models at runtime. While not typically recommended for normal application development, this may occasionally be useful when developing Hypervel packages.
 
 The `resolveRelationUsing` method accepts the desired relationship name as its first argument. The second argument passed to the method should be a closure that accepts the model instance and returns a valid Eloquent relationship definition. Typically, you should configure dynamic relationships within the boot method of a [service provider](/docs/{{version}}/providers):
 
@@ -1499,6 +1502,8 @@ Order::resolveRelationUsing('customer', function (Order $orderModel) {
     return $orderModel->belongsTo(Customer::class, 'customer_id');
 });
 ```
+
+In Hypervel, dynamic relationships should be configured during application boot. Dynamic relationship resolvers are stored on the model class for the worker lifetime and apply across all coroutines.
 
 > [!WARNING]
 > When defining dynamic relationships, always provide explicit key name arguments to the Eloquent relationship methods.
@@ -1540,7 +1545,7 @@ $user = User::find(1);
 $user->posts()->where('active', 1)->get();
 ```
 
-You are able to use any of the Laravel [query builder's](/docs/{{version}}/queries) methods on the relationship, so be sure to explore the query builder documentation to learn about all of the methods that are available to you.
+You are able to use any of the Hypervel [query builder's](/docs/{{version}}/queries) methods on the relationship, so be sure to explore the query builder documentation to learn about all of the methods that are available to you.
 
 <a name="chaining-orwhere-clauses-after-relationships"></a>
 #### Chaining `orWhere` Clauses After Relationships
@@ -1654,10 +1659,10 @@ The `whereAttachedTo` method may be used to query for models that have a many to
 $users = User::whereAttachedTo($role)->get();
 ```
 
-You may also provide a [collection](/docs/{{version}}/eloquent-collections) instance to the `whereAttachedTo` method. When doing so, Laravel will retrieve models that are attached to any of the models within the collection:
+You may also provide a [collection](/docs/{{version}}/eloquent-collections) instance to the `whereAttachedTo` method. When doing so, Hypervel will retrieve models that are attached to any of the models within the collection:
 
 ```php
-$tags = Tag::whereLike('name', '%laravel%')->get();
+$tags = Tag::whereLike('name', '%hypervel%')->get();
 
 $posts = Post::whereAttachedTo($tags)->get();
 ```
@@ -1769,7 +1774,7 @@ $comments = Comment::whereMorphedTo('commentable', $post)
 <a name="querying-all-morph-to-related-models"></a>
 #### Querying All Related Models
 
-Instead of passing an array of possible polymorphic models, you may provide `*` as a wildcard value. This will instruct Laravel to retrieve all of the possible polymorphic types from the database. Laravel will execute an additional query in order to perform this operation:
+Instead of passing an array of possible polymorphic models, you may provide `*` as a wildcard value. This will instruct Hypervel to retrieve all of the possible polymorphic types from the database. Hypervel will execute an additional query in order to perform this operation:
 
 ```php
 use Hypervel\Database\Eloquent\Builder;
@@ -2087,10 +2092,8 @@ class Book extends Model
 {
     /**
      * The relationships that should always be loaded.
-     *
-     * @var array
      */
-    protected $with = ['author'];
+    protected array $with = ['author'];
 
     /**
      * Get the author that wrote the book.
@@ -2252,7 +2255,7 @@ $activities = ActivityFeed::with('parentable')
 > [!WARNING]
 > This feature is currently in beta in order to gather community feedback. The behavior and functionality of this feature may change even on patch releases.
 
-In many cases, Laravel can automatically eager load the relationships you access. To enable automatic eager loading, you should invoke the `Model::automaticallyEagerLoadRelationships` method within the `boot` method of your application's `AppServiceProvider`:
+In many cases, Hypervel can automatically eager load the relationships you access. To enable automatic eager loading, you should invoke the `Model::automaticallyEagerLoadRelationships` method within the `boot` method of your application's `AppServiceProvider`:
 
 ```php
 use Hypervel\Database\Eloquent\Model;
@@ -2266,7 +2269,7 @@ public function boot(): void
 }
 ```
 
-When this feature is enabled, Laravel will attempt to automatically load any relationships you access that have not been previously loaded. For example, consider the following scenario:
+When this feature is enabled, Hypervel will attempt to automatically load any relationships you access that have not been previously loaded. For example, consider the following scenario:
 
 ```php
 use App\Models\User;
@@ -2282,7 +2285,7 @@ foreach ($users as $user) {
 }
 ```
 
-Typically, the code above would execute a query for each user in order to retrieve their posts, as well as a query for each post to retrieve its comments. However, when the `automaticallyEagerLoadRelationships` feature has been enabled, Laravel will automatically [lazy eager load](#lazy-eager-loading) the posts for all users in the user collection when you attempt to access the posts on any of the retrieved users. Likewise, when you attempt to access the comments for any retrieved post, all comments will be lazy eager loaded for all posts that were originally retrieved.
+Typically, the code above would execute a query for each user in order to retrieve their posts, as well as a query for each post to retrieve its comments. However, when the `automaticallyEagerLoadRelationships` feature has been enabled, Hypervel will automatically [lazy eager load](#lazy-eager-loading) the posts for all users in the user collection when you attempt to access the posts on any of the retrieved users. Likewise, when you attempt to access the comments for any retrieved post, all comments will be lazy eager loaded for all posts that were originally retrieved.
 
 If you do not want to globally enable automatic eager loading, you can still enable this feature for a single Eloquent collection instance by invoking the `withRelationshipAutoloading` method on the collection:
 
@@ -2295,7 +2298,7 @@ return $users->withRelationshipAutoloading();
 <a name="preventing-lazy-loading"></a>
 ### Preventing Lazy Loading
 
-As previously discussed, eager loading relationships can often provide significant performance benefits to your application. Therefore, if you would like, you may instruct Laravel to always prevent the lazy loading of relationships. To accomplish this, you may invoke the `preventLazyLoading` method offered by the base Eloquent model class. Typically, you should call this method within the `boot` method of your application's `AppServiceProvider` class.
+As previously discussed, eager loading relationships can often provide significant performance benefits to your application. Therefore, if you would like, you may instruct Hypervel to always prevent the lazy loading of relationships. To accomplish this, you may invoke the `preventLazyLoading` method offered by the base Eloquent model class. Typically, you should call this method within the `boot` method of your application's `AppServiceProvider` class.
 
 The `preventLazyLoading` method accepts an optional boolean argument that indicates if lazy loading should be prevented. For example, you may wish to only disable lazy loading in non-production environments so that your production environment will continue to function normally even if a lazy loaded relationship is accidentally present in production code:
 
@@ -2313,7 +2316,7 @@ public function boot(): void
 
 After preventing lazy loading, Eloquent will throw a `Hypervel\Database\LazyLoadingViolationException` exception when your application attempts to lazy load any Eloquent relationship.
 
-You may customize the behavior of lazy loading violations using the `handleLazyLoadingViolationsUsing` method. For example, using this method, you may instruct lazy loading violations to only be logged instead of interrupting the application's execution with exceptions:
+You may customize the behavior of lazy loading violations using the `handleLazyLoadingViolationUsing` method. For example, using this method, you may instruct lazy loading violations to only be logged instead of interrupting the application's execution with exceptions:
 
 ```php
 Model::handleLazyLoadingViolationUsing(function (Model $model, string $relation) {

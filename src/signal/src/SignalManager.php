@@ -35,6 +35,8 @@ class SignalManager
      */
     public function init(): void
     {
+        $this->handlers = [];
+
         foreach ($this->getQueue() as $class) {
             /** @var SignalHandler $handler */
             $handler = $this->container->make($class);
@@ -68,7 +70,7 @@ class SignalManager
         foreach ($this->handlers[$process] ?? [] as $signal => $handlers) {
             Coroutine::create(function () use ($signal, $handlers) {
                 while (true) {
-                    $ret = EngineSignal::wait($signal, $this->config->get('signal.timeout', 5.0));
+                    $ret = EngineSignal::wait($signal, $this->config->float('signal.timeout', 5.0));
                     if ($ret) {
                         foreach ($handlers as $handler) {
                             $handler->handle($signal);
@@ -92,7 +94,12 @@ class SignalManager
     }
 
     /**
-     * Set the stopped state.
+     * Mark the manager as stopped so signal-watcher coroutines exit.
+     *
+     * Boot-only. Used by SignalDeregisterListener at worker/process exit.
+     * Setting this true permanently halts signal handling for the process; any
+     * subsequent listen() call also spawns coroutines that exit on their first
+     * wait cycle.
      */
     public function setStopped(bool $stopped): self
     {
@@ -116,7 +123,7 @@ class SignalManager
      */
     protected function getQueue(): SplPriorityQueue
     {
-        $handlers = $this->config->get('signal.handlers', []);
+        $handlers = $this->config->array('signal.handlers', []);
 
         $queue = new SplPriorityQueue;
         foreach ($handlers as $handler => $priority) {

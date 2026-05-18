@@ -22,7 +22,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Accessors, mutators, and attribute casting allow you to transform Eloquent attribute values when you retrieve or set them on model instances. For example, you may want to use the [Laravel encrypter](/docs/{{version}}/encryption) to encrypt a value while it is stored in the database, and then automatically decrypt the attribute when you access it on an Eloquent model. Or, you may want to convert a JSON string that is stored in your database to an array when it is accessed via your Eloquent model.
+Accessors, mutators, and attribute casting allow you to transform Eloquent attribute values when you retrieve or set them on model instances. For example, you may want to use the [Hypervel encrypter](/docs/{{version}}/encryption) to encrypt a value while it is stored in the database, and then automatically decrypt the attribute when you access it on an Eloquent model. Or, you may want to convert a JSON string that is stored in your database to an array when it is accessed via your Eloquent model.
 
 <a name="accessors-and-mutators"></a>
 ## Accessors and Mutators
@@ -215,7 +215,16 @@ The `casts` method should return an array where the key is the name of the attri
 <div class="content-list" markdown="1">
 
 - `array`
+- `AsArrayObject::class`
+- `AsBinary::uuid()`
+- `AsCollection::class`
+- `AsDataObject::castUsing(...)`
+- `AsEncryptedArrayObject::class`
+- `AsEncryptedCollection::class`
+- `AsEnumArrayObject::of(...)`
+- `AsEnumCollection::of(...)`
 - `AsFluent::class`
+- `AsHtmlString::class`
 - `AsStringable::class`
 - `AsUri::class`
 - `boolean`
@@ -229,10 +238,13 @@ The `casts` method should return an array where the key is the name of the attri
 - `encrypted`
 - `encrypted:array`
 - `encrypted:collection`
+- `encrypted:json`
 - `encrypted:object`
 - `float`
 - `hashed`
 - `integer`
+- `json`
+- `json:unicode`
 - `object`
 - `real`
 - `string`
@@ -316,6 +328,30 @@ class User extends Model
 }
 ```
 
+<a name="data-object-casting"></a>
+#### Data Object Casting
+
+You may use the `Hypervel\Database\Eloquent\Casts\AsDataObject` cast class to cast a JSON column to a data object:
+
+```php
+use App\DataObjects\UserProfile;
+use Hypervel\Database\Eloquent\Casts\AsDataObject;
+
+/**
+ * Get the attributes that should be cast.
+ *
+ * @return array<string, string>
+ */
+protected function casts(): array
+{
+    return [
+        'profile' => AsDataObject::castUsing(UserProfile::class),
+    ];
+}
+```
+
+The target class should extend `Hypervel\Support\DataObject`.
+
 <a name="array-and-json-casting"></a>
 ### Array and JSON Casting
 
@@ -398,7 +434,7 @@ $user = User::find(1);
 $user->options['key'] = $value;
 ```
 
-To solve this, Laravel offers an `AsArrayObject` cast that casts your JSON attribute to an [ArrayObject](https://www.php.net/manual/en/class.arrayobject.php) class. This feature is implemented using Laravel's [custom cast](#custom-casts) implementation, which allows Laravel to intelligently cache and transform the mutated object such that individual offsets may be modified without triggering a PHP error. To use the `AsArrayObject` cast, simply assign it to an attribute:
+To solve this, Hypervel offers an `AsArrayObject` cast that casts your JSON attribute to an [ArrayObject](https://www.php.net/manual/en/class.arrayobject.php) class. This feature is implemented using Hypervel's [custom cast](#custom-casts) implementation, which allows Hypervel to intelligently cache and transform the mutated object such that individual offsets may be modified without triggering a PHP error. To use the `AsArrayObject` cast, simply assign it to an attribute:
 
 ```php
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
@@ -416,7 +452,7 @@ protected function casts(): array
 }
 ```
 
-Similarly, Laravel offers an `AsCollection` cast that casts your JSON attribute to a Laravel [Collection](/docs/{{version}}/collections) instance:
+Similarly, Hypervel offers an `AsCollection` cast that casts your JSON attribute to a Hypervel [Collection](/docs/{{version}}/collections) instance:
 
 ```php
 use Hypervel\Database\Eloquent\Casts\AsCollection;
@@ -434,7 +470,7 @@ protected function casts(): array
 }
 ```
 
-If you would like the `AsCollection` cast to instantiate a custom collection class instead of Laravel's base collection class, you may provide the collection class name as a cast argument:
+If you would like the `AsCollection` cast to instantiate a custom collection class instead of Hypervel's base collection class, you may provide the collection class name as a cast argument:
 
 ```php
 use App\Collections\OptionCollection;
@@ -467,7 +503,7 @@ use Hypervel\Database\Eloquent\Casts\AsCollection;
 protected function casts(): array
 {
     return [
-        'options' => AsCollection::of(Option::class)
+        'options' => AsCollection::of(Option::class),
     ];
 }
 ```
@@ -501,7 +537,7 @@ class Option implements Arrayable, JsonSerializable
     /**
      * Get the instance as an array.
      *
-     * @return array{name: string, data: string, is_locked: bool}
+     * @return array{name: string, value: mixed, is_locked: bool}
      */
     public function toArray(): array
     {
@@ -515,7 +551,7 @@ class Option implements Arrayable, JsonSerializable
     /**
      * Specify the data which should be serialized to JSON.
      *
-     * @return array{name: string, data: string, is_locked: bool}
+     * @return array{name: string, value: mixed, is_locked: bool}
      */
     public function jsonSerialize(): array
     {
@@ -636,7 +672,7 @@ protected function casts(): array
 Once you have defined the cast on your model, the specified attribute will be automatically cast to and from an enum when you interact with the attribute:
 
 ```php
-if ($server->status == ServerStatus::Provisioned) {
+if ($server->status === ServerStatus::Provisioned) {
     $server->status = ServerStatus::Ready;
 
     $server->save();
@@ -646,7 +682,7 @@ if ($server->status == ServerStatus::Provisioned) {
 <a name="casting-arrays-of-enums"></a>
 #### Casting Arrays of Enums
 
-Sometimes you may need your model to store an array of enum values within a single column. To accomplish this, you may utilize the `AsEnumArrayObject` or `AsEnumCollection` casts provided by Laravel:
+Sometimes you may need your model to store an array of enum values within a single column. To accomplish this, you may utilize the `AsEnumArrayObject` or `AsEnumCollection` casts provided by Hypervel:
 
 ```php
 use App\Enums\ServerStatus;
@@ -668,14 +704,14 @@ protected function casts(): array
 <a name="encrypted-casting"></a>
 ### Encrypted Casting
 
-The `encrypted` cast will encrypt a model's attribute value using Laravel's built-in [encryption](/docs/{{version}}/encryption) features. In addition, the `encrypted:array`, `encrypted:collection`, `encrypted:object`, `AsEncryptedArrayObject`, and `AsEncryptedCollection` casts work like their unencrypted counterparts; however, as you might expect, the underlying value is encrypted when stored in your database.
+The `encrypted` cast will encrypt a model's attribute value using Hypervel's built-in [encryption](/docs/{{version}}/encryption) features. In addition, the `encrypted:array`, `encrypted:collection`, `encrypted:object`, `AsEncryptedArrayObject`, and `AsEncryptedCollection` casts work like their unencrypted counterparts; however, as you might expect, the underlying value is encrypted when stored in your database.
 
 As the final length of the encrypted text is not predictable and is longer than its plain text counterpart, make sure the associated database column is of `TEXT` type or larger. In addition, since the values are encrypted in the database, you will not be able to query or search encrypted attribute values.
 
 <a name="key-rotation"></a>
 #### Key Rotation
 
-As you may know, Laravel encrypts strings using the `key` configuration value specified in your application's `app` configuration file. Typically, this value corresponds to the value of the `APP_KEY` environment variable. If you need to rotate your application's encryption key, you may [gracefully do so](/docs/{{version}}/encryption#gracefully-rotating-encryption-keys).
+As you may know, Hypervel encrypts strings using the `key` configuration value specified in your application's `app` configuration file. Typically, this value corresponds to the value of the `APP_KEY` environment variable. If you need to rotate your application's encryption key, you may [gracefully do so](/docs/{{version}}/encryption#gracefully-rotating-encryption-keys).
 
 <a name="query-time-casting"></a>
 ### Query Time Casting
@@ -708,7 +744,7 @@ $users = User::select([
 <a name="custom-casts"></a>
 ## Custom Casts
 
-Laravel has a variety of built-in, helpful cast types; however, you may occasionally need to define your own cast types. To create a cast, execute the `make:cast` Artisan command. The new cast class will be placed in your `app/Casts` directory:
+Hypervel has a variety of built-in, helpful cast types; however, you may occasionally need to define your own cast types. To create a cast, execute the `make:cast` Artisan command. The new cast class will be placed in your `app/Casts` directory:
 
 ```shell
 php artisan make:cast AsJson
@@ -924,7 +960,7 @@ class AsHash implements CastsInboundAttributes
      * Create a new cast class instance.
      */
     public function __construct(
-        protected string|null $algorithm = null,
+        protected ?string $algorithm = null,
     ) {}
 
     /**
@@ -938,7 +974,7 @@ class AsHash implements CastsInboundAttributes
         mixed $value,
         array $attributes,
     ): string {
-        return is_null($this->algorithm)
+        return $this->algorithm === null
             ? bcrypt($value)
             : hash($this->algorithm, $value);
     }
@@ -1014,8 +1050,8 @@ Objects that implement the `Castable` interface must define a `castUsing` method
 
 namespace App\ValueObjects;
 
-use Hypervel\Contracts\Database\Eloquent\Castable;
 use App\Casts\AsAddress;
+use Hypervel\Contracts\Database\Eloquent\Castable;
 
 class Address implements Castable
 {
@@ -1056,6 +1092,7 @@ namespace App\ValueObjects;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\Model;
 
 class Address implements Castable
 {

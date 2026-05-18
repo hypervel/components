@@ -125,8 +125,6 @@ trait RunTestsInCoroutine
      */
     protected function cleanupTestContext(): void
     {
-        DatabaseTransactionsManager::flushState();
-
         // Model guard state
         CoroutineContext::forget(Model::UNGUARDED_CONTEXT_KEY);
     }

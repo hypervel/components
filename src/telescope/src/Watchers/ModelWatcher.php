@@ -20,11 +20,6 @@ class ModelWatcher extends Watcher
     public const HYDRATIONS_CONTEXT_KEY = '__telescope.watcher.model.hydrations';
 
     /**
-     * Telescope entries to store the count model hydrations.
-     */
-    public array $hydrationEntries = [];
-
-    /**
      * Register the watcher.
      */
     public function register(Application $app): void

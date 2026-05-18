@@ -99,6 +99,10 @@ trait Fallback
 
     /**
      * Reset fallback state to defaults.
+     *
+     * Boot or tests only. Clears worker-wide prompt fallback configuration;
+     * concurrent prompts may render with different fallback behavior depending
+     * on timing.
      */
     public static function resetFallback(): void
     {
