@@ -6,6 +6,7 @@ namespace Hypervel\Queue\Console;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Job;
@@ -58,11 +59,6 @@ class WorkCommand extends Command
      * The console command description.
      */
     protected string $description = 'Start processing jobs on the queue as a daemon';
-
-    /**
-     * Holds the start time of the last processed job, if any.
-     */
-    protected ?float $latestStartedAt = null;
 
     /**
      * Indicates if the worker's event listeners have been registered.
@@ -218,7 +214,7 @@ class WorkCommand extends Command
         ));
 
         if ($status == 'starting') {
-            $this->latestStartedAt = microtime(true);
+            $this->setLatestStartedAt(microtime(true));
 
             $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
                 $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
@@ -231,7 +227,7 @@ class WorkCommand extends Command
             return;
         }
 
-        $runTime = $this->runTimeForHumans($this->latestStartedAt);
+        $runTime = $this->runTimeForHumans($this->getLatestStartedAt());
 
         $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
             $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
@@ -274,9 +270,9 @@ class WorkCommand extends Command
         ]);
 
         if ($status === 'starting') {
-            $this->latestStartedAt = microtime(true);
+            $this->setLatestStartedAt(microtime(true));
         } else {
-            $log['duration'] = round(microtime(true) - $this->latestStartedAt, 6);
+            $log['duration'] = round(microtime(true) - $this->getLatestStartedAt(), 6);
         }
 
         $this->output->writeln(json_encode($log));
@@ -349,5 +345,15 @@ class WorkCommand extends Command
     public static function flushState(): void
     {
         static::$hasRegisteredListeners = false;
+    }
+
+    protected function getLatestStartedAt(): ?float
+    {
+        return Context::get('__queue.worker.latest_started_at');
+    }
+
+    protected function setLatestStartedAt(?float $latestStartedAt): void
+    {
+        Context::set('__queue.worker.latest_started_at', $latestStartedAt);
     }
 }
