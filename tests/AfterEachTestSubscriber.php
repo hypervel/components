@@ -49,8 +49,10 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Console\Commands\ScheduleListCommand::flushState();
         \Hypervel\Console\Scheduling\Event::flushState();
         \Hypervel\Console\Scheduling\Schedule::flushState();
-        \Hypervel\Container\BoundMethod::flushMethodRecipeCache();
+        \Hypervel\Container\BoundMethod::flushState();
+        \Hypervel\Container\Container::flushState();
         \Hypervel\Container\Container::setInstance(null);
+        \Hypervel\Container\ReflectionManager::flushState();
         \Hypervel\Context\CoroutineContext::flush();
         \Hypervel\Cookie\Middleware\EncryptCookies::flushState();
         \Hypervel\Coroutine\Coroutine::flushAfterCreated();

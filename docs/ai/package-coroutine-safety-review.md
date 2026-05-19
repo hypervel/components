@@ -113,8 +113,10 @@ Classify every hit:
 
 ```bash
 grep -rn "protected static\|private static\|public static" \
-    src/{pkg}/src --include="*.php" | grep -v function
+    src/{pkg}/src --include="*.php" | grep -v "static function"
 ```
+
+The filter must be `"static function"`, not just `function` — a property named `$functionRecipes` or `$functionCache` would be silently dropped by the looser filter.
 
 | Category | Verdict |
 |---|---|
@@ -310,7 +312,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `container` (round 2)
+**Next:** `context` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -325,7 +327,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 9 | `conditionable` | ✓ |
 | 10 | `config` | ✓ |
 | 11 | `console` | ✓ |
-| 12 | `container` |   |
+| 12 | `container` | ✓ |
 | 13 | `context` |   |
 | 14 | `contracts` |   |
 | 15 | `cookie` |   |
