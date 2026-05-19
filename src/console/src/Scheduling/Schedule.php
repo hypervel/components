@@ -79,6 +79,11 @@ class Schedule
     protected array $mutexCache = [];
 
     /**
+     * The minute currently represented by the in-memory mutex cache.
+     */
+    protected ?string $mutexCacheMinute = null;
+
+    /**
      * The attributes to pass to the event.
      */
     protected ?PendingEventAttributes $attributes = null;
@@ -359,6 +364,13 @@ class Schedule
      */
     public function serverShouldRun(Event $event, DateTimeInterface $time): bool
     {
+        $mutexCacheMinute = $time->format('YmdHi');
+
+        if ($this->mutexCacheMinute !== $mutexCacheMinute) {
+            $this->mutexCacheMinute = $mutexCacheMinute;
+            $this->mutexCache = [];
+        }
+
         return $this->mutexCache[$event->mutexName()] ??= $this->schedulingMutex->create($event, $time);
     }
 
@@ -382,6 +394,9 @@ class Schedule
 
     /**
      * Specify the cache store that should be used to store mutexes.
+     *
+     * Boot-only. Mutates the shared mutex instances used by this worker's
+     * schedule; per-request use races across coroutines.
      */
     public function useCache(UnitEnum|string|null $store): static
     {
@@ -422,6 +437,14 @@ class Schedule
         }
 
         return $this->dispatcher;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 
     /**

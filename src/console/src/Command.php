@@ -422,4 +422,12 @@ class Command extends SymfonyCommand
 
         return $uses;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

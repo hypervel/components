@@ -310,7 +310,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `console` (round 2)
+**Next:** `container` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -324,7 +324,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 8 | `concurrency` | ✓ |
 | 9 | `conditionable` | ✓ |
 | 10 | `config` | ✓ |
-| 11 | `console` |   |
+| 11 | `console` | ✓ |
 | 12 | `container` |   |
 | 13 | `context` |   |
 | 14 | `contracts` |   |
