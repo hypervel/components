@@ -13,31 +13,27 @@
     - [Customizing Monolog for Channels](#customizing-monolog-for-channels)
     - [Creating Monolog Handler Channels](#creating-monolog-handler-channels)
     - [Creating Custom Channels via Factories](#creating-custom-channels-via-factories)
-- [Tailing Log Messages Using Pail](#tailing-log-messages-using-pail)
-    - [Installation](#pail-installation)
-    - [Usage](#pail-usage)
-    - [Filtering Logs](#pail-filtering-logs)
 
 <a name="introduction"></a>
 ## Introduction
 
-To help you learn more about what's happening within your application, Laravel provides robust logging services that allow you to log messages to files, the system error log, and even to Slack to notify your entire team.
+To help you learn more about what's happening within your application, Hypervel provides robust logging services that allow you to log messages to files, the system error log, and even to Slack to notify your entire team.
 
-Laravel logging is based on "channels". Each channel represents a specific way of writing log information. For example, the `single` channel writes log files to a single log file, while the `slack` channel sends log messages to Slack. Log messages may be written to multiple channels based on their severity.
+Hypervel logging is based on "channels". Each channel represents a specific way of writing log information. For example, the `single` channel writes log files to a single log file, while the `slack` channel sends log messages to Slack. Log messages may be written to multiple channels based on their severity.
 
-Under the hood, Laravel utilizes the [Monolog](https://github.com/Seldaek/monolog) library, which provides support for a variety of powerful log handlers. Laravel makes it a cinch to configure these handlers, allowing you to mix and match them to customize your application's log handling.
+Under the hood, Hypervel utilizes the [Monolog](https://github.com/Seldaek/monolog) library, which provides support for a variety of powerful log handlers. Hypervel makes it a cinch to configure these handlers, allowing you to mix and match them to customize your application's log handling.
 
 <a name="configuration"></a>
 ## Configuration
 
 All of the configuration options that control your application's logging behavior are housed in the `config/logging.php` configuration file. This file allows you to configure your application's log channels, so be sure to review each of the available channels and their options. We'll review a few common options below.
 
-By default, Laravel will use the `stack` channel when logging messages. The `stack` channel is used to aggregate multiple log channels into a single channel. For more information on building stacks, check out the [documentation below](#building-log-stacks).
+By default, Hypervel will use the `stack` channel when logging messages. The `stack` channel is used to aggregate multiple log channels into a single channel. For more information on building stacks, check out the [documentation below](#building-log-stacks).
 
 <a name="available-channel-drivers"></a>
 ### Available Channel Drivers
 
-Each log channel is powered by a "driver". The driver determines how and where the log message is actually recorded. The following log channel drivers are available in every Laravel application. An entry for most of these drivers is already present in your application's `config/logging.php` configuration file, so be sure to review this file to become familiar with its contents:
+Each log channel is powered by a "driver". The driver determines how and where the log message is actually recorded. The following log channel drivers are available in every Hypervel application. An entry for most of these drivers is already present in your application's `config/logging.php` configuration file, so be sure to review this file to become familiar with its contents:
 
 <div class="overflow-auto">
 
@@ -47,7 +43,6 @@ Each log channel is powered by a "driver". The driver determines how and where t
 | `daily`      | A `RotatingFileHandler` based Monolog driver which rotates daily.    |
 | `errorlog`   | An `ErrorLogHandler` based Monolog driver.                           |
 | `monolog`    | A Monolog factory driver that may use any supported Monolog handler. |
-| `papertrail` | A `SyslogUdpHandler` based Monolog driver.                           |
 | `single`     | A single file or path based logger channel (`StreamHandler`).        |
 | `slack`      | A `SlackWebhookHandler` based Monolog driver.                        |
 | `stack`      | A wrapper to facilitate creating "multi-channel" channels.           |
@@ -102,7 +97,7 @@ Additionally, the retention policy for the `daily` channel can be configured via
 <a name="configuring-the-papertrail-channel"></a>
 #### Configuring the Papertrail Channel
 
-The `papertrail` channel requires `host` and `port` configuration options. These may be defined via the `PAPERTRAIL_URL` and `PAPERTRAIL_PORT` environment variables. You can obtain these values from [Papertrail](https://help.papertrailapp.com/kb/configuration/configuring-centralized-logging-from-php-apps/#send-events-from-php-app).
+The default `papertrail` channel is a `monolog` channel that uses Monolog's `SyslogUdpHandler`. This channel requires `host` and `port` configuration options. These may be defined via the `PAPERTRAIL_URL` and `PAPERTRAIL_PORT` environment variables. You can obtain these values from [Papertrail](https://help.papertrailapp.com/kb/configuration/configuring-centralized-logging-from-php-apps/#send-events-from-php-app).
 
 <a name="configuring-the-slack-channel"></a>
 #### Configuring the Slack Channel
@@ -111,10 +106,17 @@ The `slack` channel requires a `url` configuration option. This value may be def
 
 By default, Slack will only receive logs at the `critical` level and above; however, you can adjust this using the `LOG_LEVEL` environment variable or by modifying the `level` configuration option within your Slack log channel's configuration array.
 
+<a name="configuring-the-standard-output-channels"></a>
+#### Configuring the Standard Output Channels
+
+Hypervel's default logging configuration includes `stdout` and `stderr` channels. These channels are useful when your application is running inside a process manager, container, or platform that collects logs from standard output streams.
+
+The `stdout` channel writes messages to `php://stdout`, while the `stderr` channel writes messages to `php://stderr`. You may customize their formatters using the `LOG_STDOUT_FORMATTER` and `LOG_STDERR_FORMATTER` environment variables.
+
 <a name="logging-deprecation-warnings"></a>
 ### Logging Deprecation Warnings
 
-PHP, Laravel, and other libraries often notify their users that some of their features have been deprecated and will be removed in a future version. If you would like to log these deprecation warnings, you may specify your preferred `deprecations` log channel using the `LOG_DEPRECATIONS_CHANNEL` environment variable, or within your application's `config/logging.php` configuration file:
+PHP, Hypervel, and other libraries often notify their users that some of their features have been deprecated and will be removed in a future version. If you would like to log these deprecation warnings, you may specify your preferred `deprecations` log channel using the `LOG_DEPRECATIONS_CHANNEL` environment variable, or within your application's `config/logging.php` configuration file:
 
 ```php
 'deprecations' => [
@@ -161,7 +163,7 @@ As mentioned previously, the `stack` driver allows you to combine multiple chann
     'slack' => [
         'driver' => 'slack',
         'url' => env('LOG_SLACK_WEBHOOK_URL'),
-        'username' => env('LOG_SLACK_USERNAME', 'Laravel Log'),
+        'username' => env('LOG_SLACK_USERNAME', env('APP_NAME', 'Hypervel')),
         'emoji' => env('LOG_SLACK_EMOJI', ':boom:'),
         'level' => env('LOG_LEVEL', 'critical'),
         'replace_placeholders' => true,
@@ -174,7 +176,7 @@ Let's dissect this configuration. First, notice our `stack` channel aggregates t
 <a name="log-levels"></a>
 #### Log Levels
 
-Take note of the `level` configuration option present on the `syslog` and `slack` channel configurations in the example above. This option determines the minimum "level" a message must be in order to be logged by the channel. Monolog, which powers Laravel's logging services, offers all of the log levels defined in the [RFC 5424 specification](https://tools.ietf.org/html/rfc5424). In descending order of severity, these log levels are: **emergency**, **alert**, **critical**, **error**, **warning**, **notice**, **info**, and **debug**.
+Take note of the `level` configuration option present on the `syslog` and `slack` channel configurations in the example above. This option determines the minimum "level" a message must be in order to be logged by the channel. Monolog, which powers Hypervel's logging services, offers all of the log levels defined in the [RFC 5424 specification](https://tools.ietf.org/html/rfc5424). In descending order of severity, these log levels are: **emergency**, **alert**, **critical**, **error**, **warning**, **notice**, **info**, and **debug**.
 
 So, imagine we log a message using the `debug` method:
 
@@ -367,7 +369,7 @@ Log::stack(['slack', $channel])->info('Something happened!');
 <a name="customizing-monolog-for-channels"></a>
 ### Customizing Monolog for Channels
 
-Sometimes you may need complete control over how Monolog is configured for an existing channel. For example, you may want to configure a custom Monolog `FormatterInterface` implementation for Laravel's built-in `single` channel.
+Sometimes you may need complete control over how Monolog is configured for an existing channel. For example, you may want to configure a custom Monolog `FormatterInterface` implementation for Hypervel's built-in `single` channel.
 
 To get started, define a `tap` array on the channel's configuration. The `tap` array should contain a list of classes that should have an opportunity to customize (or "tap" into) the Monolog instance after it is created. There is no conventional location where these classes should be placed, so you are free to create a directory within your application to contain these classes:
 
@@ -375,7 +377,7 @@ To get started, define a `tap` array on the channel's configuration. The `tap` a
 'single' => [
     'driver' => 'single',
     'tap' => [App\Logging\CustomizeFormatter::class],
-    'path' => storage_path('logs/laravel.log'),
+    'path' => storage_path('logs/hypervel.log'),
     'level' => env('LOG_LEVEL', 'debug'),
     'replace_placeholders' => true,
 ],
@@ -413,7 +415,7 @@ class CustomizeFormatter
 <a name="creating-monolog-handler-channels"></a>
 ### Creating Monolog Handler Channels
 
-Monolog has a variety of [available handlers](https://github.com/Seldaek/monolog/tree/main/src/Monolog/Handler) and Laravel does not include a built-in channel for each one. In some cases, you may wish to create a custom channel that is merely an instance of a specific Monolog handler that does not have a corresponding Laravel log driver. These channels can be easily created using the `monolog` driver.
+Monolog has a variety of [available handlers](https://github.com/Seldaek/monolog/tree/main/src/Monolog/Handler) and Hypervel does not include a built-in channel for each one. In some cases, you may wish to create a custom channel that is merely an instance of a specific Monolog handler that does not have a corresponding Hypervel log driver. These channels can be easily created using the `monolog` driver.
 
 When using the `monolog` driver, the `handler` configuration option is used to specify which handler will be instantiated. Optionally, any constructor parameters the handler needs may be specified using the `handler_with` configuration option:
 
@@ -514,87 +516,4 @@ class CreateCustomLogger
         return new Logger(/* ... */);
     }
 }
-```
-
-<a name="tailing-log-messages-using-pail"></a>
-## Tailing Log Messages Using Pail
-
-Often you may need to tail your application's logs in real time. For example, when debugging an issue or when monitoring your application's logs for specific types of errors.
-
-Laravel Pail is a package that allows you to easily dive into your Laravel application's log files directly from the command line. Unlike the standard `tail` command, Pail is designed to work with any log driver, including Sentry or Flare. In addition, Pail provides a set of useful filters to help you quickly find what you're looking for.
-
-<img src="https://laravel.com/img/docs/pail-example.png">
-
-<a name="pail-installation"></a>
-### Installation
-
-> [!WARNING]
-> Laravel Pail requires the [PCNTL](https://www.php.net/manual/en/book.pcntl.php) PHP extension.
-
-To get started, install Pail into your project using the Composer package manager:
-
-```shell
-composer require --dev laravel/pail
-```
-
-<a name="pail-usage"></a>
-### Usage
-
-To start tailing logs, run the `pail` command:
-
-```shell
-php artisan pail
-```
-
-To increase the verbosity of the output and avoid truncation (…), use the `-v` option:
-
-```shell
-php artisan pail -v
-```
-
-For maximum verbosity and to display exception stack traces, use the `-vv` option:
-
-```shell
-php artisan pail -vv
-```
-
-To stop tailing logs, press `Ctrl+C` at any time.
-
-<a name="pail-filtering-logs"></a>
-### Filtering Logs
-
-<a name="pail-filtering-logs-filter-option"></a>
-#### `--filter`
-
-You may use the `--filter` option to filter logs by their type, file, message, and stack trace content:
-
-```shell
-php artisan pail --filter="QueryException"
-```
-
-<a name="pail-filtering-logs-message-option"></a>
-#### `--message`
-
-To filter logs by only their message, you may use the `--message` option:
-
-```shell
-php artisan pail --message="User created"
-```
-
-<a name="pail-filtering-logs-level-option"></a>
-#### `--level`
-
-The `--level` option may be used to filter logs by their [log level](#log-levels):
-
-```shell
-php artisan pail --level=error
-```
-
-<a name="pail-filtering-logs-user-option"></a>
-#### `--user`
-
-To only display logs that were written while a given user was authenticated, you may provide the user's ID to the `--user` option:
-
-```shell
-php artisan pail --user=1
 ```

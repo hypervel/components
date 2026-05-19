@@ -39,6 +39,7 @@ installation.md
 introduction.md
 lifecycle.md
 localization.md
+logging.md
 pagination.md
 requests.md
 routing.md
