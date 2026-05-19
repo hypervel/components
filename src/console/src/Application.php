@@ -30,9 +30,9 @@ use Symfony\Component\Process\PhpExecutableFinder;
 class Application extends SymfonyApplication implements ConsoleApplicationContract
 {
     /**
-     * The output from the previous command.
+     * The CoroutineContext key holding the output from the previous command.
      */
-    protected string $lastOutputContextKey = 'console.last_output';
+    protected const LAST_OUTPUT_CONTEXT_KEY = '__console.last_output';
 
     /**
      * The console application bootstrappers.
@@ -148,7 +148,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
 
         return $this->run(
             $input,
-            CoroutineContext::set($this->lastOutputContextKey, $outputBuffer ?: new BufferedOutput)
+            CoroutineContext::set(self::LAST_OUTPUT_CONTEXT_KEY, $outputBuffer ?: new BufferedOutput)
         );
     }
 
@@ -183,7 +183,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      */
     public function output(): string
     {
-        $lastOutput = CoroutineContext::get($this->lastOutputContextKey);
+        $lastOutput = CoroutineContext::get(self::LAST_OUTPUT_CONTEXT_KEY);
 
         return $lastOutput && method_exists($lastOutput, 'fetch')
             ? $lastOutput->fetch()
