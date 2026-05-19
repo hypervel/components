@@ -37,6 +37,8 @@ http-client.md
 http-tests.md
 installation.md
 introduction.md
+lifecycle.md
+localization.md
 pagination.md
 requests.md
 routing.md
