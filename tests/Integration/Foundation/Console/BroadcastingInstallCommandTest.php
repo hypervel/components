@@ -42,7 +42,8 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
             $this->skeletonBootstrapFixture()
         );
 
-        // Singleton so we can inspect composerRequireCalls after the test.
+        TestableBroadcastingInstallCommand::$composerRequireCalls = [];
+
         $this->app->singleton(BroadcastingInstallCommand::class, TestableBroadcastingInstallCommand::class);
 
         // Ensure routes/ directory exists.
@@ -387,9 +388,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
             ->assertSuccessful();
 
         // Verify composer require was called for reverb.
-        /** @var TestableBroadcastingInstallCommand $command */
-        $command = $this->app->make(BroadcastingInstallCommand::class);
-        $reverbCalls = array_filter($command->composerRequireCalls, function (array $call): bool {
+        $reverbCalls = array_filter(TestableBroadcastingInstallCommand::$composerRequireCalls, function (array $call): bool {
             return in_array('hypervel/reverb:^0.4', $call['packages'], true);
         });
         $this->assertCount(1, $reverbCalls);
@@ -549,11 +548,11 @@ PHP;
 class TestableBroadcastingInstallCommand extends BroadcastingInstallCommand
 {
     /** @var list<array{composer: string, packages: array<int, string>}> */
-    public array $composerRequireCalls = [];
+    public static array $composerRequireCalls = [];
 
     protected function requireComposerPackages(string $composer, array $packages): bool
     {
-        $this->composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages];
+        static::$composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages];
 
         return true;
     }

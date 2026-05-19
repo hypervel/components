@@ -101,7 +101,7 @@ class ConsoleApplicationResolveTest extends TestCase
         $command = new SymfonyCommand('test:dynamic');
         $container = $this->createMock(Application::class);
         $container->expects($this->once())
-            ->method('build')
+            ->method('make')
             ->with(StubDynamicCommand::class)
             ->willReturn($command);
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -478,12 +479,33 @@ class Worker
      */
     protected function runJob(JobContract $job, string $connectionName, WorkerOptions $options): null
     {
+        $contextValues = $options->coroutineContext;
+        $previousContextValues = [];
+        $previousContextExists = [];
+
+        // Daemon jobs run in child coroutines, so command/output context has
+        // to be seeded explicitly for queue event listeners while this job runs.
+        foreach ($contextValues as $key => $value) {
+            $previousContextExists[$key] = CoroutineContext::has($key);
+            $previousContextValues[$key] = CoroutineContext::get($key);
+
+            CoroutineContext::set($key, $value);
+        }
+
         try {
             $this->process($connectionName, $job, $options);
         } catch (Throwable $e) {
             $this->exceptions->report($e);
 
             $this->stopWorkerIfLostConnection($e);
+        } finally {
+            foreach ($contextValues as $key => $_) {
+                if ($previousContextExists[$key]) {
+                    CoroutineContext::set($key, $previousContextValues[$key]);
+                } else {
+                    CoroutineContext::forget($key);
+                }
+            }
         }
 
         return null;

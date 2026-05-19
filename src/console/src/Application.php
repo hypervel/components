@@ -165,7 +165,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
                 $command = get_class($command);
             }
 
-            $command = $this->container->build($command)->getName();
+            $command = $this->container->make($command)->getName();
         }
 
         if (! isset($callingClass) && empty($parameters)) {
@@ -288,7 +288,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
         }
 
         // Eager fallback for commands whose name cannot be determined statically.
-        return $this->addCommand($this->container->build($command));
+        return $this->addCommand($this->container->make($command));
     }
 
     /**

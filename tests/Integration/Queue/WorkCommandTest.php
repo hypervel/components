@@ -151,6 +151,23 @@ class WorkCommandTest extends QueueTestCase
         $this->assertTrue(SecondJob::$ran);
     }
 
+    public function testDaemonWritesOutputFromJobCoroutine()
+    {
+        $this->markTestSkippedWhenUsingQueueDrivers(['redis', 'beanstalkd']);
+
+        Queue::push(new FirstJob);
+
+        $this->assertSame(0, $this->withoutMockingConsoleOutput()->artisan('queue:work', [
+            '--daemon' => true,
+            '--stop-when-empty' => true,
+            '--max-jobs' => 1,
+            '--memory' => 1024,
+            '--sleep' => 0,
+        ]));
+
+        $this->assertStringContainsString(FirstJob::class, Artisan::output());
+    }
+
     public function testMemoryExceeded()
     {
         Queue::push(new FirstJob);

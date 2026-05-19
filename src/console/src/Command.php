@@ -352,7 +352,7 @@ class Command extends SymfonyCommand
             if (! class_exists($command)) {
                 $command = clone $this->getApplication()->find($command);
             } else {
-                $command = $this->hypervel->build($command);
+                $command = $this->hypervel->make($command);
             }
         } else {
             $command = clone $command;

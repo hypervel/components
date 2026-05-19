@@ -21,6 +21,8 @@ class WorkerOptions
      * @param int $maxTime the maximum number of seconds a worker may live
      * @param int $rest the number of seconds to rest between jobs
      * @param int $concurrency the number of jobs to process at once
+     * @param int $monitorInterval the number of seconds between timeout scans
+     * @param array<string, mixed> $coroutineContext context values to seed while each job runs
      */
     public function __construct(
         public string $name = 'default',
@@ -36,6 +38,7 @@ class WorkerOptions
         public int $rest = 0,
         public int $concurrency = 1,
         public int $monitorInterval = 1,
+        public array $coroutineContext = [],
     ) {
     }
 }
