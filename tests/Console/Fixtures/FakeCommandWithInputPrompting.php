@@ -30,6 +30,8 @@ class FakeCommandWithInputPrompting extends Command implements PromptsForMissing
 
     public function handle(): int
     {
+        $this->line((string) $this->argument('name'));
+
         return self::SUCCESS;
     }
 }

@@ -40,6 +40,11 @@ class Event
     use Tappable;
 
     /**
+     * Context key prefix for the current run's exit code.
+     */
+    protected const EXIT_CODE_CONTEXT_KEY_PREFIX = '__console.scheduling_exit_code.';
+
+    /**
      * The command string.
      */
     public ?string $command = null;
@@ -78,6 +83,9 @@ class Event
 
     /**
      * The exit status code of the command.
+     *
+     * Compatibility snapshot of the last completed run. Use exitCode() inside
+     * callbacks so overlapping repeat/background runs read their own result.
      */
     public ?int $exitCode = null;
 
@@ -218,7 +226,7 @@ class Event
      */
     public function finish(Container $container, int $exitCode): void
     {
-        $this->exitCode = (int) $exitCode;
+        $this->setExitCode((int) $exitCode);
 
         try {
             $this->callAfterCallbacks($container);
@@ -608,7 +616,7 @@ class Event
         }
 
         return $this->then(function (Container $container) use ($callback) {
-            if ($this->exitCode === 0) {
+            if ($this->exitCode() === 0) {
                 $container->call($callback);
             }
         });
@@ -636,7 +644,7 @@ class Event
         }
 
         return $this->then(function (Container $container) use ($callback) {
-            if ($this->exitCode !== 0) {
+            if ($this->exitCode() !== 0) {
                 $container->call($callback);
             }
         });
@@ -740,6 +748,34 @@ class Event
         if ($this->withoutOverlapping) {
             $this->mutex->forget($this);
         }
+    }
+
+    /**
+     * Set the exit code for the current event run.
+     */
+    protected function setExitCode(int $exitCode): void
+    {
+        $this->exitCode = $exitCode;
+
+        // The public property is kept for compatibility, but onSuccess/onFailure
+        // must read the coroutine-local value when repeat/background runs overlap.
+        CoroutineContext::set($this->exitCodeContextKey(), $exitCode);
+    }
+
+    /**
+     * Get the exit code for the current event run.
+     */
+    public function exitCode(): ?int
+    {
+        return CoroutineContext::get($this->exitCodeContextKey(), $this->exitCode);
+    }
+
+    /**
+     * Get the context key for this event's current run.
+     */
+    protected function exitCodeContextKey(): string
+    {
+        return self::EXIT_CODE_CONTEXT_KEY_PREFIX . spl_object_id($this);
     }
 
     /**

@@ -302,7 +302,7 @@ class ScheduleRunCommand extends Command
         $finishDescription = sprintf(
             '<fg=gray>%s</> %s [%s] <fg=gray>%sms</>',
             Carbon::now()->format('Y-m-d H:i:s'),
-            $event->exitCode == 0 ? '<info>Finished</info>' : '<error>Failed</error>',
+            $event->exitCode() === 0 ? '<info>Finished</info>' : '<error>Failed</error>',
             $command,
             round(microtime(true) - $start, 2),
         );

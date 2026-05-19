@@ -20,6 +20,7 @@ use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputDefinition;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -164,7 +165,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
                 $command = get_class($command);
             }
 
-            $command = $this->container->make($command)->getName();
+            $command = $this->container->build($command)->getName();
         }
 
         if (! isset($callingClass) && empty($parameters)) {
@@ -219,6 +220,39 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     }
 
     /**
+     * Run the given command instance.
+     */
+    #[Override]
+    protected function doRunCommand(SymfonyCommand $command, InputInterface $input, OutputInterface $output): int
+    {
+        return parent::doRunCommand(
+            $this->freshCommandForRun($command),
+            $input,
+            $output
+        );
+    }
+
+    /**
+     * Create a per-execution command instance from the cached command prototype.
+     *
+     * Symfony caches command objects after lazy resolution, but Hypervel commands
+     * store input/output state while running. Execute clones so concurrent calls
+     * to the same command cannot overwrite each other's per-run state.
+     */
+    protected function freshCommandForRun(SymfonyCommand $command): SymfonyCommand
+    {
+        $command = clone $command;
+
+        $command->setApplication($this);
+
+        if ($command instanceof Command) {
+            $command->setHypervel($this->container);
+        }
+
+        return $command;
+    }
+
+    /**
      * Add a command, resolving through the application.
      *
      * Commands whose name can be determined statically (#[AsCommand],
@@ -254,7 +288,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
         }
 
         // Eager fallback for commands whose name cannot be determined statically.
-        return $this->addCommand($this->container->make($command));
+        return $this->addCommand($this->container->build($command));
     }
 
     /**

@@ -204,7 +204,7 @@ class CommandTest extends TestCase
         $app->shouldReceive('call')->with([$command, 'handle'])->andReturnUsing(function () use ($command, $app) {
             $commandCalled = m::mock(Command::class);
 
-            $app->shouldReceive('make')->once()->with(Command::class)->andReturn($commandCalled);
+            $app->shouldReceive('build')->once()->with(Command::class)->andReturn($commandCalled);
 
             $commandCalled->shouldReceive('setApplication')->once()->with(null);
             $commandCalled->shouldReceive('setHypervel')->once();

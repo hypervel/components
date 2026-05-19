@@ -14,9 +14,11 @@ use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Engine\Channel;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
@@ -25,6 +27,8 @@ use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
 use Swoole\Coroutine;
+
+use function Hypervel\Coroutine\parallel;
 
 class ScheduleRunCommandTest extends TestCase
 {
@@ -201,6 +205,40 @@ class ScheduleRunCommandTest extends TestCase
         // less than 10 seconds have passed. Event should be skipped.
         $this->invokeRunEvents($command, [$callbackEvent]);
         $this->assertSame(1, $runCount);
+    }
+
+    public function testConcurrentFinishesUseRunLocalExitCodeForSuccessAndFailureCallbacks()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+        $event = new Event($eventMutex, 'test:overlap');
+        $channel = new Channel(2);
+
+        $event->then(function () {
+            usleep(5000);
+        });
+        $event->onSuccess(function () use ($channel) {
+            $channel->push(CoroutineContext::get('__test.schedule_run') . ':success');
+        });
+        $event->onFailure(function () use ($channel) {
+            $channel->push(CoroutineContext::get('__test.schedule_run') . ':failure');
+        });
+
+        parallel([
+            function () use ($event) {
+                CoroutineContext::set('__test.schedule_run', 'alpha');
+                $event->finish($this->app, 0);
+            },
+            function () use ($event) {
+                usleep(2500);
+                CoroutineContext::set('__test.schedule_run', 'bravo');
+                $event->finish($this->app, 1);
+            },
+        ]);
+
+        $results = [$channel->pop(), $channel->pop()];
+
+        $this->assertContains('alpha:success', $results);
+        $this->assertContains('bravo:failure', $results);
     }
 
     /**

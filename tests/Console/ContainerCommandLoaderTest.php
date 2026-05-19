@@ -17,7 +17,7 @@ class ContainerCommandLoaderTest extends TestCase
         $command = new Command('test:command');
         $container = $this->createMock(Container::class);
         $container->expects($this->once())
-            ->method('make')
+            ->method('build')
             ->with(TestCommand::class)
             ->willReturn($command);
 

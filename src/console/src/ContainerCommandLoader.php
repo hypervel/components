@@ -31,7 +31,7 @@ class ContainerCommandLoader implements CommandLoaderInterface
             throw new CommandNotFoundException(sprintf('Command "%s" does not exist.', $name));
         }
 
-        return $this->container->make($this->commandMap[$name]);
+        return $this->container->build($this->commandMap[$name]);
     }
 
     /**
