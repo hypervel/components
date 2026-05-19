@@ -111,4 +111,12 @@ class ModelIdentifier
     {
         static::$useMorphMap = $useMorphMap;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$useMorphMap = false;
+    }
 }
