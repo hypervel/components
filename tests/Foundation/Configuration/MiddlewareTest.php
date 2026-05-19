@@ -362,6 +362,28 @@ class MiddlewareTest extends TestCase
         ], $middleware->getMiddlewareAliases());
     }
 
+    public function testThrottleWithRedisUsesRedisThrottleMiddlewareAlias()
+    {
+        $middleware = new Middleware;
+        $middleware->throttleWithRedis();
+
+        $this->assertSame(
+            \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
+            $middleware->getMiddlewareAliases()['throttle']
+        );
+    }
+
+    public function testThrottleApiWithRedisUsesRedisThrottleMiddlewareAlias()
+    {
+        $middleware = new Middleware;
+        $middleware->throttleApi(redis: true);
+
+        $this->assertSame(
+            \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
+            $middleware->getMiddlewareAliases()['throttle']
+        );
+    }
+
     public function testStatefulApiAddsEnsureFrontendRequestsAreStateful()
     {
         $middleware = new Middleware;
