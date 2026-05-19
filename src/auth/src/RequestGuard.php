@@ -130,4 +130,12 @@ class RequestGuard implements Guard
     {
         return "__auth.guards.{$this->name}.user";
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

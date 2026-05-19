@@ -28,7 +28,6 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Carbon\Carbon::serializeUsing(null);
         \Carbon\Carbon::setTestNow();
         \Carbon\CarbonImmutable::setTestNow();
-        \Hypervel\ApiClient\PendingRequest::flushCache();
         \Hypervel\Auth\Access\Gate::flushState();
         \Hypervel\Auth\AuthenticationException::flushState();
         \Hypervel\Auth\EloquentUserProvider::flushState();
@@ -36,11 +35,15 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Auth\Middleware\RedirectIfAuthenticated::flushState();
         \Hypervel\Auth\Notifications\ResetPassword::flushState();
         \Hypervel\Auth\Notifications\VerifyEmail::flushState();
+        \Hypervel\Auth\RequestGuard::flushState();
+        \Hypervel\Auth\SessionGuard::flushState();
+        \Hypervel\Auth\TokenGuard::flushState();
         \Hypervel\Broadcasting\Broadcasters\Broadcaster::flushChannels();
         \Hypervel\Bus\PendingBatch::flushState();
         \Hypervel\Cache\Redis\Console\BenchmarkCommand::flushState();
         \Hypervel\Cache\Redis\Console\DoctorCommand::flushState();
         \Hypervel\Cache\Repository::flushState();
+        \Hypervel\Config\Repository::flushState();
         \Hypervel\Console\Application::forgetBootstrappers();
         \Hypervel\Console\Commands\ScheduleListCommand::flushState();
         \Hypervel\Console\Scheduling\Event::flushState();
@@ -164,6 +167,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\Env::flushState();
         \Hypervel\Support\Facades\Facade::clearResolvedInstances();
         \Hypervel\Support\Fluent::flushState();
+        \Hypervel\Support\LazyCollection::flushState();
         \Hypervel\Support\Lottery::flushState();
         \Hypervel\Support\Number::flushState();
         \Hypervel\Support\Once::flushState();

@@ -268,6 +268,9 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
     /**
      * Set the working directory of the cache.
+     *
+     * Boot-only. Persists on the cached store for the worker lifetime;
+     * per-request use races across coroutines.
      */
     public function setDirectory(string $directory): static
     {
@@ -278,6 +281,9 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 
     /**
      * Set the cache directory where locks should be stored.
+     *
+     * Boot-only. Persists on the cached store for the worker lifetime;
+     * per-request use races across coroutines.
      */
     public function setLockDirectory(?string $lockDirectory): static
     {

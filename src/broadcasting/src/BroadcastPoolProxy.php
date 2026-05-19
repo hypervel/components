@@ -45,6 +45,9 @@ class BroadcastPoolProxy extends PoolProxy implements Broadcaster
 
     /**
      * Register the user retrieval callback used to authenticate connections.
+     *
+     * Boot-only. The callback persists in instance state on the cached pool
+     * proxy for the worker lifetime; per-request use races across coroutines.
      */
     public function resolveAuthenticatedUserUsing(Closure $callback): void
     {
@@ -53,6 +56,10 @@ class BroadcastPoolProxy extends PoolProxy implements Broadcaster
 
     /**
      * Register a channel authenticator.
+     *
+     * Boot-only. Delegates to the underlying broadcaster; the channel
+     * authorizer and options persist in shared static state on the
+     * Broadcaster class for the worker lifetime.
      */
     public function channel(HasBroadcastChannel|string $channel, callable|string $callback, array $options = []): static
     {

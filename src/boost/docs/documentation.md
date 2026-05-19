@@ -3,6 +3,7 @@
     - [Upgrade Guide](/docs/{{version}}/upgrade)
     - [Contribution Guide](/docs/{{version}}/contributions)
 - ## Getting Started
+    - [Introduction](/docs/{{version}}/introduction)
     - [Installation](/docs/{{version}}/installation)
     - [Configuration](/docs/{{version}}/configuration)
     - [Agentic Development](/docs/{{version}}/ai)

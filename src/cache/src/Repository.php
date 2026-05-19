@@ -847,6 +847,10 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
     /**
      * Set the default cache time in seconds.
+     *
+     * Boot-only. Persists on the cached repository for the worker lifetime
+     * and applies to every subsequent write that falls back to the default
+     * TTL; per-request use races across coroutines.
      */
     public function setDefaultCacheTime(?int $seconds): static
     {
@@ -865,6 +869,10 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
     /**
      * Set the cache store implementation.
+     *
+     * Boot-only. Replaces the backing store on the cached repository for the
+     * worker lifetime; per-request use races and every concurrent
+     * read/write through this repository would hit the wrong store.
      */
     public function setStore(Store $store): static
     {
@@ -883,6 +891,10 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
     /**
      * Set the event dispatcher instance.
+     *
+     * Boot or tests only. Persists on the cached repository for the worker
+     * lifetime; per-request use races across coroutines. Reached by
+     * CacheManager::refreshEventDispatcher() from Event::fake() / fakeFor().
      */
     public function setEventDispatcher(Dispatcher $events): void
     {

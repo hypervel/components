@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hypervel\Support\LazyCollection;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 enum LazyCollectionTestUnitEnum
 {

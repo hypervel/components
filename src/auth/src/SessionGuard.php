@@ -938,4 +938,12 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     {
         CoroutineContext::set("__auth.guards.{$this->name}.{$key}", $value);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
