@@ -80,6 +80,10 @@
 - Port FailOnUnknownFields form request support
 - Port `Hypervel\Http\Client\Factory::failedRequest()` fake-response parity. The HTTP client docs show Laravel's supported `Http::fake(['github.com/*' => Http::failedRequest(...)])` pattern, but Hypervel currently returns a bare `RequestException` from `failedRequest()` and the fake stub path does not handle that exception return as a failed HTTP response. Correct fix: match Laravel's behavior so `failedRequest()` works inside `Http::fake([...])`, while preserving the existing ability to instantiate the exception directly, and port Laravel's matching HTTP client tests.
 
+## Mail
+
+- Port Cloudflare mail transport support. The copied mail docs include a Cloudflare driver section, but `Hypervel\Mail\MailManager` has no `createCloudflareTransport()` method and `Hypervel\Mail\Transport\CloudflareTransport` does not exist. Correct fix: port Laravel's `CloudflareTransport` to `src/mail/src/Transport/CloudflareTransport.php`, add `createCloudflareTransport()` to `MailManager` using `services.cloudflare.account_id` and `services.cloudflare.token` / `services.cloudflare.key`, add `cloudflare` to the pooled transport list, update the supported transport comments in the mail config files, and port Laravel's matching mail manager tests.
+
 ## Pool
 
 - Make `Hypervel\Pool\KeepaliveConnection` honor disabled heartbeat configuration. `PoolOption` documents `heartbeat => -1` as disabled, but `KeepaliveConnection::getHeartbeatSeconds()` currently turns any non-positive heartbeat into a 10-second interval and `addHeartbeat()` always creates a timer. Correct fix: only create the heartbeat timer when `PoolOption::getHeartbeat() > 0`; when heartbeat is `<= 0`, do not start a timer or run heartbeat work. Keep `max_idle_time` behavior separate from heartbeat.

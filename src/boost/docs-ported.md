@@ -40,6 +40,7 @@ introduction.md
 lifecycle.md
 localization.md
 logging.md
+mail.md
 pagination.md
 requests.md
 routing.md
