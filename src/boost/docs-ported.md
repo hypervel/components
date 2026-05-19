@@ -41,6 +41,7 @@ lifecycle.md
 localization.md
 logging.md
 mail.md
+middleware.md
 pagination.md
 requests.md
 routing.md

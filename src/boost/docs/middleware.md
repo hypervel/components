@@ -14,9 +14,9 @@
 <a name="introduction"></a>
 ## Introduction
 
-Middleware provide a convenient mechanism for inspecting and filtering HTTP requests entering your application. For example, Laravel includes a middleware that verifies the user of your application is authenticated. If the user is not authenticated, the middleware will redirect the user to your application's login screen. However, if the user is authenticated, the middleware will allow the request to proceed further into the application.
+Middleware provide a convenient mechanism for inspecting and filtering HTTP requests entering your application. For example, Hypervel includes a middleware that verifies the user of your application is authenticated. If the user is not authenticated, the middleware will redirect the user to your application's login screen. However, if the user is authenticated, the middleware will allow the request to proceed further into the application.
 
-Additional middleware can be written to perform a variety of tasks besides authentication. For example, a logging middleware might log all incoming requests to your application. A variety of middleware are included in Laravel, including middleware for authentication and CSRF protection; however, all user-defined middleware are typically located in your application's `app/Http/Middleware` directory.
+Additional middleware can be written to perform a variety of tasks besides authentication. For example, a logging middleware might log all incoming requests to your application. A variety of middleware are included in Hypervel, including middleware for authentication and CSRF protection; however, all user-defined middleware are typically located in your application's `app/Http/Middleware` directory.
 
 <a name="defining-middleware"></a>
 ## Defining Middleware
@@ -122,22 +122,26 @@ If you want a middleware to run during every HTTP request to your application, y
 
 ```php
 use App\Http\Middleware\EnsureTokenIsValid;
+use Hypervel\Foundation\Configuration\Middleware;
 
 ->withMiddleware(function (Middleware $middleware): void {
-     $middleware->append(EnsureTokenIsValid::class);
+    $middleware->append(EnsureTokenIsValid::class);
 })
 ```
 
 The `$middleware` object provided to the `withMiddleware` closure is an instance of `Hypervel\Foundation\Configuration\Middleware` and is responsible for managing the middleware assigned to your application's routes. The `append` method adds the middleware to the end of the list of global middleware. If you would like to add a middleware to the beginning of the list, you should use the `prepend` method.
 
-<a name="manually-managing-laravels-default-global-middleware"></a>
-#### Manually Managing Laravel's Default Global Middleware
+<a name="manually-managing-hypervels-default-global-middleware"></a>
+#### Manually Managing Hypervel's Default Global Middleware
 
-If you would like to manage Laravel's global middleware stack manually, you may provide Laravel's default stack of global middleware to the `use` method. Then, you may adjust the default middleware stack as necessary:
+If you would like to manage Hypervel's global middleware stack manually, you may provide Hypervel's default stack of global middleware to the `use` method. Then, you may adjust the default middleware stack as necessary:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->use([
+        \Hypervel\Http\Middleware\ValidatePathEncoding::class,
         \Hypervel\Foundation\Http\Middleware\InvokeDeferredCallbacks::class,
         // \Hypervel\Http\Middleware\TrustHosts::class,
         \Hypervel\Http\Middleware\TrustProxies::class,
@@ -212,6 +216,7 @@ Sometimes you may want to group several middleware under a single key to make th
 ```php
 use App\Http\Middleware\First;
 use App\Http\Middleware\Second;
+use Hypervel\Foundation\Configuration\Middleware;
 
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->appendToGroup('group-name', [
@@ -264,11 +269,44 @@ Hypervel includes predefined `web` and `api` middleware groups that contain comm
 
 </div>
 
+You may enable optional middleware in the default groups using the `statefulApi`, `throttleApi`, and `authenticateSessions` methods:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->statefulApi();
+    $middleware->throttleApi();
+    $middleware->authenticateSessions();
+})
+```
+
+If you would like API throttling to use Redis, you may pass the `redis` argument to the `throttleApi` method:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->throttleApi(redis: true);
+})
+```
+
+If you are registering throttling middleware manually and still want the `throttle` alias to use Redis, you may call the `throttleWithRedis` method:
+
+```php
+use Hypervel\Foundation\Configuration\Middleware;
+
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->throttleWithRedis();
+})
+```
+
 If you would like to append or prepend middleware to these groups, you may use the `web` and `api` methods within your application's `bootstrap/app.php` file. The `web` and `api` methods are convenient alternatives to the `appendToGroup` method:
 
 ```php
 use App\Http\Middleware\EnsureTokenIsValid;
 use App\Http\Middleware\EnsureUserIsSubscribed;
+use Hypervel\Foundation\Configuration\Middleware;
 
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->web(append: [
@@ -306,6 +344,8 @@ $middleware->web(remove: [
 If you would like to manually manage all of the middleware within Hypervel's default `web` and `api` middleware groups, you may redefine the groups entirely. The example below will define the `web` and `api` middleware groups with their default middleware, allowing you to customize them as necessary:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->group('web', [
         \Hypervel\Cookie\Middleware\EncryptCookies::class,
@@ -335,6 +375,7 @@ You may assign aliases to middleware in your application's `bootstrap/app.php` f
 
 ```php
 use App\Http\Middleware\EnsureUserIsSubscribed;
+use Hypervel\Foundation\Configuration\Middleware;
 
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->alias([
@@ -351,7 +392,7 @@ Route::get('/profile', function () {
 })->middleware('subscribed');
 ```
 
-For convenience, some of Laravel's built-in middleware are aliased by default. For example, the `auth` middleware is an alias for the `Hypervel\Auth\Middleware\Authenticate` middleware. Below is a list of the default middleware aliases:
+For convenience, some of Hypervel's built-in middleware are aliased by default. For example, the `auth` middleware is an alias for the `Hypervel\Auth\Middleware\Authenticate` middleware. Below is a list of the default middleware aliases:
 
 <div class="overflow-auto">
 
@@ -366,7 +407,6 @@ For convenience, some of Laravel's built-in middleware are aliased by default. F
 | `password.confirm` | `Hypervel\Auth\Middleware\RequirePassword`                                                                  |
 | `precognitive`     | `Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests`                                            |
 | `signed`           | `Hypervel\Routing\Middleware\ValidateSignature`                                                             |
-| `subscribed`       | `\Spark\Http\Middleware\VerifyBillableIsSubscribed`                                                           |
 | `throttle`         | `Hypervel\Routing\Middleware\ThrottleRequests` or `Hypervel\Routing\Middleware\ThrottleRequestsWithRedis` |
 | `verified`         | `Hypervel\Auth\Middleware\EnsureEmailIsVerified`                                                            |
 
@@ -378,6 +418,8 @@ For convenience, some of Laravel's built-in middleware are aliased by default. F
 Rarely, you may need your middleware to execute in a specific order but not have control over their order when they are assigned to the route. In these situations, you may specify your middleware priority using the `priority` method in your application's `bootstrap/app.php` file:
 
 ```php
+use Hypervel\Foundation\Configuration\Middleware;
+
 ->withMiddleware(function (Middleware $middleware): void {
     $middleware->priority([
         \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
@@ -385,12 +427,11 @@ Rarely, you may need your middleware to execute in a specific order but not have
         \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
         \Hypervel\Session\Middleware\StartSession::class,
         \Hypervel\View\Middleware\ShareErrorsFromSession::class,
-        \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::class,
-        \Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
         \Hypervel\Routing\Middleware\ThrottleRequests::class,
         \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
+        \Hypervel\Contracts\Session\Middleware\AuthenticatesSessions::class,
         \Hypervel\Routing\Middleware\SubstituteBindings::class,
-        \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
         \Hypervel\Auth\Middleware\Authorize::class,
     ]);
 })
@@ -451,7 +492,7 @@ Route::put('/post/{id}', function (string $id) {
 <a name="terminable-middleware"></a>
 ## Terminable Middleware
 
-Sometimes a middleware may need to do some work after the HTTP response has been sent to the browser. If you define a `terminate` method on your middleware and your web server is using [FastCGI](https://www.php.net/manual/en/install.fpm.php), the `terminate` method will automatically be called after the response is sent to the browser:
+Sometimes a middleware may need to do some work after the HTTP response has been sent to the browser. If you define a `terminate` method on your middleware, Hypervel will automatically call it after the response is sent to the browser:
 
 ```php
 <?php
@@ -486,7 +527,7 @@ class TerminatingMiddleware
 
 The `terminate` method should receive both the request and the response. Once you have defined a terminable middleware, you should add it to the list of routes or global middleware in your application's `bootstrap/app.php` file.
 
-When calling the `terminate` method on your middleware, Laravel will resolve a fresh instance of the middleware from the [service container](/docs/{{version}}/container). If you would like to use the same middleware instance when the `handle` and `terminate` methods are called, register the middleware with the container using the container's `singleton` method. Typically this should be done in the `register` method of your `AppServiceProvider`:
+When calling the `terminate` method on your middleware, Hypervel will resolve a fresh instance of the middleware from the [service container](/docs/{{version}}/container). If you would like to use the same middleware instance when the `handle` and `terminate` methods are called, register the middleware with the container using the container's `singleton` method. Typically this should be done in the `register` method of your `AppServiceProvider`:
 
 ```php
 use App\Http\Middleware\TerminatingMiddleware;
