@@ -1840,4 +1840,13 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
             ? Sleep::usleep($microseconds)
             : usleep($microseconds);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+        static::flushProxies();
+    }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Events;
 
+use AllowDynamicProperties;
 use DateTimeInterface;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
@@ -13,6 +14,7 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Throwable;
 
+#[AllowDynamicProperties]
 class CallQueuedListener implements ShouldQueue
 {
     use InteractsWithQueue;

@@ -28,6 +28,7 @@ Examples of things that always warrant a stop:
 - **Per-render/per-call handoff through singleton state.** Observer writes → decorator reads, middleware writes → later pipeline code reads, command listener writes → command cleanup reads, etc. Even if today's flow is synchronous, singleton properties/shared data are the wrong storage layer for per-operation handoff.
 - **Temporary listener cleanup with `Dispatcher::forget(EventClass)`.** If an operation registers a one-off listener and then calls `forget(EventClass)`, it removes every listener for that event, including app/provider listeners it did not add.
 - **Consume-once static state.** Boot sets a static value, runtime reads it and nulls/resets it after first use. This still needs `flushState()` because tests after the first consumer see the consumed value.
+- **Repeated derivation from a value that may already be derived.** Helpers that read a current value, append a token/suffix/prefix/namespace, then write it back can accumulate the same marker when called again later in the worker or after cached config/state is restored. Example shape: `prefix . "test_{$token}_"` becomes `prefix.test_1_.test_1_`. Normalize the input first, then append idempotently.
 - **Public mutator on an object held by a cached manager/channel.** A handler, transport, driver, or adapter stored inside a manager-cached channel is effectively worker-lifetime state, even if the object itself is not a container singleton.
 - **Repeated registration inside per-item wrapper/setup loops.** Registering the same callback inside a helper that runs once per engine/driver/connection creates duplicate worker-lifetime callbacks. Register once at the broader lifecycle point.
 - **Anything you'd describe as "probably fine" or "shouldn't matter."** That's exactly when you stop.
@@ -131,6 +132,8 @@ Truly-immutable constants disguised as `static $x` (e.g., a fixed lookup array a
 
 If either of the two checks above is missing for a mutated static, **stop and flag**. The Mailable bug (static `$viewDataCallback` with no `flushState` wiring) showed this can slip through basic state-categorization.
 
+If `flushState()` already exists but is not wired in `AfterEachTestSubscriber`, treat that as strong evidence the cleanup was intended and the subscriber entry was missed.
+
 ### Step 6 — Trait audit
 
 Static-state grepping covers the package's own files but misses state brought in by traits. List every trait used by the package's main classes:
@@ -227,6 +230,7 @@ When a finding falls into one of these shapes, the established fix is:
 | Temporary per-operation event listener cleaned up with `Dispatcher::forget(EventClass)` | Register a long-lived listener at boot; have it dispatch to a per-coroutine callable stored in `CoroutineContext`. Wrap the operation in a `whileX(callable $callback, callable $action)` helper that saves/restores the callable. |
 | Per-render/per-call handoff between two code paths | Both writer and reader use `CoroutineContext::set()` / `get()` with a `__{package}.{key}` key. Do not route the handoff through singleton instance state or global shared data. |
 | Manager static driver/engine cache | Convert to an instance property on the manager. The manager is already the worker-lifetime singleton, and its instance cache is reset by `Container::setInstance(null)` between tests. |
+| Repeated derivation from an already-derived value | Make the derivation idempotent: strip the marker/suffix/prefix/namespace if it is already present, then append the desired value once. |
 | Compiled output hardcoding singleton lookup | Change to use `$__env->make(...)` (or equivalent context-aware reference) — diverges from upstream Laravel, document the divergence |
 
 When applying a code fix for a real bug, also add:
@@ -268,7 +272,7 @@ public function testIsolation(): void
 }
 ```
 
-The `usleep()` forces interleaving (Swoole yields on sleep). Without it, each closure runs to completion before the other starts. Name new isolation tests `CoroutineIsolationTest` or `CoroutineSafetyTest` for discoverability.
+The `usleep()` forces interleaving (Swoole yields on sleep). Without it, each closure runs to completion before the other starts. Name new isolation tests `CoroutineIsolationTest` or `CoroutineSafetyTest` for discoverability. For actual coroutine-safety fixes, shape the test so it fails against the old implementation and passes only when the state is isolated correctly.
 
 ### Don't put `CoroutineContext::forget` in `flushState()`
 
@@ -306,7 +310,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**All packages complete.**
+**Next:** `console` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -320,65 +324,65 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 8 | `concurrency` | ✓ |
 | 9 | `conditionable` | ✓ |
 | 10 | `config` | ✓ |
-| 11 | `console` | ✓ |
-| 12 | `container` | ✓ |
-| 13 | `context` | ✓ |
-| 14 | `contracts` | ✓ |
-| 15 | `cookie` | ✓ |
-| 16 | `coordinator` | ✓ |
-| 17 | `core` | ✓ |
-| 18 | `coroutine` | ✓ |
-| 19 | `database` | ✓ |
-| 20 | `di` | ✓ |
-| 21 | `encryption` | ✓ |
-| 22 | `engine` | ✓ |
-| 23 | `events` | ✓ |
-| 24 | `facade-documenter` | ✓ |
-| 25 | `filesystem` | ✓ |
-| 26 | `foundation` | ✓ |
-| 27 | `hashing` | ✓ |
-| 28 | `horizon` | ✓ |
-| 29 | `http` | ✓ |
-| 30 | `http-server` | ✓ |
-| 31 | `inertia` | ✓ |
-| 32 | `json-schema` | ✓ |
-| 33 | `jwt` | ✓ |
-| 34 | `log` | ✓ |
-| 35 | `macroable` | ✓ |
-| 36 | `mail` | ✓ |
-| 37 | `nested-set` | ✓ |
-| 38 | `notifications` | ✓ |
-| 39 | `object-pool` | ✓ |
-| 40 | `pagination` | ✓ |
-| 41 | `permission` | ✓ |
-| 42 | `pipeline` | ✓ |
-| 43 | `pool` | ✓ |
-| 44 | `process` | ✓ |
-| 45 | `prompts` | ✓ |
-| 46 | `queue` | ✓ |
-| 47 | `redis` | ✓ |
-| 48 | `reflection` | ✓ |
-| 49 | `reverb` | ✓ |
-| 50 | `routing` | ✓ |
-| 51 | `sanctum` | ✓ |
-| 52 | `scout` | ✓ |
-| 53 | `sentry` | ✓ |
-| 54 | `server` | ✓ |
-| 55 | `server-process` | ✓ |
-| 56 | `session` | ✓ |
-| 57 | `signal` | ✓ |
-| 58 | `socialite` | ✓ |
-| 59 | `support` | ✓ |
-| 60 | `telescope` | ✓ |
-| 61 | `testbench` | ✓ |
-| 62 | `testing` | ✓ |
-| 63 | `tinker` | ✓ |
-| 64 | `translation` | ✓ |
-| 65 | `validation` | ✓ |
-| 66 | `view` | ✓ |
-| 67 | `watcher` | ✓ |
-| 68 | `wayfinder` | ✓ |
-| 69 | `websocket-server` | ✓ |
+| 11 | `console` |   |
+| 12 | `container` |   |
+| 13 | `context` |   |
+| 14 | `contracts` |   |
+| 15 | `cookie` |   |
+| 16 | `coordinator` |   |
+| 17 | `core` |   |
+| 18 | `coroutine` |   |
+| 19 | `database` |   |
+| 20 | `di` |   |
+| 21 | `encryption` |   |
+| 22 | `engine` |   |
+| 23 | `events` |   |
+| 24 | `facade-documenter` |   |
+| 25 | `filesystem` |   |
+| 26 | `foundation` |   |
+| 27 | `hashing` |   |
+| 28 | `horizon` |   |
+| 29 | `http` |   |
+| 30 | `http-server` |   |
+| 31 | `inertia` |   |
+| 32 | `json-schema` |   |
+| 33 | `jwt` |   |
+| 34 | `log` |   |
+| 35 | `macroable` |   |
+| 36 | `mail` |   |
+| 37 | `nested-set` |   |
+| 38 | `notifications` |   |
+| 39 | `object-pool` |   |
+| 40 | `pagination` |   |
+| 41 | `permission` |   |
+| 42 | `pipeline` |   |
+| 43 | `pool` |   |
+| 44 | `process` |   |
+| 45 | `prompts` |   |
+| 46 | `queue` |   |
+| 47 | `redis` |   |
+| 48 | `reflection` |   |
+| 49 | `reverb` |   |
+| 50 | `routing` |   |
+| 51 | `sanctum` |   |
+| 52 | `scout` |   |
+| 53 | `sentry` |   |
+| 54 | `server` |   |
+| 55 | `server-process` |   |
+| 56 | `session` |   |
+| 57 | `signal` |   |
+| 58 | `socialite` |   |
+| 59 | `support` |   |
+| 60 | `telescope` |   |
+| 61 | `testbench` |   |
+| 62 | `testing` |   |
+| 63 | `tinker` |   |
+| 64 | `translation` |   |
+| 65 | `validation` |   |
+| 66 | `view` |   |
+| 67 | `watcher` |   |
+| 68 | `wayfinder` |   |
+| 69 | `websocket-server` |   |
 
 ---
 

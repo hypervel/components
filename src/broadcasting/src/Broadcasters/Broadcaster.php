@@ -64,6 +64,10 @@ abstract class Broadcaster implements BroadcasterContract
     /**
      * Register the user retrieval callback used to authenticate connections.
      *
+     * Boot-only. The callback persists in instance state on the cached
+     * broadcaster for the worker lifetime; per-request use races across
+     * coroutines.
+     *
      * See: https://pusher.com/docs/channels/library_auth_reference/auth-signatures/#user-authentication.
      */
     public function resolveAuthenticatedUserUsing(Closure $callback): void
@@ -73,6 +77,10 @@ abstract class Broadcaster implements BroadcasterContract
 
     /**
      * Register a channel authenticator.
+     *
+     * Boot-only. The channel authorizer and options persist in shared static
+     * state on the Broadcaster class for the worker lifetime and apply to
+     * every subsequent connection authentication.
      */
     public function channel(HasBroadcastChannel|string $channel, callable|string $callback, array $options = []): static
     {

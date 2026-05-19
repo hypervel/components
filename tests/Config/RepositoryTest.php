@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Config;
 
 use Hypervel\Config\Repository;
 use Hypervel\Support\Collection;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use PHPUnit\Framework\TestCase;
 
 class RepositoryTest extends TestCase
 {
