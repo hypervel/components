@@ -182,6 +182,10 @@ class CookieJar implements JarContract
 
     /**
      * Set the default path and domain for the jar.
+     *
+     * Boot-only. The defaults persist on the worker-lifetime singleton;
+     * per-request mutation races across coroutines and affects every
+     * subsequent request.
      */
     public function setDefaultPathAndDomain(string $path, ?string $domain, ?bool $secure = false, ?string $sameSite = null): static
     {
@@ -222,5 +226,13 @@ class CookieJar implements JarContract
     protected function setQueuedCookies(array $cookies): void
     {
         CoroutineContext::set(self::QUEUE_CONTEXT_KEY, $cookies);
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

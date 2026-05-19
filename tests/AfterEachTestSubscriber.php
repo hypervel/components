@@ -55,6 +55,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Container\ReflectionManager::flushState();
         \Hypervel\Context\CoroutineContext::flush();
         \Hypervel\Contracts\Database\ModelIdentifier::flushState();
+        \Hypervel\Cookie\CookieJar::flushState();
         \Hypervel\Cookie\Middleware\EncryptCookies::flushState();
         \Hypervel\Coroutine\Coroutine::flushAfterCreated();
         \Hypervel\Database\Capsule\Manager::flushState();

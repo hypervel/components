@@ -248,6 +248,19 @@ class CookieJarTest extends TestCase
         $this->assertSame('bar', $cookie->foo());
     }
 
+    public function testFlushStateClearsMacros()
+    {
+        CookieJar::macro('foo', function () {
+            return 'bar';
+        });
+
+        $this->assertTrue(CookieJar::hasMacro('foo'));
+
+        CookieJar::flushState();
+
+        $this->assertFalse(CookieJar::hasMacro('foo'));
+    }
+
     public function testQueueCookie()
     {
         $cookieJar = new CookieJar;
