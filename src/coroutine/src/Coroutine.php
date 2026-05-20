@@ -40,14 +40,6 @@ class Coroutine
     }
 
     /**
-     * Flush after created callbacks.
-     */
-    public static function flushAfterCreated(): void
-    {
-        static::$afterCreatedCallbacks = [];
-    }
-
-    /**
      * Register a callback to be executed when the coroutine exits.
      */
     public static function defer(callable $callable): void
@@ -182,6 +174,15 @@ class Coroutine
     public static function enableReportException(bool $enableReportException): void
     {
         static::$enableReportException = $enableReportException;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$enableReportException = true;
+        static::$afterCreatedCallbacks = [];
     }
 
     /**

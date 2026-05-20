@@ -312,7 +312,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `coroutine` (round 2)
+**Next:** `database` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -333,7 +333,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 15 | `cookie` | ✓ |
 | 16 | `coordinator` | ✓ |
 | 17 | `core` | ✓ |
-| 18 | `coroutine` |   |
+| 18 | `coroutine` | ✓ |
 | 19 | `database` |   |
 | 20 | `di` |   |
 | 21 | `encryption` |   |
