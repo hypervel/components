@@ -44,6 +44,7 @@ mail.md
 middleware.md
 migrations.md
 mocking.md
+notifications.md
 pagination.md
 requests.md
 routing.md
