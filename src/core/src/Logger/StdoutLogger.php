@@ -28,6 +28,8 @@ class StdoutLogger implements StdoutLoggerInterface
 
     private string $format;
 
+    private array $logLevels;
+
     private array $tags = [
         'component',
     ];
@@ -35,7 +37,8 @@ class StdoutLogger implements StdoutLoggerInterface
     public function __construct(private Repository $config, ?OutputInterface $output = null)
     {
         $this->output = $output ?? new ConsoleOutput;
-        $this->format = $this->config->get('app.stdout_log.format', 'line');
+        $this->format = $this->config->string('app.stdout_log.format', 'line');
+        $this->logLevels = $this->config->array('app.stdout_log.level', []);
     }
 
     public function emergency($message, array $context = []): void
@@ -85,10 +88,8 @@ class StdoutLogger implements StdoutLoggerInterface
      */
     public function log($level, $message, array $context = []): void
     {
-        $logLevel = $this->config->get('app.stdout_log.level', []);
-
         // Check if the log level is allowed
-        if (! in_array($level, $logLevel, true)) {
+        if (! in_array($level, $this->logLevels, true)) {
             return;
         }
 
