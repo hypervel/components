@@ -128,4 +128,13 @@ class Timer
             'round' => Timer::$round,
         ];
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        Timer::$count = 0;
+        Timer::$round = 0;
+    }
 }

@@ -11,14 +11,14 @@ class CoordinatorManager
      *
      * @var array<string, Coordinator>
      */
-    private static array $container = [];
+    protected static array $container = [];
 
     /**
      * Initialize a coordinator with the given identifier.
      */
     public static function initialize(string $identifier): void
     {
-        self::$container[$identifier] = new Coordinator;
+        static::$container[$identifier] = new Coordinator;
     }
 
     /**
@@ -26,11 +26,11 @@ class CoordinatorManager
      */
     public static function until(string $identifier): Coordinator
     {
-        if (! isset(self::$container[$identifier])) {
-            self::$container[$identifier] = new Coordinator;
+        if (! isset(static::$container[$identifier])) {
+            static::$container[$identifier] = new Coordinator;
         }
 
-        return self::$container[$identifier];
+        return static::$container[$identifier];
     }
 
     /**
@@ -38,6 +38,18 @@ class CoordinatorManager
      */
     public static function clear(string $identifier): void
     {
-        unset(self::$container[$identifier]);
+        unset(static::$container[$identifier]);
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        foreach (static::$container as $coordinator) {
+            $coordinator->resume();
+        }
+
+        static::$container = [];
     }
 }
