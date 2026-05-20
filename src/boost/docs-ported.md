@@ -45,6 +45,7 @@ middleware.md
 migrations.md
 mocking.md
 notifications.md
+packages.md
 pagination.md
 requests.md
 routing.md

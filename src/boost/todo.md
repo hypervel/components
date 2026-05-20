@@ -84,6 +84,11 @@
 
 - Port Cloudflare mail transport support. The copied mail docs include a Cloudflare driver section, but `Hypervel\Mail\MailManager` has no `createCloudflareTransport()` method and `Hypervel\Mail\Transport\CloudflareTransport` does not exist. Correct fix: port Laravel's `CloudflareTransport` to `src/mail/src/Transport/CloudflareTransport.php`, add `createCloudflareTransport()` to `MailManager` using `services.cloudflare.account_id` and `services.cloudflare.token` / `services.cloudflare.key`, add `cloudflare` to the pooled transport list, update the supported transport comments in the mail config files, and port Laravel's matching mail manager tests.
 
+## Packages
+
+- Port `docs/docs/testbench.md` to `src/boost/docs/testbench.md` for Hypervel 0.4. The page should document `hypervel/testbench`, package test case setup, application bootstrapping, package provider registration, Testbench conveniences that exist in Hypervel, and any Swoole / coroutine testing differences package authors need to know about.
+- Rewrite `docs/docs/packages-porting.md` for Hypervel 0.4 as `src/boost/docs/porting-packages.md`. The page should explain how to port Laravel packages to Hypervel by replacing Illuminate dependencies with Hypervel equivalents, updating namespaces and types, removing Laravel-only assumptions, and moving request-specific state into context or coroutine-safe APIs for long-running Swoole workers.
+
 ## Pool
 
 - Make `Hypervel\Pool\KeepaliveConnection` honor disabled heartbeat configuration. `PoolOption` documents `heartbeat => -1` as disabled, but `KeepaliveConnection::getHeartbeatSeconds()` currently turns any non-positive heartbeat into a 10-second interval and `addHeartbeat()` always creates a timer. Correct fix: only create the heartbeat timer when `PoolOption::getHeartbeat() > 0`; when heartbeat is `<= 0`, do not start a timer or run heartbeat work. Keep `max_idle_time` behavior separate from heartbeat.
