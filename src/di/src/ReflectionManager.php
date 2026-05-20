@@ -85,14 +85,6 @@ class ReflectionManager
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$container = [];
-    }
-
-    /**
      * Get the default value of a reflection property.
      */
     public static function getPropertyDefaultValue(ReflectionProperty $property): mixed
@@ -106,5 +98,13 @@ class ReflectionManager
     public static function getContainer(): array
     {
         return static::$container;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$container = [];
     }
 }

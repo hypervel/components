@@ -54,15 +54,6 @@ class AstVisitorRegistry
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$queue = null;
-        static::$values = [];
-    }
-
-    /**
      * Get the priority queue of registered visitors.
      */
     public static function getQueue(): SplPriorityQueue
@@ -71,5 +62,14 @@ class AstVisitorRegistry
             static::$queue = new SplPriorityQueue;
         }
         return static::$queue;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$queue = null;
+        static::$values = [];
     }
 }
