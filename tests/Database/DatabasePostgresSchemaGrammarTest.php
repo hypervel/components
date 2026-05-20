@@ -505,6 +505,16 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame('create index "posts_embeddings_vectorindex" on "posts" using hnsw ("embeddings" vector_cosine_ops)', $statements[1]);
     }
 
+    public function testDroppingFluentVectorIndex()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'posts');
+        $blueprint->vector('embeddings', 1536)->vectorIndex(false)->change();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(3, $statements);
+        $this->assertSame('drop index "posts_embeddings_vectorindex"', $statements[1]);
+    }
+
     public function testAddingRawIndex()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
