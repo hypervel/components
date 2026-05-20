@@ -29,18 +29,18 @@
 
 Migrations are like version control for your database, allowing your team to define and share the application's database schema definition. If you have ever had to tell a teammate to manually add a column to their local database schema after pulling in your changes from source control, you've faced the problem that database migrations solve.
 
-The Laravel `Schema` [facade](/docs/{{version}}/facades) provides database agnostic support for creating and manipulating tables across all of Laravel's supported database systems. Typically, migrations will use this facade to create and modify database tables and columns.
+The Hypervel `Schema` [facade](/docs/{{version}}/facades) provides database agnostic support for creating and manipulating tables across all of Hypervel's supported database systems. Typically, migrations will use this facade to create and modify database tables and columns.
 
 <a name="generating-migrations"></a>
 ## Generating Migrations
 
-You may use the `make:migration` [Artisan command](/docs/{{version}}/artisan) to generate a database migration. The new migration will be placed in your `database/migrations` directory. Each migration filename contains a timestamp that allows Laravel to determine the order of the migrations:
+You may use the `make:migration` [Artisan command](/docs/{{version}}/artisan) to generate a database migration. The new migration will be placed in your `database/migrations` directory. Each migration filename contains a timestamp that allows Hypervel to determine the order of the migrations:
 
 ```shell
 php artisan make:migration create_flights_table
 ```
 
-Laravel will use the name of the migration to attempt to guess the name of the table and whether or not the migration will be creating a new table. If Laravel is able to determine the table name from the migration name, Laravel will pre-fill the generated migration file with the specified table. Otherwise, you may simply specify the table in the migration file manually.
+Hypervel will use the name of the migration to attempt to guess the name of the table and whether or not the migration will be creating a new table. If Hypervel is able to determine the table name from the migration name, Hypervel will pre-fill the generated migration file with the specified table. Otherwise, you may simply specify the table in the migration file manually.
 
 If you would like to specify a custom path for the generated migration, you may use the `--path` option when executing the `make:migration` command. The given path should be relative to your application's base path.
 
@@ -59,7 +59,7 @@ php artisan schema:dump
 php artisan schema:dump --prune
 ```
 
-When you execute this command, Laravel will write a "schema" file to your application's `database/schema` directory. The schema file's name will correspond to the database connection. Now, when you attempt to migrate your database and no other migrations have been executed, Laravel will first execute the SQL statements in the schema file of the database connection you are using. After executing the schema file's SQL statements, Laravel will execute any remaining migrations that were not part of the schema dump.
+When you execute this command, Hypervel will write a "schema" file to your application's `database/schema` directory. The schema file's name will correspond to the database connection. Now, when you attempt to migrate your database and no other migrations have been executed, Hypervel will first execute the SQL statements in the schema file of the database connection you are using. After executing the schema file's SQL statements, Hypervel will execute any remaining migrations that were not part of the schema dump.
 
 If your application's tests use a different database connection than the one you typically use during local development, you should ensure you have dumped a schema file using that database connection so that your tests are able to build your database. You may wish to do this after dumping the database connection you typically use during local development:
 
@@ -78,7 +78,7 @@ You should commit your database schema file to source control so that other new 
 
 A migration class contains two methods: `up` and `down`. The `up` method is used to add new tables, columns, or indexes to your database, while the `down` method should reverse the operations performed by the `up` method.
 
-Within both of these methods, you may use the Laravel schema builder to expressively create and modify tables. To learn about all of the methods available on the `Schema` builder, [check out its documentation](#creating-tables). For example, the following migration creates a `flights` table:
+Within both of these methods, you may use the Hypervel schema builder to expressively create and modify tables. To learn about all of the methods available on the `Schema` builder, [check out its documentation](#creating-tables). For example, the following migration creates a `flights` table:
 
 ```php
 <?php
@@ -120,10 +120,8 @@ If your migration will be interacting with a database connection other than your
 ```php
 /**
  * The database connection that should be used by the migration.
- *
- * @var string
  */
-protected $connection = 'pgsql';
+protected ?string $connection = 'pgsql';
 
 /**
  * Run the migrations.
@@ -134,21 +132,35 @@ public function up(): void
 }
 ```
 
+If one of your application's database connections should use a different connection while running migrations, you may define a `migrations_connection` option in your database configuration. This is useful when your application uses a pooled connection for normal queries but should run schema operations through a dedicated migration connection:
+
+```php
+'pgsql' => [
+    'driver' => 'pgsql',
+    // ...
+    'migrations_connection' => 'pgsql-migrations',
+],
+
+'pgsql-migrations' => [
+    'driver' => 'pgsql',
+    // ...
+],
+```
+
 <a name="skipping-migrations"></a>
 #### Skipping Migrations
 
 Sometimes a migration might be meant to support a feature that is not yet active and you do not want it to run yet. In this case you may define a `shouldRun` method on the migration. If the `shouldRun` method returns `false`, the migration will be skipped:
 
 ```php
-use App\Models\Flight;
-use Laravel\Pennant\Feature;
+use Hypervel\Support\Facades\Config;
 
 /**
  * Determine if this migration should run.
  */
 public function shouldRun(): bool
 {
-    return Feature::active(Flight::class);
+    return Config::boolean('features.flights_enabled');
 }
 ```
 
@@ -179,19 +191,31 @@ If you would like to see the SQL statements that will be executed by the migrati
 php artisan migrate --pretend
 ```
 
+If you would like Hypervel to load a schema dump from a custom path before running outstanding migrations, you may provide the `--schema-path` option:
+
+```shell
+php artisan migrate --schema-path=database/schema/testing-schema.sql
+```
+
+If you would like the `migrate` command to return a successful exit code when an error occurs, you may provide the `--graceful` option:
+
+```shell
+php artisan migrate --graceful
+```
+
 <a name="isolating-migration-execution"></a>
 #### Isolating Migration Execution
 
 If you are deploying your application across multiple servers and running migrations as part of your deployment process, you likely do not want two servers attempting to migrate the database at the same time. To avoid this, you may use the `isolated` option when invoking the `migrate` command.
 
-When the `isolated` option is provided, Laravel will acquire an atomic lock using your application's cache driver before attempting to run your migrations. All other attempts to run the `migrate` command while that lock is held will not execute; however, the command will still exit with a successful exit status code:
+When the `isolated` option is provided, Hypervel will acquire an atomic lock using your application's cache driver before attempting to run your migrations. All other attempts to run the `migrate` command while that lock is held will not execute; however, the command will still exit with a successful exit status code:
 
 ```shell
 php artisan migrate --isolated
 ```
 
 > [!WARNING]
-> To utilize this feature, your application must be using the `memcached`, `redis`, `dynamodb`, `database`, `file`, or `array` cache driver as your application's default cache driver. In addition, all servers must be communicating with the same central cache server.
+> To utilize this feature, your application must be using the `redis`, `database`, `file`, or `array` cache driver as your application's default cache driver. If migrations may be started from multiple servers or containers, use a shared driver such as `redis` or `database`.
 
 <a name="forcing-migrations-to-run-in-production"></a>
 #### Forcing Migrations to Run in Production
@@ -402,7 +426,7 @@ Schema::dropIfExists('users');
 <a name="renaming-tables-with-foreign-keys"></a>
 #### Renaming Tables With Foreign Keys
 
-Before renaming a table, you should verify that any foreign key constraints on the table have an explicit name in your migration files instead of letting Laravel assign a convention based name. Otherwise, the foreign key constraint name will refer to the old table name.
+Before renaming a table, you should verify that any foreign key constraints on the table have an explicit name in your migration files instead of letting Hypervel assign a convention based name. Otherwise, the foreign key constraint name will refer to the old table name.
 
 <a name="columns"></a>
 ## Columns
@@ -614,7 +638,7 @@ The `binary` method creates a `BLOB` equivalent column:
 $table->binary('photo');
 ```
 
-When utilizing MySQL, MariaDB, or SQL Server, you may pass `length` and `fixed` arguments to create `VARBINARY` or `BINARY` equivalent column:
+When utilizing MySQL or MariaDB, you may pass `length` and `fixed` arguments to create `VARBINARY` or `BINARY` equivalent column:
 
 ```php
 $table->binary('data', length: 16); // VARBINARY(16)
@@ -1245,7 +1269,7 @@ The following table contains all of the available column modifiers. This list do
 <a name="default-expressions"></a>
 #### Default Expressions
 
-The `default` modifier accepts a value or an `Hypervel\Database\Query\Expression` instance. Using an `Expression` instance will prevent Laravel from wrapping the value in quotes and allow you to use database specific functions. One situation where this is particularly useful is when you need to assign default values to JSON columns:
+The `default` modifier accepts a value or an `Hypervel\Database\Query\Expression` instance. Using an `Expression` instance will prevent Hypervel from wrapping the value in quotes and allow you to use database specific functions. One situation where this is particularly useful is when you need to assign default values to JSON columns:
 
 ```php
 <?php
@@ -1379,7 +1403,7 @@ Schema::table('users', function (Blueprint $table) {
 <a name="available-command-aliases"></a>
 #### Available Command Aliases
 
-Laravel provides several convenient methods related to dropping common types of columns. Each of these methods is described in the table below:
+Hypervel provides several convenient methods related to dropping common types of columns. Each of these methods is described in the table below:
 
 <div class="overflow-auto">
 
@@ -1400,7 +1424,7 @@ Laravel provides several convenient methods related to dropping common types of 
 <a name="creating-indexes"></a>
 ### Creating Indexes
 
-The Laravel schema builder supports several types of indexes. The following example creates a new `email` column and specifies that its values should be unique. To create the index, we can chain the `unique` method onto the column definition:
+The Hypervel schema builder supports several types of indexes. The following example creates a new `email` column and specifies that its values should be unique. To create the index, we can chain the `unique` method onto the column definition:
 
 ```php
 use Hypervel\Database\Schema\Blueprint;
@@ -1423,7 +1447,7 @@ You may even pass an array of columns to an index method to create a compound (o
 $table->index(['account_id', 'created_at']);
 ```
 
-When creating an index, Laravel will automatically generate an index name based on the table, column names, and the index type, but you may pass a second argument to the method to specify the index name yourself:
+When creating an index, Hypervel will automatically generate an index name based on the table, column names, and the index type, but you may pass a second argument to the method to specify the index name yourself:
 
 ```php
 $table->unique('email', 'unique_email');
@@ -1432,32 +1456,36 @@ $table->unique('email', 'unique_email');
 <a name="available-index-types"></a>
 #### Available Index Types
 
-Laravel's schema builder blueprint class provides methods for creating each type of index supported by Laravel. Each index method accepts an optional second argument to specify the name of the index. If omitted, the name will be derived from the names of the table and column(s) used for the index, as well as the index type. Each of the available index methods is described in the table below:
+Hypervel's schema builder blueprint class provides methods for creating each type of index supported by Hypervel. Each index method accepts an optional second argument to specify the name of the index. If omitted, the name will be derived from the names of the table and column(s) used for the index, as well as the index type. Each of the available index methods is described in the table below:
 
 <div class="overflow-auto">
 
-| Command                                          | Description                                                    |
-| ------------------------------------------------ | -------------------------------------------------------------- |
-| `$table->primary('id');`                         | Adds a primary key.                                            |
-| `$table->primary(['id', 'parent_id']);`          | Adds composite keys.                                           |
-| `$table->unique('email');`                       | Adds a unique index.                                           |
-| `$table->index('state');`                        | Adds an index.                                                 |
-| `$table->fullText('body');`                      | Adds a full text index (MariaDB / MySQL / PostgreSQL).         |
-| `$table->fullText('body')->language('english');` | Adds a full text index of the specified language (PostgreSQL). |
-| `$table->spatialIndex('location');`              | Adds a spatial index (except SQLite).                          |
+| Command                                                        | Description                                                    |
+| -------------------------------------------------------------- | -------------------------------------------------------------- |
+| `$table->primary('id');`                                       | Adds a primary key.                                            |
+| `$table->primary(['id', 'parent_id']);`                        | Adds composite keys.                                           |
+| `$table->unique('email');`                                     | Adds a unique index.                                           |
+| `$table->index('state');`                                      | Adds an index.                                                 |
+| `$table->fullText('body');`                                    | Adds a full text index (MariaDB / MySQL / PostgreSQL).         |
+| `$table->fullText('body')->language('english');`               | Adds a full text index of the specified language (PostgreSQL). |
+| `$table->spatialIndex('location');`                            | Adds a spatial index (except SQLite).                          |
+| `$table->rawIndex('(lower(email))', 'users_email_lower_index');` | Adds an index from a raw expression.                          |
+| `$table->vectorIndex('embedding');`                            | Adds a vector index (PostgreSQL).                              |
 
 </div>
+
+When using PostgreSQL, chaining `index` onto a `vector` column definition will create a vector index instead of a regular index.
 
 <a name="online-index-creation"></a>
 #### Online Index Creation
 
-By default, creating an index on a large table can lock the table and block reads or writes while the index is being built. When using PostgreSQL or SQL Server, you may chain the `online` method onto an index definition to create the index without locking the table, allowing your application to continue reading and writing data during index creation:
+By default, creating an index on a large table can lock the table and block reads or writes while the index is being built. When using PostgreSQL, you may chain the `online` method onto an index definition to create the index without locking the table, allowing your application to continue reading and writing data during index creation:
 
 ```php
 $table->string('email')->unique()->online();
 ```
 
-When using PostgreSQL, this adds the `CONCURRENTLY` option to the index creation statement. When using SQL Server, this adds the `WITH (online = on)` option.
+When using PostgreSQL, this adds the `CONCURRENTLY` option to the index creation statement.
 
 <a name="renaming-indexes"></a>
 ### Renaming Indexes
@@ -1471,7 +1499,7 @@ $table->renameIndex('from', 'to')
 <a name="dropping-indexes"></a>
 ### Dropping Indexes
 
-To drop an index, you must specify the index's name. By default, Laravel automatically assigns an index name based on the table name, the name of the indexed column, and the index type. Here are some examples:
+To drop an index, you must specify the index's name. By default, Hypervel automatically assigns an index name based on the table name, the name of the indexed column, and the index type. Here are some examples:
 
 <div class="overflow-auto">
 
@@ -1496,7 +1524,7 @@ Schema::table('geo', function (Blueprint $table) {
 <a name="foreign-key-constraints"></a>
 ### Foreign Key Constraints
 
-Laravel also provides support for creating foreign key constraints, which are used to force referential integrity at the database level. For example, let's define a `user_id` column on the `posts` table that references the `id` column on a `users` table:
+Hypervel also provides support for creating foreign key constraints, which are used to force referential integrity at the database level. For example, let's define a `user_id` column on the `posts` table that references the `id` column on a `users` table:
 
 ```php
 use Hypervel\Database\Schema\Blueprint;
@@ -1509,7 +1537,7 @@ Schema::table('posts', function (Blueprint $table) {
 });
 ```
 
-Since this syntax is rather verbose, Laravel provides additional, terser methods that use conventions to provide a better developer experience. When using the `foreignId` method to create your column, the example above can be rewritten like so:
+Since this syntax is rather verbose, Hypervel provides additional, terser methods that use conventions to provide a better developer experience. When using the `foreignId` method to create your column, the example above can be rewritten like so:
 
 ```php
 Schema::table('posts', function (Blueprint $table) {
@@ -1517,7 +1545,7 @@ Schema::table('posts', function (Blueprint $table) {
 });
 ```
 
-The `foreignId` method creates an `UNSIGNED BIGINT` equivalent column, while the `constrained` method will use conventions to determine the table and column being referenced. If your table name does not match Laravel's conventions, you may manually provide it to the `constrained` method. In addition, the name that should be assigned to the generated index may be specified as well:
+The `foreignId` method creates an `UNSIGNED BIGINT` equivalent column, while the `constrained` method will use conventions to determine the table and column being referenced. If your table name does not match Hypervel's conventions, you may manually provide it to the `constrained` method. In addition, the name that should be assigned to the generated index may be specified as well:
 
 ```php
 Schema::table('posts', function (Blueprint $table) {
@@ -1570,7 +1598,7 @@ To drop a foreign key, you may use the `dropForeign` method, passing the name of
 $table->dropForeign('posts_user_id_foreign');
 ```
 
-Alternatively, you may pass an array containing the column name that holds the foreign key to the `dropForeign` method. The array will be converted to a foreign key constraint name using Laravel's constraint naming conventions:
+Alternatively, you may pass an array containing the column name that holds the foreign key to the `dropForeign` method. The array will be converted to a foreign key constraint name using Hypervel's constraint naming conventions:
 
 ```php
 $table->dropForeign(['user_id']);
@@ -1597,18 +1625,21 @@ Schema::withoutForeignKeyConstraints(function () {
 <a name="events"></a>
 ## Events
 
-For convenience, each migration operation will dispatch an [event](/docs/{{version}}/events). All of the following events extend the base `Hypervel\Database\Events\MigrationEvent` class:
+For convenience, each migration operation will dispatch an [event](/docs/{{version}}/events). The following events are dispatched during migration operations:
 
 <div class="overflow-auto">
 
-| Class                                            | Description                                      |
-| ------------------------------------------------ | ------------------------------------------------ |
+| Class                                          | Description                                      |
+| ---------------------------------------------- | ------------------------------------------------ |
 | `Hypervel\Database\Events\MigrationsStarted`   | A batch of migrations is about to be executed.   |
 | `Hypervel\Database\Events\MigrationsEnded`     | A batch of migrations has finished executing.    |
 | `Hypervel\Database\Events\MigrationStarted`    | A single migration is about to be executed.      |
 | `Hypervel\Database\Events\MigrationEnded`      | A single migration has finished executing.       |
+| `Hypervel\Database\Events\MigrationSkipped`    | A single migration has been skipped.             |
 | `Hypervel\Database\Events\NoPendingMigrations` | A migration command found no pending migrations. |
+| `Hypervel\Database\Events\DatabaseRefreshed`   | The database has been refreshed.                 |
 | `Hypervel\Database\Events\SchemaDumped`        | A database schema dump has completed.            |
 | `Hypervel\Database\Events\SchemaLoaded`        | An existing database schema dump has loaded.     |
+| `Hypervel\Database\Events\MigrationsPruned`    | Existing migration files have been pruned.       |
 
 </div>

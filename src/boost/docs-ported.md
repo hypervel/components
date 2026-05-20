@@ -42,6 +42,7 @@ localization.md
 logging.md
 mail.md
 middleware.md
+migrations.md
 pagination.md
 requests.md
 routing.md
