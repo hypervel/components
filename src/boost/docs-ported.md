@@ -43,6 +43,7 @@ logging.md
 mail.md
 middleware.md
 migrations.md
+mocking.md
 pagination.md
 requests.md
 routing.md
