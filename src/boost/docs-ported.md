@@ -47,6 +47,7 @@ mocking.md
 notifications.md
 packages.md
 pagination.md
+passwords.md
 requests.md
 routing.md
 sanctum.md
