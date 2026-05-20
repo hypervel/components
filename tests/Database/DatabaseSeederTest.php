@@ -26,6 +26,16 @@ class TestDepsSeeder extends Seeder
     }
 }
 
+class CountingSeeder extends Seeder
+{
+    public static int $runs = 0;
+
+    public function run()
+    {
+        ++static::$runs;
+    }
+}
+
 class DatabaseSeederTest extends TestCase
 {
     public function testCallResolveTheClassAndCallsRun()
@@ -83,5 +93,26 @@ class DatabaseSeederTest extends TestCase
         $seeder->__invoke(['test1', 'test2']);
 
         $container->shouldHaveReceived('call')->once()->with([$seeder, 'run'], ['test1', 'test2']);
+    }
+
+    public function testFlushStateClearsCalledSeeders()
+    {
+        try {
+            CountingSeeder::$runs = 0;
+
+            $seeder = new TestSeeder;
+            $seeder->callOnce(CountingSeeder::class, true);
+            $seeder->callOnce(CountingSeeder::class, true);
+
+            $this->assertSame(1, CountingSeeder::$runs);
+
+            Seeder::flushState();
+            $seeder->callOnce(CountingSeeder::class, true);
+
+            $this->assertSame(2, CountingSeeder::$runs);
+        } finally {
+            CountingSeeder::$runs = 0;
+            Seeder::flushState();
+        }
     }
 }

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Connection;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
 use PDO;
@@ -42,6 +43,21 @@ class DatabaseManagerTest extends TestCase
 
         // PDO should be nulled
         $this->assertNull($connection->getRawPdo());
+    }
+
+    public function testFlushStateClearsMacros()
+    {
+        try {
+            DatabaseManager::macro('stateTest', fn () => 'state');
+
+            $this->assertTrue(DatabaseManager::hasMacro('stateTest'));
+
+            DatabaseManager::flushState();
+
+            $this->assertFalse(DatabaseManager::hasMacro('stateTest'));
+        } finally {
+            DatabaseManager::flushState();
+        }
     }
 
     public function testDisconnectWithNamedNonPooledConnection()

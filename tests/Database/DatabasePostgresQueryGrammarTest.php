@@ -69,4 +69,33 @@ class DatabasePostgresQueryGrammarTest extends TestCase
             'truncate "users" restart identity cascade' => [],
         ], $postgres->compileTruncate($builder));
     }
+
+    public function testFlushStateRestoresDefaults()
+    {
+        try {
+            $connection = m::mock(Connection::class);
+            $connection->shouldReceive('getTablePrefix')->andReturn('');
+
+            $postgres = new PostgresGrammar($connection);
+            $builder = m::mock(Builder::class);
+            $builder->from = 'users';
+
+            PostgresGrammar::customOperators(['@@@']);
+            PostgresGrammar::cascadeOnTruncate(false);
+
+            $this->assertContains('@@@', $postgres->getOperators());
+            $this->assertSame([
+                'truncate "users" restart identity' => [],
+            ], $postgres->compileTruncate($builder));
+
+            PostgresGrammar::flushState();
+
+            $this->assertNotContains('@@@', $postgres->getOperators());
+            $this->assertSame([
+                'truncate "users" restart identity cascade' => [],
+            ], $postgres->compileTruncate($builder));
+        } finally {
+            PostgresGrammar::flushState();
+        }
+    }
 }

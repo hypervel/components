@@ -17,10 +17,11 @@ use function Hypervel\Coroutine\go;
 /**
  * Tests coroutine safety of Model state methods.
  *
- * These tests verify that withoutEvents(), withoutBroadcasting(), and
- * withoutTouching() use Context (per-coroutine storage) rather than
- * static properties (process-global), ensuring concurrent requests
- * don't interfere with each other.
+ * These tests verify that withoutEvents(), withoutBroadcasting(),
+ * withoutTouching(), and withoutTimestamps() use Context
+ * (per-coroutine storage) rather than static properties
+ * (process-global), ensuring concurrent requests don't interfere
+ * with each other.
  */
 class ModelCoroutineSafetyTest extends DatabaseTestCase
 {
@@ -300,6 +301,89 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
         $this->assertFalse($results[2], 'Coroutine 2 should NOT be ignoring touch (isolated context)');
     }
 
+    public function testWithoutTimestampsDisablesTimestampsWithinCallback(): void
+    {
+        $this->assertFalse(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+
+        Model::withoutTimestamps(function () {
+            $this->assertTrue(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+        });
+
+        $this->assertFalse(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+    }
+
+    public function testWithoutTimestampsRestoresStateAfterException(): void
+    {
+        $this->assertFalse(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+
+        try {
+            Model::withoutTimestamps(function () {
+                $this->assertTrue(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+                throw new RuntimeException('Test exception');
+            });
+        } catch (RuntimeException) {
+            // Expected
+        }
+
+        $this->assertFalse(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+    }
+
+    public function testWithoutTimestampsSupportsNesting(): void
+    {
+        $this->assertFalse(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+
+        Model::withoutTimestamps(function () {
+            $this->assertTrue(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+
+            Model::withoutTimestamps(function () {
+                $this->assertTrue(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+            });
+
+            $this->assertTrue(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+        });
+
+        $this->assertFalse(Model::isIgnoringTimestamps(CoroutineTestUser::class));
+    }
+
+    public function testWithoutTimestampsIsCoroutineIsolated(): void
+    {
+        $channel = new Channel(2);
+        $waiter = new WaitGroup;
+
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            Model::withoutTimestamps(function () use ($channel) {
+                $channel->push([
+                    'coroutine' => 1,
+                    'ignoring' => Model::isIgnoringTimestamps(CoroutineTestUser::class),
+                ]);
+                usleep(50000);
+            });
+            $waiter->done();
+        });
+
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            usleep(10000);
+            $channel->push([
+                'coroutine' => 2,
+                'ignoring' => Model::isIgnoringTimestamps(CoroutineTestUser::class),
+            ]);
+            $waiter->done();
+        });
+
+        $waiter->wait();
+        $channel->close();
+
+        $results = [];
+        while (($result = $channel->pop()) !== false) {
+            $results[$result['coroutine']] = $result['ignoring'];
+        }
+
+        $this->assertTrue($results[1], 'Coroutine 1 should be ignoring timestamps');
+        $this->assertFalse($results[2], 'Coroutine 2 should NOT be ignoring timestamps (isolated context)');
+    }
+
     public function testWithoutRecursionIsCoroutineIsolated(): void
     {
         $model = new RecursionTestModel;
@@ -355,13 +439,16 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
             Model::withoutEvents(function () use ($channel) {
                 Model::withoutBroadcasting(function () use ($channel) {
                     Model::withoutTouching(function () use ($channel) {
-                        $channel->push([
-                            'coroutine' => 1,
-                            'eventsDisabled' => Model::eventsDisabled(),
-                            'broadcasting' => Model::isBroadcasting(),
-                            'ignoringTouch' => Model::isIgnoringTouch(CoroutineTestUser::class),
-                        ]);
-                        usleep(50000);
+                        Model::withoutTimestamps(function () use ($channel) {
+                            $channel->push([
+                                'coroutine' => 1,
+                                'eventsDisabled' => Model::eventsDisabled(),
+                                'broadcasting' => Model::isBroadcasting(),
+                                'ignoringTouch' => Model::isIgnoringTouch(CoroutineTestUser::class),
+                                'ignoringTimestamps' => Model::isIgnoringTimestamps(CoroutineTestUser::class),
+                            ]);
+                            usleep(50000);
+                        });
                     });
                 });
             });
@@ -376,6 +463,7 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
                 'eventsDisabled' => Model::eventsDisabled(),
                 'broadcasting' => Model::isBroadcasting(),
                 'ignoringTouch' => Model::isIgnoringTouch(CoroutineTestUser::class),
+                'ignoringTimestamps' => Model::isIgnoringTimestamps(CoroutineTestUser::class),
             ]);
             $waiter->done();
         });
@@ -391,10 +479,12 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
         $this->assertTrue($results[1]['eventsDisabled'], 'Coroutine 1: events should be disabled');
         $this->assertFalse($results[1]['broadcasting'], 'Coroutine 1: broadcasting should be disabled');
         $this->assertTrue($results[1]['ignoringTouch'], 'Coroutine 1: should be ignoring touch');
+        $this->assertTrue($results[1]['ignoringTimestamps'], 'Coroutine 1: should be ignoring timestamps');
 
         $this->assertFalse($results[2]['eventsDisabled'], 'Coroutine 2: events should be enabled');
         $this->assertTrue($results[2]['broadcasting'], 'Coroutine 2: broadcasting should be enabled');
         $this->assertFalse($results[2]['ignoringTouch'], 'Coroutine 2: should NOT be ignoring touch');
+        $this->assertFalse($results[2]['ignoringTimestamps'], 'Coroutine 2: should NOT be ignoring timestamps');
     }
 
     private function newRecursionCounter(): object

@@ -1570,6 +1570,15 @@ class Connection implements ConnectionInterface
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$resolvers = [];
+        static::flushMacros();
+    }
+
+    /**
      * Prepare the instance for cloning.
      */
     public function __clone(): void

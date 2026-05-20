@@ -5,21 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Concerns;
 
 use Carbon\CarbonInterface;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Facades\Date;
 
 trait HasTimestamps
 {
     /**
+     * Context key for storing models that should ignore timestamps.
+     */
+    protected const IGNORE_TIMESTAMPS_CONTEXT_KEY = '__database.model.ignore_timestamps';
+
+    /**
      * Indicates if the model should be timestamped.
      */
     public bool $timestamps = true;
-
-    /**
-     * The list of models classes that have timestamps temporarily disabled.
-     *
-     * @var array<int, class-string>
-     */
-    protected static array $ignoreTimestampsOn = [];
 
     /**
      * Update the model's update timestamp.
@@ -172,17 +171,14 @@ trait HasTimestamps
      */
     public static function withoutTimestampsOn(array $models, callable $callback): mixed
     {
-        // @phpstan-ignore arrayValues.list (unset() in finally block creates gaps, array_values re-indexes)
-        static::$ignoreTimestampsOn = array_values(array_merge(static::$ignoreTimestampsOn, $models));
+        /** @var list<class-string> $previous */
+        $previous = CoroutineContext::get(static::IGNORE_TIMESTAMPS_CONTEXT_KEY, []);
+        CoroutineContext::set(static::IGNORE_TIMESTAMPS_CONTEXT_KEY, array_values(array_merge($previous, $models)));
 
         try {
             return $callback();
         } finally {
-            foreach ($models as $model) {
-                if (($key = array_search($model, static::$ignoreTimestampsOn, true)) !== false) {
-                    unset(static::$ignoreTimestampsOn[$key]);
-                }
-            }
+            CoroutineContext::set(static::IGNORE_TIMESTAMPS_CONTEXT_KEY, $previous);
         }
     }
 
@@ -195,7 +191,10 @@ trait HasTimestamps
     {
         $class ??= static::class;
 
-        foreach (static::$ignoreTimestampsOn as $ignoredClass) {
+        /** @var list<class-string> $ignoreTimestampsOn */
+        $ignoreTimestampsOn = CoroutineContext::get(static::IGNORE_TIMESTAMPS_CONTEXT_KEY, []);
+
+        foreach ($ignoreTimestampsOn as $ignoredClass) {
             if ($class === $ignoredClass || is_subclass_of($class, $ignoredClass)) {
                 return true;
             }

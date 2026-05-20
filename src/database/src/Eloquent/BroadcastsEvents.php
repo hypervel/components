@@ -13,11 +13,6 @@ use Hypervel\Support\Arr;
 trait BroadcastsEvents
 {
     /**
-     * Indicates if the model is currently broadcasting.
-     */
-    protected static bool $isBroadcasting = true;
-
-    /**
      * Boot the event broadcasting trait.
      */
     public static function bootBroadcastsEvents(): void

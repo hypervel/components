@@ -151,6 +151,14 @@ abstract class Seeder
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$called = [];
+    }
+
+    /**
      * Run the database seeds.
      *
      * @throws InvalidArgumentException

@@ -30,6 +30,24 @@ use ReflectionClass;
 
 class DatabaseConnectionTest extends TestCase
 {
+    public function testFlushStateClearsResolversAndMacros()
+    {
+        try {
+            Connection::resolverFor('custom', fn () => null);
+            Connection::macro('stateTest', fn () => 'state');
+
+            $this->assertNotNull(Connection::getResolver('custom'));
+            $this->assertTrue(Connection::hasMacro('stateTest'));
+
+            Connection::flushState();
+
+            $this->assertNull(Connection::getResolver('custom'));
+            $this->assertFalse(Connection::hasMacro('stateTest'));
+        } finally {
+            Connection::flushState();
+        }
+    }
+
     public function testSettingDefaultCallsGetDefaultGrammar()
     {
         $connection = $this->getMockConnection(['getDefaultQueryGrammar']);
