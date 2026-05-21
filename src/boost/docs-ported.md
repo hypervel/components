@@ -51,6 +51,7 @@ passwords.md
 precognition.md
 processes.md
 prompts.md
+providers.md
 requests.md
 routing.md
 sanctum.md
