@@ -53,6 +53,7 @@ processes.md
 prompts.md
 providers.md
 queries.md
+rate-limiting.md
 requests.md
 routing.md
 sanctum.md
