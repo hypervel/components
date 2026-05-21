@@ -312,7 +312,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `encryption` (round 2)
+**Next:** `engine` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -336,7 +336,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 18 | `coroutine` | ✓ |
 | 19 | `database` | ✓ |
 | 20 | `di` | ✓ |
-| 21 | `encryption` |   |
+| 21 | `encryption` | ✓ |
 | 22 | `engine` |   |
 | 23 | `events` |   |
 | 24 | `facade-documenter` |   |

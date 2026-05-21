@@ -321,6 +321,9 @@ class Encrypter implements EncrypterContract, StringEncrypter
 
     /**
      * Set the previous / legacy encryption keys that should be utilized if decryption fails.
+     *
+     * Boot-only. Mutates the previous-key list; the encrypter is registered as
+     * a container singleton, so per-request use races across coroutines.
      */
     public function previousKeys(array $keys): static
     {
