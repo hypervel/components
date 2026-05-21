@@ -49,6 +49,7 @@ packages.md
 pagination.md
 passwords.md
 precognition.md
+processes.md
 requests.md
 routing.md
 sanctum.md
