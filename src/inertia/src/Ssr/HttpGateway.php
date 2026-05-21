@@ -75,6 +75,9 @@ class HttpGateway implements DisablesSsr, ExcludesSsrPaths, Gateway, HasHealthCh
 
     /**
      * Set a Guzzle client for testing purposes.
+     *
+     * Tests only. The client persists in a static property for the worker
+     * lifetime and is used by every SSR dispatch on this worker.
      */
     public static function useTestingClient(?ClientInterface $client): void
     {

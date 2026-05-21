@@ -42,6 +42,17 @@ class ResponseTest extends TestCase
         $this->assertEquals('bar', $response->foo());
     }
 
+    public function testFlushStateClearsMacros(): void
+    {
+        Response::macro('foo', fn () => 'bar');
+
+        $this->assertTrue(Response::hasMacro('foo'));
+
+        Response::flushState();
+
+        $this->assertFalse(Response::hasMacro('foo'));
+    }
+
     public function testServerResponse(): void
     {
         $request = Request::create('/user/123', 'GET');

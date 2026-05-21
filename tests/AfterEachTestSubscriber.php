@@ -131,6 +131,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Http\Resources\Json\JsonResource::flushState();
         \Hypervel\Http\Resources\JsonApi\JsonApiResource::flushState();
         \Hypervel\Inertia\Middleware::flushState();
+        \Hypervel\Inertia\Response::flushState();
         \Hypervel\Inertia\ResponseFactory::flushState();
         \Hypervel\Inertia\Ssr\BundleDetector::flushState();
         \Hypervel\Inertia\Ssr\HttpGateway::flushState();
