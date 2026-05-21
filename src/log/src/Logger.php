@@ -253,6 +253,9 @@ class Logger implements LoggerInterface
 
     /**
      * Set the event dispatcher instance.
+     *
+     * Boot or tests only. Persists on the cached logger for the worker
+     * lifetime; per-request use races across coroutines.
      */
     public function setEventDispatcher(Dispatcher $dispatcher): void
     {
