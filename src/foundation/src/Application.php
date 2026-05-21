@@ -1440,6 +1440,16 @@ class Application extends Container implements ApplicationContract, CachesConfig
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        parent::flushState();
+
+        static::flushMacros();
+    }
+
+    /**
      * Get the application namespace.
      *
      * @throws RuntimeException

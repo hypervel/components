@@ -234,4 +234,12 @@ class EventListCommand extends Command
     {
         static::$eventsResolver = $resolver;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$eventsResolver = null;
+    }
 }

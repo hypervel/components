@@ -332,4 +332,12 @@ class VendorPublishCommand extends Command
     {
         static::$updateMigrationDates = false;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$updateMigrationDates = true;
+    }
 }
