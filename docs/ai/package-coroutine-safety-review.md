@@ -312,7 +312,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `macroable` (round 2)
+**Next:** `object-pool` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -350,10 +350,10 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 32 | `json-schema` | ✓ |
 | 33 | `jwt` | ✓ |
 | 34 | `log` | ✓ |
-| 35 | `macroable` |   |
-| 36 | `mail` |   |
-| 37 | `nested-set` |   |
-| 38 | `notifications` |   |
+| 35 | `macroable` | ✓ |
+| 36 | `mail` | ✓ |
+| 37 | `nested-set` | ✓ |
+| 38 | `notifications` | ✓ |
 | 39 | `object-pool` |   |
 | 40 | `pagination` |   |
 | 41 | `permission` |   |
