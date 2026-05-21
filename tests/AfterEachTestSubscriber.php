@@ -90,6 +90,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Di\Aop\AstVisitorRegistry::flushState();
         \Hypervel\Di\ClassMap\ClassMapManager::flushState();
         \Hypervel\Di\ReflectionManager::flushState();
+        \Hypervel\Events\Dispatcher::flushState();
         \Hypervel\Foundation\Bootstrap\RegisterProviders::flushState();
         \Hypervel\Foundation\Console\AboutCommand::flushState();
         \Hypervel\Foundation\Console\ChannelListCommand::flushState();

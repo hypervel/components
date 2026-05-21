@@ -124,6 +124,75 @@ class CoroutineEventsTest extends TestCase
         $this->assertCount(1, $coroutine2Events);
     }
 
+    public function testPushedEventsDoNotLeakBetweenCoroutines()
+    {
+        $dispatcher = new Dispatcher;
+        $flushed = [];
+
+        $dispatcher->listen('shared-event', function (string $source) use (&$flushed) {
+            $flushed[] = $source;
+        });
+
+        $waiter = new WaitGroup;
+
+        $waiter->add(1);
+        go(function () use ($dispatcher, $waiter) {
+            $dispatcher->push('shared-event', ['coroutine-1']);
+
+            usleep(10000);
+
+            $dispatcher->flush('shared-event');
+            $waiter->done();
+        });
+
+        $waiter->add(1);
+        go(function () use ($dispatcher, $waiter) {
+            usleep(5000);
+
+            $dispatcher->push('shared-event', ['coroutine-2']);
+            $waiter->done();
+        });
+
+        $waiter->wait();
+
+        $this->assertSame(['coroutine-1'], $flushed);
+    }
+
+    public function testForgetPushedDoesNotClearOtherCoroutinePushedEvents()
+    {
+        $dispatcher = new Dispatcher;
+        $flushed = [];
+
+        $dispatcher->listen('shared-event', function (string $source) use (&$flushed) {
+            $flushed[] = $source;
+        });
+
+        $waiter = new WaitGroup;
+
+        $waiter->add(1);
+        go(function () use ($dispatcher, $waiter) {
+            $dispatcher->push('shared-event', ['coroutine-1']);
+
+            usleep(10000);
+
+            $dispatcher->flush('shared-event');
+            $waiter->done();
+        });
+
+        $waiter->add(1);
+        go(function () use ($dispatcher, $waiter) {
+            usleep(5000);
+
+            $dispatcher->push('shared-event', ['coroutine-2']);
+            $dispatcher->forgetPushed();
+            $waiter->done();
+        });
+
+        $waiter->wait();
+
+        $this->assertSame(['coroutine-1'], $flushed);
+    }
+
     public function testContextKeysAreCleanedUpAfterDeferCompletes()
     {
         $dispatcher = new Dispatcher;

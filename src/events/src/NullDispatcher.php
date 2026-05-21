@@ -97,7 +97,7 @@ class NullDispatcher implements DispatcherContract
     }
 
     /**
-     * Forget all of the queued listeners.
+     * Forget all events queued via push() in the current coroutine.
      */
     public function forgetPushed(): void
     {
