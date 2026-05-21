@@ -312,7 +312,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `json-schema` (round 2)
+**Next:** `log` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -347,8 +347,8 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 29 | `http` | ✓ |
 | 30 | `http-server` | ✓ |
 | 31 | `inertia` | ✓ |
-| 32 | `json-schema` |   |
-| 33 | `jwt` |   |
+| 32 | `json-schema` | ✓ |
+| 33 | `jwt` | ✓ |
 | 34 | `log` |   |
 | 35 | `macroable` |   |
 | 36 | `mail` |   |
