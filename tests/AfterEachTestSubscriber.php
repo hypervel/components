@@ -117,7 +117,10 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Foundation\Testing\DatabaseConnectionResolver::flushCachedConnections();
         \Hypervel\Foundation\Vite::flush();
         \Hypervel\Foundation\WorkerCachedMaintenanceMode::flushCache();
+        \Hypervel\Horizon\Horizon::flushState();
+        \Hypervel\Horizon\MasterSupervisor::flushState();
         \Hypervel\Horizon\SupervisorCommandString::flushState();
+        \Hypervel\Horizon\SystemProcessCounter::flushState();
         \Hypervel\Horizon\WorkerCommandString::flushState();
         \Hypervel\Http\Client\Request::flushState();
         \Hypervel\Http\Client\ResponseSequence::flushState();

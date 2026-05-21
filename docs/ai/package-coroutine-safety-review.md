@@ -312,7 +312,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `horizon` (round 2)
+**Next:** `http` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -343,7 +343,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 25 | `filesystem` | ✓ |
 | 26 | `foundation` | ✓ |
 | 27 | `hashing` | ✓ |
-| 28 | `horizon` |   |
+| 28 | `horizon` | ✓ |
 | 29 | `http` |   |
 | 30 | `http-server` |   |
 | 31 | `inertia` |   |

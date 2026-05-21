@@ -33,8 +33,6 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertStringStartsWith('test-name', $master->name);
         $this->assertStringStartsWith('test-name', $master->name());
         $this->assertStringStartsWith('test-name', $master->name());
-
-        MasterSupervisor::$nameResolver = null;
     }
 
     public function testMasterProcessMarksCleanExitsAsDeadAndRemovesThem()

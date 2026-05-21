@@ -184,4 +184,16 @@ class Horizon
 
         return new static;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$authUsing = null;
+        static::$slackWebhookUrl = null;
+        static::$slackChannel = null;
+        static::$smsNumber = null;
+        static::$email = null;
+    }
 }
