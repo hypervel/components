@@ -1079,7 +1079,7 @@ Http::fake([
         ->push('Hello World', 200),
 ]);
 
-Http::get('https://github.com/hypervel/components');
+Http::get('https://github.com/hypervel/hypervel');
 
 Http::assertSequencesAreEmpty();
 ```
@@ -1138,7 +1138,7 @@ Http::fake([
 ]);
 
 // An "ok" response is returned...
-Http::get('https://github.com/hypervel/components');
+Http::get('https://github.com/hypervel/hypervel');
 
 // An exception is thrown...
 Http::get('https://hypervel.org');

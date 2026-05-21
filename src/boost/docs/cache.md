@@ -848,7 +848,7 @@ class CustomStore implements Store
 }
 ```
 
-We just need to implement each of these methods using your underlying cache backend. For an example of how to implement each of these methods, take a look at the `Hypervel\Cache\RedisStore` in the [Hypervel framework source code](https://github.com/hypervel/components/blob/main/src/cache/src/RedisStore.php). Once our implementation is complete, we can finish our custom driver registration by calling the `Cache` facade's `extend` method:
+We just need to implement each of these methods using your underlying cache backend. For an example of how to implement each of these methods, take a look at the `Hypervel\Cache\RedisStore` in the [Hypervel cache source code](https://github.com/hypervel/cache/blob/{{version}}/src/RedisStore.php). Once our implementation is complete, we can finish our custom driver registration by calling the `Cache` facade's `extend` method:
 
 ```php
 Cache::extend('custom', function (Application $app, array $config) {

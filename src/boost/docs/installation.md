@@ -202,7 +202,7 @@ Hypervel's application skeleton includes the `swoole/ide-helper` package in deve
 <a name="hypervel-and-ai"></a>
 ## Hypervel and AI
 
-[Hypervel Boost](https://github.com/hypervel/components/tree/main/src/boost) is a powerful tool that bridges the gap between AI coding agents and Hypervel applications. Boost provides AI agents with Hypervel-specific context, tools, and guidelines so they can generate more accurate, version-specific code that follows Hypervel conventions.
+[Hypervel Boost](https://github.com/hypervel/boost) is a powerful tool that bridges the gap between AI coding agents and Hypervel applications. Boost provides AI agents with Hypervel-specific context, tools, and guidelines so they can generate more accurate, version-specific code that follows Hypervel conventions.
 
 When you install Boost in your Hypervel application, AI agents gain access to specialized tools including the ability to know which packages you are using, query your database, search the Hypervel documentation, read browser logs, generate tests, and execute code via Tinker.
 
@@ -228,7 +228,7 @@ php artisan boost:install
 The installer will auto-detect your IDE and AI agents, allowing you to opt into the features that make sense for your project. Boost respects existing project conventions and does not force opinionated style rules by default.
 
 > [!NOTE]
-> To learn more about Boost, check out the [Hypervel Boost source on GitHub](https://github.com/hypervel/components/tree/main/src/boost).
+> To learn more about Boost, check out the [Hypervel Boost source on GitHub](https://github.com/hypervel/boost).
 
 <a name="adding-custom-ai-guidelines"></a>
 #### Adding Custom AI Guidelines
