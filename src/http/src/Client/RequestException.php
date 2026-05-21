@@ -9,6 +9,11 @@ use GuzzleHttp\Psr7\Message;
 class RequestException extends HttpClientException
 {
     /**
+     * The default truncation length for exception messages.
+     */
+    public const DEFAULT_TRUNCATE_AT = 120;
+
+    /**
      * The current truncation length for the exception message.
      */
     public false|int|null $truncateExceptionsAt;
@@ -16,7 +21,7 @@ class RequestException extends HttpClientException
     /**
      * The global truncation length for the exception message.
      */
-    public static false|int $truncateAt = 120;
+    public static false|int $truncateAt = self::DEFAULT_TRUNCATE_AT;
 
     /**
      * Whether the response has been summarized in the message.
@@ -43,7 +48,7 @@ class RequestException extends HttpClientException
      */
     public static function truncate(): void
     {
-        static::$truncateAt = 120;
+        static::$truncateAt = self::DEFAULT_TRUNCATE_AT;
     }
 
     /**
@@ -102,5 +107,13 @@ class RequestException extends HttpClientException
         }
 
         return is_null($summary) ? $message : $message . ":\n{$summary}\n";
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$truncateAt = self::DEFAULT_TRUNCATE_AT;
     }
 }

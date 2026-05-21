@@ -123,6 +123,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Horizon\SystemProcessCounter::flushState();
         \Hypervel\Horizon\WorkerCommandString::flushState();
         \Hypervel\Http\Client\Request::flushState();
+        \Hypervel\Http\Client\RequestException::flushState();
         \Hypervel\Http\Client\ResponseSequence::flushState();
         \Hypervel\Http\Middleware\HandleCors::flushState();
         \Hypervel\Http\Middleware\TrustHosts::flushState();

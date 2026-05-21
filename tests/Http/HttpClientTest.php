@@ -1411,6 +1411,17 @@ class HttpClientTest extends TestCase
         $this->assertFalse(RequestException::$truncateAt);
     }
 
+    public function testRequestExceptionFlushStateRestoresDefaultTruncation()
+    {
+        RequestException::dontTruncate();
+
+        $this->assertFalse(RequestException::$truncateAt);
+
+        RequestException::flushState();
+
+        $this->assertSame(RequestException::DEFAULT_TRUNCATE_AT, RequestException::$truncateAt);
+    }
+
     public function testReportingExceptionTwiceDoesNotIncludeSummaryTwice()
     {
         RequestException::dontTruncate();
