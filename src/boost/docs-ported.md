@@ -48,6 +48,7 @@ notifications.md
 packages.md
 pagination.md
 passwords.md
+precognition.md
 requests.md
 routing.md
 sanctum.md
