@@ -50,6 +50,7 @@ pagination.md
 passwords.md
 precognition.md
 processes.md
+prompts.md
 requests.md
 routing.md
 sanctum.md

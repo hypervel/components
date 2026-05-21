@@ -18,7 +18,10 @@
 - [Transforming Input Before Validation](#transforming-input-before-validation)
 - [Forms](#forms)
 - [Informational Messages](#informational-messages)
+    - [Desktop Notifications](#desktop-notifications)
 - [Tables](#tables)
+    - [Grids](#grids)
+    - [Interactive Data Tables](#interactive-data-tables)
 - [Spin](#spin)
 - [Progress Bar](#progress)
 - [Task](#task)
@@ -32,24 +35,22 @@
 <a name="introduction"></a>
 ## Introduction
 
-[Laravel Prompts](https://github.com/laravel/prompts) is a PHP package for adding beautiful and user-friendly forms to your command-line applications, with browser-like features including placeholder text and validation.
+[Hypervel Prompts](https://github.com/hypervel/prompts) is a PHP package for adding beautiful and user-friendly forms to your command-line applications, with browser-like features including placeholder text and validation.
 
-<img src="https://laravel.com/img/docs/prompts-example.png">
-
-Laravel Prompts is perfect for accepting user input in your [Artisan console commands](/docs/{{version}}/artisan#writing-commands), but it may also be used in any command-line PHP project.
+Hypervel Prompts is perfect for accepting user input in your [Artisan console commands](/docs/{{version}}/artisan#writing-commands), but it may also be used in any command-line PHP project.
 
 > [!NOTE]
-> Laravel Prompts supports macOS, Linux, and Windows with WSL. For more information, please see our documentation on [unsupported environments & fallbacks](#fallbacks).
+> Hypervel Prompts supports macOS, Linux, and Windows with WSL. For more information, please see our documentation on [unsupported environments & fallbacks](#fallbacks).
 
 <a name="installation"></a>
 ## Installation
 
-Laravel Prompts is already included with the latest release of Laravel.
+Hypervel Prompts is already included with the latest release of Hypervel.
 
-Laravel Prompts may also be installed in your other PHP projects by using the Composer package manager:
+Hypervel Prompts may also be installed in your other PHP projects by using the Composer package manager:
 
 ```shell
-composer require laravel/prompts
+composer require hypervel/prompts
 ```
 
 <a name="available-prompts"></a>
@@ -116,7 +117,7 @@ $name = text(
 
 The closure will receive the value that has been entered and may return an error message, or `null` if the validation passes.
 
-Alternatively, you may leverage the power of Laravel's [validator](/docs/{{version}}/validation). To do so, provide an array containing the name of the attribute and the desired validation rules to the `validate` argument:
+Alternatively, you may leverage the power of Hypervel's [validator](/docs/{{version}}/validation). To do so, provide an array containing the name of the attribute and the desired validation rules to the `validate` argument:
 
 ```php
 $name = text(
@@ -185,7 +186,7 @@ $story = textarea(
 
 The closure will receive the value that has been entered and may return an error message, or `null` if the validation passes.
 
-Alternatively, you may leverage the power of Laravel's [validator](/docs/{{version}}/validation). To do so, provide an array containing the name of the attribute and the desired validation rules to the `validate` argument:
+Alternatively, you may leverage the power of Hypervel's [validator](/docs/{{version}}/validation). To do so, provide an array containing the name of the attribute and the desired validation rules to the `validate` argument:
 
 ```php
 $story = textarea(
@@ -208,11 +209,25 @@ $number = number('How many copies would you like?');
 You may also include placeholder text, a default value, and an informational hint:
 
 ```php
-$name = number(
+$copies = number(
     label: 'How many copies would you like?',
     placeholder: '5',
     default: 1,
-    hint: 'This will be determine how many copies to create.'
+    hint: 'This will determine how many copies to create.'
+);
+```
+
+<a name="number-limits"></a>
+#### Minimum, Maximum, and Step Values
+
+You may also provide minimum, maximum, and step values. The `step` argument determines how much the value changes when the user presses the up or down arrow keys:
+
+```php
+$copies = number(
+    label: 'How many copies would you like?',
+    min: 1,
+    max: 100,
+    step: 5
 );
 ```
 
@@ -245,7 +260,8 @@ Finally, if you would like to perform additional validation logic, you may pass 
 ```php
 $copies = number(
     label: 'How many copies would you like?',
-    validate: fn (?int $value) => match (true) {
+    required: true,
+    validate: fn (int|string $value) => match (true) {
         $value < 1 => 'At least one copy is required.',
         $value > 100 => 'You may not create more than 100 copies.',
         default => null
@@ -255,7 +271,7 @@ $copies = number(
 
 The closure will receive the value that has been entered and may return an error message, or `null` if the validation passes.
 
-Alternatively, you may leverage the power of Laravel's [validator](/docs/{{version}}/validation). To do so, provide an array containing the name of the attribute and the desired validation rules to the `validate` argument:
+Alternatively, you may leverage the power of Hypervel's [validator](/docs/{{version}}/validation). To do so, provide an array containing the name of the attribute and the desired validation rules to the `validate` argument:
 
 ```php
 $copies = number(
@@ -323,7 +339,7 @@ $password = password(
 
 The closure will receive the value that has been entered and may return an error message, or `null` if the validation passes.
 
-Alternatively, you may leverage the power of Laravel's [validator](/docs/{{version}}/validation). To do so, provide an array containing the name of the attribute and the desired validation rules to the `validate` argument:
+Alternatively, you may leverage the power of Hypervel's [validator](/docs/{{version}}/validation). To do so, provide an array containing the name of the attribute and the desired validation rules to the `validate` argument:
 
 ```php
 $password = password(
@@ -692,7 +708,7 @@ $name = suggest(
 
 The closure will receive the value that has been entered and may return an error message, or `null` if the validation passes.
 
-Alternatively, you may leverage the power of Laravel's [validator](/docs/{{version}}/validation). To do so, provide an array containing the name of the attribute and the desired validation rules to the `validate` argument:
+Alternatively, you may leverage the power of Hypervel's [validator](/docs/{{version}}/validation). To do so, provide an array containing the name of the attribute and the desired validation rules to the `validate` argument:
 
 ```php
 $name = suggest(
@@ -1097,6 +1113,54 @@ use function Hypervel\Prompts\info;
 info('Package installed successfully.');
 ```
 
+The `intro` and `outro` functions may be used to display introductory and closing messages:
+
+```php
+use function Hypervel\Prompts\intro;
+use function Hypervel\Prompts\outro;
+
+intro('Installing your application...');
+
+// ...
+
+outro('Application installed successfully.');
+```
+
+<a name="desktop-notifications"></a>
+### Desktop Notifications
+
+The `notify` function may be used to send a desktop notification to the user on macOS and Linux:
+
+```php
+use function Hypervel\Prompts\notify;
+
+notify(
+    title: 'Deployment complete',
+    body: 'Your application has been deployed successfully.'
+);
+```
+
+On macOS, you may also provide a subtitle and sound:
+
+```php
+notify(
+    title: 'Deployment complete',
+    body: 'Your application has been deployed successfully.',
+    subtitle: 'Hypervel',
+    sound: 'Glass'
+);
+```
+
+On Linux, you may provide an icon:
+
+```php
+notify(
+    title: 'Deployment complete',
+    body: 'Your application has been deployed successfully.',
+    icon: 'dialog-information'
+);
+```
+
 <a name="tables"></a>
 ## Tables
 
@@ -1108,6 +1172,69 @@ use function Hypervel\Prompts\table;
 table(
     headers: ['Name', 'Email'],
     rows: User::all(['name', 'email'])->toArray()
+);
+```
+
+<a name="grids"></a>
+### Grids
+
+The `grid` function may be used to display a list of values in a compact grid:
+
+```php
+use function Hypervel\Prompts\grid;
+
+grid([
+    'app/Console',
+    'app/Http',
+    'app/Models',
+    'database/migrations',
+]);
+```
+
+You may also provide a maximum width for the grid:
+
+```php
+grid(
+    items: ['alpha', 'bravo', 'charlie', 'delta'],
+    maxWidth: 80
+);
+```
+
+<a name="interactive-data-tables"></a>
+### Interactive Data Tables
+
+The `datatable` function displays an interactive table that allows the user to browse and search rows before selecting one:
+
+```php
+use function Hypervel\Prompts\datatable;
+
+$userId = datatable(
+    headers: ['Name', 'Email'],
+    rows: User::all(['id', 'name', 'email'])
+        ->mapWithKeys(fn (User $user) => [
+            $user->id => [$user->name, $user->email],
+        ])
+        ->all(),
+    label: 'Select a user'
+);
+```
+
+If the `rows` argument is an associative array, the selected row's key will be returned. Otherwise, the selected row's numeric index will be returned.
+
+You may also provide a custom filter callback. The callback will receive the row and the current search query:
+
+```php
+$userId = datatable(
+    headers: ['Name', 'Email'],
+    rows: User::all(['id', 'name', 'email'])
+        ->mapWithKeys(fn (User $user) => [
+            $user->id => [$user->name, $user->email],
+        ])
+        ->all(),
+    filter: fn (array $row, string $query) => str_contains(
+        mb_strtolower(implode(' ', $row)),
+        mb_strtolower($query)
+    )
 );
 ```
 
@@ -1125,13 +1252,13 @@ $response = spin(
 );
 ```
 
-> [!WARNING]
-> The `spin` function requires the [PCNTL](https://www.php.net/manual/en/book.pcntl.php) PHP extension to animate the spinner. When this extension is not available, a static version of the spinner will appear instead.
+> [!NOTE]
+> Hypervel's `spin` function uses Swoole coroutines to animate the spinner, so the PCNTL extension is not required.
 
 <a name="progress"></a>
 ## Progress Bars
 
-For long running tasks, it can be helpful to show a progress bar that informs users how complete the task is. Using the `progress` function, Laravel will display a progress bar and advance its progress for each iteration over a given iterable value:
+For long running tasks, it can be helpful to show a progress bar that informs users how complete the task is. Using the `progress` function, Hypervel will display a progress bar and advance its progress for each iteration over a given iterable value:
 
 ```php
 use function Hypervel\Prompts\progress;
@@ -1198,8 +1325,8 @@ task(
 
 The callback receives a `Logger` instance that you may use to display log lines, status messages, and streamed text in the task's output area.
 
-> [!WARNING]
-> The `task` function requires the [PCNTL](https://www.php.net/manual/en/book.pcntl.php) PHP extension to animate the spinner. When this extension is not available, a static version of the task will appear instead.
+> [!NOTE]
+> Under Hypervel's CLI, the `task` function uses Swoole coroutines to animate. The PCNTL extension is only consulted as a fallback when running outside a coroutine.
 
 <a name="task-logging"></a>
 #### Logging Lines
@@ -1212,7 +1339,7 @@ task(
     callback: function ($logger) {
         $logger->line('Resolving packages...');
         // ...
-        $logger->line('Downloading laravel/framework');
+        $logger->line('Downloading hypervel/framework');
         // ...
     }
 );
@@ -1405,17 +1532,17 @@ For any prompts that accept the `scroll` argument, the configured value will aut
 <a name="fallbacks"></a>
 ## Unsupported Environments and Fallbacks
 
-Laravel Prompts supports macOS, Linux, and Windows with WSL. Due to limitations in the Windows version of PHP, it is not currently possible to use Laravel Prompts on Windows outside of WSL.
+Hypervel Prompts supports macOS, Linux, and Windows with WSL. Due to limitations in the Windows version of PHP, it is not currently possible to use Hypervel Prompts on Windows outside of WSL.
 
-For this reason, Laravel Prompts supports falling back to an alternative implementation such as the [Symfony Console Question Helper](https://symfony.com/doc/current/components/console/helpers/questionhelper.html).
+For this reason, Hypervel Prompts supports falling back to an alternative implementation such as the [Symfony Console Question Helper](https://symfony.com/doc/current/components/console/helpers/questionhelper.html).
 
 > [!NOTE]
-> When using Laravel Prompts with the Laravel framework, fallbacks for each prompt have been configured for you and will be automatically enabled in unsupported environments.
+> When using Hypervel Prompts with the Hypervel framework, fallbacks for each prompt have been configured for you and will be automatically enabled in unsupported environments.
 
 <a name="fallback-conditions"></a>
 #### Fallback Conditions
 
-If you are not using Laravel or need to customize when the fallback behavior is used, you may pass a boolean to the `fallbackWhen` static method on the `Prompt` class:
+If you are not using Hypervel or need to customize when the fallback behavior is used, you may pass a boolean to the `fallbackWhen` static method on the `Prompt` class:
 
 ```php
 use Hypervel\Prompts\Prompt;
@@ -1428,7 +1555,7 @@ Prompt::fallbackWhen(
 <a name="fallback-behavior"></a>
 #### Fallback Behavior
 
-If you are not using Laravel or need to customize the fallback behavior, you may pass a closure to the `fallbackUsing` static method on each prompt class:
+If you are not using Hypervel or need to customize the fallback behavior, you may pass a closure to the `fallbackUsing` static method on each prompt class:
 
 ```php
 use Hypervel\Prompts\TextPrompt;
@@ -1465,7 +1592,7 @@ Fallbacks must be configured individually for each prompt class. The closure wil
 <a name="testing"></a>
 ## Testing
 
-Laravel provides a variety of methods for testing that your command displays the expected Prompt messages:
+Hypervel provides a variety of methods for testing that your command displays the expected Prompt messages:
 
 ```php tab=Pest
 test('report generation', function () {
