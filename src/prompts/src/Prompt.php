@@ -486,16 +486,6 @@ abstract class Prompt
     }
 
     /**
-     * Restore the cursor and terminal state.
-     */
-    public function __destruct()
-    {
-        $this->restoreCursor();
-
-        static::terminal()->restoreTty();
-    }
-
-    /**
      * Flush all static state.
      */
     public static function flushState(): void
@@ -512,5 +502,15 @@ abstract class Prompt
         static::resetFallback();
         static::resetInteractivity();
         static::resetTheme();
+    }
+
+    /**
+     * Restore the cursor and terminal state.
+     */
+    public function __destruct()
+    {
+        $this->restoreCursor();
+
+        static::terminal()->restoreTty();
     }
 }

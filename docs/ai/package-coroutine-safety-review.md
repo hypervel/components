@@ -312,7 +312,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `object-pool` (round 2)
+**Next:** `prompts` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -354,12 +354,12 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 36 | `mail` | ✓ |
 | 37 | `nested-set` | ✓ |
 | 38 | `notifications` | ✓ |
-| 39 | `object-pool` |   |
-| 40 | `pagination` |   |
-| 41 | `permission` |   |
-| 42 | `pipeline` |   |
-| 43 | `pool` |   |
-| 44 | `process` |   |
+| 39 | `object-pool` | ✓ |
+| 40 | `pagination` | ✓ |
+| 41 | `permission` | ✓ |
+| 42 | `pipeline` | ✓ |
+| 43 | `pool` | ✓ |
+| 44 | `process` | ✓ |
 | 45 | `prompts` |   |
 | 46 | `queue` |   |
 | 47 | `redis` |   |
