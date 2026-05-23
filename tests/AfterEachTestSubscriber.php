@@ -215,7 +215,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Telescope\Watchers\RedisWatcher::flushState();
         \Hypervel\Testbench\Bootstrapper::flushState();
         \Hypervel\Testbench\Factories\UserFactory::flushState();
-        \Hypervel\Testbench\Foundation\Config::flush();
+        \Hypervel\Testbench\Foundation\Config::flushState();
         \Hypervel\Testbench\Foundation\Console\TerminatingConsole::flush();
         \Hypervel\Testbench\Workbench\Workbench::flush();
         \Hypervel\Testing\Fluent\AssertableJson::flushState();
