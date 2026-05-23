@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
+use BadMethodCallException;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
@@ -38,6 +39,31 @@ class RedisProxy implements ConnectionContract
      * Context key prefix for per-connection pool state.
      */
     public const CONNECTION_CONTEXT_PREFIX = '__redis.connection.';
+
+    /**
+     * Methods that must be called while explicitly holding a pool connection.
+     *
+     * Keep in sync with Hypervel\Support\Facades\Redis::ignoredFacadeDocumenterMethods().
+     */
+    private const CONNECTION_BOUND_METHODS = [
+        'auth',
+        'check',
+        'client',
+        'close',
+        'connect',
+        'getActiveConnection',
+        'getConnection',
+        'getLastReleaseTime',
+        'getLastUseTime',
+        'getShouldTransform',
+        'pconnect',
+        'reconnect',
+        'release',
+        'safeScan',
+        'setDatabase',
+        'setOption',
+        'shouldTransform',
+    ];
 
     /**
      * Create a new Redis proxy instance.
@@ -109,6 +135,13 @@ class RedisProxy implements ConnectionContract
     {
         if (in_array($name, ['subscribe', 'psubscribe'], true)) {
             return $this->handleSubscribe($name, $arguments); // @phpstan-ignore method.void
+        }
+
+        if (in_array($name, self::CONNECTION_BOUND_METHODS, true)) {
+            throw new BadMethodCallException(sprintf(
+                'Redis connection method [%s] must be called on a held Redis connection. Use Redis::withConnection(...) or Redis::withPinnedConnection(...).',
+                $name
+            ));
         }
 
         $hasContextConnection = CoroutineContext::has($this->getContextKey());

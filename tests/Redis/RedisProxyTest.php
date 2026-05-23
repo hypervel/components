@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use BadMethodCallException;
 use Exception;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -62,6 +63,41 @@ class RedisProxyTest extends TestCase
         $result = $redis->get('foo');
 
         $this->assertSame('bar', $result);
+    }
+
+    public function testConnectionBoundMethodsCannotBeCalledThroughProxy(): void
+    {
+        $redis = new RedisProxy(m::mock(PoolFactory::class), 'default');
+
+        foreach ([
+            'auth',
+            'check',
+            'client',
+            'close',
+            'connect',
+            'getActiveConnection',
+            'getConnection',
+            'getLastReleaseTime',
+            'getLastUseTime',
+            'getShouldTransform',
+            'reconnect',
+            'release',
+            'safeScan',
+            'setDatabase',
+            'setOption',
+            'shouldTransform',
+            'pconnect',
+        ] as $method) {
+            try {
+                $redis->{$method}();
+                $this->fail(sprintf('Method [%s] was not blocked.', $method));
+            } catch (BadMethodCallException $exception) {
+                $this->assertStringContainsString(
+                    sprintf('Redis connection method [%s] must be called on a held Redis connection.', $method),
+                    $exception->getMessage()
+                );
+            }
+        }
     }
 
     public function testConnectionIsStoredInContextForMulti(): void
