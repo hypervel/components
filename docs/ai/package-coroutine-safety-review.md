@@ -312,7 +312,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `session` (round 2)
+**Next:** `signal` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -371,7 +371,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 53 | `sentry` | ✓ |
 | 54 | `server` | ✓ |
 | 55 | `server-process` | ✓ |
-| 56 | `session` |   |
+| 56 | `session` | ✓ |
 | 57 | `signal` |   |
 | 58 | `socialite` |   |
 | 59 | `support` |   |

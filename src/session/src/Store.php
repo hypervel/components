@@ -556,14 +556,6 @@ class Store implements Session
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::flushMacros();
-    }
-
-    /**
      * Get the name of the session.
      */
     public function getName(): string
@@ -749,5 +741,13 @@ class Store implements Session
         if ($this->handler instanceof CookieSessionHandler) {
             $this->handler->setRequest($request);
         }
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }
