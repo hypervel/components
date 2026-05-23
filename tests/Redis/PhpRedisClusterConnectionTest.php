@@ -169,6 +169,77 @@ class PhpRedisClusterConnectionTest extends TestCase
         $this->assertSame($explicitNode, $scanCalls[0]['node']);
     }
 
+    public function testFormatClusterPasswordReturnsArrayWhenUsernameAndPasswordProvided()
+    {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), [
+            'username' => 'myuser',
+            'password' => 'mypass',
+        ]) extends PhpRedisClusterConnectionStub {
+            public function formatClusterPasswordForTest(): mixed
+            {
+                return $this->formatClusterPassword();
+            }
+        };
+
+        $this->assertSame(['myuser', 'mypass'], $connection->formatClusterPasswordForTest());
+    }
+
+    public function testFormatClusterPasswordReturnsPlainPasswordWithoutUsername()
+    {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), [
+            'password' => 'mypass',
+        ]) extends PhpRedisClusterConnectionStub {
+            public function formatClusterPasswordForTest(): mixed
+            {
+                return $this->formatClusterPassword();
+            }
+        };
+
+        $this->assertSame('mypass', $connection->formatClusterPasswordForTest());
+    }
+
+    public function testFormatClusterPasswordReturnsNullWhenNoPasswordProvided()
+    {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), []) extends PhpRedisClusterConnectionStub {
+            public function formatClusterPasswordForTest(): mixed
+            {
+                return $this->formatClusterPassword();
+            }
+        };
+
+        $this->assertNull($connection->formatClusterPasswordForTest());
+    }
+
+    public function testFormatClusterPasswordReturnsPlainPasswordWhenUsernameIsEmpty()
+    {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), [
+            'username' => '',
+            'password' => 'mypass',
+        ]) extends PhpRedisClusterConnectionStub {
+            public function formatClusterPasswordForTest(): mixed
+            {
+                return $this->formatClusterPassword();
+            }
+        };
+
+        $this->assertSame('mypass', $connection->formatClusterPasswordForTest());
+    }
+
+    public function testFormatClusterPasswordReturnsPlainPasswordWhenPasswordIsNotString()
+    {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), [
+            'username' => 'myuser',
+            'password' => ['mypass'],
+        ]) extends PhpRedisClusterConnectionStub {
+            public function formatClusterPasswordForTest(): mixed
+            {
+                return $this->formatClusterPassword();
+            }
+        };
+
+        $this->assertSame(['mypass'], $connection->formatClusterPasswordForTest());
+    }
+
     public function testDefaultNodeIsCached()
     {
         $client = m::mock(RedisCluster::class);
@@ -262,5 +333,22 @@ class PhpRedisClusterConnectionTest extends TestCase
 
         // Mockery's ->once() on each client's _masters() verifies each was called exactly once,
         // proving the cache was cleared and re-populated after reconnect.
+    }
+
+    private function getMockedPool(): PoolInterface
+    {
+        $pool = m::mock(PoolInterface::class);
+        $pool->shouldReceive('getOption')->andReturn(m::mock(PoolOption::class));
+
+        return $pool;
+    }
+
+    private function getContainer(): ContainerContract
+    {
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('has')->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
+
+        return $container;
     }
 }
