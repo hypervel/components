@@ -665,15 +665,6 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::flushRequestState();
-        static::flushMacros();
-    }
-
-    /**
      * Set a callback to be used to format the host of generated URLs.
      *
      * @return $this
@@ -829,5 +820,14 @@ class UrlGenerator implements UrlGeneratorContract
         $this->rootNamespace = $rootNamespace;
 
         return $this;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushRequestState();
+        static::flushMacros();
     }
 }

@@ -9,6 +9,14 @@ use Hypervel\Support\Str;
 class ResourceRegistrar
 {
     /**
+     * The default verbs used in resource URIs.
+     */
+    protected const DEFAULT_VERBS = [
+        'create' => 'create',
+        'edit' => 'edit',
+    ];
+
+    /**
      * The router instance.
      */
     protected Router $router;
@@ -45,10 +53,7 @@ class ResourceRegistrar
     /**
      * The verbs used in the resource URIs.
      */
-    protected static array $verbs = [
-        'create' => 'create',
-        'edit' => 'edit',
-    ];
+    protected static array $verbs = self::DEFAULT_VERBS;
 
     /**
      * Create a new resource registrar instance.
@@ -613,9 +618,6 @@ class ResourceRegistrar
     {
         static::$parameterMap = [];
         static::$singularParameters = true;
-        static::$verbs = [
-            'create' => 'create',
-            'edit' => 'edit',
-        ];
+        static::$verbs = self::DEFAULT_VERBS;
     }
 }

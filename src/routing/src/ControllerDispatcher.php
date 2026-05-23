@@ -120,15 +120,6 @@ class ControllerDispatcher implements ControllerDispatcherContract
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::flushCache();
-        static::flushEnumCache();
-    }
-
-    /**
      * Get the middleware for the controller instance.
      */
     public function getMiddleware(mixed $controller, string $method): array
@@ -141,5 +132,14 @@ class ControllerDispatcher implements ControllerDispatcherContract
             ->reject(fn (array $data): bool => static::methodExcludedByOptions($method, $data['options']))
             ->pluck('middleware')
             ->all();
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushCache();
+        static::flushEnumCache();
     }
 }
