@@ -16,7 +16,9 @@ namespace Hypervel\Validation;
  */
 final class RulePlanCache
 {
-    private static int $maxSize = 2048;
+    private const DEFAULT_MAX_SIZE = 2048;
+
+    private static int $maxSize = self::DEFAULT_MAX_SIZE;
 
     /**
      * The cached plans, ordered least-recently-used first.
@@ -124,7 +126,7 @@ final class RulePlanCache
      */
     public static function flushState(): void
     {
-        self::$maxSize = 2048;
+        self::$maxSize = self::DEFAULT_MAX_SIZE;
         self::$plans = [];
     }
 }
