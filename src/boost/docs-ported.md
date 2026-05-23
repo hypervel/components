@@ -56,6 +56,7 @@ queries.md
 rate-limiting.md
 redis.md
 requests.md
+responses.md
 routing.md
 sanctum.md
 scout.md

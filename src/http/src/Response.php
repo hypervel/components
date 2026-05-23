@@ -191,14 +191,16 @@ class Response extends SymfonyResponse
     }
 
     /**
-     * Create a streamed response.
+     * Stream content directly to the client via the Swoole socket.
      *
-     * Streams content directly to the client via the Swoole socket,
-     * bypassing the normal response emission path. Each chunk written
-     * via the StreamOutput reaches the client immediately.
+     * This is used by Hypervel's server and filesystem streaming internals.
+     * Application code should prefer response()->stream(), which returns a
+     * Symfony StreamedResponse handled by the normal response bridge.
      *
      * @param callable $callback Callback that receives a StreamOutput for writing chunks
      * @param array $headers Additional headers for the response
+     *
+     * @internal
      */
     public function stream(callable $callback, array $headers = []): static
     {
@@ -259,12 +261,18 @@ class Response extends SymfonyResponse
     }
 
     /**
-     * Create a streamed download response.
+     * Stream a download directly to the client via the Swoole socket.
+     *
+     * This is used by Hypervel's server and filesystem streaming internals.
+     * Application code should prefer response()->streamDownload(), which
+     * returns a Symfony StreamedResponse handled by the normal response bridge.
      *
      * @param callable $callback Callback that receives a StreamOutput for writing chunks
      * @param null|string $filename Filename for the Content-Disposition header
      * @param array $headers Additional headers for the response
      * @param string $disposition Content-Disposition type (attachment or inline)
+     *
+     * @internal
      */
     public function streamDownload(callable $callback, ?string $filename = null, array $headers = [], string $disposition = 'attachment'): static
     {
