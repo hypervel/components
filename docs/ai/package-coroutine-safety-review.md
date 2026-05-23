@@ -312,7 +312,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `sanctum` (round 2)
+**Next:** `scout` (round 2)
 
 | # | Package | Status |
 |---|---|---|
@@ -366,7 +366,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 48 | `reflection` | ✓ |
 | 49 | `reverb` | ✓ |
 | 50 | `routing` | ✓ |
-| 51 | `sanctum` |   |
+| 51 | `sanctum` | ✓ |
 | 52 | `scout` |   |
 | 53 | `sentry` |   |
 | 54 | `server` |   |

@@ -14,11 +14,16 @@ use Mockery\MockInterface;
 class Sanctum
 {
     /**
+     * The default personal access token model class name.
+     */
+    protected const DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL = PersonalAccessToken::class;
+
+    /**
      * The personal access client model class name.
      *
      * @var class-string<TToken>
      */
-    public static string $personalAccessTokenModel = PersonalAccessToken::class;
+    public static string $personalAccessTokenModel = self::DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL;
 
     /**
      * A callback that can get the token from the request.
@@ -141,7 +146,7 @@ class Sanctum
      */
     public static function flushState(): void
     {
-        static::$personalAccessTokenModel = PersonalAccessToken::class;
+        static::$personalAccessTokenModel = self::DEFAULT_PERSONAL_ACCESS_TOKEN_MODEL;
         static::$accessTokenRetrievalCallback = null;
         static::$accessTokenAuthenticationCallback = null;
     }
