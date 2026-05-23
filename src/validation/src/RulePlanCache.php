@@ -87,15 +87,6 @@ final class RulePlanCache
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        self::$maxSize = 2048;
-        self::$plans = [];
-    }
-
-    /**
      * Set the maximum cache size. Intended for tests.
      *
      * Tests only. The cache size persists in a static property for the worker
@@ -126,5 +117,14 @@ final class RulePlanCache
         }
 
         return implode('|', $parts);
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$maxSize = 2048;
+        self::$plans = [];
     }
 }
