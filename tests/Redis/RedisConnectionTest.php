@@ -1834,6 +1834,136 @@ class RedisConnectionTest extends TestCase
         };
     }
 
+    public function testReconnectSetsConnectionLevelPhpRedisOptions()
+    {
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_READ_TIMEOUT, 5.0);
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_MAX_RETRIES, 4);
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_BACKOFF_ALGORITHM, Redis::BACKOFF_ALGORITHM_CONSTANT);
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_BACKOFF_BASE, 200);
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_BACKOFF_CAP, 2000);
+
+        new class($this->getContainer(), $pool, [
+            'host' => '127.0.0.1',
+            'port' => 6379,
+            'read_timeout' => 5.0,
+            'max_retries' => 4,
+            'backoff_algorithm' => 'constant',
+            'backoff_base' => 200,
+            'backoff_cap' => 2000,
+        ], $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+    }
+
+    public function testReconnectDoesNotSetReadTimeoutOptionWhenEmpty()
+    {
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('setOption')->never();
+
+        new class($this->getContainer(), $pool, [
+            'host' => '127.0.0.1',
+            'port' => 6379,
+            'read_timeout' => 0.0,
+        ], $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+    }
+
+    public function testReconnectSetsNumericBackoffAlgorithmAsIs()
+    {
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('setOption')
+            ->once()
+            ->with(Redis::OPT_BACKOFF_ALGORITHM, Redis::BACKOFF_ALGORITHM_DEFAULT);
+
+        new class($this->getContainer(), $pool, [
+            'host' => '127.0.0.1',
+            'port' => 6379,
+            'backoff_algorithm' => Redis::BACKOFF_ALGORITHM_DEFAULT,
+        ], $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+    }
+
+    public function testReconnectThrowsOnUnknownBackoffAlgorithm()
+    {
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+
+        $this->expectException(\Hypervel\Redis\Exceptions\InvalidRedisOptionException::class);
+        $this->expectExceptionMessage('Algorithm [bogus] is not a valid PhpRedis backoff algorithm.');
+
+        new class($this->getContainer(), $pool, [
+            'host' => '127.0.0.1',
+            'port' => 6379,
+            'backoff_algorithm' => 'bogus',
+        ], $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+    }
+
     public function testReconnectThrowsOnUnknownOption()
     {
         $pool = $this->getMockedPool();
