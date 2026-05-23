@@ -333,14 +333,6 @@ class Number
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::flushMacros();
-    }
-
-    /**
      * Ensure the "intl" PHP extension is installed.
      */
     protected static function ensureIntlExtensionIsInstalled(): void
@@ -350,5 +342,13 @@ class Number
 
             throw new RuntimeException('The "intl" PHP extension is required to use the [' . $method . '] method.');
         }
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }
