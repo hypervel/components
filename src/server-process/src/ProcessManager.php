@@ -40,15 +40,6 @@ class ProcessManager
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$processes = [];
-        static::$running = false;
-    }
-
-    /**
      * Determine if the processes are running.
      */
     public static function isRunning(): bool
@@ -66,5 +57,14 @@ class ProcessManager
     public static function setRunning(bool $running): void
     {
         static::$running = $running;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$processes = [];
+        static::$running = false;
     }
 }
