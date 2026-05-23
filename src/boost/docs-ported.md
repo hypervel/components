@@ -54,6 +54,7 @@ prompts.md
 providers.md
 queries.md
 rate-limiting.md
+redis.md
 requests.md
 routing.md
 sanctum.md

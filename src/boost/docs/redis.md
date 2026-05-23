@@ -2,26 +2,33 @@
 
 - [Introduction](#introduction)
 - [Configuration](#configuration)
-    - [Clusters](#clusters)
-    - [Predis](#predis)
+    - [Configuring the Connection Scheme](#configuring-the-connection-scheme)
     - [PhpRedis](#phpredis)
+    - [Retry and Backoff Configuration](#retry-and-backoff-configuration)
+    - [Unix Socket Connections](#unix-socket-connections)
+    - [PhpRedis Serialization and Compression](#phpredis-serialization)
+    - [Clusters](#clusters)
+    - [Sentinel](#sentinel)
+    - [Connection Pooling](#connection-pooling)
 - [Interacting With Redis](#interacting-with-redis)
+    - [Using Multiple Redis Connections](#using-multiple-redis-connections)
+    - [Holding a Pooled Connection](#holding-a-pooled-connection)
+    - [Pinned Connections](#pinned-connections)
+    - [Checking Cluster Connections](#checking-cluster-connections)
+    - [Deleting Keys by Pattern](#deleting-keys-by-pattern)
     - [Transactions](#transactions)
     - [Pipelining Commands](#pipelining-commands)
+    - [Advanced Helpers](#advanced-helpers)
 - [Pub / Sub](#pubsub)
+    - [Wildcard Subscriptions](#wildcard-subscriptions)
+    - [Using the Subscriber](#using-the-subscriber)
 
 <a name="introduction"></a>
 ## Introduction
 
 [Redis](https://redis.io) is an open source, advanced key-value store. It is often referred to as a data structure server since keys can contain [strings](https://redis.io/docs/latest/develop/data-types/strings/), [hashes](https://redis.io/docs/latest/develop/data-types/hashes/), [lists](https://redis.io/docs/latest/develop/data-types/lists/), [sets](https://redis.io/docs/latest/develop/data-types/sets/), and [sorted sets](https://redis.io/docs/latest/develop/data-types/sorted-sets/).
 
-Before using Redis with Laravel, we encourage you to install and use the [PhpRedis](https://github.com/phpredis/phpredis) PHP extension via PECL. The extension is more complex to install compared to "user-land" PHP packages but may yield better performance for applications that make heavy use of Redis. If you are using [Laravel Sail](/docs/{{version}}/sail), this extension is already installed in your application's Docker container.
-
-If you are unable to install the PhpRedis extension, you may install the `predis/predis` package via Composer. Predis is a Redis client written entirely in PHP and does not require any additional extensions:
-
-```shell
-composer require predis/predis
-```
+Before using Redis with Hypervel, you should install and enable the [PhpRedis](https://github.com/phpredis/phpredis) PHP extension. Hypervel's Redis integration is built on PhpRedis and uses pooled connections so Redis commands may be executed efficiently across Swoole coroutines.
 
 <a name="configuration"></a>
 ## Configuration
@@ -30,45 +37,62 @@ You may configure your application's Redis settings via the `config/database.php
 
 ```php
 'redis' => [
-
-    'client' => env('REDIS_CLIENT', 'phpredis'),
-
     'options' => [
-        'cluster' => env('REDIS_CLUSTER', 'redis'),
-        'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
+        'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'hypervel'), '_') . '_database_'),
     ],
 
     'default' => [
         'url' => env('REDIS_URL'),
-        'host' => env('REDIS_HOST', '127.0.0.1'),
+        'host' => env('REDIS_HOST', 'localhost'),
         'username' => env('REDIS_USERNAME'),
         'password' => env('REDIS_PASSWORD'),
-        'port' => env('REDIS_PORT', '6379'),
-        'database' => env('REDIS_DB', '0'),
+        'port' => (int) env('REDIS_PORT', 6379),
+        'database' => (int) env('REDIS_DB', 0),
+        'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
+        'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
+        'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
+        'backoff_cap' => (int) env('REDIS_BACKOFF_CAP', 1000),
+        'pool' => [
+            'min_connections' => (int) env('REDIS_MIN_CONNECTIONS', 1),
+            'max_connections' => (int) env('REDIS_MAX_CONNECTIONS', 10),
+            'connect_timeout' => 10.0,
+            'wait_timeout' => 3.0,
+            'heartbeat' => -1,
+            'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
+        ],
     ],
 
     'cache' => [
-        'url' => env('REDIS_URL'),
-        'host' => env('REDIS_HOST', '127.0.0.1'),
-        'username' => env('REDIS_USERNAME'),
-        'password' => env('REDIS_PASSWORD'),
-        'port' => env('REDIS_PORT', '6379'),
-        'database' => env('REDIS_CACHE_DB', '1'),
+        'url' => env('REDIS_CACHE_URL', env('REDIS_URL')),
+        'host' => env('REDIS_CACHE_HOST', env('REDIS_HOST', 'localhost')),
+        'username' => env('REDIS_CACHE_USERNAME', env('REDIS_USERNAME')),
+        'password' => env('REDIS_CACHE_PASSWORD', env('REDIS_PASSWORD')),
+        'port' => (int) env('REDIS_CACHE_PORT', env('REDIS_PORT', 6379)),
+        'database' => (int) env('REDIS_CACHE_DB', env('REDIS_DB', 0)),
+        'max_retries' => (int) env('REDIS_CACHE_MAX_RETRIES', env('REDIS_MAX_RETRIES', 3)),
+        'backoff_algorithm' => env('REDIS_CACHE_BACKOFF_ALGORITHM', env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter')),
+        'backoff_base' => (int) env('REDIS_CACHE_BACKOFF_BASE', env('REDIS_BACKOFF_BASE', 100)),
+        'backoff_cap' => (int) env('REDIS_CACHE_BACKOFF_CAP', env('REDIS_BACKOFF_CAP', 1000)),
+        'pool' => [
+            'min_connections' => (int) env('REDIS_CACHE_MIN_CONNECTIONS', env('REDIS_MIN_CONNECTIONS', 1)),
+            'max_connections' => (int) env('REDIS_CACHE_MAX_CONNECTIONS', env('REDIS_MAX_CONNECTIONS', 10)),
+            'connect_timeout' => 10.0,
+            'wait_timeout' => 3.0,
+            'heartbeat' => -1,
+            'max_idle_time' => (float) env('REDIS_CACHE_MAX_IDLE_TIME', env('REDIS_MAX_IDLE_TIME', 60)),
+        ],
     ],
-
 ],
 ```
 
-Each Redis server defined in your configuration file is required to have a name, host, and a port unless you define a single URL to represent the Redis connection:
+Hypervel's default configuration also includes `session`, `queue`, and `reverb` Redis connections. Each connection follows the same shape as the `default` and `cache` connections shown above.
+
+Each standalone Redis server defined in your configuration file is required to have a name, host, and port unless you define a single URL to represent the Redis connection:
 
 ```php
 'redis' => [
-
-    'client' => env('REDIS_CLIENT', 'phpredis'),
-
     'options' => [
-        'cluster' => env('REDIS_CLUSTER', 'redis'),
-        'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
+        'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'hypervel'), '_') . '_database_'),
     ],
 
     'default' => [
@@ -76,179 +100,73 @@ Each Redis server defined in your configuration file is required to have a name,
     ],
 
     'cache' => [
-        'url' => 'tls://user:password@127.0.0.1:6380?database=1',
+        'url' => 'tls://user:password@127.0.0.1:6380?database=0',
     ],
-
 ],
 ```
 
 <a name="configuring-the-connection-scheme"></a>
 #### Configuring the Connection Scheme
 
-By default, Redis clients will use the `tcp` scheme when connecting to your Redis servers; however, you may use TLS / SSL encryption by specifying a `scheme` configuration option in your Redis server's configuration array:
+By default, Redis connections will use the `tcp` scheme when connecting to your Redis servers. However, you may use TLS / SSL encryption by specifying a `scheme` configuration option in your Redis server's configuration array:
 
 ```php
 'default' => [
     'scheme' => 'tls',
     'url' => env('REDIS_URL'),
-    'host' => env('REDIS_HOST', '127.0.0.1'),
+    'host' => env('REDIS_HOST', 'localhost'),
     'username' => env('REDIS_USERNAME'),
     'password' => env('REDIS_PASSWORD'),
-    'port' => env('REDIS_PORT', '6379'),
-    'database' => env('REDIS_DB', '0'),
-],
-```
-
-<a name="clusters"></a>
-### Clusters
-
-If your application is utilizing a cluster of Redis servers, you should define these clusters within a `clusters` key of your Redis configuration. This configuration key does not exist by default so you will need to create it within your application's `config/database.php` configuration file:
-
-```php
-'redis' => [
-
-    'client' => env('REDIS_CLIENT', 'phpredis'),
-
-    'options' => [
-        'cluster' => env('REDIS_CLUSTER', 'redis'),
-        'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
-    ],
-
-    'clusters' => [
-        'default' => [
-            [
-                'url' => env('REDIS_URL'),
-                'host' => env('REDIS_HOST', '127.0.0.1'),
-                'username' => env('REDIS_USERNAME'),
-                'password' => env('REDIS_PASSWORD'),
-                'port' => env('REDIS_PORT', '6379'),
-                'database' => env('REDIS_DB', '0'),
-            ],
-        ],
-    ],
-
-    // ...
-],
-```
-
-By default, Laravel will use native Redis clustering since the `options.cluster` configuration value is set to `redis`. Redis clustering is a great default option, as it gracefully handles failover.
-
-Laravel also supports client-side sharding when using Predis. However, client-side sharding does not handle failover; therefore, it is primarily suited for transient cached data that is available from another primary data store.
-
-If you would like to use client-side sharding instead of native Redis clustering, you may remove the `options.cluster` configuration value within your application's `config/database.php` configuration file:
-
-```php
-'redis' => [
-
-    'client' => env('REDIS_CLIENT', 'phpredis'),
-
-    'clusters' => [
-        // ...
-    ],
-
-    // ...
-],
-```
-
-<a name="predis"></a>
-### Predis
-
-If you would like your application to interact with Redis via the Predis package, you should ensure the `REDIS_CLIENT` environment variable's value is `predis`:
-
-```php
-'redis' => [
-
-    'client' => env('REDIS_CLIENT', 'predis'),
-
-    // ...
-],
-```
-
-In addition to the default configuration options, Predis supports additional [connection parameters](https://github.com/nrk/predis/wiki/Connection-Parameters) that may be defined for each of your Redis servers. To utilize these additional configuration options, add them to your Redis server configuration in your application's `config/database.php` configuration file:
-
-```php
-'default' => [
-    'url' => env('REDIS_URL'),
-    'host' => env('REDIS_HOST', '127.0.0.1'),
-    'username' => env('REDIS_USERNAME'),
-    'password' => env('REDIS_PASSWORD'),
-    'port' => env('REDIS_PORT', '6379'),
-    'database' => env('REDIS_DB', '0'),
-    'read_write_timeout' => 60,
+    'port' => (int) env('REDIS_PORT', 6379),
+    'database' => (int) env('REDIS_DB', 0),
 ],
 ```
 
 <a name="phpredis"></a>
 ### PhpRedis
 
-By default, Laravel will use the PhpRedis extension to communicate with Redis. The client that Laravel will use to communicate with Redis is dictated by the value of the `redis.client` configuration option, which typically reflects the value of the `REDIS_CLIENT` environment variable:
-
-```php
-'redis' => [
-
-    'client' => env('REDIS_CLIENT', 'phpredis'),
-
-    // ...
-],
-```
-
-In addition to the default configuration options, PhpRedis supports the following additional connection parameters: `name`, `persistent`, `persistent_id`, `prefix`, `read_timeout`, `retry_interval`, `max_retries`, `backoff_algorithm`, `backoff_base`, `backoff_cap`, `timeout`, and `context`. You may add any of these options to your Redis server configuration in the `config/database.php` configuration file:
+Hypervel communicates with Redis using the PhpRedis extension. In addition to the default configuration options, Hypervel supports the following connection parameters: `url`, `scheme`, `host`, `username`, `password`, `port`, `database`, `timeout`, `retry_interval`, `read_timeout`, `context`, `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap`.
 
 ```php
 'default' => [
     'url' => env('REDIS_URL'),
-    'host' => env('REDIS_HOST', '127.0.0.1'),
+    'host' => env('REDIS_HOST', 'localhost'),
     'username' => env('REDIS_USERNAME'),
     'password' => env('REDIS_PASSWORD'),
-    'port' => env('REDIS_PORT', '6379'),
-    'database' => env('REDIS_DB', '0'),
+    'port' => (int) env('REDIS_PORT', 6379),
+    'database' => (int) env('REDIS_DB', 0),
+    'timeout' => 5.0,
+    'retry_interval' => 0,
     'read_timeout' => 60,
     'context' => [
-        // 'auth' => ['username', 'secret'],
         // 'stream' => ['verify_peer' => false],
     ],
 ],
 ```
 
+The `read_timeout` value is applied both when the Redis socket is opened and as the PhpRedis `Redis::OPT_READ_TIMEOUT` option. If you need to configure PhpRedis options such as a serializer, compression, or key prefix, add them to the `options` array.
+
 <a name="retry-and-backoff-configuration"></a>
 #### Retry and Backoff Configuration
 
-The `retry_interval`, `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap` options may be used to configure how the PhpRedis client should attempt to reconnect to a Redis server. The following backoff algorithms are supported: `default`, `decorrelated_jitter`, `equal_jitter`, `exponential`, `uniform`, and `constant`:
+The `max_retries`, `backoff_algorithm`, `backoff_base`, and `backoff_cap` options may be used to configure how PhpRedis backs off between retry attempts. The following backoff algorithms are supported: `default`, `decorrelated_jitter`, `equal_jitter`, `exponential`, `uniform`, and `constant`:
 
 ```php
 'default' => [
     'url' => env('REDIS_URL'),
-    'host' => env('REDIS_HOST', '127.0.0.1'),
+    'host' => env('REDIS_HOST', 'localhost'),
     'username' => env('REDIS_USERNAME'),
     'password' => env('REDIS_PASSWORD'),
-    'port' => env('REDIS_PORT', '6379'),
-    'database' => env('REDIS_DB', '0'),
-    'max_retries' => env('REDIS_MAX_RETRIES', 3),
+    'port' => (int) env('REDIS_PORT', 6379),
+    'database' => (int) env('REDIS_DB', 0),
+    'max_retries' => (int) env('REDIS_MAX_RETRIES', 3),
     'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
-    'backoff_base' => env('REDIS_BACKOFF_BASE', 100),
-    'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
+    'backoff_base' => (int) env('REDIS_BACKOFF_BASE', 100),
+    'backoff_cap' => (int) env('REDIS_BACKOFF_CAP', 1000),
 ],
 ```
 
-Predis 3.4.0 and later supports built-in retry and backoff configuration via the `Retry` class. Configure it using the `retry` option with one of the following strategies: `NoBackoff`, `EqualBackoff`, or `ExponentialBackoff`:
-
-```php
-use Predis\Retry;
-use Predis\Retry\Strategy\ExponentialBackoff;
-
-'default' => [
-    'url' => env('REDIS_URL'),
-    // ...
-    'retry' => new Retry(
-        new ExponentialBackoff(
-            env('REDIS_BACKOFF_BASE', 100),
-            env('REDIS_BACKOFF_CAP', 1000),
-            true, // Enables jitter
-        ),
-        env('REDIS_MAX_RETRIES', 3)
-    )
-],
-```
+Hypervel also reconnects and retries a failed Redis command once when PhpRedis throws a `RedisException` from a pooled connection.
 
 <a name="unix-socket-connections"></a>
 #### Unix Socket Connections
@@ -267,12 +185,8 @@ The PhpRedis extension may also be configured to use a variety of serializers an
 
 ```php
 'redis' => [
-
-    'client' => env('REDIS_CLIENT', 'phpredis'),
-
     'options' => [
-        'cluster' => env('REDIS_CLUSTER', 'redis'),
-        'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
+        'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'hypervel'), '_') . '_database_'),
         'serializer' => Redis::SERIALIZER_MSGPACK,
         'compression' => Redis::COMPRESSION_LZ4,
     ],
@@ -284,6 +198,76 @@ The PhpRedis extension may also be configured to use a variety of serializers an
 Currently supported serializers include: `Redis::SERIALIZER_NONE` (default), `Redis::SERIALIZER_PHP`, `Redis::SERIALIZER_JSON`, `Redis::SERIALIZER_IGBINARY`, and `Redis::SERIALIZER_MSGPACK`.
 
 Supported compression algorithms include: `Redis::COMPRESSION_NONE` (default), `Redis::COMPRESSION_LZF`, `Redis::COMPRESSION_ZSTD`, and `Redis::COMPRESSION_LZ4`.
+
+<a name="clusters"></a>
+### Clusters
+
+If your application is utilizing Redis Cluster, you should define a `cluster` array on the Redis connection. Hypervel uses PhpRedis' native Redis Cluster client:
+
+```php
+'default' => [
+    'username' => env('REDIS_USERNAME'),
+    'password' => env('REDIS_PASSWORD'),
+    'timeout' => 5.0,
+    'cluster' => [
+        'enable' => true,
+        'name' => env('REDIS_CLUSTER_NAME', 'mycluster'),
+        'seeds' => explode(',', env('REDIS_CLUSTER_SEEDS', '127.0.0.1:6379')),
+        'read_timeout' => 5.0,
+        'persistent' => false,
+        'context' => [],
+    ],
+],
+```
+
+The `seeds` option should contain one or more `host:port` entries for nodes in the cluster. Redis Cluster does not support selecting logical databases, so the `database` option is ignored for clustered connections.
+
+<a name="sentinel"></a>
+### Sentinel
+
+Redis Sentinel provides high availability for Redis by monitoring your Redis master and replica instances and reporting the current master node. To configure Redis Sentinel in your Hypervel application, add a `sentinel` array to the Redis connection:
+
+```php
+'default' => [
+    'username' => env('REDIS_USERNAME'),
+    'password' => env('REDIS_PASSWORD'),
+    'database' => (int) env('REDIS_DB', 0),
+    'timeout' => 5.0,
+    'retry_interval' => 0,
+    'sentinel' => [
+        'enable' => true,
+        'master_name' => env('REDIS_SENTINEL_MASTER', 'mymaster'),
+        'nodes' => explode(',', env('REDIS_SENTINEL_NODES', '127.0.0.1:26379')),
+        'persistent' => '',
+        'read_timeout' => 5.0,
+        'auth' => env('REDIS_SENTINEL_PASSWORD'),
+    ],
+],
+```
+
+When Sentinel is enabled, Hypervel asks Sentinel for the current master address and then connects to that Redis master. The `auth` value in the `sentinel` array is used to authenticate with Sentinel itself; Redis authentication still uses the connection's top-level `username` and `password` values.
+
+<a name="connection-pooling"></a>
+### Connection Pooling
+
+Hypervel pools Redis connections so commands can reuse established sockets across coroutines instead of opening a new connection for every command. Each Redis connection may define a `pool` array:
+
+```php
+'default' => [
+    // ...
+
+    'pool' => [
+        'min_connections' => 1,
+        'max_connections' => 10,
+        'connect_timeout' => 10.0,
+        'wait_timeout' => 3.0,
+        'heartbeat' => -1,
+        'max_idle_time' => 60.0,
+    ],
+],
+```
+
+The `min_connections` and `max_connections` options define the size of the pool. The `wait_timeout` option controls how long a coroutine will wait for a pooled connection to become available, while `max_idle_time` controls how long an idle connection may remain in the pool before it is recycled.
 
 <a name="interacting-with-redis"></a>
 ## Interacting With Redis
@@ -306,13 +290,13 @@ class UserController extends Controller
     public function show(string $id): View
     {
         return view('user.profile', [
-            'user' => Redis::get('user:profile:'.$id)
+            'user' => Redis::get('user:profile:'.$id),
         ]);
     }
 }
 ```
 
-As mentioned above, you may call any of Redis' commands on the `Redis` facade. Laravel uses magic methods to pass the commands to the Redis server. If a Redis command expects arguments, you should pass those to the facade's corresponding method:
+As mentioned above, you may call any of Redis' commands on the `Redis` facade. Hypervel uses magic methods to pass the commands to the Redis server. If a Redis command expects arguments, you should pass those to the facade's corresponding method:
 
 ```php
 use Hypervel\Support\Facades\Redis;
@@ -334,7 +318,7 @@ $values = Redis::command('lrange', ['name', 5, 10]);
 Your application's `config/database.php` configuration file allows you to define multiple Redis connections / servers. You may obtain a connection to a specific Redis connection using the `Redis` facade's `connection` method:
 
 ```php
-$redis = Redis::connection('connection-name');
+$redis = Redis::connection('cache');
 ```
 
 To obtain an instance of the default Redis connection, you may call the `connection` method without any additional arguments:
@@ -343,20 +327,91 @@ To obtain an instance of the default Redis connection, you may call the `connect
 $redis = Redis::connection();
 ```
 
+You may disconnect a named Redis connection and flush its pool using the `purge` method. This method is intended for bootstrapping code, tests, or administrative tooling:
+
+```php
+Redis::purge('cache');
+```
+
+<a name="holding-a-pooled-connection"></a>
+#### Holding a Pooled Connection
+
+Most Redis facade calls check out a connection from the pool, execute the command, and immediately return the connection to the pool. If you need to run several operations against the same pooled connection, use the `withConnection` method:
+
+```php
+use Hypervel\Redis\RedisConnection;
+use Hypervel\Support\Facades\Redis;
+
+$values = Redis::withConnection(function (RedisConnection $connection): array {
+    $connection->set('first', 'Taylor');
+    $connection->set('second', 'Abigail');
+
+    return $connection->mget(['first', 'second']);
+});
+```
+
+By default, Hypervel applies Laravel-style transformations to certain PhpRedis command results. If you need the raw PhpRedis result shape for a block of work, pass `transform: false` to `withConnection`:
+
+```php
+$values = Redis::withConnection(function (RedisConnection $connection): array {
+    return $connection->mget(['first', 'missing']);
+}, transform: false);
+```
+
+In raw mode, PhpRedis returns `false` for missing keys in an `mget` result, while Hypervel's transformed mode returns `null`.
+
+<a name="pinned-connections"></a>
+#### Pinned Connections
+
+If you want regular `Redis` facade calls inside a callback to reuse the same pooled connection, you may use the `withPinnedConnection` method:
+
+```php
+use Hypervel\Support\Facades\Redis;
+
+Redis::withPinnedConnection(function () {
+    Redis::incr('request:count');
+    Redis::expire('request:count', 60);
+});
+```
+
+The pinned connection is stored in coroutine context for the duration of the callback and is returned to the pool when the callback completes.
+
+<a name="checking-cluster-connections"></a>
+#### Checking Cluster Connections
+
+You may determine if a Redis connection is configured as a Redis Cluster connection using the `isCluster` method:
+
+```php
+if (Redis::connection('cache')->isCluster()) {
+    // ...
+}
+```
+
+<a name="deleting-keys-by-pattern"></a>
+#### Deleting Keys by Pattern
+
+The `flushByPattern` method deletes all keys matching a pattern using Redis' `SCAN` command. The pattern should not include your configured Redis prefix, since Hypervel handles the prefix automatically:
+
+```php
+$deleted = Redis::flushByPattern('users:*');
+```
+
 <a name="transactions"></a>
 ### Transactions
 
 The `Redis` facade's `transaction` method provides a convenient wrapper around Redis' native `MULTI` and `EXEC` commands. The `transaction` method accepts a closure as its only argument. This closure will receive a Redis connection instance and may issue any commands it would like to this instance. All of the Redis commands issued within the closure will be executed in a single, atomic transaction:
 
 ```php
-use Redis;
-use Hypervel\Support\Facades;
+use Hypervel\Support\Facades\Redis;
 
-Facades\Redis::transaction(function (Redis $redis) {
+Redis::transaction(function (\Redis|\RedisCluster $redis): void {
     $redis->incr('user_visits', 1);
     $redis->incr('total_visits', 1);
 });
 ```
+
+> [!NOTE]
+> In Hypervel, the closure form of `transaction` returns the pooled connection as soon as the transaction is executed. Calling `Redis::transaction()` without a closure pins a connection for the rest of the coroutine, so the closure form is preferred for application code.
 
 > [!WARNING]
 > When defining a Redis transaction, you may not retrieve any values from the Redis connection. Remember, your transaction is executed as a single, atomic operation and that operation is not executed until your entire closure has finished executing its commands.
@@ -390,20 +445,64 @@ LUA, 2, 'first-counter', 'second-counter');
 Sometimes you may need to execute dozens of Redis commands. Instead of making a network trip to your Redis server for each command, you may use the `pipeline` method. The `pipeline` method accepts one argument: a closure that receives a Redis instance. You may issue all of your commands to this Redis instance and they will all be sent to the Redis server at the same time to reduce network trips to the server. The commands will still be executed in the order they were issued:
 
 ```php
-use Redis;
-use Hypervel\Support\Facades;
+use Hypervel\Support\Facades\Redis;
 
-Facades\Redis::pipeline(function (Redis $pipe) {
+Redis::pipeline(function (\Redis $pipe): void {
     for ($i = 0; $i < 1000; $i++) {
         $pipe->set("key:$i", $i);
     }
 });
 ```
 
+> [!NOTE]
+> In Hypervel, the closure form of `pipeline` returns the pooled connection as soon as the pipeline is executed. Calling `Redis::pipeline()` without a closure pins a connection for the rest of the coroutine, so the closure form is preferred for application code.
+
+<a name="advanced-helpers"></a>
+### Advanced Helpers
+
+If you need to stream keys with Redis' `SCAN` command, use `safeScan` while holding a pooled connection. The `safeScan` method handles PhpRedis' `OPT_PREFIX` behavior by adding the prefix to the scan pattern and removing it from returned keys:
+
+```php
+use Hypervel\Redis\RedisConnection;
+use Hypervel\Support\Facades\Redis;
+
+$keys = Redis::withConnection(function (RedisConnection $connection): array {
+    return iterator_to_array($connection->safeScan('users:*'));
+});
+```
+
+The `evalWithShaCache` method executes a Lua script using `evalSha` and automatically falls back to `eval` when Redis has not cached the script yet:
+
+```php
+$result = Redis::evalWithShaCache(
+    script: 'return redis.call("get", KEYS[1])',
+    keys: ['first-counter'],
+);
+```
+
+If you have configured PhpRedis serialization or compression but need to run a block of commands using raw values, you may use the `withoutSerializationOrCompression` method:
+
+```php
+$count = Redis::withoutSerializationOrCompression(function (): int {
+    return Redis::incr('raw-counter');
+});
+```
+
+When passing serialized values to Lua scripts as `ARGV` values, the `pack` method may be used to pack values using PhpRedis' configured serializer:
+
+```php
+$packed = Redis::withConnection(function (RedisConnection $connection): array {
+    return $connection->pack([
+        'Taylor',
+        'Abigail',
+    ]);
+});
+```
+
 <a name="pubsub"></a>
 ## Pub / Sub
 
-Laravel provides a convenient interface to the Redis `publish` and `subscribe` commands. These Redis commands allow you to listen for messages on a given "channel". You may publish messages to the channel from another application, or even using another programming language, allowing easy communication between applications and processes.
+Hypervel provides a convenient interface to the Redis `publish` and `subscribe` commands. These Redis commands allow you to listen for messages on a given "channel". You may publish messages to the channel from another application, or even using another programming language, allowing easy communication between applications and processes.
 
 First, let's set up a channel listener using the `subscribe` method. We'll place this method call within an [Artisan command](/docs/{{version}}/artisan) since calling the `subscribe` method begins a long-running process:
 
@@ -419,24 +518,20 @@ class RedisSubscribe extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'redis:subscribe';
+    protected ?string $signature = 'redis:subscribe';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Subscribe to a Redis channel';
+    protected string $description = 'Subscribe to a Redis channel';
 
     /**
      * Execute the console command.
      */
     public function handle(): void
     {
-        Redis::subscribe(['test-channel'], function (string $message) {
+        Redis::subscribe(['test-channel'], function (string $message): void {
             echo $message;
         });
     }
@@ -447,15 +542,18 @@ Now we may publish messages to the channel using the `publish` method:
 
 ```php
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Support\Facades\Route;
 
 Route::get('/publish', function () {
     // ...
 
     Redis::publish('test-channel', json_encode([
-        'name' => 'Adam Wathan'
+        'name' => 'Taylor',
     ]));
 });
 ```
+
+Hypervel's pooled Redis connections cannot execute raw `subscribe` or `psubscribe` commands directly because pub/sub requires a long-lived dedicated socket. The `Redis::subscribe`, `Redis::psubscribe`, and `Redis::subscriber` methods create a dedicated subscriber socket instead of using the connection pool.
 
 <a name="wildcard-subscriptions"></a>
 #### Wildcard Subscriptions
@@ -463,11 +561,36 @@ Route::get('/publish', function () {
 Using the `psubscribe` method, you may subscribe to a wildcard channel, which may be useful for catching all messages on all channels. The channel name will be passed as the second argument to the provided closure:
 
 ```php
-Redis::psubscribe(['*'], function (string $message, string $channel) {
+Redis::psubscribe(['*'], function (string $message, string $channel): void {
     echo $message;
 });
 
-Redis::psubscribe(['users.*'], function (string $message, string $channel) {
+Redis::psubscribe(['users.*'], function (string $message, string $channel): void {
     echo $message;
 });
 ```
+
+<a name="using-the-subscriber"></a>
+#### Using the Subscriber
+
+For more control over a long-running subscriber, you may use the `subscriber` method. This method returns a `Hypervel\Redis\Subscriber\Subscriber` instance backed by a dedicated socket connection:
+
+```php
+use Hypervel\Redis\Subscriber\Message;
+use Hypervel\Support\Facades\Redis;
+
+$subscriber = Redis::subscriber();
+
+try {
+    $subscriber->subscribe('orders');
+
+    while ($message = $subscriber->channel()->pop()) {
+        /** @var Message $message */
+        echo $message->channel.': '.$message->payload;
+    }
+} finally {
+    $subscriber->close();
+}
+```
+
+The subscriber supports `subscribe`, `unsubscribe`, `psubscribe`, `punsubscribe`, `ping`, `channel`, and `close` methods. Messages received from pattern subscriptions include the matched pattern on the message's `pattern` property.
