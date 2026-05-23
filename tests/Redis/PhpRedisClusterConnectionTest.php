@@ -171,10 +171,7 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testFormatClusterPasswordReturnsArrayWhenUsernameAndPasswordProvided()
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), [
-            'username' => 'myuser',
-            'password' => 'mypass',
-        ]) extends PhpRedisClusterConnectionStub {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), ['username' => 'myuser', 'password' => 'mypass']) extends PhpRedisClusterConnectionStub {
             public function formatClusterPasswordForTest(): mixed
             {
                 return $this->formatClusterPassword();
@@ -186,9 +183,7 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testFormatClusterPasswordReturnsPlainPasswordWithoutUsername()
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), [
-            'password' => 'mypass',
-        ]) extends PhpRedisClusterConnectionStub {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), ['password' => 'mypass']) extends PhpRedisClusterConnectionStub {
             public function formatClusterPasswordForTest(): mixed
             {
                 return $this->formatClusterPassword();
@@ -212,10 +207,7 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testFormatClusterPasswordReturnsPlainPasswordWhenUsernameIsEmpty()
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), [
-            'username' => '',
-            'password' => 'mypass',
-        ]) extends PhpRedisClusterConnectionStub {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), ['username' => '', 'password' => 'mypass']) extends PhpRedisClusterConnectionStub {
             public function formatClusterPasswordForTest(): mixed
             {
                 return $this->formatClusterPassword();
@@ -227,10 +219,7 @@ class PhpRedisClusterConnectionTest extends TestCase
 
     public function testFormatClusterPasswordReturnsPlainPasswordWhenPasswordIsNotString()
     {
-        $connection = new class($this->getContainer(), $this->getMockedPool(), [
-            'username' => 'myuser',
-            'password' => ['mypass'],
-        ]) extends PhpRedisClusterConnectionStub {
+        $connection = new class($this->getContainer(), $this->getMockedPool(), ['username' => 'myuser', 'password' => ['mypass']]) extends PhpRedisClusterConnectionStub {
             public function formatClusterPasswordForTest(): mixed
             {
                 return $this->formatClusterPassword();

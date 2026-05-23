@@ -1854,15 +1854,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->with(Redis::OPT_BACKOFF_CAP, 2000);
 
-        new class($this->getContainer(), $pool, [
-            'host' => '127.0.0.1',
-            'port' => 6379,
-            'read_timeout' => 5.0,
-            'max_retries' => 4,
-            'backoff_algorithm' => 'constant',
-            'backoff_base' => 200,
-            'backoff_cap' => 2000,
-        ], $redis) extends PhpRedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'read_timeout' => 5.0, 'max_retries' => 4, 'backoff_algorithm' => 'constant', 'backoff_base' => 200, 'backoff_cap' => 2000], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1885,11 +1877,7 @@ class RedisConnectionTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('setOption')->never();
 
-        new class($this->getContainer(), $pool, [
-            'host' => '127.0.0.1',
-            'port' => 6379,
-            'read_timeout' => 0.0,
-        ], $redis) extends PhpRedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'read_timeout' => 0.0], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1914,11 +1902,7 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->with(Redis::OPT_BACKOFF_ALGORITHM, Redis::BACKOFF_ALGORITHM_DEFAULT);
 
-        new class($this->getContainer(), $pool, [
-            'host' => '127.0.0.1',
-            'port' => 6379,
-            'backoff_algorithm' => Redis::BACKOFF_ALGORITHM_DEFAULT,
-        ], $redis) extends PhpRedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'backoff_algorithm' => Redis::BACKOFF_ALGORITHM_DEFAULT], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
@@ -1943,11 +1927,7 @@ class RedisConnectionTest extends TestCase
         $this->expectException(\Hypervel\Redis\Exceptions\InvalidRedisOptionException::class);
         $this->expectExceptionMessage('Algorithm [bogus] is not a valid PhpRedis backoff algorithm.');
 
-        new class($this->getContainer(), $pool, [
-            'host' => '127.0.0.1',
-            'port' => 6379,
-            'backoff_algorithm' => 'bogus',
-        ], $redis) extends PhpRedisConnection {
+        new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'backoff_algorithm' => 'bogus'], $redis) extends PhpRedisConnection {
             public function __construct(
                 ContainerContract $container,
                 PoolInterface $pool,
