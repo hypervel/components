@@ -287,14 +287,6 @@ abstract class Queue
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$createPayloadCallbacks = [];
-    }
-
-    /**
      * Create the given payload using any registered payload hooks.
      */
     protected function withCreatePayloadHooks(?string $queue, array $payload): array
@@ -467,5 +459,13 @@ abstract class Queue
         $this->container = $container;
 
         return $this;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$createPayloadCallbacks = [];
     }
 }
