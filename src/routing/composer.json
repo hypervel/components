@@ -48,9 +48,9 @@
         "hypervel/view": "^0.4",
         "symfony/console": "^8.0",
         "symfony/http-foundation": "^8.0",
-        "symfony/http-kernel": "^8.0",
+        "symfony/http-kernel": "^8.0.12",
         "symfony/psr-http-message-bridge": "^8.0",
-        "symfony/routing": "^8.0"
+        "symfony/routing": "^8.0.12"
     },
     "config": {
         "sort-packages": true
