@@ -57,6 +57,7 @@ rate-limiting.md
 redis.md
 requests.md
 responses.md
+reverb.md
 routing.md
 sanctum.md
 scout.md
