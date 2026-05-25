@@ -5,7 +5,7 @@
 Hypervel is a Laravel-style Swoole framework originally built on top of Hyperf. We are decoupling from Hyperf and making Hypervel as close to 1:1 with Laravel as possible. This involves porting packages from both Hyperf (Swoole/coroutine infrastructure) and Laravel (application-level features).
 
 When porting, we keep packages as close to 1:1 with the originals as possible so merging upstream changes is easy later. The exceptions are:
-- Modernising PHP types (PHP 8.4+ features, strict types)
+- Modernising PHP types (PHP 8.4+ features, strict types; the exception is PHPUnit test methods — see the testing rules below)
 - Adding Laravel-style title docblocks to methods (not classes — see rules below)
 - For ported Laravel packages: making them coroutine-safe and adding Swoole performance enhancements (e.g., static property caching)
 - Not porting upstream framework-specific integrations that only make sense in the source framework (for example Laravel/Hyperf-specific packages, service providers, discovery metadata, bootstrap hooks, or other framework-owned integration surfaces) unless Hypervel intentionally has an equivalent surface
