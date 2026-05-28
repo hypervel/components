@@ -1456,7 +1456,7 @@ Instead of sending your emails, the `log` mail driver will write all email messa
 
 Alternatively, you may use a service like [HELO](https://usehelo.com) or [Mailtrap](https://mailtrap.io) and the `smtp` driver to send your email messages to a "dummy" mailbox where you may view them in a true email client. This approach has the benefit of allowing you to actually inspect the final emails in Mailtrap's message viewer.
 
-If you are using [Hypervel Sail](/docs/{{version}}/sail), you may preview your messages using [Mailpit](https://github.com/axllent/mailpit). When Sail is running, you may access the Mailpit interface at: `http://localhost:8025`.
+You may also use [Mailpit](https://github.com/axllent/mailpit) to preview your messages locally. By default, Mailpit's web interface is available at `http://localhost:8025`.
 
 <a name="using-a-global-to-address"></a>
 #### Using a Global `to` Address

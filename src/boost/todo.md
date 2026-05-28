@@ -8,7 +8,6 @@
 
 ## Artisan
 
-- Create Hypervel Sail
 - Add a `composer dev` script to the `hypervel/hypervel` application skeleton and the `hypervel/react-starter-kit` skeleton. The script should start the Hypervel development server and frontend asset watcher together using the package manager tools already included with each skeleton, so new applications have a simple one-command local development workflow.
 - Port console command `Aliases`, `Help`, `Hidden`, and repeatable `Usage` attributes
 - Add default prompt fallbacks for `NumberPrompt`, `AutoCompletePrompt`, and `DataTablePrompt` as a Hypervel enhancement. Laravel does not register these fallbacks either, but the Prompts docs state that Hypervel automatically configures prompt fallbacks in unsupported environments, and adding them would close the gap between the docs' fallback claim and the actual fallback coverage. Correct fix: add Symfony Console fallback implementations for number, autocomplete, and data table prompts, preserving validation / required behavior, and add console integration coverage.

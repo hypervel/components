@@ -55,12 +55,7 @@ node -v
 npm -v
 ```
 
-You can easily install the latest version of Node and NPM using simple graphical installers from [the official Node website](https://nodejs.org/en/download/). Or, if you are using [Laravel Sail](https://laravel.com/docs/{{version}}/sail), you may invoke Node and NPM through Sail:
-
-```shell
-./vendor/bin/sail node -v
-./vendor/bin/sail npm -v
-```
+You can easily install the latest version of Node and NPM using simple graphical installers from [the official Node website](https://nodejs.org/en/download/).
 
 <a name="installing-vite-and-laravel-plugin"></a>
 ### Installing Vite and the Laravel Plugin
@@ -163,26 +158,6 @@ export default defineConfig({
 
 If you are unable to generate a trusted certificate for your system, you may install and configure the [@vitejs/plugin-basic-ssl plugin](https://github.com/vitejs/vite-plugin-basic-ssl). When using untrusted certificates, you will need to accept the certificate warning for Vite's development server in your browser by following the "Local" link in your console when running the `npm run dev` command.
 
-<a name="configuring-hmr-in-sail-on-wsl2"></a>
-#### Running the Development Server in Sail on WSL2
-
-When running the Vite development server within [Laravel Sail](/docs/{{version}}/sail) on Windows Subsystem for Linux 2 (WSL2), you should add the following configuration to your `vite.config.js` file to ensure the browser can communicate with the development server:
-
-```js
-// ...
-
-export default defineConfig({
-    // ...
-    server: { // [tl! add:start]
-        hmr: {
-            host: 'localhost',
-        },
-    }, // [tl! add:end]
-});
-```
-
-If your file changes are not being reflected in the browser while the development server is running, you may also need to configure Vite's [server.watch.usePolling option](https://vitejs.dev/config/server-options.html#server-watch).
-
 <a name="loading-your-scripts-and-styles"></a>
 ### Loading Your Scripts and Styles
 
@@ -256,8 +231,6 @@ npm run dev
 # Build and version the assets for production...
 npm run build
 ```
-
-If you are running the development server in [Sail](/docs/{{version}}/sail) on WSL2, you may need some [additional configuration](#configuring-hmr-in-sail-on-wsl2) options.
 
 <a name="working-with-scripts"></a>
 ## Working With JavaScript

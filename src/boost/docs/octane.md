@@ -53,52 +53,6 @@ php artisan octane:install
 
 [FrankenPHP](https://frankenphp.dev) is a PHP application server, written in Go, that supports modern web features like early hints, Brotli, and Zstandard compression. When you install Octane and choose FrankenPHP as your server, Octane will automatically download and install the FrankenPHP binary for you.
 
-<a name="frankenphp-via-laravel-sail"></a>
-#### FrankenPHP via Laravel Sail
-
-If you plan to develop your application using [Laravel Sail](/docs/{{version}}/sail), you should run the following commands to install Octane and FrankenPHP:
-
-```shell
-./vendor/bin/sail up
-
-./vendor/bin/sail composer require laravel/octane
-```
-
-Next, you should use the `octane:install` Artisan command to install the FrankenPHP binary:
-
-```shell
-./vendor/bin/sail artisan octane:install --server=frankenphp
-```
-
-Finally, add a `SUPERVISOR_PHP_COMMAND` environment variable to the `hypervel.test` service definition in your application's `docker-compose.yml` file. This environment variable will contain the command that Sail will use to serve your application using Octane instead of the PHP development server:
-
-```yaml
-services:
-  hypervel.test:
-    environment:
-      SUPERVISOR_PHP_COMMAND: "/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan octane:start --server=frankenphp --host=0.0.0.0 --admin-port=2019 --port='${APP_PORT:-80}'" # [tl! add]
-      XDG_CONFIG_HOME:  /var/www/html/config # [tl! add]
-      XDG_DATA_HOME:  /var/www/html/data # [tl! add]
-```
-
-To enable HTTPS, HTTP/2, and HTTP/3, apply these modifications instead:
-
-```yaml
-services:
-  hypervel.test:
-    ports:
-        - '${APP_PORT:-80}:80'
-        - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
-        - '443:443' # [tl! add]
-        - '443:443/udp' # [tl! add]
-    environment:
-      SUPERVISOR_PHP_COMMAND: "/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan octane:start --host=localhost --port=443 --admin-port=2019 --https" # [tl! add]
-      XDG_CONFIG_HOME:  /var/www/html/config # [tl! add]
-      XDG_DATA_HOME:  /var/www/html/data # [tl! add]
-```
-
-Typically, you should access your FrankenPHP Sail application via `https://localhost`, as using `https://127.0.0.1` requires additional configuration and is [discouraged](https://frankenphp.dev/docs/known-issues/#using-https127001-with-docker).
-
 <a name="frankenphp-via-docker"></a>
 #### FrankenPHP via Docker
 
@@ -153,43 +107,6 @@ This allows you to customize FrankenPHP's configuration beyond the default setti
 
 [RoadRunner](https://roadrunner.dev) is powered by the RoadRunner binary, which is built using Go. The first time you start a RoadRunner based Octane server, Octane will offer to download and install the RoadRunner binary for you.
 
-<a name="roadrunner-via-laravel-sail"></a>
-#### RoadRunner via Laravel Sail
-
-If you plan to develop your application using [Laravel Sail](/docs/{{version}}/sail), you should run the following commands to install Octane and RoadRunner:
-
-```shell
-./vendor/bin/sail up
-
-./vendor/bin/sail composer require laravel/octane spiral/roadrunner-cli spiral/roadrunner-http
-```
-
-Next, you should start a Sail shell and use the `rr` executable to retrieve the latest Linux based build of the RoadRunner binary:
-
-```shell
-./vendor/bin/sail shell
-
-# Within the Sail shell...
-./vendor/bin/rr get-binary
-```
-
-Then, add a `SUPERVISOR_PHP_COMMAND` environment variable to the `hypervel.test` service definition in your application's `docker-compose.yml` file. This environment variable will contain the command that Sail will use to serve your application using Octane instead of the PHP development server:
-
-```yaml
-services:
-  hypervel.test:
-    environment:
-      SUPERVISOR_PHP_COMMAND: "/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan octane:start --server=roadrunner --host=0.0.0.0 --rpc-port=6001 --port='${APP_PORT:-80}'" # [tl! add]
-```
-
-Finally, ensure the `rr` binary is executable and build your Sail images:
-
-```shell
-chmod +x ./rr
-
-./vendor/bin/sail build --no-cache
-```
-
 <a name="swoole"></a>
 ### Swoole
 
@@ -209,29 +126,6 @@ pecl install openswoole
 ```
 
 Using Laravel Octane with Open Swoole grants the same functionality provided by Swoole, such as concurrent tasks, ticks, and intervals.
-
-<a name="swoole-via-laravel-sail"></a>
-#### Swoole via Laravel Sail
-
-> [!WARNING]
-> Before serving an Octane application via Sail, ensure you have the latest version of Laravel Sail and execute `./vendor/bin/sail build --no-cache` within your application's root directory.
-
-Alternatively, you may develop your Swoole based Octane application using [Laravel Sail](/docs/{{version}}/sail), the official Docker based development environment for Laravel. Laravel Sail includes the Swoole extension by default. However, you will still need to adjust the `docker-compose.yml` file used by Sail.
-
-To get started, add a `SUPERVISOR_PHP_COMMAND` environment variable to the `hypervel.test` service definition in your application's `docker-compose.yml` file. This environment variable will contain the command that Sail will use to serve your application using Octane instead of the PHP development server:
-
-```yaml
-services:
-  hypervel.test:
-    environment:
-      SUPERVISOR_PHP_COMMAND: "/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan octane:start --server=swoole --host=0.0.0.0 --port='${APP_PORT:-80}'" # [tl! add]
-```
-
-Finally, build your Sail images:
-
-```shell
-./vendor/bin/sail build --no-cache
-```
 
 <a name="swoole-configuration"></a>
 #### Swoole Configuration

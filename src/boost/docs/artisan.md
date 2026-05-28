@@ -1,7 +1,6 @@
 # Artisan Console
 
 - [Introduction](#introduction)
-    - [Hypervel Sail](#hypervel-sail)
     - [Tinker (REPL)](#tinker)
 - [Writing Commands](#writing-commands)
     - [Generating Commands](#generating-commands)
@@ -40,15 +39,6 @@ Every command also includes a "help" screen which displays and describes the com
 
 ```shell
 php artisan help migrate
-```
-
-<a name="hypervel-sail"></a>
-#### Hypervel Sail
-
-If you are using [Hypervel Sail](/docs/{{version}}/sail) as your local development environment, remember to use the `sail` command line to invoke Artisan commands. Sail will execute your Artisan commands within your application's Docker containers:
-
-```shell
-./vendor/bin/sail artisan list
 ```
 
 <a name="tinker"></a>
