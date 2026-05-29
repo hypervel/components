@@ -60,6 +60,7 @@ responses.md
 reverb.md
 routing.md
 sanctum.md
+scheduling.md
 scout.md
 socialite.md
 validation.md

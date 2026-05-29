@@ -14,8 +14,12 @@
     - [Pausing Scheduled Tasks](#pausing-scheduled-tasks)
     - [Schedule Groups](#schedule-groups)
 - [Running the Scheduler](#running-the-scheduler)
+    - [Cron-Style Invocation](#cron-style-invocation)
+    - [Background Task Concurrency](#background-task-concurrency)
     - [Sub-Minute Scheduled Tasks](#sub-minute-scheduled-tasks)
+    - [Stopping the Scheduler](#stopping-the-scheduler)
     - [Running the Scheduler Locally](#running-the-scheduler-locally)
+    - [Testing Scheduled Tasks](#testing-scheduled-tasks)
 - [Task Output](#task-output)
 - [Task Hooks](#task-hooks)
 - [Events](#events)
@@ -25,7 +29,7 @@
 
 In the past, you may have written a cron configuration entry for each task you needed to schedule on your server. However, this can quickly become a pain because your task schedule is no longer in source control and you must SSH into your server to view your existing cron entries or add additional entries.
 
-Laravel's command scheduler offers a fresh approach to managing scheduled tasks on your server. The scheduler allows you to fluently and expressively define your command schedule within your Laravel application itself. When using the scheduler, only a single cron entry is needed on your server. Your task schedule is typically defined in your application's `routes/console.php` file.
+Hypervel's command scheduler offers a fresh approach to managing scheduled tasks on your server. The scheduler allows you to fluently and expressively define your command schedule within your Hypervel application itself. When using the scheduler, only a single long-running scheduler process is needed on your server. Your task schedule is typically defined in your application's `routes/console.php` file.
 
 <a name="defining-schedules"></a>
 ## Defining Schedules
@@ -64,6 +68,8 @@ If you would like to view an overview of your scheduled tasks and the next time 
 ```shell
 php artisan schedule:list
 ```
+
+The `schedule:list` command also supports `--timezone`, `--next`, and `--json` options for customizing the displayed timezone, sorting by the next due date, or returning the schedule as JSON.
 
 <a name="scheduling-artisan-commands"></a>
 ### Scheduling Artisan Commands
@@ -130,7 +136,7 @@ The `exec` method may be used to issue a command to the operating system:
 ```php
 use Hypervel\Support\Facades\Schedule;
 
-Schedule::exec('node /home/forge/script.js')->daily();
+Schedule::exec('node /path/to/script.js')->daily();
 ```
 
 <a name="schedule-frequency-options"></a>
@@ -349,7 +355,7 @@ Behind the scenes, the `withoutOverlapping` method utilizes your application's [
 ### Running Tasks on One Server
 
 > [!WARNING]
-> To utilize this feature, your application must be using the `database`, `memcached`, `dynamodb`, or `redis` cache driver as your application's default cache driver. In addition, all servers must be communicating with the same central cache server.
+> To utilize this feature across multiple servers, your application should use a shared `database` or `redis` cache store for scheduling locks. In addition, all servers must be communicating with the same central cache store.
 
 If your application's scheduler is running on multiple servers, you may limit a scheduled job to only execute on a single server. For instance, assume you have a scheduled task that generates a new report every Friday night. If the task scheduler is running on three worker servers, the scheduled task will run on all three servers and generate the report three times. Not good!
 
@@ -373,16 +379,16 @@ Schedule::useCache('database');
 <a name="naming-unique-jobs"></a>
 #### Naming Single Server Jobs
 
-Sometimes you may need to schedule the same job to be dispatched with different parameters, while still instructing Laravel to run each permutation of the job on a single server. To accomplish this, you may assign each schedule definition a unique name via the `name` method:
+Sometimes you may need to schedule the same job to be dispatched with different parameters, while still instructing Hypervel to run each permutation of the job on a single server. To accomplish this, you may assign each schedule definition a unique name via the `name` method:
 
 ```php
-Schedule::job(new CheckUptime('https://laravel.com'))
-    ->name('check_uptime:laravel.com')
+Schedule::job(new CheckUptime('https://hypervel.org'))
+    ->name('check_uptime:hypervel.org')
     ->everyFiveMinutes()
     ->onOneServer();
 
-Schedule::job(new CheckUptime('https://vapor.laravel.com'))
-    ->name('check_uptime:vapor.laravel.com')
+Schedule::job(new CheckUptime('https://sonicstack.io'))
+    ->name('check_uptime:sonicstack.io')
     ->everyFiveMinutes()
     ->onOneServer();
 ```
@@ -411,6 +417,14 @@ Schedule::command('analytics:report')
 
 > [!WARNING]
 > The `runInBackground` method may only be used when scheduling tasks via the `command` and `exec` methods.
+
+Hypervel starts background tasks as coroutines inside the `schedule:run` process. This is well suited to I/O-bound work such as HTTP calls, queries, and file or network I/O because coroutines yield while waiting. For CPU-bound work, coroutines offer limited benefit. In those cases, schedule the task using `exec` so the operating system runs it in a separate process:
+
+```php
+Schedule::exec('php artisan reports:compute')
+    ->daily()
+    ->runInBackground();
+```
 
 <a name="maintenance-mode"></a>
 ### Maintenance Mode
@@ -445,7 +459,7 @@ Schedule::command('emails:send')->evenWhenPaused();
 <a name="schedule-groups"></a>
 ### Schedule Groups
 
-When defining multiple scheduled tasks with similar configurations, you can use Laravel's task grouping feature to avoid repeating the same settings for each task. Grouping tasks simplifies your code and ensures consistency across related tasks.
+When defining multiple scheduled tasks with similar configurations, you can use Hypervel's task grouping feature to avoid repeating the same settings for each task. Grouping tasks simplifies your code and ensures consistency across related tasks.
 
 To create a group of scheduled tasks, invoke the desired task configuration methods, followed by the `group` method. The `group` method accepts a closure that is responsible for defining the tasks that share the specified configuration:
 
@@ -464,18 +478,38 @@ Schedule::daily()
 <a name="running-the-scheduler"></a>
 ## Running the Scheduler
 
-Now that we have learned how to define scheduled tasks, let's discuss how to actually run them on our server. The `schedule:run` Artisan command will evaluate all of your scheduled tasks and determine if they need to run based on the server's current time.
+Now that we have learned how to define scheduled tasks, let's discuss how to actually run them on our server. Hypervel's `schedule:run` Artisan command is a long-running coroutine-based process by default. It evaluates all due events, dispatches background tasks in coroutines, and continues polling for upcoming tasks.
 
-So, when using Laravel's scheduler, we only need to add a single cron configuration entry to our server that runs the `schedule:run` command every minute. If you do not know how to add cron entries to your server, consider using a managed platform such as [Laravel Cloud](https://cloud.laravel.com) which can manage the scheduled task execution for you:
+You should run this command as a supervised process using a process monitor such as systemd, Supervisor, or your container orchestrator:
 
 ```shell
-* * * * * cd /path-to-your-project && php artisan schedule:run >> /dev/null 2>&1
+php artisan schedule:run
+```
+
+If you do not know how to manage long-running PHP processes on your server, consider using [SonicStack](https://sonicstack.io) which can manage the scheduled task execution for you. Using SonicStack is also a great way to support ongoing Hypervel development.
+
+<a name="cron-style-invocation"></a>
+### Cron-Style Invocation
+
+If you prefer to invoke the scheduler from a traditional cron entry, pass the `--once` option so the scheduler evaluates due events and exits immediately:
+
+```shell
+* * * * * cd /path-to-your-project && php artisan schedule:run --once >> /dev/null 2>&1
+```
+
+<a name="background-task-concurrency"></a>
+### Background Task Concurrency
+
+The `--concurrency` option controls how many `runInBackground` tasks may execute simultaneously as coroutines. By default, Hypervel allows 60 background tasks to run at the same time:
+
+```shell
+php artisan schedule:run --concurrency=100
 ```
 
 <a name="sub-minute-scheduled-tasks"></a>
 ### Sub-Minute Scheduled Tasks
 
-On most operating systems, cron jobs are limited to running a maximum of once per minute. However, Laravel's scheduler allows you to schedule tasks to run at more frequent intervals, even as often as once per second:
+On most operating systems, cron jobs are limited to running a maximum of once per minute. However, Hypervel's scheduler allows you to schedule tasks to run at more frequent intervals, even as often as once per second:
 
 ```php
 use Hypervel\Support\Facades\Schedule;
@@ -485,7 +519,7 @@ Schedule::call(function () {
 })->everySecond();
 ```
 
-When sub-minute tasks are defined within your application, the `schedule:run` command will continue running until the end of the current minute instead of exiting immediately. This allows the command to invoke all required sub-minute tasks throughout the minute.
+Because `schedule:run` is a long-running process, sub-minute tasks fire as soon as they become due without any additional configuration.
 
 Since sub-minute tasks that take longer than expected to run could delay the execution of later sub-minute tasks, it is recommended that all sub-minute tasks dispatch queued jobs or background commands to handle the actual task processing:
 
@@ -497,30 +531,47 @@ Schedule::job(new DeleteRecentUsers)->everyTenSeconds();
 Schedule::command('users:delete')->everyTenSeconds()->runInBackground();
 ```
 
-<a name="interrupting-sub-minute-tasks"></a>
-#### Interrupting Sub-Minute Tasks
+<a name="stopping-the-scheduler"></a>
+### Stopping the Scheduler
 
-As the `schedule:run` command runs for the entire minute of invocation when sub-minute tasks are defined, you may sometimes need to interrupt the command when deploying your application. Otherwise, an instance of the `schedule:run` command that is already running would continue using your application's previously deployed code until the current minute ends.
+When deploying your application, you should signal the long-running `schedule:run` process to stop so that the next invocation picks up your newly deployed code. The `schedule:interrupt` command writes a flag to the cache that `schedule:run` polls. After receiving the signal, the scheduler stops accepting new events and waits for any in-flight background coroutines to finish before exiting:
 
-To interrupt in-progress `schedule:run` invocations, you may add the `schedule:interrupt` command to your application's deployment script. This command should be invoked after your application is finished deploying:
+This command should be invoked after your application is finished deploying:
 
 ```shell
 php artisan schedule:interrupt
 ```
 
+By default, the interrupt signal expires after one minute. You may use the `--minutes` option to extend this window if your deployment process takes longer:
+
+```shell
+php artisan schedule:interrupt --minutes=5
+```
+
 <a name="running-the-scheduler-locally"></a>
 ### Running the Scheduler Locally
 
-Typically, you would not add a scheduler cron entry to your local development machine. Instead, you may use the `schedule:work` Artisan command. This command will run in the foreground and invoke the scheduler every minute until you terminate the command. When sub-minute tasks are defined, the scheduler will continue running within each minute to process those tasks:
+No separate local development command is needed. The `schedule:run` command runs in the foreground as a long-running process, so you may start it in a local terminal and stop it with Control+C:
 
 ```shell
-php artisan schedule:work
+php artisan schedule:run
 ```
+
+<a name="testing-scheduled-tasks"></a>
+### Testing Scheduled Tasks
+
+If you would like to run one of your scheduled tasks immediately, you may use the `schedule:test` Artisan command:
+
+```shell
+php artisan schedule:test
+```
+
+If your application has multiple scheduled tasks, Hypervel will prompt you to choose the task that should be executed. You may also pass the `--name` option to run a specific scheduled task by name.
 
 <a name="task-output"></a>
 ## Task Output
 
-The Laravel scheduler provides several convenient methods for working with the output generated by scheduled tasks. First, using the `sendOutputTo` method, you may send the output to a file for later inspection:
+The Hypervel scheduler provides several convenient methods for working with the output generated by scheduled tasks. First, using the `sendOutputTo` method, you may send the output to a file for later inspection:
 
 ```php
 use Hypervel\Support\Facades\Schedule;
@@ -538,7 +589,7 @@ Schedule::command('emails:send')
     ->appendOutputTo($filePath);
 ```
 
-Using the `emailOutputTo` method, you may email the output to an email address of your choice. Before emailing the output of a task, you should configure Laravel's [email services](/docs/{{version}}/mail):
+Using the `emailOutputTo` method, you may email the output to an email address of your choice. Before emailing the output of a task, you should configure Hypervel's [email services](/docs/{{version}}/mail):
 
 ```php
 Schedule::command('report:generate')
@@ -607,7 +658,7 @@ Schedule::command('emails:send')
 <a name="pinging-urls"></a>
 #### Pinging URLs
 
-Using the `pingBefore` and `thenPing` methods, the scheduler can automatically ping a given URL before or after a task is executed. This method is useful for notifying an external service, such as [Envoyer](https://envoyer.io), that your scheduled task is beginning or has finished execution:
+Using the `pingBefore` and `thenPing` methods, the scheduler can automatically ping a given URL before or after a task is executed. This method is useful for notifying an external service, such as [Healthchecks](https://healthchecks.io/), that your scheduled task is beginning or has finished execution:
 
 ```php
 Schedule::command('emails:send')
@@ -642,7 +693,7 @@ Schedule::command('emails:send')
 <a name="events"></a>
 ## Events
 
-Laravel dispatches a variety of [events](/docs/{{version}}/events) during the scheduling process. You may [define listeners](/docs/{{version}}/events) for any of the following events:
+Hypervel dispatches a variety of [events](/docs/{{version}}/events) during the scheduling process. You may [define listeners](/docs/{{version}}/events) for any of the following events:
 
 <div class="overflow-auto">
 
