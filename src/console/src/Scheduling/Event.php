@@ -260,11 +260,19 @@ class Event
      */
     public function isDue(ApplicationContract $app): bool
     {
+        return $this->isDueAt($app, Date::now());
+    }
+
+    /**
+     * Determine if the given event should run based on the Cron expression at the given time.
+     */
+    public function isDueAt(ApplicationContract $app, DateTimeInterface $time): bool
+    {
         if (! $this->runsInMaintenanceMode() && $app->isDownForMaintenance()) {
             return false;
         }
 
-        return $this->expressionPasses()
+        return $this->expressionPasses($time)
             && $this->runsInEnvironment($app->environment());
     }
 
@@ -279,9 +287,9 @@ class Event
     /**
      * Determine if the Cron expression passes.
      */
-    protected function expressionPasses(): bool
+    protected function expressionPasses(DateTimeInterface $time): bool
     {
-        $date = Date::now();
+        $date = Date::instance($time);
 
         if ($this->timezone) {
             $date = $date->setTimezone($this->timezone);

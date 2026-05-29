@@ -136,7 +136,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($exception, $this->dispatched[1]->exception);
     }
 
-    public function testSkippedTaskDispatchesSkippedEvent()
+    public function testSkippedNonRepeatableTaskIsOnlyEvaluatedOncePerMinute()
     {
         $eventMutex = m::mock(EventMutex::class);
 
@@ -146,14 +146,17 @@ class ScheduleRunCommandTest extends TestCase
         $callbackEvent->when(false);
 
         $command = $this->makeCommand();
-        $this->invokeRunEvents($command, [$callbackEvent]);
+        $startedAt = Carbon::parse('2026-05-28 12:34:00');
+
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt);
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->copy()->addSeconds(30));
 
         $this->assertCount(1, $this->dispatched);
         $this->assertInstanceOf(ScheduledTaskSkipped::class, $this->dispatched[0]);
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
     }
 
-    public function testNonRepeatableEventRunsOnConsecutiveLoopIterations()
+    public function testNonRepeatableEventOnlyRunsOncePerMinute()
     {
         $runCount = 0;
 
@@ -167,16 +170,16 @@ class ScheduleRunCommandTest extends TestCase
         });
 
         $command = $this->makeCommand();
+        $startedAt = Carbon::parse('2026-05-28 12:34:00');
 
-        // First loop iteration — event should run and set lastChecked.
-        $this->invokeRunEvents($command, [$callbackEvent]);
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt);
         $this->assertSame(1, $runCount);
         $this->assertNotNull($callbackEvent->lastChecked);
 
-        // Second loop iteration — non-repeatable event must still run
-        // despite lastChecked being set. This simulates the continuous
-        // loop calling runEvents() again in the next minute.
-        $this->invokeRunEvents($command, [$callbackEvent]);
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->copy()->addSeconds(30));
+        $this->assertSame(1, $runCount);
+
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->copy()->addMinute());
         $this->assertSame(2, $runCount);
     }
 
@@ -261,9 +264,9 @@ class ScheduleRunCommandTest extends TestCase
     /**
      * Invoke the protected runEvents method.
      */
-    protected function invokeRunEvents(ScheduleRunCommand $command, array $events): void
+    protected function invokeRunEvents(ScheduleRunCommand $command, array $events, ?Carbon $startedAt = null): void
     {
         $method = new ReflectionMethod($command, 'runEvents');
-        $method->invoke($command, new Collection($events), Carbon::now());
+        $method->invoke($command, new Collection($events), $startedAt ?? Carbon::now());
     }
 }

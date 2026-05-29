@@ -14,8 +14,10 @@ use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Application;
+use Hypervel\Support\Carbon;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -102,6 +104,25 @@ class ScheduleTest extends TestCase
         $scheduledJob = $schedule->job(JobToTestWithSchedule::class);
         self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
         self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
+    }
+
+    public function testDueEventsAtUsesGivenTime()
+    {
+        $app = m::mock(ApplicationContract::class);
+        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
+        $app->shouldReceive('environment')->andReturn('production');
+
+        try {
+            Carbon::setTestNow(Carbon::parse('2026-05-29 13:00:00'));
+
+            $schedule = new Schedule;
+            $schedule->command('reports:generate')->dailyAt('13:00');
+
+            self::assertCount(0, $schedule->dueEventsAt($app, Carbon::parse('2026-05-29 12:59:59')));
+            self::assertCount(1, $schedule->dueEventsAt($app, Carbon::parse('2026-05-29 13:00:00')));
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function testJobAcceptsStringBackedEnumForQueueAndConnection(): void

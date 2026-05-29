@@ -18,6 +18,7 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\ProcessUtils;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
@@ -379,7 +380,16 @@ class Schedule
      */
     public function dueEvents(Application $app): Collection
     {
-        return (new Collection($this->events))->filter->isDue($app);
+        return $this->dueEventsAt($app, Date::now());
+    }
+
+    /**
+     * Get all of the events on the schedule that are due at the given time.
+     */
+    public function dueEventsAt(Application $app, DateTimeInterface $time): Collection
+    {
+        return (new Collection($this->events))
+            ->filter(fn (Event $event) => $event->isDueAt($app, $time));
     }
 
     /**
