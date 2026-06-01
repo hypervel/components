@@ -53,17 +53,17 @@ use InvalidArgumentException;
 trait Themes
 {
     /**
-     * The name of the active theme.
+     * The default theme name.
      */
-    protected static string $theme = 'default';
+    protected const DEFAULT_THEME = 'default';
 
     /**
-     * The available themes.
+     * The default theme registry.
      *
      * @var array<string, array<class-string<\Hypervel\Prompts\Prompt>, class-string<callable&object>>>
      */
-    protected static array $themes = [
-        'default' => [
+    protected const DEFAULT_THEMES = [
+        self::DEFAULT_THEME => [
             TextPrompt::class => TextPromptRenderer::class,
             NumberPrompt::class => NumberPromptRenderer::class,
             TextareaPrompt::class => TextareaPromptRenderer::class,
@@ -88,6 +88,18 @@ trait Themes
             DataTablePrompt::class => DataTableRenderer::class,
         ],
     ];
+
+    /**
+     * The name of the active theme.
+     */
+    protected static string $theme = self::DEFAULT_THEME;
+
+    /**
+     * The available themes.
+     *
+     * @var array<string, array<class-string<\Hypervel\Prompts\Prompt>, class-string<callable&object>>>
+     */
+    protected static array $themes = self::DEFAULT_THEMES;
 
     /**
      * Get or set the active theme.
@@ -120,7 +132,7 @@ trait Themes
      */
     public static function addTheme(string $name, array $renderers): void
     {
-        if ($name === 'default') {
+        if ($name === self::DEFAULT_THEME) {
             throw new InvalidArgumentException('The default theme cannot be overridden.');
         }
 
@@ -134,7 +146,7 @@ trait Themes
     {
         $class = get_class($this);
 
-        return new (static::$themes[static::$theme][$class] ?? static::$themes['default'][$class])($this);
+        return new (static::$themes[static::$theme][$class] ?? static::$themes[self::DEFAULT_THEME][$class])($this);
     }
 
     /**
@@ -155,32 +167,7 @@ trait Themes
      */
     public static function resetTheme(): void
     {
-        static::$theme = 'default';
-        static::$themes = [
-            'default' => [
-                TextPrompt::class => TextPromptRenderer::class,
-                NumberPrompt::class => NumberPromptRenderer::class,
-                TextareaPrompt::class => TextareaPromptRenderer::class,
-                PasswordPrompt::class => PasswordPromptRenderer::class,
-                SelectPrompt::class => SelectPromptRenderer::class,
-                MultiSelectPrompt::class => MultiSelectPromptRenderer::class,
-                ConfirmPrompt::class => ConfirmPromptRenderer::class,
-                PausePrompt::class => PausePromptRenderer::class,
-                SearchPrompt::class => SearchPromptRenderer::class,
-                MultiSearchPrompt::class => MultiSearchPromptRenderer::class,
-                SuggestPrompt::class => SuggestPromptRenderer::class,
-                Spinner::class => SpinnerRenderer::class,
-                Note::class => NoteRenderer::class,
-                Table::class => TableRenderer::class,
-                Progress::class => ProgressRenderer::class,
-                Clear::class => ClearRenderer::class,
-                Grid::class => GridRenderer::class,
-                AutoCompletePrompt::class => AutoCompletePromptRenderer::class,
-                Title::class => TitleRenderer::class,
-                Stream::class => StreamRenderer::class,
-                Task::class => TaskRenderer::class,
-                DataTablePrompt::class => DataTableRenderer::class,
-            ],
-        ];
+        static::$theme = self::DEFAULT_THEME;
+        static::$themes = self::DEFAULT_THEMES;
     }
 }

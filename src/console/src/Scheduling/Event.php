@@ -40,6 +40,11 @@ class Event
     use Tappable;
 
     /**
+     * Context key prefix for the current run's exit code.
+     */
+    protected const EXIT_CODE_CONTEXT_KEY_PREFIX = '__console.scheduling_exit_code.';
+
+    /**
      * The command string.
      */
     public ?string $command = null;
@@ -78,6 +83,9 @@ class Event
 
     /**
      * The exit status code of the command.
+     *
+     * Compatibility snapshot of the last completed run. Use exitCode() inside
+     * callbacks so overlapping repeat/background runs read their own result.
      */
     public ?int $exitCode = null;
 
@@ -218,7 +226,7 @@ class Event
      */
     public function finish(Container $container, int $exitCode): void
     {
-        $this->exitCode = (int) $exitCode;
+        $this->setExitCode((int) $exitCode);
 
         try {
             $this->callAfterCallbacks($container);
@@ -252,11 +260,19 @@ class Event
      */
     public function isDue(ApplicationContract $app): bool
     {
+        return $this->isDueAt($app, Date::now());
+    }
+
+    /**
+     * Determine if the given event should run based on the Cron expression at the given time.
+     */
+    public function isDueAt(ApplicationContract $app, DateTimeInterface $time): bool
+    {
         if (! $this->runsInMaintenanceMode() && $app->isDownForMaintenance()) {
             return false;
         }
 
-        return $this->expressionPasses()
+        return $this->expressionPasses($time)
             && $this->runsInEnvironment($app->environment());
     }
 
@@ -271,9 +287,9 @@ class Event
     /**
      * Determine if the Cron expression passes.
      */
-    protected function expressionPasses(): bool
+    protected function expressionPasses(DateTimeInterface $time): bool
     {
-        $date = Date::now();
+        $date = Date::instance($time);
 
         if ($this->timezone) {
             $date = $date->setTimezone($this->timezone);
@@ -608,7 +624,7 @@ class Event
         }
 
         return $this->then(function (Container $container) use ($callback) {
-            if ($this->exitCode === 0) {
+            if ($this->exitCode() === 0) {
                 $container->call($callback);
             }
         });
@@ -636,7 +652,7 @@ class Event
         }
 
         return $this->then(function (Container $container) use ($callback) {
-            if ($this->exitCode !== 0) {
+            if ($this->exitCode() !== 0) {
                 $container->call($callback);
             }
         });
@@ -740,6 +756,34 @@ class Event
         if ($this->withoutOverlapping) {
             $this->mutex->forget($this);
         }
+    }
+
+    /**
+     * Set the exit code for the current event run.
+     */
+    protected function setExitCode(int $exitCode): void
+    {
+        $this->exitCode = $exitCode;
+
+        // The public property is kept for compatibility, but onSuccess/onFailure
+        // must read the coroutine-local value when repeat/background runs overlap.
+        CoroutineContext::set($this->exitCodeContextKey(), $exitCode);
+    }
+
+    /**
+     * Get the exit code for the current event run.
+     */
+    public function exitCode(): ?int
+    {
+        return CoroutineContext::get($this->exitCodeContextKey(), $this->exitCode);
+    }
+
+    /**
+     * Get the context key for this event's current run.
+     */
+    protected function exitCodeContextKey(): string
+    {
+        return self::EXIT_CODE_CONTEXT_KEY_PREFIX . spl_object_id($this);
     }
 
     /**

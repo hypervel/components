@@ -695,4 +695,12 @@ class Filesystem
 
         return $callback($path);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

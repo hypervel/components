@@ -30,6 +30,8 @@ class FakeCommandWithArrayInputPrompting extends Command implements PromptsForMi
 
     public function handle(): int
     {
+        $this->line(implode(',', $this->argument('names')));
+
         return self::SUCCESS;
     }
 }

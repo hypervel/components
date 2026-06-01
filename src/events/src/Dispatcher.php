@@ -66,6 +66,11 @@ class Dispatcher implements DispatcherContract
     public const EVENTS_TO_DEFER_CONTEXT_KEY = '__events.events_to_defer';
 
     /**
+     * Context key for events queued via push() and dispatched via flush().
+     */
+    public const PUSHED_EVENTS_CONTEXT_KEY = '__events.pushed';
+
+    /**
      * The IoC container instance.
      */
     protected ContainerContract $container;
@@ -162,6 +167,9 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Register an event listener with the dispatcher.
+     *
+     * Boot-only. The listener registry persists on the singleton Dispatcher for
+     * the worker lifetime; per-request registration races across coroutines.
      */
     public function listen(array|Closure|QueuedClosure|string $events, array|object|string|null $listener = null): void
     {
@@ -217,6 +225,9 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Register a passive event observer.
+     *
+     * Boot-only. The observer registry persists on the singleton Dispatcher for
+     * the worker lifetime; per-request registration races across coroutines.
      *
      * Observers receive dispatched events but are not counted by hasListeners().
      * They are invoked after all active listeners, do not participate in halt
@@ -283,8 +294,11 @@ class Dispatcher implements DispatcherContract
      */
     public function push(string $event, mixed $payload = []): void
     {
-        $this->listen($event . '_pushed', function () use ($event, $payload) {
-            $this->dispatch($event, $payload);
+        CoroutineContext::override(self::PUSHED_EVENTS_CONTEXT_KEY, function (?array $events) use ($event, $payload) {
+            $events ??= [];
+            $events[$event][] = $payload;
+
+            return $events;
         });
     }
 
@@ -293,11 +307,16 @@ class Dispatcher implements DispatcherContract
      */
     public function flush(string $event): void
     {
-        $this->dispatch($event . '_pushed');
+        foreach (CoroutineContext::get(self::PUSHED_EVENTS_CONTEXT_KEY, [])[$event] ?? [] as $payload) {
+            $this->dispatch($event, $payload);
+        }
     }
 
     /**
      * Register an event subscriber with the dispatcher.
+     *
+     * Boot-only. Subscriber registrations persist on the singleton Dispatcher for
+     * the worker lifetime; per-request registration races across coroutines.
      */
     public function subscribe(object|string $subscriber): void
     {
@@ -882,6 +901,10 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Remove a set of listeners from the dispatcher.
+     *
+     * Boot or tests only. The listener registry persists on the singleton
+     * Dispatcher for the worker lifetime; per-request removal races across
+     * coroutines and can remove application listeners for other requests.
      */
     public function forget(string $event): void
     {
@@ -909,15 +932,11 @@ class Dispatcher implements DispatcherContract
     }
 
     /**
-     * Forget all of the pushed listeners.
+     * Forget all events queued via push() in the current coroutine.
      */
     public function forgetPushed(): void
     {
-        foreach ($this->listeners as $key => $value) {
-            if (str_ends_with($key, '_pushed')) {
-                $this->forget($key);
-            }
-        }
+        CoroutineContext::set(self::PUSHED_EVENTS_CONTEXT_KEY, []);
     }
 
     /**
@@ -930,6 +949,9 @@ class Dispatcher implements DispatcherContract
 
     /**
      * Set the queue resolver implementation.
+     *
+     * Boot-only. The resolver persists on the singleton Dispatcher for the
+     * worker lifetime and is consulted whenever a queued listener is dispatched.
      *
      * @param callable(): QueueFactory $resolver
      */
@@ -1023,5 +1045,13 @@ class Dispatcher implements DispatcherContract
     public function getRawListeners(): array
     {
         return $this->listeners;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

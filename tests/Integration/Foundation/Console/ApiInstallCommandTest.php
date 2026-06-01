@@ -37,7 +37,8 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
             $this->skeletonBootstrapFixture()
         );
 
-        // Singleton so the same instance is reused — lets us inspect composerRequireCalls after the test.
+        TestableApiInstallCommand::$composerRequireCalls = [];
+
         $this->app->singleton(ApiInstallCommand::class, TestableApiInstallCommand::class);
 
         // Ensure the routes directory exists.
@@ -171,10 +172,8 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->artisan('install:api', ['--without-migration-prompt' => true])
             ->assertSuccessful();
 
-        /** @var TestableApiInstallCommand $command */
-        $command = $this->app->make(ApiInstallCommand::class);
-        $this->assertCount(1, $command->composerRequireCalls);
-        $this->assertSame(['hypervel/sanctum:^0.4'], $command->composerRequireCalls[0]['packages']);
+        $this->assertCount(1, TestableApiInstallCommand::$composerRequireCalls);
+        $this->assertSame(['hypervel/sanctum:^0.4'], TestableApiInstallCommand::$composerRequireCalls[0]['packages']);
     }
 
     public function testPublishesSanctumMigrationWhenMissing()
@@ -316,11 +315,11 @@ PHP;
 class TestableApiInstallCommand extends ApiInstallCommand
 {
     /** @var list<array{composer: string, packages: array<int, string>}> */
-    public array $composerRequireCalls = [];
+    public static array $composerRequireCalls = [];
 
     protected function requireComposerPackages(string $composer, array $packages): bool
     {
-        $this->composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages];
+        static::$composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages];
 
         return true;
     }

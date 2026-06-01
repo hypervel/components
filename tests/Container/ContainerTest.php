@@ -18,6 +18,7 @@ use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Psr\Container\ContainerExceptionInterface;
+use ReflectionProperty;
 use stdClass;
 use TypeError;
 
@@ -577,6 +578,22 @@ class ContainerTest extends TestCase
         $after = ReflectionManager::reflectClass(ContainerConcreteStub::class);
 
         $this->assertNotSame($before, $after);
+    }
+
+    public function testFlushStateClearsBuildRecipeCache()
+    {
+        Container::flushState();
+
+        $container = new Container;
+        $container->build(ContainerFlushStateBuildRecipeStub::class);
+
+        $buildRecipes = new ReflectionProperty(Container::class, 'buildRecipes');
+
+        $this->assertArrayHasKey(ContainerFlushStateBuildRecipeStub::class, $buildRecipes->getValue());
+
+        Container::flushState();
+
+        $this->assertSame([], $buildRecipes->getValue());
     }
 
     public function testFlushClearsScopedInstances()
@@ -1601,6 +1618,10 @@ class ContainerInheritedConstructorParentStub
 }
 
 class ContainerInheritedConstructorChildStub extends ContainerInheritedConstructorParentStub
+{
+}
+
+class ContainerFlushStateBuildRecipeStub
 {
 }
 

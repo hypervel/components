@@ -60,6 +60,21 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select * from "users"', $builder->toSql());
     }
 
+    public function testFlushStateClearsMacros()
+    {
+        try {
+            Builder::macro('stateTest', fn () => 'state');
+
+            $this->assertTrue(Builder::hasMacro('stateTest'));
+
+            Builder::flushState();
+
+            $this->assertFalse(Builder::hasMacro('stateTest'));
+        } finally {
+            Builder::flushState();
+        }
+    }
+
     public function testBasicSelectWithGetColumns()
     {
         $builder = $this->getBuilder();

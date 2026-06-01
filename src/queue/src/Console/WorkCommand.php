@@ -6,6 +6,7 @@ namespace Hypervel\Queue\Console;
 
 use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Job;
@@ -29,6 +30,10 @@ use function Termwind\terminal;
 class WorkCommand extends Command
 {
     use InteractsWithTime;
+
+    protected const CURRENT_COMMAND_CONTEXT_KEY = '__queue.worker.current_command';
+
+    protected const LATEST_STARTED_AT_CONTEXT_KEY = '__queue.worker.latest_started_at';
 
     /**
      * The console command name.
@@ -58,11 +63,6 @@ class WorkCommand extends Command
      * The console command description.
      */
     protected string $description = 'Start processing jobs on the queue as a daemon';
-
-    /**
-     * Holds the start time of the last processed job, if any.
-     */
-    protected ?float $latestStartedAt = null;
 
     /**
      * Indicates if the worker's event listeners have been registered.
@@ -120,13 +120,17 @@ class WorkCommand extends Command
      */
     protected function runWorker(string $connection, string $queue): ?int
     {
+        $options = $this->gatherWorkerOptions();
+        $options->coroutineContext[self::CURRENT_COMMAND_CONTEXT_KEY] = $this;
+        $options->coroutineContext[self::LATEST_STARTED_AT_CONTEXT_KEY] = null;
+
         return $this->worker
             ->setName($this->option('name'))
             ->setCache($this->cache->store())
             ->{$this->option('once') ? 'runNextJob' : 'daemon'}(
                 $connection,
                 $queue,
-                $this->gatherWorkerOptions()
+                $options
             );
     }
 
@@ -167,22 +171,24 @@ class WorkCommand extends Command
             return;
         }
 
-        $this->hypervel['events']->listen(JobProcessing::class, function ($event) {
-            $this->writeOutput($event->job, 'starting');
+        $this->hypervel['events']->listen(JobProcessing::class, static function (JobProcessing $event): void {
+            static::currentCommand()?->writeOutput($event->job, 'starting');
         });
 
-        $this->hypervel['events']->listen(JobProcessed::class, function ($event) {
-            $this->writeOutput($event->job, 'success');
+        $this->hypervel['events']->listen(JobProcessed::class, static function (JobProcessed $event): void {
+            static::currentCommand()?->writeOutput($event->job, 'success');
         });
 
-        $this->hypervel['events']->listen(JobReleasedAfterException::class, function ($event) {
-            $this->writeOutput($event->job, 'released_after_exception');
+        $this->hypervel['events']->listen(JobReleasedAfterException::class, static function (JobReleasedAfterException $event): void {
+            static::currentCommand()?->writeOutput($event->job, 'released_after_exception');
         });
 
-        $this->hypervel['events']->listen(JobFailed::class, function ($event) {
-            $this->writeOutput($event->job, 'failed', $event->exception);
+        $this->hypervel['events']->listen(JobFailed::class, static function (JobFailed $event): void {
+            $command = static::currentCommand();
 
-            $this->logFailedJob($event);
+            $command?->writeOutput($event->job, 'failed', $event->exception);
+
+            $command?->logFailedJob($event);
         });
 
         static::$hasRegisteredListeners = true;
@@ -217,8 +223,8 @@ class WorkCommand extends Command
                 : ''
         ));
 
-        if ($status == 'starting') {
-            $this->latestStartedAt = microtime(true);
+        if ($status === 'starting') {
+            $this->setLatestStartedAt(microtime(true));
 
             $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
                 $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
@@ -231,7 +237,7 @@ class WorkCommand extends Command
             return;
         }
 
-        $runTime = $this->runTimeForHumans($this->latestStartedAt);
+        $runTime = $this->runTimeForHumans($this->getLatestStartedAt());
 
         $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
             $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
@@ -274,9 +280,9 @@ class WorkCommand extends Command
         ]);
 
         if ($status === 'starting') {
-            $this->latestStartedAt = microtime(true);
+            $this->setLatestStartedAt(microtime(true));
         } else {
-            $log['duration'] = round(microtime(true) - $this->latestStartedAt, 6);
+            $log['duration'] = round(microtime(true) - $this->getLatestStartedAt(), 6);
         }
 
         $this->output->writeln(json_encode($log));
@@ -341,6 +347,34 @@ class WorkCommand extends Command
         }
 
         return $this->option('json');
+    }
+
+    /**
+     * Get the queue work command for the currently running job coroutine.
+     */
+    protected static function currentCommand(): ?self
+    {
+        $command = CoroutineContext::get(self::CURRENT_COMMAND_CONTEXT_KEY);
+
+        return $command instanceof self ? $command : null;
+    }
+
+    /**
+     * Get the start time for the current job output line.
+     */
+    protected function getLatestStartedAt(): float
+    {
+        $startedAt = CoroutineContext::get(self::LATEST_STARTED_AT_CONTEXT_KEY);
+
+        return is_float($startedAt) ? $startedAt : microtime(true);
+    }
+
+    /**
+     * Set the start time for the current job output line.
+     */
+    protected function setLatestStartedAt(float $latestStartedAt): void
+    {
+        CoroutineContext::set(self::LATEST_STARTED_AT_CONTEXT_KEY, $latestStartedAt);
     }
 
     /**

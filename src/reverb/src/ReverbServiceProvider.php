@@ -117,20 +117,84 @@ class ReverbServiceProvider extends ServiceProvider
             'type' => ServerInterface::SERVER_WEBSOCKET,
             'host' => $reverbServer['host'] ?? '0.0.0.0',
             'port' => (int) ($reverbServer['port'] ?? 8080),
-            'sock_type' => SWOOLE_SOCK_TCP,
+            'sock_type' => $this->resolveSocketType($reverbServer),
             'callbacks' => [
                 Event::ON_REQUEST => [HttpServer::class, 'onRequest'],
                 Event::ON_HAND_SHAKE => [WebSocketServer::class, 'onHandShake'],
                 Event::ON_MESSAGE => [WebSocketServer::class, 'onMessage'],
                 Event::ON_CLOSE => [WebSocketServer::class, 'onClose'],
             ],
-            'settings' => [
-                'open_websocket_ping_frame' => true,
-                'open_websocket_pong_frame' => true,
-            ],
+            'settings' => $this->resolveServerSettings($reverbServer),
         ];
 
         $config->set('server.servers', $servers);
+    }
+
+    /**
+     * Resolve the Swoole socket type for the Reverb server.
+     */
+    protected function resolveSocketType(array $server): int
+    {
+        return $this->usesTls($server)
+            ? SWOOLE_SOCK_TCP | SWOOLE_SSL
+            : SWOOLE_SOCK_TCP;
+    }
+
+    /**
+     * Resolve Swoole settings for the Reverb server.
+     */
+    protected function resolveServerSettings(array $server): array
+    {
+        return array_replace([
+            'open_websocket_ping_frame' => true,
+            'open_websocket_pong_frame' => true,
+        ], $this->resolveTlsSettings($server));
+    }
+
+    /**
+     * Resolve Swoole SSL settings from the configured TLS context.
+     */
+    protected function resolveTlsSettings(array $server): array
+    {
+        $tls = array_filter(
+            $server['options']['tls'] ?? [],
+            static fn ($value): bool => $value !== null
+        );
+
+        $settings = [];
+        $map = [
+            'local_cert' => 'ssl_cert_file',
+            'local_pk' => 'ssl_key_file',
+            'passphrase' => 'ssl_passphrase',
+            'verify_peer' => 'ssl_verify_peer',
+            'allow_self_signed' => 'ssl_allow_self_signed',
+            'cafile' => 'ssl_client_cert_file',
+            'ciphers' => 'ssl_ciphers',
+            'crypto_method' => 'ssl_protocols',
+        ];
+
+        foreach ($tls as $key => $value) {
+            $key = (string) $key;
+
+            if (isset($map[$key])) {
+                $settings[$map[$key]] = $value;
+            } elseif (str_starts_with($key, 'ssl_')) {
+                $settings[$key] = $value;
+            }
+        }
+
+        return $settings;
+    }
+
+    /**
+     * Determine whether the Reverb server should use TLS.
+     */
+    protected function usesTls(array $server): bool
+    {
+        $settings = $this->resolveTlsSettings($server);
+
+        return isset($settings['ssl_cert_file'])
+            || isset($settings['ssl_key_file']);
     }
 
     /**

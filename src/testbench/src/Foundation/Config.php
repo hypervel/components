@@ -251,14 +251,6 @@ class Config extends Fluent implements ConfigContract
     }
 
     /**
-     * Flush the cached configuration.
-     */
-    public static function flush(): void
-    {
-        static::$cachedConfiguration = null;
-    }
-
-    /**
      * Add additional service providers.
      *
      * @param array<int, class-string<\Hypervel\Support\ServiceProvider>> $providers
@@ -339,5 +331,13 @@ class Config extends Fluent implements ConfigContract
     public function getWorkbenchDiscoversAttributes(): array
     {
         return Arr::get($this->getWorkbenchAttributes(), 'discovers');
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$cachedConfiguration = null;
     }
 }

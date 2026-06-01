@@ -168,46 +168,6 @@ class Application
     }
 
     /**
-     * Flush all static state.
-     *
-     * @param object $instance active test instance, used to thread the running TestCase through to HandleExceptions::flushState()
-     */
-    public static function flushState(object $instance): void
-    {
-        AboutCommand::flushState();
-        Artisan::forgetBootstrappers();
-        Component::flushCache();
-        Component::forgetComponentsResolver();
-        Component::forgetFactory();
-        ConvertEmptyStringsToNull::flushState();
-        EncodedHtmlString::flushState();
-        Factory::flushState();
-        HandleExceptions::flushState($instance instanceof \PHPUnit\Framework\TestCase ? $instance : null);
-        Env::flushState();
-        JsonResource::flushState();
-        JsonApiResource::flushState();
-        Markdown::flushState();
-        Migrator::flushState();
-        Model::flushState();
-        Once::flushState();
-        PreventRequestForgery::flushState();
-        PreventRequestsDuringMaintenance::flushState();
-        Queue::flushState();
-        RegisterProviders::flushState();
-        RouteListCommand::flushState();
-        ScheduleListCommand::flushState();
-        SchemaBuilder::flushState();
-        Sleep::flushState();
-        Str::flushState();
-        ThrottleRequests::flushState();
-        TrimStrings::flushState();
-        TrustProxies::flushState();
-        TrustHosts::flushState();
-        Validator::flushState();
-        WorkCommand::flushState();
-    }
-
-    /**
      * Configure the application options.
      *
      * @param array<string, mixed> $options
@@ -402,5 +362,45 @@ class Application
     {
         $this->resolveApplicationConfigurationFromTrait($app);
         (new EnsuresDefaultConfiguration)->bootstrap($app);
+    }
+
+    /**
+     * Flush all static state.
+     *
+     * @param object $instance active test instance, used to thread the running TestCase through to HandleExceptions::flushState()
+     */
+    public static function flushState(object $instance): void
+    {
+        AboutCommand::flushState();
+        Artisan::forgetBootstrappers();
+        Component::flushCache();
+        Component::forgetComponentsResolver();
+        Component::forgetFactory();
+        ConvertEmptyStringsToNull::flushState();
+        EncodedHtmlString::flushState();
+        Factory::flushState();
+        HandleExceptions::flushState($instance instanceof \PHPUnit\Framework\TestCase ? $instance : null);
+        Env::flushState();
+        JsonResource::flushState();
+        JsonApiResource::flushState();
+        Markdown::flushState();
+        Migrator::flushState();
+        Model::flushState();
+        Once::flushState();
+        PreventRequestForgery::flushState();
+        PreventRequestsDuringMaintenance::flushState();
+        Queue::flushState();
+        RegisterProviders::flushState();
+        RouteListCommand::flushState();
+        ScheduleListCommand::flushState();
+        SchemaBuilder::flushState();
+        Sleep::flushState();
+        Str::flushState();
+        ThrottleRequests::flushState();
+        TrimStrings::flushState();
+        TrustProxies::flushState();
+        TrustHosts::flushState();
+        Validator::flushState();
+        WorkCommand::flushState();
     }
 }

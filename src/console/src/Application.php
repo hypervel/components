@@ -20,6 +20,7 @@ use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputDefinition;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\BufferedOutput;
@@ -30,9 +31,9 @@ use Symfony\Component\Process\PhpExecutableFinder;
 class Application extends SymfonyApplication implements ConsoleApplicationContract
 {
     /**
-     * The output from the previous command.
+     * The CoroutineContext key holding the output from the previous command.
      */
-    protected string $lastOutputContextKey = 'console.last_output';
+    protected const LAST_OUTPUT_CONTEXT_KEY = '__console.last_output';
 
     /**
      * The console application bootstrappers.
@@ -148,7 +149,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
 
         return $this->run(
             $input,
-            CoroutineContext::set($this->lastOutputContextKey, $outputBuffer ?: new BufferedOutput)
+            CoroutineContext::set(self::LAST_OUTPUT_CONTEXT_KEY, $outputBuffer ?: new BufferedOutput)
         );
     }
 
@@ -183,7 +184,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
      */
     public function output(): string
     {
-        $lastOutput = CoroutineContext::get($this->lastOutputContextKey);
+        $lastOutput = CoroutineContext::get(self::LAST_OUTPUT_CONTEXT_KEY);
 
         return $lastOutput && method_exists($lastOutput, 'fetch')
             ? $lastOutput->fetch()
@@ -216,6 +217,39 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     protected function addToParent(SymfonyCommand|callable $command): ?SymfonyCommand
     {
         return parent::addCommand($command);
+    }
+
+    /**
+     * Run the given command instance.
+     */
+    #[Override]
+    protected function doRunCommand(SymfonyCommand $command, InputInterface $input, OutputInterface $output): int
+    {
+        return parent::doRunCommand(
+            $this->freshCommandForRun($command),
+            $input,
+            $output
+        );
+    }
+
+    /**
+     * Create a per-execution command instance from the cached command prototype.
+     *
+     * Symfony caches command objects after lazy resolution, but Hypervel commands
+     * store input/output state while running. Execute clones so concurrent calls
+     * to the same command cannot overwrite each other's per-run state.
+     */
+    protected function freshCommandForRun(SymfonyCommand $command): SymfonyCommand
+    {
+        $command = clone $command;
+
+        $command->setApplication($this);
+
+        if ($command instanceof Command) {
+            $command->setHypervel($this->container);
+        }
+
+        return $command;
     }
 
     /**

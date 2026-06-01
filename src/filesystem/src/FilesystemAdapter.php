@@ -1067,6 +1067,14 @@ class FilesystemAdapter implements CloudFilesystemContract
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Pass dynamic methods call onto Flysystem.
      *
      * @return mixed

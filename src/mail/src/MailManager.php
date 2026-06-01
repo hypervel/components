@@ -65,7 +65,7 @@ class MailManager implements FactoryContract
      * The array of drivers which will be wrapped as pool proxies.
      */
     protected array $poolables = [
-        'smtp', 'sendmail', 'mailgun', 'ses_v2', 'postmark', 'resend', 'failover', 'roundrobin',
+        'smtp', 'sendmail', 'mailgun', 'ses-v2', 'postmark', 'resend', 'failover', 'roundrobin',
     ];
 
     /**
@@ -117,7 +117,7 @@ class MailManager implements FactoryContract
         }
 
         $transport = $config['transport'];
-        $hasPool = in_array($transport, $this->poolables);
+        $hasPool = in_array($transport, $this->poolables, true);
 
         // Once we have created the mailer instance we will set a container instance
         // on the mailer. This allows us to resolve mailer classes via containers

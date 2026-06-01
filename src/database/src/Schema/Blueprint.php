@@ -201,7 +201,12 @@ class Blueprint
                 // and the column is supposed to be changed, we will call the drop index
                 // method with an array of column to drop it by its conventional name.
                 if ($column->{$index} === false && $column->change) {
-                    $this->{'drop' . ucfirst($index)}([$column->name]);
+                    if ($index === 'vectorIndex') {
+                        $this->dropIndex($this->createIndexName($index, [$column->name]));
+                    } else {
+                        $this->{'drop' . ucfirst($index)}([$column->name]);
+                    }
+
                     $column->{$index} = null;
 
                     continue 2;
@@ -403,14 +408,6 @@ class Blueprint
     public function dropSpatialIndex(array|string $index): Fluent
     {
         return $this->dropIndexCommand('dropSpatialIndex', 'spatialIndex', $index);
-    }
-
-    /**
-     * Indicate that the given vector index should be dropped.
-     */
-    public function dropVectorIndex(array|string $index): Fluent
-    {
-        return $this->dropIndexCommand('dropVectorIndex', 'vectorIndex', $index);
     }
 
     /**

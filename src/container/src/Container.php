@@ -2106,10 +2106,9 @@ class Container implements ArrayAccess, ContainerContract
         $this->checkedForAttributeBindings = [];
         $this->checkedForSingletonOrScopedAttributes = [];
 
-        // Clear static caches (worker-lifetime, but must reset on flush for tests)
-        static::$buildRecipes = [];
+        static::flushState();
         ReflectionManager::flushState();
-        BoundMethod::flushMethodRecipeCache();
+        BoundMethod::flushState();
     }
 
     /**
@@ -2129,6 +2128,14 @@ class Container implements ArrayAccess, ContainerContract
     public static function setInstance(?ContainerContract $container = null): ?ContainerContract
     {
         return static::$instance = $container; // @phpstan-ignore assign.propertyType
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$buildRecipes = [];
     }
 
     /**

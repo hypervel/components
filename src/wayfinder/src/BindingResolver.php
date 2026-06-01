@@ -52,17 +52,6 @@ class BindingResolver
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        self::$booted = [];
-        self::$columns = [];
-        self::$docParser = null;
-        self::$lexer = null;
-    }
-
-    /**
      * Return column metadata for the model, falling back to docblock parsing.
      */
     protected static function getColumns(Model $model): array
@@ -135,5 +124,16 @@ class BindingResolver
     protected static function getParserConfig(): ParserConfig
     {
         return new ParserConfig(usedAttributes: []);
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$booted = [];
+        self::$columns = [];
+        self::$docParser = null;
+        self::$lexer = null;
     }
 }

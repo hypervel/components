@@ -18,6 +18,7 @@ use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\ProcessUtils;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
@@ -77,6 +78,11 @@ class Schedule
      * @var array<string, bool>
      */
     protected array $mutexCache = [];
+
+    /**
+     * The minute currently represented by the in-memory mutex cache.
+     */
+    protected ?string $mutexCacheMinute = null;
 
     /**
      * The attributes to pass to the event.
@@ -359,6 +365,13 @@ class Schedule
      */
     public function serverShouldRun(Event $event, DateTimeInterface $time): bool
     {
+        $mutexCacheMinute = $time->format('YmdHi');
+
+        if ($this->mutexCacheMinute !== $mutexCacheMinute) {
+            $this->mutexCacheMinute = $mutexCacheMinute;
+            $this->mutexCache = [];
+        }
+
         return $this->mutexCache[$event->mutexName()] ??= $this->schedulingMutex->create($event, $time);
     }
 
@@ -367,7 +380,16 @@ class Schedule
      */
     public function dueEvents(Application $app): Collection
     {
-        return (new Collection($this->events))->filter->isDue($app);
+        return $this->dueEventsAt($app, Date::now());
+    }
+
+    /**
+     * Get all of the events on the schedule that are due at the given time.
+     */
+    public function dueEventsAt(Application $app, DateTimeInterface $time): Collection
+    {
+        return (new Collection($this->events))
+            ->filter(fn (Event $event) => $event->isDueAt($app, $time));
     }
 
     /**
@@ -382,6 +404,9 @@ class Schedule
 
     /**
      * Specify the cache store that should be used to store mutexes.
+     *
+     * Boot-only. Mutates the shared mutex instances used by this worker's
+     * schedule; per-request use races across coroutines.
      */
     public function useCache(UnitEnum|string|null $store): static
     {
@@ -422,6 +447,14 @@ class Schedule
         }
 
         return $this->dispatcher;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 
     /**

@@ -15,9 +15,9 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel Precognition allows you to anticipate the outcome of a future HTTP request. One of the primary use cases of Precognition is the ability to provide "live" validation for your frontend JavaScript application without having to duplicate your application's backend validation rules.
+Precognition allows you to anticipate the outcome of a future HTTP request. One of the primary use cases of Precognition is the ability to provide "live" validation for your frontend JavaScript application without having to duplicate your application's backend validation rules.
 
-When Laravel receives a "precognitive request", it will execute all of the route's middleware and resolve the route's controller dependencies, including validating [form requests](/docs/{{version}}/validation#form-request-validation) - but it will not actually execute the route's controller method.
+When Hypervel receives a "precognitive request", it will execute all of the route's middleware and resolve the route's controller dependencies, including validating [form requests](/docs/{{version}}/validation#form-request-validation) - but it will not actually execute the route's controller method.
 
 > [!NOTE]
 > As of Inertia 2.3, Precognition support is built-in. Please consult the [Inertia Forms documentation](https://inertiajs.com/forms) for more information. Earlier Inertia versions require Precognition 0.x.
@@ -28,7 +28,7 @@ When Laravel receives a "precognitive request", it will execute all of the route
 <a name="using-vue"></a>
 ### Using Vue
 
-Using Laravel Precognition, you can offer live validation experiences to your users without having to duplicate your validation rules in your frontend Vue application. To illustrate how it works, let's build a form for creating new users within our application.
+Using Precognition, you can offer live validation experiences to your users without having to duplicate your validation rules in your frontend Vue application. To illustrate how it works, let's build a form for creating new users within our application.
 
 First, to enable Precognition for a route, the `HandlePrecognitiveRequests` middleware should be added to the route definition. You should also create a [form request](/docs/{{version}}/validation#form-request-validation) to house the route's validation rules:
 
@@ -41,13 +41,13 @@ Route::post('/users', function (StoreUserRequest $request) {
 })->middleware([HandlePrecognitiveRequests::class]);
 ```
 
-Next, you should install the Laravel Precognition frontend helpers for Vue via NPM:
+Next, you should install the Precognition frontend helpers for Vue via NPM:
 
 ```shell
 npm install laravel-precognition-vue
 ```
 
-With the Laravel Precognition package installed, you can now create a form object using Precognition's `useForm` function, providing the HTTP method (`post`), the target URL (`/users`), and the initial form data.
+With the Precognition package installed, you can now create a form object using Precognition's `useForm` function, providing the HTTP method (`post`), the target URL (`/users`), and the initial form data.
 
 Then, to enable live validation, invoke the form's `validate` method on each input's `change` event, providing the input's name:
 
@@ -93,7 +93,7 @@ const submit = () => form.submit();
 </template>
 ```
 
-Now, as the form is filled by the user, Precognition will provide live validation output powered by the validation rules in the route's form request. When the form's inputs are changed, a debounced "precognitive" validation request will be sent to your Laravel application. You may configure the debounce timeout by calling the form's `setValidationTimeout` function:
+Now, as the form is filled by the user, Precognition will provide live validation output powered by the validation rules in the route's form request. When the form's inputs are changed, a debounced "precognitive" validation request will be sent to your Hypervel application. You may configure the debounce timeout by calling the form's `setValidationTimeout` function:
 
 ```js
 form.setValidationTimeout(3000);
@@ -192,7 +192,7 @@ You may determine if a form submission request is in-flight by inspecting the fo
 <a name="using-react"></a>
 ### Using React
 
-Using Laravel Precognition, you can offer live validation experiences to your users without having to duplicate your validation rules in your frontend React application. To illustrate how it works, let's build a form for creating new users within our application.
+Using Precognition, you can offer live validation experiences to your users without having to duplicate your validation rules in your frontend React application. To illustrate how it works, let's build a form for creating new users within our application.
 
 First, to enable Precognition for a route, the `HandlePrecognitiveRequests` middleware should be added to the route definition. You should also create a [form request](/docs/{{version}}/validation#form-request-validation) to house the route's validation rules:
 
@@ -205,13 +205,13 @@ Route::post('/users', function (StoreUserRequest $request) {
 })->middleware([HandlePrecognitiveRequests::class]);
 ```
 
-Next, you should install the Laravel Precognition frontend helpers for React via NPM:
+Next, you should install the Precognition frontend helpers for React via NPM:
 
 ```shell
 npm install laravel-precognition-react
 ```
 
-With the Laravel Precognition package installed, you can now create a form object using Precognition's `useForm` function, providing the HTTP method (`post`), the target URL (`/users`), and the initial form data.
+With the Precognition package installed, you can now create a form object using Precognition's `useForm` function, providing the HTTP method (`post`), the target URL (`/users`), and the initial form data.
 
 To enable live validation, you should listen to each input's `change` and `blur` event. In the `change` event handler, you should set the form's data with the `setData` function, passing the input's name and new value. Then, in the `blur` event handler invoke the form's `validate` method, providing the input's name:
 
@@ -258,7 +258,7 @@ export default function Form() {
 };
 ```
 
-Now, as the form is filled by the user, Precognition will provide live validation output powered by the validation rules in the route's form request. When the form's inputs are changed, a debounced "precognitive" validation request will be sent to your Laravel application. You may configure the debounce timeout by calling the form's `setValidationTimeout` function:
+Now, as the form is filled by the user, Precognition will provide live validation output powered by the validation rules in the route's form request. When the form's inputs are changed, a debounced "precognitive" validation request will be sent to your Hypervel application. You may configure the debounce timeout by calling the form's `setValidationTimeout` function:
 
 ```js
 form.setValidationTimeout(3000);
@@ -351,7 +351,7 @@ You may determine if a form submission request is in-flight by inspecting the fo
 <a name="using-alpine"></a>
 ### Using Alpine and Blade
 
-Using Laravel Precognition, you can offer live validation experiences to your users without having to duplicate your validation rules in your frontend Alpine application. To illustrate how it works, let's build a form for creating new users within our application.
+Using Precognition, you can offer live validation experiences to your users without having to duplicate your validation rules in your frontend Alpine application. To illustrate how it works, let's build a form for creating new users within our application.
 
 First, to enable Precognition for a route, the `HandlePrecognitiveRequests` middleware should be added to the route definition. You should also create a [form request](/docs/{{version}}/validation#form-request-validation) to house the route's validation rules:
 
@@ -364,7 +364,7 @@ Route::post('/users', function (CreateUserRequest $request) {
 })->middleware([HandlePrecognitiveRequests::class]);
 ```
 
-Next, you should install the Laravel Precognition frontend helpers for Alpine via NPM:
+Next, you should install the Precognition frontend helpers for Alpine via NPM:
 
 ```shell
 npm install laravel-precognition-alpine
@@ -382,7 +382,7 @@ Alpine.plugin(Precognition);
 Alpine.start();
 ```
 
-With the Laravel Precognition package installed and registered, you can now create a form object using Precognition's `$form` "magic", providing the HTTP method (`post`), the target URL (`/users`), and the initial form data.
+With the Precognition package installed and registered, you can now create a form object using Precognition's `$form` "magic", providing the HTTP method (`post`), the target URL (`/users`), and the initial form data.
 
 To enable live validation, you should bind the form's data to its relevant input and then listen to each input's `change` event. In the `change` event handler, you should invoke the form's `validate` method, providing the input's name:
 
@@ -422,7 +422,7 @@ To enable live validation, you should bind the form's data to its relevant input
 </form>
 ```
 
-Now, as the form is filled by the user, Precognition will provide live validation output powered by the validation rules in the route's form request. When the form's inputs are changed, a debounced "precognitive" validation request will be sent to your Laravel application. You may configure the debounce timeout by calling the form's `setValidationTimeout` function:
+Now, as the form is filled by the user, Precognition will provide live validation output powered by the validation rules in the route's form request. When the form's inputs are changed, a debounced "precognitive" validation request will be sent to your Hypervel application. You may configure the debounce timeout by calling the form's `setValidationTimeout` function:
 
 ```js
 form.setValidationTimeout(3000);
@@ -590,7 +590,7 @@ class StoreUserRequest extends FormRequest
      *
      * @return array
      */
-    protected function rules()
+    public function rules(): array
     {
         return [
             'password' => [
@@ -608,7 +608,7 @@ class StoreUserRequest extends FormRequest
 <a name="handling-file-uploads"></a>
 ## Handling File Uploads
 
-By default, Laravel Precognition does not upload or validate files during a precognitive validation request. This ensure that large files are not unnecessarily uploaded multiple times.
+By default, Precognition does not upload or validate files during a precognitive validation request. This ensures that large files are not unnecessarily uploaded multiple times.
 
 Because of this behavior, you should ensure that your application [customizes the corresponding form request's validation rules](#customizing-validation-rules) to specify the field is only required for full form submissions:
 
@@ -618,7 +618,7 @@ Because of this behavior, you should ensure that your application [customizes th
  *
  * @return array
  */
-protected function rules()
+public function rules(): array
 {
     return [
         'avatar' => [
@@ -673,7 +673,7 @@ class InteractionMiddleware
 <a name="testing"></a>
 ## Testing
 
-If you would like to make precognitive requests in your tests, Laravel's `TestCase` includes a `withPrecognition` helper which will add the `Precognition` request header.
+If you would like to make precognitive requests in your tests, Hypervel's `TestCase` includes a `withPrecognition` helper which will add the `Precognition` request header.
 
 Additionally, if you would like to assert that a precognitive request was successful, e.g., did not return any validation errors, you may use the `assertSuccessfulPrecognition` method on the response:
 

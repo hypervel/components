@@ -306,6 +306,26 @@ class ContainerCallTest extends TestCase
         $this->assertSame('taylor', $result[1]);
     }
 
+    public function testFlushStateClearsMethodAndFunctionRecipeCaches()
+    {
+        BoundMethod::flushState();
+
+        $container = new Container;
+        $container->call([new ContainerTestCallStub, 'inject']);
+        $container->call('Hypervel\Tests\Container\containerTestInject');
+
+        $methodRecipes = new ReflectionProperty(BoundMethod::class, 'methodRecipes');
+        $functionRecipes = new ReflectionProperty(BoundMethod::class, 'functionRecipes');
+
+        $this->assertNotEmpty($methodRecipes->getValue());
+        $this->assertNotEmpty($functionRecipes->getValue());
+
+        BoundMethod::flushState();
+
+        $this->assertSame([], $methodRecipes->getValue());
+        $this->assertSame([], $functionRecipes->getValue());
+    }
+
     public function testClosuresDoNotPopulateMethodRecipeCache()
     {
         $container = new Container;

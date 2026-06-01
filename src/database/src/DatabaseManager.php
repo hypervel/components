@@ -503,6 +503,14 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Dynamically pass methods to the default connection.
      */
     public function __call(string $method, array $parameters): mixed

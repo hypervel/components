@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher;
@@ -273,20 +274,22 @@ class Worker
         }
 
         $this->monitorId = (new Timer)->tick($this->monitorInterval, function () use ($options) {
-            if ($this->monitorLocked) {
-                return;
-            }
+            $this->withCoroutineContext($options, function () use ($options) {
+                if ($this->monitorLocked) {
+                    return;
+                }
 
-            $this->monitorLocked = true;
+                $this->monitorLocked = true;
 
-            $this->terminateTimeoutJobs($options);
+                $this->terminateTimeoutJobs($options);
 
-            if ($this->hasTimeoutJobs()) {
-                $this->shouldQuit = true;
-                $this->kill(static::EXIT_SUCCESS, $options);
-            }
+                if ($this->hasTimeoutJobs()) {
+                    $this->shouldQuit = true;
+                    $this->kill(static::EXIT_SUCCESS, $options);
+                }
 
-            $this->monitorLocked = false;
+                $this->monitorLocked = false;
+            });
         });
     }
 
@@ -478,15 +481,48 @@ class Worker
      */
     protected function runJob(JobContract $job, string $connectionName, WorkerOptions $options): null
     {
-        try {
-            $this->process($connectionName, $job, $options);
-        } catch (Throwable $e) {
-            $this->exceptions->report($e);
+        return $this->withCoroutineContext($options, function () use ($job, $connectionName, $options) {
+            try {
+                $this->process($connectionName, $job, $options);
+            } catch (Throwable $e) {
+                $this->exceptions->report($e);
 
-            $this->stopWorkerIfLostConnection($e);
+                $this->stopWorkerIfLostConnection($e);
+            }
+
+            return null;
+        });
+    }
+
+    /**
+     * Run the callback with the worker option context active.
+     */
+    protected function withCoroutineContext(WorkerOptions $options, callable $callback): mixed
+    {
+        $contextValues = $options->coroutineContext;
+        $previousContextValues = [];
+        $previousContextExists = [];
+
+        // Daemon jobs and monitor ticks run in child coroutines, so command/output
+        // context has to be seeded explicitly while worker lifecycle events run.
+        foreach ($contextValues as $key => $value) {
+            $previousContextExists[$key] = CoroutineContext::has($key);
+            $previousContextValues[$key] = CoroutineContext::get($key);
+
+            CoroutineContext::set($key, $value);
         }
 
-        return null;
+        try {
+            return $callback();
+        } finally {
+            foreach ($contextValues as $key => $_) {
+                if ($previousContextExists[$key]) {
+                    CoroutineContext::set($key, $previousContextValues[$key]);
+                } else {
+                    CoroutineContext::forget($key);
+                }
+            }
+        }
     }
 
     /**

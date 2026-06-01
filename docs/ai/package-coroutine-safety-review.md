@@ -113,8 +113,10 @@ Classify every hit:
 
 ```bash
 grep -rn "protected static\|private static\|public static" \
-    src/{pkg}/src --include="*.php" | grep -v function
+    src/{pkg}/src --include="*.php" | grep -v "static function"
 ```
+
+The filter must be `"static function"`, not just `function` — a property named `$functionRecipes` or `$functionCache` would be silently dropped by the looser filter.
 
 | Category | Verdict |
 |---|---|
@@ -221,7 +223,7 @@ When a finding falls into one of these shapes, the established fix is:
 | Per-request state stored on a long-lived singleton instance | Move to `CoroutineContext` with key `__{package}.{key}`; provide getter that reads from context |
 | Render-time mutation of a shared finder/factory | Add `__clone()` to the shared class; have the caller clone, mutate the clone, render through the clone (`Markdown` / `Factory` pattern) |
 | Boot-time hook misused at render time (e.g., `encodeUsing`) | Add a scoped `withX(callable $factory, callable $callback)` helper using `CoroutineContext`. Keep the boot-time setter as-is |
-| Static state mutated anywhere | `public static function flushState(): void` resetting it; register in `tests/AfterEachTestSubscriber.php` (alphabetical position). Place `flushState()` at the end of the class, except before a trailing magic dispatch/lifecycle block (`__call`, `__callStatic`, `__get`, `__set`, `__isset`, `__unset`, `__destruct`). `__invoke()` is not a placement anchor. Use the standard `Flush all static state.` title docblock; do not add `Boot-only.`, `Tests only.`, or `Boot or tests only.` warning paragraphs to this test cleanup hook. |
+| Static state mutated anywhere | `public static function flushState(): void` resetting it; register in `tests/AfterEachTestSubscriber.php` (alphabetical position). Place `flushState()` at the end of the class, except before a trailing magic dispatch/lifecycle block (`__call`, `__callStatic`, `__get`, `__set`, `__isset`, `__unset`, `__destruct`). `__invoke()` is not a placement anchor. Use the standard `Flush all static state.` title docblock; do not add `Boot-only.`, `Tests only.`, or `Boot or tests only.` warning paragraphs to this test cleanup hook. If the property's initial value and the reset value share a literal, anchor both to a `DEFAULT_*` class constant to prevent drift. |
 | Consume-once static state | Add `flushState()` and `AfterEachTestSubscriber` wiring. If runtime "consume once" behavior is intentionally best-effort, document that near the consume/reset point. |
 | Derived state in constructor that setters don't update | Remove the setters (constructor-only configuration), or add a recompute hook that setters call |
 | `singleton()` binding whose closure resolves per-request deps | Restructure deps so the per-request thing is resolved per-call, or use `bind()` if the wrapper is cheap |
@@ -310,7 +312,7 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 
 ## 5. Progress
 
-**Next:** `console` (round 2)
+**Next:** _round 2 complete_
 
 | # | Package | Status |
 |---|---|---|
@@ -324,65 +326,65 @@ Plans go in monorepo root with `-PLAN.md` suffix.
 | 8 | `concurrency` | ✓ |
 | 9 | `conditionable` | ✓ |
 | 10 | `config` | ✓ |
-| 11 | `console` |   |
-| 12 | `container` |   |
-| 13 | `context` |   |
-| 14 | `contracts` |   |
-| 15 | `cookie` |   |
-| 16 | `coordinator` |   |
-| 17 | `core` |   |
-| 18 | `coroutine` |   |
-| 19 | `database` |   |
-| 20 | `di` |   |
-| 21 | `encryption` |   |
-| 22 | `engine` |   |
-| 23 | `events` |   |
-| 24 | `facade-documenter` |   |
-| 25 | `filesystem` |   |
-| 26 | `foundation` |   |
-| 27 | `hashing` |   |
-| 28 | `horizon` |   |
-| 29 | `http` |   |
-| 30 | `http-server` |   |
-| 31 | `inertia` |   |
-| 32 | `json-schema` |   |
-| 33 | `jwt` |   |
-| 34 | `log` |   |
-| 35 | `macroable` |   |
-| 36 | `mail` |   |
-| 37 | `nested-set` |   |
-| 38 | `notifications` |   |
-| 39 | `object-pool` |   |
-| 40 | `pagination` |   |
-| 41 | `permission` |   |
-| 42 | `pipeline` |   |
-| 43 | `pool` |   |
-| 44 | `process` |   |
-| 45 | `prompts` |   |
-| 46 | `queue` |   |
-| 47 | `redis` |   |
-| 48 | `reflection` |   |
-| 49 | `reverb` |   |
-| 50 | `routing` |   |
-| 51 | `sanctum` |   |
-| 52 | `scout` |   |
-| 53 | `sentry` |   |
-| 54 | `server` |   |
-| 55 | `server-process` |   |
-| 56 | `session` |   |
-| 57 | `signal` |   |
-| 58 | `socialite` |   |
-| 59 | `support` |   |
-| 60 | `telescope` |   |
-| 61 | `testbench` |   |
-| 62 | `testing` |   |
-| 63 | `tinker` |   |
-| 64 | `translation` |   |
-| 65 | `validation` |   |
-| 66 | `view` |   |
-| 67 | `watcher` |   |
-| 68 | `wayfinder` |   |
-| 69 | `websocket-server` |   |
+| 11 | `console` | ✓ |
+| 12 | `container` | ✓ |
+| 13 | `context` | ✓ |
+| 14 | `contracts` | ✓ |
+| 15 | `cookie` | ✓ |
+| 16 | `coordinator` | ✓ |
+| 17 | `core` | ✓ |
+| 18 | `coroutine` | ✓ |
+| 19 | `database` | ✓ |
+| 20 | `di` | ✓ |
+| 21 | `encryption` | ✓ |
+| 22 | `engine` | ✓ |
+| 23 | `events` | ✓ |
+| 24 | `facade-documenter` | ✓ (offline CLI) |
+| 25 | `filesystem` | ✓ |
+| 26 | `foundation` | ✓ |
+| 27 | `hashing` | ✓ |
+| 28 | `horizon` | ✓ |
+| 29 | `http` | ✓ |
+| 30 | `http-server` | ✓ |
+| 31 | `inertia` | ✓ |
+| 32 | `json-schema` | ✓ |
+| 33 | `jwt` | ✓ |
+| 34 | `log` | ✓ |
+| 35 | `macroable` | ✓ |
+| 36 | `mail` | ✓ |
+| 37 | `nested-set` | ✓ |
+| 38 | `notifications` | ✓ |
+| 39 | `object-pool` | ✓ |
+| 40 | `pagination` | ✓ |
+| 41 | `permission` | ✓ |
+| 42 | `pipeline` | ✓ |
+| 43 | `pool` | ✓ |
+| 44 | `process` | ✓ |
+| 45 | `prompts` | ✓ |
+| 46 | `queue` | ✓ |
+| 47 | `redis` | ✓ |
+| 48 | `reflection` | ✓ |
+| 49 | `reverb` | ✓ |
+| 50 | `routing` | ✓ |
+| 51 | `sanctum` | ✓ |
+| 52 | `scout` | ✓ |
+| 53 | `sentry` | ✓ |
+| 54 | `server` | ✓ |
+| 55 | `server-process` | ✓ |
+| 56 | `session` | ✓ |
+| 57 | `signal` | ✓ |
+| 58 | `socialite` | ✓ |
+| 59 | `support` | ✓ |
+| 60 | `telescope` | ✓ |
+| 61 | `testbench` | ✓ |
+| 62 | `testing` | ✓ |
+| 63 | `tinker` | ✓ |
+| 64 | `translation` | ✓ |
+| 65 | `validation` | ✓ |
+| 66 | `view` | ✓ |
+| 67 | `watcher` | ✓ |
+| 68 | `wayfinder` | ✓ |
+| 69 | `websocket-server` | ✓ |
 
 ---
 

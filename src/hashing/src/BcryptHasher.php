@@ -121,6 +121,9 @@ class BcryptHasher extends AbstractHasher implements HasherContract
     /**
      * Set the default password work factor.
      *
+     * Boot-only. Mutates the shared hasher instance held by the HashManager;
+     * per-request use races across coroutines.
+     *
      * @return $this
      */
     public function setRounds(int $rounds): static

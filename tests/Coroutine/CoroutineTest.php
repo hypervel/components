@@ -108,7 +108,7 @@ class CoroutineTest extends TestCase
         $this->assertSame([1, 2, 3], $order);
     }
 
-    public function testFlushAfterCreatedClearsCallbacks()
+    public function testFlushStateClearsAfterCreatedCallbacks()
     {
         $count = 0;
 
@@ -119,10 +119,31 @@ class CoroutineTest extends TestCase
         Coroutine::create(function () {});
         $this->assertSame(1, $count);
 
-        Coroutine::flushAfterCreated();
+        Coroutine::flushState();
 
         Coroutine::create(function () {});
         $this->assertSame(1, $count); // Should still be 1, callback was flushed
+    }
+
+    public function testFlushStateRestoresExceptionReporting()
+    {
+        try {
+            $container = new Container;
+            $handler = m::mock(ExceptionHandlerContract::class);
+            $container->instance(ExceptionHandlerContract::class, $handler);
+            Container::setInstance($container);
+
+            $handler->shouldReceive('report')->once();
+
+            Coroutine::enableReportException(false);
+            Coroutine::flushState();
+
+            Coroutine::create(function () {
+                throw new Exception('Should be reported after flushState.');
+            });
+        } finally {
+            Coroutine::flushState();
+        }
     }
 
     public function testAfterCreatedCallbackExceptionDoesNotStopOthers()

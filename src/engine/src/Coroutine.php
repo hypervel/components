@@ -87,6 +87,9 @@ class Coroutine implements CoroutineInterface
 
     /**
      * Set the coroutine configuration.
+     *
+     * Boot-only. Mutates Swoole's process-global coroutine configuration; calling
+     * this per-request changes settings for every concurrent coroutine in the worker.
      */
     public static function set(array $config): void
     {

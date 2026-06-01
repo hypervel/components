@@ -30,7 +30,7 @@
         "symfony/error-handler": "^8.0",
         "symfony/finder": "^8.0",
         "symfony/http-foundation": "^8.0",
-        "symfony/http-kernel": "^8.0",
+        "symfony/http-kernel": "^8.0.12",
         "symfony/var-dumper": "^8.0",
         "vlucas/phpdotenv": "^5.6.1",
         "hypervel/auth": "^0.4",

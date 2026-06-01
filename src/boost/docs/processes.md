@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [Invoking Processes](#invoking-processes)
+    - [Array Commands](#array-commands)
     - [Process Options](#process-options)
     - [Process Output](#process-output)
     - [Pipelines](#process-pipelines)
@@ -10,6 +11,7 @@
     - [Asynchronous Process Output](#asynchronous-process-output)
     - [Asynchronous Process Timeouts](#asynchronous-process-timeouts)
 - [Concurrent Processes](#concurrent-processes)
+    - [Pool Results](#pool-results)
     - [Naming Pool Processes](#naming-pool-processes)
     - [Pool Process IDs and Signals](#pool-process-ids-and-signals)
 - [Testing](#testing)
@@ -23,7 +25,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel provides an expressive, minimal API around the [Symfony Process component](https://symfony.com/doc/current/components/process.html), allowing you to conveniently invoke external processes from your Laravel application. Laravel's process features are focused on the most common use cases and a wonderful developer experience.
+Hypervel provides an expressive, minimal API around the [Symfony Process component](https://symfony.com/doc/current/components/process.html), allowing you to conveniently invoke external processes from your Hypervel application. Hypervel's process features are focused on the most common use cases and a wonderful developer experience.
 
 <a name="invoking-processes"></a>
 ## Invoking Processes
@@ -51,6 +53,15 @@ $result->errorOutput();
 $result->exitCode();
 ```
 
+<a name="array-commands"></a>
+### Array Commands
+
+Instead of passing a shell command string to the `run` method, you may pass the command and its arguments as an array:
+
+```php
+$result = Process::run(['php', 'artisan', 'inspire']);
+```
+
 <a name="throwing-exceptions"></a>
 #### Throwing Exceptions
 
@@ -65,7 +76,7 @@ $result = Process::run('ls -la')->throwIf($condition);
 <a name="process-options"></a>
 ### Process Options
 
-Of course, you may need to customize the behavior of a process before invoking it. Thankfully, Laravel allows you to tweak a variety of process features, such as the working directory, timeout, and environment variables.
+Of course, you may need to customize the behavior of a process before invoking it. Thankfully, Hypervel allows you to tweak a variety of process features, such as the working directory, timeout, and environment variables.
 
 <a name="working-directory-path"></a>
 #### Working Directory Path
@@ -133,6 +144,16 @@ $result = Process::forever()
     ->run('bash import.sh');
 ```
 
+<a name="proc-open-options"></a>
+#### Proc Open Options
+
+If you need to customize the options passed to PHP's `proc_open` function, you may invoke the `options` method:
+
+```php
+$result = Process::options(['create_new_console' => true])
+    ->run('php artisan inspire');
+```
+
 <a name="tty-mode"></a>
 #### TTY Mode
 
@@ -140,6 +161,14 @@ The `tty` method may be used to enable TTY mode for your process. TTY mode conne
 
 ```php
 Process::forever()->tty()->run('vim');
+```
+
+You may use the `supportsTty` method to determine if TTY mode is supported by the current operating system:
+
+```php
+if (Process::supportsTty()) {
+    Process::forever()->tty()->run('vim');
+}
 ```
 
 > [!WARNING]
@@ -159,7 +188,7 @@ echo $result->output();
 echo $result->errorOutput();
 ```
 
-However, output may also be gathered in real-time by passing a closure as the second argument to the `run` method. The closure will receive two arguments: the "type" of output (`stdout` or `stderr`) and the output string itself:
+However, output may also be gathered in real-time by passing a closure as the second argument to the `run` method. The closure will receive two arguments: the "type" of output (`out` for standard output or `err` for error output) and the output string itself:
 
 ```php
 $result = Process::run('ls -la', function (string $type, string $output) {
@@ -167,10 +196,10 @@ $result = Process::run('ls -la', function (string $type, string $output) {
 });
 ```
 
-Laravel also offers the `seeInOutput` and `seeInErrorOutput` methods, which provide a convenient way to determine if a given string was contained in the process' output:
+Hypervel also offers the `seeInOutput` and `seeInErrorOutput` methods, which provide a convenient way to determine if a given string was contained in the process' output:
 
 ```php
-if (Process::run('ls -la')->seeInOutput('laravel')) {
+if (Process::run('ls -la')->seeInOutput('hypervel')) {
     // ...
 }
 ```
@@ -189,7 +218,7 @@ $result = Process::quietly()->run('bash import.sh');
 <a name="process-pipelines"></a>
 ### Pipelines
 
-Sometimes you may want to make the output of one process the input of another process. This is often referred to as "piping" the output of a process into another. The `pipe` method provided by the `Process` facades makes this easy to accomplish. The `pipe` method will execute the piped processes synchronously and return the process result for the last process in the pipeline:
+Sometimes you may want to make the output of one process the input of another process. This is often referred to as "piping" the output of a process into another. The `pipe` method provided by the `Process` facade makes this easy to accomplish. The `pipe` method will execute the piped processes synchronously and return the process result for the last process in the pipeline:
 
 ```php
 use Hypervel\Process\Pipe;
@@ -197,7 +226,7 @@ use Hypervel\Support\Facades\Process;
 
 $result = Process::pipe(function (Pipe $pipe) {
     $pipe->command('cat example.txt');
-    $pipe->command('grep -i "laravel"');
+    $pipe->command('grep -i "hypervel"');
 });
 
 if ($result->successful()) {
@@ -210,27 +239,27 @@ If you do not need to customize the individual processes that make up the pipeli
 ```php
 $result = Process::pipe([
     'cat example.txt',
-    'grep -i "laravel"',
+    'grep -i "hypervel"',
 ]);
 ```
 
-The process output may be gathered in real-time by passing a closure as the second argument to the `pipe` method. The closure will receive two arguments: the "type" of output (`stdout` or `stderr`) and the output string itself:
+The process output may be gathered in real-time by passing a closure as the second argument to the `pipe` method. The closure will receive two arguments: the "type" of output (`out` for standard output or `err` for error output) and the output string itself:
 
 ```php
 $result = Process::pipe(function (Pipe $pipe) {
     $pipe->command('cat example.txt');
-    $pipe->command('grep -i "laravel"');
+    $pipe->command('grep -i "hypervel"');
 }, function (string $type, string $output) {
     echo $output;
 });
 ```
 
-Laravel also allows you to assign string keys to each process within a pipeline via the `as` method. This key will also be passed to the output closure provided to the `pipe` method, allowing you to determine which process the output belongs to:
+Hypervel also allows you to assign string keys to each process within a pipeline via the `as` method. This key will also be passed to the output closure provided to the `pipe` method, allowing you to determine which process the output belongs to:
 
 ```php
 $result = Process::pipe(function (Pipe $pipe) {
     $pipe->as('first')->command('cat example.txt');
-    $pipe->as('second')->command('grep -i "laravel"');
+    $pipe->as('second')->command('grep -i "hypervel"');
 }, function (string $type, string $output, string $key) {
     // ...
 });
@@ -278,6 +307,12 @@ You may use the `signal` method to send a "signal" to the running process. A lis
 $process->signal(SIGUSR2);
 ```
 
+You may use the `stop` method to stop a running process:
+
+```php
+$process->stop();
+```
+
 <a name="asynchronous-process-output"></a>
 ### Asynchronous Process Output
 
@@ -294,7 +329,7 @@ while ($process->running()) {
 }
 ```
 
-Like the `run` method, output may also be gathered in real-time from asynchronous processes by passing a closure as the second argument to the `start` method. The closure will receive two arguments: the "type" of output (`stdout` or `stderr`) and the output string itself:
+Like the `run` method, output may also be gathered in real-time from asynchronous processes by passing a closure as the second argument to the `start` method. The closure will receive two arguments: the "type" of output (`out` for standard output or `err` for error output) and the output string itself:
 
 ```php
 $process = Process::start('bash import.sh', function (string $type, string $output) {
@@ -304,7 +339,7 @@ $process = Process::start('bash import.sh', function (string $type, string $outp
 $result = $process->wait();
 ```
 
-Instead of waiting until the process has finished, you may use the `waitUntil` method to stop waiting based on the output of the process. Laravel will stop waiting for the process to finish when the closure given to the `waitUntil` method returns `true`:
+Instead of waiting until the process has finished, you may use the `waitUntil` method to stop waiting based on the output of the process. Hypervel will stop waiting for the process to finish when the closure given to the `waitUntil` method returns `true`:
 
 ```php
 $process = Process::start('bash import.sh');
@@ -334,7 +369,7 @@ while ($process->running()) {
 <a name="concurrent-processes"></a>
 ## Concurrent Processes
 
-Laravel also makes it a breeze to manage a pool of concurrent, asynchronous processes, allowing you to easily execute many tasks simultaneously. To get started, invoke the `pool` method, which accepts a closure that receives an instance of `Hypervel\Process\Pool`.
+Hypervel also makes it a breeze to manage a pool of concurrent, asynchronous processes, allowing you to easily execute many tasks simultaneously. To get started, invoke the `pool` method, which accepts a closure that receives an instance of `Hypervel\Process\Pool`.
 
 Within this closure, you may define the processes that belong to the pool. Once a process pool is started via the `start` method, you may access the [collection](/docs/{{version}}/collections) of running processes via the `running` method:
 
@@ -357,12 +392,14 @@ while ($pool->running()->isNotEmpty()) {
 $results = $pool->wait();
 ```
 
-As you can see, you may wait for all of the pool processes to finish executing and resolve their results via the `wait` method. The `wait` method returns an array accessible object that allows you to access the `ProcessResult` instance of each process in the pool by its key:
+If you do not need to inspect the pool while its processes are running, you may use the `run` method to start the process pool and immediately wait on its results:
 
 ```php
-$results = $pool->wait();
-
-echo $results[0]->output();
+$results = Process::pool(function (Pool $pool) {
+    $pool->path(__DIR__)->command('bash import-1.sh');
+    $pool->path(__DIR__)->command('bash import-2.sh');
+    $pool->path(__DIR__)->command('bash import-3.sh');
+})->run();
 ```
 
 Or, for convenience, the `concurrently` method may be used to start an asynchronous process pool and immediately wait on its results. This can provide particularly expressive syntax when combined with PHP's array destructuring capabilities:
@@ -377,10 +414,29 @@ Or, for convenience, the `concurrently` method may be used to start an asynchron
 echo $first->output();
 ```
 
+<a name="pool-results"></a>
+### Pool Results
+
+You may wait for all of the pool processes to finish executing and resolve their results via the `wait` method. The `wait` method returns an array accessible object that allows you to access the `ProcessResult` instance of each process in the pool by its key:
+
+```php
+$results = $pool->wait();
+
+echo $results[0]->output();
+```
+
+The process pool results object also offers `successful` and `failed` methods which may be used to determine if the pool succeeded or failed. You may use the `collect` method to retrieve the results as a collection:
+
+```php
+if ($results->successful()) {
+    $results->collect()->each->output();
+}
+```
+
 <a name="naming-pool-processes"></a>
 ### Naming Pool Processes
 
-Accessing process pool results via a numeric key is not very expressive; therefore, Laravel allows you to assign string keys to each process within a pool via the `as` method. This key will also be passed to the closure provided to the `start` method, allowing you to determine which process the output belongs to:
+Accessing process pool results via a numeric key is not very expressive; therefore, Hypervel allows you to assign string keys to each process within a pool via the `as` method. This key will also be passed to the closure provided to the `start` method, allowing you to determine which process the output belongs to:
 
 ```php
 $pool = Process::pool(function (Pool $pool) {
@@ -411,15 +467,21 @@ And, for convenience, you may invoke the `signal` method on a process pool to se
 $pool->signal(SIGUSR2);
 ```
 
+You may use the `stop` method to stop all running processes within the pool:
+
+```php
+$pool->stop();
+```
+
 <a name="testing"></a>
 ## Testing
 
-Many Laravel services provide functionality to help you easily and expressively write tests, and Laravel's process service is no exception. The `Process` facade's `fake` method allows you to instruct Laravel to return stubbed / dummy results when processes are invoked.
+Many Hypervel services provide functionality to help you easily and expressively write tests, and Hypervel's process service is no exception. The `Process` facade's `fake` method allows you to instruct Hypervel to return stubbed / dummy results when processes are invoked.
 
 <a name="faking-processes"></a>
 ### Faking Processes
 
-To explore Laravel's ability to fake processes, let's imagine a route that invokes a process:
+To explore Hypervel's ability to fake processes, let's imagine a route that invokes a process:
 
 ```php
 use Hypervel\Support\Facades\Process;
@@ -432,7 +494,7 @@ Route::get('/import', function () {
 });
 ```
 
-When testing this route, we can instruct Laravel to return a fake, successful process result for every invoked process by calling the `fake` method on the `Process` facade with no arguments. In addition, we can even [assert](#available-assertions) that a given process was "run":
+When testing this route, we can instruct Hypervel to return a fake, successful process result for every invoked process by calling the `fake` method on the `Process` facade with no arguments. In addition, we can even [assert](#available-assertions) that a given process was "run":
 
 ```php tab=Pest
 <?php
@@ -487,7 +549,7 @@ class ExampleTest extends TestCase
 }
 ```
 
-As discussed, invoking the `fake` method on the `Process` facade will instruct Laravel to always return a successful process result with no output. However, you may easily specify the output and exit code for faked processes using the `Process` facade's `result` method:
+As discussed, invoking the `fake` method on the `Process` facade will instruct Hypervel to always return a successful process result with no output. However, you may easily specify the output and exit code for faked processes using the `Process` facade's `result` method:
 
 ```php
 Process::fake([
@@ -539,6 +601,26 @@ Process::fake([
 ]);
 ```
 
+If a sequence is empty, invoking another process will throw an exception. You may use the `whenEmpty` method to define a default result that should be returned when the sequence is empty:
+
+```php
+Process::fake([
+    'ls *' => Process::sequence()
+        ->push(Process::result('First invocation'))
+        ->whenEmpty(Process::result('Default invocation')),
+]);
+```
+
+If an empty sequence should return a successful process result with no output, you may invoke the `dontFailWhenEmpty` method:
+
+```php
+Process::fake([
+    'ls *' => Process::sequence()
+        ->push(Process::result('First invocation'))
+        ->dontFailWhenEmpty(),
+]);
+```
+
 <a name="faking-asynchronous-process-lifecycles"></a>
 ### Faking Asynchronous Process Lifecycles
 
@@ -567,20 +649,35 @@ To properly fake this process, we need to be able to describe how many times the
 ```php
 Process::fake([
     'bash import.sh' => Process::describe()
+        ->id(1234)
         ->output('First line of standard output')
         ->errorOutput('First line of error output')
         ->output('Second line of standard output')
         ->exitCode(0)
-        ->iterations(3),
+        ->runsFor(3),
 ]);
 ```
 
-Let's dig into the example above. Using the `output` and `errorOutput` methods, we may specify multiple lines of output that will be returned in sequence. The `exitCode` method may be used to specify the final exit code of the fake process. Finally, the `iterations` method may be used to specify how many times the `running` method should return `true`.
+Let's dig into the example above. The `id` method may be used to specify the process ID returned by the fake process. Using the `output` and `errorOutput` methods, we may specify multiple lines of output that will be returned in sequence. The `exitCode` method may be used to specify the final exit code of the fake process. Finally, the `runsFor` method may be used to specify how many times the `running` method should return `true`. The `iterations` method may also be used as an alias for `runsFor`.
+
+If your code sends a signal to an asynchronous process, you may use the `hasReceivedSignal` method to assert that the fake process received the signal:
+
+```php
+Process::fake([
+    'bash import.sh' => Process::describe()->runsFor(3),
+]);
+
+$process = Process::start('bash import.sh');
+
+$process->signal(SIGUSR2);
+
+$this->assertTrue($process->hasReceivedSignal(SIGUSR2));
+```
 
 <a name="available-assertions"></a>
 ### Available Assertions
 
-As [previously discussed](#faking-processes), Laravel provides several process assertions for your feature tests. We'll discuss each of these assertions below.
+As [previously discussed](#faking-processes), Hypervel provides several process assertions for your feature tests. We'll discuss each of these assertions below.
 
 <a name="assert-process-ran"></a>
 #### assertRan
@@ -608,12 +705,14 @@ The `$process` passed to the `assertRan` closure is an instance of `Hypervel\Pro
 <a name="assert-process-didnt-run"></a>
 #### assertDidntRun
 
-Assert that a given process was not invoked:
+Assert that a given process was not invoked. You may also use the `assertNotRan` method:
 
 ```php
 use Hypervel\Support\Facades\Process;
 
 Process::assertDidntRun('ls -la');
+
+Process::assertNotRan('ls -la');
 ```
 
 Like the `assertRan` method, the `assertDidntRun` method also accepts a closure, which will receive an instance of a process and a process result, allowing you to inspect the process' configured options. If this closure returns `true`, the assertion will "fail":
@@ -641,6 +740,17 @@ The `assertRanTimes` method also accepts a closure, which will receive an instan
 Process::assertRanTimes(function (PendingProcess $process, ProcessResult $result) {
     return $process->command === 'ls -la';
 }, times: 3);
+```
+
+<a name="assert-nothing-ran"></a>
+#### assertNothingRan
+
+Assert that no processes were invoked:
+
+```php
+use Hypervel\Support\Facades\Process;
+
+Process::assertNothingRan();
 ```
 
 <a name="preventing-stray-processes"></a>

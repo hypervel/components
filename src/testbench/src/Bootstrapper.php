@@ -68,16 +68,6 @@ class Bootstrapper
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$configuration = null;
-        // The runtime path and filesystem are process-wide infrastructure:
-        // runtimePath must survive until shutdown cleanup, and Filesystem is reusable.
-    }
-
-    /**
      * Get the filesystem instance.
      */
     protected static function getFilesystem(): Filesystem
@@ -372,5 +362,15 @@ class Bootstrapper
                 $filesystem->deleteDirectory($directory);
             }
         });
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$configuration = null;
+        // The runtime path and filesystem are process-wide infrastructure:
+        // runtimePath must survive until shutdown cleanup, and Filesystem is reusable.
     }
 }

@@ -24,4 +24,12 @@ class SystemProcessCounter
 
         return substr_count($process->getOutput(), 'supervisor=' . $name);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$command = 'horizon:work';
+    }
 }

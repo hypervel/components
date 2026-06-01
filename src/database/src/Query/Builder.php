@@ -3971,6 +3971,14 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Handle dynamic method calls into the method.
      *
      * @throws BadMethodCallException

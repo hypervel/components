@@ -40,9 +40,9 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel's database query builder provides a convenient, fluent interface to creating and running database queries. It can be used to perform most database operations in your application and works perfectly with all of Laravel's supported database systems.
+Hypervel's database query builder provides a convenient, fluent interface to creating and running database queries. It can be used to perform most database operations in your application and works perfectly with all of Hypervel's supported database systems.
 
-The Laravel query builder uses PDO parameter binding to protect your application against SQL injection attacks. There is no need to clean or sanitize strings passed to the query builder as query bindings.
+The Hypervel query builder uses PDO parameter binding to protect your application against SQL injection attacks. There is no need to clean or sanitize strings passed to the query builder as query bindings.
 
 > [!WARNING]
 > PDO does not support binding column names. Therefore, you should never allow user input to dictate the column names referenced by your queries, including "order by" columns.
@@ -90,7 +90,7 @@ foreach ($users as $user) {
 ```
 
 > [!NOTE]
-> Laravel collections provide a variety of extremely powerful methods for mapping and reducing data. For more information on Laravel collections, check out the [collection documentation](/docs/{{version}}/collections).
+> Hypervel collections provide a variety of extremely powerful methods for mapping and reducing data. For more information on Hypervel collections, check out the [collection documentation](/docs/{{version}}/collections).
 
 <a name="retrieving-a-single-row-column-from-a-table"></a>
 #### Retrieving a Single Row / Column From a Table
@@ -115,10 +115,24 @@ If you don't need an entire row, you may extract a single value from a record us
 $email = DB::table('users')->where('name', 'John')->value('email');
 ```
 
+The `rawValue` method returns a single value from a raw expression on the first result of the query:
+
+```php
+$total = DB::table('orders')
+    ->where('finalized', true)
+    ->rawValue('SUM(price)');
+```
+
 To retrieve a single row by its `id` column value, use the `find` method:
 
 ```php
 $user = DB::table('users')->find(3);
+```
+
+The `findOr` method retrieves a single row by its `id` column value or returns the result of the given closure if no record is found:
+
+```php
+$user = DB::table('users')->findOr(3, fn () => (object) ['name' => 'Guest']);
 ```
 
 <a name="retrieving-a-list-of-column-values"></a>
@@ -265,6 +279,18 @@ if (DB::table('orders')->where('finalized', 1)->doesntExist()) {
 }
 ```
 
+The `existsOr` method will execute the given closure if no matching records exist. The `doesntExistOr` method will execute the given closure if matching records do exist:
+
+```php
+DB::table('orders')->where('finalized', 1)->existsOr(function () {
+    // ...
+});
+
+DB::table('orders')->where('finalized', 1)->doesntExistOr(function () {
+    // ...
+});
+```
+
 <a name="select-statements"></a>
 ## Select Statements
 
@@ -295,6 +321,27 @@ $query = DB::table('users')->select('name');
 $users = $query->addSelect('age')->get();
 ```
 
+<a name="index-hints"></a>
+#### Index Hints
+
+When using MariaDB or MySQL, you may use the `useIndex`, `forceIndex`, and `ignoreIndex` methods to add index hints to the query:
+
+```php
+$users = DB::table('users')
+    ->useIndex('users_email_index')
+    ->where('email', 'taylor@example.com')
+    ->get();
+```
+
+SQLite supports the `forceIndex` method, which compiles to SQLite's `indexed by` clause:
+
+```php
+$users = DB::table('users')
+    ->forceIndex('users_email_index')
+    ->where('email', 'taylor@example.com')
+    ->get();
+```
+
 <a name="raw-expressions"></a>
 ## Raw Expressions
 
@@ -314,7 +361,7 @@ $users = DB::table('users')
 <a name="raw-methods"></a>
 ### Raw Methods
 
-Instead of using the `DB::raw` method, you may also use the following methods to insert a raw expression into various parts of your query. **Remember, Laravel cannot guarantee that any query using raw expressions is protected against SQL injection vulnerabilities.**
+Instead of using the `DB::raw` method, you may also use the following methods to insert a raw expression into various parts of your query. **Remember, Hypervel cannot guarantee that any query using raw expressions is protected against SQL injection vulnerabilities.**
 
 <a name="selectraw"></a>
 #### `selectRaw`
@@ -463,7 +510,7 @@ $users = DB::table('users')
 #### Lateral Joins
 
 > [!WARNING]
-> Lateral joins are currently supported by PostgreSQL, MySQL >= 8.0.14, and SQL Server.
+> Lateral joins are currently supported by PostgreSQL and MySQL >= 8.0.14.
 
 You may use the `joinLateral` and `leftJoinLateral` methods to perform a "lateral join" with a subquery. Each of these methods receives two arguments: the subquery and its table alias. The join condition(s) should be specified within the `where` clause of the given subquery. Lateral joins are evaluated for each row and can reference columns outside the subquery.
 
@@ -517,7 +564,7 @@ $users = DB::table('users')
     ->get();
 ```
 
-For convenience, if you want to verify that a column is `=` to a given value, you may pass the value as the second argument to the `where` method. Laravel will assume you would like to use the `=` operator:
+For convenience, if you want to verify that a column is `=` to a given value, you may pass the value as the second argument to the `where` method. Hypervel will assume you would like to use the `=` operator:
 
 ```php
 $users = DB::table('users')->where('votes', 100)->get();
@@ -578,14 +625,14 @@ $users = DB::table('users')
 If you need to group an "or" condition within parentheses, you may pass a closure as the first argument to the `orWhere` method:
 
 ```php
-use Hypervel\Database\Query\Builder; 
+use Hypervel\Database\Query\Builder;
 
 $users = DB::table('users')
     ->where('votes', '>', 100)
     ->orWhere(function (Builder $query) {
         $query->where('name', 'Abigail')
             ->where('votes', '>', 50);
-        })
+    })
     ->get();
 ```
 
@@ -608,7 +655,7 @@ $products = DB::table('products')
     ->whereNot(function (Builder $query) {
         $query->where('clearance', true)
             ->orWhere('price', '<', 10);
-        })
+    })
     ->get();
 ```
 
@@ -691,7 +738,7 @@ WHERE published = true AND NOT (
 <a name="json-where-clauses"></a>
 ### JSON Where Clauses
 
-Laravel also supports querying JSON column types on databases that provide support for JSON column types. Currently, this includes MariaDB 10.3+, MySQL 8.0+, PostgreSQL 12.0+, SQL Server 2017+, and SQLite 3.39.0+. To query a JSON column, use the `->` operator:
+Hypervel also supports querying JSON column types on databases that provide support for JSON column types. Currently, this includes MariaDB 10.3+, MySQL 8.0+, PostgreSQL 12.0+, and SQLite 3.39.0+. To query a JSON column, use the `->` operator:
 
 ```php
 $users = DB::table('users')
@@ -724,6 +771,18 @@ $users = DB::table('users')
 
 $users = DB::table('users')
     ->whereJsonDoesntContain('options->languages', ['en', 'de'])
+    ->get();
+```
+
+If your application uses a MariaDB or MySQL version that supports JSON overlaps, you may use the `whereJsonOverlaps` and `whereJsonDoesntOverlap` methods to query JSON arrays that overlap or do not overlap with the given values:
+
+```php
+$users = DB::table('users')
+    ->whereJsonOverlaps('options->languages', ['en', 'fr'])
+    ->get();
+
+$users = DB::table('users')
+    ->whereJsonDoesntOverlap('options->languages', ['en', 'fr'])
     ->get();
 ```
 
@@ -797,9 +856,6 @@ $users = DB::table('users')
     ->orWhereNotLike('name', '%John%')
     ->get();
 ```
-
-> [!WARNING]
-> The `whereLike` case-sensitive search option is currently not supported on SQL Server.
 
 **whereIn / whereNotIn / orWhereIn / orWhereNotIn**
 
@@ -1140,7 +1196,7 @@ $incomes = Income::where('amount', '<', function (Builder $query) {
 > [!WARNING]
 > Full text where clauses are currently supported by MariaDB, MySQL, and PostgreSQL.
 
-The `whereFullText` and `orWhereFullText` methods may be used to add full text "where" clauses to a query for columns that have [full text indexes](/docs/{{version}}/migrations#available-index-types). These methods will be transformed into the appropriate SQL for the underlying database system by Laravel. For example, a `MATCH AGAINST` clause will be generated for applications utilizing MariaDB or MySQL:
+The `whereFullText` and `orWhereFullText` methods may be used to add full text "where" clauses to a query for columns that have [full text indexes](/docs/{{version}}/migrations#available-index-types). These methods will be transformed into the appropriate SQL for the underlying database system by Hypervel. For example, a `MATCH AGAINST` clause will be generated for applications utilizing MariaDB or MySQL:
 
 ```php
 $users = DB::table('users')
@@ -1163,7 +1219,7 @@ $documents = DB::table('documents')
     ->get();
 ```
 
-When a plain string is given as the vector argument, Laravel will automatically generate embeddings for it using the [Laravel AI SDK](/docs/{{version}}/ai-sdk#embeddings):
+When a plain string is given as the vector argument, Hypervel will automatically generate embeddings for it using the [Hypervel AI SDK](/docs/{{version}}/ai-sdk#embeddings):
 
 ```php
 $documents = DB::table('documents')
@@ -1411,6 +1467,16 @@ DB::table('pruned_users')->insertUsing([
 )->where('updated_at', '<=', now()->minus(months: 1)));
 ```
 
+The `insertOrIgnoreUsing` method will insert new records using a subquery while ignoring errors:
+
+```php
+DB::table('pruned_users')->insertOrIgnoreUsing([
+    'id', 'name', 'email', 'email_verified_at'
+], DB::table('users')->select(
+    'id', 'name', 'email', 'email_verified_at'
+)->where('updated_at', '<=', now()->minus(months: 1)));
+```
+
 <a name="auto-incrementing-ids"></a>
 #### Auto-Incrementing IDs
 
@@ -1441,10 +1507,10 @@ DB::table('flights')->upsert(
 );
 ```
 
-In the example above, Laravel will attempt to insert two records. If a record already exists with the same `departure` and `destination` column values, Laravel will update that record's `price` column.
+In the example above, Hypervel will attempt to insert two records. If a record already exists with the same `departure` and `destination` column values, Hypervel will update that record's `price` column.
 
 > [!WARNING]
-> All databases except SQL Server require the columns in the second argument of the `upsert` method to have a "primary" or "unique" index. In addition, the MariaDB and MySQL database drivers ignore the second argument of the `upsert` method and always use the "primary" and "unique" indexes of the table to detect existing records.
+> The columns in the second argument of the `upsert` method must have a "primary" or "unique" index. In addition, the MariaDB and MySQL database drivers ignore the second argument of the `upsert` method and always use the "primary" and "unique" indexes of the table to detect existing records.
 
 <a name="update-statements"></a>
 ## Update Statements

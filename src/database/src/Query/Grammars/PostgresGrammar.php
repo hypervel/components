@@ -704,4 +704,13 @@ class PostgresGrammar extends Grammar
     {
         static::$cascadeTruncate = $value;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$customOperators = [];
+        static::$cascadeTruncate = true;
+    }
 }

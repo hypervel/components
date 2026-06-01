@@ -10,6 +10,7 @@ use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
+use League\CommonMark\Extension\ExtensionInterface;
 use League\CommonMark\Extension\Table\TableExtension;
 use League\CommonMark\MarkdownConverter;
 use Stringable;
@@ -33,6 +34,13 @@ class Markdown
     protected static bool $withSecuredEncoding = false;
 
     /**
+     * The registered CommonMark extensions.
+     *
+     * @var array<int, class-string<ExtensionInterface>>
+     */
+    protected static array $extensions = [];
+
+    /**
      * Create a new Markdown renderer instance.
      */
     public function __construct(
@@ -41,6 +49,8 @@ class Markdown
     ) {
         $this->theme = $options['theme'] ?? 'default';
         $this->loadComponentsFrom($options['paths'] ?? []);
+
+        static::$extensions = $options['extensions'] ?? [];
     }
 
     /**
@@ -151,6 +161,10 @@ class Markdown
         $environment->addExtension(new CommonMarkCoreExtension);
         $environment->addExtension(new TableExtension);
 
+        foreach (static::$extensions as $extensionClass) {
+            $environment->addExtension(new $extensionClass);
+        }
+
         return new MarkdownConverter($environment);
     }
 
@@ -258,5 +272,6 @@ class Markdown
     public static function flushState(): void
     {
         static::$withSecuredEncoding = false;
+        static::$extensions = [];
     }
 }

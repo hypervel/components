@@ -96,7 +96,9 @@ class EvalWithShaCacheIntegrationTest extends TestCase
         $sha = sha1($script);
 
         // Verify script is not cached (fresh unique script)
-        $exists = Redis::client()->script('exists', $sha);
+        $exists = Redis::withConnection(function ($connection) use ($sha) {
+            return $connection->client()->script('exists', $sha);
+        });
         $this->assertEquals([0], $exists, 'Script should not be cached before test');
 
         // Call evalWithShaCache - should handle NOSCRIPT and fall back to eval
@@ -107,7 +109,9 @@ class EvalWithShaCacheIntegrationTest extends TestCase
         $this->assertEquals("fallback_test_{$uniqueId}", $result);
 
         // Verify script is now cached after successful eval
-        $exists = Redis::client()->script('exists', $sha);
+        $exists = Redis::withConnection(function ($connection) use ($sha) {
+            return $connection->client()->script('exists', $sha);
+        });
         $this->assertEquals([1], $exists, 'Script should be cached after eval');
     }
 

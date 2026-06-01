@@ -135,7 +135,7 @@ class PhpRedisClusterConnection extends PhpRedisConnection
             $parameters[] = $this->config['timeout'] ?? 0.0;
             $parameters[] = $this->config['cluster']['read_timeout'] ?? 0.0;
             $parameters[] = $this->config['cluster']['persistent'] ?? false;
-            $parameters[] = $this->config['password'] ?? null;
+            $parameters[] = $this->formatClusterPassword();
             if (! empty($this->config['cluster']['context'])) {
                 $parameters[] = $this->config['cluster']['context'];
             }
@@ -146,6 +146,19 @@ class PhpRedisClusterConnection extends PhpRedisConnection
         }
 
         return $redis;
+    }
+
+    /**
+     * Format the password for the RedisCluster constructor.
+     */
+    protected function formatClusterPassword(): mixed
+    {
+        $password = $this->config['password'] ?? null;
+        $username = $this->config['username'] ?? null;
+
+        return $username && is_string($password)
+            ? [$username, $password]
+            : $password;
     }
 
     /**

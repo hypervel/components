@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
+use DateTimeImmutable;
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CacheAware;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\CacheSchedulingMutex;
+use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Application;
+use Hypervel\Support\Carbon;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -102,6 +106,25 @@ class ScheduleTest extends TestCase
         self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
     }
 
+    public function testDueEventsAtUsesGivenTime()
+    {
+        $app = m::mock(ApplicationContract::class);
+        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
+        $app->shouldReceive('environment')->andReturn('production');
+
+        try {
+            Carbon::setTestNow(Carbon::parse('2026-05-29 13:00:00'));
+
+            $schedule = new Schedule;
+            $schedule->command('reports:generate')->dailyAt('13:00');
+
+            self::assertCount(0, $schedule->dueEventsAt($app, Carbon::parse('2026-05-29 12:59:59')));
+            self::assertCount(1, $schedule->dueEventsAt($app, Carbon::parse('2026-05-29 13:00:00')));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
     public function testJobAcceptsStringBackedEnumForQueueAndConnection(): void
     {
         $schedule = new Schedule;
@@ -187,6 +210,33 @@ class ScheduleTest extends TestCase
 
         $schedule = new Schedule;
         $schedule->useCache('test');
+    }
+
+    public function testServerShouldRunCachesMutexResultOnlyWithinSameMinute()
+    {
+        $schedule = new Schedule;
+        $event = new Event($this->eventMutex, 'php artisan inspire');
+        $firstMinute = new DateTimeImmutable('2024-01-01 12:30:00');
+        $sameMinute = new DateTimeImmutable('2024-01-01 12:30:45');
+        $nextMinute = new DateTimeImmutable('2024-01-01 12:31:00');
+        $sameNextMinute = new DateTimeImmutable('2024-01-01 12:31:30');
+
+        $this->schedulingMutex
+            ->shouldReceive('create')
+            ->once()
+            ->with($event, $firstMinute)
+            ->andReturnTrue();
+
+        $this->schedulingMutex
+            ->shouldReceive('create')
+            ->once()
+            ->with($event, $nextMinute)
+            ->andReturnFalse();
+
+        $this->assertTrue($schedule->serverShouldRun($event, $firstMinute));
+        $this->assertTrue($schedule->serverShouldRun($event, $sameMinute));
+        $this->assertFalse($schedule->serverShouldRun($event, $nextMinute));
+        $this->assertFalse($schedule->serverShouldRun($event, $sameNextMinute));
     }
 
     public function testExecCreatesNewCommand()

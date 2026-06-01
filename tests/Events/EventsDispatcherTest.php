@@ -326,6 +326,21 @@ class EventsDispatcherTest extends TestCase
         $this->assertSame('taylor otwell', $_SERVER['__event.test']);
     }
 
+    public function testPushedEventsCanBeFlushedRepeatedly()
+    {
+        $_SERVER['__event.test'] = '';
+        $d = new Dispatcher;
+        $d->push('update', ['name' => 'taylor']);
+        $d->listen('update', function ($name) {
+            $_SERVER['__event.test'] .= $name;
+        });
+
+        $d->flush('update');
+        $d->flush('update');
+
+        $this->assertSame('taylortaylor', $_SERVER['__event.test']);
+    }
+
     public function testPushMethodCanAcceptObjectAsPayload()
     {
         unset($_SERVER['__event.test']);
@@ -338,6 +353,19 @@ class EventsDispatcherTest extends TestCase
         $d->flush(ExampleEvent::class);
 
         $this->assertSame($e, $_SERVER['__event.test']);
+    }
+
+    public function testFlushStateClearsMacros()
+    {
+        Dispatcher::macro('testMacro', function () {
+            return 'test';
+        });
+
+        $this->assertTrue(Dispatcher::hasMacro('testMacro'));
+
+        Dispatcher::flushState();
+
+        $this->assertFalse(Dispatcher::hasMacro('testMacro'));
     }
 
     public function testWildcardListeners()

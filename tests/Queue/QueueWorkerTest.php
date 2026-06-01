@@ -8,6 +8,7 @@ use DateInterval;
 use DateTimeInterface;
 use Exception;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
@@ -65,6 +66,33 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobPopped::class))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
+    }
+
+    public function testWorkerOptionsCoroutineContextIsScopedToJob()
+    {
+        CoroutineContext::set('queue.worker.test.previous', 'previous');
+
+        $seen = [];
+        $options = new WorkerOptions;
+        $options->coroutineContext = [
+            'queue.worker.test.previous' => 'seeded',
+            'queue.worker.test.new' => 'fresh',
+        ];
+
+        $worker = $this->getWorker('default', ['queue' => [
+            new WorkerFakeJob(function () use (&$seen) {
+                $seen = [
+                    CoroutineContext::get('queue.worker.test.previous'),
+                    CoroutineContext::get('queue.worker.test.new'),
+                ];
+            }),
+        ]]);
+
+        $worker->runNextJob('default', 'queue', $options);
+
+        $this->assertSame(['seeded', 'fresh'], $seen);
+        $this->assertSame('previous', CoroutineContext::get('queue.worker.test.previous'));
+        $this->assertFalse(CoroutineContext::has('queue.worker.test.new'));
     }
 
     public function testJobPoppingEvent()

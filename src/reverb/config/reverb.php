@@ -46,7 +46,6 @@ return [
             'host' => env('REVERB_SERVER_HOST', '0.0.0.0'),
             'port' => env('REVERB_SERVER_PORT', 8080),
             'path' => env('REVERB_SERVER_PATH', ''),
-            'hostname' => env('REVERB_HOST'),
             'options' => [
                 'tls' => [],
             ],
@@ -157,11 +156,13 @@ return [
                 |--------------------------------------------------------------
                 |
                 | Configure a webhook URL to receive Pusher-compatible webhook
-                | notifications when channel lifecycle events occur. Uncomment
-                | the events you want to receive. Webhooks are delivered via
-                | queued jobs on the "reverb-webhooks" Redis queue. Payloads
-                | are signed with HMAC-SHA256 using the app secret and include
-                | an X-Pusher-Key header for app identification.
+                | notifications when channel lifecycle events occur. Leave
+                | the events array empty to receive all supported webhook
+                | events except subscription_count, or list only the events
+                | you want to receive. Webhooks are delivered via queued jobs
+                | on the "reverb-webhooks" Redis queue. Payloads are signed
+                | with HMAC-SHA256 using the app secret and include an
+                | X-Pusher-Key header for app identification.
                 |
                 | Enable batching for production workloads — it consolidates
                 | many events into fewer HTTP requests, significantly reducing

@@ -40,4 +40,20 @@ class Pool extends SplQueue
         $channel->errCode = 0;
         $this->push($channel);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        if (static::$instance === null) {
+            return;
+        }
+
+        while (! static::$instance->isEmpty()) {
+            static::$instance->pop()->close();
+        }
+
+        static::$instance = null;
+    }
 }

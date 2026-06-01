@@ -204,4 +204,12 @@ class LoadConfiguration
     {
         static::$alwaysUseConfig = $alwaysUseConfig;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$alwaysUseConfig = null;
+    }
 }

@@ -2222,6 +2222,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$isPrunable = [];
         static::$isMassPrunable = [];
         static::$resolvedCollectionClasses = [];
+        static::$relationResolvers = [];
+        static::$guardableColumns = [];
         static::$snakeAttributes = true;
         static::$mutatorCache = [];
         static::$attributeMutatorCache = [];

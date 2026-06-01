@@ -659,7 +659,9 @@ class Middleware
             'password.confirm' => \Hypervel\Auth\Middleware\RequirePassword::class,
             'precognitive' => \Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
             'signed' => \Hypervel\Routing\Middleware\ValidateSignature::class,
-            'throttle' => \Hypervel\Routing\Middleware\ThrottleRequests::class,
+            'throttle' => $this->throttleWithRedis
+                ? \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class
+                : \Hypervel\Routing\Middleware\ThrottleRequests::class,
             'verified' => \Hypervel\Auth\Middleware\EnsureEmailIsVerified::class,
         ];
     }

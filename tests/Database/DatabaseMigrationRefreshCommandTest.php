@@ -38,7 +38,11 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(DatabaseRefreshed::class));
 
         $quote = DIRECTORY_SEPARATOR === '\\' ? '"' : "'";
+        $resetCommand->shouldReceive('setApplication')->once()->with($console);
+        $resetCommand->shouldReceive('setHypervel')->once()->with($app);
         $resetCommand->shouldReceive('run')->with(new InputMatcher("--force=1 {$quote}migrate:reset{$quote}"), m::any());
+        $migrateCommand->shouldReceive('setApplication')->once()->with($console);
+        $migrateCommand->shouldReceive('setHypervel')->once()->with($app);
         $migrateCommand->shouldReceive('run')->with(new InputMatcher('--force=1 migrate'), m::any());
 
         $this->runCommand($command);
@@ -62,7 +66,11 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(DatabaseRefreshed::class));
 
         $quote = DIRECTORY_SEPARATOR === '\\' ? '"' : "'";
+        $rollbackCommand->shouldReceive('setApplication')->once()->with($console);
+        $rollbackCommand->shouldReceive('setHypervel')->once()->with($app);
         $rollbackCommand->shouldReceive('run')->with(new InputMatcher("--step=2 --force=1 {$quote}migrate:rollback{$quote}"), m::any());
+        $migrateCommand->shouldReceive('setApplication')->once()->with($console);
+        $migrateCommand->shouldReceive('setHypervel')->once()->with($app);
         $migrateCommand->shouldReceive('run')->with(new InputMatcher('--force=1 migrate'), m::any());
 
         $this->runCommand($command, ['--step' => 2]);

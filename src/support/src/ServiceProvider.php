@@ -428,19 +428,6 @@ abstract class ServiceProvider
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$publishes = [];
-        static::$publishGroups = [];
-        static::$publishableMigrationPaths = [];
-        static::$optimizeCommands = [];
-        static::$optimizeClearCommands = [];
-        static::$reloadCommands = [];
-    }
-
-    /**
      * Add a provider to the bootstrap provider configuration file.
      */
     public static function addProviderToBootstrapFile(string $provider, ?string $path = null): bool
@@ -623,5 +610,18 @@ return [
     public static function defaultProviders(): DefaultProviders
     {
         return new DefaultProviders;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$publishes = [];
+        static::$publishGroups = [];
+        static::$publishableMigrationPaths = [];
+        static::$optimizeCommands = [];
+        static::$optimizeClearCommands = [];
+        static::$reloadCommands = [];
     }
 }

@@ -67,6 +67,8 @@ collect($argv)
 
         // Build a list of methods that are available on the Facade...
 
+        $ignoredMethods = resolveIgnoredMethods($facade);
+
         $resolvedMethods = $proxies
             ->each(fn ($fqcn) => debug("  - {$fqcn}"))
             ->map(fn ($fqcn) => new ReflectionClass($fqcn))
@@ -77,6 +79,7 @@ collect($argv)
             ->reject(isDeprecated(...))
             ->reject(fulfillsBuiltinInterface(...))
             ->reject(fn ($method) => conflictsWithFacade($facade, $method))
+            ->reject(fn ($method) => $ignoredMethods->contains(strtolower(resolveName($method))))
             // PHP method names are case-insensitive, so collapse different
             // casings of the same method (e.g. Redis "hScan" vs "hscan")
             // down to one entry in the generated @method list.
@@ -890,6 +893,31 @@ function resolveDocTags($docblock, $tag)
         ->map(fn ($line) => ltrim($line, ' \*'))
         ->filter(fn ($line) => str_starts_with($line, $tag))
         ->map(fn ($line) => Str::of($line)->after($tag)->trim()->toString())
+        ->values();
+}
+
+/**
+ * Resolve method names that should be excluded from a facade docblock.
+ *
+ * @param \ReflectionClass $facade
+ * @return \Hypervel\Support\Collection<int, string>
+ */
+function resolveIgnoredMethods($facade)
+{
+    if (! $facade->hasMethod('ignoredFacadeDocumenterMethods')) {
+        return collect();
+    }
+
+    $method = $facade->getMethod('ignoredFacadeDocumenterMethods');
+
+    if (! $method->isStatic()) {
+        return collect();
+    }
+
+    $method->setAccessible(true);
+
+    return collect($method->invoke(null))
+        ->map(fn ($method) => strtolower((string) $method))
         ->values();
 }
 

@@ -138,7 +138,7 @@ composer require algolia/algoliasearch-client-php
 <a name="meilisearch"></a>
 ### Meilisearch
 
-[Meilisearch](https://www.meilisearch.com) is a fast, open source search engine. If you aren't sure how to install Meilisearch on your local machine, you may use [Hypervel Sail](/docs/{{version}}/sail#meilisearch), Hypervel's officially supported Docker development environment.
+[Meilisearch](https://www.meilisearch.com) is a fast, open source search engine.
 
 When using the Meilisearch driver you will need to install the Meilisearch PHP SDK via the Composer package manager:
 
@@ -182,7 +182,7 @@ TYPESENSE_API_KEY=masterKey
 TYPESENSE_HOST=localhost
 ```
 
-If you are using [Hypervel Sail](/docs/{{version}}/sail), you may need to adjust the `TYPESENSE_HOST` environment variable to match the Docker container name. You may also optionally specify your installation's port, path, and protocol:
+If your Typesense instance is running in a container, you may need to adjust the `TYPESENSE_HOST` environment variable to match the container hostname or service name. You may also optionally specify your installation's port, path, and protocol:
 
 ```ini
 TYPESENSE_PORT=8108

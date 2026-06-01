@@ -43,4 +43,17 @@ class MutexTest extends TestCase
 
         $this->assertSame('hello', $res);
     }
+
+    public function testFlushStateReleasesAbandonedLock()
+    {
+        try {
+            $this->assertTrue(Mutex::lock('held'));
+
+            Mutex::flushState();
+
+            $this->assertTrue(Mutex::lock('held', 0.001));
+        } finally {
+            Mutex::flushState();
+        }
+    }
 }

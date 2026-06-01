@@ -18,7 +18,10 @@ use ReflectionProperty;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Throwable;
+
+use function Hypervel\Coroutine\parallel;
 
 class ConsoleApplicationResolveTest extends TestCase
 {
@@ -332,73 +335,134 @@ class ConsoleApplicationResolveTest extends TestCase
     public function testCommandInputPromptsWhenRequiredArgumentIsMissing()
     {
         $artisan = $this->createApp($this->app);
+        $output = new BufferedOutput;
 
         $artisan->addCommands([$command = new FakeCommandWithInputPrompting]);
         $command->setHypervel($this->app);
 
-        $exitCode = $artisan->call('fake-command-for-testing');
+        $exitCode = $artisan->call('fake-command-for-testing', [], $output);
 
-        $this->assertTrue($command->prompted);
-        $this->assertSame('foo', $command->argument('name'));
         $this->assertSame(0, $exitCode);
+        $this->assertSame("foo\n", $output->fetch());
     }
 
     public function testCommandInputDoesntPromptWhenRequiredArgumentIsPassed()
     {
         $artisan = $this->createApp($this->app);
+        $output = new BufferedOutput;
 
-        $artisan->addCommands([$command = new FakeCommandWithInputPrompting]);
+        $artisan->addCommands([new FakeCommandWithInputPrompting]);
 
         $exitCode = $artisan->call('fake-command-for-testing', [
-            'name' => 'foo',
-        ]);
+            'name' => 'bar',
+        ], $output);
 
-        $this->assertFalse($command->prompted);
-        $this->assertSame('foo', $command->argument('name'));
         $this->assertSame(0, $exitCode);
+        $this->assertSame("bar\n", $output->fetch());
     }
 
     public function testCommandInputPromptsWhenRequiredArgumentsAreMissing()
     {
         $artisan = $this->createApp($this->app);
+        $output = new BufferedOutput;
 
         $artisan->addCommands([$command = new FakeCommandWithArrayInputPrompting]);
         $command->setHypervel($this->app);
 
-        $exitCode = $artisan->call('fake-command-for-testing-array');
+        $exitCode = $artisan->call('fake-command-for-testing-array', [], $output);
 
-        $this->assertTrue($command->prompted);
-        $this->assertSame(['foo'], $command->argument('names'));
         $this->assertSame(0, $exitCode);
+        $this->assertSame("foo\n", $output->fetch());
     }
 
     public function testCommandInputDoesntPromptWhenRequiredArgumentsArePassed()
     {
         $artisan = $this->createApp($this->app);
+        $output = new BufferedOutput;
 
-        $artisan->addCommands([$command = new FakeCommandWithArrayInputPrompting]);
+        $artisan->addCommands([new FakeCommandWithArrayInputPrompting]);
 
         $exitCode = $artisan->call('fake-command-for-testing-array', [
-            'names' => ['foo', 'bar', 'baz'],
-        ]);
+            'names' => ['bar', 'baz'],
+        ], $output);
 
-        $this->assertFalse($command->prompted);
-        $this->assertSame(['foo', 'bar', 'baz'], $command->argument('names'));
         $this->assertSame(0, $exitCode);
+        $this->assertSame("bar,baz\n", $output->fetch());
     }
 
     public function testCallMethodCanCallArtisanCommandUsingCommandClassObject()
     {
         $artisan = $this->createApp($this->app);
+        $output = new BufferedOutput;
 
         $artisan->addCommands([$command = new FakeCommandWithInputPrompting]);
         $command->setHypervel($this->app);
 
-        $exitCode = $artisan->call($command);
+        $exitCode = $artisan->call($command, [], $output);
 
-        $this->assertTrue($command->prompted);
-        $this->assertSame('foo', $command->argument('name'));
         $this->assertSame(0, $exitCode);
+        $this->assertSame("foo\n", $output->fetch());
+    }
+
+    public function testConcurrentCallsUseIsolatedCommandInstances()
+    {
+        $artisan = $this->createApp($this->app);
+        $artisan->resolve(StubStatefulCommand::class);
+        $artisan->setContainerCommandLoader();
+
+        $outputA = new BufferedOutput;
+        $outputB = new BufferedOutput;
+
+        [$exitCodeA, $exitCodeB] = parallel([
+            fn () => $artisan->call('test:stateful', [
+                'value' => 'alpha',
+                '--sleep' => 5000,
+            ], $outputA),
+            function () use ($artisan, $outputB) {
+                usleep(2500);
+
+                return $artisan->call('test:stateful', [
+                    'value' => 'bravo',
+                    '--sleep' => 0,
+                ], $outputB);
+            },
+        ]);
+
+        $this->assertSame(0, $exitCodeA);
+        $this->assertSame(0, $exitCodeB);
+        $this->assertSame("alpha\n", $outputA->fetch());
+        $this->assertSame("bravo\n", $outputB->fetch());
+    }
+
+    public function testConcurrentNestedCallsUseIsolatedCommandInstances()
+    {
+        $artisan = $this->createApp($this->app);
+        $artisan->resolve(StubNestedCallerCommand::class);
+        $artisan->resolve(StubStatefulCommand::class);
+        $artisan->setContainerCommandLoader();
+
+        $outputA = new BufferedOutput;
+        $outputB = new BufferedOutput;
+
+        [$exitCodeA, $exitCodeB] = parallel([
+            fn () => $artisan->call('test:nested-caller', [
+                'value' => 'alpha',
+                '--sleep' => 5000,
+            ], $outputA),
+            function () use ($artisan, $outputB) {
+                usleep(2500);
+
+                return $artisan->call('test:nested-caller', [
+                    'value' => 'bravo',
+                    '--sleep' => 0,
+                ], $outputB);
+            },
+        ]);
+
+        $this->assertSame(0, $exitCodeA);
+        $this->assertSame(0, $exitCodeB);
+        $this->assertSame("alpha\n", $outputA->fetch());
+        $this->assertSame("bravo\n", $outputB->fetch());
     }
 
     // ---------------------------------------------------------------
@@ -541,5 +605,32 @@ class StubSignatureWithAliasCommand extends Command
 
     public function handle(): void
     {
+    }
+}
+
+class StubStatefulCommand extends Command
+{
+    protected ?string $signature = 'test:stateful {value} {--sleep=0}';
+
+    public function handle(): int
+    {
+        usleep((int) $this->option('sleep'));
+
+        $this->line((string) $this->argument('value'));
+
+        return self::SUCCESS;
+    }
+}
+
+class StubNestedCallerCommand extends Command
+{
+    protected ?string $signature = 'test:nested-caller {value} {--sleep=0}';
+
+    public function handle(): int
+    {
+        return $this->call('test:stateful', [
+            'value' => $this->argument('value'),
+            '--sleep' => $this->option('sleep'),
+        ]);
     }
 }

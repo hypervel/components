@@ -350,10 +350,12 @@ class Command extends SymfonyCommand
     {
         if (is_string($command)) {
             if (! class_exists($command)) {
-                return $this->getApplication()->find($command);
+                $command = clone $this->getApplication()->find($command);
+            } else {
+                $command = $this->hypervel->make($command);
             }
-
-            $command = $this->hypervel->make($command);
+        } else {
+            $command = clone $command;
         }
 
         if ($command instanceof SymfonyCommand) {
@@ -421,5 +423,13 @@ class Command extends SymfonyCommand
         }
 
         return $uses;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

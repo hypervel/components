@@ -45,4 +45,17 @@ class LockerTest extends TestCase
 
         $this->assertSame([1, 2, 3, 5, 6, 4], $ret);
     }
+
+    public function testFlushStateReleasesAbandonedLock()
+    {
+        try {
+            $this->assertTrue(Locker::lock('held'));
+
+            Locker::flushState();
+
+            $this->assertTrue(Locker::lock('held'));
+        } finally {
+            Locker::flushState();
+        }
+    }
 }

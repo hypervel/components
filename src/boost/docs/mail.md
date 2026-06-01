@@ -5,6 +5,7 @@
     - [Driver Prerequisites](#driver-prerequisites)
     - [Failover Configuration](#failover-configuration)
     - [Round Robin Configuration](#round-robin-configuration)
+    - [Transport Pooling](#transport-pooling)
 - [Generating Mailables](#generating-mailables)
 - [Writing Mailables](#writing-mailables)
     - [Configuring the Sender](#configuring-the-sender)
@@ -36,14 +37,14 @@
 <a name="introduction"></a>
 ## Introduction
 
-Sending email doesn't have to be complicated. Laravel provides a clean, simple email API powered by the popular [Symfony Mailer](https://symfony.com/doc/current/mailer.html) component. Laravel and Symfony Mailer provide drivers for sending email via SMTP, Cloudflare, Mailgun, Postmark, Resend, Amazon SES, and `sendmail`, allowing you to quickly get started sending mail through a local or cloud-based service of your choice.
+Sending email doesn't have to be complicated. Hypervel provides a clean, simple email API powered by the popular [Symfony Mailer](https://symfony.com/doc/current/mailer.html) component. Hypervel and Symfony Mailer provide drivers for sending email via SMTP, Cloudflare, Mailgun, Postmark, Resend, Amazon SES, and `sendmail`, allowing you to quickly get started sending mail through a local or cloud-based service of your choice.
 
 <a name="configuration"></a>
 ### Configuration
 
-Laravel's email services may be configured via your application's `config/mail.php` configuration file. Each mailer configured within this file may have its own unique configuration and even its own unique "transport", allowing your application to use different email services to send certain email messages. For example, your application might use Postmark to send transactional emails while using Amazon SES to send bulk emails.
+Hypervel's email services may be configured via your application's `config/mail.php` configuration file. Each mailer configured within this file may have its own unique configuration and even its own unique "transport", allowing your application to use different email services to send certain email messages. For example, your application might use Postmark to send transactional emails while using Amazon SES to send bulk emails.
 
-Within your `mail` configuration file, you will find a `mailers` configuration array. This array contains a sample configuration entry for each of the major mail drivers / transports supported by Laravel, while the `default` configuration value determines which mailer will be used by default when your application needs to send an email message.
+Within your `mail` configuration file, you will find a `mailers` configuration array. This array contains a sample configuration entry for each of the major mail drivers / transports supported by Hypervel, while the `default` configuration value determines which mailer will be used by default when your application needs to send an email message.
 
 <a name="driver-prerequisites"></a>
 ### Driver / Transport Prerequisites
@@ -181,7 +182,7 @@ Next, set the `default` option in your application's `config/mail.php` configura
 <a name="ses-driver"></a>
 #### SES Driver
 
-To use the Amazon SES driver you must first install the Amazon AWS SDK for PHP. You may install this library via the Composer package manager:
+Hypervel's Amazon SES driver uses the SES v2 API. To use this driver, you must first install the Amazon AWS SDK for PHP. You may install this library via the Composer package manager:
 
 ```shell
 composer require aws/aws-sdk-php
@@ -224,13 +225,11 @@ public function headers(): Headers
 }
 ```
 
-If you would like to define [additional options](https://docs.aws.amazon.com/aws-sdk-php/v3/api/api-sesv2-2019-09-27.html#sendemail) that Laravel should pass to the AWS SDK's `SendEmail` method when sending an email, you may define an `options` array within your `ses` configuration:
+If you would like to define [additional options](https://docs.aws.amazon.com/aws-sdk-php/v3/api/api-sesv2-2019-09-27.html#sendemail) that Hypervel should pass to the AWS SDK's `SendEmail` method when sending an email, you may define an `options` array within your `ses` mailer configuration:
 
 ```php
 'ses' => [
-    'key' => env('AWS_ACCESS_KEY_ID'),
-    'secret' => env('AWS_SECRET_ACCESS_KEY'),
-    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    'transport' => 'ses-v2',
     'options' => [
         'ConfigurationSetName' => 'MyConfigurationSet',
         'EmailTags' => [
@@ -297,10 +296,32 @@ Once your round robin mailer has been defined, you should set this mailer as the
 
 The round robin transport selects a random mailer from the list of configured mailers and then switches to the next available mailer for each subsequent email. In contrast to `failover` transport, which helps to achieve *[high availability](https://en.wikipedia.org/wiki/High_availability)*, the `roundrobin` transport provides *[load balancing](https://en.wikipedia.org/wiki/Load_balancing_(computing))*.
 
+<a name="transport-pooling"></a>
+### Transport Pooling
+
+Hypervel pools mail transports that hold persistent connections or API clients so they can be safely reused across concurrent requests. Pooling applies to the `smtp`, `sendmail`, `mailgun`, `ses-v2`, `postmark`, `resend`, `failover`, and `roundrobin` transports.
+
+The default pool settings are suitable for most applications. If your application sends a high volume of concurrent mail, or if you encounter pool exhaustion errors, you may tune the pool for any mailer by adding a `pool` configuration option to the mailer's configuration array:
+
+```php
+'smtp' => [
+    'transport' => 'smtp',
+    // ...
+    'pool' => [
+        'min_objects' => 1,
+        'max_objects' => 10,
+        'wait_timeout' => 3.0,
+        'max_lifetime' => 60.0,
+    ],
+],
+```
+
+The `min_objects` and `max_objects` options determine the minimum and maximum number of transports kept in the pool. The `wait_timeout` option determines how many seconds a coroutine will wait for a transport to become available before the pool throws a `RuntimeException`. The `max_lifetime` option determines how long, in seconds, a pooled transport may live before it is recycled.
+
 <a name="generating-mailables"></a>
 ## Generating Mailables
 
-When building Laravel applications, each type of email sent by your application is represented as a "mailable" class. These classes are stored in the `app/Mail` directory. Don't worry if you don't see this directory in your application, since it will be generated for you when you create your first mailable class using the `make:mail` Artisan command:
+When building Hypervel applications, each type of email sent by your application is represented as a "mailable" class. These classes are stored in the `app/Mail` directory. Don't worry if you don't see this directory in your application, since it will be generated for you when you create your first mailable class using the `make:mail` Artisan command:
 
 ```shell
 php artisan make:mail OrderShipped
@@ -635,7 +656,7 @@ public function attachments(): array
 <a name="inline-attachments"></a>
 ### Inline Attachments
 
-Embedding inline images into your emails is typically cumbersome; however, Laravel provides a convenient way to attach images to your emails. To embed an inline image, use the `embed` method on the `$message` variable within your email template. Laravel automatically makes the `$message` variable available to all of your email templates, so you don't need to worry about passing it in manually:
+Embedding inline images into your emails is typically cumbersome; however, Hypervel provides a convenient way to attach images to your emails. To embed an inline image, use the `embed` method on the `$message` variable within your email template. Hypervel automatically makes the `$message` variable available to all of your email templates, so you don't need to worry about passing it in manually:
 
 ```blade
 <body>
@@ -703,7 +724,7 @@ public function attachments(): array
 }
 ```
 
-Of course, attachment data may be stored on a remote file storage service such as Amazon S3. So, Laravel also allows you to generate attachment instances from data that is stored on one of your application's [filesystem disks](/docs/{{version}}/filesystem):
+Of course, attachment data may be stored on a remote file storage service such as Amazon S3. So, Hypervel also allows you to generate attachment instances from data that is stored on one of your application's [filesystem disks](/docs/{{version}}/filesystem):
 
 ```php
 // Create an attachment from a file on your default disk...
@@ -719,7 +740,7 @@ In addition, you may create attachment instances via data that you have in memor
 return Attachment::fromData(fn () => $this->content, 'Photo Name');
 ```
 
-Laravel also provides additional methods that you may use to customize your attachments. For example, you may use the `as` and `withMime` methods to customize the file's name and MIME type:
+Hypervel also provides additional methods that you may use to customize your attachments. For example, you may use the `as` and `withMime` methods to customize the file's name and MIME type:
 
 ```php
 return Attachment::fromPath('/path/to/file')
@@ -784,7 +805,7 @@ If your application is using Amazon SES to send emails, you should use the `meta
 <a name="customizing-the-symfony-message"></a>
 ### Customizing the Symfony Message
 
-Laravel's mail capabilities are powered by Symfony Mailer. Laravel allows you to register custom callbacks that will be invoked with the Symfony Message instance before sending the message. This gives you an opportunity to deeply customize the message before it is sent. To accomplish this, define a `using` parameter on your `Envelope` definition:
+Hypervel's mail capabilities are powered by Symfony Mailer. Hypervel allows you to register custom callbacks that will be invoked with the Symfony Message instance before sending the message. This gives you an opportunity to deeply customize the message before it is sent. To accomplish this, define a `using` parameter on your `Envelope` definition:
 
 ```php
 use Hypervel\Mail\Mailables\Envelope;
@@ -809,7 +830,7 @@ public function envelope(): Envelope
 <a name="markdown-mailables"></a>
 ## Markdown Mailables
 
-Markdown mailable messages allow you to take advantage of the pre-built templates and components of [mail notifications](/docs/{{version}}/notifications#mail-notifications) in your mailables. Since the messages are written in Markdown, Laravel is able to render beautiful, responsive HTML templates for the messages while also automatically generating a plain-text counterpart.
+Markdown mailable messages allow you to take advantage of the pre-built templates and components of [mail notifications](/docs/{{version}}/notifications#mail-notifications) in your mailables. Since the messages are written in Markdown, Hypervel is able to render beautiful, responsive HTML templates for the messages while also automatically generating a plain-text counterpart.
 
 <a name="generating-markdown-mailables"></a>
 ### Generating Markdown Mailables
@@ -842,7 +863,7 @@ public function content(): Content
 <a name="writing-markdown-messages"></a>
 ### Writing Markdown Messages
 
-Markdown mailables use a combination of Blade components and Markdown syntax which allow you to easily construct mail messages while leveraging Laravel's pre-built email UI components:
+Markdown mailables use a combination of Blade components and Markdown syntax which allow you to easily construct mail messages while leveraging Hypervel's pre-built email UI components:
 
 ```blade
 <x-mail::message>
@@ -891,7 +912,7 @@ The table component allows you to transform a Markdown table into an HTML table.
 
 ```blade
 <x-mail::table>
-| Laravel       | Table         | Example       |
+| Hypervel       | Table         | Example       |
 | ------------- | :-----------: | ------------: |
 | Col 2 is      | Centered      | $10           |
 | Col 3 is      | Right-Aligned | $20           |
@@ -901,10 +922,10 @@ The table component allows you to transform a Markdown table into an HTML table.
 <a name="customizing-the-components"></a>
 ### Customizing the Components
 
-You may export all of the Markdown mail components to your own application for customization. To export the components, use the `vendor:publish` Artisan command to publish the `laravel-mail` asset tag:
+You may export all of the Markdown mail components to your own application for customization. To export the components, use the `vendor:publish` Artisan command to publish the `hypervel-mail` asset tag:
 
 ```shell
-php artisan vendor:publish --tag=laravel-mail
+php artisan vendor:publish --tag=hypervel-mail
 ```
 
 This command will publish the Markdown mail components to the `resources/views/vendor/mail` directory. The `mail` directory will contain an `html` and a `text` directory, each containing their respective representations of every available component. You are free to customize these components however you like.
@@ -914,7 +935,7 @@ This command will publish the Markdown mail components to the `resources/views/v
 
 After exporting the components, the `resources/views/vendor/mail/html/themes` directory will contain a `default.css` file. You may customize the CSS in this file and your styles will automatically be converted to inline CSS styles within the HTML representations of your Markdown mail messages.
 
-If you would like to build an entirely new theme for Laravel's Markdown components, you may place a CSS file within the `html/themes` directory. After naming and saving your CSS file, update the `theme` option of your application's `config/mail.php` configuration file to match the name of your new theme.
+If you would like to build an entirely new theme for Hypervel's Markdown components, you may place a CSS file within the `html/themes` directory. After naming and saving your CSS file, update the `theme` option of your application's `config/mail.php` configuration file to match the name of your new theme.
 
 To customize the theme for an individual mailable, you may set the `$theme` property of the mailable class to the name of the theme that should be used when sending that mailable.
 
@@ -975,7 +996,7 @@ foreach (['taylor@example.com', 'dries@example.com'] as $recipient) {
 <a name="sending-mail-via-a-specific-mailer"></a>
 #### Sending Mail via a Specific Mailer
 
-By default, Laravel will send email using the mailer configured as the `default` mailer in your application's `mail` configuration file. However, you may use the `mailer` method to send a message using a specific mailer configuration:
+By default, Hypervel will send email using the mailer configured as the `default` mailer in your application's `mail` configuration file. However, you may use the `mailer` method to send a message using a specific mailer configuration:
 
 ```php
 Mail::mailer('postmark')
@@ -989,7 +1010,7 @@ Mail::mailer('postmark')
 <a name="queueing-a-mail-message"></a>
 #### Queueing a Mail Message
 
-Since sending email messages can negatively impact the response time of your application, many developers choose to queue email messages for background sending. Laravel makes this easy using its built-in [unified queue API](/docs/{{version}}/queues). To queue a mail message, use the `queue` method on the `Mail` facade after specifying the message's recipients:
+Since sending email messages can negatively impact the response time of your application, many developers choose to queue email messages for background sending. Hypervel makes this easy using its built-in [unified queue API](/docs/{{version}}/queues). To queue a mail message, use the `queue` method on the `Mail` facade after specifying the message's recipients:
 
 ```php
 Mail::to($request->user())
@@ -1130,7 +1151,7 @@ return (new InvoicePaid($invoice))->render();
 <a name="previewing-mailables-in-the-browser"></a>
 ### Previewing Mailables in the Browser
 
-When designing a mailable's template, it is convenient to quickly preview the rendered mailable in your browser like a typical Blade template. For this reason, Laravel allows you to return any mailable directly from a route closure or controller. When a mailable is returned, it will be rendered and displayed in the browser, allowing you to quickly preview its design without needing to send it to an actual email address:
+When designing a mailable's template, it is convenient to quickly preview the rendered mailable in your browser like a typical Blade template. For this reason, Hypervel allows you to return any mailable directly from a route closure or controller. When a mailable is returned, it will be rendered and displayed in the browser, allowing you to quickly preview its design without needing to send it to an actual email address:
 
 ```php
 Route::get('/mailable', function () {
@@ -1143,7 +1164,7 @@ Route::get('/mailable', function () {
 <a name="localizing-mailables"></a>
 ## Localizing Mailables
 
-Laravel allows you to send mailables in a locale other than the request's current locale, and will even remember this locale if the mail is queued.
+Hypervel allows you to send mailables in a locale other than the request's current locale, and will even remember this locale if the mail is queued.
 
 To accomplish this, the `Mail` facade offers a `locale` method to set the desired language. The application will change into this locale when the mailable's template is being evaluated and then revert back to the previous locale when evaluation is complete:
 
@@ -1156,7 +1177,7 @@ Mail::to($request->user())->locale('es')->send(
 <a name="user-preferred-locales"></a>
 #### User Preferred Locales
 
-Sometimes, applications store each user's preferred locale. By implementing the `HasLocalePreference` contract on one or more of your models, you may instruct Laravel to use this stored locale when sending mail:
+Sometimes, applications store each user's preferred locale. By implementing the `HasLocalePreference` contract on one or more of your models, you may instruct Hypervel to use this stored locale when sending mail:
 
 ```php
 use Hypervel\Contracts\Translation\HasLocalePreference;
@@ -1173,7 +1194,7 @@ class User extends Model implements HasLocalePreference
 }
 ```
 
-Once you have implemented the interface, Laravel will automatically use the preferred locale when sending mailables and notifications to the model. Therefore, there is no need to call the `locale` method when using this interface:
+Once you have implemented the interface, Hypervel will automatically use the preferred locale when sending mailables and notifications to the model. Therefore, there is no need to call the `locale` method when using this interface:
 
 ```php
 Mail::to($request->user())->send(new OrderShipped($order));
@@ -1185,7 +1206,7 @@ Mail::to($request->user())->send(new OrderShipped($order));
 <a name="testing-mailable-content"></a>
 ### Testing Mailable Content
 
-Laravel provides a variety of methods for inspecting your mailable's structure. In addition, Laravel provides several convenient methods for testing that your mailable contains the content that you expect:
+Hypervel provides a variety of methods for inspecting your mailable's structure. In addition, Hypervel provides several convenient methods for testing that your mailable contains the content that you expect:
 
 ```php tab=Pest
 use App\Mail\InvoicePaid;
@@ -1261,7 +1282,7 @@ As you might expect, the "HTML" assertions assert that the HTML version of your 
 <a name="testing-mailable-sending"></a>
 ### Testing Mailable Sending
 
-We suggest testing the content of your mailables separately from your tests that assert that a given mailable was "sent" to a specific user. Typically, the content of mailables is not relevant to the code you are testing, and it is sufficient to simply assert that Laravel was instructed to send a given mailable.
+We suggest testing the content of your mailables separately from your tests that assert that a given mailable was "sent" to a specific user. Typically, the content of mailables is not relevant to the code you are testing, and it is sufficient to simply assert that Hypervel was instructed to send a given mailable.
 
 You may use the `Mail` facade's `fake` method to prevent mail from being sent. After calling the `Mail` facade's `fake` method, you may then assert that mailables were instructed to be sent to users and even inspect the data the mailables received:
 
@@ -1286,10 +1307,10 @@ test('orders can be shipped', function () {
     Mail::assertSent(OrderShipped::class, 2);
 
     // Assert a mailable was sent to an email address...
-    Mail::assertSent(OrderShipped::class, 'example@laravel.com');
+    Mail::assertSent(OrderShipped::class, 'example@hypervel.org');
 
     // Assert a mailable was sent to multiple email addresses...
-    Mail::assertSent(OrderShipped::class, ['example@laravel.com', '...']);
+    Mail::assertSent(OrderShipped::class, ['example@hypervel.org', '...']);
 
     // Assert a mailable was not sent...
     Mail::assertNotSent(AnotherMailable::class);
@@ -1329,10 +1350,10 @@ class ExampleTest extends TestCase
         Mail::assertSent(OrderShipped::class, 2);
 
         // Assert a mailable was sent to an email address...
-        Mail::assertSent(OrderShipped::class, 'example@laravel.com');
+        Mail::assertSent(OrderShipped::class, 'example@hypervel.org');
 
         // Assert a mailable was sent to multiple email addresses...
-        Mail::assertSent(OrderShipped::class, ['example@laravel.com', '...']);
+        Mail::assertSent(OrderShipped::class, ['example@hypervel.org', '...']);
 
         // Assert a mailable was not sent...
         Mail::assertNotSent(AnotherMailable::class);
@@ -1379,7 +1400,7 @@ Mail::assertSent(OrderShipped::class, function (OrderShipped $mail) use ($user) 
            $mail->hasReplyTo('...') &&
            $mail->hasFrom('...') &&
            $mail->hasSubject('...') &&
-           $mail->hasMetadata('order_id', $mail->order->id);
+           $mail->hasMetadata('order_id', $mail->order->id) &&
            $mail->usesMailer('ses');
 });
 ```
@@ -1423,7 +1444,7 @@ Mail::assertNotOutgoing(function (OrderShipped $mail) use ($order) {
 <a name="mail-and-local-development"></a>
 ## Mail and Local Development
 
-When developing an application that sends email, you probably don't want to actually send emails to live email addresses. Laravel provides several ways to "disable" the actual sending of emails during local development.
+When developing an application that sends email, you probably don't want to actually send emails to live email addresses. Hypervel provides several ways to "disable" the actual sending of emails during local development.
 
 <a name="log-driver"></a>
 #### Log Driver
@@ -1435,7 +1456,7 @@ Instead of sending your emails, the `log` mail driver will write all email messa
 
 Alternatively, you may use a service like [HELO](https://usehelo.com) or [Mailtrap](https://mailtrap.io) and the `smtp` driver to send your email messages to a "dummy" mailbox where you may view them in a true email client. This approach has the benefit of allowing you to actually inspect the final emails in Mailtrap's message viewer.
 
-If you are using [Laravel Sail](/docs/{{version}}/sail), you may preview your messages using [Mailpit](https://github.com/axllent/mailpit). When Sail is running, you may access the Mailpit interface at: `http://localhost:8025`.
+You may also use [Mailpit](https://github.com/axllent/mailpit) to preview your messages locally. By default, Mailpit's web interface is available at `http://localhost:8025`.
 
 <a name="using-a-global-to-address"></a>
 #### Using a Global `to` Address
@@ -1461,7 +1482,7 @@ When using the `alwaysTo` method, any additional "cc" or "bcc" addresses on mail
 <a name="events"></a>
 ## Events
 
-Laravel dispatches two events while sending mail messages. The `MessageSending` event is dispatched prior to a message being sent, while the `MessageSent` event is dispatched after a message has been sent. Remember, these events are dispatched when the mail is being *sent*, not when it is queued. You may create [event listeners](/docs/{{version}}/events) for these events within your application:
+Hypervel dispatches two events while sending mail messages. The `MessageSending` event is dispatched prior to a message being sent, while the `MessageSent` event is dispatched after a message has been sent. Remember, these events are dispatched when the mail is being *sent*, not when it is queued. You may create [event listeners](/docs/{{version}}/events) for these events within your application:
 
 ```php
 use Hypervel\Mail\Events\MessageSending;
@@ -1482,7 +1503,7 @@ class LogMessage
 <a name="custom-transports"></a>
 ## Custom Transports
 
-Laravel includes a variety of mail transports; however, you may wish to write your own transports to deliver email via other services that Laravel does not support out of the box. To get started, define a class that extends the `Symfony\Component\Mailer\Transport\AbstractTransport` class. Then, implement the `doSend` and `__toString` methods on your transport:
+Hypervel includes a variety of mail transports; however, you may wish to write your own transports to deliver email via other services that Hypervel does not support out of the box. To get started, define a class that extends the `Symfony\Component\Mailer\Transport\AbstractTransport` class. Then, implement the `doSend` and `__toString` methods on your transport:
 
 ```php
 <?php
@@ -1555,6 +1576,14 @@ public function boot(): void
 }
 ```
 
+Custom drivers registered via `Mail::extend` are not pooled by default. If your custom transport holds state that should not be shared across concurrent requests, such as an SDK client or persistent connection, pass `poolable: true` as the third argument:
+
+```php
+Mail::extend('mailchimp', function (array $config = []) {
+    // ...
+}, poolable: true);
+```
+
 Once your custom transport has been defined and registered, you may create a mailer definition within your application's `config/mail.php` configuration file that utilizes the new transport:
 
 ```php
@@ -1568,7 +1597,7 @@ Once your custom transport has been defined and registered, you may create a mai
 <a name="additional-symfony-transports"></a>
 ### Additional Symfony Transports
 
-Laravel includes support for some existing Symfony maintained mail transports like Mailgun and Postmark. However, you may wish to extend Laravel with support for additional Symfony maintained transports. You can do so by requiring the necessary Symfony mailer via Composer and registering the transport with Laravel. For example, you may install and register the "Brevo" (formerly "Sendinblue") Symfony mailer:
+Hypervel includes support for some existing Symfony maintained mail transports like Mailgun and Postmark. However, you may wish to extend Hypervel with support for additional Symfony maintained transports. You can do so by requiring the necessary Symfony mailer via Composer and registering the transport with Hypervel. For example, you may install and register the "Brevo" (formerly "Sendinblue") Symfony mailer:
 
 ```shell
 composer require symfony/brevo-mailer symfony/http-client
@@ -1582,7 +1611,7 @@ Once the Brevo mailer package has been installed, you may add an entry for your 
 ],
 ```
 
-Next, you may use the `Mail` facade's `extend` method to register the transport with Laravel. Typically, this should be done within the `boot` method of a service provider:
+Next, you may use the `Mail` facade's `extend` method to register the transport with Hypervel. Typically, this should be done within the `boot` method of a service provider:
 
 ```php
 use Hypervel\Support\Facades\Mail;

@@ -90,6 +90,18 @@ class ScheduleRunCommand extends Command
     protected ?Concurrent $concurrent = null;
 
     /**
+     * The minute currently represented by the evaluated event cache.
+     */
+    protected ?string $evaluatedEventsMinute = null;
+
+    /**
+     * The non-repeatable events already evaluated for the current minute.
+     *
+     * @var array<int, true>
+     */
+    protected array $evaluatedEvents = [];
+
+    /**
      * Execute the console command.
      */
     public function handle(
@@ -118,9 +130,11 @@ class ScheduleRunCommand extends Command
 
         $noEventsAlerted = false;
         while (! $this->shouldStop()) {
+            $startedAt = Date::now();
+
             $this->runEvents(
-                $this->schedule->dueEvents($this->hypervel),
-                Date::now()
+                $this->schedule->dueEventsAt($this->hypervel, $startedAt),
+                $startedAt
             );
 
             if (! $this->eventsRan && ! $noEventsAlerted && ! $this->option('whisper')) {
@@ -155,7 +169,7 @@ class ScheduleRunCommand extends Command
     {
         $this->startedAt = Date::now();
 
-        $events = $this->schedule->dueEvents($this->hypervel);
+        $events = $this->schedule->dueEventsAt($this->hypervel, $this->startedAt);
 
         if ($events->contains->isRepeatable()) {
             $this->clearShouldStop();
@@ -223,6 +237,10 @@ class ScheduleRunCommand extends Command
                 continue;
             }
 
+            if ($this->hasAlreadyEvaluatedNonRepeatableEvent($event, $startedAt)) {
+                continue;
+            }
+
             if (! $event->filtersPass($this->hypervel)) {
                 $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
 
@@ -243,6 +261,33 @@ class ScheduleRunCommand extends Command
 
             $runEvent();
         }
+    }
+
+    /**
+     * Determine if the non-repeatable event was already evaluated this minute.
+     */
+    protected function hasAlreadyEvaluatedNonRepeatableEvent(Event $event, CarbonInterface $startedAt): bool
+    {
+        if ($event->isRepeatable()) {
+            return false;
+        }
+
+        $minute = $startedAt->format('YmdHi');
+
+        if ($this->evaluatedEventsMinute !== $minute) {
+            $this->evaluatedEventsMinute = $minute;
+            $this->evaluatedEvents = [];
+        }
+
+        $eventId = spl_object_id($event);
+
+        if (isset($this->evaluatedEvents[$eventId])) {
+            return true;
+        }
+
+        $this->evaluatedEvents[$eventId] = true;
+
+        return false;
     }
 
     /**
@@ -302,7 +347,7 @@ class ScheduleRunCommand extends Command
         $finishDescription = sprintf(
             '<fg=gray>%s</> %s [%s] <fg=gray>%sms</>',
             Carbon::now()->format('Y-m-d H:i:s'),
-            $event->exitCode == 0 ? '<info>Finished</info>' : '<error>Failed</error>',
+            $event->exitCode() === 0 ? '<info>Finished</info>' : '<error>Failed</error>',
             $command,
             round(microtime(true) - $start, 2),
         );

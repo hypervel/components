@@ -12,6 +12,7 @@ use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Support\InteractsWithTime;
@@ -387,33 +388,40 @@ class RedisQueueTest extends TestCase
     public function testDelayedJobsWorkWithPhpRedisSerializationEnabled()
     {
         $connection = Redis::connection('default');
-        $client = $connection->client();
 
-        $originalSerializer = $client->getOption(\Redis::OPT_SERIALIZER);
-        $client->setOption(\Redis::OPT_SERIALIZER, \Redis::SERIALIZER_PHP);
+        $connection->withPinnedConnection(function () use ($connection): void {
+            $client = $connection->withConnection(
+                fn (RedisConnection $connection): ?\Redis => $connection->client()
+            );
 
-        try {
-            $this->setQueue($this->app['config']->get('queue.connections.redis.queue'));
+            $this->assertInstanceOf(\Redis::class, $client);
 
-            $job = new RedisQueueIntegrationTestJob(42);
-            $this->queue->later(-10, $job);
+            $originalSerializer = $client->getOption(\Redis::OPT_SERIALIZER);
+            $client->setOption(\Redis::OPT_SERIALIZER, \Redis::SERIALIZER_PHP);
 
-            $poppedJob = $this->queue->pop();
+            try {
+                $this->setQueue($this->app['config']->get('queue.connections.redis.queue'));
 
-            $this->assertNotNull($poppedJob, 'Delayed job should be retrievable after delay expires');
+                $job = new RedisQueueIntegrationTestJob(42);
+                $this->queue->later(-10, $job);
 
-            $rawBody = $poppedJob->getRawBody();
-            $decoded = json_decode($rawBody);
+                $poppedJob = $this->queue->pop();
 
-            $this->assertNotNull($decoded, 'Job payload should be valid JSON');
-            $this->assertObjectHasProperty('data', $decoded, 'Decoded payload should have data property');
+                $this->assertNotNull($poppedJob, 'Delayed job should be retrievable after delay expires');
 
-            $command = unserialize($decoded->data->command);
-            $this->assertEquals($job, $command, 'Unserialized job should match original');
-            $this->assertSame(42, $command->i, 'Job property should be preserved');
-        } finally {
-            $client->setOption(\Redis::OPT_SERIALIZER, $originalSerializer);
-        }
+                $rawBody = $poppedJob->getRawBody();
+                $decoded = json_decode($rawBody);
+
+                $this->assertNotNull($decoded, 'Job payload should be valid JSON');
+                $this->assertObjectHasProperty('data', $decoded, 'Decoded payload should have data property');
+
+                $command = unserialize($decoded->data->command);
+                $this->assertEquals($job, $command, 'Unserialized job should match original');
+                $this->assertSame(42, $command->i, 'Job property should be preserved');
+            } finally {
+                $client->setOption(\Redis::OPT_SERIALIZER, $originalSerializer);
+            }
+        });
     }
 
     private function setQueue(?string $default = null, ?string $connection = null, ?int $retryAfter = 60, ?int $blockFor = null): void

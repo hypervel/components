@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Hypervel\Auth\Access\Gate;
+use Hypervel\Auth\Console\ClearResetsCommand;
 use Hypervel\Auth\Middleware\RequirePassword;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
@@ -26,6 +27,7 @@ class AuthServiceProvider extends ServiceProvider
         $this->registerRequirePassword();
         $this->registerRequestUserResolver();
         $this->registerEventRebindHandler();
+        $this->commands([ClearResetsCommand::class]);
     }
 
     /**

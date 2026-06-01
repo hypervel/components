@@ -172,4 +172,39 @@ class MailManagerTest extends TestCase
 
         $this->assertInstanceOf(TransportPoolProxy::class, $transport);
     }
+
+    #[DataProvider('poolableTransportDataProvider')]
+    public function testConfiguredPoolableTransportsResolveToPoolProxy(string $transport): void
+    {
+        $this->app->make('config')
+            ->set("mail.mailers.{$transport}", [
+                'transport' => $transport,
+                'host' => '127.0.0.1',
+                'port' => 2525,
+                'username' => null,
+                'password' => null,
+                'path' => '/usr/sbin/sendmail -bs -i',
+                'mailers' => ['smtp', 'log'],
+            ]);
+
+        $transport = (new MailManager($this->app))
+            ->mailer($transport)
+            ->getSymfonyTransport(); // @phpstan-ignore-line
+
+        $this->assertInstanceOf(TransportPoolProxy::class, $transport);
+    }
+
+    public static function poolableTransportDataProvider(): array
+    {
+        return [
+            ['smtp'],
+            ['sendmail'],
+            ['mailgun'],
+            ['ses-v2'],
+            ['postmark'],
+            ['resend'],
+            ['failover'],
+            ['roundrobin'],
+        ];
+    }
 }

@@ -9,6 +9,7 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Tests\TestCase;
+use ReflectionProperty;
 
 class TimerTest extends TestCase
 {
@@ -132,6 +133,18 @@ class TimerTest extends TestCase
             CoordinatorManager::until($identifier)->resume();
             $this->assertSame(0, $id);
         });
+    }
+
+    public function testFlushStateRestoresTimerStats()
+    {
+        (new ReflectionProperty(Timer::class, 'count'))->setValue(null, 3);
+        (new ReflectionProperty(Timer::class, 'round'))->setValue(null, 7);
+
+        $this->assertSame(['num' => 3, 'round' => 7], Timer::stats());
+
+        Timer::flushState();
+
+        $this->assertSame(['num' => 0, 'round' => 0], Timer::stats());
     }
 
     private function wait(Closure $closure): void

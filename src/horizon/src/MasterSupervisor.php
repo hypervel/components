@@ -53,6 +53,11 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
      */
     public static ?Closure $nameResolver = null;
 
+    /**
+     * The random token appended to the master supervisor name.
+     */
+    protected static ?string $token = null;
+
     public bool $shouldExitLoop = false;
 
     /**
@@ -77,13 +82,11 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
      */
     public static function name(): string
     {
-        static $token;
-
-        if (! $token) {
-            $token = Str::random(4);
+        if (! static::$token) {
+            static::$token = Str::random(4);
         }
 
-        return static::basename() . '-' . $token;
+        return static::basename() . '-' . static::$token;
     }
 
     /**
@@ -329,5 +332,14 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
     public function output(string $type, string $line): void
     {
         call_user_func($this->output, $type, $line);
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$nameResolver = null;
+        static::$token = null;
     }
 }

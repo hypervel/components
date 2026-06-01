@@ -279,6 +279,38 @@ class EventTest extends TestCase
         $this->assertTrue($event->isDue($app));
     }
 
+    public function testEventIsDueAtUsesGivenTime()
+    {
+        $app = m::mock(ApplicationContract::class);
+        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
+        $app->shouldReceive('environment')->andReturn('production');
+
+        try {
+            Carbon::setTestNow(Carbon::parse('2026-05-29 13:00:00'));
+
+            $event = new Event(m::mock(EventMutex::class), 'php foo');
+            $event->dailyAt('13:00');
+
+            $this->assertFalse($event->isDueAt($app, Carbon::parse('2026-05-29 12:59:59')));
+            $this->assertTrue($event->isDueAt($app, Carbon::parse('2026-05-29 13:00:00')));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function testEventIsDueAtUsesEventTimezone()
+    {
+        $app = m::mock(ApplicationContract::class);
+        $app->shouldReceive('isDownForMaintenance')->andReturn(false);
+        $app->shouldReceive('environment')->andReturn('production');
+
+        $event = new Event(m::mock(EventMutex::class), 'php foo');
+        $event->dailyAt('09:00')->timezone('America/New_York');
+
+        $this->assertTrue($event->isDueAt($app, Carbon::parse('2026-05-29 13:00:00', 'UTC')));
+        $this->assertFalse($event->isDueAt($app, Carbon::parse('2026-05-29 12:59:59', 'UTC')));
+    }
+
     public function testTimeBetweenChecks()
     {
         $app = m::mock(ApplicationContract::class);

@@ -5,7 +5,7 @@
 Hypervel is a Laravel-style Swoole framework originally built on top of Hyperf. We are decoupling from Hyperf and making Hypervel as close to 1:1 with Laravel as possible. This involves porting packages from both Hyperf (Swoole/coroutine infrastructure) and Laravel (application-level features).
 
 When porting, we keep packages as close to 1:1 with the originals as possible so merging upstream changes is easy later. The exceptions are:
-- Modernising PHP types (PHP 8.4+ features, strict types)
+- Modernising PHP types (PHP 8.4+ features, strict types; the exception is PHPUnit test methods — see the testing rules below)
 - Adding Laravel-style title docblocks to methods (not classes — see rules below)
 - For ported Laravel packages: making them coroutine-safe and adding Swoole performance enhancements (e.g., static property caching)
 - Not porting upstream framework-specific integrations that only make sense in the source framework (for example Laravel/Hyperf-specific packages, service providers, discovery metadata, bootstrap hooks, or other framework-owned integration surfaces) unless Hypervel intentionally has an equivalent surface
@@ -149,6 +149,7 @@ Hyperf and Hypervel have fundamentally different container semantics. Every port
   - `bind()` — fresh instance every time (no caching)
   - **Unbound concrete classes** — auto-singletoned for Swoole performance (cached in `$autoSingletons`). This is the key behavioral difference from Hyperf's `make()`.
 - `Container::getInstance()` — static access. Uses `??= new static()`, so it always returns a container (never null).
+- `build($class)` / `buildWith($class, $params)` — always constructs the given concrete directly. These bypass binding lookups, aliases, singleton/scoped caches, and auto-singletoning for the top-level class being built. Nested constructor dependencies are still resolved through the container. Do not use `build()` as a drop-in freshness replacement for `make()` when explicit bindings, test swaps, aliases, or resolving callbacks must be honored.
 
 #### What to change when porting
 
@@ -195,6 +196,7 @@ In Hyperf, `$container->make(Foo::class)` always returns a fresh `Foo`. In Hyper
 | `ApplicationContext::getContainer()->get(Foo::class)` | `Container::getInstance()->make(Foo::class)` | No — both return singletons |
 | `$this->container->get(Foo::class)` | `$this->container->make(Foo::class)` | No — convention change only |
 | `$this->container->make(Foo::class)` | `$this->container->make(Foo::class)` | **Yes** — Hyperf: fresh each time. Hypervel: auto-singletoned if unbound. Verify safe. |
+| `$this->container->make(Foo::class)` when freshness is needed but bindings/swaps must still apply | `$this->container->make(Foo::class, [...])`, explicit `bind()`, or clone a resolved prototype depending on the use case | `build(Foo::class)` is only correct when you intentionally want to bypass top-level bindings/aliases/caches. |
 | `ApplicationContext::hasContainer()` | Remove guard | `getInstance()` always returns a container |
 | `ApplicationContext::setContainer($c)` | `Container::setInstance($c)` | Tests only |
 
@@ -607,6 +609,19 @@ Use the standard title docblock for `flushState()` methods:
 Do not add `Boot-only.`, `Tests only.`, or `Boot or tests only.` warning paragraphs to `flushState()` docblocks. Those warnings belong on public mutators and registrars that userland might call incorrectly, not on this test cleanup hook that is only registered in `AfterEachTestSubscriber`.
 
 Keep the docblock to the title only — no extra paragraphs. If the method body has a non-obvious WHY worth explaining (ordering constraints, late-static-binding subtleties, etc.), put it as an inline comment above the relevant line inside the method, not as an extra paragraph under the title.
+
+When the property's initial value and `flushState()`'s reset value share a literal (a number, string, class name, etc.), extract it to a `DEFAULT_*` class constant and reference it from both sides — this prevents drift if the default ever changes. Make the constant `public` only if tests or external callers reference it; otherwise `protected`.
+
+```php
+public const DEFAULT_TRUNCATE_AT = 120;
+
+public static false|int $truncateAt = self::DEFAULT_TRUNCATE_AT;
+
+public static function flushState(): void
+{
+    static::$truncateAt = self::DEFAULT_TRUNCATE_AT;
+}
+```
 
 #### Per-Package Base Test Cases
 

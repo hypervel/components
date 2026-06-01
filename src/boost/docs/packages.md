@@ -3,7 +3,10 @@
 - [Introduction](#introduction)
     - [A Note on Facades](#a-note-on-facades)
 - [Package Discovery](#package-discovery)
+- [Inspecting Installed Packages](#inspecting-installed-packages)
 - [Service Providers](#service-providers)
+    - [Provider Priority](#provider-priority)
+    - [Conditional Providers](#conditional-providers)
 - [Resources](#resources)
     - [Configuration](#configuration)
     - [Routes](#routes)
@@ -21,36 +24,39 @@
 <a name="introduction"></a>
 ## Introduction
 
-Packages are the primary way of adding functionality to Laravel. Packages might be anything from a great way to work with dates like [Carbon](https://github.com/briannesbitt/Carbon) or a package that allows you to associate files with Eloquent models like Spatie's [Laravel Media Library](https://github.com/spatie/laravel-medialibrary).
+Packages are the primary way of adding functionality to Hypervel. Packages might be anything from a great way to work with dates like [Carbon](https://github.com/briannesbitt/Carbon) or a package that allows you to associate files with Eloquent models.
 
-There are different types of packages. Some packages are stand-alone, meaning they work with any PHP framework. Carbon and Pest are examples of stand-alone packages. Any of these packages may be used with Laravel by requiring them in your `composer.json` file.
+There are different types of packages. Some packages are stand-alone, meaning they work with any PHP framework. Carbon and Pest are examples of stand-alone packages. Any of these packages may be used with Hypervel by requiring them in your `composer.json` file.
 
-On the other hand, other packages are specifically intended for use with Laravel. These packages may have routes, controllers, views, and configuration specifically intended to enhance a Laravel application. This guide primarily covers the development of those packages that are Laravel specific.
+On the other hand, other packages are specifically intended for use with Hypervel. These packages may have routes, controllers, views, and configuration specifically intended to enhance a Hypervel application. This guide primarily covers the development of those packages that are Hypervel specific.
+
+> [!WARNING]
+> Laravel-specific packages are not drop-in compatible with Hypervel because Hypervel runs in long-lived Swoole workers and handles concurrent requests and jobs with coroutines. However, porting a Laravel package is usually straightforward: replace Illuminate dependencies with Hypervel equivalents, update namespaces and types, and move request-specific state into context or coroutine-safe APIs. For a step-by-step guide, see the [porting packages documentation](/docs/{{version}}/porting-packages).
 
 <a name="a-note-on-facades"></a>
 ### A Note on Facades
 
-When writing a Laravel application, it generally does not matter if you use contracts or facades since both provide essentially equal levels of testability. However, when writing packages, your package will not typically have access to all of Laravel's testing helpers. If you would like to be able to write your package tests as if the package were installed inside a typical Laravel application, you may use the [Orchestral Testbench](https://github.com/orchestral/testbench) package.
+When writing a Hypervel application, it generally does not matter if you use contracts or facades since both provide essentially equal levels of testability. However, when writing packages, your package will not typically have access to all of Hypervel's testing helpers. If you would like to be able to write your package tests as if the package were installed inside a typical Hypervel application, you may use the [Hypervel Testbench](/docs/{{version}}/testbench) package.
 
 <a name="package-discovery"></a>
 ## Package Discovery
 
-A Laravel application's `bootstrap/providers.php` file contains the list of service providers that should be loaded by Laravel. However, instead of requiring users to manually add your service provider to the list, you may define the provider in the `extra` section of your package's `composer.json` file so that it is automatically loaded by Laravel. In addition to service providers, you may also list any [facades](/docs/{{version}}/facades) you would like to be registered:
+A Hypervel application's `bootstrap/providers.php` file contains the list of service providers that should be loaded by Hypervel. However, instead of requiring users to manually add your service provider to the list, you may define the provider in the `extra` section of your package's `composer.json` file so that it is automatically loaded by Hypervel. In addition to service providers, you may also list any [facades](/docs/{{version}}/facades) you would like to be registered:
 
 ```json
 "extra": {
-    "laravel": {
+    "hypervel": {
         "providers": [
-            "Barryvdh\\Debugbar\\ServiceProvider"
+            "Courier\\CourierServiceProvider"
         ],
         "aliases": {
-            "Debugbar": "Barryvdh\\Debugbar\\Facade"
+            "Courier": "Courier\\Facades\\Courier"
         }
     }
 },
 ```
 
-Once your package has been configured for discovery, Laravel will automatically register its service providers and facades when it is installed, creating a convenient installation experience for your package's users.
+Once your package has been configured for discovery, Hypervel will automatically register its service providers and facades when it is installed, creating a convenient installation experience for your package's users.
 
 <a name="opting-out-of-package-discovery"></a>
 #### Opting Out of Package Discovery
@@ -59,9 +65,9 @@ If you are the consumer of a package and would like to disable package discovery
 
 ```json
 "extra": {
-    "laravel": {
+    "hypervel": {
         "dont-discover": [
-            "barryvdh/laravel-debugbar"
+            "vendor/courier"
         ]
     }
 },
@@ -71,7 +77,7 @@ You may disable package discovery for all packages using the `*` character insid
 
 ```json
 "extra": {
-    "laravel": {
+    "hypervel": {
         "dont-discover": [
             "*"
         ]
@@ -79,12 +85,73 @@ You may disable package discovery for all packages using the `*` character insid
 },
 ```
 
+<a name="inspecting-installed-packages"></a>
+## Inspecting Installed Packages
+
+If your package needs to determine whether another package is installed, you may resolve Hypervel's package manifest from the service container and inspect the packages discovered by Composer:
+
+```php
+use Hypervel\Foundation\PackageManifest;
+
+/**
+ * Register any package services.
+ */
+public function register(): void
+{
+    $manifest = $this->app->make(PackageManifest::class);
+
+    if ($manifest->hasPackage('hypervel/reverb')) {
+        // ...
+    }
+}
+```
+
+You may also retrieve the installed version of a package or determine if it satisfies a Composer version constraint:
+
+```php
+$version = $manifest->version('hypervel/reverb');
+
+if ($manifest->satisfies('hypervel/reverb', '^1.0')) {
+    // ...
+}
+```
+
+> [!NOTE]
+> The `satisfies` method requires the `composer/semver` package. If your package uses this method, you should require `composer/semver` in your package's `composer.json` file.
+
 <a name="service-providers"></a>
 ## Service Providers
 
-[Service providers](/docs/{{version}}/providers) are the connection point between your package and Laravel. A service provider is responsible for binding things into Laravel's [service container](/docs/{{version}}/container) and informing Laravel where to load package resources such as views, configuration, and language files.
+[Service providers](/docs/{{version}}/providers) are the connection point between your package and Hypervel. A service provider is responsible for binding things into Hypervel's [service container](/docs/{{version}}/container) and informing Hypervel where to load package resources such as views, configuration, and language files.
 
 A service provider extends the `Hypervel\Support\ServiceProvider` class and contains two methods: `register` and `boot`. The base `ServiceProvider` class is located in the `hypervel/support` Composer package, which you should add to your own package's dependencies. To learn more about the structure and purpose of service providers, check out [their documentation](/docs/{{version}}/providers).
+
+<a name="provider-priority"></a>
+### Provider Priority
+
+Discovered package providers are registered after Hypervel's framework providers and before the application's own providers. If your package needs to be registered before another discovered provider, you may define a `priority` property on your service provider. Providers default to a priority of `0`. Providers with a higher priority value are registered first:
+
+```php
+/**
+ * The registration priority for this provider.
+ */
+public int $priority = 10;
+```
+
+<a name="conditional-providers"></a>
+### Conditional Providers
+
+If your package's service provider should only be loaded in some environments or configurations, you may override the `isEnabled` method. When this method returns `false`, Hypervel will skip the provider entirely:
+
+```php
+/**
+ * Determine if the provider should be registered.
+ */
+public function isEnabled(): bool
+{
+    return (bool) config('courier.enabled');
+}
+```
 
 <a name="resources"></a>
 ## Resources
@@ -106,7 +173,7 @@ public function boot(): void
 }
 ```
 
-Now, when users of your package execute Laravel's `vendor:publish` command, your file will be copied to the specified publish location. Once your configuration has been published, its values may be accessed like any other configuration file:
+Now, when users of your package execute Hypervel's `vendor:publish` command, your file will be copied to the specified publish location. Once your configuration has been published, its values may be accessed like any other configuration file:
 
 ```php
 $value = config('courier.option');
@@ -137,6 +204,26 @@ public function register(): void
 > [!WARNING]
 > This method only merges the first level of the configuration array. If your users partially define a multi-dimensional configuration array, the missing options will not be merged.
 
+<a name="merging-configuration-arrays"></a>
+#### Merging Configuration Arrays
+
+If your package configuration contains arrays that should be merged one level deeper, you may override the `mergeableOptions` method on your service provider. This is useful for configuration arrays like `connections`, `stores`, or `guards`, where users should be able to define one option without replacing the rest of the package defaults:
+
+```php
+/**
+ * Get the configuration options that should be merged one level deeper.
+ *
+ * @return array<int, string>
+ */
+protected function mergeableOptions(string $name): array
+{
+    return match ($name) {
+        'courier' => ['connections'],
+        default => [],
+    };
+}
+```
+
 <a name="routes"></a>
 ### Routes
 
@@ -155,7 +242,7 @@ public function boot(): void
 <a name="migrations"></a>
 ### Migrations
 
-If your package contains [database migrations](/docs/{{version}}/migrations), you may use the `publishesMigrations` method to inform Laravel that the given directory or file contains migrations. When Laravel publishes the migrations, it will automatically update the timestamp within their filename to reflect the current date and time:
+If your package contains [database migrations](/docs/{{version}}/migrations), you may use the `publishesMigrations` method to inform Hypervel that the given directory or file contains migrations. When Hypervel publishes the migrations, it will automatically update the timestamp within their filename to reflect the current date and time:
 
 ```php
 /**
@@ -172,7 +259,7 @@ public function boot(): void
 <a name="language-files"></a>
 ### Language Files
 
-If your package contains [language files](/docs/{{version}}/localization), you may use the `loadTranslationsFrom` method to inform Laravel how to load them. For example, if your package is named `courier`, you should add the following to your service provider's `boot` method:
+If your package contains [language files](/docs/{{version}}/localization), you may use the `loadTranslationsFrom` method to inform Hypervel how to load them. For example, if your package is named `courier`, you should add the following to your service provider's `boot` method:
 
 ```php
 /**
@@ -221,12 +308,12 @@ public function boot(): void
 }
 ```
 
-Now, when users of your package execute Laravel's `vendor:publish` Artisan command, your package's language files will be published to the specified publish location.
+Now, when users of your package execute Hypervel's `vendor:publish` Artisan command, your package's language files will be published to the specified publish location.
 
 <a name="views"></a>
 ### Views
 
-To register your package's [views](/docs/{{version}}/views) with Laravel, you need to tell Laravel where the views are located. You may do this using the service provider's `loadViewsFrom` method. The `loadViewsFrom` method accepts two arguments: the path to your view templates and your package's name. For example, if your package's name is `courier`, you would add the following to your service provider's `boot` method:
+To register your package's [views](/docs/{{version}}/views) with Hypervel, you need to tell Hypervel where the views are located. You may do this using the service provider's `loadViewsFrom` method. The `loadViewsFrom` method accepts two arguments: the path to your view templates and your package's name. For example, if your package's name is `courier`, you would add the following to your service provider's `boot` method:
 
 ```php
 /**
@@ -249,7 +336,7 @@ Route::get('/dashboard', function () {
 <a name="overriding-package-views"></a>
 #### Overriding Package Views
 
-When you use the `loadViewsFrom` method, Laravel actually registers two locations for your views: the application's `resources/views/vendor` directory and the directory you specify. So, using the `courier` package as an example, Laravel will first check if a custom version of the view has been placed in the `resources/views/vendor/courier` directory by the developer. Then, if the view has not been customized, Laravel will search the package view directory you specified in your call to `loadViewsFrom`. This makes it easy for package users to customize / override your package's views.
+When you use the `loadViewsFrom` method, Hypervel actually registers two locations for your views: the application's `resources/views/vendor` directory and the directory you specify. So, using the `courier` package as an example, Hypervel will first check if a custom version of the view has been placed in the `resources/views/vendor/courier` directory by the developer. Then, if the view has not been customized, Hypervel will search the package view directory you specified in your call to `loadViewsFrom`. This makes it easy for package users to customize / override your package's views.
 
 <a name="publishing-views"></a>
 #### Publishing Views
@@ -270,12 +357,12 @@ public function boot(): void
 }
 ```
 
-Now, when users of your package execute Laravel's `vendor:publish` Artisan command, your package's views will be copied to the specified publish location.
+Now, when users of your package execute Hypervel's `vendor:publish` Artisan command, your package's views will be copied to the specified publish location.
 
 <a name="view-components"></a>
 ### View Components
 
-If you are building a package that utilizes Blade components or placing components in non-conventional directories, you will need to manually register your component class and its HTML tag alias so that Laravel knows where to find the component. You should typically register your components in the `boot` method of your package's service provider:
+If you are building a package that utilizes Blade components or placing components in non-conventional directories, you will need to manually register your component class and its HTML tag alias so that Hypervel knows where to find the component. You should typically register your components in the `boot` method of your package's service provider:
 
 ```php
 use Hypervel\Support\Facades\Blade;
@@ -334,7 +421,7 @@ If your package contains anonymous components, they must be placed within a `com
 <a name="about-artisan-command"></a>
 ### "About" Artisan Command
 
-Laravel's built-in `about` Artisan command provides a synopsis of the application's environment and configuration. Packages may push additional information to this command's output via the `AboutCommand` class. Typically, this information may be added from your package service provider's `boot` method:
+Hypervel's built-in `about` Artisan command provides a synopsis of the application's environment and configuration. Packages may push additional information to this command's output via the `AboutCommand` class. Typically, this information may be added from your package service provider's `boot` method:
 
 ```php
 use Hypervel\Foundation\Console\AboutCommand;
@@ -351,7 +438,7 @@ public function boot(): void
 <a name="commands"></a>
 ## Commands
 
-To register your package's Artisan commands with Laravel, you may use the `commands` method. This method expects an array of command class names. Once the commands have been registered, you may execute them using the [Artisan CLI](/docs/{{version}}/artisan):
+To register your package's Artisan commands with Hypervel, you may use the `commands` method. This method expects an array of command class names. Once the commands have been registered, you may execute them using the [Artisan CLI](/docs/{{version}}/artisan):
 
 ```php
 use Courier\Console\Commands\InstallCommand;
@@ -374,7 +461,7 @@ public function boot(): void
 <a name="optimize-commands"></a>
 ### Optimize Commands
 
-Laravel's [optimize command](/docs/{{version}}/deployment#optimization) caches the application's configuration, events, routes, and views. Using the `optimizes` method, you may register your package's own Artisan commands that should be invoked when the `optimize` and `optimize:clear` commands are executed:
+Hypervel's [optimize command](/docs/{{version}}/deployment#optimization) caches the application's configuration, events, routes, and views. Using the `optimizes` method, you may register your package's own Artisan commands that should be invoked when the `optimize` and `optimize:clear` commands are executed:
 
 ```php
 /**
@@ -394,7 +481,7 @@ public function boot(): void
 <a name="reload-commands"></a>
 ### Reload Commands
 
-Laravel's [reload command](/docs/{{version}}/deployment#reloading-services) terminates any running services so they can be automatically restarted by a system process monitor. Using the `reloads` method, you may register your package's own Artisan commands that should be invoked when the `reload` command is executed:
+Hypervel's [reload command](/docs/{{version}}/deployment#reloading-services) terminates any running services so they can be automatically restarted by a system process monitor. Using the `reloads` method, you may register your package's own Artisan commands that should be invoked when the `reload` command is executed:
 
 ```php
 /**

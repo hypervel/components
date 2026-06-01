@@ -37,7 +37,7 @@ Hypervel caches more aggressively than Laravel: any class resolved via `make()` 
 
 | Need | Call | Lifecycle |
 |---|---|---|
-| Always fresh, bypass all caching | `$app->build($class)` / `$app->buildWith($class, $params)` | Never cached |
+| Always fresh, bypass bindings and caching | `$app->build($class)` / `$app->buildWith($class, $params)` | Constructs the given concrete directly; nested dependencies still resolve through the container |
 | Class-controlled construction | `implements SelfBuilding` + static `newInstance()` | Container calls `newInstance` per `make()`; skips auto-singleton; honors explicit `singleton()` / `scoped()` if applied |
 | Default resolution | `$app->make($class)` | Auto-singleton if unbound |
 | Fresh with parameter overrides | `$app->make($class, $params)` / `makeWith()` | Not cached (contextual build) |
@@ -49,6 +49,7 @@ Hypervel caches more aggressively than Laravel: any class resolved via `make()` 
 **Footguns:**
 
 - Don't capture per-call state (e.g. `Request` data) in `__construct` of an auto-resolved class — the first resolution freezes it for all subsequent requests on that worker. Fixes: `bind()` the class, call `build()` at the resolution site, or implement `SelfBuilding` with a `newInstance()` factory.
+- Don't use `build()` as a drop-in fresh replacement for `make()` when explicit bindings, aliases, test swaps, or resolving callbacks must be honored. It skips top-level container lifecycle machinery by design.
 - Don't mutate `$this->foo` on a worker-lifetime singleton during request handling. The mutation persists across every request that worker handles. Use `CoroutineContext` for per-request state on shared services.
 
 ## Service providers
@@ -78,5 +79,4 @@ Hypervel caches more aggressively than Laravel: any class resolved via `make()` 
 - Request and Response are coroutine-local. The `'request'` and `Hypervel\Http\Response::class` container bindings are `bind()` closures that read from `RequestContext` / `ResponseContext`. The Laravel pattern `$this->app->instance('request', $r)` (or `instance(Response::class, $r)`) doesn't apply — it overrides the closure with a worker-global value and bypasses the production resolution path. Use `RequestContext::set($r)` / `ResponseContext::set($r)` instead.
 - After seeding via `RequestContext::set(...)`, `request()->merge([...])` works as in Laravel. Without seeding, each `request()` call returns a throwaway, so `merge()` is lost.
 - Don't add `Mockery::close()` to `tearDown()` — handled globally.
-
 

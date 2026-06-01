@@ -96,15 +96,6 @@ class AspectCollector
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$container = [];
-        static::$aspectRules = [];
-    }
-
-    /**
      * Get the rules for a specific aspect.
      */
     public static function getRule(string $aspect): array
@@ -134,5 +125,14 @@ class AspectCollector
     public static function list(): array
     {
         return static::$container;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$container = [];
+        static::$aspectRules = [];
     }
 }

@@ -65,4 +65,16 @@ class Mutex
             $channel->close();
         }
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        foreach (static::$channels as $channel) {
+            $channel?->close();
+        }
+
+        static::$channels = [];
+    }
 }

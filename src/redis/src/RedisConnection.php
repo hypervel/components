@@ -323,6 +323,17 @@ use Throwable;
  */
 abstract class RedisConnection extends BaseConnection
 {
+    /**
+     * Top-level connection config keys that should be applied through setOption.
+     */
+    private const CONNECTION_LEVEL_PHPREDIS_OPTIONS = [
+        'read_timeout',
+        'max_retries',
+        'backoff_algorithm',
+        'backoff_base',
+        'backoff_cap',
+    ];
+
     protected Redis|RedisCluster|null $connection = null;
 
     protected ?Dispatcher $eventDispatcher = null;
@@ -463,26 +474,88 @@ abstract class RedisConnection extends BaseConnection
      */
     protected function setOptions(Redis|RedisCluster $redis): void
     {
-        $options = $this->config['options'] ?? [];
+        $options = $this->configuredPhpRedisOptions();
 
         foreach ($options as $name => $value) {
             if (is_string($name)) {
-                $name = match (strtolower($name)) {
-                    'serializer' => Redis::OPT_SERIALIZER,
-                    'prefix' => Redis::OPT_PREFIX,
-                    'read_timeout' => Redis::OPT_READ_TIMEOUT,
-                    'scan' => Redis::OPT_SCAN,
-                    'failover' => defined(Redis::class . '::OPT_SLAVE_FAILOVER') ? Redis::OPT_SLAVE_FAILOVER : 5,
-                    'keepalive' => Redis::OPT_TCP_KEEPALIVE,
-                    'compression' => Redis::OPT_COMPRESSION,
-                    'reply_literal' => Redis::OPT_REPLY_LITERAL,
-                    'compression_level' => Redis::OPT_COMPRESSION_LEVEL,
-                    default => throw new InvalidRedisOptionException(sprintf('The redis option key `%s` is invalid.', $name)),
-                };
+                $name = strtolower($name);
+
+                if ($name === 'backoff_algorithm') {
+                    $value = $this->parseBackoffAlgorithm($value);
+                }
+
+                $name = $this->phpRedisOption($name);
             }
 
             $redis->setOption($name, $value);
         }
+    }
+
+    /**
+     * Get the phpredis options configured on the connection.
+     *
+     * @return array<int|string, mixed>
+     */
+    protected function configuredPhpRedisOptions(): array
+    {
+        $connectionOptions = [];
+
+        foreach (self::CONNECTION_LEVEL_PHPREDIS_OPTIONS as $key) {
+            if ($key === 'read_timeout' && empty($this->config[$key])) {
+                continue;
+            }
+
+            if (array_key_exists($key, $this->config)) {
+                $connectionOptions[$key] = $this->config[$key];
+            }
+        }
+
+        return array_replace($connectionOptions, $this->config['options'] ?? []);
+    }
+
+    /**
+     * Resolve a phpredis option name to its native option constant.
+     */
+    protected function phpRedisOption(string $name): int
+    {
+        return match ($name) {
+            'serializer' => Redis::OPT_SERIALIZER,
+            'prefix' => Redis::OPT_PREFIX,
+            'read_timeout' => Redis::OPT_READ_TIMEOUT,
+            'scan' => Redis::OPT_SCAN,
+            'failover' => defined(Redis::class . '::OPT_SLAVE_FAILOVER') ? Redis::OPT_SLAVE_FAILOVER : 5,
+            'keepalive' => Redis::OPT_TCP_KEEPALIVE,
+            'compression' => Redis::OPT_COMPRESSION,
+            'reply_literal' => Redis::OPT_REPLY_LITERAL,
+            'compression_level' => Redis::OPT_COMPRESSION_LEVEL,
+            'max_retries' => Redis::OPT_MAX_RETRIES,
+            'backoff_algorithm' => Redis::OPT_BACKOFF_ALGORITHM,
+            'backoff_base' => Redis::OPT_BACKOFF_BASE,
+            'backoff_cap' => Redis::OPT_BACKOFF_CAP,
+            default => throw new InvalidRedisOptionException(sprintf('The redis option key `%s` is invalid.', $name)),
+        };
+    }
+
+    /**
+     * Parse a friendly phpredis backoff algorithm name.
+     */
+    protected function parseBackoffAlgorithm(mixed $algorithm): int
+    {
+        if (is_int($algorithm)) {
+            return $algorithm;
+        }
+
+        return match ($algorithm) {
+            'default' => Redis::BACKOFF_ALGORITHM_DEFAULT,
+            'decorrelated_jitter' => Redis::BACKOFF_ALGORITHM_DECORRELATED_JITTER,
+            'equal_jitter' => Redis::BACKOFF_ALGORITHM_EQUAL_JITTER,
+            'exponential' => Redis::BACKOFF_ALGORITHM_EXPONENTIAL,
+            'uniform' => Redis::BACKOFF_ALGORITHM_UNIFORM,
+            'constant' => Redis::BACKOFF_ALGORITHM_CONSTANT,
+            default => throw new InvalidRedisOptionException(
+                sprintf('Algorithm [%s] is not a valid PhpRedis backoff algorithm.', (string) $algorithm)
+            ),
+        };
     }
 
     /**

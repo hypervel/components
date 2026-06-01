@@ -20,7 +20,7 @@ class BoundMethod
      * (array callables, Class@method strings, Class::method strings, invocable
      * objects). Closures and global function strings are not cached here.
      *
-     * Persists for the worker lifetime. Flushed via flushMethodRecipeCache()
+     * Persists for the worker lifetime. Flushed via flushState()
      * which Container::flush() calls for test isolation.
      *
      * @var array<string, ParameterRecipe[]>
@@ -202,9 +202,9 @@ class BoundMethod
     }
 
     /**
-     * Flush the method and function recipe caches.
+     * Flush all static state.
      */
-    public static function flushMethodRecipeCache(): void
+    public static function flushState(): void
     {
         static::$methodRecipes = [];
         static::$functionRecipes = [];

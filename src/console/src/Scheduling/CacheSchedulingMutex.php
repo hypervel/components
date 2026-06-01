@@ -78,6 +78,9 @@ class CacheSchedulingMutex implements SchedulingMutex, CacheAware
 
     /**
      * Specify the cache store that should be used.
+     *
+     * Boot-only. Mutates the shared mutex instance for the worker lifetime;
+     * per-request use races across coroutines.
      */
     public function useStore(?string $store): static
     {

@@ -33,6 +33,7 @@ use Hypervel\Database\Eloquent\Casts\AsHtmlString;
 use Hypervel\Database\Eloquent\Casts\AsStringable;
 use Hypervel\Database\Eloquent\Casts\AsUri;
 use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Casts\Json;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Concerns\HasUlids;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;
@@ -3434,6 +3435,8 @@ class DatabaseEloquentModelTest extends TestCase
         $reflection->setStaticPropertyValue('isPrunable', [ModelStub::class => true]);
         $reflection->setStaticPropertyValue('isMassPrunable', [ModelStub::class => true]);
         $reflection->setStaticPropertyValue('resolvedCollectionClasses', [ModelStub::class => Collection::class]);
+        $reflection->setStaticPropertyValue('relationResolvers', [ModelStub::class => ['foo' => fn () => null]]);
+        $reflection->setStaticPropertyValue('guardableColumns', [ModelStub::class => ['id']]);
         $reflection->setStaticPropertyValue('mutatorCache', [ModelStub::class => ['foo']]);
         $reflection->setStaticPropertyValue('attributeMutatorCache', [ModelStub::class => ['foo' => true]]);
         $reflection->setStaticPropertyValue('getAttributeMutatorCache', [ModelStub::class => ['foo' => true]]);
@@ -3463,6 +3466,8 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame([], $reflection->getStaticPropertyValue('isPrunable'));
         $this->assertSame([], $reflection->getStaticPropertyValue('isMassPrunable'));
         $this->assertSame([], $reflection->getStaticPropertyValue('resolvedCollectionClasses'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('relationResolvers'));
+        $this->assertSame([], $reflection->getStaticPropertyValue('guardableColumns'));
         $this->assertTrue(Model::$snakeAttributes);
         $this->assertSame([], $reflection->getStaticPropertyValue('mutatorCache'));
         $this->assertSame([], $reflection->getStaticPropertyValue('attributeMutatorCache'));
@@ -3471,6 +3476,24 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame([], $reflection->getStaticPropertyValue('casterCache'));
         $this->assertSame([], $reflection->getStaticPropertyValue('castTypeCache'));
         $this->assertNull(Model::$encrypter);
+    }
+
+    public function testJsonFlushStateRestoresDefaultEncoderAndDecoder()
+    {
+        try {
+            Json::encodeUsing(fn () => 'encoded');
+            Json::decodeUsing(fn () => ['decoded' => true]);
+
+            $this->assertSame('encoded', Json::encode(['foo' => 'bar']));
+            $this->assertSame(['decoded' => true], Json::decode('{"foo":"bar"}'));
+
+            Json::flushState();
+
+            $this->assertSame('{"foo":"bar"}', Json::encode(['foo' => 'bar']));
+            $this->assertSame(['foo' => 'bar'], Json::decode('{"foo":"bar"}'));
+        } finally {
+            Json::flushState();
+        }
     }
 
     public function testThrowsWhenAccessingMissingAttributes()

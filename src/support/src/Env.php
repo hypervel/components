@@ -74,17 +74,6 @@ class Env
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$putenv = true;
-        static::$repository = null;
-        static::$adapters = [];
-        static::$customAdapters = [];
-    }
-
-    /**
      * Delete the given environment variable keys from all adapters.
      *
      * Bypasses the repository's ImmutableWriter and deletes directly
@@ -380,5 +369,16 @@ class Env
         }
 
         return $escaped;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$putenv = true;
+        static::$repository = null;
+        static::$adapters = [];
+        static::$customAdapters = [];
     }
 }

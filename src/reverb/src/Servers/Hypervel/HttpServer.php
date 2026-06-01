@@ -27,7 +27,14 @@ use Throwable;
  */
 class HttpServer implements OnRequestInterface, BootstrapsForServer
 {
+    /**
+     * The default maximum HTTP request body size, in bytes.
+     */
+    protected const DEFAULT_MAX_REQUEST_SIZE = 10_000;
+
     protected ReverbRouter $router;
+
+    protected int $maxRequestSize = self::DEFAULT_MAX_REQUEST_SIZE;
 
     public function __construct(
         protected Container $container,
@@ -35,12 +42,14 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
     }
 
     /**
-     * Resolve the Reverb router and compile its routes.
+     * Resolve the Reverb router, compile its routes, and cache server limits.
      */
     public function bootstrapForServer(string $serverName): void
     {
         $this->router = $this->container->make(ReverbRouter::class);
         $this->router->compileAndWarm();
+        $this->maxRequestSize = $this->container->make('config')
+            ->integer('reverb.servers.reverb.max_request_size', self::DEFAULT_MAX_REQUEST_SIZE);
     }
 
     /**
@@ -52,6 +61,12 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
 
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();
+
+            if ($this->exceedsMaxRequestSize($swooleRequest)) {
+                $response = new Response('Payload Too Large', 413);
+
+                return;
+            }
 
             $request = RequestBridge::createFromSwoole($swooleRequest);
             RequestContext::set($request);
@@ -68,5 +83,23 @@ class HttpServer implements OnRequestInterface, BootstrapsForServer
                 ResponseBridge::send($response, $swooleResponse);
             }
         }
+    }
+
+    /**
+     * Determine if the HTTP request exceeds Reverb's request-size limit.
+     */
+    protected function exceedsMaxRequestSize(SwooleRequest $request): bool
+    {
+        $contentLength = $request->header['content-length'] ?? null;
+
+        if (is_string($contentLength) && ctype_digit($contentLength)) {
+            return (int) $contentLength > $this->maxRequestSize;
+        }
+
+        // Requests without a valid Content-Length have already been bounded
+        // by Swoole's package limits; this fallback covers that uncommon path.
+        $content = $request->rawContent();
+
+        return is_string($content) && strlen($content) > $this->maxRequestSize;
     }
 }

@@ -68,6 +68,14 @@ class DotenvManager
     }
 
     /**
+     * Create a Dotenv instance using Env's repository.
+     */
+    protected static function createDotenv(array $paths, ?string $name = null): Dotenv
+    {
+        return Dotenv::create(Env::getRepository(), $paths, $name);
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void
@@ -81,13 +89,5 @@ class DotenvManager
         Env::flushRepository();
 
         static::$cachedValues = null;
-    }
-
-    /**
-     * Create a Dotenv instance using Env's repository.
-     */
-    protected static function createDotenv(array $paths, ?string $name = null): Dotenv
-    {
-        return Dotenv::create(Env::getRepository(), $paths, $name);
     }
 }

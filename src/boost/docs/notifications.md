@@ -33,12 +33,6 @@
     - [Prerequisites](#broadcast-prerequisites)
     - [Formatting Broadcast Notifications](#formatting-broadcast-notifications)
     - [Listening for Notifications](#listening-for-notifications)
-- [SMS Notifications](#sms-notifications)
-    - [Prerequisites](#sms-prerequisites)
-    - [Formatting SMS Notifications](#formatting-sms-notifications)
-    - [Customizing the "From" Number](#customizing-the-from-number)
-    - [Adding a Client Reference](#adding-a-client-reference)
-    - [Routing SMS Notifications](#routing-sms-notifications)
 - [Slack Notifications](#slack-notifications)
     - [Prerequisites](#slack-prerequisites)
     - [Formatting Slack Notifications](#formatting-slack-notifications)
@@ -53,14 +47,14 @@
 <a name="introduction"></a>
 ## Introduction
 
-In addition to support for [sending email](/docs/{{version}}/mail), Laravel provides support for sending notifications across a variety of delivery channels, including email, SMS (via [Vonage](https://www.vonage.com/communications-apis/), formerly known as Nexmo), and [Slack](https://slack.com). In addition, a variety of [community built notification channels](https://laravel-notification-channels.com/about/#suggesting-a-new-channel) have been created to send notifications over dozens of different channels! Notifications may also be stored in a database so they may be displayed in your web interface.
+In addition to support for [sending email](/docs/{{version}}/mail), Hypervel provides support for sending notifications across a variety of delivery channels, including email and [Slack](https://slack.com). Notifications may also be stored in a database so they may be displayed in your web interface.
 
-Typically, notifications should be short, informational messages that notify users of something that occurred in your application. For example, if you are writing a billing application, you might send an "Invoice Paid" notification to your users via the email and SMS channels.
+Typically, notifications should be short, informational messages that notify users of something that occurred in your application. For example, if you are writing a billing application, you might send an "Invoice Paid" notification to your users via the email and Slack channels.
 
 <a name="generating-notifications"></a>
 ## Generating Notifications
 
-In Laravel, each notification is represented by a single class that is typically stored in the `app/Notifications` directory. Don't worry if you don't see this directory in your application - it will be created for you when you run the `make:notification` Artisan command:
+In Hypervel, each notification is represented by a single class that is typically stored in the `app/Notifications` directory. Don't worry if you don't see this directory in your application - it will be created for you when you run the `make:notification` Artisan command:
 
 ```shell
 php artisan make:notification InvoicePaid
@@ -121,10 +115,10 @@ Notification::sendNow($developers, new DeploymentCompleted($deployment));
 <a name="specifying-delivery-channels"></a>
 ### Specifying Delivery Channels
 
-Every notification class has a `via` method that determines on which channels the notification will be delivered. Notifications may be sent on the `mail`, `database`, `broadcast`, `vonage`, and `slack` channels.
+Every notification class has a `via` method that determines on which channels the notification will be delivered. Notifications may be sent on the `mail`, `database`, `broadcast`, and `slack` channels.
 
 > [!NOTE]
-> If you would like to use other delivery channels such as Telegram or Pusher, check out the community driven [Laravel Notification Channels website](http://laravel-notification-channels.com).
+> If you would like to use other delivery channels such as SMS, Telegram, or Pusher, you may define a [custom channel](#custom-channels).
 
 The `via` method receives a `$notifiable` instance, which will be an instance of the class to which the notification is being sent. You may use `$notifiable` to determine which channels the notification should be delivered on:
 
@@ -136,7 +130,7 @@ The `via` method receives a `$notifiable` instance, which will be an instance of
  */
 public function via(object $notifiable): array
 {
-    return $notifiable->prefers_sms ? ['vonage'] : ['mail', 'database'];
+    return $notifiable->prefers_slack ? ['slack'] : ['mail', 'database'];
 }
 ```
 
@@ -165,7 +159,7 @@ class InvoicePaid extends Notification implements ShouldQueue
 }
 ```
 
-Once the `ShouldQueue` interface has been added to your notification, you may send the notification like normal. Laravel will detect the `ShouldQueue` interface on the class and automatically queue the delivery of the notification:
+Once the `ShouldQueue` interface has been added to your notification, you may send the notification like normal. Hypervel will detect the `ShouldQueue` interface on the class and automatically queue the delivery of the notification:
 
 ```php
 $user->notify(new InvoicePaid($invoice));
@@ -189,7 +183,7 @@ You may pass an array to the `delay` method to specify the delay amount for spec
 ```php
 $user->notify((new InvoicePaid($invoice))->delay([
     'mail' => now()->plus(minutes: 5),
-    'sms' => now()->plus(minutes: 10),
+    'slack' => now()->plus(minutes: 10),
 ]));
 ```
 
@@ -205,7 +199,7 @@ public function withDelay(object $notifiable): array
 {
     return [
         'mail' => now()->plus(minutes: 5),
-        'sms' => now()->plus(minutes: 10),
+        'slack' => now()->plus(minutes: 10),
     ];
 }
 ```
@@ -454,7 +448,6 @@ use Hypervel\Broadcasting\Channel;
 use Hypervel\Support\Facades\Notification;
 
 Notification::route('mail', 'taylor@example.com')
-    ->route('vonage', '5555555555')
     ->route('slack', '#slack-channel')
     ->route('broadcast', [new Channel('channel-name')])
     ->notify(new InvoicePaid($invoice));
@@ -473,7 +466,7 @@ Using the `routes` method, you may provide ad-hoc routing information for multip
 ```php
 Notification::routes([
     'mail' => ['barrett@example.com' => 'Barrett Blair'],
-    'vonage' => '5555555555',
+    'slack' => '#slack-channel',
 ])->notify(new InvoicePaid($invoice));
 ```
 
@@ -507,9 +500,7 @@ public function toMail(object $notifiable): MailMessage
 > [!NOTE]
 > Note we are using `$this->invoice->id` in our `toMail` method. You may pass any data your notification needs to generate its message into the notification's constructor.
 
-In this example, we register a greeting, a line of text, a call to action, and then another line of text. These methods provided by the `MailMessage` object make it simple and fast to format small transactional emails. The mail channel will then translate the message components into a beautiful, responsive HTML email template with a plain-text counterpart. Here is an example of an email generated by the `mail` channel:
-
-<img src="https://laravel.com/img/docs/notification-example-2.png">
+In this example, we register a greeting, a line of text, a call to action, and then another line of text. These methods provided by the `MailMessage` object make it simple and fast to format small transactional emails. The mail channel will then translate the message components into a beautiful, responsive HTML email template with a plain-text counterpart.
 
 > [!NOTE]
 > When sending mail notifications, be sure to set the `name` configuration option in your `config/app.php` configuration file. This value will be used in the header and footer of your mail notification messages.
@@ -669,7 +660,7 @@ public function toMail(object $notifiable): MailMessage
 You can modify the HTML and plain-text template used by mail notifications by publishing the notification package's resources. After running this command, the mail notification templates will be located in the `resources/views/vendor/notifications` directory:
 
 ```shell
-php artisan vendor:publish --tag=laravel-notifications
+php artisan vendor:publish --tag=hypervel-notifications
 ```
 
 <a name="mail-attachments"></a>
@@ -736,8 +727,8 @@ public function toMail(object $notifiable): MailMessage
     return (new MailMessage)
         ->greeting('Hello!')
         ->attachMany([
-            '/path/to/forge.svg',
-            '/path/to/vapor.svg' => [
+            '/path/to/report.pdf',
+            '/path/to/logo.svg' => [
                 'as' => 'Logo.svg',
                 'mime' => 'image/svg+xml',
             ],
@@ -854,7 +845,7 @@ public function toMail(object $notifiable): Mailable
 <a name="previewing-mail-notifications"></a>
 ### Previewing Mail Notifications
 
-When designing a mail notification template, it is convenient to quickly preview the rendered mail message in your browser like a typical Blade template. For this reason, Laravel allows you to return any mail message generated by a mail notification directly from a route closure or controller. When a `MailMessage` is returned, it will be rendered and displayed in the browser, allowing you to quickly preview its design without needing to send it to an actual email address:
+When designing a mail notification template, it is convenient to quickly preview the rendered mail message in your browser like a typical Blade template. For this reason, Hypervel allows you to return any mail message generated by a mail notification directly from a route closure or controller. When a `MailMessage` is returned, it will be rendered and displayed in the browser, allowing you to quickly preview its design without needing to send it to an actual email address:
 
 ```php
 use App\Models\Invoice;
@@ -871,7 +862,7 @@ Route::get('/notification', function () {
 <a name="markdown-mail-notifications"></a>
 ## Markdown Mail Notifications
 
-Markdown mail notifications allow you to take advantage of the pre-built templates of mail notifications, while giving you more freedom to write longer, customized messages. Since the messages are written in Markdown, Laravel is able to render beautiful, responsive HTML templates for the messages while also automatically generating a plain-text counterpart.
+Markdown mail notifications allow you to take advantage of the pre-built templates of mail notifications, while giving you more freedom to write longer, customized messages. Since the messages are written in Markdown, Hypervel is able to render beautiful, responsive HTML templates for the messages while also automatically generating a plain-text counterpart.
 
 <a name="generating-the-message"></a>
 ### Generating the Message
@@ -901,7 +892,7 @@ public function toMail(object $notifiable): MailMessage
 <a name="writing-the-message"></a>
 ### Writing the Message
 
-Markdown mail notifications use a combination of Blade components and Markdown syntax which allow you to easily construct notifications while leveraging Laravel's pre-crafted notification components:
+Markdown mail notifications use a combination of Blade components and Markdown syntax which allow you to easily construct notifications while leveraging Hypervel's pre-crafted notification components:
 
 ```blade
 <x-mail::message>
@@ -950,7 +941,7 @@ The table component allows you to transform a Markdown table into an HTML table.
 
 ```blade
 <x-mail::table>
-| Laravel       | Table         | Example       |
+| Hypervel      | Table         | Example       |
 | ------------- | :-----------: | ------------: |
 | Col 2 is      | Centered      | $10           |
 | Col 3 is      | Right-Aligned | $20           |
@@ -960,10 +951,10 @@ The table component allows you to transform a Markdown table into an HTML table.
 <a name="customizing-the-components"></a>
 ### Customizing the Components
 
-You may export all of the Markdown notification components to your own application for customization. To export the components, use the `vendor:publish` Artisan command to publish the `laravel-mail` asset tag:
+You may export all of the Markdown notification components to your own application for customization. To export the components, use the `vendor:publish` Artisan command to publish the `hypervel-mail` asset tag:
 
 ```shell
-php artisan vendor:publish --tag=laravel-mail
+php artisan vendor:publish --tag=hypervel-mail
 ```
 
 This command will publish the Markdown mail components to the `resources/views/vendor/mail` directory. The `mail` directory will contain an `html` and a `text` directory, each containing their respective representations of every available component. You are free to customize these components however you like.
@@ -973,7 +964,7 @@ This command will publish the Markdown mail components to the `resources/views/v
 
 After exporting the components, the `resources/views/vendor/mail/html/themes` directory will contain a `default.css` file. You may customize the CSS in this file and your styles will automatically be in-lined within the HTML representations of your Markdown notifications.
 
-If you would like to build an entirely new theme for Laravel's Markdown components, you may place a CSS file within the `html/themes` directory. After naming and saving your CSS file, update the `theme` option of the `mail` configuration file to match the name of your new theme.
+If you would like to build an entirely new theme for Hypervel's Markdown components, you may place a CSS file within the `html/themes` directory. After naming and saving your CSS file, update the `theme` option of the `mail` configuration file to match the name of your new theme.
 
 To customize the theme for an individual notification, you may call the `theme` method while building the notification's mail message. The `theme` method accepts the name of the theme that should be used when sending the notification:
 
@@ -1059,7 +1050,7 @@ The `toArray` method is also used by the `broadcast` channel to determine which 
 <a name="accessing-the-notifications"></a>
 ### Accessing the Notifications
 
-Once notifications are stored in the database, you need a convenient way to access them from your notifiable entities. The `Hypervel\Notifications\Notifiable` trait, which is included on Laravel's default `App\Models\User` model, includes a `notifications` [Eloquent relationship](/docs/{{version}}/eloquent-relationships) that returns the notifications for the entity. To fetch notifications, you may access this method like any other Eloquent relationship. By default, notifications will be sorted by the `created_at` timestamp with the most recent notifications at the beginning of the collection:
+Once notifications are stored in the database, you need a convenient way to access them from your notifiable entities. The `Hypervel\Notifications\Notifiable` trait, which is included on Hypervel's default `App\Models\User` model, includes a `notifications` [Eloquent relationship](/docs/{{version}}/eloquent-relationships) that returns the notifications for the entity. To fetch notifications, you may access this method like any other Eloquent relationship. By default, notifications will be sorted by the `created_at` timestamp with the most recent notifications at the beginning of the collection:
 
 ```php
 $user = App\Models\User::find(1);
@@ -1125,18 +1116,24 @@ You may `delete` the notifications to remove them from the table entirely:
 $user->notifications()->delete();
 ```
 
+To mark notifications as "unread", you may use the `markAsUnread` method:
+
+```php
+$user->readNotifications->markAsUnread();
+```
+
 <a name="broadcast-notifications"></a>
 ## Broadcast Notifications
 
 <a name="broadcast-prerequisites"></a>
 ### Prerequisites
 
-Before broadcasting notifications, you should configure and be familiar with Laravel's [event broadcasting](/docs/{{version}}/broadcasting) services. Event broadcasting provides a way to react to server-side Laravel events from your JavaScript powered frontend.
+Before broadcasting notifications, you should configure and be familiar with Hypervel's [event broadcasting](/docs/{{version}}/broadcasting) services. Event broadcasting provides a way to react to server-side Hypervel events from your JavaScript powered frontend.
 
 <a name="formatting-broadcast-notifications"></a>
 ### Formatting Broadcast Notifications
 
-The `broadcast` channel broadcasts notifications using Laravel's [event broadcasting](/docs/{{version}}/broadcasting) services, allowing your JavaScript powered frontend to catch notifications in realtime. If a notification supports broadcasting, you can define a `toBroadcast` method on the notification class. This method will receive a `$notifiable` entity and should return a `BroadcastMessage` instance. If the `toBroadcast` method does not exist, the `toArray` method will be used to gather the data that should be broadcast. The returned data will be encoded as JSON and broadcast to your JavaScript powered frontend. Let's take a look at an example `toBroadcast` method:
+The `broadcast` channel broadcasts notifications using Hypervel's [event broadcasting](/docs/{{version}}/broadcasting) services, allowing your JavaScript powered frontend to catch notifications in realtime. If a notification supports broadcasting, you can define a `toBroadcast` method on the notification class. This method will receive a `$notifiable` entity and should return a `BroadcastMessage` instance. If the `toBroadcast` method does not exist, the `toArray` method will be used to gather the data that should be broadcast. The returned data will be encoded as JSON and broadcast to your JavaScript powered frontend. Let's take a look at an example `toBroadcast` method:
 
 ```php
 use Hypervel\Notifications\Messages\BroadcastMessage;
@@ -1176,6 +1173,22 @@ In addition to the data you specify, all broadcast notifications also have a `ty
 public function broadcastType(): string
 {
     return 'broadcast.message';
+}
+```
+
+#### Customizing the Broadcast Channels
+
+If you would like to customize the channels a notification is broadcast on, you may define a `broadcastOn` method on the notification class:
+
+```php
+use Hypervel\Broadcasting\PrivateChannel;
+
+/**
+ * Get the channels the notification should broadcast on.
+ */
+public function broadcastOn(): array
+{
+    return [new PrivateChannel('invoices')];
 }
 ```
 
@@ -1322,142 +1335,13 @@ class User extends Authenticatable
 }
 ```
 
-<a name="sms-notifications"></a>
-## SMS Notifications
-
-<a name="sms-prerequisites"></a>
-### Prerequisites
-
-Sending SMS notifications in Laravel is powered by [Vonage](https://www.vonage.com/) (formerly known as Nexmo). Before you can send notifications via Vonage, you need to install the `laravel/vonage-notification-channel` and `guzzlehttp/guzzle` packages:
-
-```shell
-composer require laravel/vonage-notification-channel guzzlehttp/guzzle
-```
-
-The package includes a [configuration file](https://github.com/laravel/vonage-notification-channel/blob/3.x/config/vonage.php). However, you are not required to export this configuration file to your own application. You can simply use the `VONAGE_KEY` and `VONAGE_SECRET` environment variables to define your Vonage public and secret keys.
-
-After defining your keys, you should set a `VONAGE_SMS_FROM` environment variable that defines the phone number that your SMS messages should be sent from by default. You may generate this phone number within the Vonage control panel:
-
-```ini
-VONAGE_SMS_FROM=15556666666
-```
-
-<a name="formatting-sms-notifications"></a>
-### Formatting SMS Notifications
-
-If a notification supports being sent as an SMS, you should define a `toVonage` method on the notification class. This method will receive a `$notifiable` entity and should return an `Hypervel\Notifications\Messages\VonageMessage` instance:
-
-```php
-use Hypervel\Notifications\Messages\VonageMessage;
-
-/**
- * Get the Vonage / SMS representation of the notification.
- */
-public function toVonage(object $notifiable): VonageMessage
-{
-    return (new VonageMessage)
-        ->content('Your SMS message content');
-}
-```
-
-<a name="unicode-content"></a>
-#### Unicode Content
-
-If your SMS message will contain unicode characters, you should call the `unicode` method when constructing the `VonageMessage` instance:
-
-```php
-use Hypervel\Notifications\Messages\VonageMessage;
-
-/**
- * Get the Vonage / SMS representation of the notification.
- */
-public function toVonage(object $notifiable): VonageMessage
-{
-    return (new VonageMessage)
-        ->content('Your unicode message')
-        ->unicode();
-}
-```
-
-<a name="customizing-the-from-number"></a>
-### Customizing the "From" Number
-
-If you would like to send some notifications from a phone number that is different from the phone number specified by your `VONAGE_SMS_FROM` environment variable, you may call the `from` method on a `VonageMessage` instance:
-
-```php
-use Hypervel\Notifications\Messages\VonageMessage;
-
-/**
- * Get the Vonage / SMS representation of the notification.
- */
-public function toVonage(object $notifiable): VonageMessage
-{
-    return (new VonageMessage)
-        ->content('Your SMS message content')
-        ->from('15554443333');
-}
-```
-
-<a name="adding-a-client-reference"></a>
-### Adding a Client Reference
-
-If you would like to keep track of costs per user, team, or client, you may add a "client reference" to the notification. Vonage will allow you to generate reports using this client reference so that you can better understand a particular customer's SMS usage. The client reference can be any string up to 40 characters:
-
-```php
-use Hypervel\Notifications\Messages\VonageMessage;
-
-/**
- * Get the Vonage / SMS representation of the notification.
- */
-public function toVonage(object $notifiable): VonageMessage
-{
-    return (new VonageMessage)
-        ->clientReference((string) $notifiable->id)
-        ->content('Your SMS message content');
-}
-```
-
-<a name="routing-sms-notifications"></a>
-### Routing SMS Notifications
-
-To route Vonage notifications to the proper phone number, define a `routeNotificationForVonage` method on your notifiable entity:
-
-```php
-<?php
-
-namespace App\Models;
-
-use Hypervel\Foundation\Auth\User as Authenticatable;
-use Hypervel\Notifications\Notifiable;
-use Hypervel\Notifications\Notification;
-
-class User extends Authenticatable
-{
-    use Notifiable;
-
-    /**
-     * Route notifications for the Vonage channel.
-     */
-    public function routeNotificationForVonage(Notification $notification): string
-    {
-        return $this->phone_number;
-    }
-}
-```
-
 <a name="slack-notifications"></a>
 ## Slack Notifications
 
 <a name="slack-prerequisites"></a>
 ### Prerequisites
 
-Before sending Slack notifications, you should install the Slack notification channel via Composer:
-
-```shell
-composer require laravel/slack-notification-channel
-```
-
-Additionally, you must create a [Slack App](https://api.slack.com/apps?new_app=1) for your Slack workspace.
+Before sending Slack notifications, you must create a [Slack App](https://api.slack.com/apps?new_app=1) for your Slack workspace.
 
 If you only need to send notifications to the same Slack workspace that the App is created in, you should ensure that your App has the `chat:write`, `chat:write.public`, and `chat:write.customize` scopes. These scopes can be added from the "OAuth & Permissions" App management tab within Slack.
 
@@ -1480,7 +1364,7 @@ If your application will be sending notifications to external Slack workspaces t
 <a name="formatting-slack-notifications"></a>
 ### Formatting Slack Notifications
 
-If a notification supports being sent as a Slack message, you should define a `toSlack` method on the notification class. This method will receive a `$notifiable` entity and should return an `Hypervel\Notifications\Slack\SlackMessage` instance. You can construct rich notifications using [Slack's Block Kit API](https://api.slack.com/block-kit). The following example may be previewed in [Slack's Block Kit builder](https://app.slack.com/block-kit-builder/T01KWS6K23Z#%7B%22blocks%22:%5B%7B%22type%22:%22header%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Invoice%20Paid%22%7D%7D,%7B%22type%22:%22context%22,%22elements%22:%5B%7B%22type%22:%22plain_text%22,%22text%22:%22Customer%20%231234%22%7D%5D%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22An%20invoice%20has%20been%20paid.%22%7D,%22fields%22:%5B%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20No:*%5Cn1000%22%7D,%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20Recipient:*%5Cntaylor@laravel.com%22%7D%5D%7D,%7B%22type%22:%22divider%22%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Congratulations!%22%7D%7D%5D%7D):
+If a notification supports being sent as a Slack message, you should define a `toSlack` method on the notification class. This method will receive a `$notifiable` entity and should return an `Hypervel\Notifications\Slack\SlackMessage` instance. You can construct rich notifications using [Slack's Block Kit API](https://api.slack.com/block-kit). The following example may be previewed in [Slack's Block Kit builder](https://app.slack.com/block-kit-builder/T01KWS6K23Z#%7B%22blocks%22:%5B%7B%22type%22:%22header%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Invoice%20Paid%22%7D%7D,%7B%22type%22:%22context%22,%22elements%22:%5B%7B%22type%22:%22plain_text%22,%22text%22:%22Customer%20%231234%22%7D%5D%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22An%20invoice%20has%20been%20paid.%22%7D,%22fields%22:%5B%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20No:*%5Cn1000%22%7D,%7B%22type%22:%22mrkdwn%22,%22text%22:%22*Invoice%20Recipient:*%5Cnbarrett@example.com%22%7D%5D%7D,%7B%22type%22:%22divider%22%7D,%7B%22type%22:%22section%22,%22text%22:%7B%22type%22:%22plain_text%22,%22text%22:%22Congratulations!%22%7D%7D%5D%7D):
 
 ```php
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
@@ -1501,7 +1385,7 @@ public function toSlack(object $notifiable): SlackMessage
         ->sectionBlock(function (SectionBlock $block) {
             $block->text('An invoice has been paid.');
             $block->field("*Invoice No:*\n1000")->markdown();
-            $block->field("*Invoice Recipient:*\ntaylor@laravel.com")->markdown();
+            $block->field("*Invoice Recipient:*\nbarrett@example.com")->markdown();
         })
         ->dividerBlock()
         ->sectionBlock(function (SectionBlock $block) {
@@ -1679,7 +1563,7 @@ class User extends Authenticatable
 > [!NOTE]
 > Before sending notifications to external Slack workspaces, your Slack App must be [distributed](#slack-app-distribution).
 
-Of course, you will often want to send notifications to the Slack workspaces owned by your application's users. To do so, you will first need to obtain a Slack OAuth token for the user. Thankfully, [Laravel Socialite](/docs/{{version}}/socialite) includes a Slack driver that will allow you to easily authenticate your application's users with Slack and [obtain a bot token](/docs/{{version}}/socialite#slack-bot-scopes).
+Of course, you will often want to send notifications to the Slack workspaces owned by your application's users. To do so, you will first need to obtain a Slack OAuth token for the user. Thankfully, [Hypervel Socialite](/docs/{{version}}/socialite) includes a Slack driver that will allow you to easily authenticate your application's users with Slack and [obtain a bot token](/docs/{{version}}/socialite#slack-bot-scopes).
 
 Once you have obtained the bot token and stored it within your application's database, you may utilize the `SlackRoute::make` method to route a notification to the user's workspace. In addition, your application will likely need to offer an opportunity for the user to specify which channel notifications should be sent to:
 
@@ -1710,7 +1594,7 @@ class User extends Authenticatable
 <a name="localizing-notifications"></a>
 ## Localizing Notifications
 
-Laravel allows you to send notifications in a locale other than the HTTP request's current locale, and will even remember this locale if the notification is queued.
+Hypervel allows you to send notifications in a locale other than the HTTP request's current locale, and will even remember this locale if the notification is queued.
 
 To accomplish this, the `Hypervel\Notifications\Notification` class offers a `locale` method to set the desired language. The application will change into this locale when the notification is being evaluated and then revert back to the previous locale when evaluation is complete:
 
@@ -1729,7 +1613,7 @@ Notification::locale('es')->send(
 <a name="user-preferred-locales"></a>
 #### User Preferred Locales
 
-Sometimes, applications store each user's preferred locale. By implementing the `HasLocalePreference` contract on your notifiable model, you may instruct Laravel to use this stored locale when sending a notification:
+Sometimes, applications store each user's preferred locale. By implementing the `HasLocalePreference` contract on your notifiable model, you may instruct Hypervel to use this stored locale when sending a notification:
 
 ```php
 use Hypervel\Contracts\Translation\HasLocalePreference;
@@ -1746,7 +1630,7 @@ class User extends Model implements HasLocalePreference
 }
 ```
 
-Once you have implemented the interface, Laravel will automatically use the preferred locale when sending notifications and mailables to the model. Therefore, there is no need to call the `locale` method when using this interface:
+Once you have implemented the interface, Hypervel will automatically use the preferred locale when sending notifications and mailables to the model. Therefore, there is no need to call the `locale` method when using this interface:
 
 ```php
 $user->notify(new InvoicePaid($invoice));
@@ -1755,7 +1639,7 @@ $user->notify(new InvoicePaid($invoice));
 <a name="testing"></a>
 ## Testing
 
-You may use the `Notification` facade's `fake` method to prevent notifications from being sent. Typically, sending notifications is unrelated to the code you are actually testing. Most likely, it is sufficient to simply assert that Laravel was instructed to send a given notification.
+You may use the `Notification` facade's `fake` method to prevent notifications from being sent. Typically, sending notifications is unrelated to the code you are actually testing. Most likely, it is sufficient to simply assert that Hypervel was instructed to send a given notification.
 
 After calling the `Notification` facade's `fake` method, you may then assert that notifications were instructed to be sent to users and even inspect the data the notifications received:
 
@@ -1841,7 +1725,7 @@ Notification::assertSentTo(
 );
 ```
 
-<a name="on-demand-notifications"></a>
+<a name="on-demand-notification-testing"></a>
 #### On-Demand Notifications
 
 If the code you are testing sends [on-demand notifications](#on-demand-notifications), you can test that the on-demand notification was sent via the `assertSentOnDemand` method:
@@ -1945,10 +1829,33 @@ public function handle(NotificationSent $event): void
 }
 ```
 
+<a name="notification-failed-event"></a>
+#### Notification Failed Event
+
+If a notification channel throws an exception while sending a notification, the `Hypervel\Notifications\Events\NotificationFailed` [event](/docs/{{version}}/events) is dispatched by the notification system. This contains the "notifiable" entity, notification instance, channel name, and exception data:
+
+```php
+use Hypervel\Notifications\Events\NotificationFailed;
+
+class LogFailedNotification
+{
+    /**
+     * Handle the event.
+     */
+    public function handle(NotificationFailed $event): void
+    {
+        // $event->channel
+        // $event->notifiable
+        // $event->notification
+        // $event->data['exception']
+    }
+}
+```
+
 <a name="custom-channels"></a>
 ## Custom Channels
 
-Laravel ships with a handful of notification channels, but you may want to write your own drivers to deliver notifications via other channels. Laravel makes it simple. To get started, define a class that contains a `send` method. The method should receive two arguments: a `$notifiable` and a `$notification`.
+Hypervel ships with a handful of notification channels, but you may want to write your own drivers to deliver notifications via other channels. Hypervel makes it simple. To get started, define a class that contains a `send` method. The method should receive two arguments: a `$notifiable` and a `$notification`.
 
 Within the `send` method, you may call methods on the notification to retrieve a message object understood by your channel and then send the notification to the `$notifiable` instance however you wish:
 
@@ -2005,5 +1912,34 @@ class InvoicePaid extends Notification
     {
         // ...
     }
+}
+```
+
+If your custom channel wraps a transport that should not be used by multiple coroutines at the same time, such as a persistent connection or SDK client, you may register it as a custom driver and opt it into pooling:
+
+```php
+use App\Notifications\VoiceChannel;
+use Hypervel\Support\Facades\Notification;
+
+Notification::extend('voice', function ($app) {
+    return $app->make(VoiceChannel::class);
+}, poolable: true);
+
+Notification::setPoolConfig('voice', [
+    'min_objects' => 1,
+    'max_objects' => 10,
+    'wait_timeout' => 3.0,
+]);
+```
+
+Once the custom driver has been registered, you may return its name from your notification's `via` method:
+
+```php
+/**
+ * Get the notification channels.
+ */
+public function via(object $notifiable): array
+{
+    return ['voice'];
 }
 ```

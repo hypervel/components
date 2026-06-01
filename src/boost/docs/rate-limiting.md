@@ -4,12 +4,13 @@
     - [Cache Configuration](#cache-configuration)
 - [Basic Usage](#basic-usage)
     - [Manually Incrementing Attempts](#manually-incrementing-attempts)
+    - [Retrieving Attempts](#retrieving-attempts)
     - [Clearing Attempts](#clearing-attempts)
 
 <a name="introduction"></a>
 ## Introduction
 
-Laravel includes a simple to use rate limiting abstraction which, in conjunction with your application's [cache](cache), provides an easy way to limit any action during a specified window of time.
+Hypervel includes a simple to use rate limiting abstraction which, in conjunction with your application's [cache](/docs/{{version}}/cache), provides an easy way to limit any action during a specified window of time.
 
 > [!NOTE]
 > If you are interested in rate limiting incoming HTTP requests, please consult the [rate limiter middleware documentation](/docs/{{version}}/routing#rate-limiting).
@@ -96,6 +97,21 @@ If you would like to increment the value for a given rate limiter key by more th
 RateLimiter::increment('send-message:'.$user->id, amount: 5);
 ```
 
+If you would like to decrement the value for a given rate limiter key, you may use the `decrement` method:
+
+```php
+RateLimiter::decrement('send-message:'.$user->id);
+```
+
+<a name="retrieving-attempts"></a>
+### Retrieving Attempts
+
+You may use the `attempts` method to retrieve the number of attempts for a given rate limiter key:
+
+```php
+$attempts = RateLimiter::attempts('send-message:'.$user->id);
+```
+
 <a name="determining-limiter-availability"></a>
 #### Determining Limiter Availability
 
@@ -135,4 +151,10 @@ public function read(Message $message): Message
 
     return $message;
 }
+```
+
+If you would like to reset the number of attempts for a given rate limiter key without clearing the lockout timer, you may use the `resetAttempts` method:
+
+```php
+RateLimiter::resetAttempts('send-message:'.$user->id);
 ```

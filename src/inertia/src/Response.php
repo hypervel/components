@@ -269,4 +269,12 @@ class Response implements Responsable
             ? $urlWithoutQueryWithTrailingSlash . '?' . Str::after($url, '?')
             : $urlWithoutQueryWithTrailingSlash;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

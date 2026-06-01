@@ -30,24 +30,11 @@ namespace Hypervel\Support\Facades;
  * @method static int flushByPattern(string $pattern)
  * @method static array|\Redis pipeline(callable|null $callback = null)
  * @method static array|\Redis|\RedisCluster transaction(callable|null $callback = null)
- * @method static \Hypervel\Redis\RedisConnection getActiveConnection()
  * @method static \Hypervel\Contracts\Events\Dispatcher|null getEventDispatcher()
- * @method static bool reconnect()
- * @method static bool close()
- * @method static void release()
- * @method static void setDatabase(int|null $database)
- * @method static \Hypervel\Redis\RedisConnection shouldTransform(bool $shouldTransform = true)
- * @method static bool getShouldTransform()
  * @method static bool serialized()
  * @method static bool compressed()
  * @method static array<int|string, string> pack(array<int|string, mixed> $values)
- * @method static \Redis|\RedisCluster client()
  * @method static mixed evalWithShaCache(string $script, array<string> $keys = [], array<mixed> $args = [])
- * @method static \Generator<string> safeScan(string $pattern, int $count = 1000)
- * @method static mixed getConnection()
- * @method static bool check()
- * @method static float getLastUseTime()
- * @method static float getLastReleaseTime()
  * @method static mixed get(string $key) Get the value of a key
  * @method static bool set(string $key, mixed $value, mixed $expireResolution = null, mixed $expireTTL = null, mixed $flag = null) Set the value of a key
  * @method static array mget(array $keys) Get the values of multiple keys
@@ -85,7 +72,6 @@ namespace Hypervel\Support\Facades;
  * @method static mixed _unpack(string $value)
  * @method static mixed acl(string $subcmd, string ...$args)
  * @method static (false|int|\Redis) append(string $key, mixed $value)
- * @method static (bool|\Redis) auth(mixed $credentials)
  * @method static (bool|\Redis) bgSave()
  * @method static (bool|\Redis) bgrewriteaof()
  * @method static (array|false|\Redis) waitaof(int $numlocal, int $numreplicas, int $timeout)
@@ -101,7 +87,6 @@ namespace Hypervel\Support\Facades;
  * @method static (null|array|false|\Redis) lmpop(array $keys, string $from, int $count = 1)
  * @method static bool clearLastError()
  * @method static mixed config(string $operation, (array|string|null) $key_or_settings = null, (string|null) $value = null)
- * @method static bool connect(string $host, int $port = 6379, float $timeout = 0, (string|null) $persistent_id = null, int $retry_interval = 0, float $read_timeout = 0, (array|null) $context = null)
  * @method static (bool|\Redis) copy(string $src, string $dst, (array|null) $options = null)
  * @method static (false|int|\Redis) dbSize()
  * @method static (\Redis|string) debug(string $key)
@@ -203,7 +188,6 @@ namespace Hypervel\Support\Facades;
  * @method static (bool|\Redis) msetnx(array $key_values)
  * @method static (bool|\Redis) multi(int $value = 1)
  * @method static (false|int|\Redis|string) object(string $subcommand, string $key)
- * @method static bool pconnect(string $host, int $port = 6379, float $timeout = 0, (string|null) $persistent_id = null, int $retry_interval = 0, float $read_timeout = 0, (array|null) $context = null)
  * @method static (bool|\Redis) persist(string $key)
  * @method static bool pexpire(string $key, int $timeout, (string|null) $mode = null)
  * @method static (bool|\Redis) pexpireAt(string $key, int $timestamp, (string|null) $mode = null)
@@ -245,8 +229,7 @@ namespace Hypervel\Support\Facades;
  * @method static (false|string) serverVersion()
  * @method static (false|int|\Redis) setBit(string $key, int $idx, bool $value)
  * @method static (false|int|\Redis) setRange(string $key, int $index, string $value)
- * @method static bool setOption(int $option, mixed $value)
- * @method static void setex(string $key, int $expire, mixed $value)
+ * @method static (bool|\Redis) setex(string $key, int $expire, mixed $value)
  * @method static (bool|\Redis) sismember(string $key, mixed $value)
  * @method static (bool|\Redis) replicaof((string|null) $host = null, int $port = 6379)
  * @method static (false|int|\Redis) touch((array|string) $key_or_array, string ...$more_keys)
@@ -320,6 +303,36 @@ namespace Hypervel\Support\Facades;
  */
 class Redis extends Facade
 {
+    /**
+     * Get methods that should be excluded from the generated facade docblock.
+     *
+     * Keep in sync with RedisProxy's connection-bound methods.
+     *
+     * @return array<int, string>
+     */
+    protected static function ignoredFacadeDocumenterMethods(): array
+    {
+        return [
+            'auth',
+            'check',
+            'client',
+            'close',
+            'connect',
+            'getActiveConnection',
+            'getConnection',
+            'getLastReleaseTime',
+            'getLastUseTime',
+            'getShouldTransform',
+            'pconnect',
+            'reconnect',
+            'release',
+            'safeScan',
+            'setDatabase',
+            'setOption',
+            'shouldTransform',
+        ];
+    }
+
     protected static function getFacadeAccessor(): string
     {
         return 'redis';

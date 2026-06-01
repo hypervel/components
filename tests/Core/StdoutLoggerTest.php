@@ -69,6 +69,22 @@ class StdoutLoggerTest extends TestCase
         $logger->info('This should not be logged.');
     }
 
+    public function testLevelFilteringUsesConstructionTimeConfig()
+    {
+        $config = new Repository([
+            'app' => ['stdout_log' => ['level' => [LogLevel::ERROR]]],
+        ]);
+
+        $output = m::mock(ConsoleOutput::class);
+        $output->shouldReceive('writeln')->with(m::any())->once();
+
+        $logger = new StdoutLogger($config, $output);
+
+        $config->set('app.stdout_log.level', []);
+
+        $logger->error('This should still be logged.');
+    }
+
     public function testDefaultFormatIsLine()
     {
         $output = m::mock(ConsoleOutput::class);

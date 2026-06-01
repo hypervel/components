@@ -150,19 +150,6 @@ class StrCache
     }
 
     /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::$snakeCache = [];
-        static::$camelCache = [];
-        static::$studlyCache = [];
-        static::$pluralCache = [];
-        static::$singularCache = [];
-        static::$pluralStudlyCache = [];
-    }
-
-    /**
      * Flush the snake cache.
      */
     public static function flushSnake(): void
@@ -207,6 +194,19 @@ class StrCache
      */
     public static function flushPluralStudly(): void
     {
+        static::$pluralStudlyCache = [];
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$snakeCache = [];
+        static::$camelCache = [];
+        static::$studlyCache = [];
+        static::$pluralCache = [];
+        static::$singularCache = [];
         static::$pluralStudlyCache = [];
     }
 }
