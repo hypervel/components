@@ -94,7 +94,9 @@ class RedisProxy implements ConnectionContract
 
     /**
      * Scan keys matching a pattern.
+     *
      * @param mixed $cursor
+     * @param mixed ...$arguments
      */
     public function scan($cursor, ...$arguments)
     {
@@ -103,8 +105,10 @@ class RedisProxy implements ConnectionContract
 
     /**
      * Scan hash fields matching a pattern.
+     *
      * @param mixed $key
      * @param mixed $cursor
+     * @param mixed ...$arguments
      */
     public function hScan($key, $cursor, ...$arguments)
     {
@@ -113,8 +117,10 @@ class RedisProxy implements ConnectionContract
 
     /**
      * Scan sorted set members matching a pattern.
+     *
      * @param mixed $key
      * @param mixed $cursor
+     * @param mixed ...$arguments
      */
     public function zScan($key, $cursor, ...$arguments)
     {
@@ -123,8 +129,10 @@ class RedisProxy implements ConnectionContract
 
     /**
      * Scan set members matching a pattern.
+     *
      * @param mixed $key
      * @param mixed $cursor
+     * @param mixed ...$arguments
      */
     public function sScan($key, $cursor, ...$arguments)
     {
