@@ -1,0 +1,74 @@
+name: Deploy Doctum Docs
+
+on:
+  push:
+    branches:
+      - 0.4
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    container:
+      image: phpswoole/swoole:6.2.0-php8.4
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Install Git
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq git > /dev/null
+
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Trust checkout directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Verify checkout
+        run: git rev-parse --is-inside-work-tree
+
+      - name: Setup PHP extensions
+        uses: ./.github/actions/setup-php
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v5
+        with:
+          path: /root/.composer/cache
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.4-
+
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Reset tracked files
+        run: |
+          git status --porcelain --untracked-files=no
+          git reset --hard
+
+      - name: Generate API docs
+        run: |
+          cp bin/doctum /tmp/doctum
+          php -d memory_limit=-1 /tmp/doctum update doctum.php --force
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.24.0 --activate
+          pnpm config set ignore-workspace-root-check true
+          pnpm --version
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy doctum/build --project-name=${{ secrets.CLOUDFLARE_PAGE_PROJECT_NAME }}

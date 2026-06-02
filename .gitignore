@@ -31,3 +31,4 @@ composer.lock
 !tests/Support/Fixtures/composer/composer.lock
 composer.phar
 Thumbs.db
+/doctum
