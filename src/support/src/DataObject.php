@@ -296,7 +296,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
                 : $property->getName();
             if (enum_exists($typeName)) {
                 $result[$dataKey] = [
-                    'handler' => [$typeName, 'from'],
+                    'handler' => fn ($value) => $value instanceof $typeName ? $value : $typeName::from($value),
                     'nullable' => $allowsNull,
                     'children' => [],
                 ];
