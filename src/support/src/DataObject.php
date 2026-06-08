@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use ArrayAccess;
+use BackedEnum;
 use Carbon\Carbon as BaseCarbon;
 use Carbon\CarbonInterface;
 use DateTime;
@@ -294,7 +295,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             $dataKey = static::isAutoCasting()
                 ? static::convertPropertyToDataKey($property->getName())
                 : $property->getName();
-            if (enum_exists($typeName)) {
+            if (enum_exists($typeName) && is_subclass_of($typeName, BackedEnum::class, true)) {
                 $result[$dataKey] = [
                     'handler' => fn ($value) => $value instanceof $typeName ? $value : $typeName::from($value),
                     'nullable' => $allowsNull,
