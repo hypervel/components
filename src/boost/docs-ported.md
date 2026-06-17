@@ -55,6 +55,7 @@ processes.md
 prompts.md
 providers.md
 queries.md
+queues.md
 rate-limiting.md
 redis.md
 requests.md
