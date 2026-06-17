@@ -13,6 +13,7 @@ container.md
 context.md
 contracts.md
 controllers.md
+coroutines.md
 csrf.md
 database-testing.md
 database.md
