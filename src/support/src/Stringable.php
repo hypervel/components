@@ -13,7 +13,6 @@ use Hypervel\Support\Traits\Dumpable;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
 use JsonSerializable;
-use RuntimeException;
 use Stringable as BaseStringable;
 
 class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
@@ -1063,19 +1062,6 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     public function fromBase64(bool $strict = false): static
     {
         return new static(base64_decode($this->value, $strict));
-    }
-
-    /**
-     * Convert the string to a vector embedding using AI.
-     *
-     * @return array<int, float>
-     *
-     * @throws RuntimeException
-     */
-    public function toEmbeddings(bool $cache = false): array
-    {
-        // TODO: Implement AI embedding conversion (requires AI service configuration)
-        throw new RuntimeException('String to vector embedding conversion is not yet implemented.');
     }
 
     /**

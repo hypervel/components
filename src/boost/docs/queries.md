@@ -1219,15 +1219,6 @@ $documents = DB::table('documents')
     ->get();
 ```
 
-When a plain string is given as the vector argument, Hypervel will automatically generate embeddings for it using the [Hypervel AI SDK](/docs/{{version}}/ai-sdk#embeddings):
-
-```php
-$documents = DB::table('documents')
-    ->whereVectorSimilarTo('embedding', 'Best wineries in Napa Valley')
-    ->limit(10)
-    ->get();
-```
-
 By default, `whereVectorSimilarTo` also orders results by distance (most similar first). You may disable this ordering by passing `false` as the `order` argument:
 
 ```php
