@@ -21,22 +21,21 @@
 
 Since HTTP driven applications are stateless, sessions provide a way to store information about the user across multiple requests. That user information is typically placed in a persistent store / backend that can be accessed from subsequent requests.
 
-Laravel ships with a variety of session backends that are accessed through an expressive, unified API. Support for popular backends such as [Memcached](https://memcached.org), [Redis](https://redis.io), and databases is included.
+Hypervel ships with a variety of session backends that are accessed through an expressive, unified API. Support for popular backends such as [Redis](https://redis.io), files, and databases is included.
 
 <a name="configuration"></a>
 ### Configuration
 
-Your application's session configuration file is stored at `config/session.php`. Be sure to review the options available to you in this file. By default, Laravel is configured to use the `database` session driver.
+Your application's session configuration file is stored at `config/session.php`. Be sure to review the options available to you in this file. By default, Hypervel is configured to use the `database` session driver. If your application will be load balanced across multiple servers, you should choose a centralized store that all servers can access, such as Redis or a database. Redis is recommended for maximum performance and scalability.
 
-The session `driver` configuration option defines where session data will be stored for each request. Laravel includes a variety of drivers:
+The session `driver` configuration option defines where session data will be stored for each request. Hypervel includes a variety of drivers:
 
 <div class="content-list" markdown="1">
 
 - `file` - sessions are stored in `storage/framework/sessions`.
 - `cookie` - sessions are stored in secure, encrypted cookies.
 - `database` - sessions are stored in a relational database.
-- `memcached` / `redis` - sessions are stored in one of these fast, cache-based stores.
-- `dynamodb` - sessions are stored in AWS DynamoDB.
+- `redis` - sessions are stored in Redis, a fast, cache-based store.
 - `array` - sessions are stored in a PHP array and will not be persisted.
 
 </div>
@@ -44,13 +43,15 @@ The session `driver` configuration option defines where session data will be sto
 > [!NOTE]
 > The array driver is primarily used during [testing](/docs/{{version}}/testing) and prevents the data stored in the session from being persisted.
 
+Routes assigned to the `web` middleware group already include the `Hypervel\Session\Middleware\StartSession` middleware. If you need session state on routes outside of the `web` middleware group, you should apply the middleware to those routes.
+
 <a name="driver-prerequisites"></a>
 ### Driver Prerequisites
 
 <a name="database"></a>
 #### Database
 
-When using the `database` session driver, you will need to ensure that you have a database table to contain the session data. Typically, this is included in Laravel's default `0001_01_01_000000_create_users_table.php` [database migration](/docs/{{version}}/migrations); however, if for any reason you do not have a `sessions` table, you may use the `make:session-table` Artisan command to generate this migration:
+When using the `database` session driver, you will need to ensure that you have a database table to contain the session data. Typically, a `sessions` table is included in Hypervel's default [database migrations](/docs/{{version}}/migrations); however, if for any reason you do not have a `sessions` table, you may use the `make:session-table` Artisan command to generate this migration:
 
 ```shell
 php artisan make:session-table
@@ -58,10 +59,12 @@ php artisan make:session-table
 php artisan migrate
 ```
 
+The `session:table` command is also available as an alias for `make:session-table`.
+
 <a name="redis"></a>
 #### Redis
 
-Before using Redis sessions with Laravel, you will need to either install the PhpRedis PHP extension via PECL or install the `predis/predis` package (~1.0) via Composer. For more information on configuring Redis, consult Laravel's [Redis documentation](/docs/{{version}}/redis#configuration).
+Before using Redis sessions with Hypervel, you will need to install the [PhpRedis](https://github.com/phpredis/phpredis) PHP extension via PECL. For more information on configuring Redis, consult Hypervel's [Redis documentation](/docs/{{version}}/redis#configuration).
 
 > [!NOTE]
 > The `SESSION_CONNECTION` environment variable, or the `connection` option in the `session.php` configuration file, may be used to specify which Redis connection is used for session storage.
@@ -72,7 +75,7 @@ Before using Redis sessions with Laravel, you will need to either install the Ph
 <a name="retrieving-data"></a>
 ### Retrieving Data
 
-There are two primary ways of working with session data in Laravel: the global `session` helper and via a `Request` instance. First, let's look at accessing the session via a `Request` instance, which can be type-hinted on a route closure or controller method. Remember, controller method dependencies are automatically injected via the Laravel [service container](/docs/{{version}}/container):
+There are two primary ways of working with session data in Hypervel: the global `session` helper and via a `Request` instance. First, let's look at accessing the session via a `Request` instance, which can be type-hinted on a route closure or controller method. Remember, controller method dependencies are automatically injected via the Hypervel [service container](/docs/{{version}}/container):
 
 ```php
 <?php
@@ -267,7 +270,7 @@ $request->session()->flush();
 
 Regenerating the session ID is often done in order to prevent malicious users from exploiting a [session fixation](https://owasp.org/www-community/attacks/Session_fixation) attack on your application.
 
-Laravel automatically regenerates the session ID during authentication if you are using one of the Laravel [application starter kits](/docs/{{version}}/starter-kits) or [Laravel Fortify](/docs/{{version}}/fortify); however, if you need to manually regenerate the session ID, you may use the `regenerate` method:
+Hypervel automatically regenerates the session ID during authentication if you are using one of the Hypervel [application starter kits](/docs/{{version}}/starter-kits) or [Hypervel Fortify](/docs/{{version}}/fortify); however, if you need to manually regenerate the session ID, you may use the `regenerate` method:
 
 ```php
 $request->session()->regenerate();
@@ -282,7 +285,7 @@ $request->session()->invalidate();
 <a name="session-cache"></a>
 ## Session Cache
 
-Laravel's session cache provides a convenient way to cache data that is scoped to an individual user session. Unlike the global application cache, session cache data is automatically isolated per session and is cleaned up when the session expires or is destroyed. The session cache supports all the familiar [Laravel cache methods](/docs/{{version}}/cache) like `get`, `put`, `remember`, `forget`, and more, but scoped to the current session.
+Hypervel's session cache provides a convenient way to cache data that is scoped to an individual user session. Unlike the global application cache, session cache data is automatically isolated per session and is cleaned up when the session expires or is destroyed. The session cache supports all the familiar [Hypervel cache methods](/docs/{{version}}/cache) like `get`, `put`, `remember`, `forget`, and more, but scoped to the current session.
 
 The session cache is perfect for storing temporary, user-specific data that you want to persist across multiple requests within the same session, but don't need to store permanently. This includes things like form data, temporary calculations, API responses, or any other ephemeral data that should be tied to a specific user's session.
 
@@ -296,17 +299,19 @@ $request->session()->cache()->put(
 );
 ```
 
-For more information on Laravel's cache methods, consult the [cache documentation](/docs/{{version}}/cache).
+By default, session cache values are stored under the `_cache` key within the user's session data. You may change this key using the `SESSION_CACHE_KEY` environment variable or the `key` option of the `session` cache store.
+
+For more information on Hypervel's cache methods, consult the [cache documentation](/docs/{{version}}/cache).
 
 <a name="session-blocking"></a>
 ## Session Blocking
 
 > [!WARNING]
-> To utilize session blocking, your application must be using a cache driver that supports [atomic locks](/docs/{{version}}/cache#atomic-locks). Currently, those cache drivers include the `memcached`, `dynamodb`, `redis`, `mongodb` (included in the official `mongodb/laravel-mongodb` package), `database`, `file`, and `array` drivers. In addition, you may not use the `cookie` session driver.
+> To utilize session blocking, your application must be using a cache driver that supports [atomic locks](/docs/{{version}}/cache#atomic-locks). Currently, those cache drivers include the `redis`, `database`, `file`, and `array` drivers. In addition, you may not use the `cookie` session driver.
 
-By default, Laravel allows requests using the same session to execute concurrently. So, for example, if you use a JavaScript HTTP library to make two HTTP requests to your application, they will both execute at the same time. For many applications, this is not a problem; however, session data loss can occur in a small subset of applications that make concurrent requests to two different application endpoints which both write data to the session.
+By default, Hypervel allows requests using the same session to execute concurrently. So, for example, if you use a JavaScript HTTP library to make two HTTP requests to your application, they will both execute at the same time. For many applications, this is not a problem; however, session data loss can occur in a small subset of applications that make concurrent requests to two different application endpoints which both write data to the session.
 
-To mitigate this, Laravel provides functionality that allows you to limit concurrent requests for a given session. To get started, you may simply chain the `block` method onto your route definition. In this example, an incoming request to the `/profile` endpoint would acquire a session lock. While this lock is being held, any incoming requests to the `/profile` or `/order` endpoints which share the same session ID will wait for the first request to finish executing before continuing their execution:
+To mitigate this, Hypervel provides functionality that allows you to limit concurrent requests for a given session. To get started, you may simply chain the `block` method onto your route definition. In this example, an incoming request to the `/profile` endpoint would acquire a session lock. While this lock is being held, any incoming requests to the `/profile` or `/order` endpoints which share the same session ID will wait for the first request to finish executing before continuing their execution:
 
 ```php
 Route::post('/profile', function () {
@@ -320,7 +325,7 @@ Route::post('/order', function () {
 
 The `block` method accepts two optional arguments. The first argument accepted by the `block` method is the maximum number of seconds the session lock should be held for before it is released. Of course, if the request finishes executing before this time the lock will be released earlier.
 
-The second argument accepted by the `block` method is the number of seconds a request should wait while attempting to obtain a session lock. An `Hypervel\Contracts\Cache\LockTimeoutException` will be thrown if the request is unable to obtain a session lock within the given number of seconds.
+The second argument accepted by the `block` method is the number of seconds a request should wait while attempting to obtain a session lock. A `Hypervel\Contracts\Cache\LockTimeoutException` will be thrown if the request is unable to obtain a session lock within the given number of seconds.
 
 If neither of these arguments is passed, the lock will be obtained for a maximum of 10 seconds and requests will wait a maximum of 10 seconds while attempting to obtain a lock:
 
@@ -366,56 +371,82 @@ The callback receives the current request and the session cookie configuration, 
 
 If multiple callbacks are registered, they will be executed in the order they were registered. Each callback receives the cookie configuration returned by the previous callback.
 
+> [!NOTE]
+> Session cookie callbacks persist for the lifetime of the Swoole worker. You should register them during application boot, not dynamically during a request.
+
 <a name="adding-custom-session-drivers"></a>
 ## Adding Custom Session Drivers
 
 <a name="implementing-the-driver"></a>
 ### Implementing the Driver
 
-If none of the existing session drivers fit your application's needs, Laravel makes it possible to write your own session handler. Your custom session driver should implement PHP's built-in `SessionHandlerInterface`. This interface contains just a few simple methods. A stubbed MongoDB implementation looks like the following:
+If none of the existing session drivers fit your application's needs, Hypervel makes it possible to write your own session handler. Your custom session driver should implement PHP's built-in `SessionHandlerInterface`. This interface contains just a few simple methods. A stubbed custom implementation looks like the following:
 
 ```php
 <?php
 
 namespace App\Extensions;
 
-class MongoSessionHandler implements \SessionHandlerInterface
+class CustomSessionHandler implements \SessionHandlerInterface
 {
-    public function open($savePath, $sessionName) {}
-    public function close() {}
-    public function read($sessionId) {}
-    public function write($sessionId, $data) {}
-    public function destroy($sessionId) {}
-    public function gc($lifetime) {}
+    public function open(string $savePath, string $sessionName): bool
+    {
+        return true;
+    }
+
+    public function close(): bool
+    {
+        return true;
+    }
+
+    public function read(string $sessionId): false|string
+    {
+        return '';
+    }
+
+    public function write(string $sessionId, string $data): bool
+    {
+        return true;
+    }
+
+    public function destroy(string $sessionId): bool
+    {
+        return true;
+    }
+
+    public function gc(int $lifetime): int
+    {
+        return 0;
+    }
 }
 ```
 
-Since Laravel does not include a default directory to house your extensions. You are free to place them anywhere you like. In this example, we have created an `Extensions` directory to house the `MongoSessionHandler`.
+Since Hypervel does not include a default directory to house your extensions, you are free to place them anywhere you like. In this example, we have created an `Extensions` directory to house the `CustomSessionHandler`.
 
 Since the purpose of these methods is not readily understandable, here is an overview of the purpose of each method:
 
 <div class="content-list" markdown="1">
 
-- The `open` method would typically be used in file based session store systems. Since Laravel ships with a `file` session driver, you will rarely need to put anything in this method. You can simply leave this method empty.
+- The `open` method would typically be used in file based session store systems. Since Hypervel ships with a `file` session driver, you will rarely need to put anything in this method. You can simply return `true`.
 - The `close` method, like the `open` method, can also usually be disregarded. For most drivers, it is not needed.
-- The `read` method should return the string version of the session data associated with the given `$sessionId`. There is no need to do any serialization or other encoding when retrieving or storing session data in your driver, as Laravel will perform the serialization for you.
-- The `write` method should write the given `$data` string associated with the `$sessionId` to some persistent storage system, such as MongoDB or another storage system of your choice. Again, you should not perform any serialization - Laravel will have already handled that for you.
+- The `read` method should return the string version of the session data associated with the given `$sessionId`. There is no need to do any serialization or other encoding when retrieving or storing session data in your driver, as Hypervel will perform the serialization for you.
+- The `write` method should write the given `$data` string associated with the `$sessionId` to a persistent storage system of your choice. Again, you should not perform any serialization - Hypervel will have already handled that for you.
 - The `destroy` method should remove the data associated with the `$sessionId` from persistent storage.
-- The `gc` method should destroy all session data that is older than the given `$lifetime`, which is a UNIX timestamp. For self-expiring systems like Memcached and Redis, this method may be left empty.
+- The `gc` method should destroy all session data that is older than the given `$lifetime`, which is a UNIX timestamp. For self-expiring systems like Redis, this method may return `0`.
 
 </div>
 
 <a name="registering-the-driver"></a>
 ### Registering the Driver
 
-Once your driver has been implemented, you are ready to register it with Laravel. To add additional drivers to Laravel's session backend, you may use the `extend` method provided by the `Session` [facade](/docs/{{version}}/facades). You should call the `extend` method from the `boot` method of a [service provider](/docs/{{version}}/providers). You may do this from the existing `App\Providers\AppServiceProvider` or create an entirely new provider:
+Once your driver has been implemented, you are ready to register it with Hypervel. To add additional drivers to Hypervel's session backend, you may use the `extend` method provided by the `Session` [facade](/docs/{{version}}/facades). You should call the `extend` method from the `boot` method of a [service provider](/docs/{{version}}/providers). You may do this from the existing `App\Providers\AppServiceProvider` or create an entirely new provider:
 
 ```php
 <?php
 
 namespace App\Providers;
 
-use App\Extensions\MongoSessionHandler;
+use App\Extensions\CustomSessionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Facades\Session;
 use Hypervel\Support\ServiceProvider;
@@ -435,12 +466,12 @@ class SessionServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Session::extend('mongo', function (Application $app) {
+        Session::extend('custom', function (Application $app) {
             // Return an implementation of SessionHandlerInterface...
-            return new MongoSessionHandler;
+            return new CustomSessionHandler;
         });
     }
 }
 ```
 
-Once the session driver has been registered, you may specify the `mongo` driver as your application's session driver using the `SESSION_DRIVER` environment variable or within the application's `config/session.php` configuration file.
+Once the session driver has been registered, you may specify the `custom` driver as your application's session driver using the `SESSION_DRIVER` environment variable or within the application's `config/session.php` configuration file.

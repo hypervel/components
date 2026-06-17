@@ -66,6 +66,7 @@ sanctum.md
 scheduling.md
 scout.md
 search.md
+session.md
 socialite.md
 urls.md
 validation.md
