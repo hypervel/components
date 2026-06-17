@@ -38,6 +38,8 @@
     - [Collections](/docs/{{version}}/collections)
     - [Concurrency](/docs/{{version}}/concurrency)
     - [Context](/docs/{{version}}/context)
+    - [Coroutine Context](/docs/{{version}}/coroutine-context)
+    - [Coroutines](/docs/{{version}}/coroutines)
     - [Contracts](/docs/{{version}}/contracts)
     - [Events](/docs/{{version}}/events)
     - [File Storage](/docs/{{version}}/filesystem)

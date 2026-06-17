@@ -453,7 +453,7 @@ Context::forgetHidden(/* ... */);
 <a name="low-level-coroutine-context"></a>
 ## Low-Level Coroutine Context
 
-The `Context` facade documents Hypervel's application-facing context API. Internally, this repository is stored in `Hypervel\Context\CoroutineContext` under the current coroutine. Most application code should use the `Context` facade, but package and framework code may use `CoroutineContext` directly when it needs low-level coroutine-local storage.
+The `Context` facade documents Hypervel's application-facing context API. Internally, this repository is stored in `Hypervel\Context\CoroutineContext` under the current coroutine. Most application code should use the `Context` facade, but package and framework code may use [CoroutineContext](/docs/{{version}}/coroutine-context) directly when it needs low-level coroutine-local storage.
 
 `CoroutineContext` provides methods such as `set`, `get`, `has`, `forget`, `getOrSet`, `override`, `copyFrom`, `copyFromNonCoroutine`, and `flush`:
 
