@@ -6,6 +6,9 @@
     - [Nested View Directories](#nested-view-directories)
     - [Creating the First Available View](#creating-the-first-available-view)
     - [Determining if a View Exists](#determining-if-a-view-exists)
+    - [Rendering File Views](#rendering-file-views)
+    - [Rendering Conditional and Repeated Views](#rendering-conditional-and-repeated-views)
+    - [View Namespaces](#view-namespaces)
 - [Passing Data to Views](#passing-data-to-views)
     - [Sharing Data With All Views](#sharing-data-with-all-views)
 - [View Composers](#view-composers)
@@ -17,7 +20,7 @@
 
 Of course, it's not practical to return entire HTML documents strings directly from your routes and controllers. Thankfully, views provide a convenient way to place all of our HTML in separate files.
 
-Views separate your controller / application logic from your presentation logic and are stored in the `resources/views` directory. When using Laravel, view templates are usually written using the [Blade templating language](/docs/{{version}}/blade). A simple view might look something like this:
+Views separate your controller / application logic from your presentation logic and are stored in the `resources/views` directory. When using Hypervel, view templates are usually written using the [Blade templating language](/docs/{{version}}/blade). A simple view might look something like this:
 
 ```blade
 <!-- View stored in resources/views/greeting.blade.php -->
@@ -43,9 +46,9 @@ Route::get('/', function () {
 <a name="writing-views-in-react-svelte-or-vue"></a>
 ### Writing Views in React / Svelte / Vue
 
-Instead of writing their frontend templates in PHP via Blade, many developers have begun to prefer to write their templates using React, Svelte, or Vue. Laravel makes this painless thanks to [Inertia](https://inertiajs.com/), a library that makes it a cinch to tie your React / Svelte / Vue frontend to your Laravel backend without the typical complexities of building an SPA.
+Instead of writing their frontend templates in PHP via Blade, many developers have begun to prefer to write their templates using React, Svelte, or Vue. Hypervel makes this painless thanks to [Inertia](https://inertiajs.com/), a library that makes it a cinch to tie your React / Svelte / Vue frontend to your Hypervel backend without the typical complexities of building an SPA.
 
-Our [React, Svelte, and Vue application starter kits](/docs/{{version}}/starter-kits) give you a great starting point for your next Laravel application powered by Inertia.
+Our [React application starter kit](/docs/{{version}}/starter-kits) gives you a great starting point for your next Hypervel application powered by Inertia.
 
 <a name="creating-and-rendering-views"></a>
 ## Creating and Rendering Views
@@ -72,6 +75,14 @@ Views may also be returned using the `View` facade:
 use Hypervel\Support\Facades\View;
 
 return View::make('greeting', ['name' => 'James']);
+```
+
+You may also call the `view` helper without any arguments to retrieve the view factory:
+
+```php
+if (view()->exists('admin.profile')) {
+    // ...
+}
 ```
 
 As you can see, the first argument passed to the `view` helper corresponds to the name of the view file in the `resources/views` directory. The second argument is an array of data that should be made available to the view. In this case, we are passing the `name` variable, which is displayed in the view using [Blade syntax](/docs/{{version}}/blade).
@@ -112,6 +123,58 @@ if (View::exists('admin.profile')) {
 }
 ```
 
+<a name="rendering-file-views"></a>
+### Rendering File Views
+
+If you need to render a view file that is not located within one of your configured view paths, you may use the `file` method:
+
+```php
+use Hypervel\Support\Facades\View;
+
+return View::file(resource_path('views/errors/custom.blade.php'), [
+    'name' => 'James',
+]);
+```
+
+<a name="rendering-conditional-and-repeated-views"></a>
+### Rendering Conditional and Repeated Views
+
+The `renderWhen` and `renderUnless` methods render a view only when a given condition passes:
+
+```php
+use Hypervel\Support\Facades\View;
+
+echo View::renderWhen($shouldShow, 'admin.panel', ['user' => $user]);
+
+echo View::renderUnless($hidden, 'admin.panel', ['user' => $user]);
+```
+
+The `renderEach` method renders the same partial view for every item in an array. The fourth argument may be a view name that is rendered when the array is empty, or a raw string prefixed with `raw|`:
+
+```php
+use Hypervel\Support\Facades\View;
+
+echo View::renderEach('users.card', $users, 'user', 'raw|No users found.');
+```
+
+<a name="view-namespaces"></a>
+### View Namespaces
+
+You may register additional view namespaces with the `View` facade. Namespaced views are referenced using the `namespace::view` syntax:
+
+```php
+use Hypervel\Support\Facades\View;
+
+View::addNamespace('admin', resource_path('views/admin'));
+
+return view('admin::dashboard');
+```
+
+You may also use `addLocation` or `prependLocation` to register additional view paths, `prependNamespace` or `replaceNamespace` to control how namespaced view paths are searched, `addExtension` to map another file extension to a view engine, and `flushFinderCache` to clear the view finder's located-view cache.
+
+> [!WARNING]
+> View paths, namespaces, extensions, and finder caches are shared for the life of the worker. Register or clear them during application boot or tests, not inside request-specific code.
+
 <a name="passing-data-to-views"></a>
 ## Passing Data to Views
 
@@ -142,6 +205,7 @@ Occasionally, you may need to share data with all views that are rendered by you
 namespace App\Providers;
 
 use Hypervel\Support\Facades\View;
+use Hypervel\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -163,6 +227,9 @@ class AppServiceProvider extends ServiceProvider
 }
 ```
 
+> [!WARNING]
+> Because Hypervel serves requests from long-lived workers, data passed to `View::share` persists for the worker's lifetime and is visible to every request that worker handles. Share only static, request-independent data this way. To expose request-specific data to views, pass it through the view's data array or a [view composer](#view-composers) instead.
+
 <a name="view-composers"></a>
 ## View Composers
 
@@ -170,7 +237,7 @@ View composers are callbacks or class methods that are called when a view is ren
 
 Typically, view composers will be registered within one of your application's [service providers](/docs/{{version}}/providers). In this example, we'll assume that the `App\Providers\AppServiceProvider` will house this logic.
 
-We'll use the `View` facade's `composer` method to register the view composer. Laravel does not include a default directory for class-based view composers, so you are free to organize them however you wish. For example, you could create an `app/View/Composers` directory to house all of your application's view composers:
+We'll use the `View` facade's `composer` method to register the view composer. Hypervel does not include a default directory for class-based view composers, so you are free to organize them however you wish. For example, you could create an `app/View/Composers` directory to house all of your application's view composers:
 
 ```php
 <?php
@@ -284,13 +351,15 @@ View::creator('profile', ProfileCreator::class);
 <a name="optimizing-views"></a>
 ## Optimizing Views
 
-By default, Blade template views are compiled on demand. When a request is executed that renders a view, Laravel will determine if a compiled version of the view exists. If the file exists, Laravel will then determine if the uncompiled view has been modified more recently than the compiled view. If the compiled view either does not exist, or the uncompiled view has been modified, Laravel will recompile the view.
+By default, Blade template views are compiled on demand. When a request is executed that renders a view, Hypervel will determine if a compiled version of the view exists. If the file exists, Hypervel will then determine if the uncompiled view has been modified more recently than the compiled view. If the compiled view either does not exist, or the uncompiled view has been modified, Hypervel will recompile the view.
 
-Compiling views during the request may have a small negative impact on performance, so Laravel provides the `view:cache` Artisan command to precompile all of the views utilized by your application. For increased performance, you may wish to run this command as part of your deployment process:
+Compiling views during the request may have a small negative impact on performance, so Hypervel provides the `view:cache` Artisan command to precompile all of the views utilized by your application. For increased performance, you may wish to run this command as part of your deployment process:
 
 ```shell
 php artisan view:cache
 ```
+
+Compiled views are stored in `storage/framework/views` by default. You may customize this path using the `view.compiled` configuration value or the `VIEW_COMPILED_PATH` environment variable.
 
 You may use the `view:clear` command to clear the view cache:
 

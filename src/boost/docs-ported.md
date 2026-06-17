@@ -73,3 +73,4 @@ strings.md
 urls.md
 validation.md
 verification.md
+views.md
