@@ -69,6 +69,7 @@ search.md
 seeding.md
 session.md
 socialite.md
+strings.md
 urls.md
 validation.md
 verification.md

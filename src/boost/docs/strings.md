@@ -1,12 +1,30 @@
 # Strings
 
 - [Introduction](#introduction)
+- [Cached String Transformations](#cached-string-transformations)
 - [Available Methods](#available-methods)
 
 <a name="introduction"></a>
 ## Introduction
 
-Laravel includes a variety of functions for manipulating string values. Many of these functions are used by the framework itself; however, you are free to use them in your own applications if you find them convenient.
+Hypervel includes a variety of functions for manipulating string values. Many of these functions are used by the framework itself; however, you are free to use them in your own applications if you find them convenient.
+
+<a name="cached-string-transformations"></a>
+## Cached String Transformations
+
+Unlike Laravel, Hypervel's `Str` casing methods do not cache results internally. Since Hypervel workers are long-lived, caching arbitrary strings could cause unbounded memory growth for the lifetime of the worker.
+
+For hot paths where the input comes from a known finite set, such as class names, attribute names, or column names, you may use `Hypervel\Support\StrCache`. The cached values persist for the worker lifetime:
+
+```php
+use Hypervel\Support\StrCache;
+
+$snake = StrCache::snake('fooBar');
+```
+
+`StrCache` provides cached versions of `snake`, `camel`, `studly`, `plural`, `singular`, and `pluralStudly`. Use the regular `Str` methods for arbitrary or user-provided input.
+
+If you need to clear these caches during tests, you may call `StrCache::flushState()`. Hypervel's `Str::flushCache()` method exists only as a migration guard and will throw an exception directing you to `StrCache`.
 
 <a name="available-methods"></a>
 ## Available Methods
@@ -47,6 +65,7 @@ Laravel includes a variety of functions for manipulating string values. Many of 
 [Str::chopEnd](#method-str-chop-end)
 [Str::contains](#method-str-contains)
 [Str::containsAll](#method-str-contains-all)
+[Str::convertCase](#method-str-convert-case)
 [Str::doesntContain](#method-str-doesnt-contain)
 [Str::doesntEndWith](#method-str-doesnt-end-with)
 [Str::doesntStartWith](#method-str-doesnt-start-with)
@@ -74,12 +93,16 @@ Laravel includes a variety of functions for manipulating string values. Many of 
 [Str::match](#method-str-match)
 [Str::matchAll](#method-str-match-all)
 [Str::isMatch](#method-str-is-match)
+[Str::numbers](#method-str-numbers)
 [Str::orderedUuid](#method-str-ordered-uuid)
 [Str::padBoth](#method-str-padboth)
 [Str::padLeft](#method-str-padleft)
 [Str::padRight](#method-str-padright)
+[Str::parseCallback](#method-str-parse-callback)
+[Str::pascal](#method-pascal-case)
 [Str::password](#method-str-password)
 [Str::plural](#method-str-plural)
+[Str::pluralPascal](#method-str-plural-pascal)
 [Str::pluralStudly](#method-str-plural-studly)
 [Str::position](#method-str-position)
 [Str::random](#method-str-random)
@@ -151,12 +174,14 @@ Laravel includes a variety of functions for manipulating string values. Many of 
 [chopEnd](#method-fluent-str-chop-end)
 [contains](#method-fluent-str-contains)
 [containsAll](#method-fluent-str-contains-all)
+[convertCase](#method-fluent-str-convert-case)
 [decrypt](#method-fluent-str-decrypt)
 [deduplicate](#method-fluent-str-deduplicate)
 [dirname](#method-fluent-str-dirname)
 [doesntContain](#method-fluent-str-doesnt-contain)
 [doesntEndWith](#method-fluent-str-doesnt-end-with)
 [doesntStartWith](#method-fluent-str-doesnt-start-with)
+[dump](#method-fluent-str-dump)
 [encrypt](#method-fluent-str-encrypt)
 [endsWith](#method-fluent-str-ends-with)
 [exactly](#method-fluent-str-exactly)
@@ -187,11 +212,16 @@ Laravel includes a variety of functions for manipulating string values. Many of 
 [matchAll](#method-fluent-str-match-all)
 [isMatch](#method-fluent-str-is-match)
 [newLine](#method-fluent-str-new-line)
+[numbers](#method-fluent-str-numbers)
 [padBoth](#method-fluent-str-padboth)
 [padLeft](#method-fluent-str-padleft)
 [padRight](#method-fluent-str-padright)
+[parseCallback](#method-fluent-str-parse-callback)
+[pascal](#method-fluent-str-pascal)
 [pipe](#method-fluent-str-pipe)
 [plural](#method-fluent-str-plural)
+[pluralPascal](#method-fluent-str-plural-pascal)
+[pluralStudly](#method-fluent-str-plural-studly)
 [position](#method-fluent-str-position)
 [prepend](#method-fluent-str-prepend)
 [remove](#method-fluent-str-remove)
@@ -203,6 +233,7 @@ Laravel includes a variety of functions for manipulating string values. Many of 
 [replaceMatches](#method-fluent-str-replace-matches)
 [replaceStart](#method-fluent-str-replace-start)
 [replaceEnd](#method-fluent-str-replace-end)
+[reverse](#method-fluent-str-reverse)
 [scan](#method-fluent-str-scan)
 [singular](#method-fluent-str-singular)
 [slug](#method-fluent-str-slug)
@@ -214,6 +245,7 @@ Laravel includes a variety of functions for manipulating string values. Many of 
 [stripTags](#method-fluent-str-strip-tags)
 [studly](#method-fluent-str-studly)
 [substr](#method-fluent-str-substr)
+[substrCount](#method-fluent-str-substr-count)
 [substrReplace](#method-fluent-str-substrreplace)
 [swap](#method-fluent-str-swap)
 [take](#method-fluent-str-take)
@@ -221,7 +253,12 @@ Laravel includes a variety of functions for manipulating string values. Many of 
 [test](#method-fluent-str-test)
 [title](#method-fluent-str-title)
 [toBase64](#method-fluent-str-to-base64)
+[toBoolean](#method-fluent-str-to-boolean)
+[toDate](#method-fluent-str-to-date)
+[toFloat](#method-fluent-str-to-float)
 [toHtmlString](#method-fluent-str-to-html-string)
+[toInteger](#method-fluent-str-to-integer)
+[toString](#method-fluent-str-to-string)
 [toUri](#method-fluent-str-to-uri)
 [transliterate](#method-fluent-str-transliterate)
 [trim](#method-fluent-str-trim)
@@ -232,6 +269,7 @@ Laravel includes a variety of functions for manipulating string values. Many of 
 [ucwords](#method-fluent-str-ucwords)
 [unwrap](#method-fluent-str-unwrap)
 [upper](#method-fluent-str-upper)
+[value](#method-fluent-str-value)
 [when](#method-fluent-str-when)
 [whenContains](#method-fluent-str-when-contains)
 [whenContainsAll](#method-fluent-str-when-contains-all)
@@ -249,6 +287,7 @@ Laravel includes a variety of functions for manipulating string values. Many of 
 [whenIsUuid](#method-fluent-str-when-is-uuid)
 [whenTest](#method-fluent-str-when-test)
 [wordCount](#method-fluent-str-word-count)
+[wordWrap](#method-fluent-str-word-wrap)
 [words](#method-fluent-str-words)
 [wrap](#method-fluent-str-wrap)
 
@@ -443,9 +482,9 @@ The `Str::chopStart` method removes the first occurrence of the given value only
 ```php
 use Hypervel\Support\Str;
 
-$url = Str::chopStart('https://laravel.com', 'https://');
+$url = Str::chopStart('https://hypervel.org', 'https://');
 
-// 'laravel.com'
+// 'hypervel.org'
 ```
 
 You may also pass an array as the second argument. If the string starts with any of the values in the array then that value will be removed from string:
@@ -453,9 +492,9 @@ You may also pass an array as the second argument. If the string starts with any
 ```php
 use Hypervel\Support\Str;
 
-$url = Str::chopStart('http://laravel.com', ['https://', 'http://']);
+$url = Str::chopStart('http://hypervel.org', ['https://', 'http://']);
 
-// 'laravel.com'
+// 'hypervel.org'
 ```
 
 <a name="method-str-chop-end"></a>
@@ -476,9 +515,9 @@ You may also pass an array as the second argument. If the string ends with any o
 ```php
 use Hypervel\Support\Str;
 
-$url = Str::chopEnd('laravel.com/index.php', ['/index.html', '/index.php']);
+$url = Str::chopEnd('hypervel.org/index.php', ['/index.html', '/index.php']);
 
-// 'laravel.com'
+// 'hypervel.org'
 ```
 
 <a name="method-str-contains"></a>
@@ -537,6 +576,19 @@ $containsAll = Str::containsAll('This is my name', ['MY', 'NAME'], ignoreCase: t
 // true
 ```
 
+<a name="method-str-convert-case"></a>
+#### `Str::convertCase()` {.collection-method}
+
+The `Str::convertCase` method converts the given string to the casing mode supported by PHP's `mb_convert_case` function:
+
+```php
+use Hypervel\Support\Str;
+
+$converted = Str::convertCase('hypervel framework', MB_CASE_TITLE);
+
+// Hypervel Framework
+```
+
 <a name="method-str-doesnt-contain"></a>
 #### `Str::doesntContain()` {.collection-method}
 
@@ -578,9 +630,9 @@ The `Str::deduplicate` method replaces consecutive instances of a character with
 ```php
 use Hypervel\Support\Str;
 
-$result = Str::deduplicate('The   Laravel   Framework');
+$result = Str::deduplicate('The   Hypervel   Framework');
 
-// The Laravel Framework
+// The Hypervel Framework
 ```
 
 You may specify a different character to deduplicate by passing it in as the second argument to the method:
@@ -588,9 +640,9 @@ You may specify a different character to deduplicate by passing it in as the sec
 ```php
 use Hypervel\Support\Str;
 
-$result = Str::deduplicate('The---Laravel---Framework', '-');
+$result = Str::deduplicate('The---Hypervel---Framework', '-');
 
-// The-Laravel-Framework
+// The-Hypervel-Framework
 ```
 
 <a name="method-str-doesnt-end-with"></a>
@@ -723,9 +775,9 @@ The `Str::fromBase64` method decodes the given Base64 string:
 ```php
 use Hypervel\Support\Str;
 
-$decoded = Str::fromBase64('TGFyYXZlbA==');
+$decoded = Str::fromBase64('SHlwZXJ2ZWw=');
 
-// Laravel
+// Hypervel
 ```
 
 <a name="method-str-headline"></a>
@@ -770,9 +822,9 @@ The `Str::inlineMarkdown` method converts GitHub flavored Markdown into inline H
 ```php
 use Hypervel\Support\Str;
 
-$html = Str::inlineMarkdown('**Laravel**');
+$html = Str::inlineMarkdown('**Hypervel**');
 
-// <strong>Laravel</strong>
+// <strong>Hypervel</strong>
 ```
 
 #### Markdown Security
@@ -867,7 +919,7 @@ $isUrl = Str::isUrl('http://example.com');
 
 // true
 
-$isUrl = Str::isUrl('laravel');
+$isUrl = Str::isUrl('hypervel');
 
 // false
 ```
@@ -890,7 +942,7 @@ $isUlid = Str::isUlid('01gd6r360bp37zj17nxb55yv40');
 
 // true
 
-$isUlid = Str::isUlid('laravel');
+$isUlid = Str::isUlid('hypervel');
 
 // false
 ```
@@ -907,7 +959,7 @@ $isUuid = Str::isUuid('a0a2a2d2-0b87-4a18-83f2-2529882be2de');
 
 // true
 
-$isUuid = Str::isUuid('laravel');
+$isUuid = Str::isUuid('hypervel');
 
 // false
 ```
@@ -960,9 +1012,9 @@ The `Str::length` method returns the length of the given string:
 ```php
 use Hypervel\Support\Str;
 
-$length = Str::length('Laravel');
+$length = Str::length('Hypervel');
 
-// 7
+// 8
 ```
 
 <a name="method-str-limit"></a>
@@ -1002,9 +1054,9 @@ The `Str::lower` method converts the given string to lowercase:
 ```php
 use Hypervel\Support\Str;
 
-$converted = Str::lower('LARAVEL');
+$converted = Str::lower('HYPERVEL');
 
-// laravel
+// hypervel
 ```
 
 <a name="method-str-markdown"></a>
@@ -1015,9 +1067,9 @@ The `Str::markdown` method converts GitHub flavored Markdown into HTML using [Co
 ```php
 use Hypervel\Support\Str;
 
-$html = Str::markdown('# Laravel');
+$html = Str::markdown('# Hypervel');
 
-// <h1>Laravel</h1>
+// <h1>Hypervel</h1>
 
 $html = Str::markdown('# Taylor <b>Otwell</b>', [
     'html_input' => 'strip',
@@ -1092,7 +1144,7 @@ $result = Str::matchAll('/bar/', 'bar foo bar');
 // collect(['bar', 'bar'])
 ```
 
-If you specify a matching group within the expression, Laravel will return a collection of the first matching group's matches:
+If you specify a matching group within the expression, Hypervel will return a collection of the first matching group's matches:
 
 ```php
 use Hypervel\Support\Str;
@@ -1116,9 +1168,22 @@ $result = Str::isMatch('/foo (.*)/', 'foo bar');
 
 // true
 
-$result = Str::isMatch('/foo (.*)/', 'laravel');
+$result = Str::isMatch('/foo (.*)/', 'hypervel');
 
 // false
+```
+
+<a name="method-str-numbers"></a>
+#### `Str::numbers()` {.collection-method}
+
+The `Str::numbers` method removes all non-numeric characters from a string:
+
+```php
+use Hypervel\Support\Str;
+
+$numbers = Str::numbers('(555) 123-4567');
+
+// 5551234567
 ```
 
 <a name="method-str-ordered-uuid"></a>
@@ -1183,6 +1248,32 @@ $padded = Str::padRight('James', 10);
 // 'James     '
 ```
 
+<a name="method-str-parse-callback"></a>
+#### `Str::parseCallback()` {.collection-method}
+
+The `Str::parseCallback` method parses a `Class@method` style callback into class and method segments:
+
+```php
+use Hypervel\Support\Str;
+
+[$class, $method] = Str::parseCallback('App\Http\Controllers\UserController@show');
+
+// ['App\Http\Controllers\UserController', 'show']
+```
+
+<a name="method-pascal-case"></a>
+#### `Str::pascal()` {.collection-method}
+
+The `Str::pascal` method converts the given string to `PascalCase`:
+
+```php
+use Hypervel\Support\Str;
+
+$converted = Str::pascal('foo_bar');
+
+// FooBar
+```
+
 <a name="method-str-password"></a>
 #### `Str::password()` {.collection-method}
 
@@ -1203,7 +1294,7 @@ $password = Str::password(12);
 <a name="method-str-plural"></a>
 #### `Str::plural()` {.collection-method}
 
-The `Str::plural` method converts a singular word string to its plural form. This function supports [any of the languages supported by Laravel's pluralizer](/docs/{{version}}/localization#pluralization-language):
+The `Str::plural` method converts a singular word string to its plural form. This function supports [any of the languages supported by Hypervel's pluralizer](/docs/{{version}}/localization#pluralization-language):
 
 ```php
 use Hypervel\Support\Str;
@@ -1241,10 +1332,23 @@ $label = Str::plural('car', 1000, prependCount: true);
 // 1,000 cars
 ```
 
+<a name="method-str-plural-pascal"></a>
+#### `Str::pluralPascal()` {.collection-method}
+
+The `Str::pluralPascal` method converts a singular word string formatted in Pascal case to its plural form. This function supports [any of the languages supported by Hypervel's pluralizer](/docs/{{version}}/localization#pluralization-language):
+
+```php
+use Hypervel\Support\Str;
+
+$plural = Str::pluralPascal('UserProfile');
+
+// UserProfiles
+```
+
 <a name="method-str-plural-studly"></a>
 #### `Str::pluralStudly()` {.collection-method}
 
-The `Str::pluralStudly` method converts a singular word string formatted in studly caps case to its plural form. This function supports [any of the languages supported by Laravel's pluralizer](/docs/{{version}}/localization#pluralization-language):
+The `Str::pluralStudly` method converts a singular word string formatted in studly caps case to its plural form. This function supports [any of the languages supported by Hypervel's pluralizer](/docs/{{version}}/localization#pluralization-language):
 
 ```php
 use Hypervel\Support\Str;
@@ -1308,6 +1412,15 @@ Str::createRandomStringsUsing(function () {
 });
 ```
 
+You may also provide a sequence of values using the `createRandomStringsUsingSequence` method:
+
+```php
+Str::createRandomStringsUsingSequence([
+    'first-random-string',
+    'second-random-string',
+]);
+```
+
 To instruct the `random` method to return to generating random strings normally, you may invoke the `createRandomStringsNormally` method:
 
 ```php
@@ -1354,11 +1467,11 @@ The `Str::replace` method replaces a given string within the string:
 ```php
 use Hypervel\Support\Str;
 
-$string = 'Laravel 11.x';
+$string = 'Hypervel 0.4';
 
-$replaced = Str::replace('11.x', '12.x', $string);
+$replaced = Str::replace('0.4', '0.5', $string);
 
-// Laravel 12.x
+// Hypervel 0.5
 ```
 
 The `replace` method also accepts a `caseSensitive` argument. By default, the `replace` method is case sensitive:
@@ -1366,12 +1479,12 @@ The `replace` method also accepts a `caseSensitive` argument. By default, the `r
 ```php
 $replaced = Str::replace(
     'php',
-    'Laravel',
+    'Hypervel',
     'PHP Framework for Web Artisans',
     caseSensitive: false
 );
 
-// Laravel Framework for Web Artisans
+// Hypervel Framework for Web Artisans
 ```
 
 <a name="method-str-replace-array"></a>
@@ -1452,11 +1565,11 @@ The `Str::replaceStart` method replaces the first occurrence of the given value 
 ```php
 use Hypervel\Support\Str;
 
-$replaced = Str::replaceStart('Hello', 'Laravel', 'Hello World');
+$replaced = Str::replaceStart('Hello', 'Hypervel', 'Hello World');
 
-// Laravel World
+// Hypervel World
 
-$replaced = Str::replaceStart('World', 'Laravel', 'Hello World');
+$replaced = Str::replaceStart('World', 'Hypervel', 'Hello World');
 
 // Hello World
 ```
@@ -1469,11 +1582,11 @@ The `Str::replaceEnd` method replaces the last occurrence of the given value onl
 ```php
 use Hypervel\Support\Str;
 
-$replaced = Str::replaceEnd('World', 'Laravel', 'Hello World');
+$replaced = Str::replaceEnd('World', 'Hypervel', 'Hello World');
 
-// Hello Laravel
+// Hello Hypervel
 
-$replaced = Str::replaceEnd('Hello', 'Laravel', 'Hello World');
+$replaced = Str::replaceEnd('Hello', 'Hypervel', 'Hello World');
 
 // Hello World
 ```
@@ -1494,7 +1607,7 @@ $reversed = Str::reverse('Hello World');
 <a name="method-str-singular"></a>
 #### `Str::singular()` {.collection-method}
 
-The `Str::singular` method converts a string to its singular form. This function supports [any of the languages supported by Laravel's pluralizer](/docs/{{version}}/localization#pluralization-language):
+The `Str::singular` method converts a string to its singular form. This function supports [any of the languages supported by Hypervel's pluralizer](/docs/{{version}}/localization#pluralization-language):
 
 ```php
 use Hypervel\Support\Str;
@@ -1516,9 +1629,9 @@ The `Str::slug` method generates a URL friendly "slug" from the given string:
 ```php
 use Hypervel\Support\Str;
 
-$slug = Str::slug('Laravel 5 Framework', '-');
+$slug = Str::slug('Hypervel 5 Framework', '-');
 
-// laravel-5-framework
+// hypervel-5-framework
 ```
 
 <a name="method-snake-case"></a>
@@ -1546,9 +1659,9 @@ The `Str::squish` method removes all extraneous white space from a string, inclu
 ```php
 use Hypervel\Support\Str;
 
-$string = Str::squish('    laravel    framework    ');
+$string = Str::squish('    hypervel    framework    ');
 
-// laravel framework
+// hypervel framework
 ```
 
 <a name="method-str-start"></a>
@@ -1610,9 +1723,9 @@ The `Str::substr` method returns the portion of string specified by the start an
 ```php
 use Hypervel\Support\Str;
 
-$converted = Str::substr('The Laravel Framework', 4, 7);
+$converted = Str::substr('The Hypervel Framework', 4, 8);
 
-// Laravel
+// Hypervel
 ```
 
 <a name="method-str-substrcount"></a>
@@ -1693,9 +1806,9 @@ The `Str::toBase64` method converts the given string to Base64:
 ```php
 use Hypervel\Support\Str;
 
-$base64 = Str::toBase64('Laravel');
+$base64 = Str::toBase64('Hypervel');
 
-// TGFyYXZlbA==
+// SHlwZXJ2ZWw=
 ```
 
 <a name="method-str-transliterate"></a>
@@ -1706,9 +1819,9 @@ The `Str::transliterate` method will attempt to convert a given string into its 
 ```php
 use Hypervel\Support\Str;
 
-$email = Str::transliterate('ⓣⓔⓢⓣ@ⓛⓐⓡⓐⓥⓔⓛ.ⓒⓞⓜ');
+$email = Str::transliterate('ⓣⓔⓢⓣ@ⓗⓨⓟⓔⓡⓥⓔⓛ.ⓞⓡⓖ');
 
-// 'test@laravel.com'
+// 'test@hypervel.org'
 ```
 
 <a name="method-str-trim"></a>
@@ -1784,9 +1897,9 @@ The `Str::ucwords` method converts the first character of each word in the given
 ```php
 use Hypervel\Support\Str;
 
-$string = Str::ucwords('laravel framework');
+$string = Str::ucwords('hypervel framework');
 
-// Laravel Framework
+// Hypervel Framework
 ```
 
 <a name="method-str-upper"></a>
@@ -1797,9 +1910,9 @@ The `Str::upper` method converts the given string to uppercase:
 ```php
 use Hypervel\Support\Str;
 
-$string = Str::upper('laravel');
+$string = Str::upper('hypervel');
 
-// LARAVEL
+// HYPERVEL
 ```
 
 <a name="method-str-ulid"></a>
@@ -1815,7 +1928,7 @@ return (string) Str::ulid();
 // 01gd6r360bp37zj17nxb55yv40
 ```
 
-If you would like to retrieve a `Hypervel\Support\Carbon` date instance representing the date and time that a given ULID was created, you may use the `createFromId` method provided by Laravel's Carbon integration:
+If you would like to retrieve a `Hypervel\Support\Carbon` date instance representing the date and time that a given ULID was created, you may use the `createFromId` method provided by Hypervel's Carbon integration:
 
 ```php
 use Hypervel\Support\Carbon;
@@ -1834,6 +1947,23 @@ Str::createUlidsUsing(function () {
 });
 ```
 
+You may also provide a sequence of ULIDs using the `createUlidsUsingSequence` method:
+
+```php
+use Symfony\Component\Uid\Ulid;
+
+Str::createUlidsUsingSequence([
+    new Ulid('01HRDBNHHCKNW2AK4Z29SN82T9'),
+    new Ulid('01HRDBP4E2S9V4E2HBT3E1QZQ8'),
+]);
+```
+
+To always return the same ULID, you may invoke the `freezeUlids` method:
+
+```php
+Str::freezeUlids();
+```
+
 To instruct the `ulid` method to return to generating ULIDs normally, you may invoke the `createUlidsNormally` method:
 
 ```php
@@ -1848,13 +1978,13 @@ The `Str::unwrap` method removes the specified strings from the beginning and en
 ```php
 use Hypervel\Support\Str;
 
-Str::unwrap('-Laravel-', '-');
+Str::unwrap('-Hypervel-', '-');
 
-// Laravel
+// Hypervel
 
-Str::unwrap('{framework: "Laravel"}', '{', '}');
+Str::unwrap('{framework: "Hypervel"}', '{', '}');
 
-// framework: "Laravel"
+// framework: "Hypervel"
 ```
 
 <a name="method-str-uuid"></a>
@@ -1871,11 +2001,28 @@ return (string) Str::uuid();
 During testing, it may be useful to "fake" the value that is returned by the `Str::uuid` method. To accomplish this, you may use the `createUuidsUsing` method:
 
 ```php
-use Ramsey\Uuid\Uuid;
+use Symfony\Component\Uid\Uuid;
 
 Str::createUuidsUsing(function () {
     return Uuid::fromString('eadbfeac-5258-45c2-bab7-ccb9b5ef74f9');
 });
+```
+
+You may also provide a sequence of UUIDs using the `createUuidsUsingSequence` method:
+
+```php
+use Symfony\Component\Uid\Uuid;
+
+Str::createUuidsUsingSequence([
+    Uuid::fromString('eadbfeac-5258-45c2-bab7-ccb9b5ef74f9'),
+    Uuid::fromString('56d7da4c-d5c9-4a41-9fe0-8df3e4d558d9'),
+]);
+```
+
+To always return the same UUID, you may invoke the `freezeUuids` method:
+
+```php
+Str::freezeUuids();
 ```
 
 To instruct the `uuid` method to return to generating UUIDs normally, you may invoke the `createUuidsNormally` method:
@@ -1952,13 +2099,13 @@ The `Str::wrap` method wraps the given string with an additional string or pair 
 ```php
 use Hypervel\Support\Str;
 
-Str::wrap('Laravel', '"');
+Str::wrap('Hypervel', '"');
 
-// "Laravel"
+// "Hypervel"
 
-Str::wrap('is', before: 'This ', after: ' Laravel!');
+Str::wrap('is', before: 'This ', after: ' Hypervel!');
 
-// This is Laravel!
+// This is Hypervel!
 ```
 
 <a name="method-str"></a>
@@ -2194,9 +2341,9 @@ The `chopStart` method removes the first occurrence of the given value only if t
 ```php
 use Hypervel\Support\Str;
 
-$url = Str::of('https://laravel.com')->chopStart('https://');
+$url = Str::of('https://hypervel.org')->chopStart('https://');
 
-// 'laravel.com'
+// 'hypervel.org'
 ```
 
 You may also pass an array. If the string starts with any of the values in the array then that value will be removed from string:
@@ -2204,9 +2351,9 @@ You may also pass an array. If the string starts with any of the values in the a
 ```php
 use Hypervel\Support\Str;
 
-$url = Str::of('http://laravel.com')->chopStart(['https://', 'http://']);
+$url = Str::of('http://hypervel.org')->chopStart(['https://', 'http://']);
 
-// 'laravel.com'
+// 'hypervel.org'
 ```
 
 <a name="method-fluent-str-chop-end"></a>
@@ -2217,9 +2364,9 @@ The `chopEnd` method removes the last occurrence of the given value only if the 
 ```php
 use Hypervel\Support\Str;
 
-$url = Str::of('https://laravel.com')->chopEnd('.com');
+$url = Str::of('https://hypervel.org')->chopEnd('.org');
 
-// 'https://laravel'
+// 'https://hypervel'
 ```
 
 You may also pass an array. If the string ends with any of the values in the array then that value will be removed from string:
@@ -2227,9 +2374,9 @@ You may also pass an array. If the string ends with any of the values in the arr
 ```php
 use Hypervel\Support\Str;
 
-$url = Str::of('http://laravel.com')->chopEnd(['.com', '.io']);
+$url = Str::of('http://hypervel.org')->chopEnd(['.org', '.io']);
 
-// 'http://laravel'
+// 'http://hypervel'
 ```
 
 <a name="method-fluent-str-contains"></a>
@@ -2288,6 +2435,19 @@ $containsAll = Str::of('This is my name')->containsAll(['MY', 'NAME'], ignoreCas
 // true
 ```
 
+<a name="method-fluent-str-convert-case"></a>
+#### `convertCase` {.collection-method}
+
+The `convertCase` method converts the string to the casing mode supported by PHP's `mb_convert_case` function:
+
+```php
+use Hypervel\Support\Str;
+
+$converted = Str::of('hypervel framework')->convertCase(MB_CASE_TITLE);
+
+// Hypervel Framework
+```
+
 <a name="method-fluent-str-decrypt"></a>
 #### `decrypt` {.collection-method}
 
@@ -2311,9 +2471,9 @@ The `deduplicate` method replaces consecutive instances of a character with a si
 ```php
 use Hypervel\Support\Str;
 
-$result = Str::of('The   Laravel   Framework')->deduplicate();
+$result = Str::of('The   Hypervel   Framework')->deduplicate();
 
-// The Laravel Framework
+// The Hypervel Framework
 ```
 
 You may specify a different character to deduplicate by passing it in as the second argument to the method:
@@ -2321,9 +2481,9 @@ You may specify a different character to deduplicate by passing it in as the sec
 ```php
 use Hypervel\Support\Str;
 
-$result = Str::of('The---Laravel---Framework')->deduplicate('-');
+$result = Str::of('The---Hypervel---Framework')->deduplicate('-');
 
-// The-Laravel-Framework
+// The-Hypervel-Framework
 ```
 
 <a name="method-fluent-str-dirname"></a>
@@ -2432,6 +2592,19 @@ $result = Str::of('This is my name')->doesntStartWith(['What', 'That', 'There'])
 // true
 ```
 
+<a name="method-fluent-str-dump"></a>
+#### `dump` {.collection-method}
+
+The `dump` method dumps the underlying string value and returns the fluent string instance:
+
+```php
+use Hypervel\Support\Str;
+
+$string = Str::of('Hypervel')->dump()->append(' Framework');
+
+// Hypervel Framework
+```
+
 <a name="method-fluent-str-encrypt"></a>
 #### `encrypt` {.collection-method}
 
@@ -2480,7 +2653,7 @@ The `exactly` method determines if the given string is an exact match with anoth
 ```php
 use Hypervel\Support\Str;
 
-$result = Str::of('Laravel')->exactly('Laravel');
+$result = Str::of('Hypervel')->exactly('Hypervel');
 
 // true
 ```
@@ -2553,9 +2726,9 @@ The `fromBase64` method decodes the given Base64 string:
 ```php
 use Hypervel\Support\Str;
 
-$decoded = Str::of('TGFyYXZlbA==')->fromBase64();
+$decoded = Str::of('SHlwZXJ2ZWw=')->fromBase64();
 
-// Laravel
+// Hypervel
 ```
 
 <a name="method-fluent-str-hash"></a>
@@ -2609,9 +2782,9 @@ The `inlineMarkdown` method converts GitHub flavored Markdown into inline HTML u
 ```php
 use Hypervel\Support\Str;
 
-$html = Str::of('**Laravel**')->inlineMarkdown();
+$html = Str::of('**Hypervel**')->inlineMarkdown();
 
-// <strong>Laravel</strong>
+// <strong>Hypervel</strong>
 ```
 
 #### Markdown Security
@@ -2675,7 +2848,7 @@ $result = Str::of('  ')->trim()->isEmpty();
 
 // true
 
-$result = Str::of('Laravel')->trim()->isEmpty();
+$result = Str::of('Hypervel')->trim()->isEmpty();
 
 // false
 ```
@@ -2692,7 +2865,7 @@ $result = Str::of('  ')->trim()->isNotEmpty();
 
 // false
 
-$result = Str::of('Laravel')->trim()->isNotEmpty();
+$result = Str::of('Hypervel')->trim()->isNotEmpty();
 
 // true
 ```
@@ -2823,9 +2996,9 @@ The `length` method returns the length of the given string:
 ```php
 use Hypervel\Support\Str;
 
-$length = Str::of('Laravel')->length();
+$length = Str::of('Hypervel')->length();
 
-// 7
+// 8
 ```
 
 <a name="method-fluent-str-limit"></a>
@@ -2865,9 +3038,9 @@ The `lower` method converts the given string to lowercase:
 ```php
 use Hypervel\Support\Str;
 
-$result = Str::of('LARAVEL')->lower();
+$result = Str::of('HYPERVEL')->lower();
 
-// 'laravel'
+// 'hypervel'
 ```
 
 <a name="method-fluent-str-markdown"></a>
@@ -2878,9 +3051,9 @@ The `markdown` method converts GitHub flavored Markdown into HTML:
 ```php
 use Hypervel\Support\Str;
 
-$html = Str::of('# Laravel')->markdown();
+$html = Str::of('# Hypervel')->markdown();
 
-// <h1>Laravel</h1>
+// <h1>Hypervel</h1>
 
 $html = Str::of('# Taylor <b>Otwell</b>')->markdown([
     'html_input' => 'strip',
@@ -2959,7 +3132,7 @@ $result = Str::of('bar foo bar')->matchAll('/bar/');
 // collect(['bar', 'bar'])
 ```
 
-If you specify a matching group within the expression, Laravel will return a collection of the first matching group's matches:
+If you specify a matching group within the expression, Hypervel will return a collection of the first matching group's matches:
 
 ```php
 use Hypervel\Support\Str;
@@ -2983,7 +3156,7 @@ $result = Str::of('foo bar')->isMatch('/foo (.*)/');
 
 // true
 
-$result = Str::of('laravel')->isMatch('/foo (.*)/');
+$result = Str::of('hypervel')->isMatch('/foo (.*)/');
 
 // false
 ```
@@ -2996,10 +3169,23 @@ The `newLine` method appends an "end of line" character to a string:
 ```php
 use Hypervel\Support\Str;
 
-$padded = Str::of('Laravel')->newLine()->append('Framework');
+$padded = Str::of('Hypervel')->newLine()->append('Framework');
 
-// 'Laravel
+// 'Hypervel
 //  Framework'
+```
+
+<a name="method-fluent-str-numbers"></a>
+#### `numbers` {.collection-method}
+
+The `numbers` method removes all non-numeric characters from the string:
+
+```php
+use Hypervel\Support\Str;
+
+$numbers = Str::of('(555) 123-4567')->numbers();
+
+// 5551234567
 ```
 
 <a name="method-fluent-str-padboth"></a>
@@ -3053,6 +3239,32 @@ $padded = Str::of('James')->padRight(10);
 // 'James     '
 ```
 
+<a name="method-fluent-str-parse-callback"></a>
+#### `parseCallback` {.collection-method}
+
+The `parseCallback` method parses a `Class@method` style callback into class and method segments:
+
+```php
+use Hypervel\Support\Str;
+
+[$class, $method] = Str::of('App\Http\Controllers\UserController@show')->parseCallback();
+
+// ['App\Http\Controllers\UserController', 'show']
+```
+
+<a name="method-fluent-str-pascal"></a>
+#### `pascal` {.collection-method}
+
+The `pascal` method converts the string to `PascalCase`:
+
+```php
+use Hypervel\Support\Str;
+
+$converted = Str::of('foo_bar')->pascal();
+
+// FooBar
+```
+
 <a name="method-fluent-str-pipe"></a>
 #### `pipe` {.collection-method}
 
@@ -3062,9 +3274,9 @@ The `pipe` method allows you to transform the string by passing its current valu
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 
-$hash = Str::of('Laravel')->pipe('md5')->prepend('Checksum: ');
+$hash = Str::of('Hypervel')->pipe('md5')->prepend('Checksum: ');
 
-// 'Checksum: a5c95b86291ea299fcbe64458ed12702'
+// 'Checksum: b7862769df77c744de75d10c11c6200b'
 
 $closure = Str::of('foo')->pipe(function (Stringable $str) {
     return 'bar';
@@ -3076,7 +3288,7 @@ $closure = Str::of('foo')->pipe(function (Stringable $str) {
 <a name="method-fluent-str-plural"></a>
 #### `plural` {.collection-method}
 
-The `plural` method converts a singular word string to its plural form. This function supports [any of the languages supported by Laravel's pluralizer](/docs/{{version}}/localization#pluralization-language):
+The `plural` method converts a singular word string to its plural form. This function supports [any of the languages supported by Hypervel's pluralizer](/docs/{{version}}/localization#pluralization-language):
 
 ```php
 use Hypervel\Support\Str;
@@ -3114,6 +3326,32 @@ $label = Str::of('car')->plural(1000, prependCount: true);
 // 1,000 cars
 ```
 
+<a name="method-fluent-str-plural-pascal"></a>
+#### `pluralPascal` {.collection-method}
+
+The `pluralPascal` method converts a singular word string formatted in Pascal case to its plural form. This function supports [any of the languages supported by Hypervel's pluralizer](/docs/{{version}}/localization#pluralization-language):
+
+```php
+use Hypervel\Support\Str;
+
+$plural = Str::of('UserProfile')->pluralPascal();
+
+// UserProfiles
+```
+
+<a name="method-fluent-str-plural-studly"></a>
+#### `pluralStudly` {.collection-method}
+
+The `pluralStudly` method converts a singular word string formatted in studly caps case to its plural form. This function supports [any of the languages supported by Hypervel's pluralizer](/docs/{{version}}/localization#pluralization-language):
+
+```php
+use Hypervel\Support\Str;
+
+$plural = Str::of('VerifiedHuman')->pluralStudly();
+
+// VerifiedHumans
+```
+
 <a name="method-fluent-str-position"></a>
 #### `position` {.collection-method}
 
@@ -3139,9 +3377,9 @@ The `prepend` method prepends the given values onto the string:
 ```php
 use Hypervel\Support\Str;
 
-$string = Str::of('Framework')->prepend('Laravel ');
+$string = Str::of('Framework')->prepend('Hypervel ');
 
-// Laravel Framework
+// Hypervel Framework
 ```
 
 <a name="method-fluent-str-remove"></a>
@@ -3180,9 +3418,9 @@ The `replace` method replaces a given string within the string:
 ```php
 use Hypervel\Support\Str;
 
-$replaced = Str::of('Laravel 6.x')->replace('6.x', '7.x');
+$replaced = Str::of('Hypervel 0.4')->replace('0.4', '0.5');
 
-// Laravel 7.x
+// Hypervel 0.5
 ```
 
 The `replace` method also accepts a `caseSensitive` argument. By default, the `replace` method is case sensitive:
@@ -3267,11 +3505,11 @@ The `replaceStart` method replaces the first occurrence of the given value only 
 ```php
 use Hypervel\Support\Str;
 
-$replaced = Str::of('Hello World')->replaceStart('Hello', 'Laravel');
+$replaced = Str::of('Hello World')->replaceStart('Hello', 'Hypervel');
 
-// Laravel World
+// Hypervel World
 
-$replaced = Str::of('Hello World')->replaceStart('World', 'Laravel');
+$replaced = Str::of('Hello World')->replaceStart('World', 'Hypervel');
 
 // Hello World
 ```
@@ -3284,13 +3522,26 @@ The `replaceEnd` method replaces the last occurrence of the given value only if 
 ```php
 use Hypervel\Support\Str;
 
-$replaced = Str::of('Hello World')->replaceEnd('World', 'Laravel');
+$replaced = Str::of('Hello World')->replaceEnd('World', 'Hypervel');
 
-// Hello Laravel
+// Hello Hypervel
 
-$replaced = Str::of('Hello World')->replaceEnd('Hello', 'Laravel');
+$replaced = Str::of('Hello World')->replaceEnd('Hello', 'Hypervel');
 
 // Hello World
+```
+
+<a name="method-fluent-str-reverse"></a>
+#### `reverse` {.collection-method}
+
+The `reverse` method reverses the string:
+
+```php
+use Hypervel\Support\Str;
+
+$reversed = Str::of('Hello World')->reverse();
+
+// dlroW olleH
 ```
 
 <a name="method-fluent-str-scan"></a>
@@ -3309,7 +3560,7 @@ $collection = Str::of('filename.jpg')->scan('%[^.].%s');
 <a name="method-fluent-str-singular"></a>
 #### `singular` {.collection-method}
 
-The `singular` method converts a string to its singular form. This function supports [any of the languages supported by Laravel's pluralizer](/docs/{{version}}/localization#pluralization-language):
+The `singular` method converts a string to its singular form. This function supports [any of the languages supported by Hypervel's pluralizer](/docs/{{version}}/localization#pluralization-language):
 
 ```php
 use Hypervel\Support\Str;
@@ -3331,9 +3582,9 @@ The `slug` method generates a URL friendly "slug" from the given string:
 ```php
 use Hypervel\Support\Str;
 
-$slug = Str::of('Laravel Framework')->slug('-');
+$slug = Str::of('Hypervel Framework')->slug('-');
 
-// laravel-framework
+// hypervel-framework
 ```
 
 <a name="method-fluent-str-snake"></a>
@@ -3370,9 +3621,9 @@ The `squish` method removes all extraneous white space from a string, including 
 ```php
 use Hypervel\Support\Str;
 
-$string = Str::of('    laravel    framework    ')->squish();
+$string = Str::of('    hypervel    framework    ')->squish();
 
-// laravel framework
+// hypervel framework
 ```
 
 <a name="method-fluent-str-start"></a>
@@ -3423,11 +3674,11 @@ The `stripTags` method removes all HTML and PHP tags from a string:
 ```php
 use Hypervel\Support\Str;
 
-$result = Str::of('<a href="https://laravel.com">Taylor <b>Otwell</b></a>')->stripTags();
+$result = Str::of('<a href="https://hypervel.org">Taylor <b>Otwell</b></a>')->stripTags();
 
 // Taylor Otwell
 
-$result = Str::of('<a href="https://laravel.com">Taylor <b>Otwell</b></a>')->stripTags('<b>');
+$result = Str::of('<a href="https://hypervel.org">Taylor <b>Otwell</b></a>')->stripTags('<b>');
 
 // Taylor <b>Otwell</b>
 ```
@@ -3453,13 +3704,26 @@ The `substr` method returns the portion of the string specified by the given sta
 ```php
 use Hypervel\Support\Str;
 
-$string = Str::of('Laravel Framework')->substr(8);
+$string = Str::of('Hypervel Framework')->substr(9);
 
 // Framework
 
-$string = Str::of('Laravel Framework')->substr(8, 5);
+$string = Str::of('Hypervel Framework')->substr(9, 5);
 
 // Frame
+```
+
+<a name="method-fluent-str-substr-count"></a>
+#### `substrCount` {.collection-method}
+
+The `substrCount` method returns the number of occurrences of a given value in the string:
+
+```php
+use Hypervel\Support\Str;
+
+$count = Str::of('If you like ice cream, you will like snow cones.')->substrCount('like');
+
+// 2
 ```
 
 <a name="method-fluent-str-substrreplace"></a>
@@ -3474,9 +3738,9 @@ $string = Str::of('1300')->substrReplace(':', 2);
 
 // 13:
 
-$string = Str::of('The Framework')->substrReplace(' Laravel', 3, 0);
+$string = Str::of('The Framework')->substrReplace(' Hypervel', 3, 0);
 
-// The Laravel Framework
+// The Hypervel Framework
 ```
 
 <a name="method-fluent-str-swap"></a>
@@ -3518,14 +3782,14 @@ The `tap` method passes the string to the given closure, allowing you to examine
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 
-$string = Str::of('Laravel')
+$string = Str::of('Hypervel')
     ->append(' Framework')
     ->tap(function (Stringable $string) {
         dump('String after append: '.$string);
     })
     ->upper();
 
-// LARAVEL FRAMEWORK
+// HYPERVEL FRAMEWORK
 ```
 
 <a name="method-fluent-str-test"></a>
@@ -3536,7 +3800,7 @@ The `test` method determines if a string matches the given regular expression pa
 ```php
 use Hypervel\Support\Str;
 
-$result = Str::of('Laravel Framework')->test('/Laravel/');
+$result = Str::of('Hypervel Framework')->test('/Hypervel/');
 
 // true
 ```
@@ -3562,9 +3826,46 @@ The `toBase64` method converts the given string to Base64:
 ```php
 use Hypervel\Support\Str;
 
-$base64 = Str::of('Laravel')->toBase64();
+$base64 = Str::of('Hypervel')->toBase64();
 
-// TGFyYXZlbA==
+// SHlwZXJ2ZWw=
+```
+
+<a name="method-fluent-str-to-boolean"></a>
+#### `toBoolean` {.collection-method}
+
+The `toBoolean` method returns the underlying string value as a boolean. This method returns `true` when the value is `1`, `true`, `on`, or `yes`:
+
+```php
+use Hypervel\Support\Str;
+
+$boolean = Str::of('yes')->toBoolean();
+
+// true
+```
+
+<a name="method-fluent-str-to-date"></a>
+#### `toDate` {.collection-method}
+
+The `toDate` method returns the underlying string value as a date instance:
+
+```php
+use Hypervel\Support\Str;
+
+$date = Str::of('2026-06-17')->toDate();
+```
+
+<a name="method-fluent-str-to-float"></a>
+#### `toFloat` {.collection-method}
+
+The `toFloat` method returns the underlying string value as a float:
+
+```php
+use Hypervel\Support\Str;
+
+$float = Str::of('3.14')->toFloat();
+
+// 3.14
 ```
 
 <a name="method-fluent-str-to-html-string"></a>
@@ -3576,6 +3877,32 @@ The `toHtmlString` method converts the given string to an instance of `Hypervel\
 use Hypervel\Support\Str;
 
 $htmlString = Str::of('Nuno Maduro')->toHtmlString();
+```
+
+<a name="method-fluent-str-to-integer"></a>
+#### `toInteger` {.collection-method}
+
+The `toInteger` method returns the underlying string value as an integer:
+
+```php
+use Hypervel\Support\Str;
+
+$integer = Str::of('42')->toInteger();
+
+// 42
+```
+
+<a name="method-fluent-str-to-string"></a>
+#### `toString` {.collection-method}
+
+The `toString` method returns the underlying string value:
+
+```php
+use Hypervel\Support\Str;
+
+$value = Str::of('Hypervel')->toString();
+
+// Hypervel
 ```
 
 <a name="method-fluent-str-to-uri"></a>
@@ -3597,60 +3924,60 @@ The `transliterate` method will attempt to convert a given string into its close
 ```php
 use Hypervel\Support\Str;
 
-$email = Str::of('ⓣⓔⓢⓣ@ⓛⓐⓡⓐⓥⓔⓛ.ⓒⓞⓜ')->transliterate()
+$email = Str::of('ⓣⓔⓢⓣ@ⓗⓨⓟⓔⓡⓥⓔⓛ.ⓞⓡⓖ')->transliterate();
 
-// 'test@laravel.com'
+// 'test@hypervel.org'
 ```
 
 <a name="method-fluent-str-trim"></a>
 #### `trim` {.collection-method}
 
-The `trim` method trims the given string. Unlike PHP's native `trim` function, Laravel's `trim` method also removes unicode whitespace characters:
+The `trim` method trims the given string. Unlike PHP's native `trim` function, Hypervel's `trim` method also removes unicode whitespace characters:
 
 ```php
 use Hypervel\Support\Str;
 
-$string = Str::of('  Laravel  ')->trim();
+$string = Str::of('  Hypervel  ')->trim();
 
-// 'Laravel'
+// 'Hypervel'
 
-$string = Str::of('/Laravel/')->trim('/');
+$string = Str::of('/Hypervel/')->trim('/');
 
-// 'Laravel'
+// 'Hypervel'
 ```
 
 <a name="method-fluent-str-ltrim"></a>
 #### `ltrim` {.collection-method}
 
-The `ltrim` method trims the left side of the string. Unlike PHP's native `ltrim` function, Laravel's `ltrim` method also removes unicode whitespace characters:
+The `ltrim` method trims the left side of the string. Unlike PHP's native `ltrim` function, Hypervel's `ltrim` method also removes unicode whitespace characters:
 
 ```php
 use Hypervel\Support\Str;
 
-$string = Str::of('  Laravel  ')->ltrim();
+$string = Str::of('  Hypervel  ')->ltrim();
 
-// 'Laravel  '
+// 'Hypervel  '
 
-$string = Str::of('/Laravel/')->ltrim('/');
+$string = Str::of('/Hypervel/')->ltrim('/');
 
-// 'Laravel/'
+// 'Hypervel/'
 ```
 
 <a name="method-fluent-str-rtrim"></a>
 #### `rtrim` {.collection-method}
 
-The `rtrim` method trims the right side of the given string. Unlike PHP's native `rtrim` function, Laravel's `rtrim` method also removes unicode whitespace characters:
+The `rtrim` method trims the right side of the given string. Unlike PHP's native `rtrim` function, Hypervel's `rtrim` method also removes unicode whitespace characters:
 
 ```php
 use Hypervel\Support\Str;
 
-$string = Str::of('  Laravel  ')->rtrim();
+$string = Str::of('  Hypervel  ')->rtrim();
 
-// '  Laravel'
+// '  Hypervel'
 
-$string = Str::of('/Laravel/')->rtrim('/');
+$string = Str::of('/Hypervel/')->rtrim('/');
 
-// '/Laravel'
+// '/Hypervel'
 ```
 
 <a name="method-fluent-str-ucfirst"></a>
@@ -3687,9 +4014,9 @@ The `ucwords` method converts the first character of each word in the given stri
 ```php
 use Hypervel\Support\Str;
 
-$string = Str::of('laravel framework')->ucwords();
+$string = Str::of('hypervel framework')->ucwords();
 
-// Laravel Framework
+// Hypervel Framework
 ```
 
 <a name="method-fluent-str-unwrap"></a>
@@ -3700,13 +4027,13 @@ The `unwrap` method removes the specified strings from the beginning and end of 
 ```php
 use Hypervel\Support\Str;
 
-Str::of('-Laravel-')->unwrap('-');
+Str::of('-Hypervel-')->unwrap('-');
 
-// Laravel
+// Hypervel
 
-Str::of('{framework: "Laravel"}')->unwrap('{', '}');
+Str::of('{framework: "Hypervel"}')->unwrap('{', '}');
 
-// framework: "Laravel"
+// framework: "Hypervel"
 ```
 
 <a name="method-fluent-str-upper"></a>
@@ -3717,9 +4044,22 @@ The `upper` method converts the given string to uppercase:
 ```php
 use Hypervel\Support\Str;
 
-$adjusted = Str::of('laravel')->upper();
+$adjusted = Str::of('hypervel')->upper();
 
-// LARAVEL
+// HYPERVEL
+```
+
+<a name="method-fluent-str-value"></a>
+#### `value` {.collection-method}
+
+The `value` method returns the underlying string value:
+
+```php
+use Hypervel\Support\Str;
+
+$value = Str::of('Hypervel')->value();
+
+// Hypervel
 ```
 
 <a name="method-fluent-str-when"></a>
@@ -3835,10 +4175,10 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 
 $string = Str::of('  ')->trim()->whenEmpty(function (Stringable $string) {
-    return $string->prepend('Laravel');
+    return $string->prepend('Hypervel');
 });
 
-// 'Laravel'
+// 'Hypervel'
 ```
 
 <a name="method-fluent-str-when-not-empty"></a>
@@ -3851,10 +4191,10 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 
 $string = Str::of('Framework')->whenNotEmpty(function (Stringable $string) {
-    return $string->prepend('Laravel ');
+    return $string->prepend('Hypervel ');
 });
 
-// 'Laravel Framework'
+// 'Hypervel Framework'
 ```
 
 <a name="method-fluent-str-when-starts-with"></a>
@@ -3898,11 +4238,11 @@ The `whenExactly` method invokes the given closure if the string exactly matches
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 
-$string = Str::of('laravel')->whenExactly('laravel', function (Stringable $string) {
+$string = Str::of('hypervel')->whenExactly('hypervel', function (Stringable $string) {
     return $string->title();
 });
 
-// 'Laravel'
+// 'Hypervel'
 ```
 
 <a name="method-fluent-str-when-not-exactly"></a>
@@ -3914,7 +4254,7 @@ The `whenNotExactly` method invokes the given closure if the string does not exa
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 
-$string = Str::of('framework')->whenNotExactly('laravel', function (Stringable $string) {
+$string = Str::of('framework')->whenNotExactly('hypervel', function (Stringable $string) {
     return $string->title();
 });
 
@@ -3946,11 +4286,11 @@ The `whenIsAscii` method invokes the given closure if the string is 7 bit ASCII.
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 
-$string = Str::of('laravel')->whenIsAscii(function (Stringable $string) {
+$string = Str::of('hypervel')->whenIsAscii(function (Stringable $string) {
     return $string->title();
 });
 
-// 'Laravel'
+// 'Hypervel'
 ```
 
 <a name="method-fluent-str-when-is-ulid"></a>
@@ -3993,11 +4333,11 @@ The `whenTest` method invokes the given closure if the string matches the given 
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 
-$string = Str::of('laravel framework')->whenTest('/laravel/', function (Stringable $string) {
+$string = Str::of('hypervel framework')->whenTest('/hypervel/', function (Stringable $string) {
     return $string->title();
 });
 
-// 'Laravel Framework'
+// 'Hypervel Framework'
 ```
 
 <a name="method-fluent-str-word-count"></a>
@@ -4009,6 +4349,26 @@ The `wordCount` method returns the number of words that a string contains:
 use Hypervel\Support\Str;
 
 Str::of('Hello, world!')->wordCount(); // 2
+```
+
+<a name="method-fluent-str-word-wrap"></a>
+#### `wordWrap` {.collection-method}
+
+The `wordWrap` method wraps the string to a given number of characters:
+
+```php
+use Hypervel\Support\Str;
+
+$wrapped = Str::of('The quick brown fox jumped over the lazy dog.')->wordWrap(
+    characters: 20,
+    break: "<br />\n",
+);
+
+/*
+The quick brown fox<br />
+jumped over the lazy<br />
+dog.
+*/
 ```
 
 <a name="method-fluent-str-words"></a>
@@ -4032,11 +4392,11 @@ The `wrap` method wraps the given string with an additional string or pair of st
 ```php
 use Hypervel\Support\Str;
 
-Str::of('Laravel')->wrap('"');
+Str::of('Hypervel')->wrap('"');
 
-// "Laravel"
+// "Hypervel"
 
-Str::is('is')->wrap(before: 'This ', after: ' Laravel!');
+Str::of('is')->wrap(before: 'This ', after: ' Hypervel!');
 
-// This is Laravel!
+// This is Hypervel!
 ```

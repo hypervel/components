@@ -114,6 +114,8 @@
 
 ## Support
 
+- Port `Str::initials()` and fluent `Stringable::initials()`. The copied strings docs document `Str::initials('taylor otwell')` with a `capitalize` argument and `Str::of('Taylor Otwell')->initials()`, but neither method exists in `Hypervel\Support\Str` or `Hypervel\Support\Stringable`. Correct fix: port Laravel's `Str::initials()` implementation, add `Stringable::initials()`, and port Laravel's matching Support tests.
+
 - Port `Hypervel\Support\Uri::authority()`. The copied helpers docs show `$uri->authority()` in the URI inspection example, but `Hypervel\Support\Uri` currently exposes `scheme()`, `user()`, `password()`, `host()`, `port()`, `path()`, `pathSegments()`, `query()`, and `fragment()` without the Laravel `authority()` method. Correct fix: add `authority(): ?string` returning the underlying URI authority and port Laravel's `SupportUriTest` coverage for user info, host, and authority inspection.
 
 ## Validation
