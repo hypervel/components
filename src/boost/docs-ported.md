@@ -72,6 +72,7 @@ socialite.md
 strings.md
 testing.md
 telescope.md
+testbench.md
 urls.md
 validation.md
 verification.md

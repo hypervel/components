@@ -38,29 +38,17 @@ use function Hypervel\Testbench\transform_relative_path;
  *   files?: array<int, string>
  * }
  * @phpstan-type TWorkbenchConfig array{
- *   start: string,
- *   user: string|int|null,
- *   guard: string|null,
  *   install: bool,
  *   auth: bool,
- *   welcome: bool|null,
  *   health: bool|null,
  *   sync: array<int, array{from: string, to: string, reverse?: bool}>,
- *   build: array<int|string, array<string, mixed>|string>,
- *   assets: array<int, string>,
  *   discovers: TWorkbenchDiscoversConfig
  * }
  * @phpstan-type TOptionalWorkbenchConfig array{
- *   start?: string,
- *   user?: string|int|null,
- *   guard?: string|null,
  *   install?: bool,
  *   auth?: bool,
- *   welcome?: bool|null,
  *   health?: bool|null,
  *   sync?: array<int, array{from: string, to: string, reverse?: bool}>,
- *   build?: array<int|string, array<string, mixed>|string>,
- *   assets?: array<int, string>,
  *   discovers?: TWorkbenchOptionalDiscoversConfig
  * }
  * @phpstan-type TWorkbenchDiscoversConfig array{
@@ -145,16 +133,10 @@ class Config extends Fluent implements ConfigContract
      * @phpstan-var TWorkbenchConfig
      */
     protected array $workbenchConfig = [
-        'start' => '/',
-        'user' => null,
-        'guard' => null,
         'install' => true,
         'auth' => false,
-        'welcome' => null,
         'health' => null,
         'sync' => [],
-        'build' => [],
-        'assets' => [],
         'discovers' => [
             'config' => false,
             'factories' => false,

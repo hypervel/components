@@ -21,11 +21,7 @@ class HelpersTest extends TestCase
     {
         $this->instance(ConfigContract::class, new Config([
             'workbench' => [
-                'start' => '/workbench',
-                'user' => 'crynobone@gmail.com',
-                'guard' => 'web',
                 'install' => false,
-                'welcome' => false,
                 'health' => false,
                 'discovers' => [
                     'web' => true,
@@ -34,16 +30,10 @@ class HelpersTest extends TestCase
         ]));
 
         $this->assertSame([
-            'start' => '/workbench',
-            'user' => 'crynobone@gmail.com',
-            'guard' => 'web',
             'install' => false,
             'auth' => false,
-            'welcome' => false,
             'health' => false,
             'sync' => [],
-            'build' => [],
-            'assets' => [],
             'discovers' => [
                 'config' => false,
                 'factories' => false,
@@ -60,16 +50,10 @@ class HelpersTest extends TestCase
     public function itCanResolveWorkbenchWithoutBound()
     {
         $this->assertSame([
-            'start' => '/',
-            'user' => null,
-            'guard' => null,
             'install' => true,
             'auth' => false,
-            'welcome' => null,
             'health' => null,
             'sync' => [],
-            'build' => [],
-            'assets' => [],
             'discovers' => [
                 'config' => false,
                 'factories' => false,

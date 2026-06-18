@@ -2,6 +2,8 @@
 
 - [Introduction](#introduction)
     - [Resetting the Database After Each Test](#resetting-the-database-after-each-test)
+    - [Lazily Refreshing the Database](#lazily-refreshing-the-database)
+    - [Refresh Hooks](#refresh-hooks)
 - [Model Factories](#model-factories)
 - [Running Seeders](#running-seeders)
 - [Available Assertions](#available-assertions)
@@ -59,6 +61,66 @@ The `Hypervel\Foundation\Testing\RefreshDatabase` trait does not migrate your da
 Hypervel application tests run inside a coroutine by default. When a transaction-based trait such as `RefreshDatabase` is used, database transactions are started and rolled back inside the test coroutine so transaction state remains isolated across pooled database connections.
 
 If you would like to totally reset the database, you may use the `Hypervel\Foundation\Testing\DatabaseMigrations` or `Hypervel\Foundation\Testing\DatabaseTruncation` traits instead. However, both of these options are significantly slower than the `RefreshDatabase` trait.
+
+<a name="lazily-refreshing-the-database"></a>
+### Lazily Refreshing the Database
+
+If a test class only sometimes touches the database, you may use the `Hypervel\Foundation\Testing\LazilyRefreshDatabase` trait. This trait uses the same refresh behavior as `RefreshDatabase`, but waits to refresh the database until the test starts a transaction or executes its first database query:
+
+```php
+<?php
+
+namespace Tests\Feature;
+
+use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
+use Tests\TestCase;
+
+class ExampleTest extends TestCase
+{
+    use LazilyRefreshDatabase;
+
+    /**
+     * A basic functional test example.
+     */
+    public function test_basic_example(): void
+    {
+        // ...
+    }
+}
+```
+
+<a name="refresh-hooks"></a>
+### Refresh Hooks
+
+The `RefreshDatabase`, `LazilyRefreshDatabase`, and `DatabaseMigrations` traits allow you to run code immediately before or after the database is refreshed by defining `beforeRefreshingDatabase` or `afterRefreshingDatabase` methods on your test class:
+
+```php
+<?php
+
+namespace Tests\Feature;
+
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\Schema;
+use Tests\TestCase;
+
+class ExampleTest extends TestCase
+{
+    use RefreshDatabase;
+
+    /**
+     * Define schema needed by the test.
+     */
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('flights', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->timestamps();
+        });
+    }
+}
+```
 
 <a name="model-factories"></a>
 ## Model Factories

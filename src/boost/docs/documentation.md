@@ -110,5 +110,6 @@
     - [Scout](/docs/{{version}}/scout)
     - [Socialite](/docs/{{version}}/socialite)
     - [Telescope](/docs/{{version}}/telescope)
+    - [Testbench](/docs/{{version}}/testbench)
     - [Valet](/docs/{{version}}/valet)
 - [API Documentation](https://api.hypervel.org/docs/12.x)
