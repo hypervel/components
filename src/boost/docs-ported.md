@@ -49,6 +49,7 @@ mail.md
 middleware.md
 migrations.md
 mocking.md
+nested-set.md
 notifications.md
 packages.md
 pagination.md

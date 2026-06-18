@@ -85,6 +85,7 @@
     - [Mocking](/docs/{{version}}/mocking)
 - ## Packages
     - [Horizon](/docs/{{version}}/horizon)
+    - [Nested Set](/docs/{{version}}/nested-set)
     - [Precognition](/docs/{{version}}/precognition)
     - [Prompts](/docs/{{version}}/prompts)
     - [Reverb](/docs/{{version}}/reverb)
