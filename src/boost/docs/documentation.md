@@ -35,6 +35,7 @@
     - [Broadcasting](/docs/{{version}}/broadcasting)
     - [Cache](/docs/{{version}}/cache)
     - [Collections](/docs/{{version}}/collections)
+    - [Data Objects](/docs/{{version}}/data-objects)
     - [Concurrency](/docs/{{version}}/concurrency)
     - [Context](/docs/{{version}}/context)
     - [Coroutine Context](/docs/{{version}}/coroutine-context)

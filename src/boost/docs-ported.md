@@ -17,6 +17,7 @@ controllers.md
 coroutine-context.md
 coroutines.md
 csrf.md
+data-objects.md
 database-testing.md
 database.md
 deployment.md
