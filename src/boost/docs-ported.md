@@ -74,6 +74,7 @@ session.md
 socialite.md
 strings.md
 starter-kits.md
+structure.md
 testing.md
 telescope.md
 testbench.md

@@ -30,7 +30,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-The default Laravel application structure is intended to provide a great starting point for both large and small applications. But you are free to organize your application however you like. Laravel imposes almost no restrictions on where any given class is located - as long as Composer can autoload the class.
+The default Hypervel application structure is intended to provide a great starting point for both large and small applications. But you are free to organize your application however you like. Hypervel imposes almost no restrictions on where any given class is located - as long as Composer can autoload the class.
 
 <a name="the-root-directory"></a>
 ## The Root Directory
@@ -43,7 +43,7 @@ The `app` directory contains the core code of your application. We'll explore th
 <a name="the-bootstrap-directory"></a>
 ### The Bootstrap Directory
 
-The `bootstrap` directory contains the `app.php` file which bootstraps the framework. This directory also houses a `cache` directory which contains framework generated files for performance optimization such as the route and services cache files.
+The `bootstrap` directory contains the `app.php` file which bootstraps the framework. This directory also contains a `providers.php` file where your application's service providers are registered. The `cache` directory contains framework generated files for performance optimization such as route and configuration cache files.
 
 <a name="the-config-directory"></a>
 ### The Config Directory
@@ -53,12 +53,14 @@ The `config` directory, as the name implies, contains all of your application's 
 <a name="the-database-directory"></a>
 ### The Database Directory
 
-The `database` directory contains your database migrations, model factories, and seeds. If you wish, you may also use this directory to hold an SQLite database.
+The `database` directory contains your database migrations, model factories, and seeds. Hypervel's default skeleton keeps the framework table migrations in separate files, such as users, sessions, cache, jobs, and failed jobs. If you wish, you may also use this directory to hold an SQLite database.
 
 <a name="the-public-directory"></a>
 ### The Public Directory
 
-The `public` directory contains the `index.php` file, which is the entry point for all requests entering your application and configures autoloading. This directory also houses your assets such as images, JavaScript, and CSS.
+The `public` directory houses your assets such as images, JavaScript, and CSS. Hypervel runs on Swoole, so requests do not enter your application through a `public/index.php` front controller. Instead, the Swoole HTTP server started by `php artisan serve` receives requests and dispatches them into your application.
+
+By default, Hypervel's Swoole server is configured to serve static files from the `public` directory directly. In production, you should usually serve static files with a web server such as Nginx and proxy dynamic requests to Hypervel. This is more efficient than serving static files through PHP. When your web server is serving static files directly, you may disable Swoole's static file handler by setting the `SERVER_STATIC_FILE_HANDLER` environment variable to `false`.
 
 <a name="the-resources-directory"></a>
 ### The Resources Directory
@@ -68,9 +70,9 @@ The `resources` directory contains your [views](/docs/{{version}}/views) as well
 <a name="the-routes-directory"></a>
 ### The Routes Directory
 
-The `routes` directory contains all of the route definitions for your application. By default, two route files are included with Laravel: `web.php` and `console.php`.
+The `routes` directory contains all of the route definitions for your application. By default, two route files are included with Hypervel: `web.php` and `console.php`.
 
-The `web.php` file contains routes that Laravel places in the `web` middleware group, which provides session state, CSRF protection, and cookie encryption. If your application does not offer a stateless, RESTful API then all your routes will most likely be defined in the `web.php` file.
+The `web.php` file contains routes that Hypervel places in the `web` middleware group, which provides session state, CSRF protection, and cookie encryption. If your application does not offer a stateless, RESTful API then all your routes will most likely be defined in the `web.php` file.
 
 The `console.php` file is where you may define all of your closure-based console commands. Each closure is bound to a command instance allowing a simple approach to interacting with each command's IO methods. Even though this file does not define HTTP routes, it defines console based entry points (routes) into your application. You may also [schedule](/docs/{{version}}/scheduling) tasks in the `console.php` file.
 
@@ -83,14 +85,14 @@ The `channels.php` file is where you may register all of the [event broadcasting
 <a name="the-storage-directory"></a>
 ### The Storage Directory
 
-The `storage` directory contains your logs, compiled Blade templates, file based sessions, file caches, and other files generated by the framework. This directory is segregated into `app`, `framework`, and `logs` directories. The `app` directory may be used to store any files generated by your application. The `framework` directory is used to store framework generated files and caches. Finally, the `logs` directory contains your application's log files.
+The `storage` directory contains your logs, compiled Blade templates, file based sessions, file caches, and other files generated by the framework. This directory is segregated into `app`, `framework`, and `logs` directories. The `app` directory may be used to store any files generated by your application. The `framework` directory is used to store framework generated files and caches, including the default Swoole server PID file. Finally, the `logs` directory contains your application's log files.
 
 The `storage/app/public` directory may be used to store user-generated files, such as profile avatars, that should be publicly accessible. You should create a symbolic link at `public/storage` which points to this directory. You may create the link using the `php artisan storage:link` Artisan command.
 
 <a name="the-tests-directory"></a>
 ### The Tests Directory
 
-The `tests` directory contains your automated tests. Example [Pest](https://pestphp.com) or [PHPUnit](https://phpunit.de/) unit tests and feature tests are provided out of the box. Each test class should be suffixed with the word `Test`. You may run your tests using the `/vendor/bin/pest` or `/vendor/bin/phpunit` commands. Or, if you would like a more detailed and beautiful representation of your test results, you may run your tests using the `php artisan test` Artisan command.
+The `tests` directory contains your automated tests. Example [PHPUnit](https://phpunit.de/) unit tests and feature tests are provided out of the box. Each test class should be suffixed with the word `Test`. You may run your tests using the `composer test` or `vendor/bin/phpunit` commands.
 
 <a name="the-vendor-directory"></a>
 ### The Vendor Directory
@@ -152,12 +154,12 @@ This directory does not exist by default, but will be created for you if you exe
 <a name="the-models-directory"></a>
 ### The Models Directory
 
-The `Models` directory contains all of your [Eloquent model classes](/docs/{{version}}/eloquent). The Eloquent ORM included with Laravel provides a beautiful, simple ActiveRecord implementation for working with your database. Each database table has a corresponding "Model" which is used to interact with that table. Models allow you to query for data in your tables, as well as insert new records into the table.
+The `Models` directory contains all of your [Eloquent model classes](/docs/{{version}}/eloquent). The Eloquent ORM included with Hypervel provides a beautiful, simple ActiveRecord implementation for working with your database. Each database table has a corresponding "Model" which is used to interact with that table. Models allow you to query for data in your tables, as well as insert new records into the table.
 
 <a name="the-notifications-directory"></a>
 ### The Notifications Directory
 
-This directory does not exist by default, but will be created for you if you execute the `make:notification` Artisan command. The `Notifications` directory contains all of the "transactional" [notifications](/docs/{{version}}/notifications) that are sent by your application, such as simple notifications about events that happen within your application. Laravel's notification feature abstracts sending notifications over a variety of drivers such as email, Slack, SMS, or stored in a database.
+This directory does not exist by default, but will be created for you if you execute the `make:notification` Artisan command. The `Notifications` directory contains all of the "transactional" [notifications](/docs/{{version}}/notifications) that are sent by your application, such as simple notifications about events that happen within your application. Hypervel's notification feature abstracts sending notifications over a variety of drivers such as email, Slack, or storing notifications in a database.
 
 <a name="the-policies-directory"></a>
 ### The Policies Directory
@@ -169,7 +171,7 @@ This directory does not exist by default, but will be created for you if you exe
 
 The `Providers` directory contains all of the [service providers](/docs/{{version}}/providers) for your application. Service providers bootstrap your application by binding services in the service container, registering events, or performing any other tasks to prepare your application for incoming requests.
 
-In a fresh Laravel application, this directory will already contain the `AppServiceProvider`. You are free to add your own providers to this directory as needed.
+In a fresh Hypervel application, this directory will already contain the `AppServiceProvider`. You are free to add your own providers to this directory as needed.
 
 <a name="the-rules-directory"></a>
 ### The Rules Directory
