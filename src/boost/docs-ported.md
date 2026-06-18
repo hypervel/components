@@ -12,6 +12,7 @@ console-tests.md
 container.md
 context.md
 contracts.md
+contributions.md
 controllers.md
 coroutine-context.md
 coroutines.md
@@ -19,6 +20,7 @@ csrf.md
 database-testing.md
 database.md
 deployment.md
+documentation.md
 eloquent-collections.md
 eloquent-factories.md
 eloquent-mutators.md
@@ -60,6 +62,7 @@ rate-limiting.md
 redis.md
 requests.md
 responses.md
+releases.md
 reverb.md
 routing.md
 sanctum.md
@@ -70,9 +73,11 @@ seeding.md
 session.md
 socialite.md
 strings.md
+starter-kits.md
 testing.md
 telescope.md
 testbench.md
+upgrade.md
 urls.md
 validation.md
 verification.md
