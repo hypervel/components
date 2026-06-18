@@ -70,6 +70,7 @@ seeding.md
 session.md
 socialite.md
 strings.md
+telescope.md
 urls.md
 validation.md
 verification.md

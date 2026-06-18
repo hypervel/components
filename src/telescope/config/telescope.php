@@ -116,7 +116,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | The following array lists the URI paths and Artisan commands that will
-    | not be watched by Telescope. In addition to this list, some Laravel
+    | not be watched by Telescope. In addition to this list, some Hypervel
     | commands, like migrations and queue commands, are always ignored.
     |
     */

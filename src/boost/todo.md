@@ -118,6 +118,10 @@
 
 - Port `Hypervel\Support\Uri::authority()`. The copied helpers docs show `$uri->authority()` in the URI inspection example, but `Hypervel\Support\Uri` currently exposes `scheme()`, `user()`, `password()`, `host()`, `port()`, `path()`, `pathSegments()`, `query()`, and `fragment()` without the Laravel `authority()` method. Correct fix: add `authority(): ?string` returning the underlying URI authority and port Laravel's `SupportUriTest` coverage for user info, host, and authority inspection.
 
+## Telescope
+
+- Port Laravel's `telescope:install` command. The copied Telescope docs document `php artisan telescope:install`, but Hypervel currently only registers `telescope:publish`, `telescope:clear`, `telescope:pause`, `telescope:prune`, and `telescope:resume`. Hypervel already publishes the provider stub, config, and migrations under the `telescope-provider`, `telescope-config`, and `telescope-migrations` tags. Correct fix: port Laravel Telescope's install command with Hypervel namespaces, publish those three tags, register `App\Providers\TelescopeServiceProvider` in `bootstrap/providers.php` via `Hypervel\Support\ServiceProvider::addProviderToBootstrapFile()`, register the command in `Hypervel\Telescope\TelescopeServiceProvider`, and add command coverage.
+
 ## Validation
 
 - Port Rule::string() fluent string rule builder
