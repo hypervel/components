@@ -88,7 +88,7 @@ trait HasRole
     {
         return $this->morphToMany(
             $this->getRoleClass(),
-            config('permission.table_names.owner_name', 'owner'),
+            config('permission.column_names.owner_name', 'owner'),
             config('permission.table_names.owner_has_roles', 'owner_has_roles'),
             config('permission.column_names.owner_morph_key', 'owner_id'),
             config('permission.column_names.role_pivot_key', 'role_id')

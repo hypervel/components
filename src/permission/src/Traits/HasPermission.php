@@ -95,7 +95,7 @@ trait HasPermission
     {
         return $this->morphToMany(
             $this->getPermissionClass(),
-            config('permission.table_names.owner_name', 'owner'),
+            config('permission.column_names.owner_name', 'owner'),
             config('permission.table_names.owner_has_permissions', 'owner_has_permissions'),
             config('permission.column_names.owner_morph_key', 'owner_id'),
             config('permission.column_names.permission_pivot_key', 'permission_id')

@@ -54,6 +54,7 @@ notifications.md
 packages.md
 pagination.md
 passwords.md
+permission.md
 precognition.md
 processes.md
 prompts.md

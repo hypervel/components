@@ -58,6 +58,7 @@
 - ## Security
     - [Authentication](/docs/{{version}}/authentication)
     - [Authorization](/docs/{{version}}/authorization)
+    - [Permission](/docs/{{version}}/permission)
     - [Email Verification](/docs/{{version}}/verification)
     - [Encryption](/docs/{{version}}/encryption)
     - [Hashing](/docs/{{version}}/hashing)

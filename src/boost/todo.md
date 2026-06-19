@@ -90,6 +90,7 @@
 
 - Port a `workbench:install` command for Hypervel Testbench. Hypervel has Workbench runtime support, but no scaffolding command for package authors to create the recommended `workbench/` directory and `testbench.yaml`. Correct fix: add an install command adapted to Hypervel's supported Workbench keys (`install`, `auth`, `health`, `sync`, and `discovers`), generate a sensible package-local Workbench skeleton, register the command through Testbench's command loader, and add command coverage.
 - Rewrite `docs/docs/packages-porting.md` for Hypervel 0.4 as `src/boost/docs/porting-packages.md`. The page should explain how to port Laravel packages to Hypervel by replacing Illuminate dependencies with Hypervel equivalents, updating namespaces and types, removing Laravel-only assumptions, and moving request-specific state into context or coroutine-safe APIs for long-running Swoole workers.
+- Investigate adding Spatie-style role and permission lookup helpers to the permission package. The package is based on `spatie/laravel-permission`, but currently lacks helpers such as `Role::findByName()`, `Role::findById()`, `Role::findOrCreate()`, `Permission::findByName()`, `Permission::findById()`, and `Permission::findOrCreate()`. Check Spatie's current implementation and decide whether these helpers should be ported for API parity, adapted for Hypervel's guard and cache behavior, or intentionally omitted.
 
 ## Pool
 
