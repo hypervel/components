@@ -5,6 +5,7 @@
 - ## Getting Started
     - [Introduction](/docs/{{version}}/introduction)
     - [Installation](/docs/{{version}}/installation)
+    - [Porting from Laravel](/docs/{{version}}/porting-from-laravel)
     - [Configuration](/docs/{{version}}/configuration)
     - [Directory Structure](/docs/{{version}}/structure)
     - [Frontend](/docs/{{version}}/frontend)

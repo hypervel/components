@@ -31,7 +31,7 @@ There are different types of packages. Some packages are stand-alone, meaning th
 On the other hand, other packages are specifically intended for use with Hypervel. These packages may have routes, controllers, views, and configuration specifically intended to enhance a Hypervel application. This guide primarily covers the development of those packages that are Hypervel specific.
 
 > [!WARNING]
-> Laravel-specific packages are not drop-in compatible with Hypervel because Hypervel runs in long-lived Swoole workers and handles concurrent requests and jobs with coroutines. However, porting a Laravel package is usually straightforward: replace Illuminate dependencies with Hypervel equivalents, update namespaces and types, and move request-specific state into context or coroutine-safe APIs. For a step-by-step guide, see the [porting packages documentation](/docs/{{version}}/porting-packages).
+> Laravel-specific packages are not drop-in compatible with Hypervel because Hypervel runs in long-lived Swoole workers and handles concurrent requests and jobs with coroutines. However, porting a Laravel package is usually straightforward: replace Illuminate dependencies with Hypervel equivalents, update namespaces and types, and move request-specific state into context or coroutine-safe APIs. For a step-by-step guide, see the [porting from Laravel documentation](/docs/{{version}}/porting-from-laravel).
 
 <a name="a-note-on-facades"></a>
 ### A Note on Facades
