@@ -125,7 +125,9 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **Flag static caching opportunities with recommendations** — if a ported path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, STOP and recommend it (what to cache, expected benefit, and safety constraints).
 - **Enum cases use PascalCase by default** — `case Pending` not `case pending`, `case OauthToken` not `case OAUTH_TOKEN`. Applies to both backed and unit enums. **Exception:** when `->name` is used as an external identifier (cache keys, cookie names, filesystem disks, rate limiter names, timezone strings) or appears in serialized output (e.g., `toArray()` returning `'name' => $this->name`), match the consuming system's convention (typically lowercase or snake_case).
 
-### Container Usage (Hyperf → Hypervel)
+## Porting Hyperf → Hypervel
+
+### Container Usage
 
 Hyperf and Hypervel have fundamentally different container semantics. Every ported file that touches the container needs these updates.
 
@@ -198,26 +200,26 @@ In Hyperf, `$container->make(Foo::class)` always returns a fresh `Foo`. In Hyper
 
 ### Migrating ConfigProviders to Service Providers
 
-Hyperf uses `ConfigProvider` classes to register dependencies, listeners, commands, and publishable assets. Hypervel is replacing these with Laravel-style service providers. Each package's ConfigProvider dependencies must be migrated to a proper service provider that matches how the equivalent Laravel package does it.
+Hyperf uses `ConfigProvider` classes to register dependencies, listeners, commands, and publishable assets. Hypervel uses Laravel-style service providers. Each package's ConfigProvider dependencies must be migrated to a proper service provider that matches how the equivalent Laravel package does it.
 
 #### Why not a mechanical move
 
-You cannot simply copy the ConfigProvider's `dependencies` array into a service provider's `register()` method. The ConfigProvider system used Hyperf patterns (interface-keyed singletons, factory classes with `__invoke`, string concrete bindings) that don't match Laravel's conventions and can cause circular dependency issues with Hypervel's container aliases. Each package must be matched against its Laravel equivalent.
+You cannot simply copy the ConfigProvider's `dependencies` array into a service provider's `register()` method. The ConfigProvider system uses Hyperf patterns (interface-keyed singletons, factory classes with `__invoke`, string concrete bindings) that don't match Laravel's conventions and can cause circular dependency issues with Hypervel's container aliases. Each package must be matched against its Laravel equivalent.
 
 #### Workflow
 
-##### 1. Read the Laravel service provider
+##### 1. Read the Hypervel service provider docs
 
-Find the equivalent Laravel service provider in the Laravel source reference. For example, `Illuminate\Auth\AuthServiceProvider` for the auth package. Read it completely — understand the binding keys, binding types (`singleton` vs `bind`), and how it constructs services.
+Read the Hypervel service provider docs at src/boost/docs/providers.md, and the base Hypervel\Support\ServiceProvider class.
 
 For packages without a Laravel equivalent (e.g., Hyperf-only packages like engine, object-pool, serializer), create a straightforward service provider that registers the same bindings as the ConfigProvider's `dependencies` array. Use the binding patterns described in section 5 below. Match the naming convention (`{Package}ServiceProvider`) and the same `register()`/`boot()` structure.
 
 ##### 2. Read the Hypervel ConfigProvider
 
-Read the existing ConfigProvider to understand what's currently registered. Categorise each entry:
+Read the Hyperf package's ConfigProvider to understand what it registers. Categorise each entry:
 - **`dependencies`** — container bindings. These move to the service provider's `register()` method.
-- **`listeners`** — Hyperf-style `ListenerInterface` classes. These move to the service provider's `boot()` method (see "Listener registration" below).
-- **`commands`** — artisan commands. These move to the service provider's `register()` method via `$this->commands([...])`. All commands must have `#[AsCommand(name: '...')]` (Symfony attribute) for lazy resolution via `ContainerCommandLoader`.
+- **`listeners`** — Hyperf-style `ListenerInterface` classes. Will become Hypervel listeners. These move to the service provider's `boot()` method (see "Listener registration" below).
+- **`commands`** — will become Artisan commands. These move to the service provider's `register()` method via `$this->commands([...])`. All commands must have `#[AsCommand(name: '...')]` (Symfony attribute) for lazy resolution via `ContainerCommandLoader`.
 - **`publish`** — publishable files. These move to the service provider's `boot()` method via `$this->publishes([source => destination])`. `VendorPublishCommand` reads from both systems, so the service provider approach works.
 - **`aspects`** — Hyperf DI AOP aspects. Leave as-is.
 

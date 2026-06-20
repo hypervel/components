@@ -16,6 +16,7 @@
     - [Service Container](/docs/{{version}}/container)
     - [Service Providers](/docs/{{version}}/providers)
     - [Facades](/docs/{{version}}/facades)
+    - [AOP](/docs/{{version}}/aop)
 - ## The Basics
     - [Routing](/docs/{{version}}/routing)
     - [Middleware](/docs/{{version}}/middleware)

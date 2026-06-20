@@ -1,4 +1,5 @@
 <!-- Keep entries in alphabetical order. -->
+aop.md
 artisan.md
 authentication.md
 authorization.md
