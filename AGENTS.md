@@ -125,7 +125,7 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **Flag static caching opportunities with recommendations** — if a ported path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, STOP and recommend it (what to cache, expected benefit, and safety constraints).
 - **Enum cases use PascalCase by default** — `case Pending` not `case pending`, `case OauthToken` not `case OAUTH_TOKEN`. Applies to both backed and unit enums. **Exception:** when `->name` is used as an external identifier (cache keys, cookie names, filesystem disks, rate limiter names, timezone strings) or appears in serialized output (e.g., `toArray()` returning `'name' => $this->name`), match the consuming system's convention (typically lowercase or snake_case).
 
-## Porting Hyperf → Hypervel
+## Porting Hyperf code to Hypervel
 
 ### Container Usage
 
@@ -221,9 +221,9 @@ Read the Hyperf package's ConfigProvider to understand what it registers. Catego
 - **`listeners`** — Hyperf-style `ListenerInterface` classes. Will become Hypervel listeners. These move to the service provider's `boot()` method (see "Listener registration" below).
 - **`commands`** — will become Artisan commands. These move to the service provider's `register()` method via `$this->commands([...])`. All commands must have `#[AsCommand(name: '...')]` (Symfony attribute) for lazy resolution via `ContainerCommandLoader`.
 - **`publish`** — publishable files. These move to the service provider's `boot()` method via `$this->publishes([source => destination])`. `VendorPublishCommand` reads from both systems, so the service provider approach works.
-- **`aspects`** — Hyperf DI AOP aspects. Leave as-is.
+- **`aspects`** — Hyperf DI AOP aspects. These move to the service provider's `register()` method via `$this->aspects([...])`. Hypervel does not support Hyperf annotation-based aspect targeting; aspects should extend `Hypervel\Di\Aop\AbstractAspect`, define their targets with the public `$classes` property, and stay stateless because aspect instances are usually reused for the worker lifetime. See `src/boost/docs/aop.md`.
 
-Since everything except `aspects` moves to the service provider, the ConfigProvider should be **deleted entirely** once migrated (unless it still has `aspects`).
+Since dependencies, listeners, commands, publish entries, and aspects move to the service provider, the ConfigProvider should be **deleted entirely** once migrated.
 
 ##### 3. Check registerCoreContainerAliases
 
@@ -313,7 +313,7 @@ Four places need updating:
 
 ##### 7. Delete the ConfigProvider
 
-Since all entries (dependencies, listeners, commands, publish) move to the service provider, the ConfigProvider should be deleted entirely. The only exception is if the ConfigProvider still has `aspects` entries — in that case, remove everything else and keep only the `aspects` array until those are migrated separately.
+Since all entries (dependencies, listeners, commands, publish, and aspects) move to the service provider, the ConfigProvider should be deleted entirely.
 
 ##### 8. Run tests
 
@@ -357,7 +357,7 @@ It's safe to have the same provider listed in **both** `registerBaseServiceProvi
 6. Move listeners to `boot()` via closure-based `$events->listen()`
 7. Move publish entries to `boot()` via `$this->publishes([...])`
 8. Delete any Hyperf factory/resolver classes replaced by inline closures
-9. Delete the ConfigProvider (unless it still has `aspects`)
+9. Delete the ConfigProvider
 10. Add provider to root `composer.json` `extra.hypervel.providers`
 11. Update package `composer.json` — replace `extra.hyperf.config` with `extra.hypervel.providers`
 12. Add to `DefaultProviders` (alphabetical order)
