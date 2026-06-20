@@ -53,7 +53,7 @@ If the Hypervel version of the package doesn't exist yet, create the skeleton us
 - **Porting a Hyperf package:** Use the `pool` package as reference
 - **Porting a third-party package:** Use the `permission` package as a reference
 
-Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Add a clear upstream reference to the new package's README:
+Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Every package must be wired in both places: its own `src/{package}/composer.json` for the subtree split, and the root `composer.json` for monorepo development. Update autoloading, dependencies, `replace`, and Hypervel provider / alias discovery metadata as needed. Add a clear upstream reference to the new package's README:
 
 ```md
 Ported from: https://github.com/vendor/package
@@ -198,176 +198,157 @@ In Hyperf, `$container->make(Foo::class)` always returns a fresh `Foo`. In Hyper
 | `ApplicationContext::hasContainer()` | Remove guard | `getInstance()` always returns a container |
 | `ApplicationContext::setContainer($c)` | `Container::setInstance($c)` | Tests only |
 
-### Migrating ConfigProviders to Service Providers
+### Migrating Hyperf ConfigProviders
 
-Hyperf uses `ConfigProvider` classes to register dependencies, listeners, commands, and publishable assets. Hypervel uses Laravel-style service providers. Each package's ConfigProvider dependencies must be migrated to a proper service provider that matches how the equivalent Laravel package does it.
+Hyperf packages use `ConfigProvider` classes to register bindings, listeners, commands, publishable files, and aspects. Hypervel packages use normal service providers. When porting a Hyperf package, treat the Hyperf `ConfigProvider` as source input and translate each entry into Hypervel's documented provider APIs.
 
-#### Why not a mechanical move
+#### Read the Hypervel provider APIs first
 
-You cannot simply copy the ConfigProvider's `dependencies` array into a service provider's `register()` method. The ConfigProvider system uses Hyperf patterns (interface-keyed singletons, factory classes with `__invoke`, string concrete bindings) that don't match Laravel's conventions and can cause circular dependency issues with Hypervel's container aliases. Each package must be matched against its Laravel equivalent.
+Before migrating a ConfigProvider, read:
 
-#### Workflow
+- `src/boost/docs/providers.md`
+- `src/boost/docs/aop.md` if the ConfigProvider has aspects
+- `src/boost/docs/packages.md#class-map-overrides` if the package uses class map replacement
+- `Hypervel\Support\ServiceProvider`
 
-##### 1. Read the Hypervel service provider docs
+Use existing Hypervel packages as pattern references. For low-level Swoole / Hyperf-style infrastructure, useful references include `pool`, `object-pool`, `engine`, `server`, `signal`, and `sentry`.
 
-Read the Hypervel service provider docs at src/boost/docs/providers.md, and the base Hypervel\Support\ServiceProvider class.
+#### Categorize the ConfigProvider entries
 
-For packages without a Laravel equivalent (e.g., Hyperf-only packages like engine, object-pool, serializer), create a straightforward service provider that registers the same bindings as the ConfigProvider's `dependencies` array. Use the binding patterns described in section 5 below. Match the naming convention (`{Package}ServiceProvider`) and the same `register()`/`boot()` structure.
+Read the Hyperf package's ConfigProvider and categorize each entry:
 
-##### 2. Read the Hypervel ConfigProvider
+- **`dependencies`** — container bindings. Move these to the service provider's `register()` method.
+- **`listeners`** — Hyperf `ListenerInterface` listeners. Convert them to Hypervel listener classes and register them in the service provider's `boot()` method. See "Converting Hyperf Listeners and Events" below.
+- **`commands`** — console commands. Move these to the service provider's `register()` method via `$this->commands([...])`. Commands must have `#[AsCommand(name: '...')]` so Hypervel can resolve them lazily through `ContainerCommandLoader`.
+- **`publish`** — publishable files. Move these to the service provider's `boot()` method via `$this->publishes([...])`.
+- **`aspects`** — AOP aspects. Move these to the service provider's `register()` method via `$this->aspects([...])`. Hypervel does not support Hyperf annotation-based aspect targeting. Hypervel aspects extend `Hypervel\Di\Aop\AbstractAspect`, target classes with the public `$classes` property, and should stay stateless because aspect instances are usually reused for the worker lifetime.
 
-Read the Hyperf package's ConfigProvider to understand what it registers. Categorise each entry:
-- **`dependencies`** — container bindings. These move to the service provider's `register()` method.
-- **`listeners`** — Hyperf-style `ListenerInterface` classes. Will become Hypervel listeners. These move to the service provider's `boot()` method (see "Listener registration" below).
-- **`commands`** — will become Artisan commands. These move to the service provider's `register()` method via `$this->commands([...])`. All commands must have `#[AsCommand(name: '...')]` (Symfony attribute) for lazy resolution via `ContainerCommandLoader`.
-- **`publish`** — publishable files. These move to the service provider's `boot()` method via `$this->publishes([source => destination])`. `VendorPublishCommand` reads from both systems, so the service provider approach works.
-- **`aspects`** — Hyperf DI AOP aspects. These move to the service provider's `register()` method via `$this->aspects([...])`. Hypervel does not support Hyperf annotation-based aspect targeting; aspects should extend `Hypervel\Di\Aop\AbstractAspect`, define their targets with the public `$classes` property, and stay stateless because aspect instances are usually reused for the worker lifetime. See `src/boost/docs/aop.md`.
+Once the entries have been migrated, delete the ConfigProvider. Do not keep Hyperf `extra.hyperf.config` metadata in Hypervel package composer files.
 
-Since dependencies, listeners, commands, publish entries, and aspects move to the service provider, the ConfigProvider should be **deleted entirely** once migrated.
+#### Translate bindings into Hypervel container patterns
 
-##### 3. Check registerCoreContainerAliases
+Do not copy Hyperf dependency registrations mechanically. Hyperf dependency entries often rely on Hyperf container behavior, while Hypervel has `bind()`, `singleton()`, `scoped()`, aliases, and auto-singletoning.
 
-Look up the package's entries in `Application::registerCoreContainerAliases()`. This is critical — these aliases determine what can be used as a binding key without causing circular dependencies.
+Use these rules:
 
-**Laravel convention:** The canonical abstract is a string shorthand (`'auth'`, `'cache'`, `'db'`). The contract/interface AND the concrete class are aliases pointing to that shorthand.
+- If the service is stateless and should be shared for the worker lifetime, use `singleton()`.
+- If each resolution needs a fresh mutable object, use `bind()`.
+- If state should be isolated per coroutine / request, use `scoped()`.
+- If the class can safely be auto-singletoned and needs no explicit abstract, do not bind it at all.
+- If a Hyperf factory class only wraps simple construction logic, replace it with an inline closure and delete the factory.
+- If a Hyperf resolver class only wraps a one-line callback, replace it with an inline closure and delete the resolver.
 
-**Hypervel's current state:** Some entries still use the contract as canonical with the shorthand as an alias. These must be flipped to match Laravel:
+#### Binding patterns
 
-```php
-// BEFORE (Hyperf-style — contract is canonical)
-\Hypervel\Contracts\Auth\Factory::class => [
-    'auth',
-    \Hypervel\Auth\AuthManager::class,
-],
+**1. Canonical string key — use a closure with `new`:**
 
-// AFTER (Laravel-style — string shorthand is canonical)
-'auth' => [
-    \Hypervel\Auth\AuthManager::class,
-    \Hypervel\Contracts\Auth\Factory::class,
-],
-```
-
-If any of the package's concrete classes appear as aliases for their own abstract, you **must** use closure-based bindings in the service provider (see "Binding patterns" below). Otherwise `singleton(Interface::class, Concrete::class)` creates a circular resolution cycle: the container tries to resolve the concrete, the alias redirects back to the interface, infinite loop.
-
-**If Laravel has no entry for this package in `registerCoreContainerAliases`:** Remove the entry from Hypervel's aliases entirely. Use `$this->app->alias()` in the service provider instead, matching how Laravel handles it. For example, Laravel's `BusServiceProvider` uses `$this->app->alias(Dispatcher::class, DispatcherContract::class)` rather than having a bus entry in `registerCoreContainerAliases`.
-
-##### 4. Create the service provider
-
-Create the service provider in the package's `src/` directory, matching the Laravel equivalent's structure. Use the same method decomposition (e.g., `registerAuthenticator()`, `registerUserResolver()`, etc.) for readability and 1:1 parity.
-
-##### 5. Binding patterns
-
-Match the binding pattern from the Laravel service provider. Key rules:
-
-**Choose the right binding form based on whether the abstract/concrete participate in `registerCoreContainerAliases()`:**
-
-The container's `bind()`/`singleton()` stores bindings under the exact abstract key passed — it does NOT resolve aliases first. But `resolve()` DOES call `getAlias()` before looking up bindings. So if the abstract you pass is an alias for a canonical key, your binding is orphaned (never found). The `registerConfigProviderDependencies()` method works around this by explicitly calling `getAlias()` before storing, but regular service providers don't.
-
-**1. Abstract is a canonical alias key (e.g., `'auth'`, `'cache'`, `'hash'`, `'request'`) — use closure with `new`:**
 ```php
 // The concrete (AuthManager) is listed as an alias for 'auth', so
 // singleton('auth', AuthManager::class) would create a circular resolution cycle:
-// 'auth' → build AuthManager → getAlias(AuthManager) → 'auth' → infinite loop
+// 'auth' -> build AuthManager -> getAlias(AuthManager) -> 'auth' -> infinite loop
 $this->app->singleton('auth', fn ($app) => new AuthManager($app));
 ```
 
-**2. Abstract is NOT in the alias table — use string concrete:**
+**2. Abstract is not in the alias table — use string concrete:**
+
 ```php
 // Neither FormatterInterface nor DefaultFormatter are aliases for anything,
 // so the container can resolve this directly without cycles.
 $this->app->singleton(FormatterInterface::class, DefaultFormatter::class);
 ```
 
-**3. Abstract and concrete are the same class — don't bind at all.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant:
+**3. Abstract and concrete are the same class — do not bind at all.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant:
+
 ```php
-// WRONG — redundant, auto-singleton handles this
+// Wrong: redundant; auto-singleton handles this.
 $this->app->singleton(BroadcastManager::class);
 
-// CORRECT — just don't bind it. First make(BroadcastManager::class) auto-singletons it.
+// Correct: do not bind it. The first make(BroadcastManager::class) auto-singletons it.
 ```
 
-**Use the same binding type as Laravel** — `singleton()` vs `bind()` matters:
-```php
-// Laravel uses bind() for Authenticatable — user can change per-request
-$this->app->bind(AuthenticatableContract::class, fn ($app) => ...);
+#### Check aliases before choosing binding keys
 
-// Laravel uses singleton() for AuthManager — one instance per worker
+Before binding core framework services, check `Application::registerCoreContainerAliases()`.
+
+If the abstract or concrete participates in the alias table, choose the binding key carefully. `bind()` and `singleton()` store bindings under the exact abstract key passed; `resolve()` resolves aliases before lookup. Binding an alias instead of the canonical key can orphan the binding.
+
+When adding a core alias, use the string key as the canonical abstract:
+
+```php
+// Wrong: contract is canonical.
+\Hypervel\Contracts\Auth\Factory::class => [
+    'auth',
+    \Hypervel\Auth\AuthManager::class,
+],
+
+// Correct: string key is canonical.
+'auth' => [
+    \Hypervel\Auth\AuthManager::class,
+    \Hypervel\Contracts\Auth\Factory::class,
+],
+```
+
+For canonical string keys such as `'auth'`, `'cache'`, `'db'`, `'request'`, and similar framework services, prefer closure bindings:
+
+```php
 $this->app->singleton('auth', fn ($app) => new AuthManager($app));
 ```
 
-**Delete Hyperf factory classes that are replaced by inline closures.** If the ConfigProvider used a factory class with `__invoke` (e.g., `GateFactory`) and the Laravel equivalent creates the object inline in a closure, delete the factory class — it's unnecessary indirection.
+Do not add new core aliases just because Hyperf had a dependency key. Only add aliases when Hypervel needs that alias as part of its public container surface.
 
-**Delete Hyperf resolver classes that are replaced by inline closures.** Same principle — if a class like `UserResolver` just wraps a one-liner that Laravel does inline, delete it.
+#### Register the provider
 
-##### 6. Register the service provider
+Register providers and aliases through the package Composer metadata and the root Composer metadata as described in the package skeleton workflow. Add a provider to `DefaultProviders` only if every Hypervel application needs it at framework startup, such as auth, cache, database, session, validation, view, or low-level Swoole infrastructure. Optional packages such as Reverb, Scout, Telescope, Sentry, and Watcher should rely on package discovery instead.
 
-Four places need updating:
+For rare core services that must be available before normal providers are registered, stop and explain why before touching `registerBaseServiceProviders()`. Providers registered there run during the earliest application bootstrap, so this should be reserved for framework infrastructure needed by the boot process itself.
 
-1. **Root `composer.json` `extra.hypervel.providers`** — Add the service provider. This is how apps discover providers from the components monorepo.
+If the package already has a service provider, add the migrated ConfigProvider entries to the existing provider instead of creating a second provider for the same package.
 
-2. **Package `composer.json` `extra.hypervel.providers`** — Replace `extra.hyperf.config` with `extra.hypervel.providers` listing the new service provider. This is how apps discover providers when the package is installed as a standalone dependency.
+It is safe to have the same provider listed in both `registerBaseServiceProviders()` and `extra.hypervel.providers` when early loading is genuinely needed. `Application::register()` deduplicates providers by class name, and the discovery entry ensures standalone installs still load the provider.
 
-3. **`DefaultProviders`** (`src/support/src/DefaultProviders.php`) — Only add the provider here if the package is **core framework infrastructure** that every Hypervel app needs (auth, cache, database, session, encryption, validation, view, pagination, plus Swoole infra like engine/server/object-pool/signal). For **optional/standalone packages** (Reverb, Scout, Horizon, Sanctum, Telescope, Wayfinder, etc.) do NOT add to DefaultProviders — the `extra.hypervel.providers` entry in the package composer.json handles auto-discovery, and tests register the provider explicitly via `getPackageProviders()` or equivalent setUp wiring.
+#### BootApplication listeners
 
-4. **Remove from `extra.hyperf.config`** — Remove the ConfigProvider from both the root `composer.json` and the package `composer.json` `extra.hyperf.config` entries (since the ConfigProvider is deleted).
+Some Hyperf ConfigProviders register listeners for `BootApplication`. These are usually setup hooks that need to run during framework boot, not real runtime events. Convert them to direct calls in the service provider's `boot()` method instead of dispatching a synthetic event:
 
-##### 7. Delete the ConfigProvider
+```php
+public function boot(): void
+{
+    $this->app->make(ExceptionHandlerListener::class)->handle(new BootApplication());
+}
+```
 
-Since all entries (dependencies, listeners, commands, publish, and aspects) move to the service provider, the ConfigProvider should be deleted entirely.
-
-##### 8. Run tests
-
-Run the package's tests first, then the full suite. Circular dependency errors or "not found" errors indicate:
-- A binding key mismatch (check alias direction in `registerCoreContainerAliases`)
-- A missing entry in `DefaultProviders` (testbench can't find the provider)
-- A string concrete binding that should be a closure (alias cycle)
-
-#### Special cases
-
-**Early-bootstrap packages (config, framework):** The `config` and `framework` packages have their dependencies loaded in `Application::registerConfigProviderDependencies()` — which runs in the Application constructor, before service providers are registered. These cannot be migrated to service providers without first refactoring the bootstrap sequence. Leave them for a dedicated task.
-
-**Early-loading service providers (`registerBaseServiceProviders`):** When a service provider's bindings are needed before `registerConfigProviderDependencies()` runs (e.g., the event dispatcher, which `bootstrapWith()` requires), register it in `Application::registerBaseServiceProviders()` — called in the constructor immediately after `registerBaseBindings()`. This mirrors Laravel's pattern.
-
-It's safe to have the same provider listed in **both** `registerBaseServiceProviders()` and `extra.hypervel.providers` in `composer.json`. `Application::register()` deduplicates — `getProvider()` checks `$serviceProviders` by class name and returns the existing instance without re-registering. The `extra.hypervel.providers` entry ensures apps that install the package standalone (outside the components monorepo) still auto-discover the provider.
-
-**No deferred providers:** Providers run once at worker startup with no per-request cost, so deferral serves no purpose. When porting a Laravel provider that implements `DeferrableProvider`, drop the interface and `provides()` method.
-
-**Packages with existing service providers:** Some packages already have service providers (e.g., `MailServiceProvider`, `NotificationServiceProvider`, `PermissionServiceProvider`). Add the ConfigProvider's dependency bindings to the existing provider's `register()` method rather than creating a new one.
-
-**Packages with listeners:** Listeners registered via the `listeners` config key must be converted from Hyperf's `ListenerInterface` pattern to Laravel-style and registered in the service provider's `boot()` method. See "Converting Hyperf Listeners and Events" below for the full conversion process.
-
-**`BootApplication` listeners:** Some ConfigProviders registered listeners on `BootApplication` (which fires in the Kernel constructor, before bootstrap). These should be replaced with direct calls in the service provider's `boot()` — e.g., the database package's `RegisterConnectionResolverListener` became a direct `Model::setConnectionResolver()` call in `DatabaseServiceProvider::boot()`. See "BootApplication listeners" under "Converting Hyperf Listeners and Events" for the pattern.
-
-#### Completed example
-
-**database** — alias flip, factory deletion, `BootApplication` listener replacement, commands:
-
-- **Deleted:** `DatabaseMigrationRepositoryFactory` (replaced by inline closure), `ConfigProvider`
-- **Alias flip:** `DatabaseManager::class => ['db']` became `'db' => [DatabaseManager::class]` (also `db.schema`, `db.transactions`)
-- **Listener replacement:** `RegisterConnectionResolverListener` (fired on `BootApplication`) replaced by direct `Model::setConnectionResolver()` and `Model::setEventDispatcher()` in `boot()`
-- **DB facade:** Changed accessor from `DatabaseManager::class` to `'db'`
+If the setup can be expressed directly without keeping the listener class, prefer the direct framework call. For example, a listener that only sets a global model resolver should usually become an explicit call in the provider's `boot()` method.
 
 #### Quick checklist
 
-1. Read the Laravel service provider for the package (or design one if no Laravel equivalent)
-2. Read the Hypervel ConfigProvider — categorise all entries
-3. Check `registerCoreContainerAliases` — flip to string-canonical if needed, or remove if Laravel doesn't have it
-4. Create service provider matching Laravel's binding keys, types, and closures
-5. Move commands to `register()` via `$this->commands([...])`
-6. Move listeners to `boot()` via closure-based `$events->listen()`
-7. Move publish entries to `boot()` via `$this->publishes([...])`
-8. Delete any Hyperf factory/resolver classes replaced by inline closures
-9. Delete the ConfigProvider
-10. Add provider to root `composer.json` `extra.hypervel.providers`
-11. Update package `composer.json` — replace `extra.hyperf.config` with `extra.hypervel.providers`
-12. Add to `DefaultProviders` (alphabetical order)
-13. Remove ConfigProvider from root `composer.json` `extra.hyperf.config`
-14. Run phpstan, then full test suite
-15. Investigate any circular dependency errors — usually an alias direction issue
+1. Read Hypervel provider docs and relevant existing Hypervel package patterns.
+2. Read the Hyperf ConfigProvider and categorize entries.
+3. Translate dependencies into Hypervel bindings.
+4. Convert listeners, commands, publish entries, and aspects to provider APIs.
+5. Check aliases before choosing binding keys.
+6. Delete unnecessary Hyperf factories / resolvers.
+7. Delete the ConfigProvider.
+8. Register providers and aliases in both Composer metadata locations.
+9. Run phpstan and tests.
+
+Circular dependency errors or "not found" errors usually indicate:
+
+- A binding key mismatch.
+- A missing provider registration.
+- A string concrete binding that should be a closure.
+
+#### Example: database provider migration
+
+The database package is a good reference for translating Hyperf provider patterns into Hypervel provider code:
+
+- Hyperf factory classes that only wrapped simple construction were deleted and replaced with inline provider closures.
+- Core aliases were made string-key canonical, such as `'db'`, `'db.schema'`, and `'db.transactions'`.
+- Boot-time listeners were replaced with direct provider boot logic, such as `Model::setConnectionResolver(...)` and `Model::setEventDispatcher(...)`.
+- Facades resolve the canonical container key instead of the concrete manager class.
 
 ### Converting Hyperf Listeners and Events
 
-When porting Hyperf packages, their `ListenerInterface` listeners and event classes must be converted to Laravel-style patterns.
+When porting Hyperf packages, their `ListenerInterface` listeners and event classes must be converted to Hypervel listener patterns.
 
 #### Converting listeners
 
