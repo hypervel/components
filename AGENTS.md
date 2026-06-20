@@ -302,8 +302,6 @@ Register providers and aliases through the package Composer metadata and the roo
 
 For rare core services that must be available before normal providers are registered, stop and explain why before touching `registerBaseServiceProviders()`. Providers registered there run during the earliest application bootstrap, so this should be reserved for framework infrastructure needed by the boot process itself.
 
-If the package already has a service provider, add the migrated ConfigProvider entries to the existing provider instead of creating a second provider for the same package.
-
 It is safe to have the same provider listed in both `registerBaseServiceProviders()` and `extra.hypervel.providers` when early loading is genuinely needed. `Application::register()` deduplicates providers by class name, and the discovery entry ensures standalone installs still load the provider.
 
 #### BootApplication listeners
@@ -469,7 +467,7 @@ One entry per test file. Note the strategy:
 - **Copy and update** — no existing Hypervel test for this
 - **Merge** — Hypervel already has a test file with custom tests that must be preserved alongside the ported source tests
 - **Integration** — needs external service, goes in `tests/Integration/{PackageName}/`
-- **Blocked** — depends on unported code. STOP and explain what's blocked and why. Prefer adapting the test to work with the current codebase over commenting it out. Only comment out individual test methods (not whole files) as a last resort, with user approval.
+- **Investigate** — exposes missing functionality, an unsupported feature, or an architectural difference. STOP and explain what the test covers, whether Hypervel should support it, and your recommended fix or removal.
 
 #### 4. Port test files one at a time
 
@@ -491,8 +489,8 @@ Use this exact cadence for each test class:
 1. Port the test class.
 2. Run that test class immediately (`./vendor/bin/phpunit --no-progress path/to/TestClass.php`).
 3. Fix all straightforward failures.
-4. If any failure exposes a source code bug (typing, logic, behavior), STOP and report root cause + recommended fix for approval.
-5. Once green, commit that test class (and any approved source fixes) before moving to the next class.
+4. If any failure exposes a source code bug, missing functionality, or unclear behavioral difference, STOP and report the root cause with your recommended fix.
+5. Once the test class is green, move to the next test class. Work serially on one test class at a time.
 
 #### 6. Run the full test suite
 
@@ -647,35 +645,11 @@ For tests that fail after conversion:
 
 **You do not decide what tests to skip or remove.** Only the user makes that call after reviewing your investigation.
 
-#### Commenting Out Tests
-
-**Commenting out tests should be extremely rare.** Before proposing to comment out a test, first investigate whether small adaptations can make it work with the current Hypervel codebase (it can be updated again later when more things are ported).
-
-When commenting out is genuinely unavoidable (e.g., depends on a completely unported subsystem), **STOP and explain** what's blocked and why, and wait for approval. Never silently comment out tests.
-
-When approved, comment out **individual test methods** (not whole files) with a `@TODO` explaining what needs to happen:
-
-```php
-// @TODO Enable once {package} is ported - depends on {SpecificClass} which doesn't exist yet
-// public function testSomething(): void
-// {
-//     ...
-// }
-```
-
-This keeps the test visible for future searchability (`@TODO` grep) rather than requiring diffs against the source to discover what's missing.
+Never comment out, skip, or avoid porting a test because the required functionality is missing. If the test covers functionality Hypervel should support, investigate the missing functionality, then STOP and report the root cause with your recommended fix. If the test covers functionality Hypervel intentionally does not support, such as an unsupported database or cache driver, STOP and report that before removing the test unless the unsupported-feature rules below explicitly allow removal.
 
 #### Removed Tests
 
-Removing tests is **incredibly rare** and should almost never happen. Always **STOP and explain** why you believe a test should be removed, and wait for approval.
-
-When the user approves removing a test, replace it with a comment **in the same position**:
-
-```php
-// REMOVED: testMethodName - Reason for removal
-```
-
-This preserves the test's location so future diffs against Hyperf/Laravel show intentional removals rather than tests that look like they need porting.
+Only remove tests for functionality Hypervel intentionally does not support, such as the unsupported features listed below. For any other test removal, STOP and explain what the test covers, why you believe it should not apply to Hypervel, and wait for approval.
 
 ### Porting Hyperf Tests
 
@@ -908,7 +882,7 @@ Tests for these features should be **removed** (not commented out) without askin
 - **Cache drivers:** Memcached, DynamoDB, MongoDB
 - **Dynamic connections:** `DB::build()`, `DB::connectUsing()` — incompatible with Swoole connection pooling
 
-This list is exhaustive. Any other missing functionality is "not yet ported" and requires investigation and reporting.
+This list is exhaustive. Any other missing functionality requires investigation and reporting.
 
 #### Laravel Quick Checklist
 
