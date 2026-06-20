@@ -7,6 +7,7 @@
 - [Service Providers](#service-providers)
     - [Provider Priority](#provider-priority)
     - [Conditional Providers](#conditional-providers)
+    - [Class Map Overrides](#class-map-overrides)
 - [Resources](#resources)
     - [Configuration](#configuration)
     - [Routes](#routes)
@@ -152,6 +153,34 @@ public function isEnabled(): bool
     return (bool) config('courier.enabled');
 }
 ```
+
+<a name="class-map-overrides"></a>
+### Class Map Overrides
+
+Class map overrides are an advanced package-author escape hatch for replacing a class in a third-party dependency at autoload time when normal extension points are not sufficient. They are useful when a dependency needs to be adapted for Hypervel's long-lived Swoole workers, coroutine safety, or framework integration, but the dependency does not provide a clean way to customize the behavior.
+
+You may register class map overrides from your service provider's `register` method using the `classMap` method. The array keys are the original class names, and the array values are the replacement file paths:
+
+```php
+use VendorPackage\Client;
+
+/**
+ * Register any package services.
+ */
+public function register(): void
+{
+    $this->classMap([
+        Client::class => __DIR__.'/../Overrides/Client.php',
+    ]);
+}
+```
+
+The replacement file should define the original class name. In the example above, Composer is still being asked to load `VendorPackage\Client`; Hypervel simply tells Composer to load that class from your replacement file instead of the dependency's original file. The replacement should remain compatible with the original class's public API, since other code will still interact with it as `VendorPackage\Client`.
+
+Class map overrides mutate Composer's autoloader immediately and must be registered before the target class, interface, or trait has been loaded. If the target has already been loaded, Hypervel will throw an exception. For this reason, class map overrides should be registered in the service provider's `register` method before resolving services or referencing classes that may load the target.
+
+> [!WARNING]
+> Class map overrides affect the worker's autoloader for the lifetime of the process. They should only be used for boot-time package integration, not request-specific behavior.
 
 <a name="resources"></a>
 ## Resources
@@ -362,7 +391,7 @@ Now, when users of your package execute Hypervel's `vendor:publish` Artisan comm
 <a name="view-components"></a>
 ### View Components
 
-If you are building a package that utilizes Blade components or placing components in non-conventional directories, you will need to manually register your component class and its HTML tag alias so that Hypervel knows where to find the component. You should typically register your components in the `boot` method of your package's service provider:
+If you are building a package that uses Blade components or placing components in non-conventional directories, you will need to manually register your component class and its HTML tag alias so that Hypervel knows where to find the component. You should typically register your components in the `boot` method of your package's service provider:
 
 ```php
 use Hypervel\Support\Facades\Blade;
