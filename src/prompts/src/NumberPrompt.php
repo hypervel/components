@@ -32,8 +32,6 @@ class NumberPrompt extends Prompt
         $this->min ??= PHP_INT_MIN;
         $this->max ??= PHP_INT_MAX;
 
-        $originalValidate = $this->validate;
-
         $this->validate = $this->wrapValidation($this->validate);
 
         $this->on('key', function (string $key) {
@@ -71,11 +69,23 @@ class NumberPrompt extends Prompt
                 return null;
             }
 
-            return match (true) {
-                is_callable($validate) => ($validate)($value),
-                $validateUsing !== null => $validateUsing($this),
-                default => throw new RuntimeException('The validation logic is missing.'),
-            };
+            if (is_callable($validate)) {
+                return $validate($value);
+            }
+
+            if ($validateUsing !== null) {
+                $wrappedValidate = $this->validate;
+                // Expose the original rules while the generic validator reads $prompt->validate.
+                $this->validate = $validate;
+
+                try {
+                    return $validateUsing($this);
+                } finally {
+                    $this->validate = $wrappedValidate;
+                }
+            }
+
+            throw new RuntimeException('The validation logic is missing.');
         };
     }
 
