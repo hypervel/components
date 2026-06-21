@@ -190,7 +190,7 @@ class ThrottleRequests
     protected function resolveRequestSignature(Request $request): string
     {
         if ($user = $request->user()) {
-            return $this->formatIdentifier($user->getAuthIdentifier());
+            return $this->formatIdentifier((string) $user->getAuthIdentifier());
         }
         if ($route = $request->route()) {
             return $this->formatIdentifier($route->getDomain() . '|' . $request->ip());
