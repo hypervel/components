@@ -93,6 +93,8 @@ class Task extends Prompt
     public function __construct(
         public string $label = '',
         public int $limit = 10,
+        public bool $keepSummary = false,
+        public ?string $subLabel = null,
     ) {
         $this->identifier = uniqid();
     }
@@ -110,8 +112,7 @@ class Task extends Prompt
         $maxHeight = $this->terminal()->lines() - 10;
 
         $this->limit = min($this->limit, $maxHeight);
-        // Max height - limit - divider - task label
-        $this->maxStableMessages = max(0, $maxHeight - $this->limit - 2);
+        $this->recalculateMaxStableMessages();
 
         $this->capturePreviousNewLines();
 
@@ -119,7 +120,7 @@ class Task extends Prompt
             return $this->renderInCoroutine($callback);
         }
 
-        if (! function_exists('pcntl_fork')) {
+        if (! (function_exists('pcntl_fork') && function_exists('posix_kill'))) {
             return $this->renderStatically($callback);
         }
 
@@ -201,7 +202,7 @@ class Task extends Prompt
             }
 
             // Check for typed messages: {id}_{type}:{content}
-            if (preg_match('/^' . $prefix . '_(success|warning|error|label|reset|partial|commitpartial):(.*)/', $line, $matches)) {
+            if (preg_match('/^' . $prefix . '_(success|warning|error|label|sublabel|reset|partial|commitpartial):(.*)/', $line, $matches)) {
                 $type = $matches[1];
                 $content = $matches[2];
 
@@ -225,15 +226,16 @@ class Task extends Prompt
 
                 if ($type === 'label') {
                     $this->label = $content;
+                } elseif ($type === 'sublabel') {
+                    $this->subLabel = $content;
+                    $this->recalculateMaxStableMessages();
                 } else {
                     $this->stableMessages[] = ['type' => $type, 'message' => $content];
                     $this->logs = [];
                     $this->partialStartIndex = null;
                 }
 
-                while (count($this->stableMessages) > $this->maxStableMessages) {
-                    array_shift($this->stableMessages);
-                }
+                $this->trimStableMessages();
 
                 continue;
             }
@@ -317,9 +319,7 @@ class Task extends Prompt
         $this->logs = [];
         $this->partialStartIndex = null;
 
-        while (count($this->stableMessages) > $this->maxStableMessages) {
-            array_shift($this->stableMessages);
-        }
+        $this->trimStableMessages();
     }
 
     /**
@@ -328,6 +328,16 @@ class Task extends Prompt
     public function updateLabel(string $label): void
     {
         $this->label = $label;
+    }
+
+    /**
+     * Update the task sub-label.
+     */
+    public function updateSubLabel(string $subLabel): void
+    {
+        $this->subLabel = $subLabel;
+        $this->recalculateMaxStableMessages();
+        $this->trimStableMessages();
     }
 
     /**
@@ -347,6 +357,50 @@ class Task extends Prompt
     }
 
     /**
+     * Recompute the stable-message budget based on the current sub-label state.
+     */
+    protected function recalculateMaxStableMessages(): void
+    {
+        $reserved = 2 + ($this->subLabel !== null && $this->subLabel !== '' ? 1 : 0);
+
+        $this->maxStableMessages = max(0, $this->terminal()->lines() - 10 - $this->limit - $reserved);
+    }
+
+    /**
+     * Trim stable messages to the current display budget.
+     */
+    protected function trimStableMessages(): void
+    {
+        while (count($this->stableMessages) > $this->maxStableMessages) {
+            array_shift($this->stableMessages);
+        }
+    }
+
+    /**
+     * Determine whether the final task summary should remain visible.
+     */
+    protected function shouldKeepSummary(): bool
+    {
+        return $this->keepSummary && count($this->stableMessages) > 0;
+    }
+
+    /**
+     * Finish rendering the task and clear it unless the summary should remain.
+     */
+    protected function finishRendering(bool $renderFinalFrame = false): void
+    {
+        if ($renderFinalFrame || $this->shouldKeepSummary()) {
+            $this->render();
+        }
+
+        if ($this->shouldKeepSummary()) {
+            return;
+        }
+
+        $this->eraseRenderedLines();
+    }
+
+    /**
      * Reset the terminal.
      */
     protected function resetTerminal(bool $originalAsync): void
@@ -361,7 +415,7 @@ class Task extends Prompt
             $this->socket = null;
         }
 
-        $this->eraseRenderedLines();
+        $this->finishRendering();
     }
 
     /**
@@ -419,8 +473,7 @@ class Task extends Prompt
             return $callback($logger);
         } finally {
             $this->finished = true;
-            $this->render();
-            $this->eraseRenderedLines();
+            $this->finishRendering(renderFinalFrame: true);
         }
     }
 

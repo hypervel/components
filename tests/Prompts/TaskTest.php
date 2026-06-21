@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Prompts;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\Support\Logger;
 use Hypervel\Prompts\Task;
+use Hypervel\Prompts\Themes\Default\TaskRenderer;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -97,6 +98,43 @@ class TaskTest extends TestCase
 
         $this->assertSame('done', $result);
         Prompt::assertOutputContains('Updated Label');
+    }
+
+    public function testCoroutinePathUpdatesSubLabel(): void
+    {
+        Prompt::fake();
+
+        $result = task(
+            label: 'Deploying',
+            callback: function (Logger $logger) {
+                $logger->subLabel('Building assets');
+
+                return 'done';
+            },
+        );
+
+        $this->assertSame('done', $result);
+        Prompt::assertOutputContains('Building assets');
+    }
+
+    public function testTaskHelperAcceptsDocumentedNamedArguments(): void
+    {
+        Prompt::fake();
+
+        $result = task(
+            label: 'Deploying',
+            callback: function (Logger $logger) {
+                $logger->success('Assets built');
+
+                return 'done';
+            },
+            keepSummary: true,
+            subLabel: 'Preparing...',
+        );
+
+        $this->assertSame('done', $result);
+        Prompt::assertOutputContains('Preparing...');
+        Prompt::assertOutputContains('Assets built');
     }
 
     public function testCoroutinePathHandlesPartialLogging()
@@ -339,5 +377,168 @@ class TaskTest extends TestCase
         fclose($sockets[0]);
 
         $this->assertSame('Updated Label', $task->label);
+    }
+
+    public function testUpdatesSubLabelThroughSocketProtocol(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'Running', limit: 10);
+        $task->maxStableMessages = 3;
+        $task->stableMessages = [
+            ['type' => 'success', 'message' => 'one'],
+            ['type' => 'success', 'message' => 'two'],
+            ['type' => 'success', 'message' => 'three'],
+        ];
+
+        $receiveMessages = new ReflectionMethod($task, 'receiveMessages');
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+
+        $id = $task->identifier;
+        fwrite($sockets[1], "{$id}_sublabel:Now doing a thing\n");
+        fclose($sockets[1]);
+
+        stream_set_blocking($sockets[0], false);
+        $receiveMessages->invoke($task, $sockets[0]);
+        fclose($sockets[0]);
+
+        $this->assertSame('Now doing a thing', $task->subLabel);
+        $this->assertLessThan(3, $task->maxStableMessages);
+        $this->assertLessThanOrEqual($task->maxStableMessages, count($task->stableMessages));
+
+        $previousBudget = $task->maxStableMessages;
+
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        fwrite($sockets[1], "{$id}_sublabel:\n");
+        fclose($sockets[1]);
+        stream_set_blocking($sockets[0], false);
+        $receiveMessages->invoke($task, $sockets[0]);
+        fclose($sockets[0]);
+
+        $this->assertSame('', $task->subLabel);
+        $this->assertSame($previousBudget + 1, $task->maxStableMessages);
+    }
+
+    public function testUpdatesSubLabelThroughCoroutinePath(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'Running', limit: 10);
+        $task->maxStableMessages = 3;
+        $task->stableMessages = [
+            ['type' => 'success', 'message' => 'one'],
+            ['type' => 'success', 'message' => 'two'],
+            ['type' => 'success', 'message' => 'three'],
+        ];
+
+        $task->updateSubLabel('Now doing a thing');
+
+        $this->assertSame('Now doing a thing', $task->subLabel);
+        $this->assertLessThan(3, $task->maxStableMessages);
+        $this->assertLessThanOrEqual($task->maxStableMessages, count($task->stableMessages));
+
+        $previousBudget = $task->maxStableMessages;
+
+        $task->updateSubLabel('');
+
+        $this->assertSame('', $task->subLabel);
+        $this->assertSame($previousBudget + 1, $task->maxStableMessages);
+    }
+
+    public function testRendererDisplaysSubLabel(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'Running', limit: 10, subLabel: 'Building assets');
+
+        $renderer = new TaskRenderer($task);
+        $output = (string) $renderer($task);
+
+        $this->assertStringContainsString('Running', $output);
+        $this->assertStringContainsString('Building assets', $output);
+    }
+
+    public function testDoesNotKeepSummaryByDefault(): void
+    {
+        $task = new Task(label: 'Running', limit: 10);
+
+        $this->assertFalse($task->keepSummary);
+    }
+
+    public function testRendersLabelAndStableMessagesWhenFinishedWithKeepSummaryEnabled(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'Running', limit: 10, keepSummary: true);
+        $task->finished = true;
+        $task->stableMessages[] = ['type' => 'success', 'message' => 'Step one done'];
+        $task->stableMessages[] = ['type' => 'error', 'message' => 'Step two failed'];
+
+        $renderer = new TaskRenderer($task);
+        $output = (string) $renderer($task);
+
+        $this->assertStringContainsString('Running', $output);
+        $this->assertStringContainsString('Step one done', $output);
+        $this->assertStringContainsString('Step two failed', $output);
+        $this->assertStringNotContainsString('─', $output);
+        $this->assertStringEndsWith(PHP_EOL . PHP_EOL, $output);
+    }
+
+    public function testRendersNothingSpecialWhenFinishedWithNoStableMessages(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'Running', limit: 10, keepSummary: true);
+        $task->finished = true;
+
+        $renderer = new TaskRenderer($task);
+        $output = (string) $renderer($task);
+
+        $this->assertStringContainsString('Running', $output);
+    }
+
+    public function testDoesNotTakeSummaryBranchWhenKeepSummaryIsDisabled(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'Running', limit: 10, keepSummary: false);
+        $task->finished = true;
+        $task->stableMessages[] = ['type' => 'success', 'message' => 'Step one done'];
+
+        $renderer = new TaskRenderer($task);
+        $output = (string) $renderer($task);
+
+        $this->assertStringContainsString('Running', $output);
+        $this->assertStringContainsString('Step one done', $output);
+    }
+
+    public function testFinishRenderingKeepsSummaryWithoutErasing(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'Running', limit: 10, keepSummary: true);
+        $task->finished = true;
+        $task->stableMessages[] = ['type' => 'success', 'message' => 'Step one done'];
+
+        $finishRendering = new ReflectionMethod($task, 'finishRendering');
+        $finishRendering->invoke($task);
+
+        Prompt::assertOutputContains('Running');
+        Prompt::assertOutputContains('Step one done');
+        $this->assertStringNotContainsString("\e[J", Prompt::content());
+    }
+
+    public function testFinishRenderingErasesWhenSummaryIsNotKept(): void
+    {
+        Prompt::fake();
+
+        $task = new Task(label: 'Running', limit: 10);
+        $task->finished = true;
+        $task->stableMessages[] = ['type' => 'success', 'message' => 'Step one done'];
+
+        $finishRendering = new ReflectionMethod($task, 'finishRendering');
+        $finishRendering->invoke($task);
+
+        $this->assertStringContainsString("\e[J", Prompt::content());
     }
 }

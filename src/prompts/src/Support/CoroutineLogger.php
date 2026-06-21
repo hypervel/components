@@ -65,6 +65,14 @@ class CoroutineLogger extends Logger
     }
 
     /**
+     * Update the task sub-label. Pass an empty string to clear.
+     */
+    public function subLabel(string $message): void
+    {
+        $this->task->updateSubLabel($message);
+    }
+
+    /**
      * Append a chunk of text, accumulating on the current line(s).
      */
     public function partial(string $chunk): void
