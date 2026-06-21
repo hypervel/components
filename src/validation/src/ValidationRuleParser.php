@@ -399,7 +399,7 @@ class ValidationRuleParser
         if (is_array($rule)) {
             $rule = static::parseArrayRule($rule);
         } else {
-            if (is_string($rule) && isset(self::$parseCache[$rule])) {
+            if (is_string($rule) && array_key_exists($rule, self::$parseCache)) {
                 return self::$parseCache[$rule];
             }
 

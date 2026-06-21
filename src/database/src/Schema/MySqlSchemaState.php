@@ -146,7 +146,7 @@ class MySqlSchemaState extends SchemaState
     {
         $config['host'] ??= '';
 
-        return [
+        return array_map(strval(...), [
             'HYPERVEL_LOAD_SOCKET' => $config['unix_socket'] ?? '',
             'HYPERVEL_LOAD_HOST' => is_array($config['host']) ? $config['host'][0] : $config['host'],
             'HYPERVEL_LOAD_PORT' => $config['port'] ?? '',
@@ -156,11 +156,13 @@ class MySqlSchemaState extends SchemaState
             'HYPERVEL_LOAD_SSL_CA' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA] ?? '', // @phpstan-ignore class.notFound
             'HYPERVEL_LOAD_SSL_CERT' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CERT : PDO::MYSQL_ATTR_SSL_CERT] ?? '', // @phpstan-ignore class.notFound
             'HYPERVEL_LOAD_SSL_KEY' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_KEY : PDO::MYSQL_ATTR_SSL_KEY] ?? '', // @phpstan-ignore class.notFound
-        ];
+        ]);
     }
 
     /**
      * Execute the given dump process.
+     *
+     * @param array<string, string> $variables
      */
     protected function executeDumpProcess(Process $process, ?callable $output, array $variables, int $depth = 0): Process
     {

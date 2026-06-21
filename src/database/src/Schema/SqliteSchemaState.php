@@ -83,8 +83,8 @@ class SqliteSchemaState extends SchemaState
     #[Override]
     protected function baseVariables(array $config): array
     {
-        return [
+        return array_map(strval(...), [
             'HYPERVEL_LOAD_DATABASE' => $config['database'],
-        ];
+        ]);
     }
 }
