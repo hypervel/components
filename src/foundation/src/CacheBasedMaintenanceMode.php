@@ -49,7 +49,7 @@ class CacheBasedMaintenanceMode implements MaintenanceMode
      */
     public function data(): array
     {
-        return $this->getStore()->get($this->key);
+        return $this->getStore()->get($this->key) ?? [];
     }
 
     /**

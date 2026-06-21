@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation;
 
+use Carbon\CarbonImmutable;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 
 class WorkerCachedMaintenanceMode implements MaintenanceModeContract
@@ -20,10 +21,16 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
     protected static ?array $snapshot = null;
 
     /**
+     * The time when the cached snapshot was last refreshed.
+     */
+    protected static ?CarbonImmutable $refreshedAt = null;
+
+    /**
      * Create a new worker-cached maintenance mode instance.
      */
     public function __construct(
-        protected MaintenanceModeContract $driver
+        protected MaintenanceModeContract $driver,
+        protected int $refreshInterval = 5
     ) {
     }
 
@@ -34,7 +41,7 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
     {
         $this->driver->activate($payload);
 
-        static::$snapshot = null;
+        static::flushCache();
     }
 
     /**
@@ -44,7 +51,7 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
     {
         $this->driver->deactivate();
 
-        static::$snapshot = null;
+        static::flushCache();
     }
 
     /**
@@ -69,6 +76,7 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
     public static function flushCache(): void
     {
         static::$snapshot = null;
+        static::$refreshedAt = null;
     }
 
     /**
@@ -82,15 +90,31 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
      */
     protected function loadSnapshot(): array
     {
-        if (static::$snapshot === null) {
+        if ($this->shouldRefreshSnapshot()) {
             $active = $this->driver->active();
 
             static::$snapshot = [
                 'active' => $active,
                 'data' => $active ? $this->driver->data() : [],
             ];
+
+            // Set after successful reads so failed refreshes retry on the next request.
+            static::$refreshedAt = CarbonImmutable::now();
         }
 
         return static::$snapshot;
+    }
+
+    /**
+     * Determine if the cached snapshot should be refreshed.
+     */
+    protected function shouldRefreshSnapshot(): bool
+    {
+        if (static::$snapshot === null || static::$refreshedAt === null) {
+            return true;
+        }
+
+        return $this->refreshInterval > 0
+            && static::$refreshedAt->addSeconds($this->refreshInterval)->lte(CarbonImmutable::now());
     }
 }

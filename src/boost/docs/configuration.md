@@ -392,7 +392,9 @@ APP_MAINTENANCE_DRIVER=cache
 APP_MAINTENANCE_STORE=database
 ```
 
-When maintenance mode is enabled or disabled, Hypervel will send a `SIGUSR1` reload signal to the server process listed in your configured `server.settings.pid_file` so workers on the current server refresh their maintenance state. The default PID file is `storage/framework/hypervel.pid`; the signal is only sent when that file exists.
+Workers cache maintenance mode state in memory for performance. When using the cache driver, workers on other servers will refresh their cached state within the configured maintenance refresh interval. You may customize this interval in seconds using the `APP_MAINTENANCE_REFRESH_INTERVAL` environment variable; setting it to `0` disables automatic refreshes.
+
+When maintenance mode is enabled or disabled, Hypervel will send a `SIGUSR1` reload signal to the server process listed in your configured `server.settings.pid_file` so workers on the current server refresh their maintenance state immediately. The default PID file is `storage/framework/hypervel.pid`; the signal is only sent when that file exists.
 
 <a name="pre-rendering-the-maintenance-mode-view"></a>
 #### Pre-Rendering the Maintenance Mode View
