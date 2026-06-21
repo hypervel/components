@@ -169,20 +169,31 @@ You may define command aliases using the `$aliases` property. If you would like 
 <a name="command-attributes"></a>
 #### Command Attributes
 
-Hypervel also supports the `Signature` and `Description` attributes if you prefer to define command metadata above the class:
+Hypervel also supports command attributes if you prefer to define command metadata above the class:
 
 ```php
+use Hypervel\Console\Attributes\Aliases;
 use Hypervel\Console\Attributes\Description;
+use Hypervel\Console\Attributes\Help;
+use Hypervel\Console\Attributes\Hidden;
 use Hypervel\Console\Attributes\Signature;
+use Hypervel\Console\Attributes\Usage;
 use Hypervel\Console\Command;
 
 #[Signature('mail:send {user}')]
 #[Description('Send a marketing email to a user')]
+#[Aliases(['mail:drip'])]
+#[Help('Send a marketing email to the given user.')]
+#[Hidden]
+#[Usage('mail:send 1')]
+#[Usage('mail:send 1 --queue')]
 class SendEmails extends Command
 {
     // ...
 }
 ```
+
+The `Help` attribute sets the extended help text shown by `--help`, while the repeatable `Usage` attribute adds usage examples to the command's help screen.
 
 <a name="exit-codes"></a>
 #### Exit Codes

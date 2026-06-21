@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console;
 
 use Hypervel\Console\Application as ConsoleApplication;
+use Hypervel\Console\Attributes\Aliases;
 use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Command;
 use Hypervel\Console\ContainerCommandLoader;
@@ -267,6 +268,27 @@ class ConsoleApplicationResolveTest extends TestCase
         $this->assertInstanceOf(StubSignatureAttributeCommand::class, $app->get('test:signed-attribute-alias'));
     }
 
+    public function testAliasesAttributeCommandResolvesDirectlyByAlias(): void
+    {
+        $app = $this->createApp($this->app);
+        $app->resolve(StubAliasesAttributeCommand::class);
+        $app->setContainerCommandLoader();
+
+        $this->assertInstanceOf(StubAliasesAttributeCommand::class, $app->get('test:aliases-attribute-alias'));
+    }
+
+    public function testAliasesAttributeOverridesSignatureAliasesInCommandMap(): void
+    {
+        $app = $this->createApp();
+
+        $app->resolve(StubAliasesAttributeOverridesSignatureCommand::class);
+
+        $map = $this->getCommandMap($app);
+        $this->assertArrayHasKey('test:aliases-attribute', $map);
+        $this->assertArrayHasKey('test:aliases-attribute-override', $map);
+        $this->assertArrayNotHasKey('test:aliases-attribute-ignored', $map);
+    }
+
     public function testResolvingCommandsWithNoAliasViaAttribute()
     {
         $app = $this->createApp($this->app);
@@ -516,6 +538,24 @@ class StubSignatureCommand extends Command
 
 #[Signature('test:signed-attribute {--option}', aliases: ['test:signed-attribute-alias'])]
 class StubSignatureAttributeCommand extends Command
+{
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('test:aliases-attribute {--option}')]
+#[Aliases(['test:aliases-attribute-alias'])]
+class StubAliasesAttributeCommand extends Command
+{
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('test:aliases-attribute {--option}', aliases: ['test:aliases-attribute-ignored'])]
+#[Aliases(['test:aliases-attribute-override'])]
+class StubAliasesAttributeOverridesSignatureCommand extends Command
 {
     public function handle(): void
     {

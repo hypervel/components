@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Closure;
+use Hypervel\Console\Attributes\Aliases;
 use Hypervel\Console\Attributes\Signature;
 use Hypervel\Console\Events\ArtisanStarting;
 use Hypervel\Context\CoroutineContext;
@@ -346,7 +347,7 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Extract command aliases from a class without instantiation.
      *
-     * Reads #[Signature] aliases first, then the $aliases property default.
+     * Reads #[Aliases] first, then #[Signature] aliases, then the $aliases property default.
      * #[AsCommand] aliases are already baked into the name string as
      * pipe-separated values by Symfony, so they are handled by
      * extractCommandName() + the explode('|') in resolve().
@@ -356,6 +357,12 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     protected static function extractCommandAliases(string $command): array
     {
         $reflection = new ReflectionClass($command);
+        $attributes = $reflection->getAttributes(Aliases::class);
+
+        if (! empty($attributes)) {
+            return $attributes[0]->newInstance()->aliases;
+        }
+
         $attributes = $reflection->getAttributes(Signature::class);
 
         if (! empty($attributes)) {
