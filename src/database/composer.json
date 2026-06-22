@@ -34,6 +34,7 @@
         "brick/math": "^0.16",
         "nesbot/carbon": "^3.8.4",
         "symfony/console": "^8.0",
+        "symfony/polyfill-php86": "^1.36",
         "symfony/process": "^8.0.5",
         "hypervel/broadcasting": "^0.4",
         "hypervel/collections": "^0.4",

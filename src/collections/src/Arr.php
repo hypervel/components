@@ -13,6 +13,7 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use JsonSerializable;
 use Random\Randomizer;
+use SortDirection;
 use Traversable;
 use WeakMap;
 
@@ -923,7 +924,7 @@ class Arr
     /**
      * Sort the array using the given callback or "dot" notation.
      */
-    public static function sort(iterable $array, callable|array|string|null $callback = null): array
+    public static function sort(iterable $array, callable|array|int|string|null $callback = null): array
     {
         $collection = new Collection($array);
 
@@ -937,7 +938,7 @@ class Arr
     /**
      * Sort the array in descending order using the given callback or "dot" notation.
      */
-    public static function sortDesc(iterable $array, callable|array|string|null $callback = null): array
+    public static function sortDesc(iterable $array, callable|array|int|string|null $callback = null): array
     {
         $collection = new Collection($array);
 
@@ -951,7 +952,7 @@ class Arr
     /**
      * Recursively sort an array by keys and values.
      */
-    public static function sortRecursive(array $array, int $options = SORT_REGULAR, bool $descending = false): array
+    public static function sortRecursive(array $array, int $options = SORT_REGULAR, SortDirection|bool $descending = false): array
     {
         foreach ($array as &$value) {
             if (is_array($value)) {
@@ -960,13 +961,15 @@ class Arr
         }
 
         if (! array_is_list($array)) {
-            $descending
-                ? krsort($array, $options)
-                : ksort($array, $options);
+            match ($descending) {
+                false, SortDirection::Ascending => ksort($array, $options),
+                true, SortDirection::Descending => krsort($array, $options),
+            };
         } else {
-            $descending
-                ? rsort($array, $options)
-                : sort($array, $options);
+            match ($descending) {
+                false, SortDirection::Ascending => sort($array, $options),
+                true, SortDirection::Descending => rsort($array, $options),
+            };
         }
 
         return $array;
@@ -977,7 +980,7 @@ class Arr
      */
     public static function sortRecursiveDesc(array $array, int $options = SORT_REGULAR): array
     {
-        return static::sortRecursive($array, $options, true);
+        return static::sortRecursive($array, $options, SortDirection::Descending);
     }
 
     /**

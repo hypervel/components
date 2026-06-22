@@ -12,6 +12,7 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use SortDirection;
 
 class DatabaseEloquentMorphToManyTest extends TestCase
 {
@@ -92,8 +93,11 @@ class DatabaseEloquentMorphToManyTest extends TestCase
         $builder->shouldReceive('whereNull')->with($column, 'and', false)->once()->andReturnSelf();
         $relation->wherePivotNull($column);
 
-        $builder->shouldReceive('orderBy')->with($column, 'asc')->once()->andReturnSelf();
+        $builder->shouldReceive('orderBy')->with($column, SortDirection::Ascending)->once()->andReturnSelf();
         $relation->orderByPivot($column);
+
+        $builder->shouldReceive('orderBy')->with($column, SortDirection::Descending)->once()->andReturnSelf();
+        $relation->orderByPivotDesc($column);
     }
 
     public function getRelation(): MorphToMany

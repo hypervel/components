@@ -179,6 +179,7 @@
         "symfony/mailer": "^8.0.12",
         "symfony/mime": "^8.0.12",
         "symfony/polyfill-php85": "^1.33",
+        "symfony/polyfill-php86": "^1.36",
         "symfony/process": "^8.0.5",
         "symfony/property-access": "^8.0",
         "symfony/psr-http-message-bridge": "^8.0",

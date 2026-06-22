@@ -103,11 +103,13 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Get the string contents of the view.
      *
+     * @param null|(callable(View, string): ?string) $callback
      * @throws Throwable
      */
-    public function render(): string
+    public function render(?callable $callback = null): string
     {
-        return $this->doRender();
+        /** @var string */
+        return $this->doRender($callback);
     }
 
     /**

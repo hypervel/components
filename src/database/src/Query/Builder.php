@@ -37,6 +37,7 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
+use SortDirection;
 use stdClass;
 use UnitEnum;
 
@@ -2320,10 +2321,11 @@ class Builder implements BuilderContract
      * Add an "order by" clause to the query.
      *
      * @param  Closure|self|EloquentBuilder<*>|ExpressionContract|string  $column
+     * @param 'asc'|'desc'|SortDirection $direction
      *
      * @throws InvalidArgumentException
      */
-    public function orderBy(Closure|self|EloquentBuilder|ExpressionContract|string $column, string $direction = 'asc'): static
+    public function orderBy(Closure|self|EloquentBuilder|ExpressionContract|string $column, SortDirection|string $direction = SortDirection::Ascending): static
     {
         if ($this->isQueryable($column)) {
             [$query, $bindings] = $this->createSub($column);
@@ -2333,11 +2335,15 @@ class Builder implements BuilderContract
             $this->addBinding($bindings, $this->unions ? 'unionOrder' : 'order');
         }
 
-        $direction = strtolower($direction);
-
-        if (! in_array($direction, ['asc', 'desc'], true)) {
-            throw new InvalidArgumentException('Order direction must be "asc" or "desc".');
-        }
+        $direction = match (true) {
+            $direction instanceof SortDirection => match ($direction) {
+                SortDirection::Ascending => 'asc',
+                SortDirection::Descending => 'desc',
+            },
+            strtolower($direction) === 'asc' => 'asc',
+            strtolower($direction) === 'desc' => 'desc',
+            default => throw new InvalidArgumentException('Order direction must be a SortDirection, "asc" or "desc".'),
+        };
 
         $this->{$this->unions ? 'unionOrders' : 'orders'}[] = [
             'column' => $column,
@@ -2354,7 +2360,7 @@ class Builder implements BuilderContract
      */
     public function orderByDesc(Closure|self|EloquentBuilder|ExpressionContract|string $column): static
     {
-        return $this->orderBy($column, 'desc');
+        return $this->orderBy($column, SortDirection::Descending);
     }
 
     /**
@@ -2362,7 +2368,7 @@ class Builder implements BuilderContract
      */
     public function latest(Closure|self|ExpressionContract|string $column = 'created_at'): static
     {
-        return $this->orderBy($column, 'desc');
+        return $this->orderBy($column, SortDirection::Descending);
     }
 
     /**
@@ -2370,7 +2376,7 @@ class Builder implements BuilderContract
      */
     public function oldest(Closure|self|ExpressionContract|string $column = 'created_at'): static
     {
-        return $this->orderBy($column, 'asc');
+        return $this->orderBy($column, SortDirection::Ascending);
     }
 
     /**
@@ -2501,7 +2507,7 @@ class Builder implements BuilderContract
             $this->where($column, '<', $lastId);
         }
 
-        return $this->orderBy($column, 'desc')
+        return $this->orderBy($column, SortDirection::Descending)
             ->limit($perPage);
     }
 
@@ -2518,14 +2524,16 @@ class Builder implements BuilderContract
             $this->where($column, '>', $lastId);
         }
 
-        return $this->orderBy($column, 'asc')
+        return $this->orderBy($column, SortDirection::Ascending)
             ->limit($perPage);
     }
 
     /**
      * Remove all existing orders and optionally add a new order.
+     *
+     * @param 'asc'|'desc'|SortDirection $direction
      */
-    public function reorder(Closure|self|ExpressionContract|string|null $column = null, string $direction = 'asc'): static
+    public function reorder(Closure|self|ExpressionContract|string|null $column = null, SortDirection|string $direction = SortDirection::Ascending): static
     {
         $this->orders = null;
         $this->unionOrders = null;
@@ -2544,7 +2552,7 @@ class Builder implements BuilderContract
      */
     public function reorderDesc(Closure|self|ExpressionContract|string|null $column): static
     {
-        return $this->reorder($column, 'desc');
+        return $this->reorder($column, SortDirection::Descending);
     }
 
     /**

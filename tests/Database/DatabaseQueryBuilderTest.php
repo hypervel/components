@@ -32,7 +32,9 @@ use Hypervel\Tests\Database\Fixtures\Enums\Bar;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use ReflectionMethod;
 use RuntimeException;
+use SortDirection;
 use stdClass;
 use TypeError;
 
@@ -1946,7 +1948,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals(['whereRawBinding', 'groupByRawBinding', 'havingRawBinding'], $builder->getBindings());
     }
 
-    public function testOrderBys()
+    public function testOrderBys(): void
     {
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->orderBy('email')->orderBy('age', 'desc');
@@ -1966,6 +1968,10 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->orderByDesc('name');
         $this->assertSame('select * from "users" order by "name" desc', $builder->toSql());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->orderBy('email', SortDirection::Descending);
+        $this->assertSame('select * from "users" order by "email" desc', $builder->toSql());
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('posts')->where('public', 1)
@@ -2019,7 +2025,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame('select * from "users" order by RANDOM()', $builder->toSql());
     }
 
-    public function testReorder()
+    public function testReorder(): void
     {
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->orderBy('name');
@@ -2031,6 +2037,12 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->select('*')->from('users')->orderBy('name');
         $this->assertSame('select * from "users" order by "name" asc', $builder->toSql());
         $builder->reorder('email', 'desc');
+        $this->assertSame('select * from "users" order by "email" desc', $builder->toSql());
+
+        $builder = $this->getBuilder();
+        $builder->select('*')->from('users')->orderBy('name');
+        $this->assertSame('select * from "users" order by "name" asc', $builder->toSql());
+        $builder->reorder('email', SortDirection::Descending);
         $this->assertSame('select * from "users" order by "email" desc', $builder->toSql());
 
         $builder = $this->getBuilder();
@@ -2048,7 +2060,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([], $builder->getBindings());
     }
 
-    public function testOrderBySubQueries()
+    public function testOrderBySubQueries(): void
     {
         $expected = 'select * from "users" order by (select "created_at" from "logins" where "user_id" = "users"."id" limit 1)';
         $subQuery = function ($query) {
@@ -2059,6 +2071,9 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertSame("{$expected} asc", $builder->toSql());
 
         $builder = $this->getBuilder()->select('*')->from('users')->orderBy($subQuery, 'desc');
+        $this->assertSame("{$expected} desc", $builder->toSql());
+
+        $builder = $this->getBuilder()->select('*')->from('users')->orderBy($subQuery, SortDirection::Descending);
         $this->assertSame("{$expected} desc", $builder->toSql());
 
         $builder = $this->getBuilder()->select('*')->from('users')->orderByDesc($subQuery);
@@ -2072,9 +2087,10 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals([1, 1, 'news', 'opinion'], $builder->getBindings());
     }
 
-    public function testOrderByInvalidDirectionParam()
+    public function testOrderByInvalidDirectionParam(): void
     {
         $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Order direction must be a SortDirection, "asc" or "desc".');
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('users')->orderBy('age', 'asec');
@@ -5317,6 +5333,24 @@ SQL;
         }, 'table.id', 'table_id');
     }
 
+    public function testOrderedChunkByIdAcceptsAscendingSortDirection(): void
+    {
+        $builder = $this->getMockQueryBuilder();
+        $builder->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+
+        $chunk = collect([(object) ['someIdField' => 1]]);
+        $builder->shouldReceive('forPageAfterId')->once()->with(2, 0, 'someIdField')->andReturnSelf();
+        $builder->shouldReceive('forPageBeforeId')->never();
+        $builder->shouldReceive('get')->once()->andReturn($chunk);
+
+        $callbackAssertor = m::mock(stdClass::class);
+        $callbackAssertor->shouldReceive('doSomething')->once()->with($chunk);
+
+        $builder->orderedChunkById(2, function ($results) use ($callbackAssertor) {
+            $callbackAssertor->doSomething($results);
+        }, 'someIdField', descending: SortDirection::Ascending);
+    }
+
     public function testChunkPaginatesUsingIdDesc()
     {
         $builder = $this->getMockQueryBuilder();
@@ -5335,6 +5369,24 @@ SQL;
         $builder->chunkByIdDesc(2, function ($results) use ($callbackAssertor) {
             $callbackAssertor->doSomething($results);
         }, 'someIdField');
+    }
+
+    public function testOrderedLazyByIdAcceptsAscendingSortDirection(): void
+    {
+        $builder = $this->getMockQueryBuilder();
+        $builder->orders[] = ['column' => 'foobar', 'direction' => 'asc'];
+
+        $chunk = collect([(object) ['someIdField' => 1]]);
+        $builder->shouldReceive('forPageAfterId')->once()->with(2, null, 'someIdField')->andReturnSelf();
+        $builder->shouldReceive('forPageBeforeId')->never();
+        $builder->shouldReceive('get')->once()->andReturn($chunk);
+
+        $method = new ReflectionMethod($builder, 'orderedLazyById');
+
+        $this->assertEquals(
+            [(object) ['someIdField' => 1]],
+            $method->invoke($builder, 2, 'someIdField', null, SortDirection::Ascending)->all()
+        );
     }
 
     public function testPaginate()

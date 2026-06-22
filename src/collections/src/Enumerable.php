@@ -13,6 +13,7 @@ use Hypervel\Contracts\Support\Jsonable;
 use InvalidArgumentException;
 use IteratorAggregate;
 use JsonSerializable;
+use SortDirection;
 use Traversable;
 use UnexpectedValueException;
 
@@ -860,8 +861,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Chunk the collection into chunks with a callback.
      *
-     * @param callable(TValue, TKey, static<int, TValue>): bool $callback
-     * @return static<int, static<int, TValue>>
+     * @param callable(TValue, TKey, Collection<TKey, TValue>): bool $callback
+     * @return static<int, static<TKey, TValue>>
      */
     public function chunkWhile(callable $callback): static;
 
@@ -887,21 +888,21 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Sort the collection using the given callback.
      *
-     * @param array<array-key, array{string, string}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|string>|(callable(TValue, TKey): mixed)|string $callback
+     * @param array<array-key, array{int|string, 'asc'|'desc'|SortDirection}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
      */
-    public function sortBy(array|callable|string $callback, int $options = SORT_REGULAR, bool $descending = false): static;
+    public function sortBy(array|callable|int|string $callback, int $options = SORT_REGULAR, SortDirection|bool $descending = false): static;
 
     /**
      * Sort the collection in descending order using the given callback.
      *
-     * @param array<array-key, array{string, string}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|string>|(callable(TValue, TKey): mixed)|string $callback
+     * @param array<array-key, array{int|string, 'asc'|'desc'|SortDirection}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
      */
-    public function sortByDesc(array|callable|string $callback, int $options = SORT_REGULAR): static;
+    public function sortByDesc(array|callable|int|string $callback, int $options = SORT_REGULAR): static;
 
     /**
      * Sort the collection keys.
      */
-    public function sortKeys(int $options = SORT_REGULAR, bool $descending = false): static;
+    public function sortKeys(int $options = SORT_REGULAR, SortDirection|bool $descending = false): static;
 
     /**
      * Sort the collection keys in descending order.

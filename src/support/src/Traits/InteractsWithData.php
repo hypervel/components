@@ -11,6 +11,7 @@ use Carbon\Unit;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Number;
 use Hypervel\Support\Str;
 use ReflectionEnum;
 use stdClass;
@@ -73,7 +74,7 @@ trait InteractsWithData
 
     /**
      * Apply the callback if the instance contains the given key.
-     *string|array : bool.
+     *
      * @return $this|mixed
      */
     public function whenHas(string $key, callable $callback, ?callable $default = null): mixed
@@ -146,6 +147,32 @@ trait InteractsWithData
     {
         if ($this->filled($key)) {
             return $callback(data_get($this->all(), $key)) ?: $this;
+        }
+
+        if ($default) {
+            return $default();
+        }
+
+        return $this;
+    }
+
+    /**
+     * Apply the callback if the instance contains a valid enum value for the given key.
+     *
+     * @template TEnum of \BackedEnum
+     *
+     * @param class-string<TEnum> $enumClass
+     * @param callable(TEnum): mixed $callback
+     * @return $this|mixed
+     */
+    public function whenEnum(string $key, string $enumClass, callable $callback, ?callable $default = null): mixed
+    {
+        if ($this->filled($key) && $this->isBackedEnum($enumClass)) {
+            $value = $this->normalizeEnumValue($enumClass, data_get($this->all(), $key));
+
+            if ($value !== null && ($enum = $enumClass::tryFrom($value)) !== null) {
+                return $callback($enum) ?: $this;
+            }
         }
 
         if ($default) {
@@ -231,6 +258,21 @@ trait InteractsWithData
     public function float(string $key, float $default = 0.0): float
     {
         return floatval($this->data($key, $default));
+    }
+
+    /**
+     * Retrieve data clamped between min and max values.
+     */
+    public function clamp(string $key, int|float $min, int|float $max, int|float $default = 0): int|float
+    {
+        $number = $this->data($key, $default);
+
+        if (is_string($number) && is_numeric($number)) {
+            $number += 0;
+        }
+
+        // Non-numeric input fails naturally in the strictly typed Number::clamp().
+        return Number::clamp($number, $min, $max); // @phpstan-ignore argument.type
     }
 
     /**

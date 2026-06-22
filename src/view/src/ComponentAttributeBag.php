@@ -6,20 +6,23 @@ namespace Hypervel\View;
 
 use ArrayAccess;
 use ArrayIterator;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Support\Traits\InteractsWithData;
 use Hypervel\Support\Traits\Macroable;
 use IteratorAggregate;
 use JsonSerializable;
 use Stringable;
 
-class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSerializable, Htmlable, Stringable
+class ComponentAttributeBag implements Arrayable, ArrayAccess, IteratorAggregate, JsonSerializable, Htmlable, Stringable
 {
     use Conditionable;
+    use InteractsWithData;
     use Macroable;
 
     /**
@@ -36,11 +39,15 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
     }
 
     /**
-     * Get all of the attribute values.
+     * Get all the attribute values.
      */
-    public function all(): array
+    public function all(mixed $keys = null): array
     {
-        return $this->attributes;
+        if (is_null($keys)) {
+            return $this->attributes;
+        }
+
+        return $this->only($keys)->toArray();
     }
 
     /**
@@ -60,47 +67,23 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
     }
 
     /**
-     * Determine if a given attribute exists in the attribute array.
+     * Retrieve data from the instance.
      */
-    public function has(array|string $key): bool
+    protected function data(?string $key = null, mixed $default = null): mixed
     {
-        $keys = is_array($key) ? $key : func_get_args();
-
-        foreach ($keys as $value) {
-            if (! array_key_exists($value, $this->attributes)) {
-                return false;
-            }
+        if (is_null($key)) {
+            return $this->attributes;
         }
 
-        return true;
+        return $this->get($key, $default);
     }
 
     /**
-     * Determine if any of the keys exist in the attribute array.
+     * Retrieve data from the instance as an array.
      */
-    public function hasAny(array|string $key): bool
+    public function array(array|string|null $key = null): array
     {
-        if (! count($this->attributes)) {
-            return false;
-        }
-
-        $keys = is_array($key) ? $key : func_get_args();
-
-        foreach ($keys as $value) {
-            if ($this->has($value)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Determine if a given attribute is missing from the attribute array.
-     */
-    public function missing(string $key): bool
-    {
-        return ! $this->has($key);
+        return is_array($key) ? $this->only($key)->toArray() : (array) $this->data($key);
     }
 
     /**
@@ -404,11 +387,11 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
     }
 
     /**
-     * Flush all static state.
+     * Get all the attribute values.
      */
-    public static function flushState(): void
+    public function toArray(): array
     {
-        static::flushMacros();
+        return $this->all();
     }
 
     /**
@@ -431,5 +414,13 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
         }
 
         return trim($string);
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
     }
 }

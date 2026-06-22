@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\View;
 
+use Hypervel\Support\Stringable as HypervelStringable;
+use Hypervel\Tests\TestCase;
 use Hypervel\View\ComponentAttributeBag;
-use PHPUnit\Framework\TestCase;
 
 class ViewComponentAttributeBagTest extends TestCase
 {
-    public function testAttributeRetrieval()
+    public function testAttributeRetrieval(): void
     {
         $bag = new ComponentAttributeBag(['class' => 'font-bold', 'name' => 'test']);
 
@@ -103,9 +104,48 @@ class ViewComponentAttributeBagTest extends TestCase
             'test-extract-1',
             'test-extract-2' => 'defaultValue',
         ]));
+
+        $bag = new ComponentAttributeBag(['class' => 'font-bold', 'name' => 'test', 'id' => 'my-id']);
+        $this->assertInstanceOf(ComponentAttributeBag::class, $bag->only('class'));
+        $this->assertSame('class="font-bold"', (string) $bag->only('class'));
+        $this->assertSame('class="font-bold" name="test"', (string) $bag->only(['class', 'name']));
+        $this->assertSame('', (string) $bag->only('missing'));
+        $this->assertSame('name="test"', (string) $bag->only(['name', 'missing']));
+
+        $this->assertInstanceOf(ComponentAttributeBag::class, $bag->except('class'));
+        $this->assertSame('name="test" id="my-id"', (string) $bag->except('class'));
+        $this->assertSame('id="my-id"', (string) $bag->except(['class', 'name']));
+        $this->assertSame('class="font-bold" name="test" id="my-id"', (string) $bag->except('missing'));
+        $this->assertSame('class="font-bold" id="my-id"', (string) $bag->except(['name', 'missing']));
     }
 
-    public function testItMakesAnExceptionForAlpineXdata()
+    public function testAttributeRetrievalUsingDotNotation(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'data.config' => 'value1',
+            'x-on:click.prevent' => 'handler',
+            'wire:model.lazy' => 'username',
+            '@submit.prevent' => 'submitForm',
+            'wire:model.debounce.500ms' => 'search',
+        ]);
+
+        $this->assertFalse($bag->has('data'));
+        $this->assertFalse($bag->has('wire:model.debounce'));
+
+        $this->assertTrue($bag->has('data.config'));
+        $this->assertTrue($bag->has('x-on:click.prevent'));
+        $this->assertTrue($bag->has('wire:model.lazy'));
+        $this->assertTrue($bag->has('@submit.prevent'));
+        $this->assertTrue($bag->has('wire:model.debounce.500ms'));
+
+        $this->assertSame('value1', $bag->get('data.config'));
+        $this->assertSame('handler', $bag->get('x-on:click.prevent'));
+        $this->assertSame('username', $bag->get('wire:model.lazy'));
+        $this->assertSame('submitForm', $bag->get('@submit.prevent'));
+        $this->assertSame('search', $bag->get('wire:model.debounce.500ms'));
+    }
+
+    public function testItMakesAnExceptionForAlpineXdata(): void
     {
         $bag = new ComponentAttributeBag([
             'required' => true,
@@ -115,7 +155,7 @@ class ViewComponentAttributeBagTest extends TestCase
         $this->assertSame('required="required" x-data=""', (string) $bag);
     }
 
-    public function testItMakesAnExceptionForLivewireWireAttributes()
+    public function testItMakesAnExceptionForLivewireWireAttributes(): void
     {
         $bag = new ComponentAttributeBag([
             'wire:loading' => true,
@@ -126,33 +166,256 @@ class ViewComponentAttributeBagTest extends TestCase
         $this->assertSame('wire:loading="" wire:loading.remove="" wire:poll=""', (string) $bag);
     }
 
-    public function testAttributeExistence()
+    public function testAttributeExistence(): void
     {
-        $bag = new ComponentAttributeBag(['name' => 'test']);
+        $bag = new ComponentAttributeBag(['name' => 'test', 'href' => '', 'src' => null]);
 
-        $this->assertTrue((bool) $bag->has('name'));
-        $this->assertTrue((bool) $bag->has(['name']));
-        $this->assertTrue((bool) $bag->hasAny(['class', 'name']));
-        $this->assertTrue((bool) $bag->hasAny('class', 'name'));
-        $this->assertFalse((bool) $bag->missing('name'));
-        $this->assertFalse((bool) $bag->has('class'));
-        $this->assertFalse((bool) $bag->has(['class']));
-        $this->assertFalse((bool) $bag->has(['name', 'class']));
-        $this->assertFalse((bool) $bag->has('name', 'class'));
-        $this->assertTrue((bool) $bag->missing('class'));
+        $this->assertTrue($bag->has('src'));
+        $this->assertTrue($bag->has('href'));
+        $this->assertTrue($bag->has('name'));
+        $this->assertTrue($bag->has(['name']));
+        $this->assertTrue($bag->hasAny(['class', 'name']));
+        $this->assertTrue($bag->hasAny('class', 'name'));
+        $this->assertFalse($bag->missing('name'));
+        $this->assertFalse($bag->has('class'));
+        $this->assertFalse($bag->has(['class']));
+        $this->assertFalse($bag->has(['name', 'class']));
+        $this->assertFalse($bag->has('name', 'class'));
+        $this->assertTrue($bag->missing('class'));
     }
 
-    public function testAttributeIsEmpty()
+    public function testAttributeIsEmpty(): void
     {
         $bag = new ComponentAttributeBag([]);
 
         $this->assertTrue((bool) $bag->isEmpty());
     }
 
-    public function testAttributeIsNotEmpty()
+    public function testAttributeIsNotEmpty(): void
     {
         $bag = new ComponentAttributeBag(['name' => 'test']);
 
         $this->assertTrue((bool) $bag->isNotEmpty());
+    }
+
+    public function testAttributeIsArray(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'name' => 'test',
+            'class' => 'font-bold',
+        ]);
+
+        $this->assertSame(['name' => 'test', 'class' => 'font-bold'], $bag->toArray());
+        $this->assertSame(['name' => 'test', 'class' => 'font-bold'], $bag->all());
+        $this->assertSame(['class' => 'font-bold'], $bag->all('class'));
+        $this->assertSame(['name' => 'test', 'class' => 'font-bold'], $bag->all(['class', 'name']));
+    }
+
+    public function testAttributeArrayAndCollectSubsets(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'name' => 'test',
+            'class' => 'font-bold',
+            'id' => 'alert',
+        ]);
+
+        $this->assertSame(['font-bold'], $bag->array('class'));
+        $this->assertSame(['name' => 'test', 'class' => 'font-bold'], $bag->array(['class', 'name']));
+        $this->assertSame(['name' => 'test', 'class' => 'font-bold'], $bag->collect(['class', 'name'])->all());
+    }
+
+    public function testFilled(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'name' => 'test',
+            'class' => 'font-bold',
+            'empty' => '',
+            'whitespace' => '   ',
+            'zero' => '0',
+            'false' => false,
+            'null' => null,
+        ]);
+
+        $this->assertTrue($bag->filled('name'));
+        $this->assertTrue($bag->filled('class'));
+        $this->assertTrue($bag->filled('zero'));
+        $this->assertTrue($bag->filled('false'));
+        $this->assertFalse($bag->filled('null'));
+        $this->assertFalse($bag->filled('empty'));
+        $this->assertFalse($bag->filled('whitespace'));
+        $this->assertFalse($bag->filled('nonexistent'));
+        $this->assertTrue($bag->filled(['name', 'class']));
+        $this->assertFalse($bag->filled(['name', 'empty']));
+        $this->assertTrue($bag->filled('name', 'class'));
+        $this->assertFalse($bag->filled('name', 'empty'));
+    }
+
+    public function testIsNotFilled(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'name' => 'test',
+            'empty' => '',
+            'whitespace' => '   ',
+        ]);
+
+        $this->assertFalse($bag->isNotFilled('name'));
+        $this->assertTrue($bag->isNotFilled('empty'));
+        $this->assertTrue($bag->isNotFilled('whitespace'));
+        $this->assertTrue($bag->isNotFilled('nonexistent'));
+        $this->assertTrue($bag->isNotFilled(['empty', 'whitespace']));
+        $this->assertFalse($bag->isNotFilled(['name', 'empty']));
+    }
+
+    public function testAnyFilled(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'name' => 'test',
+            'empty' => '',
+            'whitespace' => '   ',
+        ]);
+
+        $this->assertTrue($bag->anyFilled(['name', 'empty']));
+        $this->assertTrue($bag->anyFilled(['empty', 'name']));
+        $this->assertFalse($bag->anyFilled(['empty', 'whitespace']));
+        $this->assertTrue($bag->anyFilled('name', 'empty'));
+        $this->assertFalse($bag->anyFilled('empty', 'whitespace'));
+    }
+
+    public function testWhenFilled(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'name' => 'test',
+            'empty' => '',
+        ]);
+
+        $this->assertSame('callback-test', $bag->whenFilled('name', function ($value) {
+            return 'callback-' . $value;
+        }));
+
+        $this->assertSame($bag, $bag->whenFilled('empty', function ($value) {
+            return 'callback-' . $value;
+        }));
+
+        $this->assertSame('default-callback', $bag->whenFilled('empty', function ($value) {
+            return 'callback-' . $value;
+        }, function () {
+            return 'default-callback';
+        }));
+    }
+
+    public function testWhenHas(): void
+    {
+        $bag = new ComponentAttributeBag(['name' => 'test']);
+
+        $this->assertSame('callback-test', $bag->whenHas('name', function ($value) {
+            return 'callback-' . $value;
+        }));
+
+        $this->assertSame($bag, $bag->whenHas('missing', function ($value) {
+            return 'callback-' . $value;
+        }));
+
+        $this->assertSame('default-callback', $bag->whenHas('missing', function ($value) {
+            return 'callback-' . $value;
+        }, function () {
+            return 'default-callback';
+        }));
+    }
+
+    public function testWhenMissing(): void
+    {
+        $bag = new ComponentAttributeBag(['name' => 'test']);
+
+        $this->assertSame($bag, $bag->whenMissing('name', function () {
+            return 'callback';
+        }));
+
+        $this->assertSame('callback', $bag->whenMissing('missing', function () {
+            return 'callback';
+        }));
+
+        $this->assertSame('default-callback', $bag->whenMissing('name', function () {
+            return 'callback';
+        }, function () {
+            return 'default-callback';
+        }));
+    }
+
+    public function testString(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'name' => 'test',
+            'empty' => '',
+            'number' => 123,
+        ]);
+
+        $this->assertInstanceOf(HypervelStringable::class, $bag->string('name'));
+        $this->assertSame('test', (string) $bag->string('name'));
+        $this->assertSame('', (string) $bag->string('empty'));
+        $this->assertSame('123', (string) $bag->string('number'));
+        $this->assertSame('default', (string) $bag->string('missing', 'default'));
+    }
+
+    public function testBoolean(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'true_string' => 'true',
+            'false_string' => 'false',
+            'one' => '1',
+            'zero' => '0',
+            'yes' => 'yes',
+            'no' => 'no',
+            'on' => 'on',
+            'off' => 'off',
+        ]);
+
+        $this->assertTrue($bag->boolean('true_string'));
+        $this->assertFalse($bag->boolean('false_string'));
+        $this->assertTrue($bag->boolean('one'));
+        $this->assertFalse($bag->boolean('zero'));
+        $this->assertTrue($bag->boolean('yes'));
+        $this->assertFalse($bag->boolean('no'));
+        $this->assertTrue($bag->boolean('on'));
+        $this->assertFalse($bag->boolean('off'));
+        $this->assertTrue($bag->boolean('missing', true));
+        $this->assertFalse($bag->boolean('missing', false));
+    }
+
+    public function testInteger(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'number' => '123',
+            'float' => '123.45',
+            'string' => 'abc',
+        ]);
+
+        $this->assertSame(123, $bag->integer('number'));
+        $this->assertSame(123, $bag->integer('float'));
+        $this->assertSame(0, $bag->integer('string'));
+        $this->assertSame(42, $bag->integer('missing', 42));
+    }
+
+    public function testFloat(): void
+    {
+        $bag = new ComponentAttributeBag([
+            'number' => '123',
+            'float' => '123.45',
+            'string' => 'abc',
+        ]);
+
+        $this->assertSame(123.0, $bag->float('number'));
+        $this->assertSame(123.45, $bag->float('float'));
+        $this->assertSame(0.0, $bag->float('string'));
+        $this->assertSame(42.5, $bag->float('missing', 42.5));
+    }
+
+    public function testExists(): void
+    {
+        $bag = new ComponentAttributeBag(['name' => 'test']);
+
+        $this->assertTrue($bag->exists('name'));
+        $this->assertFalse($bag->exists('missing'));
+        $this->assertTrue($bag->exists(['name']));
+        $this->assertFalse($bag->exists(['missing']));
     }
 }

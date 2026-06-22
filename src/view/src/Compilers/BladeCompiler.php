@@ -55,6 +55,11 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected const FOOTER_CONTEXT_KEY = '__view.footer';
 
     /**
+     * The file currently being compiled.
+     */
+    protected const PATH_CONTEXT_KEY = '__view.path';
+
+    /**
      * The "regular" / legacy echo string format.
      */
     protected const ECHO_FORMAT_CONTEXT_KEY = '__view.echo_format';
@@ -85,7 +90,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected array $precompilers = [];
 
     /**
-     * The file currently being compiled.
+     * Intentionally unset until a path exists so getPath() fails fast.
      */
     protected string $path;
 
@@ -151,23 +156,47 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Compile the view at the given path.
      */
-    public function compile(string $path): void
+    public function compile(?string $path = null): void
     {
-        $contents = $this->compileString($this->files->get($path));
+        if ($path !== null) {
+            $this->setPath($path);
+        }
 
-        $contents = $this->appendFilePath($contents, $path);
+        $contents = $this->compileString($this->files->get($this->getPath()));
+
+        if ($this->getPath() !== '') {
+            $contents = $this->appendFilePath($contents);
+        }
 
         $this->ensureCompiledDirectoryExists(
-            $compiledPath = $this->getCompiledPath($path)
+            $compiledPath = $this->getCompiledPath($this->getPath())
         );
 
-        $this->files->put($compiledPath, $contents);
+        if (! $this->files->exists($compiledPath)) {
+            $this->files->replace($compiledPath, $contents);
+
+            return;
+        }
+
+        $compiledHash = $this->files->hash($compiledPath, 'xxh128');
+
+        if ($compiledHash !== hash('xxh128', $contents)) {
+            $this->files->replace($compiledPath, $contents);
+
+            return;
+        }
+
+        $lastModified = $this->files->lastModified($this->getPath());
+
+        if ($lastModified >= $this->files->lastModified($compiledPath)) {
+            touch($compiledPath, $lastModified + 1);
+        }
     }
 
     /**
      * Append the file path to the compiled string.
      */
-    protected function appendFilePath(string $contents, string $path): string
+    protected function appendFilePath(string $contents): string
     {
         $tokens = $this->getOpenAndClosingPhpTokens($contents);
 
@@ -175,7 +204,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             $contents .= ' ?>';
         }
 
-        return $contents . "<?php /**PATH {$path} ENDPATH**/ ?>";
+        return $contents . "<?php /**PATH {$this->getPath()} ENDPATH**/ ?>";
     }
 
     /**
@@ -183,11 +212,35 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected function getOpenAndClosingPhpTokens(string $contents): Collection
     {
-        return (new Collection(token_get_all($contents)))
-            ->pluck('0')
-            ->filter(function ($token) {
-                return in_array($token, [T_OPEN_TAG, T_OPEN_TAG_WITH_ECHO, T_CLOSE_TAG]);
-            });
+        $tokens = [];
+
+        foreach (token_get_all($contents) as $token) {
+            if ($token[0] === T_OPEN_TAG || $token[0] === T_OPEN_TAG_WITH_ECHO || $token[0] === T_CLOSE_TAG) {
+                $tokens[] = $token[0];
+            }
+        }
+
+        return new Collection($tokens);
+    }
+
+    /**
+     * Get the path currently being compiled.
+     */
+    public function getPath(): string
+    {
+        if (CoroutineContext::has(static::PATH_CONTEXT_KEY)) {
+            return CoroutineContext::get(static::PATH_CONTEXT_KEY, '');
+        }
+
+        return $this->path;
+    }
+
+    /**
+     * Set the path currently being compiled.
+     */
+    public function setPath(string $path): void
+    {
+        CoroutineContext::set(static::PATH_CONTEXT_KEY, $path);
     }
 
     /**

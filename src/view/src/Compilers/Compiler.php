@@ -7,6 +7,7 @@ namespace Hypervel\View\Compilers;
 use ErrorException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
+use InvalidArgumentException;
 
 abstract class Compiler
 {
@@ -19,7 +20,11 @@ abstract class Compiler
         protected string $basePath = '',
         protected bool $shouldCache = true,
         protected string $compiledExtension = 'php',
+        protected bool $shouldCheckTimestamps = true,
     ) {
+        if ($cachePath === '') {
+            throw new InvalidArgumentException('Please provide a valid cache path.');
+        }
     }
 
     /**
@@ -48,6 +53,10 @@ abstract class Compiler
         // of the views is less than the modification times of the compiled views.
         if (! $this->files->exists($compiled)) {
             return true;
+        }
+
+        if (! $this->shouldCheckTimestamps) {
+            return false;
         }
 
         try {

@@ -8,7 +8,7 @@ use Hypervel\View\ComponentAttributeBag;
 
 class BladePropsTest extends AbstractBladeTestCase
 {
-    public function testPropsAreCompiled()
+    public function testPropsAreCompiled(): void
     {
         $this->assertSame('<?php $attributes ??= new \Hypervel\View\ComponentAttributeBag;
 
@@ -38,10 +38,10 @@ foreach ($attributes->all() as $__key => $__value) {
     if (array_key_exists($__key, $__defined_vars)) unset($$__key);
 }
 
-unset($__defined_vars); ?>', $this->compiler->compileString('@props([\'one\' => true, \'two\' => \'string\'])'));
+unset($__defined_vars, $__key, $__value); ?>', $this->compiler->compileString('@props([\'one\' => true, \'two\' => \'string\'])'));
     }
 
-    public function testPropsAreExtractedFromParentAttributesCorrectly()
+    public function testPropsAreExtractedFromParentAttributesCorrectly(): void
     {
         $test1 = $test2 = $test4 = null;
 
@@ -53,13 +53,36 @@ unset($__defined_vars); ?>', $this->compiler->compileString('@props([\'one\' => 
         eval(" ?> {$template} <?php ");
         ob_get_clean();
 
-        $this->assertSame($test1, 'value1');
-        $this->assertSame($test2, 'value2');
+        $this->assertSame('value1', $test1);
+        $this->assertSame('value2', $test2);
         $this->assertFalse(isset($test3));
-        $this->assertSame($test4, 'default');
+        $this->assertSame('default', $test4);
 
         $this->assertNull($attributes->get('test1'));
         $this->assertNull($attributes->get('test2'));
-        $this->assertSame($attributes->get('test3'), 'value3');
+        $this->assertSame('value3', $attributes->get('test3'));
+    }
+
+    public function testPropsCleanupDoesNotLeakCompilerHelperVariables(): void
+    {
+        $attributes = new ComponentAttributeBag([
+            'message' => 'Hello',
+            'class' => 'font-bold',
+        ]);
+
+        $template = $this->compiler->compileString('@props([\'message\' => \'Default\'])');
+
+        ob_start();
+        eval(" ?> {$template} <?php ");
+        ob_get_clean();
+
+        $definedVariables = get_defined_vars();
+
+        $this->assertSame('Hello', $message);
+        $this->assertNull($attributes->get('message'));
+        $this->assertSame('font-bold', $attributes->get('class'));
+        $this->assertArrayNotHasKey('__defined_vars', $definedVariables);
+        $this->assertArrayNotHasKey('__key', $definedVariables);
+        $this->assertArrayNotHasKey('__value', $definedVariables);
     }
 }

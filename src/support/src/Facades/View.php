@@ -82,6 +82,7 @@ namespace Hypervel\Support\Facades;
  * @method static void startPrepend(string $section, string $content = '')
  * @method static string stopPrepend()
  * @method static string yieldPushContent(string $section, string $default = '')
+ * @method static bool isStackEmpty(string $section)
  * @method static void flushStacks()
  * @method static void startTranslation(array $replacements = [])
  * @method static string renderTranslation()

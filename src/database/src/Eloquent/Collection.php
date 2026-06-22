@@ -44,7 +44,7 @@ class Collection extends BaseCollection implements QueueableCollection
 
         if (is_array($key)) {
             if ($this->isEmpty()) {
-                return new static;
+                return $this->newInstance();
             }
 
             return $this->whereIn($this->first()->getKeyName(), $key);
@@ -383,7 +383,7 @@ class Collection extends BaseCollection implements QueueableCollection
             $dictionary[$this->getDictionaryKey($item->getKey())] = $item;
         }
 
-        return new static(array_values($dictionary));
+        return $this->newInstance(array_values($dictionary));
     }
 
     /**
@@ -429,7 +429,7 @@ class Collection extends BaseCollection implements QueueableCollection
     public function fresh(array|string $with = []): static
     {
         if ($this->isEmpty()) {
-            return new static;
+            return $this->newInstance();
         }
 
         $model = $this->first();
@@ -452,13 +452,12 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function diff($items): static
     {
-        $diff = new static;
+        $diff = $this->newInstance();
 
         $dictionary = $this->getDictionary($items);
 
         foreach ($this->items as $item) {
             if (! isset($dictionary[$this->getDictionaryKey($item->getKey())])) {
-                // @phpstan-ignore method.notFound (new static loses template types)
                 $diff->add($item);
             }
         }
@@ -473,7 +472,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function intersect(mixed $items): static
     {
-        $intersect = new static;
+        $intersect = $this->newInstance();
 
         if (empty($items)) {
             return $intersect;
@@ -483,7 +482,6 @@ class Collection extends BaseCollection implements QueueableCollection
 
         foreach ($this->items as $item) {
             if (isset($dictionary[$this->getDictionaryKey($item->getKey())])) {
-                // @phpstan-ignore method.notFound (new static loses template types)
                 $intersect->add($item);
             }
         }
@@ -502,7 +500,7 @@ class Collection extends BaseCollection implements QueueableCollection
             return parent::unique($key, $strict);
         }
 
-        return new static(array_values($this->getDictionary()));
+        return $this->newInstance(array_values($this->getDictionary()));
     }
 
     /**
@@ -513,14 +511,12 @@ class Collection extends BaseCollection implements QueueableCollection
     public function only($keys): static
     {
         if (is_null($keys)) {
-            // @phpstan-ignore return.type (new static preserves TModel at runtime)
-            return new static($this->items);
+            return $this->newInstance($this->items);
         }
 
         $dictionary = Arr::only($this->getDictionary(), array_map($this->getDictionaryKey(...), (array) $keys));
 
-        // @phpstan-ignore return.type (new static preserves TModel at runtime)
-        return new static(array_values($dictionary));
+        return $this->newInstance(array_values($dictionary));
     }
 
     /**
@@ -531,14 +527,12 @@ class Collection extends BaseCollection implements QueueableCollection
     public function except($keys): static
     {
         if (is_null($keys)) {
-            // @phpstan-ignore return.type (new static preserves TModel at runtime)
-            return new static($this->items);
+            return $this->newInstance($this->items);
         }
 
         $dictionary = Arr::except($this->getDictionary(), array_map($this->getDictionaryKey(...), (array) $keys));
 
-        // @phpstan-ignore return.type (new static preserves TModel at runtime)
-        return new static(array_values($dictionary));
+        return $this->newInstance(array_values($dictionary));
     }
 
     /**

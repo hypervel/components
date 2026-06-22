@@ -14,6 +14,7 @@ use Hypervel\Support\MultipleItemsFoundException;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\IgnoreDeprecations;
+use SortDirection;
 use stdClass;
 use WeakMap;
 
@@ -1389,7 +1390,7 @@ class SupportArrTest extends TestCase
         $this->assertEquals([], Arr::shuffle([]));
     }
 
-    public function testSort()
+    public function testSort(): void
     {
         $unsorted = [
             ['name' => 'Desk'],
@@ -1413,9 +1414,13 @@ class SupportArrTest extends TestCase
         // sort with dot notation
         $sortedWithDotNotation = array_values(Arr::sort($unsorted, 'name'));
         $this->assertEquals($expected, $sortedWithDotNotation);
+
+        // sort with integer key
+        $sortedWithIntegerKey = array_values(Arr::sort([['Desk', 2], ['Chair', 1]], 1));
+        $this->assertEquals([['Chair', 1], ['Desk', 2]], $sortedWithIntegerKey);
     }
 
-    public function testSortDesc()
+    public function testSortDesc(): void
     {
         $unsorted = [
             ['name' => 'Chair'],
@@ -1439,6 +1444,10 @@ class SupportArrTest extends TestCase
         // sort with dot notation
         $sortedWithDotNotation = array_values(Arr::sortDesc($unsorted, 'name'));
         $this->assertEquals($expected, $sortedWithDotNotation);
+
+        // sort with integer key
+        $sortedWithIntegerKey = array_values(Arr::sortDesc([['Chair', 1], ['Desk', 2]], 1));
+        $this->assertEquals([['Desk', 2], ['Chair', 1]], $sortedWithIntegerKey);
     }
 
     public function testSortRecursive()
@@ -1499,7 +1508,7 @@ class SupportArrTest extends TestCase
         $this->assertEquals($expect, Arr::sortRecursive($array));
     }
 
-    public function testSortRecursiveDesc()
+    public function testSortRecursiveDesc(): void
     {
         $array = [
             'empty' => [],
@@ -1552,6 +1561,7 @@ class SupportArrTest extends TestCase
         ];
 
         $this->assertEquals($expect, Arr::sortRecursiveDesc($array));
+        $this->assertEquals($expect, Arr::sortRecursive($array, SORT_REGULAR, SortDirection::Descending));
     }
 
     public function testToCssClasses()

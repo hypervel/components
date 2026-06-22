@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
- * @method static void compile(string $path)
+ * @method static void compile(string|null $path = null)
+ * @method static string getPath()
+ * @method static void setPath(string $path)
  * @method static string compileString(string $value)
  * @method static string render(string $string, array $data = [], bool $deleteCachedView = false)
  * @method static string renderComponent(\Hypervel\View\Component $component)
