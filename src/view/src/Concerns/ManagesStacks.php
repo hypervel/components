@@ -45,7 +45,7 @@ trait ManagesStacks
         CoroutineContext::set(static::PUSH_STACK_CONTEXT_KEY, $pushStack);
     }
 
-    private function popStack(): string
+    private function popStack(): ?string
     {
         $pushStack = CoroutineContext::get(static::PUSH_STACK_CONTEXT_KEY, []);
         $last = array_pop($pushStack);
@@ -63,7 +63,7 @@ trait ManagesStacks
     {
         $last = $this->popStack();
 
-        if (empty($last)) {
+        if ($last === null) {
             throw new InvalidArgumentException('Cannot end a push stack without first starting one.');
         }
 
@@ -117,7 +117,7 @@ trait ManagesStacks
     {
         $last = $this->popStack();
 
-        if (empty($last)) {
+        if ($last === null) {
             throw new InvalidArgumentException('Cannot end a prepend operation without first starting one.');
         }
 
@@ -171,6 +171,17 @@ trait ManagesStacks
         }
 
         return $output;
+    }
+
+    /**
+     * Determine if the given stack is empty.
+     */
+    public function isStackEmpty(string $section): bool
+    {
+        $pushes = CoroutineContext::get(static::PUSHES_CONTEXT_KEY, []);
+        $prepends = CoroutineContext::get(static::PREPENDS_CONTEXT_KEY, []);
+
+        return ! isset($pushes[$section]) && ! isset($prepends[$section]);
     }
 
     /**
