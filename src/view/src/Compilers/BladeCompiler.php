@@ -25,6 +25,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     use Concerns\CompilesComments;
     use Concerns\CompilesComponents;
     use Concerns\CompilesConditionals;
+    use Concerns\CompilesContexts;
     use Concerns\CompilesEchos;
     use Concerns\CompilesErrors;
     use Concerns\CompilesFragments;
