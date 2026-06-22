@@ -12,21 +12,16 @@ use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Contracts\View\Engine;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
+use Hypervel\Tests\TestCase;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Hypervel\View\ViewFinderInterface;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 class ViewTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
-    public function testDataCanBeSetOnView()
+    public function testDataCanBeSetOnView(): void
     {
         $view = $this->getView();
         $view->with('foo', 'bar');
@@ -38,7 +33,56 @@ class ViewTest extends TestCase
         $this->assertEquals(['foo' => 'bar', 'baz' => 'boom'], $view->getData());
     }
 
-    public function testRenderSectionsReturnsEnvironmentSections()
+    public function testRenderProperlyRendersView(): void
+    {
+        $view = $this->getView(['foo' => 'bar']);
+        $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
+        $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
+        $view->getFactory()->shouldReceive('notifyRendering')->once()->ordered()->with($view);
+        $view->getFactory()->shouldReceive('getShared')->once()->andReturn(['shared' => 'foo']);
+        $view->getEngine()->shouldReceive('get')->once()->with('path', ['foo' => 'bar', 'shared' => 'foo'])->andReturn('contents');
+        $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
+        $view->getFactory()->shouldReceive('flushStateIfDoneRendering')->once();
+
+        $callback = function (View $rendered, string $contents) use ($view): ?string {
+            $this->assertEquals($view, $rendered);
+            $this->assertSame('contents', $contents);
+
+            return null;
+        };
+
+        $this->assertSame('contents', $view->render($callback));
+    }
+
+    public function testRenderHandlingCallbackReturnValues(): void
+    {
+        $view = $this->getView();
+        $view->getFactory()->shouldReceive('incrementRender');
+        $view->getFactory()->shouldReceive('callComposer');
+        $view->getFactory()->shouldReceive('notifyRendering')->with($view);
+        $view->getFactory()->shouldReceive('getShared')->andReturn(['shared' => 'foo']);
+        $view->getEngine()->shouldReceive('get')->andReturn('contents');
+        $view->getFactory()->shouldReceive('decrementRender');
+        $view->getFactory()->shouldReceive('flushStateIfDoneRendering');
+
+        $this->assertSame('new contents', $view->render(function (): string {
+            return 'new contents';
+        }));
+
+        $this->assertSame('', $view->render(function (): string {
+            return '';
+        }));
+
+        $this->assertSame('0', $view->render(function (): string {
+            return '0';
+        }));
+
+        $this->assertSame('contents', $view->render(function (): ?string {
+            return null;
+        }));
+    }
+
+    public function testRenderSectionsReturnsEnvironmentSections(): void
     {
         $view = new TestView(
             $factory = m::mock(Factory::class),
@@ -54,7 +98,7 @@ class ViewTest extends TestCase
         $this->assertEquals($sections, $view->renderSections());
     }
 
-    public function testSectionsAreNotFlushedWhenNotDoneRendering()
+    public function testSectionsAreNotFlushedWhenNotDoneRendering(): void
     {
         $view = $this->getView(['foo' => 'bar']);
         $view->getFactory()->shouldReceive('incrementRender')->twice();
@@ -69,7 +113,7 @@ class ViewTest extends TestCase
         $this->assertSame('contents', (string) $view);
     }
 
-    public function testViewNestBindsASubView()
+    public function testViewNestBindsASubView(): void
     {
         $view = $this->getView();
         $view->getFactory()->shouldReceive('make')->once()->with('foo', ['data']);
@@ -78,7 +122,7 @@ class ViewTest extends TestCase
         $this->assertInstanceOf(View::class, $result);
     }
 
-    public function testViewAcceptsArrayableImplementations()
+    public function testViewAcceptsArrayableImplementations(): void
     {
         $arrayable = m::mock(Arrayable::class);
         $arrayable->shouldReceive('toArray')->once()->andReturn(['foo' => 'bar', 'baz' => ['qux', 'corge']]);
@@ -89,7 +133,7 @@ class ViewTest extends TestCase
         $this->assertEquals(['qux', 'corge'], $view->baz);
     }
 
-    public function testViewGettersSetters()
+    public function testViewGettersSetters(): void
     {
         $view = $this->getView(['foo' => 'bar']);
         $this->assertSame('view', $view->name());
@@ -100,7 +144,7 @@ class ViewTest extends TestCase
         $this->assertSame('newPath', $view->getPath());
     }
 
-    public function testViewArrayAccess()
+    public function testViewArrayAccess(): void
     {
         $view = $this->getView(['foo' => 'bar']);
         $this->assertInstanceOf(ArrayAccess::class, $view);
@@ -112,7 +156,7 @@ class ViewTest extends TestCase
         $this->assertFalse($view->offsetExists('foo'));
     }
 
-    public function testViewConstructedWithObjectData()
+    public function testViewConstructedWithObjectData(): void
     {
         $view = $this->getView(new DataObjectStub);
         $this->assertInstanceOf(ArrayAccess::class, $view);
@@ -124,7 +168,7 @@ class ViewTest extends TestCase
         $this->assertFalse($view->offsetExists('foo'));
     }
 
-    public function testViewMagicMethods()
+    public function testViewMagicMethods(): void
     {
         $view = $this->getView(['foo' => 'bar']);
         $this->assertTrue(isset($view->foo));
@@ -137,7 +181,7 @@ class ViewTest extends TestCase
         $this->assertFalse($view->offsetExists('foo'));
     }
 
-    public function testViewBadMethod()
+    public function testViewBadMethod(): void
     {
         $this->expectException(BadMethodCallException::class);
         $this->expectExceptionMessage('Method Hypervel\View\View::badMethodCall does not exist.');
@@ -146,7 +190,7 @@ class ViewTest extends TestCase
         $view->badMethodCall();
     }
 
-    public function testViewGatherDataWithRenderable()
+    public function testViewGatherDataWithRenderable(): void
     {
         $view = $this->getView();
         $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
@@ -162,7 +206,7 @@ class ViewTest extends TestCase
         $this->assertSame('contents', $view->render());
     }
 
-    public function testViewRenderSections()
+    public function testViewRenderSections(): void
     {
         $view = $this->getView();
         $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
@@ -179,7 +223,7 @@ class ViewTest extends TestCase
         $this->assertSame('bar', $sections[1]);
     }
 
-    public function testWithErrors()
+    public function testWithErrors(): void
     {
         $view = $this->getView();
         $errors = ['foo' => 'bar', 'qu' => 'ux'];
@@ -200,7 +244,7 @@ class ViewTest extends TestCase
         $this->assertSame('baz', $foo[0]);
     }
 
-    public function testRenderingObserverIsCalled()
+    public function testRenderingObserverIsCalled(): void
     {
         $factory = new Factory(
             m::mock(EngineResolver::class),
@@ -223,7 +267,7 @@ class ViewTest extends TestCase
         $this->assertSame($view, $observedView);
     }
 
-    public function testRenderingObserversNotClearedByFlushState()
+    public function testRenderingObserversNotClearedByFlushState(): void
     {
         $factory = new Factory(
             m::mock(EngineResolver::class),
@@ -248,7 +292,7 @@ class ViewTest extends TestCase
         $this->assertTrue($observerCalled);
     }
 
-    public function testMultipleRenderingObserversAreAllCalled()
+    public function testMultipleRenderingObserversAreAllCalled(): void
     {
         $factory = new Factory(
             m::mock(EngineResolver::class),
@@ -274,7 +318,7 @@ class ViewTest extends TestCase
         $this->assertSame(['first', 'second'], $order);
     }
 
-    protected function getView($data = [])
+    protected function getView(mixed $data = []): View
     {
         return new View(
             m::mock(Factory::class),
@@ -288,7 +332,7 @@ class ViewTest extends TestCase
 
 class DataObjectStub
 {
-    public $foo = 'bar';
+    public string $foo = 'bar';
 }
 
 class TestView extends View
