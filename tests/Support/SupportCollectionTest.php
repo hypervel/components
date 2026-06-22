@@ -5988,6 +5988,27 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
+    public function testDotWithDepth($collection): void
+    {
+        $data = $collection::make([
+            'name' => 'Taylor',
+            'meta' => [
+                'foo' => 'bar',
+                'bam' => [
+                    'boom' => 'bip',
+                ],
+            ],
+        ])->dot(1);
+        $this->assertSame([
+            'name' => 'Taylor',
+            'meta.foo' => 'bar',
+            'meta.bam' => [
+                'boom' => 'bip',
+            ],
+        ], $data->all());
+    }
+
+    #[DataProvider('collectionClassProvider')]
     public function testEnsureForScalar($collection)
     {
         $data = $collection::make([1, 2, 3]);
@@ -6188,6 +6209,19 @@ class SupportCollectionTest extends TestCase
         $this->assertInstanceOf(TestCollectionWithExtraState::class, $flat);
         $this->assertSame('f-tag', $flat->tag);
 
+        $dotted = (new TestCollectionWithExtraState([
+            'name' => 'Taylor',
+            'meta' => ['foo' => 'bar'],
+        ], 'd-tag'))->dot(1);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $dotted);
+        $this->assertSame('d-tag', $dotted->tag);
+        $this->assertSame(['name' => 'Taylor', 'meta.foo' => 'bar'], $dotted->all());
+
+        $undotted = (new TestCollectionWithExtraState(['meta.foo' => 'bar'], 'undot-tag'))->undot();
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $undotted);
+        $this->assertSame('undot-tag', $undotted->tag);
+        $this->assertSame(['meta' => ['foo' => 'bar']], $undotted->all());
+
         $padded = $collection->pad(7, 0);
         $this->assertInstanceOf(TestCollectionWithExtraState::class, $padded);
         $this->assertSame('my-tag', $padded->tag);
@@ -6290,6 +6324,19 @@ class SupportCollectionTest extends TestCase
         $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $fail);
         $this->assertSame('lazy-tag', $fail->tag);
         $this->assertSame([1, 2, 3], $fail->all());
+
+        $dotted = (new TestLazyCollectionWithExtraState([
+            'name' => 'Taylor',
+            'meta' => ['foo' => 'bar'],
+        ], 'd-tag'))->dot(1);
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $dotted);
+        $this->assertSame('d-tag', $dotted->tag);
+        $this->assertSame(['name' => 'Taylor', 'meta.foo' => 'bar'], $dotted->all());
+
+        $undotted = (new TestLazyCollectionWithExtraState(['meta.foo' => 'bar'], 'undot-tag'))->undot();
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $undotted);
+        $this->assertSame('undot-tag', $undotted->tag);
+        $this->assertSame(['meta' => ['foo' => 'bar']], $undotted->all());
     }
 
     public function testLazyCollectionFactoryMethodsForwardExtraArgumentsAndRemainLazy(): void

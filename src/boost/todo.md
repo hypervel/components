@@ -23,8 +23,6 @@
 
 ## Collections
 
-- Port depth-aware `dot()` support. Laravel supports `Arr::dot($array, $prepend = '', $depth = INF)`, `Collection::dot($depth = INF)`, and `LazyCollection::dot($depth = INF)`. Hypervel currently flattens all nested levels and does not accept a depth argument. Correct fix: port Laravel's depth parameter and behavior across `Arr`, `Collection`, and `LazyCollection`.
-
 ## Database
 
 - Port inherited `#[CollectedBy]` resolution for Eloquent models. Laravel's `Illuminate\Database\Eloquent\HasCollection::resolveCollectionFromAttribute()` walks parent classes, including abstract parents, when resolving the `CollectedBy` attribute. Hypervel's `Hypervel\Database\Eloquent\HasCollection::resolveCollectionFromAttribute()` currently only checks the concrete model class, so a custom collection declared on a base model is not inherited by child models. Correct fix: walk `ReflectionClass::getParentClass()` until a `CollectedBy` attribute is found, matching Laravel, and port Laravel's inheritance tests from `DatabaseEloquentModelTest`.
