@@ -24,7 +24,7 @@ class MaintenanceModeTest extends TestCase
     {
         $this->beforeApplicationDestroyed(function () {
             @unlink(storage_path('framework/down'));
-            @unlink(storage_path('framework/maintenance.php'));
+            @unlink(resource_path('views/errors/503.blade.php'));
         });
 
         parent::setUp();
@@ -81,6 +81,21 @@ class MaintenanceModeTest extends TestCase
         $response->assertStatus(503);
         $response->assertHeader('Retry-After', '60');
         $this->assertSame('Rendered Content', $response->original);
+    }
+
+    public function testDownCommandPrerendersTemplateIntoMaintenancePayload()
+    {
+        file_put_contents(resource_path('views/errors/503.blade.php'), 'Rendered {{ $retryAfter }}');
+
+        $this->artisan(DownCommand::class, [
+            '--render' => 'errors::503',
+            '--retry' => 60,
+        ]);
+
+        $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+
+        $this->assertSame('Rendered 60', trim($data['template']));
+        $this->assertFileDoesNotExist(storage_path('framework/maintenance.php'));
     }
 
     public function testMaintenanceModeCanRedirectWithBypassCookie()

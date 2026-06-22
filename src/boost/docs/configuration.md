@@ -399,13 +399,13 @@ When maintenance mode is enabled or disabled, Hypervel will send a `SIGUSR1` rel
 <a name="pre-rendering-the-maintenance-mode-view"></a>
 #### Pre-Rendering the Maintenance Mode View
 
-If you utilize the `php artisan down` command during deployment, your users may still occasionally encounter errors if they access the application while your Composer dependencies or other infrastructure components are updating. This occurs because a significant part of the Hypervel framework must boot in order to determine your application is in maintenance mode and render the maintenance mode view using the templating engine.
-
-For this reason, Hypervel allows you to pre-render a maintenance mode view that will be returned at the very beginning of the request cycle. This view is rendered before any of your application's dependencies have loaded. You may pre-render a template of your choice using the `down` command's `render` option:
+When your application is in maintenance mode, Hypervel can render your `errors::503` view for each maintenance response. If you prefer, you may pre-render a maintenance mode view when the application enters maintenance mode. The rendered HTML will be stored in the maintenance payload and returned directly during maintenance:
 
 ```shell
 php artisan down --render="errors::503"
 ```
+
+If you need a static maintenance page that can be served when Hypervel itself is unavailable, you should configure that response in your reverse proxy or load balancer.
 
 <a name="redirecting-maintenance-mode-requests"></a>
 #### Redirecting Maintenance Mode Requests

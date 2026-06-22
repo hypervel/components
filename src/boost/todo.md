@@ -12,8 +12,6 @@
 
 ## Configuration
 
-- Wire pre-rendered maintenance mode output into the earliest HTTP request path. `DownCommand` writes `storage/framework/maintenance.php` when `--render` is used, and the docs say this view is returned before application dependencies load, but no source path currently includes that generated file before the framework boots. Correct fix: integrate the generated file into Hypervel's Swoole HTTP entry path, preserving maintenance bypass and excluded-path behavior from `src/foundation/src/Console/stubs/maintenance-mode.stub`.
-
 ## Authorization
 
 - Add `Hypervel\Routing\Attributes\Controllers\Authorize`. Laravel has `Illuminate\Routing\Attributes\Controllers\Authorize`; Hypervel docs already reference the Hypervel equivalent, but the class does not exist. Correct fix: port Laravel's attribute, extending `Hypervel\Routing\Attributes\Controllers\Middleware` and using `Hypervel\Auth\Middleware\Authorize::using(...)`.

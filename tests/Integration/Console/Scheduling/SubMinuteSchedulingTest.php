@@ -26,7 +26,6 @@ class SubMinuteSchedulingTest extends TestCase
     {
         $this->beforeApplicationDestroyed(function () {
             @unlink(storage_path('framework/down'));
-            @unlink(storage_path('framework/maintenance.php'));
         });
 
         parent::setUp();
