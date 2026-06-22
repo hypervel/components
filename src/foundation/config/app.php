@@ -184,7 +184,8 @@ return [
     |
     | These configuration options determine the driver used to determine and
     | manage Hypervel's "maintenance mode" status. The "cache" driver will
-    | allow maintenance mode to be controlled across multiple machines.
+    | allow maintenance mode to be controlled across multiple machines. The
+    | refresh interval controls how often workers re-check the driver.
     |
     | Supported drivers: "file", "cache"
     |
@@ -193,6 +194,7 @@ return [
     'maintenance' => [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
+        'refresh_interval' => (int) env('APP_MAINTENANCE_REFRESH_INTERVAL', 5),
     ],
 
     /*

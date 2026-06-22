@@ -143,7 +143,12 @@ class MailableQueuedTest extends TestCase
 
         $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
         $this->assertInstanceOf(SerializableClosure::class, $pushedJob->deduplicator);
-        $this->assertEquals($mailable->deduplicationId(...), $pushedJob->deduplicator->getClosure());
+
+        $deduplicator = $pushedJob->deduplicator->getClosure();
+        $this->assertSame(
+            $mailable->deduplicationId('payload', 'queue'),
+            $deduplicator('payload', 'queue')
+        );
     }
 
     protected function getMocks()

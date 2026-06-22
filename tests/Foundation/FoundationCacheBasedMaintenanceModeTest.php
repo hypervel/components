@@ -37,6 +37,17 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
         $this->assertSame(['payload'], $manager->data());
     }
 
+    public function testItReturnsEmptyPayloadWhenCacheKeyIsMissing(): void
+    {
+        $cache = m::mock(Factory::class, Repository::class);
+        $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
+
+        $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
+
+        $cache->shouldReceive('get')->once()->with('key')->andReturnNull();
+        $this->assertSame([], $manager->data());
+    }
+
     public function testItStoresPayloadInCache()
     {
         $cache = m::spy(Factory::class, Repository::class);

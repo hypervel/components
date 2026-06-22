@@ -847,6 +847,18 @@ class AuthAccessGateTest extends TestCase
         $this->getBasicGate()->allowIf(false);
     }
 
+    public function testAllowIfThrowsExceptionWithIntegerCode()
+    {
+        try {
+            $this->getBasicGate()->allowIf(false, 'foo', 403);
+            $this->fail();
+        } catch (AuthorizationException $e) {
+            $this->assertSame('foo', $e->getMessage());
+            $this->assertSame(403, $e->getCode());
+            $this->assertSame(403, $e->response()->code());
+        }
+    }
+
     public function testAllowIfThrowsExceptionWhenCallbackFalse()
     {
         $this->expectException(AuthorizationException::class);
@@ -983,6 +995,18 @@ class AuthAccessGateTest extends TestCase
         $this->expectException(AuthorizationException::class);
 
         $this->getBasicGate()->denyIf(true);
+    }
+
+    public function testDenyIfThrowsExceptionWithIntegerCode()
+    {
+        try {
+            $this->getBasicGate()->denyIf(true, 'foo', 403);
+            $this->fail();
+        } catch (AuthorizationException $e) {
+            $this->assertSame('foo', $e->getMessage());
+            $this->assertSame(403, $e->getCode());
+            $this->assertSame(403, $e->response()->code());
+        }
     }
 
     public function testDenyIfThrowsExceptionWhenCallbackTrue()

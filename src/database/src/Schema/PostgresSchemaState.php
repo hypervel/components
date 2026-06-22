@@ -24,7 +24,7 @@ class PostgresSchemaState extends SchemaState
             $commands->push($this->baseDumpCommand() . ' -t ' . $this->getMigrationTable() . ' --data-only >> ' . $path);
         }
 
-        $commands->map(function ($command, $path) {
+        $commands->map(function ($command) use ($path) {
             $this->makeProcess($command)->mustRun($this->output, array_merge($this->baseVariables($this->connection->getConfig()), [
                 'HYPERVEL_LOAD_PATH' => $path,
             ]));
@@ -77,12 +77,12 @@ class PostgresSchemaState extends SchemaState
     {
         $config['host'] ??= '';
 
-        return [
+        return array_map(strval(...), [
             'HYPERVEL_LOAD_HOST' => is_array($config['host']) ? $config['host'][0] : $config['host'],
             'HYPERVEL_LOAD_PORT' => $config['port'] ?? '',
             'HYPERVEL_LOAD_USER' => $config['username'],
             'PGPASSWORD' => $config['password'],
             'HYPERVEL_LOAD_DATABASE' => $config['database'],
-        ];
+        ]);
     }
 }

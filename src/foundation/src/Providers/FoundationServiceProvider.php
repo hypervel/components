@@ -307,7 +307,8 @@ class FoundationServiceProvider extends ServiceProvider
         $this->app->singleton(
             MaintenanceModeContract::class,
             fn () => new WorkerCachedMaintenanceMode(
-                $this->app->make(MaintenanceModeManager::class)->driver()
+                $this->app->make(MaintenanceModeManager::class)->driver(),
+                $this->app->make('config')->integer('app.maintenance.refresh_interval', 5)
             )
         );
     }

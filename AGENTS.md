@@ -1,32 +1,38 @@
-# Porting Guide
+# Hypervel Components Agent Guide
 
 ## Background
 
-Hypervel is a Laravel-style Swoole framework originally built on top of Hyperf. We are decoupling from Hyperf and making Hypervel as close to 1:1 with Laravel as possible. This involves porting packages from both Hyperf (Swoole/coroutine infrastructure) and Laravel (application-level features).
+Hypervel is a standalone Laravel-style Swoole framework. The public API should stay close to Laravel wherever possible, while the internals are adapted for long-lived Swoole workers, coroutine safety, and high performance.
+
+Laravel is the main API reference. Hyperf is a historical and architectural reference for some lower-level Swoole/coroutine packages, but Hypervel code should follow current Hypervel patterns rather than copying Hyperf structure mechanically.
+
+This file is intentionally detailed because agents trained on Laravel will otherwise assume Laravel's request lifecycle and miss Hypervel's Swoole/coroutine constraints.
+
+## Mental Model
+
+When working on Hypervel, start from this frame:
+
+- Hypervel is Laravel-shaped at the API level.
+- Hypervel is not request-per-process PHP; workers are long-lived.
+- Singletons, static properties, manager registries, callbacks, config, and cached metadata can persist for the worker lifetime.
+- Per-request state must live in coroutine-scoped storage (CoroutineContext), not process-global state.
+- Laravel source is the default parity reference, but Laravel internals often assume per-request bootstrap and are not optimized to take advantage of static caching of immutable state.
+- Hyperf source can be useful for Swoole/coroutine behavior, but Hyperf container/config/listener patterns are not the target architecture.
 
 When porting, we keep packages as close to 1:1 with the originals as possible so merging upstream changes is easy later. The exceptions are:
-- Modernising PHP types (PHP 8.4+ features, strict types; the exception is PHPUnit test methods — see the testing rules below)
+- Modernizing PHP types (PHP 8.4+ features, strict types)
 - Adding Laravel-style title docblocks to methods (not classes — see rules below)
-- For ported Laravel packages: making them coroutine-safe and adding Swoole performance enhancements (e.g., static property caching)
-- Not porting upstream framework-specific integrations that only make sense in the source framework (for example Laravel/Hyperf-specific packages, service providers, discovery metadata, bootstrap hooks, or other framework-owned integration surfaces) unless Hypervel intentionally has an equivalent surface
+- For ported Laravel packages: making them coroutine-safe, adding Swoole performance enhancements (e.g., static property caching), making them pass PHPStan
+- Not porting upstream framework-specific integrations that only make sense in the source framework (for example packages, drivers) unless Hypervel intentionally has an equivalent surface
 - Not porting upstream mechanisms that do not make sense in Hypervel's stateful Swoole architecture (for example Laravel's deferred service provider machinery, where the upstream optimization only matters in a per-request bootstrap model)
 - Not porting deprecated upstream code or backwards-compatibility shims for versions/features Hypervel does not support — Hypervel is a new framework with no backwards-compatibility burden, so deprecated APIs and compatibility code that exist only to support older versions should be omitted rather than ported. If a deprecated upstream surface still contains behavior that Hypervel actively needs, keep the behavior but move it onto the correct non-deprecated Hypervel-owned surface instead of porting the deprecated alias/wrapper as-is
-- General performance improvements — but stop and explain the opportunity first for approval
+- General performance improvements — but STOP and explain the opportunity to the user first for approval
+
+When working on a package, check its README for the upstream reference before making changes. Most Hypervel packages are Laravel ports, while most low-level Swoole infrastructure packages are Hyperf ports. Some packages are ports of third-party packages such as Spatie packages, and a few are Hypervel-specific.
 
 ## Directory Reference
 
-**Working directory for ALL operations (porting, commits, tests, phpstan, etc.):**
-
-`/home/binaryfire/workspace/monorepo/contrib/hypervel/components/`
-
-This is the Hypervel repo. Always `cd` into it before doing anything.
-
-Source references (read-only, for copying from):
-
-| Path | Description |
-|------|-------------|
-| `/home/binaryfire/workspace/monorepo/examples/laravel/framework/` | Laravel source reference |
-| `/home/binaryfire/workspace/monorepo/examples/hyperf/hyperf/` | Hyperf source reference |
+Always run framework commands from the repository root. This is the directory that contains this `AGENTS.md`, the root `composer.json`, `phpunit.xml.dist`, `phpstan.neon`, `src/`, and `tests/`.
 
 Testbench and workbench:
 
@@ -43,93 +49,86 @@ Testbench and workbench:
 #### 1. Package skeleton
 
 If the Hypervel version of the package doesn't exist yet, create the skeleton using an existing package as a template:
-- **Porting a Hyperf package:** Use the `pool` package as reference
 - **Porting a Laravel package:** Use the `cache` package as reference
+- **Porting a Hyperf package:** Use the `pool` package as reference
+- **Porting a third-party package:** Use the `permission` package as a reference
 
-Read the reference package's `composer.json`, `LICENSE.md`, and `README.md`. Then read the components repo's root `composer.json` and add the new package following existing patterns.
+Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Every package must be wired in both places: its own `src/{package}/composer.json` for the subtree split, and the root `composer.json` for monorepo development. Update autoloading, dependencies, `replace`, and Hypervel provider / alias discovery metadata as needed. Add a clear upstream reference to the new package's README:
 
-#### 2. Audit existing Hypervel package (if it exists)
+```md
+Ported from: https://github.com/vendor/package
+```
 
-Read all files in the existing Hypervel package and categorise them:
-- **Empty extensions** (class just extends Hyperf, no overrides/additions/properties): Delete these — they'll be replaced by ported versions
-- **Custom classes** (don't extend Hyperf): Keep as-is
-- **Extended classes with additions** (extend Hyperf + add overrides, methods, properties): Keep — the Hyperf parent's code must be merged into these
+#### 2. Port the files one at a time, alphabetically
 
-#### 3. Create the todo list
+Check the source package to see what classes exist. Create a comprehensive todo list with a separate entry for each file to port. The porting process is:
 
-Check the source package (Hyperf or Laravel) to see what classes exist. Create a comprehensive todo list with a separate entry for each file to port. Each entry must clearly state the strategy:
-- **Copy and update** — new file, no existing Hypervel equivalent
-- **Merge** — existing Hypervel file with additions that must be preserved
+1. Copy the file using `cp` (never read first → write new version)
+2. Read the ENTIRE copied file to understand context. For large files, read them in chunks.
+3. Update namespaces, modernize types, add method docblocks etc. as per the rules in this file.
 
-#### 4. Work through files one at a time, alphabetically
+**For very large files where even reading in chunks is impractical**
+Update the file in chunks from top to bottom — read a chunk, update, read next chunk, update. Do NOT try to search for patterns and update scattered bits.
 
-**For newly copied files (copy and update):**
-1. Copy the file using `cp` (never read → write)
-2. Read the ENTIRE copied file (if small enough for one read) to understand context
-3. Update namespaces, modernise types, add method docblocks, etc.
+#### 3. Update consumers
 
-**For merged files:**
-1. Read BOTH the Hyperf/Laravel file AND the existing Hypervel file
-2. Carefully merge the source file into the Hypervel file, preserving all Hypervel additions
-3. Update namespaces, modernise types, add method docblocks, etc.
+Search **both `src/` and `tests/`** for any `use` statements or references to the old namespace (e.g., `Illuminate\Database\`) and update them to the new Hypervel namespace. Verify zero remaining references before proceeding.
 
-**For large files that can't be read in one go:**
-Work through in chunks from top to bottom — read a chunk, update, read next chunk, update. Do NOT try to search for patterns and update scattered bits.
+#### 4. Run phpstan
 
-#### 5. Update consumers
+After porting is complete, run phpstan on the newly ported package and fix errors. Investigate each error properly — don't reach for ignores without thinking it through. See the static analysis section.
 
-Search **both `src/` and `tests/`** for any `use` statements or references to the old namespace (e.g., `Hyperf\Coordinator\`) and update them to the new Hypervel namespace. Verify zero remaining references before proceeding.
+#### 5. Run the full test suite
 
-#### 6. Run phpstan
+**Always use `composer test:parallel`** to run the test suite. This invokes `bin/paratest` via a custom wrapper that configures per-worker isolation. Running `vendor/bin/paratest` directly bypasses this setup and will cause failures.
 
-After porting is complete, run phpstan on the newly ported package and fix errors. Investigate each error properly — don't reach for ignores without thinking it through.
+Investigate all failures thoroughly — don't assume a failure is caused by the porting work without confirming it. For straightforward fixes (e.g. a missed namespace update), fix and continue. For anything more complex (behavioral changes, test logic issues, unclear root causes), STOP and explain the cause along with your recommended fix for approval.
 
-#### 7. Run the full test suite
-
-**Always use `composer test:parallel`** to run the test suite. This invokes `bin/paratest`, a custom wrapper that configures per-worker Redis DB isolation and caps the process count to available Redis databases. Running `vendor/bin/paratest` directly bypasses this setup and may cause Redis test failures.
-
-Investigate all failures thoroughly — don't assume a failure is caused by the porting without confirming. For straightforward fixes (e.g., a missed namespace update), fix and continue. For anything more complex (behavioural changes, test logic issues, unclear root causes), stop and explain the cause along with your recommended fix for approval.
 
 ### Rules
 
-- **Never use bulk modification tools** — no `sed`, `replace_all`, scripted loops, etc. All edits must be manual and targeted.
+- **Avoid bulk modification tools** — tools like `sed` and `replace_all` often have unwanted side effects. Prefer manual edits whenever possible. When this is impractical and bulk tools have to be used, do it in multiple runs that each target long, specific, case-sensitive strings to avoid accidental changes.
 - **One file at a time** — never work on multiple files simultaneously.
 - **Never use Write to overwrite files** — always use Edit for targeted updates.
-- **Always use `cp` to copy files and `mv` to move/rename** — never read → write → delete.
-- **`cp` THEN read** — when porting a new file, copy it first, then read the copied file in full. Reading the source before copying wastes context because you end up reading it twice.
-- **Preserve source method order when merging** — when porting/merging methods into an existing Hypervel class, insert them at the same relative order as they appear in the Laravel/Hyperf source. This keeps diffs against upstream meaningful and makes future merges easier.
+- **Always use `cp` to copy files and `mv` to move/rename** — never read → write new version → delete old version.
+- **`cp` files THEN read them** — when porting a new file, copy it first, then read the copied file in full. Reading the source before copying wastes context because you end up reading it twice.
+- **Preserve source constant/property/method order when merging** — when porting/merging methods into an existing Hypervel class, insert them at the same relative order as they appear in the upstream source. This keeps diffs against upstream meaningful and makes future merges easier.
 - **Import classes, don't use FQCNs** — always add a `use` statement and reference the short name. The only exceptions are places where FQCNs genuinely make more sense, such as middleware arrays and similar config-style identifier lists.
-- **No class docblocks unless warranted** — only add a class docblock if something unusual or complex needs explanation. Method docblocks (title only, Laravel-style) are always added.
-- **Preserve existing comments — do not remove them.** Only remove:
-  - Source package boilerplate (e.g., the Hyperf license header block)
-  - `@param` and `@return` annotations where the description adds nothing beyond what the native type hint and parameter/method name already convey. Examples of removable: `@param string $name The name of the cookie` (just restates `string $name`), `@return int Position of the file pointer` (just restates `tell(): int`), `@param int $offset Stream offset` (just restates `int $offset`). Examples to keep: `@param bool $secure Whether the cookie should only be transmitted over a secure HTTPS connection`, `@param int $whence Specifies how the cursor position will be calculated...`, `@return resource|null` (when the native type is `mixed` because `resource` isn't a valid PHP type hint).
-
-  Keep everything else: behavioral descriptions, `@see` links, `@throws` annotations, warnings, contract explanations, usage notes. Modernize the title line to imperative form ("Returns" → "Return", "Retrieves" → "Retrieve") but do not remove or rewrite the body content beneath it. Translate non-English comments to English and fix grammar errors in place.
+- **No class docblocks unless warranted** — only add a class-level docblock if something unusual or complex needs explanation. Method docblocks (title only, Laravel-style) are always added. A body can accompany the title for complex methods that need further explanation.
+- **Preserve existing comments** - use the following rules for upstream code comments and docblocks:
+  Do not remove or modify upstream code comments unless they are incorrect. 
+  Only remove `@param` and `@return` annotations where the description adds nothing beyond what the native type hint and parameter/method name already convey.
+  Examples of removable: `@param string $name The name of the cookie` (just restates `string $name`), `@param int $offset Stream offset` (just restates `int $offset`). 
+  Examples to keep: `@param bool $secure Whether the cookie should only be transmitted over a secure HTTPS connection`, `@param int $whence Specifies how the cursor position will be calculated...`, `@return resource|null` (when the native type is `mixed` because `resource` isn't a valid PHP type hint).
+  Keep everything else: behavioral descriptions, `@see` links, `@throws` annotations, warnings, contract explanations, usage notes.
+  Modernize the title line to imperative form ("Returns" → "Return", "Retrieves" → "Retrieve") but do not remove or rewrite the body content beneath it.
+  Translate non-English comments to English and fix grammar errors.
+- **Don't comment self-evident code** — Add inline comments only for a non-obvious WHY. Don't annotate framework divergences, routine casts, or type normalizations; match the surrounding comment density.
 - **Replace framework names in code** — any occurrence of the word `laravel` or `hyperf` in ported code (string literals, comments, prefixes, identifiers, etc.) must be replaced with `hypervel`, preserving the original casing. For example: `laravel_reserved_` → `hypervel_reserved_`, `LaravelExcelExporter` → `HypervelExcelExporter`, `HYPERF_VERSION` → `HYPERVEL_VERSION`. This does not apply to namespaces (which have their own conversion rules) or to references that describe the upstream source (e.g., docblock `@see` links to Laravel/Hyperf source).
-- **Always use American English spelling** — e.g., "behavior" vs "behaviour", "utilize" vs "utilise".
-- **Don't copy Laravel/Hyperf-specific framework details just to stay 1:1** — keep the behavior the same, but if something only exists because of the upstream framework's own packages, providers, bootstrap system, or architecture, translate it to the Hypervel equivalent or stop and ask if there isn't one.
-- **Grep broadly — never assume a subdir.** When searching for any symbol, class, method, or pattern, grep across the whole `src/` (or `tests/`) tree, not a specific package subdir. Assumptions about where something lives produce false negatives.
+- **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
+- **Don't copy Laravel/Hyperf-specific framework details just to stay 1:1** — keep the behavior the same, but if something only exists because of the upstream framework's own packages, providers, bootstrap system, or architecture, translate it to the Hypervel equivalent or STOP and ask if there isn't one.
+- **Grep broadly — never assume a subdir.** - when searching for any symbol, class, method, or pattern, grep across the whole `src/` (or `tests/`) tree, not a specific package subdir. Assumptions about where something lives produce false negatives.
 - **Stop on anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Explain the situation and your recommended solution. Do not proceed without approval.
-- **Never skip or stub things out** — no removing code, no commenting out with "TODO once X is ported" placeholders. If such a situation arises, stop and explain with your recommendation.
-- **Mark temporary compatibility paths with `@TODO:`** — when you add a real transitional fallback/shim during porting, add an inline `@TODO:` with the removal condition. Do not use `@TODO` to avoid implementing behavior now.
-- **Stop on any source code bug** — if phpstan or tests expose a bug in Hypervel source code (typing, logic, behavior), investigate, explain root cause, and provide a recommended fix for approval. Also stop and report bugs found in the **upstream** Laravel/Hyperf source being ported (resource leaks, logic errors, missing cleanup, etc.) — explain the issue and recommend whether to port as-is for 1:1 parity or fix during porting.
-- **Do not work around incorrect existing code to avoid churn** — if porting exposes incorrect types, wrong logic, missing methods/classes, or other real defects in existing Hypervel code, fix the underlying code instead of adding compatibility hacks or local workarounds to sidestep the problem. Prioritize correctness and code quality over minimizing blast radius. For any non-trivial fix, stop and explain the root cause and recommended change before proceeding.
+- **Never skip or stub things out** — no removing code, no commenting out with "TODO once X is ported" placeholders. If such a situation arises, STOP and explain with your recommendation.
+- **Stop on any source code bug** — if phpstan or tests expose a bug in Hypervel source code (typing, logic, behavior), investigate, explain root cause, and provide a recommended fix for approval. Also STOP and report bugs found in the **upstream** Laravel/Hyperf source being ported (resource leaks, logic errors, missing cleanup, etc.) — explain the issue and recommend a fix. Upstream bugs must be fixed, not ported as-is.
+- **Do not work around incorrect existing code to avoid churn** — if porting exposes incorrect types, wrong logic, missing methods/classes, or other real defects in existing Hypervel code, fix the underlying code instead of adding compatibility hacks or local workarounds to sidestep the problem. Prioritize correctness and code quality over minimizing blast radius. For any non-trivial fix, STOP and explain the root cause and recommended change before proceeding.
 - **Never weaken or drop tests to work around source issues** — if a ported test exposes source-side problems (wrong types, broken logic, missing classes/methods, signatures that diverge from Laravel, missing API parity, etc.), STOP and report the issue with a recommendation for the most correct fix. Never delete, skip, loosen assertions, or alter tests to make them pass against flawed source code. The test is the spec; the source gets fixed.
-- **Never dismiss issues as "out of scope" or "pre-existing"** — When porting exposes any issue (bugs, divergences, missing API parity, incorrect visibility, type inconsistencies, naming mismatches, etc.), always stop and report it. Never use phrases like "out of scope", "pre-existing", "not part of this work", "separate concern", or "unrelated" to justify not reporting something. You are not permitted to decide what is or isn't worth addressing — only the user makes that call.
-- **Use unions over `mixed` when types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
-- **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as reference, then trace real control flow in method bodies and callers/callees.
-- **Modernize types only in touched code** — do not refactor unrelated files unless required by confirmed control flow or a failing test.
-- **Review worker-lifetime state explicitly** — whenever a change introduces or modifies static properties/caches/singletons, STOP and report the Swoole persistence impact (memory growth, cross-request behavior) with a recommendation: keep as-is for performance parity, or adapt for worker safety.
+- **Never dismiss issues as "out of scope" or "pre-existing"** — when porting exposes any issue (bugs, divergences, missing API parity, incorrect visibility, type inconsistencies, naming mismatches, etc.), always STOP and report it. Never use phrases like "out of scope", "pre-existing", "not part of this work", "separate concern", or "unrelated" to justify not reporting something. You are not permitted to decide what is or isn't worth addressing — only the user makes that call.
+- **Prefer union types over `mixed` when all types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
+- **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as a reference, then trace the real control flow through method bodies across all callers and callees to confirm the types are correct.
+- **Review worker-lifetime state explicitly** — whenever a change introduces or modifies static properties/caches, singletons or other long-lived state, STOP and report the Swoole persistence impact (memory leaks, cross-request behavior) with a recommendation.
 - **Document worker-lifetime mutators** — when adding or touching a public method that mutates static state, singleton-held configuration, manager registries, cached drivers, global callbacks, or other worker-lifetime state, add a short warning to the method docblock if the method is intended only for boot-time configuration or tests. Use the tag-first format so humans and LLMs can recognize it quickly:
   - `Boot-only.` — for startup configuration methods
   - `Tests only.` — for test fakes, swaps, and resolver overrides
   - `Boot or tests only.` — for cache/registry clearing methods used during boot reconfiguration or test cleanup
 
   The second sentence should name the concrete failure mode, e.g. "The callback persists in a static property for the worker lifetime and affects every subsequent request." Do not add these warnings to methods that are genuinely safe for normal runtime/per-request use. If a method is commonly expected to be used dynamically but mutates shared worker-lifetime state, treat that as a coroutine-safety bug and STOP with a recommendation instead of just documenting it.
-- **Flag cache opportunities with recommendation** — if a ported path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, STOP and recommend it (what to cache, expected benefit, and safety constraints).
+- **Flag static caching opportunities with recommendations** — if a ported path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, STOP and recommend it (what to cache, expected benefit, and safety constraints).
 - **Enum cases use PascalCase by default** — `case Pending` not `case pending`, `case OauthToken` not `case OAUTH_TOKEN`. Applies to both backed and unit enums. **Exception:** when `->name` is used as an external identifier (cache keys, cookie names, filesystem disks, rate limiter names, timezone strings) or appears in serialized output (e.g., `toArray()` returning `'name' => $this->name`), match the consuming system's convention (typically lowercase or snake_case).
 
-### Container Usage (Hyperf → Hypervel)
+## Porting Hyperf code to Hypervel
+
+### Container Usage
 
 Hyperf and Hypervel have fundamentally different container semantics. Every ported file that touches the container needs these updates.
 
@@ -200,176 +199,155 @@ In Hyperf, `$container->make(Foo::class)` always returns a fresh `Foo`. In Hyper
 | `ApplicationContext::hasContainer()` | Remove guard | `getInstance()` always returns a container |
 | `ApplicationContext::setContainer($c)` | `Container::setInstance($c)` | Tests only |
 
-### Migrating ConfigProviders to Service Providers
+### Migrating Hyperf ConfigProviders
 
-Hyperf uses `ConfigProvider` classes to register dependencies, listeners, commands, and publishable assets. Hypervel is replacing these with Laravel-style service providers. Each package's ConfigProvider dependencies must be migrated to a proper service provider that matches how the equivalent Laravel package does it.
+Hyperf packages use `ConfigProvider` classes to register bindings, listeners, commands, publishable files, and aspects. Hypervel packages use normal service providers. When porting a Hyperf package, treat the Hyperf `ConfigProvider` as source input and translate each entry into Hypervel's documented provider APIs.
 
-#### Why not a mechanical move
+#### Read the Hypervel provider APIs first
 
-You cannot simply copy the ConfigProvider's `dependencies` array into a service provider's `register()` method. The ConfigProvider system used Hyperf patterns (interface-keyed singletons, factory classes with `__invoke`, string concrete bindings) that don't match Laravel's conventions and can cause circular dependency issues with Hypervel's container aliases. Each package must be matched against its Laravel equivalent.
+Before migrating a ConfigProvider, read:
 
-#### Workflow
+- `src/boost/docs/providers.md`
+- `src/boost/docs/aop.md` if the ConfigProvider has aspects
+- `src/boost/docs/packages.md#class-map-overrides` if the package uses class map replacement
+- `Hypervel\Support\ServiceProvider`
 
-##### 1. Read the Laravel service provider
+Use existing Hypervel packages as pattern references. For low-level Swoole / Hyperf-style infrastructure, useful references include `pool`, `object-pool`, `engine`, `server`, `signal`, and `sentry`.
 
-Find the equivalent Laravel service provider in the Laravel source reference. For example, `Illuminate\Auth\AuthServiceProvider` for the auth package. Read it completely — understand the binding keys, binding types (`singleton` vs `bind`), and how it constructs services.
+#### Categorize the ConfigProvider entries
 
-For packages without a Laravel equivalent (e.g., Hyperf-only packages like engine, object-pool, serializer), create a straightforward service provider that registers the same bindings as the ConfigProvider's `dependencies` array. Use the binding patterns described in section 5 below. Match the naming convention (`{Package}ServiceProvider`) and the same `register()`/`boot()` structure.
+Read the Hyperf package's ConfigProvider and categorize each entry:
 
-##### 2. Read the Hypervel ConfigProvider
+- **`dependencies`** — container bindings. Move these to the service provider's `register()` method.
+- **`listeners`** — Hyperf `ListenerInterface` listeners. Convert them to Hypervel listener classes and register them in the service provider's `boot()` method. See "Converting Hyperf Listeners and Events" below.
+- **`commands`** — console commands. Move these to the service provider's `register()` method via `$this->commands([...])`. Commands must have `#[AsCommand(name: '...')]` so Hypervel can resolve them lazily through `ContainerCommandLoader`.
+- **`publish`** — publishable files. Move these to the service provider's `boot()` method via `$this->publishes([...])`.
+- **`aspects`** — AOP aspects. Move these to the service provider's `register()` method via `$this->aspects([...])`. Hypervel does not support Hyperf annotation-based aspect targeting. Hypervel aspects extend `Hypervel\Di\Aop\AbstractAspect`, target classes with the public `$classes` property, and should stay stateless because aspect instances are usually reused for the worker lifetime.
 
-Read the existing ConfigProvider to understand what's currently registered. Categorise each entry:
-- **`dependencies`** — container bindings. These move to the service provider's `register()` method.
-- **`listeners`** — Hyperf-style `ListenerInterface` classes. These move to the service provider's `boot()` method (see "Listener registration" below).
-- **`commands`** — artisan commands. These move to the service provider's `register()` method via `$this->commands([...])`. All commands must have `#[AsCommand(name: '...')]` (Symfony attribute) for lazy resolution via `ContainerCommandLoader`.
-- **`publish`** — publishable files. These move to the service provider's `boot()` method via `$this->publishes([source => destination])`. `VendorPublishCommand` reads from both systems, so the service provider approach works.
-- **`aspects`** — Hyperf DI AOP aspects. Leave as-is.
+Once the entries have been migrated, delete the ConfigProvider. Do not keep Hyperf `extra.hyperf.config` metadata in Hypervel package composer files.
 
-Since everything except `aspects` moves to the service provider, the ConfigProvider should be **deleted entirely** once migrated (unless it still has `aspects`).
+#### Translate bindings into Hypervel container patterns
 
-##### 3. Check registerCoreContainerAliases
+Do not copy Hyperf dependency registrations mechanically. Hyperf dependency entries often rely on Hyperf container behavior, while Hypervel has `bind()`, `singleton()`, `scoped()`, aliases, and auto-singletoning.
 
-Look up the package's entries in `Application::registerCoreContainerAliases()`. This is critical — these aliases determine what can be used as a binding key without causing circular dependencies.
+Use these rules:
 
-**Laravel convention:** The canonical abstract is a string shorthand (`'auth'`, `'cache'`, `'db'`). The contract/interface AND the concrete class are aliases pointing to that shorthand.
+- If the service is stateless and should be shared for the worker lifetime, use `singleton()`.
+- If each resolution needs a fresh mutable object, use `bind()`.
+- If state should be isolated per coroutine / request, use `scoped()`.
+- If the class can safely be auto-singletoned and needs no explicit abstract, do not bind it at all.
+- If a Hyperf factory class only wraps simple construction logic, replace it with an inline closure and delete the factory.
+- If a Hyperf resolver class only wraps a one-line callback, replace it with an inline closure and delete the resolver.
 
-**Hypervel's current state:** Some entries still use the contract as canonical with the shorthand as an alias. These must be flipped to match Laravel:
+#### Binding patterns
 
-```php
-// BEFORE (Hyperf-style — contract is canonical)
-\Hypervel\Contracts\Auth\Factory::class => [
-    'auth',
-    \Hypervel\Auth\AuthManager::class,
-],
+**1. Canonical string key — use a closure with `new`:**
 
-// AFTER (Laravel-style — string shorthand is canonical)
-'auth' => [
-    \Hypervel\Auth\AuthManager::class,
-    \Hypervel\Contracts\Auth\Factory::class,
-],
-```
-
-If any of the package's concrete classes appear as aliases for their own abstract, you **must** use closure-based bindings in the service provider (see "Binding patterns" below). Otherwise `singleton(Interface::class, Concrete::class)` creates a circular resolution cycle: the container tries to resolve the concrete, the alias redirects back to the interface, infinite loop.
-
-**If Laravel has no entry for this package in `registerCoreContainerAliases`:** Remove the entry from Hypervel's aliases entirely. Use `$this->app->alias()` in the service provider instead, matching how Laravel handles it. For example, Laravel's `BusServiceProvider` uses `$this->app->alias(Dispatcher::class, DispatcherContract::class)` rather than having a bus entry in `registerCoreContainerAliases`.
-
-##### 4. Create the service provider
-
-Create the service provider in the package's `src/` directory, matching the Laravel equivalent's structure. Use the same method decomposition (e.g., `registerAuthenticator()`, `registerUserResolver()`, etc.) for readability and 1:1 parity.
-
-##### 5. Binding patterns
-
-Match the binding pattern from the Laravel service provider. Key rules:
-
-**Choose the right binding form based on whether the abstract/concrete participate in `registerCoreContainerAliases()`:**
-
-The container's `bind()`/`singleton()` stores bindings under the exact abstract key passed — it does NOT resolve aliases first. But `resolve()` DOES call `getAlias()` before looking up bindings. So if the abstract you pass is an alias for a canonical key, your binding is orphaned (never found). The `registerConfigProviderDependencies()` method works around this by explicitly calling `getAlias()` before storing, but regular service providers don't.
-
-**1. Abstract is a canonical alias key (e.g., `'auth'`, `'cache'`, `'hash'`, `'request'`) — use closure with `new`:**
 ```php
 // The concrete (AuthManager) is listed as an alias for 'auth', so
 // singleton('auth', AuthManager::class) would create a circular resolution cycle:
-// 'auth' → build AuthManager → getAlias(AuthManager) → 'auth' → infinite loop
+// 'auth' -> build AuthManager -> getAlias(AuthManager) -> 'auth' -> infinite loop
 $this->app->singleton('auth', fn ($app) => new AuthManager($app));
 ```
 
-**2. Abstract is NOT in the alias table — use string concrete:**
+**2. Abstract is not in the alias table — use string concrete:**
+
 ```php
 // Neither FormatterInterface nor DefaultFormatter are aliases for anything,
 // so the container can resolve this directly without cycles.
 $this->app->singleton(FormatterInterface::class, DefaultFormatter::class);
 ```
 
-**3. Abstract and concrete are the same class — don't bind at all.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant:
+**3. Abstract and concrete are the same class — do not bind at all.** Hypervel's container auto-singletons unbound concrete classes on first resolution. An explicit `singleton(Foo::class)` is redundant:
+
 ```php
-// WRONG — redundant, auto-singleton handles this
+// Wrong: redundant; auto-singleton handles this.
 $this->app->singleton(BroadcastManager::class);
 
-// CORRECT — just don't bind it. First make(BroadcastManager::class) auto-singletons it.
+// Correct: do not bind it. The first make(BroadcastManager::class) auto-singletons it.
 ```
 
-**Use the same binding type as Laravel** — `singleton()` vs `bind()` matters:
-```php
-// Laravel uses bind() for Authenticatable — user can change per-request
-$this->app->bind(AuthenticatableContract::class, fn ($app) => ...);
+#### Check aliases before choosing binding keys
 
-// Laravel uses singleton() for AuthManager — one instance per worker
+Before binding core framework services, check `Application::registerCoreContainerAliases()`.
+
+If the abstract or concrete participates in the alias table, choose the binding key carefully. `bind()` and `singleton()` store bindings under the exact abstract key passed; `resolve()` resolves aliases before lookup. Binding an alias instead of the canonical key can orphan the binding.
+
+When adding a core alias, use the string key as the canonical abstract:
+
+```php
+// Wrong: contract is canonical.
+\Hypervel\Contracts\Auth\Factory::class => [
+    'auth',
+    \Hypervel\Auth\AuthManager::class,
+],
+
+// Correct: string key is canonical.
+'auth' => [
+    \Hypervel\Auth\AuthManager::class,
+    \Hypervel\Contracts\Auth\Factory::class,
+],
+```
+
+For canonical string keys such as `'auth'`, `'cache'`, `'db'`, `'request'`, and similar framework services, prefer closure bindings:
+
+```php
 $this->app->singleton('auth', fn ($app) => new AuthManager($app));
 ```
 
-**Delete Hyperf factory classes that are replaced by inline closures.** If the ConfigProvider used a factory class with `__invoke` (e.g., `GateFactory`) and the Laravel equivalent creates the object inline in a closure, delete the factory class — it's unnecessary indirection.
+Do not add new core aliases just because Hyperf had a dependency key. Only add aliases when Hypervel needs that alias as part of its public container surface.
 
-**Delete Hyperf resolver classes that are replaced by inline closures.** Same principle — if a class like `UserResolver` just wraps a one-liner that Laravel does inline, delete it.
+#### Register the provider
 
-##### 6. Register the service provider
+Register providers and aliases through the package Composer metadata and the root Composer metadata as described in the package skeleton workflow. Add a provider to `DefaultProviders` only if every Hypervel application needs it at framework startup, such as auth, cache, database, session, validation, view, or low-level Swoole infrastructure. Optional packages such as Reverb, Scout, Telescope, Sentry, and Watcher should rely on package discovery instead.
 
-Four places need updating:
+For rare core services that must be available before normal providers are registered, stop and explain why before touching `registerBaseServiceProviders()`. Providers registered there run during the earliest application bootstrap, so this should be reserved for framework infrastructure needed by the boot process itself.
 
-1. **Root `composer.json` `extra.hypervel.providers`** — Add the service provider. This is how apps discover providers from the components monorepo.
+It is safe to have the same provider listed in both `registerBaseServiceProviders()` and `extra.hypervel.providers` when early loading is genuinely needed. `Application::register()` deduplicates providers by class name, and the discovery entry ensures standalone installs still load the provider.
 
-2. **Package `composer.json` `extra.hypervel.providers`** — Replace `extra.hyperf.config` with `extra.hypervel.providers` listing the new service provider. This is how apps discover providers when the package is installed as a standalone dependency.
+#### BootApplication listeners
 
-3. **`DefaultProviders`** (`src/support/src/DefaultProviders.php`) — Only add the provider here if the package is **core framework infrastructure** that every Hypervel app needs (auth, cache, database, session, encryption, validation, view, pagination, plus Swoole infra like engine/server/object-pool/signal). For **optional/standalone packages** (Reverb, Scout, Horizon, Sanctum, Telescope, Wayfinder, etc.) do NOT add to DefaultProviders — the `extra.hypervel.providers` entry in the package composer.json handles auto-discovery, and tests register the provider explicitly via `getPackageProviders()` or equivalent setUp wiring.
+Some Hyperf ConfigProviders register listeners for `BootApplication`. These are usually setup hooks that need to run during framework boot, not real runtime events. Convert them to direct calls in the service provider's `boot()` method instead of dispatching a synthetic event:
 
-4. **Remove from `extra.hyperf.config`** — Remove the ConfigProvider from both the root `composer.json` and the package `composer.json` `extra.hyperf.config` entries (since the ConfigProvider is deleted).
+```php
+public function boot(): void
+{
+    $this->app->make(ExceptionHandlerListener::class)->handle(new BootApplication());
+}
+```
 
-##### 7. Delete the ConfigProvider
-
-Since all entries (dependencies, listeners, commands, publish) move to the service provider, the ConfigProvider should be deleted entirely. The only exception is if the ConfigProvider still has `aspects` entries — in that case, remove everything else and keep only the `aspects` array until those are migrated separately.
-
-##### 8. Run tests
-
-Run the package's tests first, then the full suite. Circular dependency errors or "not found" errors indicate:
-- A binding key mismatch (check alias direction in `registerCoreContainerAliases`)
-- A missing entry in `DefaultProviders` (testbench can't find the provider)
-- A string concrete binding that should be a closure (alias cycle)
-
-#### Special cases
-
-**Early-bootstrap packages (config, framework):** The `config` and `framework` packages have their dependencies loaded in `Application::registerConfigProviderDependencies()` — which runs in the Application constructor, before service providers are registered. These cannot be migrated to service providers without first refactoring the bootstrap sequence. Leave them for a dedicated task.
-
-**Early-loading service providers (`registerBaseServiceProviders`):** When a service provider's bindings are needed before `registerConfigProviderDependencies()` runs (e.g., the event dispatcher, which `bootstrapWith()` requires), register it in `Application::registerBaseServiceProviders()` — called in the constructor immediately after `registerBaseBindings()`. This mirrors Laravel's pattern.
-
-It's safe to have the same provider listed in **both** `registerBaseServiceProviders()` and `extra.hypervel.providers` in `composer.json`. `Application::register()` deduplicates — `getProvider()` checks `$serviceProviders` by class name and returns the existing instance without re-registering. The `extra.hypervel.providers` entry ensures apps that install the package standalone (outside the components monorepo) still auto-discover the provider.
-
-**No deferred providers:** Providers run once at worker startup with no per-request cost, so deferral serves no purpose. When porting a Laravel provider that implements `DeferrableProvider`, drop the interface and `provides()` method.
-
-**Packages with existing service providers:** Some packages already have service providers (e.g., `MailServiceProvider`, `NotificationServiceProvider`, `PermissionServiceProvider`). Add the ConfigProvider's dependency bindings to the existing provider's `register()` method rather than creating a new one.
-
-**Packages with listeners:** Listeners registered via the `listeners` config key must be converted from Hyperf's `ListenerInterface` pattern to Laravel-style and registered in the service provider's `boot()` method. See "Converting Hyperf Listeners and Events" below for the full conversion process.
-
-**`BootApplication` listeners:** Some ConfigProviders registered listeners on `BootApplication` (which fires in the Kernel constructor, before bootstrap). These should be replaced with direct calls in the service provider's `boot()` — e.g., the database package's `RegisterConnectionResolverListener` became a direct `Model::setConnectionResolver()` call in `DatabaseServiceProvider::boot()`. See "BootApplication listeners" under "Converting Hyperf Listeners and Events" for the pattern.
-
-#### Completed example
-
-**database** — alias flip, factory deletion, `BootApplication` listener replacement, commands:
-
-- **Deleted:** `DatabaseMigrationRepositoryFactory` (replaced by inline closure), `ConfigProvider`
-- **Alias flip:** `DatabaseManager::class => ['db']` became `'db' => [DatabaseManager::class]` (also `db.schema`, `db.transactions`)
-- **Listener replacement:** `RegisterConnectionResolverListener` (fired on `BootApplication`) replaced by direct `Model::setConnectionResolver()` and `Model::setEventDispatcher()` in `boot()`
-- **DB facade:** Changed accessor from `DatabaseManager::class` to `'db'`
+If the setup can be expressed directly without keeping the listener class, prefer the direct framework call. For example, a listener that only sets a global model resolver should usually become an explicit call in the provider's `boot()` method.
 
 #### Quick checklist
 
-1. Read the Laravel service provider for the package (or design one if no Laravel equivalent)
-2. Read the Hypervel ConfigProvider — categorise all entries
-3. Check `registerCoreContainerAliases` — flip to string-canonical if needed, or remove if Laravel doesn't have it
-4. Create service provider matching Laravel's binding keys, types, and closures
-5. Move commands to `register()` via `$this->commands([...])`
-6. Move listeners to `boot()` via closure-based `$events->listen()`
-7. Move publish entries to `boot()` via `$this->publishes([...])`
-8. Delete any Hyperf factory/resolver classes replaced by inline closures
-9. Delete the ConfigProvider (unless it still has `aspects`)
-10. Add provider to root `composer.json` `extra.hypervel.providers`
-11. Update package `composer.json` — replace `extra.hyperf.config` with `extra.hypervel.providers`
-12. Add to `DefaultProviders` (alphabetical order)
-13. Remove ConfigProvider from root `composer.json` `extra.hyperf.config`
-14. Run phpstan, then full test suite
-15. Investigate any circular dependency errors — usually an alias direction issue
+1. Read Hypervel provider docs and relevant existing Hypervel package patterns.
+2. Read the Hyperf ConfigProvider and categorize entries.
+3. Translate dependencies into Hypervel bindings.
+4. Convert listeners, commands, publish entries, and aspects to provider APIs.
+5. Check aliases before choosing binding keys.
+6. Delete unnecessary Hyperf factories / resolvers.
+7. Delete the ConfigProvider.
+8. Register providers and aliases in both Composer metadata locations.
+9. Run phpstan and tests.
+
+Circular dependency errors or "not found" errors usually indicate:
+
+- A binding key mismatch.
+- A missing provider registration.
+- A string concrete binding that should be a closure.
+
+#### Example: database provider migration
+
+The database package is a good reference for translating Hyperf provider patterns into Hypervel provider code:
+
+- Hyperf factory classes that only wrapped simple construction were deleted and replaced with inline provider closures.
+- Core aliases were made string-key canonical, such as `'db'`, `'db.schema'`, and `'db.transactions'`.
+- Boot-time listeners were replaced with direct provider boot logic, such as `Model::setConnectionResolver(...)` and `Model::setEventDispatcher(...)`.
+- Facades resolve the canonical container key instead of the concrete manager class.
 
 ### Converting Hyperf Listeners and Events
 
-When porting Hyperf packages, their `ListenerInterface` listeners and event classes must be converted to Laravel-style patterns.
+When porting Hyperf packages, their `ListenerInterface` listeners and event classes must be converted to Hypervel listener patterns.
 
 #### Converting listeners
 
@@ -490,7 +468,7 @@ One entry per test file. Note the strategy:
 - **Copy and update** — no existing Hypervel test for this
 - **Merge** — Hypervel already has a test file with custom tests that must be preserved alongside the ported source tests
 - **Integration** — needs external service, goes in `tests/Integration/{PackageName}/`
-- **Blocked** — depends on unported code. STOP and explain what's blocked and why. Prefer adapting the test to work with the current codebase over commenting it out. Only comment out individual test methods (not whole files) as a last resort, with user approval.
+- **Investigate** — exposes missing functionality, an unsupported feature, or an architectural difference. STOP and explain what the test covers, whether Hypervel should support it, and your recommended fix or removal.
 
 #### 4. Port test files one at a time
 
@@ -512,8 +490,8 @@ Use this exact cadence for each test class:
 1. Port the test class.
 2. Run that test class immediately (`./vendor/bin/phpunit --no-progress path/to/TestClass.php`).
 3. Fix all straightforward failures.
-4. If any failure exposes a source code bug (typing, logic, behavior), STOP and report root cause + recommended fix for approval.
-5. Once green, commit that test class (and any approved source fixes) before moving to the next class.
+4. If any failure exposes a source code bug, missing functionality, or unclear behavioral difference, STOP and report the root cause with your recommended fix.
+5. Once the test class is green, move to the next test class. Work serially on one test class at a time.
 
 #### 6. Run the full test suite
 
@@ -638,7 +616,7 @@ A per-package base class is only justified when there is shared setUp logic — 
 #### Docblocks and Types
 
 - Add `declare(strict_types=1);` at the top of every file
-- Do **not** add `: void` return type to test methods — existing tests don't use them, stay consistent
+- Add `: void` return types to test methods. This keeps tests consistent with the repo's full-typing rule.
 - **Use PHPUnit attributes instead of docblock annotations** — prefer `#[DataProvider('...')]`, `#[Depends('...')]`, etc. over their `@dataProvider`/`@depends` docblock equivalents. Do **not** add `@internal`/`@coversNothing` docblocks or `#[CoversNothing]`/`#[CoversClass(…)]` attributes — Hyperf uses both forms but Laravel doesn't, and they serve no purpose outside strict coverage modes
 
 #### phpstan
@@ -648,13 +626,14 @@ The `tests/` directory is excluded from phpstan. Do not run phpstan on tests.
 **When fixing phpstan errors:**
 
 1. **Investigate before coding.** For each error: read the code, check the Laravel equivalent's types (native and docblock), trace through callers and dependents. Report findings with the single, most correct fix.
-2. **Native types vs docblocks determine what's dead code.** If a native return type makes a guard unreachable, the guard is dead code — remove it. If only a docblock suggests always-true, the guard is legitimate runtime defense — leave it.
-3. **Don't change contract/concrete boundaries to fix phpstan.** Swapping a contract for a concrete (or vice versa) to satisfy a type check diverges from Laravel's API. Only do this when Laravel's typing is genuinely incorrect.
-4. **Methods can be added to contracts only if they represent behavior any conforming implementation must provide.** Implementation-specific methods, internal helpers, or driver-specific features don't belong on contracts — find another fix even if adding them would satisfy phpstan.
-5. **Wrong docblock types should be fixed**, not suppressed. Check the actual runtime behavior (extension docs, reflection, tests) to determine the correct type.
-6. **Type decisions must be evidence-based.** Check Laravel/Hyperf signatures and docblocks, then trace real control flow. Don't guess.
-7. **Don't add `assert()` to narrow types for phpstan.** Fix the underlying type signature or docblock instead. When that isn't possible, use `@var` to narrow to the correct runtime type. Use `@phpstan-ignore` only when the error can't be resolved by fixing types or narrowing with `@var` (e.g., magic `__call`/`__get` forwarding).
-8. **Don't add patterns to `phpstan.neon.dist`.** The neon file's global ignores cover fundamental framework patterns (Eloquent magic, generics, `new static`). New phpstan errors should be fixed at the source, never masked with new neon rules.
+2. **Don't make the code worse or more convoluted just to satisfy PHPStan.** Fix real issues in the code, but don't add awkward wrappers, fake branches, casts, or wider types just to silence PHPStan. A phpstan fix is a typing change: it must not change runtime behavior, add overhead, or introduce new edge cases — if the only way to satisfy PHPStan would, STOP and explain. If the code is correct and PHPStan cannot understand it, follow the narrowing / suppression order below.
+3. **Native types vs docblocks determine what's dead code.** If a native return type makes a guard unreachable, the guard is dead code — remove it. If only a docblock suggests always-true, the guard is legitimate runtime defense — leave it.
+4. **Don't change contract/concrete boundaries to fix phpstan.** Swapping a contract for a concrete (or vice versa) to satisfy a type check diverges from Laravel's API. Only do this when Laravel's typing is genuinely incorrect.
+5. **Methods can be added to contracts only if they represent behavior any conforming implementation must provide.** Implementation-specific methods, internal helpers, or driver-specific features don't belong on contracts — find another fix even if adding them would satisfy phpstan.
+6. **Wrong docblock types should be fixed**, not suppressed. Check the actual runtime behavior (extension docs, reflection, tests) to determine the correct type.
+7. **Type decisions must be evidence-based.** Check Laravel/Hyperf signatures and docblocks, then trace real control flow. Don't guess.
+8. **Narrowing / suppression order.** When the code is correct but PHPStan can't follow it, in order: (1) fix the type signature or docblock; (2) `@var` to narrow to the correct runtime type; (3) a line- or identifier-scoped `@phpstan-ignore` (e.g. magic `__call`/`__get` forwarding). Never use `assert()` to narrow types, and never add a neon-wide rule on your own (see #9).
+9. **Don't add patterns to `phpstan.neon.dist` on your own.** The neon file's global ignores cover fundamental framework patterns (Eloquent magic, generics, `new static`). Fix new phpstan errors at the source, not by masking them with new neon rules. Under rare circumstances a global suppression genuinely is the best choice — if you think one may be needed, STOP, explain why the error can't be fixed at the source or narrowed locally, and ask for approval before adding it.
 
 #### Handling Failing Tests
 
@@ -668,35 +647,11 @@ For tests that fail after conversion:
 
 **You do not decide what tests to skip or remove.** Only the user makes that call after reviewing your investigation.
 
-#### Commenting Out Tests
-
-**Commenting out tests should be extremely rare.** Before proposing to comment out a test, first investigate whether small adaptations can make it work with the current Hypervel codebase (it can be updated again later when more things are ported).
-
-When commenting out is genuinely unavoidable (e.g., depends on a completely unported subsystem), **STOP and explain** what's blocked and why, and wait for approval. Never silently comment out tests.
-
-When approved, comment out **individual test methods** (not whole files) with a `@TODO` explaining what needs to happen:
-
-```php
-// @TODO Enable once {package} is ported - depends on {SpecificClass} which doesn't exist yet
-// public function testSomething(): void
-// {
-//     ...
-// }
-```
-
-This keeps the test visible for future searchability (`@TODO` grep) rather than requiring diffs against the source to discover what's missing.
+Never comment out, skip, or avoid porting a test because the required functionality is missing. If the test covers functionality Hypervel should support, investigate the missing functionality, then STOP and report the root cause with your recommended fix. If the test covers functionality Hypervel intentionally does not support, such as an unsupported database or cache driver, STOP and report that before removing the test unless the unsupported-feature rules below explicitly allow removal.
 
 #### Removed Tests
 
-Removing tests is **incredibly rare** and should almost never happen. Always **STOP and explain** why you believe a test should be removed, and wait for approval.
-
-When the user approves removing a test, replace it with a comment **in the same position**:
-
-```php
-// REMOVED: testMethodName - Reason for removal
-```
-
-This preserves the test's location so future diffs against Hyperf/Laravel show intentional removals rather than tests that look like they need porting.
+Only remove tests for functionality Hypervel intentionally does not support, such as the unsupported features listed below. For any other test removal, STOP and explain what the test covers, why you believe it should not apply to Hypervel, and wait for approval.
 
 ### Porting Hyperf Tests
 
@@ -765,12 +720,11 @@ Hyperf uses `#[Group('NonCoroutine')]` on individual test methods to mark tests 
 3. Change `Hyperf\` imports to `Hypervel\`
 4. Remove Hyperf license header; remove `#[CoversNothing]` and `#[CoversClass(…)]` attributes
 5. Extend `Hypervel\Tests\TestCase` (not `PHPUnit\Framework\TestCase`)
-6. Do **not** add `: void` return types to test methods
-7. Change container mock to `Hypervel\Contracts\Container\Container`, all `->get()` to `->make()` (expectations AND direct calls)
-8. Change error handler mock to `Hypervel\Contracts\Debug\ExceptionHandler`
-9. Extract `#[Group('NonCoroutine')]` methods to separate class with `$runTestsInCoroutine = false`
-10. Ensure `parent::setUp()` is called
-11. Run tests and fix any remaining type errors
+6. Change container mock to `Hypervel\Contracts\Container\Container`, all `->get()` to `->make()` (expectations AND direct calls)
+7. Change error handler mock to `Hypervel\Contracts\Debug\ExceptionHandler`
+8. Extract `#[Group('NonCoroutine')]` methods to separate class with `$runTestsInCoroutine = false`
+9. Ensure `parent::setUp()` is called
+10. Run tests and fix any remaining type errors
 
 ### Porting Laravel Tests
 
@@ -930,7 +884,7 @@ Tests for these features should be **removed** (not commented out) without askin
 - **Cache drivers:** Memcached, DynamoDB, MongoDB
 - **Dynamic connections:** `DB::build()`, `DB::connectUsing()` — incompatible with Swoole connection pooling
 
-This list is exhaustive. Any other missing functionality is "not yet ported" and requires investigation and reporting.
+This list is exhaustive. Any other missing functionality requires investigation and reporting.
 
 #### Laravel Quick Checklist
 
@@ -939,13 +893,12 @@ This list is exhaustive. Any other missing functionality is "not yet ported" and
 3. Change `Illuminate\` imports to `Hypervel\`
 4. Extend correct base TestCase (`Hypervel\Tests\TestCase` or `Hypervel\Testbench\TestCase`)
 5. Ensure `parent::setUp()` is called
-6. Do **not** add `: void` return types to test methods
-7. Add type declarations to model properties
-8. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
-9. Add `->andReturnSelf()` to chained method mocks
-10. Use test-specific namespace if file defines helper classes — avoids "Cannot redeclare class" errors when multiple test files define classes with the same name (e.g., `...Database\EloquentDeleteTest`)
-11. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
-12. Run tests and fix any remaining type errors
+6. Add type declarations to model properties
+7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
+8. Add `->andReturnSelf()` to chained method mocks
+9. Use test-specific namespace if file defines helper classes — avoids "Cannot redeclare class" errors when multiple test files define classes with the same name (e.g., `...Database\EloquentDeleteTest`)
+10. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
+11. Run tests and fix any remaining type errors
 
 ### Integration Tests
 

@@ -111,6 +111,8 @@ class NumberPromptTest extends TestCase
     public function testFallsThroughToOriginalValidationWithValidateUsing()
     {
         Prompt::validateUsing(function (Prompt $prompt) {
+            $this->assertSame('required|int|min:99', $prompt->validate);
+
             return $prompt->value() !== 99 ? 'Must be 99' : null;
         });
 

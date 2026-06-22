@@ -10,7 +10,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel includes the ability to seed your database with data using seed classes. All seed classes are stored in the `database/seeders` directory. By default, a `DatabaseSeeder` class is defined for you. From this class, you may use the `call` method to run other seed classes, allowing you to control the seeding order.
+Hypervel includes the ability to seed your database with data using seed classes. All seed classes are stored in the `database/seeders` directory. By default, a `DatabaseSeeder` class is defined for you. From this class, you may use the `call` method to run other seed classes, allowing you to control the seeding order.
 
 > [!NOTE]
 > [Mass assignment protection](/docs/{{version}}/eloquent#mass-assignment) is automatically disabled during database seeding.
@@ -55,7 +55,7 @@ class DatabaseSeeder extends Seeder
 ```
 
 > [!NOTE]
-> You may type-hint any dependencies you need within the `run` method's signature. They will automatically be resolved via the Laravel [service container](/docs/{{version}}/container).
+> You may type-hint any dependencies you need within the `run` method's signature. They will automatically be resolved via the Hypervel [service container](/docs/{{version}}/container).
 
 <a name="using-model-factories"></a>
 ### Using Model Factories
@@ -94,6 +94,47 @@ public function run(): void
         UserSeeder::class,
         PostSeeder::class,
         CommentSeeder::class,
+    ]);
+}
+```
+
+If you need to pass data into another seeder's `run` method, you may use the `callWith` method:
+
+```php
+/**
+ * Run the database seeders.
+ */
+public function run(): void
+{
+    $this->callWith(UserSeeder::class, [
+        'count' => 50,
+    ]);
+}
+```
+
+You may use the `callSilent` method to execute another seeder without writing its progress to the console:
+
+```php
+/**
+ * Run the database seeders.
+ */
+public function run(): void
+{
+    $this->callSilent(UserSeeder::class);
+}
+```
+
+If a seeder may be referenced by multiple seeders, you may use the `callOnce` method to ensure it only runs once during the same seeding process:
+
+```php
+/**
+ * Run the database seeders.
+ */
+public function run(): void
+{
+    $this->callOnce([
+        RolesSeeder::class,
+        PermissionsSeeder::class,
     ]);
 }
 ```
@@ -138,12 +179,30 @@ php artisan db:seed
 php artisan db:seed --class=UserSeeder
 ```
 
+You may use the `--database` option to seed a specific database connection. The database connection name should correspond to a connection defined in your application's `database` [configuration file](/docs/{{version}}/configuration):
+
+```shell
+php artisan db:seed --database=pgsql
+```
+
 You may also seed your database using the `migrate:fresh` command in combination with the `--seed` option, which will drop all tables and re-run all of your migrations. This command is useful for completely re-building your database. The `--seeder` option may be used to specify a specific seeder to run:
 
 ```shell
 php artisan migrate:fresh --seed
 
 php artisan migrate:fresh --seed --seeder=UserSeeder
+```
+
+The `migrate` and `migrate:refresh` commands also support the `--seed` and `--seeder` options:
+
+```shell
+php artisan migrate --seed
+
+php artisan migrate --seed --seeder=UserSeeder
+
+php artisan migrate:refresh --seed
+
+php artisan migrate:refresh --seed --seeder=UserSeeder
 ```
 
 <a name="forcing-seeding-production"></a>

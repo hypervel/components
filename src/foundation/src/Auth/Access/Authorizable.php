@@ -6,13 +6,14 @@ namespace Hypervel\Foundation\Auth\Access;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
+use UnitEnum;
 
 trait Authorizable
 {
     /**
      * Determine if the entity has the given abilities.
      */
-    public function can(iterable|string $abilities, mixed $arguments = []): bool
+    public function can(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool
     {
         return Container::getInstance()->make(Gate::class)->forUser($this)->check($abilities, $arguments);
     }
@@ -20,7 +21,7 @@ trait Authorizable
     /**
      * Determine if the entity has any of the given abilities.
      */
-    public function canAny(iterable|string $abilities, mixed $arguments = []): bool
+    public function canAny(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool
     {
         return Container::getInstance()->make(Gate::class)->forUser($this)->any($abilities, $arguments);
     }
@@ -28,7 +29,7 @@ trait Authorizable
     /**
      * Determine if the entity does not have the given abilities.
      */
-    public function cant(iterable|string $abilities, mixed $arguments = []): bool
+    public function cant(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool
     {
         return ! $this->can($abilities, $arguments);
     }
@@ -36,7 +37,7 @@ trait Authorizable
     /**
      * Determine if the entity does not have the given abilities.
      */
-    public function cannot(iterable|string $abilities, mixed $arguments = []): bool
+    public function cannot(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool
     {
         return $this->cant($abilities, $arguments);
     }

@@ -13,7 +13,7 @@ use Mockery\MockInterface;
 
 class AuthorizableTest extends TestCase
 {
-    public function testCan()
+    public function testCan(): void
     {
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
@@ -24,7 +24,7 @@ class AuthorizableTest extends TestCase
         $this->assertTrue($user->can('foo', ['bar']));
     }
 
-    public function testCanAny()
+    public function testCanAny(): void
     {
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
@@ -35,7 +35,7 @@ class AuthorizableTest extends TestCase
         $this->assertTrue($user->canAny(['foo'], ['bar']));
     }
 
-    public function testCant()
+    public function testCant(): void
     {
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
@@ -46,7 +46,7 @@ class AuthorizableTest extends TestCase
         $this->assertFalse($user->cant('foo', ['bar']));
     }
 
-    public function testCannot()
+    public function testCannot(): void
     {
         $user = new AuthorizableStub;
         $gate = $this->mockGate();
@@ -55,6 +55,50 @@ class AuthorizableTest extends TestCase
         $gate->shouldReceive('check')->with('foo', ['bar'])->once()->andReturnTrue();
 
         $this->assertFalse($user->cannot('foo', ['bar']));
+    }
+
+    public function testCanAcceptsUnitEnumAbilities(): void
+    {
+        $user = new AuthorizableStub;
+        $gate = $this->mockGate();
+
+        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
+        $gate->shouldReceive('check')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->once()->andReturnTrue();
+
+        $this->assertTrue($user->can(AuthorizableTestAbility::ManageUsers, ['bar']));
+    }
+
+    public function testCanAnyAcceptsUnitEnumAbilities(): void
+    {
+        $user = new AuthorizableStub;
+        $gate = $this->mockGate();
+
+        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
+        $gate->shouldReceive('any')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->once()->andReturnTrue();
+
+        $this->assertTrue($user->canAny(AuthorizableTestAbility::ManageUsers, ['bar']));
+    }
+
+    public function testCantAcceptsUnitEnumAbilities(): void
+    {
+        $user = new AuthorizableStub;
+        $gate = $this->mockGate();
+
+        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
+        $gate->shouldReceive('check')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->once()->andReturnTrue();
+
+        $this->assertFalse($user->cant(AuthorizableTestAbility::ManageUsers, ['bar']));
+    }
+
+    public function testCannotAcceptsUnitEnumAbilities(): void
+    {
+        $user = new AuthorizableStub;
+        $gate = $this->mockGate();
+
+        $gate->shouldReceive('forUser')->with($user)->once()->andReturnSelf();
+        $gate->shouldReceive('check')->with(AuthorizableTestAbility::ManageUsers, ['bar'])->once()->andReturnTrue();
+
+        $this->assertFalse($user->cannot(AuthorizableTestAbility::ManageUsers, ['bar']));
     }
 
     /**
@@ -70,4 +114,9 @@ class AuthorizableTest extends TestCase
 
         return $gate;
     }
+}
+
+enum AuthorizableTestAbility
+{
+    case ManageUsers;
 }

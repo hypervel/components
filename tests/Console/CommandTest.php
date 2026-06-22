@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console;
 
+use Hypervel\Console\Attributes\Aliases;
+use Hypervel\Console\Attributes\Help;
+use Hypervel\Console\Attributes\Hidden;
 use Hypervel\Console\Attributes\Signature;
+use Hypervel\Console\Attributes\Usage;
 use Hypervel\Console\Command;
 use Hypervel\Console\ManuallyFailedException;
 use Hypervel\Console\OutputStyle;
@@ -380,6 +384,43 @@ class CommandTest extends TestCase
         $this->assertSame(['bar:baz', 'baz:qux'], $command->getAliases());
     }
 
+    public function testAliasesAttributeCanSetAliases(): void
+    {
+        $command = new CommandTestAliasesAttributeCommand;
+
+        $this->assertSame('foo:bar', $command->getName());
+        $this->assertSame(['bar:baz', 'baz:qux'], $command->getAliases());
+    }
+
+    public function testAliasesAttributeOverridesSignatureAliases(): void
+    {
+        $command = new CommandTestAliasesAttributeOverridesSignatureCommand;
+
+        $this->assertSame('foo:bar', $command->getName());
+        $this->assertSame(['override:alias'], $command->getAliases());
+    }
+
+    public function testHiddenAttributeHidesCommand(): void
+    {
+        $command = new CommandTestHiddenCommand;
+
+        $this->assertTrue($command->isHidden());
+    }
+
+    public function testHelpAttributeCanSetHelp(): void
+    {
+        $command = new CommandTestHelpCommand;
+
+        $this->assertSame('Extended help text.', $command->getHelp());
+    }
+
+    public function testUsageAttributeCanSetUsages(): void
+    {
+        $command = new CommandTestUsageCommand;
+
+        $this->assertSame(['foo:bar 1', 'foo:bar 1 --force'], $command->getUsages());
+    }
+
     public function testCommandCanBeConstructedWithoutBootedApplication()
     {
         $command = new CommandTestStubCommand;
@@ -411,6 +452,52 @@ class CommandTestStubCommand extends Command
 class CommandTestSignatureWithAliasesCommand extends Command
 {
     public function handle()
+    {
+    }
+}
+
+#[Signature('foo:bar')]
+#[Aliases(['bar:baz', 'baz:qux'])]
+class CommandTestAliasesAttributeCommand extends Command
+{
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('foo:bar', aliases: ['ignored:alias'])]
+#[Aliases(['override:alias'])]
+class CommandTestAliasesAttributeOverridesSignatureCommand extends Command
+{
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('foo:bar')]
+#[Hidden]
+class CommandTestHiddenCommand extends Command
+{
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('foo:bar')]
+#[Help('Extended help text.')]
+class CommandTestHelpCommand extends Command
+{
+    public function handle(): void
+    {
+    }
+}
+
+#[Signature('foo:bar {user}')]
+#[Usage('foo:bar 1')]
+#[Usage('foo:bar 1 --force')]
+class CommandTestUsageCommand extends Command
+{
+    public function handle(): void
     {
     }
 }

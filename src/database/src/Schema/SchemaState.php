@@ -67,7 +67,7 @@ abstract class SchemaState
      * Get the base variables for a dump / load command.
      *
      * @param array<string, mixed> $config
-     * @return array<string, mixed>
+     * @return array<string, string>
      */
     abstract protected function baseVariables(array $config): array;
 

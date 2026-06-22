@@ -10,7 +10,9 @@ use Hypervel\Prompts\ConfirmPrompt;
 use Hypervel\Prompts\Output\BufferedConsoleOutput;
 use Hypervel\Prompts\Prompt;
 use Hypervel\Prompts\SelectPrompt;
+use Hypervel\Prompts\Support\CoroutineLogger;
 use Hypervel\Prompts\Support\Logger;
+use Hypervel\Prompts\Task;
 use Hypervel\Prompts\Terminal;
 use Hypervel\Prompts\TextPrompt;
 use Hypervel\Tests\TestCase;
@@ -238,6 +240,37 @@ class CoroutineSafetyTest extends TestCase
         );
 
         $this->assertStringContainsString('Running context', $output->content());
+    }
+
+    public function testTaskSubLabelStateIsIsolatedBetweenCoroutines(): void
+    {
+        Prompt::fake();
+
+        $taskA = new Task(label: 'Task A');
+        $taskB = new Task(label: 'Task B');
+        $loggerA = new CoroutineLogger($taskA);
+        $loggerB = new CoroutineLogger($taskB);
+        $channel = new Channel(2);
+
+        go(function () use ($loggerA, $taskA, $taskB, $channel) {
+            $loggerA->subLabel('Building assets');
+            usleep(5000);
+
+            $channel->push([$taskA->subLabel, $taskB->subLabel]);
+        });
+
+        go(function () use ($loggerB, $taskA, $taskB, $channel) {
+            $loggerB->subLabel('Running migrations');
+            usleep(5000);
+
+            $channel->push([$taskA->subLabel, $taskB->subLabel]);
+        });
+
+        $first = $channel->pop();
+        $second = $channel->pop();
+
+        $this->assertSame(['Building assets', 'Running migrations'], $first);
+        $this->assertSame(['Building assets', 'Running migrations'], $second);
     }
 
     public function testTerminalFlushStateResetsTerminalCaches()

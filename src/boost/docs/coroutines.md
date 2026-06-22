@@ -1,81 +1,93 @@
-# Coroutine
-[[toc]]
+# Coroutines
 
+- [Introduction](#introduction)
+    - [Coroutines and Concurrent Tasks](#coroutines-and-concurrent-tasks)
+- [Creating Coroutines](#creating-coroutines)
+    - [Running Code in a Coroutine Container](#running-code-in-a-coroutine-container)
+    - [Getting the Current Coroutine ID](#getting-the-current-coroutine-id)
+    - [Parent Coroutine IDs](#parent-coroutine-ids)
+    - [Determining if Code is Running in a Coroutine](#determining-if-code-is-running-in-a-coroutine)
+    - [Creating a Child Coroutine](#creating-a-child-coroutine)
+    - [Copying Coroutine Context](#copying-coroutine-context)
+    - [Nested Coroutines](#nested-coroutines)
+- [Error Handling](#error-handling)
+    - [Reporting Unhandled Exceptions](#reporting-unhandled-exceptions)
+- [Deferred Coroutine Cleanup](#deferred-coroutine-cleanup)
+- [Channels](#channels)
+- [Waiting for Results](#waiting-for-results)
+    - [The wait Helper](#the-wait-helper)
+    - [Wait Groups](#wait-groups)
+    - [Barriers](#barriers)
+- [Running Work in Parallel](#running-work-in-parallel)
+    - [Limiting Parallel Work](#limiting-parallel-work)
+    - [Inspecting Parallel Failures](#inspecting-parallel-failures)
+- [Limiting Concurrent Coroutines](#limiting-concurrent-coroutines)
+    - [Waiting for Limited Coroutines](#waiting-for-limited-coroutines)
+- [Locks](#locks)
+    - [Mutexes](#mutexes)
+    - [Lockers](#lockers)
+- [Advanced Coroutine APIs](#advanced-coroutine-apis)
+- [Common Pitfalls](#common-pitfalls)
+
+<a name="introduction"></a>
 ## Introduction
 
-In traditional PHP-FPM environments, I/O operations are blocking by nature. This means worker processes remain idle while waiting for I/O responses, leading to inefficient resource utilization. The conventional approach to enhance concurrency is running multiple processes simultaneously, as demonstrated in Laravel's [Concurrency](https://laravel.com/docs/concurrency) feature.
+Hypervel is built on Swoole coroutines. Coroutines allow a worker process to continue serving other work while one coroutine is waiting on I/O such as network requests, Redis, database queries, file operations, or timers. This gives Hypervel high concurrency for I/O-heavy applications without requiring one operating system process or thread per request.
 
-However, process-based concurrency has significant drawbacks. The overhead of context switching between processes is substantial, and the concurrent capacity is constrained by available CPU cores. Essentially, improving concurrency requires either vertical scaling (more powerful hardware) or horizontal scaling (more servers). Even solutions like [Laravel Octane](https://laravel.com/docs/octane) cannot fundamentally address these limitations in I/O-intensive scenarios.
+A coroutine is a function that can pause and later resume from the same point. Unlike threads, coroutine scheduling is cooperative: execution switches at coroutine-aware operations such as hooked I/O, channel operations, sleeps, and explicit coroutine primitives. This keeps each coroutine lightweight while still allowing many independent tasks to make progress inside the same worker process.
 
-> For a detailed comparison, see [Why Hypervel?](/docs/introduction#why-hypervel)
+Hypervel's HTTP server, console commands, queue workers, scheduler, testing layer, database pools, Redis pools, and other I/O-heavy services are designed around this model. Request-specific and coroutine-specific state should be stored in coroutine context instead of global variables or mutable static properties.
 
-Unlike Laravel, Hypervel supports coroutine capabilities out of the box. All th I/O operations are non-blocking I/O throughout the framework. Hypervel achieves true concurrent request processing within each worker process. When a coroutine encounters an I/O operation, instead of blocking the entire worker process, it yields control to other coroutines, allowing the worker to continue processing additional requests efficiently.
+For a detailed overview of Hypervel's runtime model, see the [introduction](/docs/{{version}}/introduction#why-hypervel).
 
-## What is Coroutine?
+<a name="coroutines-and-concurrent-tasks"></a>
+### Coroutines and Concurrent Tasks
 
-Coroutines are functions that can pause their execution and later resume from where they left off, maintaining their state between pauses. Think of them as functions with multiple entry and exit points.
+For most application code that needs to run several independent tasks and collect their results, you should start with Hypervel's [concurrency](/docs/{{version}}/concurrency) APIs. The `Concurrency` facade gives you a high-level, framework-integrated way to fan out work.
 
-The key mechanism behind coroutines is a concept called "cooperative multitasking." Unlike processes or threads where the operating system controls when to switch between tasks, coroutines voluntarily yield control at specific points in their code. This is typically done at I/O operations or when explicitly yielding.
+The lower-level coroutine primitives documented here are useful when you need more control: fire-and-forget work, dynamic concurrency limits, coroutine-local cleanup, channels, locks, custom waiting behavior, or direct context propagation.
 
-When a coroutine encounters an operation that would normally block (like waiting for network data), instead of blocking the entire program, it yields control back to a scheduler. The scheduler can then run other coroutines until the blocking operation completes.
+<a name="creating-coroutines"></a>
+## Creating Coroutines
 
-The cost for each coroutine is extremely lightweight compared to processes or threads, making them ideal for concurrent I/O operations.
+All coroutine-related methods are available on the `Hypervel\Coroutine\Coroutine` class or as functions in the `Hypervel\Coroutine` namespace.
 
-::: info
-For PHP developers who have never been exposed to the concept of Coroutines and have no experience with other related programming languages, I strongly recommend learning about Linux operating systems, asynchronous I/O, coroutines, network communication protocols, concurrency, and other fundamental knowledge through [Mastering Swoole PHP](https://swoolebook.com/). This will help you gain a more comprehensive understanding of how Coroutines work behind the scenes when you use them in Hypervel.
-:::
+<a name="running-code-in-a-coroutine-container"></a>
+### Running Code in a Coroutine Container
 
-### How Coroutines Work
+Hypervel normally creates coroutine environments for you. For example, HTTP requests, Hypervel console commands, queue workers, and framework tests run with coroutine support enabled.
 
-Coroutines achieve concurrency without parallelism. They allow interleaving multiple tasks within a single thread by:
-
-1. Saving the current execution state (variables, program counter)
-2. Switching to another coroutine
-3. Restoring the previous state when resuming
-
-This approach eliminates the overhead of thread creation, context switching, and synchronization mechanisms required in multithreading. It also avoids the complexity of managing shared state between threads.
-
-Coroutines are particularly efficient for I/O-bound operations where programs spend significant time waiting for external resources rather than performing CPU-intensive calculations.
-
-::: info
-For more detailed information, see [Coroutine](https://en.wikipedia.org/wiki/Coroutine).
-:::
-
-## Coroutine Features
-
-Coroutines in Hypervel operate within a coroutine container environment. By default, the framework automatically initializes these containers for:
-
-* HTTP requests
-* Console commands
-
-In most scenarios, you won't need to manually create coroutine containers as they're handled automatically by the framework.
-
-All the coroutine-related methods in Hypervel are defined in `Hypervel\Coroutine\Coroutine`, and functions in `Hypervel\Coroutine` namespace.
-
-### Creating Container Manually
-
-For scenarios requiring explicit coroutine container creation (e.g., unit tests without a coroutine environment), you can use the `Hypervel\Coroutine\run` function:
+If you are running code from a non-coroutine environment and need to create a coroutine container manually, use the `run` function:
 
 ```php
 use Hypervel\Coroutine\Coroutine;
 
 use function Hypervel\Coroutine\run;
 
-echo 'My coroutine id: ' . Coroutine::id() . PHP_EOL;
+echo Coroutine::id(); // -1
 
 run(function () {
-    echo 'My coroutine id: ' .  Coroutine::id();
+    echo Coroutine::id(); // A positive coroutine ID...
 });
 ```
 
-### Getting Coroutine Id
+You may pass Swoole hook flags as the second argument:
 
-Each coroutine in Hypervel has a coroutine id. When executing within a coroutine context:
+```php
+use function Hypervel\Coroutine\run;
 
-* The ID is a positive integer
-* IDs are auto-incrementing as new coroutines are created
+run(function () {
+    // ...
+}, SWOOLE_HOOK_ALL);
+```
 
-You can retrieve the current coroutine ID using:
+> [!WARNING]
+> The `run` function may only be called outside an existing coroutine. Calling it inside a coroutine will throw an exception.
+
+<a name="getting-the-current-coroutine-id"></a>
+### Getting the Current Coroutine ID
+
+You may retrieve the current coroutine ID using the `id` method:
 
 ```php
 use Hypervel\Coroutine\Coroutine;
@@ -83,66 +95,147 @@ use Hypervel\Coroutine\Coroutine;
 $id = Coroutine::id();
 ```
 
-If `Coroutine::id()` returns `-1`, it indicates that the code is executing outside of a coroutine context. This is common in traditional PHP-FPM environments or running code before coroutine container initialization.
+When code is running outside a coroutine, `Coroutine::id()` returns `-1`. Inside a coroutine, it returns a positive integer.
 
-### Determine if in Coroutine
+<a name="parent-coroutine-ids"></a>
+### Parent Coroutine IDs
 
-You can also use `inCoroutine` method to determine if you're in coroutines:
+You may retrieve the parent coroutine ID using the `parentId` method or its `pid` alias:
 
 ```php
 use Hypervel\Coroutine\Coroutine;
 
-use function Hypervel\Coroutine\run;
+$parentId = Coroutine::parentId();
 
-echo 'in coroutine: ' . (int) Coroutine::inCoroutine() . PHP_EOL;
-
-run(function () {
-    echo 'in coroutine : ' . (int) Coroutine::inCoroutine();
-});
+$parentId = Coroutine::pid();
 ```
 
-## Creating a Coroutine
+When the current coroutine is a top-level coroutine, the parent ID is `0`. You may also pass a coroutine ID to inspect the parent of another coroutine:
 
-Creating a coroutine in Hypervel is as easy as pie. If you have development experience in Golang, you will be pretty similar to its syntax:
+```php
+$parentId = Coroutine::parentId($coroutineId);
+```
+
+<a name="determining-if-code-is-running-in-a-coroutine"></a>
+### Determining if Code is Running in a Coroutine
+
+The `inCoroutine` method determines if the current code is running inside a coroutine:
+
+```php
+use Hypervel\Coroutine\Coroutine;
+
+if (Coroutine::inCoroutine()) {
+    // ...
+}
+```
+
+<a name="creating-a-child-coroutine"></a>
+### Creating a Child Coroutine
+
+You may create a child coroutine using the `go` function:
 
 ```php
 use function Hypervel\Coroutine\go;
 
 go(function () {
     sleep(1);
+
     echo 'In coroutine' . PHP_EOL;
 });
 
 echo 'Hello world!' . PHP_EOL;
 ```
 
-You can create coroutines simply by `go` function. Process will automatically yield out when there's I/O happening in coroutines. And when the I/O result is returned, the process will resume the coroutine and executing the rest of the code.
-
-In the above example, you will get the following result:
-
-```
-Hello world!
-In coroutine
-```
-
-`Hello world!` will be printed first, `In coroutine` will comes out after 1 second. This basic example fully demonstrates how coroutine works.
-
-Besides `go` function, you can also create a coroutine through `Hypervel\Coroutine\Coroutine` class:
+The `go` function returns the created coroutine ID, or `false` if the coroutine could not be created. The `co` function is an alias of `go`:
 
 ```php
-use  Hypervel\Coroutine\Coroutine;
+use function Hypervel\Coroutine\co;
 
-Coroutine::create(function () {
-    sleep(1);
-    echo 'In coroutine' . PHP_EOL;
+$id = co(function () {
+    // ...
 });
-
-echo 'Hello world!' . PHP_EOL;
 ```
 
+You may also create a coroutine directly through the `Coroutine` class. This method returns the coroutine ID, or `-1` if creation failed:
+
+```php
+use Hypervel\Coroutine\Coroutine;
+
+$id = Coroutine::create(function () {
+    // ...
+});
+```
+
+<a name="copying-coroutine-context"></a>
+### Copying Coroutine Context
+
+Child coroutines do not copy the parent coroutine context by default:
+
+```php
+use Hypervel\Context\CoroutineContext;
+
+use function Hypervel\Coroutine\go;
+
+go(function () {
+    CoroutineContext::set('request_id', 'abc');
+
+    go(function () {
+        CoroutineContext::get('request_id'); // null
+    });
+});
+```
+
+Context is copied from the current parent coroutine, such as the coroutine handling an HTTP request, console command, queued job, or test.
+
+If the child coroutine needs the parent context, pass `copyContext: true` to copy all parent context keys:
+
+```php
+go(function () {
+    CoroutineContext::set('request_id', 'abc');
+
+    go(function () {
+        $requestId = CoroutineContext::get('request_id');
+    }, copyContext: true);
+});
+```
+
+You may also copy only specific keys:
+
+```php
+go(function () {
+    CoroutineContext::set('request_id', 'abc');
+    CoroutineContext::set('user_id', 123);
+
+    go(function () {
+        $requestId = CoroutineContext::get('request_id');
+        $userId = CoroutineContext::get('user_id'); // null
+    }, copyContext: ['request_id']);
+});
+```
+
+The `Coroutine::fork` method provides the same behavior when you prefer the class API:
+
+```php
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
+
+use function Hypervel\Coroutine\go;
+
+go(function () {
+    CoroutineContext::set('request_id', 'abc');
+
+    Coroutine::fork(function () {
+        $requestId = CoroutineContext::get('request_id');
+    }, ['request_id']);
+});
+```
+
+When the copied value is an object, the object reference is shared unless the object implements `Hypervel\Context\ReplicableContext`. See the [coroutine context](/docs/{{version}}/coroutine-context) documentation for more information.
+
+<a name="nested-coroutines"></a>
 ### Nested Coroutines
 
-Coroutines can be nested, enabling the creation of coroutines inside others:
+Coroutines may create other coroutines:
 
 ```php
 use function Hypervel\Coroutine\go;
@@ -152,6 +245,7 @@ go(function () {
 
     go(function () {
         sleep(1);
+
         echo 'In nested coroutine' . PHP_EOL;
     });
 
@@ -161,380 +255,546 @@ go(function () {
 echo 'Main process' . PHP_EOL;
 ```
 
-Output will be:
+Each nested coroutine has its own coroutine ID and its own coroutine context. Context values are isolated unless you explicitly copy them into the child coroutine.
 
-```
-Main Process
-In parent coroutine
-Back to parent coroutine
-In nested coroutine
-```
+<a name="error-handling"></a>
+## Error Handling
 
-Each nested coroutine:
-
-* Gets its own coroutine ID
-* Has independent execution flow
-* Has its own context storage (context are separated)
-* Can be created to any depth (within memory constraints)
-
-### Error Handling in Coroutines
-
-The key principle to remember is that a try/catch block should only operate within a single coroutine. Think of a coroutine as an isolated try/catch cannot span across multiple coroutines. This is because coroutines execute independently in their own contexts, separate from where the try/catch is defined, making it impossible to catch exceptions thrown in different coroutines.
-
-#### Wrong Way to Handle Throwables
+A `try` / `catch` block only catches exceptions thrown inside the same coroutine. Calling `go()` creates a new coroutine and returns immediately, so a caller-side `try` / `catch` block will not catch exceptions thrown in the child coroutine:
 
 ```php
 use function Hypervel\Coroutine\go;
 
 try {
     go(function () {
-        throw new \RuntimeException('test');
+        throw new RuntimeException('Unable to process task.');
     });
-} catch (\Throwable $e) {
-    echo $e;
+} catch (Throwable $e) {
+    // This will not run...
 }
 ```
 
-The example above is wrong because it creates a new coroutine context inside the try block. This approach is problematic since any errors occurring within the coroutine won't be caught—the call to `go()` returns immediately and execution continues. Exceptions must be thrown and caught within the same coroutine, not across different ones.
-
-::: info
-It's highly recommended to set `swoole.use_shortname` to `Off` in your `php.ini`. If you didn't turn off `swoole.use_shortname` and use global coroutine functions without the namespace, errors occurring in coroutines will not be reported by exception handler. Unhandled errors will be printed out to the console.
-:::
-
-#### Right Way to Handle Throwables
+Place the `try` / `catch` block inside the coroutine:
 
 ```php
-<?php
-
 use function Hypervel\Coroutine\go;
-
-function test()
-{
-    throw new \RuntimeException('test');
-}
 
 go(function () {
     try {
-        test();
-    } catch (\Throwable $e) {
-        echo $e;
+        throw new RuntimeException('Unable to process task.');
+    } catch (Throwable $e) {
+        report($e);
     }
 });
 ```
 
-The correct example demonstrates how to properly implement error handling by placing the try/catch block entirely within the same coroutine—similar to traditional PHP error handling in a single process. For simplicity, you can conceptualize coroutines as userland threads: they share the same process but maintain separate execution contexts, which is why try/catch blocks cannot work across multiple coroutines.
+If you need to collect results or rethrow child coroutine exceptions in the parent coroutine, use [`parallel`](#running-work-in-parallel) or [`wait`](#the-wait-helper).
 
-In the proper implementation, the coroutine is established first, and the try/catch block operates completely within that coroutine, successfully catching any exceptions that occur. Always ensure your try/catch blocks exist within the same coroutine where potential exceptions might be thrown.
+<a name="reporting-unhandled-exceptions"></a>
+### Reporting Unhandled Exceptions
 
-### Channel
+Unhandled exceptions thrown inside `Coroutine::create`, `go`, `co`, or `Coroutine::fork` are caught and reported through Hypervel's exception handler when one is registered in the container.
 
-Coroutines can be considered as application-level executing units controlled by the process itself. However, how to make coroutines communicate each other? Swoole adapts [CSP (Communicating Sequential Processes)](https://en.wikipedia.org/wiki/Communicating_sequential_processes) for communication in coroutines like in Golang. The core concept of this theory is:
-
-`Do not communicate by sharing memory; instead, share memory by communicating.`
-
-Channels are the implementation of CSP, which provides a way for coroutines to communicate with each other in Swoole.
+You may disable this automatic reporting for the worker process using `enableReportException`:
 
 ```php
-use Hypervel\Coroutine\Channel;
+use Hypervel\Coroutine\Coroutine;
+
+Coroutine::enableReportException(false);
+```
+
+> [!WARNING]
+> `enableReportException` mutates worker-lifetime static state. Configure it during boot or tests only.
+
+<a name="deferred-coroutine-cleanup"></a>
+## Deferred Coroutine Cleanup
+
+The `Coroutine::defer` method schedules a callback to run when the current coroutine exits. Deferred callbacks are useful for releasing resources that belong to a single coroutine:
+
+```php
+use Hypervel\Coroutine\Coroutine;
 
 use function Hypervel\Coroutine\go;
 
-// Create a channel with buffer size 1
+go(function () {
+    Coroutine::defer(function () {
+        echo 'Cleanup 1' . PHP_EOL;
+    });
+
+    Coroutine::defer(function () {
+        echo 'Cleanup 2' . PHP_EOL;
+    });
+
+    echo 'Main logic' . PHP_EOL;
+});
+```
+
+Deferred callbacks run in last-in, first-out order.
+
+If a deferred callback throws an exception, Hypervel catches the throwable and reports it through the exception handler. Add your own `try` / `catch` inside the deferred callback only when you want to handle the exception yourself:
+
+```php
+go(function () {
+    Coroutine::defer(function () {
+        try {
+            // ...
+        } catch (Throwable $e) {
+            report($e);
+        }
+    });
+});
+```
+
+> [!NOTE]
+> `Coroutine::defer()` is different from Hypervel's lifecycle-aware `defer()` helper. The global `defer()` helper runs after a response, command, or queued job lifecycle event. `Coroutine::defer()` runs when the current coroutine exits.
+
+<a name="channels"></a>
+## Channels
+
+Channels allow coroutines to communicate by passing values. Hypervel's channel implementation is available as `Hypervel\Engine\Channel`:
+
+```php
+use Hypervel\Engine\Channel;
+
+use function Hypervel\Coroutine\go;
+
 $channel = new Channel(1);
 
 go(function () use ($channel) {
-    $channel->push('Hello from coroutine!');
+    $channel->push('Hello from a coroutine.');
 });
 
 go(function () use ($channel) {
-    $data = $channel->pop();
-    // Outputs: Hello from coroutine!
-    echo $data;
+    echo $channel->pop();
 });
 ```
 
-Channels can be buffered or unbuffered:
-* Buffered channels (buffer size > 0): Push operations won't block until the buffer is full
-* Unbuffered channels (buffer size = 0): Push operations block until another coroutine pops the data
-
-#### Pub/Sub Pattern
-
-Channels can be conceptualized as an implementation of the publish-subscribe (pub/sub) pattern. In this model:
-
-* **Publishers (producers)**: push data to the channel
-* **Subscribers (consumers)**: receive data from the channel
-
-Here's a practical example of using channels for job processing:
+The channel capacity controls how many values may be buffered. A `push` call waits when the channel is full, and a `pop` call waits when the channel is empty. Both methods accept a timeout in seconds:
 
 ```php
-use Hypervel\Coroutine\Channel;
+$channel->push('value', timeout: 1.0);
 
-use function Hypervel\Coroutine\go;
+$value = $channel->pop(timeout: 1.0);
+```
 
-class JobProcessor
-{
-    public function process(array $jobs)
-    {
-        // Buffer 10 jobs
-        $channel = new Channel(10);
+After a failed operation, you may inspect the channel state:
 
-        // Producer: Send jobs to channel
-        go(function () use ($channel, $jobs) {
-            foreach ($jobs as $job) {
-                $channel->push($job);
-            }
-            // Signal no more jobs
-            $channel->close();
-        });
+```php
+if ($channel->isTimeout()) {
+    // The last operation timed out...
+}
 
-        // Consumer: Process jobs from channel
-        go(function () use ($channel) {
-            while (true) {
-                $job = $channel->pop();
-                // Channel closed
-                if ($job === false) {
-                    break;
-                }
-                // Process job
-                $this->processJob($job);
-            }
-        });
-    }
+if ($channel->isClosing()) {
+    // The channel is closing or closed...
 }
 ```
 
-The publish-subscribe model through channels is particularly useful for event-driven architectures and distributing work among multiple coroutines.
-
-### Defer
-
-The `defer` function allows you to schedule a function to be executed when the current coroutine exits. It's a powerful coroutine feature that ensures certain code executes when a coroutine terminates, regardless of how it terminates (normally or by exception). This is similar to `try-finally` blocks but specific to coroutines.
-
-Key aspects of `defer` are:
-
-* **Guaranteed execution**: The deferred function will run when the coroutine exits, whether through normal completion, cancellation, or an uncaught exception
-* **Resource management**: Ideal for cleaning up resources (closing files, disconnecting from services, etc.)
-* **Last-in, first-out order**: Multiple defers execute in reverse order of their registration (like a stack)
-* **Execution context**: Deferred functions run in the same context as the coroutine
+You may also inspect the channel's capacity, current length, and availability:
 
 ```php
-use function Hypervel\Coroutine\defer;
+$capacity = $channel->getCapacity();
 
-defer(function () {
-    echo 'Cleanup 1' . PHP_EOL;
-});
+$length = $channel->getLength();
 
-defer(function () {
-    echo 'Cleanup 2' . PHP_EOL;
-});
-
-echo 'Main logic'. PHP_EOL;
+$available = $channel->isAvailable();
 ```
 
-The eventual output will be:
-
-```
-Main logic
-Cleanup2
-Cleanup1
-```
-
-Multiple defers are executed in LIFO (Last In, First Out) order.
-
-#### Error handling in Defer
-
-Sometimes exceptions may happen during the defer. In this case you may try to catch exceptions like below:
+You may close a channel using the `close` method:
 
 ```php
-try {
-    defer(function () {
-        throw new Exception('defer error');
-    });
-    echo 'Main logic' . PHP_EOL;
-} catch (Throwable $e) {
-    echo $e->getMessage() . PHP_EOL;
-}
+$channel->close();
 ```
 
-However, it's not going to work in this case. This is because the `defer` function doesn't execute the provided callback immediately. Instead, it schedules the callback to run at the end of the current coroutine. By the time the deferred function executes and throws the exception, the program has already left the try-catch block.
+> [!NOTE]
+> Swoole channels do not support producer / consumer inspection or generic readable / writable checks. Hypervel's `hasProducers`, `hasConsumers`, `isReadable`, and `isWritable` channel methods will throw an exception.
 
-To handle exceptions in deferred functions, you should implement error handling within the deferred function itself:
+<a name="waiting-for-results"></a>
+## Waiting for Results
+
+<a name="the-wait-helper"></a>
+### The wait Helper
+
+The `wait` helper runs a closure inside a new coroutine and waits for its return value:
 
 ```php
-defer(function () {
-    try {
-        // Code that might throw an exception
-        throw new Exception('defer error');
-    } catch (Throwable $e) {
-        echo $e->getMessage() . PHP_EOL;
-    }
+use function Hypervel\Coroutine\wait;
+
+$result = wait(function () {
+    return 'done';
 });
-echo 'Main logic' . PHP_EOL;
 ```
 
-### WaitGroup
+You may pass a timeout in seconds:
 
-WaitGroup is a synchronization primitive that allows one coroutine to wait for the completion of a collection of coroutines. It works like a counter that tracks active coroutines:
+```php
+$result = wait(function () {
+    sleep(1);
 
-This pattern is particularly useful when you need to:
-* Launch a dynamic number of concurrent operations
-* Ensure all operations complete before proceeding
-* Avoid complex channel management for simple synchronization
+    return 'done';
+}, timeout: 2.0);
+```
+
+If no timeout is provided, `wait` will wait up to 10 seconds for the closure to finish.
+
+If the closure throws an exception, the exception is rethrown in the waiting coroutine after deferred cleanup has completed. If the timeout is reached, `Hypervel\Coroutine\Exceptions\WaitTimeoutException` is thrown.
+
+You may also use the `Waiter` class directly:
+
+```php
+use Hypervel\Coroutine\Waiter;
+
+$waiter = new Waiter(timeout: 10.0);
+
+$result = $waiter->wait(function () {
+    return 'done';
+});
+```
+
+<a name="wait-groups"></a>
+### Wait Groups
+
+A `WaitGroup` allows one coroutine to wait until a group of other coroutines finishes:
 
 ```php
 use Hypervel\Coroutine\WaitGroup;
 
 use function Hypervel\Coroutine\go;
 
-$waiter = new WaitGroup();
+$waitGroup = new WaitGroup();
 
-for ($i = 0; $i < 3; $i++) {
-    $waiter->add(1);
-    go(function () use ($waiter, $i) {
-        // Do some work
-        sleep(1);
-        echo "Task {$i} completed\n";
-        $waiter->done();
-    });
-}
+foreach ($jobs as $job) {
+    $waitGroup->add();
 
-// Wait for all coroutines to complete
-$waiter->wait();
-echo "All tasks completed\n";
-```
-
-Here's an example using `WaitGroup` for concurrent data processing in common use cases:
-
-```php
-use Hypervel\Coroutine\WaitGroup;
-
-use function Hypervel\Coroutine\go;
-
-class DataProcessor
-{
-    public function processItems(array $items)
-    {
-        $results = [];
-        $waiter = new WaitGroup();
-
-        foreach ($items as $item) {
-            $waiter->add(1);
-            go(function () use ($waiter, $item, &$results) {
-                try {
-                    $result = $this->processItem($item);
-                    $results[] = [
-                        'item' => $item,
-                        'status' => 'success',
-                        'result' => $result
-                    ];
-                } catch (\Exception $e) {
-                    $results[] = [
-                        'item' => $item,
-                        'status' => 'error',
-                        'error' => $e->getMessage()
-                    ];
-                } finally {
-                    $waiter->done();
-                }
-            });
+    go(function () use ($job, $waitGroup) {
+        try {
+            $job->handle();
+        } finally {
+            $waitGroup->done();
         }
+    });
+}
 
-        $waiter->wait();
-        return $results;
-    }
+$waitGroup->wait();
+```
+
+You may initialize the counter in the constructor:
+
+```php
+$waitGroup = new WaitGroup(count($jobs));
+```
+
+The `wait` method accepts a timeout in seconds and returns `true` when all work completed or `false` when the wait timed out:
+
+```php
+if (! $waitGroup->wait(timeout: 5.0)) {
+    // The wait timed out...
 }
 ```
 
-### Parallel
+You may inspect the current counter using the `count` method:
 
-The `parallel` function provides a convenient way to run multiple tasks concurrently and wait for all of them to complete. You can use `parallel` to replace `WaitGroup` in most cases for more convenient and concise usage:
+```php
+$count = $waitGroup->count();
+```
+
+<a name="barriers"></a>
+### Barriers
+
+A `Barrier` waits until all coroutines that received the barrier have finished:
+
+```php
+use Hypervel\Coroutine\Barrier;
+use Hypervel\Coroutine\Coroutine;
+
+$barrier = Barrier::create();
+
+foreach ($jobs as $job) {
+    // Capturing the barrier allows Barrier::wait() to observe this coroutine.
+    Coroutine::create(function () use ($barrier, $job) {
+        $job->handle();
+    });
+}
+
+Barrier::wait($barrier);
+```
+
+<a name="running-work-in-parallel"></a>
+## Running Work in Parallel
+
+The `parallel` helper runs multiple callbacks concurrently and waits for all of them to finish. Results are returned using the keys from the input array:
 
 ```php
 use function Hypervel\Coroutine\parallel;
 
 $results = parallel([
-    function () {
-        sleep(2);
-        return 'Task 1';
-    },
-    function () {
-        sleep(1);
-        return 'Task 2';
-    }
+    'users' => fn () => countUsers(),
+    'orders' => fn () => countOrders(),
 ]);
+
+$results['users'];
+$results['orders'];
 ```
 
-Results will contain `['Task 1', 'Task 2']`.
+You may limit the number of callbacks that run at the same time using the second argument:
 
-### Concurrent
+```php
+$results = parallel($callbacks, concurrent: 10);
+```
 
-The `concurrent` function allows you to limit the number of concurrent coroutines. This function provides a controlled way to execute multiple coroutines simultaneously while enforcing a maximum concurrency limit. When you have many coroutines that could potentially run at once, using `concurrent` helps you:
+By default, child coroutines receive a fresh context. You may copy all parent context keys or only specific keys using the `copyContext` argument:
 
-1. **Manage resource usage**: Prevent system overload by limiting how many operations happen at once
-2. **Control throughput**: Balance between speed and system stability
-3. **Implement rate limiting**: Useful when working with APIs or services that have request limits
+```php
+$results = parallel($callbacks, copyContext: true);
+
+$results = parallel($callbacks, copyContext: ['request_id']);
+```
+
+If any callback throws an exception, `parallel` waits for every callback to finish and then throws `Hypervel\Coroutine\Exceptions\ParallelExecutionException`. The exception contains the successful results and the throwables captured from failed callbacks:
+
+```php
+use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
+
+try {
+    parallel($callbacks);
+} catch (ParallelExecutionException $e) {
+    $results = $e->getResults();
+
+    $throwables = $e->getThrowables();
+}
+```
+
+<a name="limiting-parallel-work"></a>
+### Limiting Parallel Work
+
+For more control, use the `Parallel` class directly:
+
+```php
+use Hypervel\Coroutine\Parallel;
+
+$parallel = new Parallel(concurrent: 5, copyContext: true);
+
+$parallel->add(fn () => countUsers(), 'users');
+$parallel->add(fn () => countOrders(), 'orders');
+
+$results = $parallel->wait();
+```
+
+The `count` method returns the number of registered callbacks:
+
+```php
+$count = $parallel->count();
+```
+
+The `clear` method removes all registered callbacks, results, and captured throwables:
+
+```php
+$parallel->clear();
+```
+
+<a name="inspecting-parallel-failures"></a>
+### Inspecting Parallel Failures
+
+If you do not want `wait` to throw when one or more callbacks fail, pass `throw: false`:
+
+```php
+$results = $parallel->wait(throw: false);
+
+if ($parallel->hasFailures()) {
+    $throwables = $parallel->getThrowables();
+}
+```
+
+You may retrieve the number of failed callbacks using `failedCount`:
+
+```php
+$failedCount = $parallel->failedCount();
+```
+
+<a name="limiting-concurrent-coroutines"></a>
+## Limiting Concurrent Coroutines
+
+The `Concurrent` class limits how many child coroutines may run at the same time:
 
 ```php
 use Hypervel\Coroutine\Concurrent;
 
-// Process jobs with max 10 concurrent coroutines
 $concurrent = new Concurrent(10);
+
 foreach ($jobs as $job) {
-    // It will block here if there are already 10 jobs handling
-    $concurrent->create(
-        fn () => $job->execute()
-    );
+    $concurrent->create(function () use ($job) {
+        $job->handle();
+    });
 }
 ```
 
-### Context
+When the limit is reached, `create` waits until an existing child coroutine finishes and releases a slot.
 
-One of the most important aspects of coroutines is `context isolation`. Each coroutine has its own independent context, which means context values in one coroutine are completely isolated from other coroutines. This isolation is crucial for maintaining data consistency and preventing unexpected behavior in concurrent applications.
-
-::: note
-This is the main reason why Laravel can't really adopt full coroutines. All states in Laravel's components are stored as variables in objects, when these objects are shared by different coroutines, states will be a mess, then cause unexpected results.
-:::
-
-For example, consider a web application handling multiple requests concurrently:
+You may inspect the current limit and number of running coroutines:
 
 ```php
-use Hypervel\Coroutine\Context;
+$limit = $concurrent->getLimit();
 
-use function Hypervel\Coroutine\go;
+$running = $concurrent->getRunningCoroutineCount();
 
-// Coroutine 1 handling User A's request
-go(function () {
-    Context::set('user', 'User A');
-    sleep(1); // Simulate some processing
-    // Outputs: User A
-    echo 'Coroutine 1: ' . Context::get('user') . PHP_EOL;
-});
+$running = $concurrent->getLength();
 
-// Coroutine 2 handling User B's request
-go(function () {
-    Context::set('user', 'User B');
-    // Outputs: User B
-    echo 'Coroutine 2: ' . Context::get('user') . PHP_EOL;
+$running = $concurrent->length();
+```
+
+The `isFull` and `isEmpty` methods are proxied to the underlying channel:
+
+```php
+if ($concurrent->isFull()) {
+    // The concurrency limit has been reached...
+}
+
+if ($concurrent->isEmpty()) {
+    // No child coroutines are currently running...
+}
+```
+
+You may access the underlying channel using `getChannel`:
+
+```php
+$channel = $concurrent->getChannel();
+```
+
+You may use `fork` instead of `create` when child coroutines should receive a copy of the parent context:
+
+```php
+$concurrent->fork(function () {
+    // ...
+}, ['request_id']);
+```
+
+<a name="waiting-for-limited-coroutines"></a>
+### Waiting for Limited Coroutines
+
+The `WaitConcurrent` class combines concurrency limiting with a `wait` method:
+
+```php
+use Hypervel\Coroutine\WaitConcurrent;
+
+$concurrent = new WaitConcurrent(10);
+
+foreach ($jobs as $job) {
+    $concurrent->create(function () use ($job) {
+        $job->handle();
+    });
+}
+
+$concurrent->wait();
+```
+
+The `wait` method accepts a timeout in seconds and returns `true` when all child coroutines completed or `false` when the wait timed out:
+
+```php
+if (! $concurrent->wait(timeout: 5.0)) {
+    // The wait timed out...
+}
+```
+
+<a name="locks"></a>
+## Locks
+
+<a name="mutexes"></a>
+### Mutexes
+
+The `Mutex` class provides a coroutine-level mutual exclusion lock for a string key:
+
+```php
+use Hypervel\Coroutine\Mutex;
+
+if (Mutex::lock('reports')) {
+    try {
+        // Only one coroutine may run this block for the key...
+    } finally {
+        Mutex::unlock('reports');
+    }
+}
+```
+
+The `lock` and `unlock` methods both accept timeouts in seconds:
+
+```php
+if (! Mutex::lock('reports', timeout: 1.0)) {
+    // The lock could not be acquired...
+}
+
+if (! Mutex::unlock('reports', timeout: 1.0)) {
+    // The lock was not released...
+}
+```
+
+You may close and remove the mutex channel for a key using `clear`:
+
+```php
+Mutex::clear('reports');
+```
+
+<a name="lockers"></a>
+### Lockers
+
+The `Locker` class provides a single-flight style gate. The first coroutine to call `lock` for a key receives `true`; other coroutines wait until the key is unlocked and then receive `false`:
+
+```php
+use Hypervel\Coroutine\Locker;
+
+if (Locker::lock('warm-cache')) {
+    try {
+        rebuildCache();
+    } finally {
+        Locker::unlock('warm-cache');
+    }
+} else {
+    // Another coroutine rebuilt the cache...
+}
+```
+
+<a name="advanced-coroutine-apis"></a>
+## Advanced Coroutine APIs
+
+The `Coroutine` class exposes additional methods for advanced use cases:
+
+```php
+use Hypervel\Coroutine\Coroutine;
+
+Coroutine::sleep(0.1);
+
+$stats = Coroutine::stats();
+
+$exists = Coroutine::exists($id);
+
+$ids = Coroutine::list();
+```
+
+The `afterCreated` method registers a callback that runs after every new coroutine is created:
+
+```php
+Coroutine::afterCreated(function () {
+    // ...
 });
 ```
 
-In this example:
-* Each coroutine maintains its own context
-* Changes to context in one coroutine don't affect other coroutines
-* No need for locks or mutexes to prevent data races
-* Memory is properly isolated between different requests
+> [!WARNING]
+> `afterCreated` registers worker-lifetime static callbacks. Register callbacks during boot or tests only.
 
-This context isolation is particularly important when:
-* Handling multiple HTTP requests simultaneously
-* Processing concurrent database operations
-* Managing user sessions or request-specific data
-* Dealing with authentication or user-specific information
+The `flushState` method clears worker-lifetime coroutine package state:
 
-You can see [Context](/docs/context) for full usages of context.
+```php
+Coroutine::flushState();
+```
 
+> [!WARNING]
+> `flushState` is intended for tests and package cleanup. Calling it during normal request handling clears worker-lifetime coroutine configuration and callbacks for every coroutine in the worker.
+
+<a name="common-pitfalls"></a>
 ## Common Pitfalls
 
-1. **Global State**: Avoid using global variables as they're shared between coroutines
-2. **Resource Handling**: Always close resources properly
-3. **Blocking Operations**: Most of stream-based I/O operations in extensions can be automatically hooked as coroutines by Swoole. But there might be some PHP extensions may block the entire process, like: mongoDB.
+Because Hypervel workers are long-lived and may run many coroutines at the same time, request-specific state should not be stored in global variables, mutable static properties, or shared singleton object properties. Store coroutine-local state in [coroutine context](/docs/{{version}}/coroutine-context) instead.
 
-By following these guidelines and understanding how coroutines work, you can build efficient, concurrent applications with Hypervel.
+Use `Coroutine::defer()` for cleanup that belongs to one coroutine. Use Hypervel's global `defer()` helper for lifecycle-aware callbacks that should run after an HTTP response, console command, or queued job lifecycle event.
+
+Prefer the [Concurrency facade](/docs/{{version}}/concurrency) or the `parallel` helper when the parent coroutine needs results or exceptions from child coroutines. Use `go`, `co`, `Coroutine::create`, or `Concurrent` for fire-and-forget work where errors can be reported instead of rethrown.
+
+Most stream-based I/O operations can be hooked by Swoole and become coroutine-friendly. Some PHP extensions may still block the entire worker process if Swoole cannot hook them. For CPU-bound work or extensions that cannot yield, consider running the work in a separate process.

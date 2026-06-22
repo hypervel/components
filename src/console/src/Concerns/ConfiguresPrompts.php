@@ -6,9 +6,12 @@ namespace Hypervel\Console\Concerns;
 
 use Closure;
 use Hypervel\Console\PromptValidationException;
+use Hypervel\Prompts\AutoCompletePrompt;
 use Hypervel\Prompts\ConfirmPrompt;
+use Hypervel\Prompts\DataTablePrompt;
 use Hypervel\Prompts\MultiSearchPrompt;
 use Hypervel\Prompts\MultiSelectPrompt;
+use Hypervel\Prompts\NumberPrompt;
 use Hypervel\Prompts\PasswordPrompt;
 use Hypervel\Prompts\PausePrompt;
 use Hypervel\Prompts\Prompt;
@@ -17,6 +20,7 @@ use Hypervel\Prompts\SelectPrompt;
 use Hypervel\Prompts\SuggestPrompt;
 use Hypervel\Prompts\TextareaPrompt;
 use Hypervel\Prompts\TextPrompt;
+use Hypervel\Support\Collection;
 use stdClass;
 use Symfony\Component\Console\Input\InputInterface;
 
@@ -45,6 +49,12 @@ trait ConfiguresPrompts
 
         TextareaPrompt::fallbackUsing(fn (TextareaPrompt $prompt) => $this->promptUntilValid(
             fn () => $this->components->ask($prompt->label, $prompt->default ?: null, multiline: true) ?? '',
+            $prompt->required,
+            $prompt->validate
+        ));
+
+        NumberPrompt::fallbackUsing(fn (NumberPrompt $prompt) => $this->promptUntilValid(
+            fn () => $this->numberFallback($prompt),
             $prompt->required,
             $prompt->validate
         ));
@@ -83,8 +93,20 @@ trait ConfiguresPrompts
             $prompt->validate
         ));
 
+        DataTablePrompt::fallbackUsing(fn (DataTablePrompt $prompt) => $this->promptUntilValid(
+            fn () => $this->datatableFallback($prompt),
+            $prompt->required,
+            $prompt->validate
+        ));
+
         SuggestPrompt::fallbackUsing(fn (SuggestPrompt $prompt) => $this->promptUntilValid(
-            fn () => $this->components->askWithCompletion($prompt->label, $prompt->options, $prompt->default ?: null) ?? '',
+            fn () => $this->components->askWithCompletion($prompt->label, $this->completionOptions($prompt->options), $prompt->default ?: null) ?? '',
+            $prompt->required,
+            $prompt->validate
+        ));
+
+        AutoCompletePrompt::fallbackUsing(fn (AutoCompletePrompt $prompt) => $this->promptUntilValid(
+            fn () => $this->components->askWithCompletion($prompt->label, $this->completionOptions($prompt->options), $prompt->default ?: null) ?? '',
             $prompt->required,
             $prompt->validate
         ));
@@ -234,6 +256,16 @@ trait ConfiguresPrompts
     }
 
     /**
+     * Number fallback.
+     */
+    private function numberFallback(NumberPrompt $prompt): int|string
+    {
+        $answer = $this->components->ask($prompt->label, $prompt->default ?: null) ?? '';
+
+        return is_numeric($answer) ? (int) $answer : (string) $answer;
+    }
+
+    /**
      * Select fallback.
      *
      * @param string $label
@@ -288,5 +320,83 @@ trait ConfiguresPrompts
         }
 
         return $answers;
+    }
+
+    /**
+     * Data table fallback.
+     */
+    private function datatableFallback(DataTablePrompt $prompt): mixed
+    {
+        $choices = [];
+        $keysByChoice = [];
+        $position = 1;
+
+        foreach ($prompt->rows as $key => $row) {
+            $choice = $position . ': ' . $this->formatDataTableFallbackRow($prompt->headers, $row);
+
+            $choices[$position] = $choice;
+            $keysByChoice[$position] = $key;
+            ++$position;
+        }
+
+        if ($choices === []) {
+            return '';
+        }
+
+        $answer = $this->components->choice($prompt->label ?: 'Select an option', $choices);
+
+        if (is_array($answer)) {
+            return '';
+        }
+
+        return $keysByChoice[$answer] ?? '';
+    }
+
+    /**
+     * Format a data table row for fallback selection.
+     *
+     * @param array<int, array<int, string>|string> $headers
+     * @param array<int, string> $row
+     */
+    private function formatDataTableFallbackRow(array $headers, array $row): string
+    {
+        $cells = [];
+
+        foreach ($row as $index => $value) {
+            $header = $headers[$index] ?? '';
+            $header = $this->formatDataTableFallbackText(is_array($header) ? implode(' ', $header) : $header);
+            $value = $this->formatDataTableFallbackText($value);
+
+            $cells[] = $header !== '' ? "{$header}: {$value}" : $value;
+        }
+
+        return implode(', ', $cells);
+    }
+
+    /**
+     * Format data table fallback text.
+     */
+    private function formatDataTableFallbackText(string $value): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $value) ?? '');
+    }
+
+    /**
+     * Get completion options for Symfony.
+     *
+     * @param array<string>|Closure(string): (array<string>|Collection<int, string>) $options
+     * @return array<string>|callable(string): array<string>
+     */
+    private function completionOptions(array|Closure $options): array|callable
+    {
+        if (is_array($options)) {
+            return $options;
+        }
+
+        return function (string $value) use ($options): array {
+            $results = $options($value);
+
+            return $results instanceof Collection ? $results->all() : $results;
+        };
     }
 }

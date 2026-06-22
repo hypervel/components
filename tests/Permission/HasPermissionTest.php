@@ -73,6 +73,13 @@ class HasPermissionTest extends PermissionTestCase
         $this->assertCount(1, $this->user->permissions);
     }
 
+    public function testPermissionsRelationshipUsesConfiguredOwnerName()
+    {
+        $this->app->make('config')->set('permission.column_names.owner_name', 'model');
+
+        $this->assertSame('model_type', $this->user->permissions()->getMorphType());
+    }
+
     public function testUserCanBeGivenPermissionById()
     {
         $this->user->givePermissionTo($this->viewPermission->id);

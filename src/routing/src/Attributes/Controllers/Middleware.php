@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Routing\Attributes\Controllers;
 
 use Attribute;
+use Closure;
 
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
 class Middleware
@@ -16,7 +17,7 @@ class Middleware
      * @param null|array<string> $except
      */
     public function __construct(
-        public readonly string $value,
+        public readonly Closure|string $middleware,
         public readonly ?array $only = null,
         public readonly ?array $except = null,
     ) {

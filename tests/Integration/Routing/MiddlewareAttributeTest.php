@@ -25,6 +25,15 @@ class MiddlewareAttributeTest extends RoutingTestCase
             'except-index',
         ], $route->controllerMiddleware());
     }
+
+    public function testAttributeSupportsNamedMiddlewareArgument(): void
+    {
+        $route = Route::get('/', [NamedMiddlewareAttributeController::class, 'index']);
+
+        $this->assertEquals([
+            'named',
+        ], $route->controllerMiddleware());
+    }
 }
 
 #[Middleware('all')]
@@ -39,6 +48,15 @@ class MiddlewareAttributeController
     }
 
     public function show(): void
+    {
+        // ...
+    }
+}
+
+class NamedMiddlewareAttributeController
+{
+    #[Middleware(middleware: 'named')]
+    public function index(): void
     {
         // ...
     }

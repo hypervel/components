@@ -42,16 +42,10 @@ class ConfigTest extends TestCase
         ], $config->getPurgeAttributes());
 
         $this->assertSame([
-            'start' => '/workbench',
-            'user' => 'crynobone@gmail.com',
-            'guard' => null,
             'install' => true,
             'auth' => false,
-            'welcome' => null,
             'health' => null,
             'sync' => [],
-            'build' => [],
-            'assets' => [],
             'discovers' => [
                 'config' => false,
                 'factories' => false,
@@ -100,16 +94,10 @@ class ConfigTest extends TestCase
         ], $config->getPurgeAttributes());
 
         $this->assertSame([
-            'start' => '/',
-            'user' => null,
-            'guard' => null,
             'install' => true,
             'auth' => false,
-            'welcome' => null,
             'health' => null,
             'sync' => [],
-            'build' => [],
-            'assets' => [],
             'discovers' => [
                 'config' => false,
                 'factories' => false,

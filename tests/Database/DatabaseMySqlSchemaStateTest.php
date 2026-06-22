@@ -36,7 +36,7 @@ class DatabaseMySqlSchemaStateTest extends TestCase
         $method = new ReflectionMethod(get_class($schemaState), 'baseVariables');
         $variables = $method->invoke($schemaState, $dbConfig);
 
-        self::assertEquals($expectedVariables, $variables);
+        self::assertSame($expectedVariables, $variables);
     }
 
     public static function provider(): Generator
@@ -55,6 +55,25 @@ class DatabaseMySqlSchemaStateTest extends TestCase
             ], [
                 'username' => 'root',
                 'host' => '127.0.0.1',
+                'database' => 'forge',
+            ],
+        ];
+
+        yield 'integer port' => [
+            ' --user="${:HYPERVEL_LOAD_USER}" --password="${:HYPERVEL_LOAD_PASSWORD}" --host="${:HYPERVEL_LOAD_HOST}" --port="${:HYPERVEL_LOAD_PORT}"', [
+                'HYPERVEL_LOAD_SOCKET' => '',
+                'HYPERVEL_LOAD_HOST' => '127.0.0.1',
+                'HYPERVEL_LOAD_PORT' => '3306',
+                'HYPERVEL_LOAD_USER' => 'root',
+                'HYPERVEL_LOAD_PASSWORD' => '',
+                'HYPERVEL_LOAD_DATABASE' => 'forge',
+                'HYPERVEL_LOAD_SSL_CA' => '',
+                'HYPERVEL_LOAD_SSL_CERT' => '',
+                'HYPERVEL_LOAD_SSL_KEY' => '',
+            ], [
+                'username' => 'root',
+                'host' => '127.0.0.1',
+                'port' => 3306,
                 'database' => 'forge',
             ],
         ];

@@ -50,11 +50,6 @@ class DownCommand extends Command
 
             $this->hypervel->maintenanceMode()->activate($downFilePayload);
 
-            file_put_contents(
-                storage_path('framework/maintenance.php'),
-                file_get_contents(__DIR__ . '/stubs/maintenance-mode.stub')
-            );
-
             $this->hypervel->make('events')->dispatch(new MaintenanceModeEnabled);
 
             $this->reloadWorkers();
@@ -123,7 +118,7 @@ class DownCommand extends Command
     }
 
     /**
-     * Prerender the specified view so that it can be rendered even before loading Composer.
+     * Prerender the specified view for display during maintenance mode.
      */
     protected function prerenderView(): string
     {

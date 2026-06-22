@@ -47,6 +47,13 @@ class HasRoleTest extends PermissionTestCase
         $this->assertCount(1, $this->user->roles);
     }
 
+    public function testRolesRelationshipUsesConfiguredOwnerName()
+    {
+        $this->app->make('config')->set('permission.column_names.owner_name', 'model');
+
+        $this->assertSame('model_type', $this->user->roles()->getMorphType());
+    }
+
     public function testUserCanBeAssignedRoleById()
     {
         $this->user->assignRole($this->adminRole->id);

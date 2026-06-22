@@ -48,6 +48,20 @@ interface Gate
     public function after(callable $callback): static;
 
     /**
+     * Perform an on-demand authorization check. Throw an authorization exception if the condition or callback is false.
+     *
+     * @throws AuthorizationException
+     */
+    public function allowIf(mixed $condition, ?string $message = null, int|string|null $code = null): Response;
+
+    /**
+     * Perform an on-demand authorization check. Throw an authorization exception if the condition or callback is true.
+     *
+     * @throws AuthorizationException
+     */
+    public function denyIf(mixed $condition, ?string $message = null, int|string|null $code = null): Response;
+
+    /**
      * Determine if all of the given abilities should be granted for the current user.
      */
     public function allows(iterable|UnitEnum|string $ability, mixed $arguments = []): bool;
@@ -66,6 +80,11 @@ interface Gate
      * Determine if any one of the given abilities should be granted for the current user.
      */
     public function any(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool;
+
+    /**
+     * Determine if all of the given abilities should be denied for the current user.
+     */
+    public function none(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool;
 
     /**
      * Determine if the given ability should be granted for the current user.

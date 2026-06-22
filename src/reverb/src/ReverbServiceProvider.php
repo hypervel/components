@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Reverb;
 
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\OnPipeMessage;
@@ -274,8 +275,10 @@ class ReverbServiceProvider extends ServiceProvider
             $timer = new Timer;
 
             $timer->tick(60.0, function () {
-                PruneStaleConnections::dispatch();
-                PingInactiveConnections::dispatch();
+                $bus = $this->app->make(BusDispatcher::class);
+
+                $bus->dispatch(new PruneStaleConnections);
+                $bus->dispatch(new PingInactiveConnections);
                 $this->checkTableCapacity();
                 $this->recoverStaleWebhookBatches();
             });

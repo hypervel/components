@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
+use Hypervel\Console\Attributes\Aliases;
 use Hypervel\Console\Attributes\Description;
+use Hypervel\Console\Attributes\Help;
+use Hypervel\Console\Attributes\Hidden;
 use Hypervel\Console\Attributes\Signature;
+use Hypervel\Console\Attributes\Usage;
 use Hypervel\Console\Events\AfterExecute;
 use Hypervel\Console\Events\AfterHandle;
 use Hypervel\Console\Events\BeforeHandle;
@@ -124,6 +128,8 @@ class Command extends SymfonyCommand
             parent::__construct($this->name);
         }
 
+        $this->configureUsageFromAttribute();
+
         $this->addDisableDispatcherOption();
 
         // Once we have constructed the command, we'll set the description and other
@@ -212,6 +218,34 @@ class Command extends SymfonyCommand
 
         if (count($description) > 0) {
             $this->description = $description[0]->newInstance()->description;
+        }
+
+        $help = $reflection->getAttributes(Help::class);
+
+        if (count($help) > 0) {
+            $this->help = $help[0]->newInstance()->help;
+        }
+
+        if (count($reflection->getAttributes(Hidden::class)) > 0) {
+            $this->hidden = true;
+        }
+
+        $aliases = $reflection->getAttributes(Aliases::class);
+
+        if (count($aliases) > 0) {
+            $this->aliases = $aliases[0]->newInstance()->aliases;
+        }
+    }
+
+    /**
+     * Configure usage examples for the command from class attributes.
+     */
+    protected function configureUsageFromAttribute(): void
+    {
+        $reflection = new ReflectionClass($this);
+
+        foreach ($reflection->getAttributes(Usage::class) as $usage) {
+            $this->addUsage($usage->newInstance()->usage);
         }
     }
 

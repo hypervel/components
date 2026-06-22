@@ -8,6 +8,13 @@
 <a href="https://deepwiki.com/hypervel/components"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
+> [!WARNING]
+> This branch contains the ongoing, unreleased work for the Hypervel 0.4 rewrite.
+>
+> Hypervel 0.4 is not ready for use yet. APIs, behavior, configuration, and package internals may change unexpectedly while the rewrite is still in progress.
+>
+> Please do not use this branch for projects until a beta release is tagged. If you are experimenting or testing the rewrite, bug reports and feedback are very welcome.
+
 ## Introduction
 
 > Note: This repository contains the core code of the Hypervel framework. If you want to build an application using Hypervel, visit the [Hypervel repository](https://github.com/hypervel/hypervel).

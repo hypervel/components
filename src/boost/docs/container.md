@@ -120,7 +120,7 @@ Because Hypervel runs inside a long-running Swoole worker, instance lifecycles a
 | Resolve respecting bindings and caching | `make($class)` | Honors `bind()` / `singleton()` / `scoped()`. Auto-singletons unbound concrete classes for the worker's lifetime. |
 | Resolve with parameter overrides | `make($class, $params)` / `makeWith()` | Same as `make()` but contextual parameters bypass all caching. |
 | One instance per worker | `$app->singleton($abstract, ...)` or `#[Singleton]` | Cached for the worker's lifetime. Lives until the worker restarts. |
-| One instance per coroutine (per request / job) | `$app->scoped($abstract, ...)` or `#[Scoped]` | Cached in [CoroutineContext](/docs/{{version}}/context) for the lifetime of the coroutine handling the request or job. |
+| One instance per coroutine (per request / job) | `$app->scoped($abstract, ...)` or `#[Scoped]` | Cached in [CoroutineContext](/docs/{{version}}/coroutine-context) for the lifetime of the coroutine handling the request or job. |
 | Fresh every call by binding | `$app->bind($abstract, ...)` | A new instance every `make()`. |
 | Pre-constructed instance | `$app->instance($abstract, $obj)` | Returns the exact object that was passed, every time. |
 | PSR-11 compliance | `get($id)` / `has($id)` | PSR-11 wrappers around `make()` and `bound()`. |
@@ -160,7 +160,7 @@ $report = $this->app->build(ReportBuilder::class);
 
 Alternatively, mark the class with [`SelfBuilding`](#self-building-classes) and leave it unbound — every `make()` will then call `newInstance` and rebuild the instance from scratch.
 
-The same caution applies to mutating state on a worker-lifetime singleton at runtime — anything you assign to `$this->foo` on a shared instance persists across every request that worker handles. For per-request state that lives on a shared service, use [CoroutineContext](/docs/{{version}}/context) instead of instance properties.
+The same caution applies to mutating state on a worker-lifetime singleton at runtime — anything you assign to `$this->foo` on a shared instance persists across every request that worker handles. For per-request state that lives on a shared service, use [CoroutineContext](/docs/{{version}}/coroutine-context) instead of instance properties.
 
 Framework code that ships with Hypervel — view components, form requests, and so on — already routes through the fresh-instance path when needed, so you only need to think about this for your own classes.
 
@@ -265,7 +265,7 @@ class Transistor
 <a name="binding-scoped"></a>
 #### Binding Scoped Singletons
 
-The `scoped` method binds a class or interface into the container that should only be resolved one time per coroutine. Each HTTP request and each queued job runs in its own coroutine, so a scoped binding behaves like a per-request singleton. The instance is stored in [CoroutineContext](/docs/{{version}}/context) and is automatically discarded when the coroutine ends:
+The `scoped` method binds a class or interface into the container that should only be resolved one time per coroutine. Each HTTP request and each queued job runs in its own coroutine, so a scoped binding behaves like a per-request singleton. The instance is stored in [CoroutineContext](/docs/{{version}}/coroutine-context) and is automatically discarded when the coroutine ends:
 
 ```php
 use App\Services\Transistor;

@@ -188,7 +188,7 @@ class KernelTerminateTest extends TestCase
 
     public function testDurationThresholdWithDateTimeInterface()
     {
-        Carbon::setTestNow(Carbon::now());
+        $this->freezeSecond();
 
         $kernel = $this->app->make(KernelContract::class);
         $kernel->command('foo', fn () => null);
@@ -211,7 +211,7 @@ class KernelTerminateTest extends TestCase
 
     public function testDurationThresholdWithDateTimeInterfaceNotExceeded()
     {
-        Carbon::setTestNow(Carbon::now());
+        $this->freezeSecond();
 
         $kernel = $this->app->make(KernelContract::class);
         $kernel->command('foo', fn () => null);

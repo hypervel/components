@@ -4,6 +4,7 @@
 - [The Basics](#the-basics)
     - [Generating URLs](#generating-urls)
     - [Accessing the Current URL](#accessing-the-current-url)
+    - [Customizing URL Origins](#customizing-url-origins)
 - [URLs for Named Routes](#urls-for-named-routes)
     - [Signed URLs](#signed-urls)
 - [URLs for Controller Actions](#urls-for-controller-actions)
@@ -13,7 +14,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel provides several helpers to assist you in generating URLs for your application. These helpers are primarily helpful when building links in your templates and API responses, or when generating redirect responses to another part of your application.
+Hypervel provides several helpers to assist you in generating URLs for your application. These helpers are primarily helpful when building links in your templates and API responses, or when generating redirect responses to another part of your application.
 
 <a name="the-basics"></a>
 ## The Basics
@@ -34,13 +35,13 @@ echo url("/posts/{$post->id}");
 To generate a URL with query string parameters, you may use the `query` method:
 
 ```php
-echo url()->query('/posts', ['search' => 'Laravel']);
+echo url()->query('/posts', ['search' => 'Hypervel']);
 
-// https://example.com/posts?search=Laravel
+// https://example.com/posts?search=Hypervel
 
-echo url()->query('/posts?sort=latest', ['search' => 'Laravel']);
+echo url()->query('/posts?sort=latest', ['search' => 'Hypervel']);
 
-// http://example.com/posts?sort=latest&search=Laravel
+// http://example.com/posts?sort=latest&search=Hypervel
 ```
 
 Providing query string parameters that already exist in the path will overwrite their existing value:
@@ -66,7 +67,7 @@ echo urldecode($url);
 <a name="accessing-the-current-url"></a>
 ### Accessing the Current URL
 
-If no path is provided to the `url` helper, an `Hypervel\Routing\UrlGenerator` instance is returned, allowing you to access information about the current URL:
+If no path is provided to the `url` helper, a `Hypervel\Routing\UrlGenerator` instance is returned, allowing you to access information about the current URL:
 
 ```php
 // Get the current URL without the query string...
@@ -114,6 +115,31 @@ It is also possible to retrieve the route name for the previously visited URL vi
 ```php
 $previousRoute = $request->session()->previousRoute();
 ```
+
+<a name="customizing-url-origins"></a>
+### Customizing URL Origins
+
+By default, generated URLs use the scheme and host from the current request. If you need to override the origin used for generated URLs during the current request, you may use the `useOrigin` method:
+
+```php
+use Hypervel\Support\Facades\URL;
+
+URL::useOrigin('https://tenant.example.com');
+```
+
+You may force all generated URLs to use a given scheme using the `forceScheme` method:
+
+```php
+URL::forceScheme('https');
+```
+
+If you need to generate asset URLs from a separate origin, such as a CDN, you may use the `useAssetOrigin` method:
+
+```php
+URL::useAssetOrigin('https://cdn.example.com');
+```
+
+The `useOrigin` method is isolated to the current request. The `forceScheme` and `useAssetOrigin` methods configure the URL generator and are typically called from a service provider.
 
 <a name="urls-for-named-routes"></a>
 ## URLs for Named Routes
@@ -166,7 +192,7 @@ echo route('post.show', ['post' => $post]);
 <a name="signed-urls"></a>
 ### Signed URLs
 
-Laravel allows you to easily create "signed" URLs to named routes. These URLs have a "signature" hash appended to the query string which allows Laravel to verify that the URL has not been modified since it was created. Signed URLs are especially useful for routes that are publicly accessible yet need a layer of protection against URL manipulation.
+Hypervel allows you to easily create "signed" URLs to named routes. These URLs have a "signature" hash appended to the query string which allows Hypervel to verify that the URL has not been modified since it was created. Signed URLs are especially useful for routes that are publicly accessible yet need a layer of protection against URL manipulation.
 
 For example, you might use signed URLs to implement a public "unsubscribe" link that is emailed to your customers. To create a signed URL to a named route, use the `signedRoute` method of the `URL` facade:
 
@@ -182,7 +208,7 @@ You may exclude the domain from the signed URL hash by providing the `absolute` 
 return URL::signedRoute('unsubscribe', ['user' => 1], absolute: false);
 ```
 
-If you would like to generate a temporary signed route URL that expires after a specified amount of time, you may use the `temporarySignedRoute` method. When Laravel validates a temporary signed route URL, it will ensure that the expiration timestamp that is encoded into the signed URL has not elapsed:
+If you would like to generate a temporary signed route URL that expires after a specified amount of time, you may use the `temporarySignedRoute` method. When Hypervel validates a temporary signed route URL, it will ensure that the expiration timestamp that is encoded into the signed URL has not elapsed:
 
 ```php
 use Hypervel\Support\Facades\URL;
@@ -217,6 +243,22 @@ if (! $request->hasValidSignatureWhileIgnoring(['page', 'order'])) {
 }
 ```
 
+You may also provide a closure to determine which query parameters should be ignored:
+
+```php
+if (! $request->hasValidSignatureWhileIgnoring(fn (string $parameter) => $parameter === 'page')) {
+    abort(401);
+}
+```
+
+If your signed URLs were generated without the domain in the URL hash, you should validate the request using the `hasValidRelativeSignature` or `hasValidRelativeSignatureWhileIgnoring` methods:
+
+```php
+if (! $request->hasValidRelativeSignature()) {
+    abort(401);
+}
+```
+
 Instead of validating signed URLs using the incoming request instance, you may assign the `signed` (`Hypervel\Routing\Middleware\ValidateSignature`) [middleware](/docs/{{version}}/middleware) to the route. If the incoming request does not have a valid signature, the middleware will automatically return a `403` HTTP response:
 
 ```php
@@ -232,6 +274,34 @@ Route::post('/unsubscribe/{user}', function (Request $request) {
     // ...
 })->name('unsubscribe')->middleware('signed:relative');
 ```
+
+If you prefer class-based middleware definitions, you may use the `absolute` and `relative` methods provided by the `ValidateSignature` middleware:
+
+```php
+use Hypervel\Routing\Middleware\ValidateSignature;
+
+Route::post('/unsubscribe/{user}', function (Request $request) {
+    // ...
+})->name('unsubscribe')->middleware(ValidateSignature::relative());
+```
+
+Both methods accept query parameters that should be ignored when validating the signature:
+
+```php
+Route::post('/unsubscribe/{user}', function (Request $request) {
+    // ...
+})->name('unsubscribe')->middleware(ValidateSignature::absolute(['page', 'order']));
+```
+
+If your application always needs to ignore certain query parameters when validating signed URLs, you may call the `except` method from a service provider:
+
+```php
+use Hypervel\Routing\Middleware\ValidateSignature;
+
+ValidateSignature::except(['page']);
+```
+
+The `except` method stores the ignored parameters for the worker lifetime, so it should be called during application boot, not from request-specific code.
 
 <a name="responding-to-invalid-signed-routes"></a>
 #### Responding to Invalid Signed Routes
@@ -268,7 +338,7 @@ $url = action([UserController::class, 'profile'], ['id' => 1]);
 <a name="fluent-uri-objects"></a>
 ## Fluent URI Objects
 
-Laravel's `Uri` class provides a convenient and fluent interface for creating and manipulating URIs via objects. This class wraps the functionality provided by the underlying League URI package and integrates seamlessly with Laravel's routing system.
+Hypervel's `Uri` class provides a convenient and fluent interface for creating and manipulating URIs via objects. This class wraps the functionality provided by the underlying League URI package and integrates seamlessly with Hypervel's routing system.
 
 You can create a `Uri` instance easily using static methods:
 
@@ -293,6 +363,18 @@ $uri = $request->uri();
 
 // Generate a URI instance from the previous request URL...
 $uri = $request->session()->previousUri();
+```
+
+The `uri` helper may also be used to create fluent URI instances from strings, named routes, or controller actions:
+
+```php
+use App\Http\Controllers\UserController;
+
+$uri = uri('/dashboard');
+
+$uri = uri('users.show', ['user' => 1]);
+
+$uri = uri([UserController::class, 'index']);
 ```
 
 Once you have a URI instance, you can fluently modify it:
@@ -353,7 +435,7 @@ Once the default value for the `locale` parameter has been set, you are no longe
 <a name="url-defaults-middleware-priority"></a>
 #### URL Defaults and Middleware Priority
 
-Setting URL default values can interfere with Laravel's handling of implicit model bindings. Therefore, you should [prioritize your middleware](/docs/{{version}}/middleware#sorting-middleware) that set URL defaults to be executed before Laravel's own `SubstituteBindings` middleware. You can accomplish this using the `priority` middleware method in your application's `bootstrap/app.php` file:
+Setting URL default values can interfere with Hypervel's handling of implicit model bindings. Therefore, you should [prioritize your middleware](/docs/{{version}}/middleware#sorting-middleware) that set URL defaults to be executed before Hypervel's own `SubstituteBindings` middleware. You can accomplish this using the `priority` middleware method in your application's `bootstrap/app.php` file:
 
 ```php
 ->withMiddleware(function (Middleware $middleware): void {

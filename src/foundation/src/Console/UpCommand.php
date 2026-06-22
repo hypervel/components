@@ -36,10 +36,6 @@ class UpCommand extends Command
 
             $this->hypervel->maintenanceMode()->deactivate();
 
-            if (is_file(storage_path('framework/maintenance.php'))) {
-                unlink(storage_path('framework/maintenance.php'));
-            }
-
             $this->hypervel->make('events')->dispatch(new MaintenanceModeDisabled);
 
             $this->reloadWorkers();
