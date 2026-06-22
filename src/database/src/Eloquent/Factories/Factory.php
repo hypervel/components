@@ -9,6 +9,7 @@ use Faker\Generator;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Factories\Attributes\UseModel;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
@@ -18,6 +19,7 @@ use Hypervel\Support\StrCache;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Macroable;
+use ReflectionClass;
 use Throwable;
 use UnitEnum;
 
@@ -119,6 +121,13 @@ abstract class Factory
      * Whether to expand relationships by default.
      */
     protected static bool $expandRelationshipsByDefault = true;
+
+    /**
+     * The cached model class names resolved from attributes.
+     *
+     * @var array<class-string, class-string<TModel>|false>
+     */
+    protected static array $cachedModelAttributes = [];
 
     /**
      * Create a new factory instance.
@@ -811,6 +820,18 @@ abstract class Factory
      */
     public function modelName(): string
     {
+        if (! array_key_exists(static::class, static::$cachedModelAttributes)) {
+            $attribute = (new ReflectionClass($this))->getAttributes(UseModel::class);
+
+            static::$cachedModelAttributes[static::class] = $attribute !== []
+                ? $attribute[0]->newInstance()->class
+                : false;
+        }
+
+        if (static::$cachedModelAttributes[static::class]) {
+            return static::$cachedModelAttributes[static::class];
+        }
+
         if ($this->model !== null) {
             return $this->model;
         }
@@ -967,6 +988,7 @@ abstract class Factory
         static::$factoryNameResolver = null;
         static::$namespace = 'Database\Factories\\';
         static::$expandRelationshipsByDefault = true;
+        static::$cachedModelAttributes = [];
     }
 
     /**

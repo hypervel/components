@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Factories\Attributes\UseModel;
 use Hypervel\Database\Eloquent\Factories\CrossJoinSequence;
 use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
@@ -770,6 +771,22 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertInstanceOf(FactoryTestModelWithUseFactory::class, $models->first());
     }
 
+    public function testUseModelAttributeResolvesModelName(): void
+    {
+        $factory = FactoryTestFactoryWithUseModel::new();
+
+        $this->assertSame(FactoryTestModelWithUseModel::class, $factory->modelName());
+        $this->assertInstanceOf(FactoryTestModelWithUseModel::class, $factory->newModel());
+    }
+
+    public function testUseModelAttributeTakesPrecedenceOverModelProperty(): void
+    {
+        $factory = FactoryTestFactoryWithUseModelAndModelProperty::new();
+
+        $this->assertSame(FactoryTestModelWithUseModel::class, $factory->modelName());
+        $this->assertInstanceOf(FactoryTestModelWithUseModel::class, $factory->newModel());
+    }
+
     public function testStaticFactoryPropertyTakesPrecedenceOverUseFactoryAttribute()
     {
         $factory = FactoryTestModelWithStaticFactoryAndAttribute::factory();
@@ -988,6 +1005,37 @@ class FactoryTestModelWithUseFactory extends Model
 {
     use HasFactory;
 
+    protected ?string $table = 'users';
+
+    protected array $fillable = ['name'];
+}
+
+#[UseModel(FactoryTestModelWithUseModel::class)]
+class FactoryTestFactoryWithUseModel extends Factory
+{
+    public function definition(): array
+    {
+        return [
+            'name' => $this->faker->name(),
+        ];
+    }
+}
+
+#[UseModel(FactoryTestModelWithUseModel::class)]
+class FactoryTestFactoryWithUseModelAndModelProperty extends Factory
+{
+    protected ?string $model = FactoryTestUser::class;
+
+    public function definition(): array
+    {
+        return [
+            'name' => $this->faker->name(),
+        ];
+    }
+}
+
+class FactoryTestModelWithUseModel extends Model
+{
     protected ?string $table = 'users';
 
     protected array $fillable = ['name'];
