@@ -18,5 +18,9 @@ class BladeHelpersTest extends AbstractBladeTestCase
         $this->assertSame('<?php echo app(\'Hypervel\Foundation\Vite\')(\'resources/js/app.js\'); ?>', $this->compiler->compileString('@vite(\'resources/js/app.js\')'));
         $this->assertSame('<?php echo app(\'Hypervel\Foundation\Vite\')([\'resources/js/app.js\']); ?>', $this->compiler->compileString('@vite([\'resources/js/app.js\'])'));
         $this->assertSame('<?php echo app(\'Hypervel\Foundation\Vite\')->reactRefresh(); ?>', $this->compiler->compileString('@viteReactRefresh'));
+        $this->assertSame('<?php echo app(\'Hypervel\Foundation\Vite\')->fonts(); ?>', $this->compiler->compileString('@fonts'));
+        $this->assertSame('<?php echo app(\'Hypervel\Foundation\Vite\')->fonts(); ?>', $this->compiler->compileString('@fonts()'));
+        $this->assertSame('<?php echo app(\'Hypervel\Foundation\Vite\')->fonts([\'Inter\']); ?>', $this->compiler->compileString('@fonts([\'Inter\'])'));
+        $this->assertSame('<?php echo app(\'Hypervel\Foundation\Vite\')->fonts([\'Inter\', \'JetBrains Mono\']); ?>', $this->compiler->compileString('@fonts([\'Inter\', \'JetBrains Mono\'])'));
     }
 }

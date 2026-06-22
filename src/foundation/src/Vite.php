@@ -79,6 +79,16 @@ class Vite implements Htmlable
     protected static array $manifests = [];
 
     /**
+     * The ViteFonts instance.
+     */
+    protected ?ViteFonts $fonts = null;
+
+    /**
+     * The name of the font manifest file.
+     */
+    protected string $fontsManifestFilename = 'fonts-manifest.json';
+
+    /**
      * The prefetching strategy (waterfall or aggressive) to use.
      */
     protected ?string $prefetchStrategy = null;
@@ -847,6 +857,157 @@ class Vite implements Htmlable
     }
 
     /**
+     * Render font preload links and inline styles.
+     *
+     * @param null|list<string>|string $aliases
+     *
+     * @throws ViteException
+     */
+    public function fonts(array|string|null $aliases = null): HtmlString
+    {
+        $isHot = $this->isRunningHot();
+
+        $fonts = $this->viteFonts();
+
+        $manifest = $fonts->manifest($isHot, $this->buildDirectory, $this->fontsManifestFilename, $this->hotFile());
+
+        if ($manifest === null) {
+            return new HtmlString('');
+        }
+
+        $fonts->ensureValidManifest($manifest);
+
+        $preloads = $manifest['preloads'] ?? [];
+
+        if ($aliases !== null) {
+            $aliases = is_string($aliases)
+                ? [$aliases]
+                : $aliases;
+
+            $fonts->ensureValidFamilies($aliases, $manifest);
+
+            $preloads = array_filter($preloads, fn ($preload) => in_array($preload['alias'] ?? null, $aliases, true));
+        }
+
+        $fonts->ensureValidPreloads($preloads, $isHot);
+
+        $preloadsHtml = $this->renderFontPreloads($preloads);
+        $styleHtml = $this->renderFontStyle($manifest, $aliases);
+
+        return new HtmlString(match (true) {
+            $preloadsHtml !== '' && $styleHtml !== '' => $preloadsHtml . "\n" . $styleHtml,
+            default => $preloadsHtml . $styleHtml,
+        });
+    }
+
+    /**
+     * Render preload link tags for font entries.
+     *
+     * @param list<array<string, string>> $preloads
+     */
+    protected function renderFontPreloads(array $preloads): string
+    {
+        $tags = [];
+        $preloadedAssets = $this->preloadedAssets();
+
+        foreach ($preloads as $preload) {
+            $url = $preload['url'] ?? $this->assetPath($this->buildDirectory . '/' . $preload['file']);
+
+            if (isset($preloadedAssets[$url])) {
+                continue;
+            }
+
+            $attributes = $this->resolveFontPreloadAttributes($url, $preload);
+
+            if ($attributes === false) {
+                continue;
+            }
+
+            $preloadedAssets[$url] = $this->parseAttributes(
+                (new Collection($attributes))->forget('href')->all()
+            );
+
+            $tags[] = '<link ' . implode(' ', $this->parseAttributes($attributes)) . ' />';
+        }
+
+        $this->setPreloadedAssets($preloadedAssets);
+
+        return implode("\n", $tags);
+    }
+
+    /**
+     * Resolve the attributes for a font preload tag.
+     *
+     * @param array<string, string> $preload
+     * @return array<string, false|string>|false
+     */
+    protected function resolveFontPreloadAttributes(string $url, array $preload): array|false
+    {
+        $attributes = [
+            'rel' => 'preload',
+            'as' => $preload['as'] ?? 'font',
+            'href' => $url,
+            'type' => $preload['type'] ?? false,
+            'crossorigin' => $preload['crossorigin'] ?? false,
+            'nonce' => $this->cspNonce() ?? false,
+        ];
+
+        foreach ($this->preloadTagAttributesResolvers as $resolver) {
+            if (false === ($resolvedAttributes = $resolver('fonts', $url, [], []))) {
+                return false;
+            }
+
+            $attributes = array_merge($attributes, $resolvedAttributes);
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * Render the inline style block for the font manifest.
+     *
+     * @param array<string, mixed> $manifest
+     * @param null|list<string> $aliases
+     */
+    protected function renderFontStyle(array $manifest, ?array $aliases): string
+    {
+        $css = $this->viteFonts()->resolveStyleContent($manifest, $aliases, $this->buildDirectory);
+
+        if ($css === '') {
+            return '';
+        }
+
+        $attributes = $this->parseAttributes([
+            'nonce' => $this->cspNonce() ?? false,
+        ]);
+
+        $attributeString = $attributes ? ' ' . implode(' ', $attributes) : '';
+
+        return "<style{$attributeString}>\n" . trim($css, "\n") . "\n</style>";
+    }
+
+    /**
+     * Get the ViteFonts instance.
+     */
+    protected function viteFonts(): ViteFonts
+    {
+        return $this->fonts ??= new ViteFonts;
+    }
+
+    /**
+     * Set the font manifest filename.
+     *
+     * Boot-only. The filename is stored on the shared Vite instance and affects
+     * every subsequent font manifest lookup by this worker.
+     */
+    public function useFontsManifestFilename(string $filename): static
+    {
+        $this->fontsManifestFilename = $filename;
+
+        return $this;
+    }
+
+    /**
      * Determine if the HMR server is running.
      */
     public function isRunningHot(): bool
@@ -877,6 +1038,7 @@ class Vite implements Htmlable
         CoroutineContext::forget(static::PRELOADED_ASSETS_CONTEXT_KEY);
 
         static::$manifests = [];
+        ViteFonts::flush();
         static::flushMacros();
     }
 }
