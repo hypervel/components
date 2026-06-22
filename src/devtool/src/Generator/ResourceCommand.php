@@ -38,10 +38,10 @@ class ResourceCommand extends GeneratorCommand
 
     protected function getOptions(): array
     {
-        return [
+        return array_merge(parent::getOptions(), [
             ['namespace', 'N', InputOption::VALUE_OPTIONAL, 'The namespace for class.', null],
             ['force', 'f', InputOption::VALUE_NONE, 'Create the class even if the resource already exists'],
             ['collection', 'c', InputOption::VALUE_NONE, 'Create a resource collection'],
-        ];
+        ]);
     }
 }
