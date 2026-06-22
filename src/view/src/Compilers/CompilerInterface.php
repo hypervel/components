@@ -19,5 +19,5 @@ interface CompilerInterface
     /**
      * Compile the view at the given path.
      */
-    public function compile(string $path): void;
+    public function compile(?string $path = null): void;
 }
