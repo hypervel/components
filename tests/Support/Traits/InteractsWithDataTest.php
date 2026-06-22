@@ -11,7 +11,8 @@ use Hypervel\Foundation\Application;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\InteractsWithData;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
+use TypeError;
 
 enum InteractsWithDataTestStringEnum: string
 {
@@ -190,6 +191,71 @@ class InteractsWithDataTest extends TestCase
         $interval = $instance->interval('integer', Unit::Minute);
         $this->assertInstanceOf(CarbonInterval::class, $interval);
         $this->assertSame(90, $interval->minutes);
+    }
+
+    public function testWhenEnumMethod(): void
+    {
+        $instance = new TestInteractsWithDataClass([
+            'timezone' => 'America/New_York',
+            'number' => '1',
+            'invalid' => 'abc',
+            'empty' => '',
+        ]);
+
+        $timezone = $number = $invalid = $empty = $missing = $default = false;
+
+        $instance->whenEnum('timezone', InteractsWithDataTestStringEnum::class, function (InteractsWithDataTestStringEnum $value) use (&$timezone): void {
+            $timezone = $value;
+        });
+
+        $instance->whenEnum('number', InteractsWithDataTestIntEnum::class, function (InteractsWithDataTestIntEnum $value) use (&$number): void {
+            $number = $value;
+        });
+
+        $instance->whenEnum('invalid', InteractsWithDataTestIntEnum::class, function (InteractsWithDataTestIntEnum $value) use (&$invalid): void {
+            $invalid = $value;
+        });
+
+        $instance->whenEnum('empty', InteractsWithDataTestIntEnum::class, function (InteractsWithDataTestIntEnum $value) use (&$empty): void {
+            $empty = $value;
+        });
+
+        $instance->whenEnum('missing', InteractsWithDataTestIntEnum::class, function (InteractsWithDataTestIntEnum $value) use (&$missing): void {
+            $missing = $value;
+        }, function () use (&$default): void {
+            $default = true;
+        });
+
+        $this->assertSame(InteractsWithDataTestStringEnum::NewYork, $timezone);
+        $this->assertSame(InteractsWithDataTestIntEnum::One, $number);
+        $this->assertFalse($invalid);
+        $this->assertFalse($empty);
+        $this->assertFalse($missing);
+        $this->assertTrue($default);
+    }
+
+    public function testClampMethod(): void
+    {
+        $instance = new TestInteractsWithDataClass([
+            'per_page' => '100',
+            'float' => '9.24',
+        ]);
+
+        $this->assertSame(100, $instance->clamp('per_page', 100, 101));
+        $this->assertSame(10, $instance->clamp('per_page', -10, 10));
+        $this->assertSame(25, $instance->clamp('per_page_2', 25, 100, 1));
+        $this->assertSame(100, $instance->clamp('per_page', 1, 250, 99));
+        $this->assertSame(22.4, $instance->clamp('per_page', 1.11, 22.4, 2));
+        $this->assertSame(9.24, $instance->clamp('float', 1, 10));
+    }
+
+    public function testClampMethodRejectsNonNumericValues(): void
+    {
+        $instance = new TestInteractsWithDataClass(['per_page' => 'abc']);
+
+        $this->expectException(TypeError::class);
+
+        $instance->clamp('per_page', 1, 100);
     }
 }
 

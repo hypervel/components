@@ -397,6 +397,15 @@ To retrieve input values as integers, you may use the `integer` method. This met
 $perPage = $request->integer('per_page');
 ```
 
+<a name="retrieving-clamped-input-values"></a>
+#### Retrieving Clamped Input Values
+
+To retrieve a numeric input value constrained between a minimum and maximum value, you may use the `clamp` method. If the input is not present, the default value you specify will be clamped instead:
+
+```php
+$perPage = $request->clamp('per_page', min: 1, max: 100, default: 15);
+```
+
 <a name="retrieving-boolean-input-values"></a>
 #### Retrieving Boolean Input Values
 
@@ -599,6 +608,26 @@ $request->whenFilled('name', function (string $input) {
     // The "name" value is filled...
 }, function () {
     // The "name" value is not filled...
+});
+```
+
+The `whenEnum` method will execute the given closure if a value is present on the request and corresponds to a valid backed enum case:
+
+```php
+use App\Enums\Status;
+
+$request->whenEnum('status', Status::class, function (Status $status) {
+    // ...
+});
+```
+
+A second closure may be passed to the `whenEnum` method that will be executed if the specified value is missing, empty, or invalid:
+
+```php
+$request->whenEnum('status', Status::class, function (Status $status) {
+    // The "status" value is a valid enum case...
+}, function () {
+    // The "status" value is missing, empty, or invalid...
 });
 ```
 

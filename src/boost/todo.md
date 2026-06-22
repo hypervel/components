@@ -14,7 +14,6 @@
 
 ## Blade
 
-- Bring `Hypervel\View\ComponentAttributeBag` closer to Laravel by implementing `Hypervel\Contracts\Support\Arrayable`, adding `toArray()`, supporting `all($keys = null)`, and using `Hypervel\Support\Traits\InteractsWithData`. Laravel exposes typed attribute access helpers through this trait; Hypervel's attribute bag currently lacks that API surface.
 - Fix `CompilesComponents::compileProps()` helper variable cleanup. Laravel unsets `$__defined_vars`, `$__key`, and `$__value`; Hypervel currently only unsets `$__defined_vars`, so the generated component template can leak internal helper variables into scope.
 
 ## Boost
