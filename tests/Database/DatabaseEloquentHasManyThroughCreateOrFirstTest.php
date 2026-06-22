@@ -75,7 +75,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "laravel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
                 [123, 'foo'],
                 true,
                 [],
@@ -83,7 +83,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             ->andReturn([[
                 'id' => 789,
                 'pivot_id' => 456,
-                'laravel_through_key' => 123,
+                'hypervel_through_key' => 123,
                 'attr' => 'foo',
                 'val' => 'bar',
                 'created_at' => '2023-01-01 00:00:00',
@@ -95,7 +95,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $this->assertEquals([
             'id' => 789,
             'pivot_id' => 456,
-            'laravel_through_key' => 123,
+            'hypervel_through_key' => 123,
             'attr' => 'foo',
             'val' => 'bar',
             'created_at' => '2023-01-01T00:00:00.000000Z',
@@ -115,7 +115,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "laravel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
                 [123, 'foo'],
                 true,
                 [],
@@ -150,7 +150,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "laravel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
                 [123, 'foo'],
                 true,
                 [],
@@ -158,7 +158,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             ->andReturn([[
                 'id' => 789,
                 'pivot_id' => 456,
-                'laravel_through_key' => 123,
+                'hypervel_through_key' => 123,
                 'attr' => 'foo',
                 'val' => 'bar',
                 'created_at' => '2023-01-01 00:00:00',
@@ -170,7 +170,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $this->assertEquals([
             'id' => 789,
             'pivot_id' => 456,
-            'laravel_through_key' => 123,
+            'hypervel_through_key' => 123,
             'attr' => 'foo',
             'val' => 'bar',
             'created_at' => '2023-01-01T00:00:00.000000Z',
@@ -190,7 +190,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "laravel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
                 [123, 'foo'],
                 true,
                 [],
@@ -208,7 +208,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "laravel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ? and "val" = ?) limit 1',
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ? and "val" = ?) limit 1',
                 [123, 'foo', 'bar'],
                 true,
                 [],
@@ -216,7 +216,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             ->andReturn([[
                 'id' => 789,
                 'pivot_id' => 456,
-                'laravel_through_key' => 123,
+                'hypervel_through_key' => 123,
                 'attr' => 'foo',
                 'val' => 'bar',
                 'created_at' => '2023-01-01T00:00:00.000000Z',
@@ -228,7 +228,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $this->assertEquals([
             'id' => 789,
             'pivot_id' => 456,
-            'laravel_through_key' => 123,
+            'hypervel_through_key' => 123,
             'attr' => 'foo',
             'val' => 'bar',
             'created_at' => '2023-01-01T00:00:00.000000Z',
@@ -248,7 +248,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "laravel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
                 [123, 'foo'],
                 true,
                 [],
@@ -286,7 +286,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "laravel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
                 [123, 'foo'],
                 true,
                 [],
@@ -294,7 +294,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             ->andReturn([[
                 'id' => 789,
                 'pivot_id' => 456,
-                'laravel_through_key' => 123,
+                'hypervel_through_key' => 123,
                 'attr' => 'foo',
                 'val' => 'bar',
                 'created_at' => '2023-01-01T00:00:00.000000Z',
@@ -314,7 +314,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $this->assertEquals([
             'id' => 789,
             'pivot_id' => 456,
-            'laravel_through_key' => 123,
+            'hypervel_through_key' => 123,
             'attr' => 'foo',
             'val' => 'baz',
             'created_at' => '2023-01-01T00:00:00.000000Z',
@@ -334,7 +334,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "laravel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ?) limit 1',
                 [123, 'foo'],
                 true,
                 [],
@@ -352,7 +352,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $parent->getConnection()
             ->expects('select')
             ->with(
-                'select "child".*, "pivot"."parent_id" as "laravel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ? and "val" = ?) limit 1',
+                'select "child".*, "pivot"."parent_id" as "hypervel_through_key" from "child" inner join "pivot" on "pivot"."id" = "child"."pivot_id" where "pivot"."parent_id" = ? and ("attr" = ? and "val" = ?) limit 1',
                 [123, 'foo', 'bar'],
                 true,
                 [],
@@ -360,7 +360,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
             ->andReturn([[
                 'id' => 789,
                 'pivot_id' => 456,
-                'laravel_through_key' => 123,
+                'hypervel_through_key' => 123,
                 'attr' => 'foo',
                 'val' => 'bar',
                 'created_at' => '2023-01-01T00:00:00.000000Z',
@@ -372,7 +372,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
         $this->assertEquals([
             'id' => 789,
             'pivot_id' => 456,
-            'laravel_through_key' => 123,
+            'hypervel_through_key' => 123,
             'attr' => 'foo',
             'val' => 'bar',
             'created_at' => '2023-01-01T00:00:00.000000Z',

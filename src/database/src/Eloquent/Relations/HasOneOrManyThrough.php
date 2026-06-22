@@ -175,9 +175,9 @@ abstract class HasOneOrManyThrough extends Relation
         // models without having to do nested looping which will be quite slow.
         foreach ($results as $key => $result) {
             if ($isAssociative) {
-                $dictionary[$result->laravel_through_key][$key] = $result; // @phpstan-ignore property.notFound
+                $dictionary[$result->hypervel_through_key][$key] = $result; // @phpstan-ignore property.notFound
             } else {
-                $dictionary[$result->laravel_through_key][] = $result; // @phpstan-ignore property.notFound
+                $dictionary[$result->hypervel_through_key][] = $result; // @phpstan-ignore property.notFound
             }
         }
 
@@ -480,7 +480,7 @@ abstract class HasOneOrManyThrough extends Relation
             $columns = [$this->related->qualifyColumn('*')];
         }
 
-        return array_merge($columns, [$this->getQualifiedFirstKeyName() . ' as laravel_through_key']);
+        return array_merge($columns, [$this->getQualifiedFirstKeyName() . ' as hypervel_through_key']);
     }
 
     /**
@@ -700,7 +700,7 @@ abstract class HasOneOrManyThrough extends Relation
             $grammar = $this->query->getQuery()->getGrammar();
 
             if ($grammar instanceof MySqlGrammar && $grammar->useLegacyGroupLimit($this->query->getQuery())) {
-                $column = 'laravel_through_key';
+                $column = 'hypervel_through_key';
             }
 
             $this->query->groupLimit($value, $column);

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Concerns;
 
 use Closure;
+use Hypervel\Database\Eloquent\Attributes\Hidden;
+use Hypervel\Database\Eloquent\Attributes\Initialize;
+use Hypervel\Database\Eloquent\Attributes\Visible;
 
 trait HidesAttributes
 {
@@ -21,6 +24,16 @@ trait HidesAttributes
      * @var array<int, string>
      */
     protected array $visible = [];
+
+    /**
+     * Initialize the HidesAttributes trait.
+     */
+    #[Initialize]
+    public function initializeHidesAttributes(): void
+    {
+        $this->mergeHidden(static::resolveClassAttribute(Hidden::class, 'columns') ?? []);
+        $this->mergeVisible(static::resolveClassAttribute(Visible::class, 'columns') ?? []);
+    }
 
     /**
      * Get the hidden attributes for the model.
@@ -53,6 +66,10 @@ trait HidesAttributes
      */
     public function mergeHidden(array $hidden): static
     {
+        if ($hidden === []) {
+            return $this;
+        }
+
         $this->hidden = array_values(array_unique(array_merge($this->hidden, $hidden)));
 
         return $this;
@@ -89,6 +106,10 @@ trait HidesAttributes
      */
     public function mergeVisible(array $visible): static
     {
+        if ($visible === []) {
+            return $this;
+        }
+
         $this->visible = array_values(array_unique(array_merge($this->visible, $visible)));
 
         return $this;

@@ -15,6 +15,10 @@ use DateTimeInterface;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Attributes\Appends;
+use Hypervel\Database\Eloquent\Attributes\DateFormat;
+use Hypervel\Database\Eloquent\Attributes\Initialize;
+use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
@@ -201,11 +205,22 @@ trait HasAttributes
     /**
      * Initialize the trait.
      */
+    #[Initialize]
     protected function initializeHasAttributes(): void
     {
         $this->casts = $this->ensureCastsAreStringValues(
             array_merge($this->casts, $this->casts()),
         );
+
+        /** @var null|string $dateFormat */
+        $dateFormat = static::resolveClassAttribute(DateFormat::class, 'format');
+
+        /** @var null|Table $table */
+        $table = static::resolveClassAttribute(Table::class);
+
+        $this->dateFormat ??= $dateFormat ?? $table?->dateFormat;
+
+        $this->mergeAppends(static::resolveClassAttribute(Appends::class, 'columns') ?? []);
 
         $this->flushCastCaches();
     }
@@ -2225,6 +2240,10 @@ trait HasAttributes
      */
     public function mergeAppends(array $appends): static
     {
+        if ($appends === []) {
+            return $this;
+        }
+
         $this->appends = array_values(array_unique(array_merge($this->appends, $appends)));
 
         return $this;
