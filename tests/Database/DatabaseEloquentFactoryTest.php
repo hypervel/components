@@ -751,6 +751,22 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(2, $post->comments);
     }
 
+    public function testDynamicHasMethodsWithMultipleArrays(): void
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model . 'Factory';
+        });
+
+        $user = UserFactory::new()
+            ->hasPosts(['title' => 'First Post'], ['title' => 'Second Post'], ['title' => 'Third Post'])
+            ->create();
+
+        $this->assertCount(3, $user->posts);
+        $this->assertSame('First Post', $user->posts[0]->title);
+        $this->assertSame('Second Post', $user->posts[1]->title);
+        $this->assertSame('Third Post', $user->posts[2]->title);
+    }
+
     public function testCanBeMacroable()
     {
         $factory = UserFactory::new();

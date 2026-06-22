@@ -1024,6 +1024,10 @@ abstract class Factory
             return $this->for($factory->state($parameters[0] ?? []), $relationship);
         }
 
+        if (count($parameters) > 1 && array_all($parameters, fn ($parameter) => is_array($parameter))) {
+            return $this->has($factory->forEachSequence(...$parameters), $relationship);
+        }
+
         return $this->has(
             $factory
                 ->count(is_numeric($parameters[0] ?? null) ? $parameters[0] : 1)
