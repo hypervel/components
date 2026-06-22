@@ -334,6 +334,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param mixed $operator
      * @param mixed $value
      */
+    #[Override]
     public function contains($key, $operator = null, $value = null): bool
     {
         if (func_num_args() > 1 || $this->useAsCallable($key)) {
@@ -354,6 +355,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param mixed $operator
      * @param mixed $value
      */
+    #[Override]
     public function doesntContain($key, $operator = null, $value = null): bool
     {
         return ! $this->contains(...func_get_args());
@@ -375,6 +377,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param iterable<array-key, TModel> $items
      * @return static<int, TModel>
      */
+    #[Override]
     public function merge($items): static
     {
         $dictionary = $this->getDictionary();
@@ -394,6 +397,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param callable(TModel, TKey): TMapValue $callback
      * @return \Hypervel\Support\Collection<TKey, TMapValue>|static<TKey, TMapValue>
      */
+    #[Override]
     public function map(callable $callback)
     {
         $result = parent::map($callback);
@@ -413,6 +417,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param callable(TModel, TKey): array<TMapWithKeysKey, TMapWithKeysValue> $callback
      * @return \Hypervel\Support\Collection<TMapWithKeysKey, TMapWithKeysValue>|static<TMapWithKeysKey, TMapWithKeysValue>
      */
+    #[Override]
     public function mapWithKeys(callable $callback)
     {
         $result = parent::mapWithKeys($callback);
@@ -450,6 +455,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param iterable<array-key, TModel> $items
      */
+    #[Override]
     public function diff($items): static
     {
         $diff = $this->newInstance();
@@ -470,6 +476,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param iterable<array-key, TModel> $items
      */
+    #[Override]
     public function intersect(mixed $items): static
     {
         $intersect = $this->newInstance();
@@ -494,6 +501,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param null|(callable(TModel, TKey): mixed)|string $key
      */
+    #[Override]
     public function unique(mixed $key = null, bool $strict = false): static
     {
         if (! is_null($key)) {
@@ -508,6 +516,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param null|array<array-key, mixed> $keys
      */
+    #[Override]
     public function only($keys): static
     {
         if (is_null($keys)) {
@@ -524,6 +533,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param null|array<array-key, mixed> $keys
      */
+    #[Override]
     public function except($keys): static
     {
         if (is_null($keys)) {
@@ -746,6 +756,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @return callable(TModel, TModel): bool
      */
+    #[Override]
     protected function duplicateComparator(bool $strict): callable
     {
         return fn ($a, $b) => $a->is($b);
