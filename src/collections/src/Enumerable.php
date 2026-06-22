@@ -860,8 +860,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Chunk the collection into chunks with a callback.
      *
-     * @param callable(TValue, TKey, static<int, TValue>): bool $callback
-     * @return static<int, static<int, TValue>>
+     * @param callable(TValue, TKey, Collection<TKey, TValue>): bool $callback
+     * @return static<int, static<TKey, TValue>>
      */
     public function chunkWhile(callable $callback): static;
 

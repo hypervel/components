@@ -122,9 +122,9 @@ trait EnumeratesValues
      * @param null|Arrayable<TMakeKey, TMakeValue>|iterable<TMakeKey, TMakeValue> $items
      * @return static<TMakeKey, TMakeValue>
      */
-    public static function make(mixed $items = []): static
+    public static function make(mixed $items = [], mixed ...$args): static
     {
-        return new static($items);
+        return new static($items, ...$args);
     }
 
     /**
@@ -135,11 +135,11 @@ trait EnumeratesValues
      * @param iterable<array-key, TWrapValue>|TWrapValue $value
      * @return static<array-key, TWrapValue>
      */
-    public static function wrap(mixed $value): static
+    public static function wrap(mixed $value, mixed ...$args): static
     {
         return $value instanceof Enumerable
-            ? new static($value)
-            : new static(Arr::wrap($value));
+            ? new static($value, ...$args)
+            : new static(Arr::wrap($value), ...$args);
     }
 
     /**
@@ -159,9 +159,9 @@ trait EnumeratesValues
     /**
      * Create a new instance with no items.
      */
-    public static function empty(): static
+    public static function empty(mixed ...$args): static
     {
-        return new static([]);
+        return new static([], ...$args);
     }
 
     /**
@@ -172,14 +172,14 @@ trait EnumeratesValues
      * @param null|(callable(int): TTimesValue) $callback
      * @return static<int, TTimesValue>
      */
-    public static function times(int $number, ?callable $callback = null): static
+    public static function times(int $number, ?callable $callback = null, mixed ...$args): static
     {
         if ($number < 1) {
-            return new static;
+            return new static([], ...$args);
         }
 
-        return static::range(1, $number)
-            ->unless($callback == null)
+        return static::range(1, $number, 1, ...$args)
+            ->unless($callback === null)
             ->map($callback);
     }
 
@@ -188,9 +188,9 @@ trait EnumeratesValues
      *
      * @return static<TKey, TValue>
      */
-    public static function fromJson(string $json, int $depth = 512, int $flags = 0): static
+    public static function fromJson(string $json, int $depth = 512, int $flags = 0, mixed ...$args): static
     {
-        return new static(json_decode($json, true, $depth, $flags));
+        return new static(json_decode($json, true, $depth, $flags), ...$args);
     }
 
     /**
@@ -517,7 +517,7 @@ trait EnumeratesValues
         [$passed, $failed] = Arr::partition($this->getIterator(), $callback);
 
         // @phpstan-ignore return.type (returns exactly 2 elements with keys 0,1 but PHPStan infers int)
-        return new static([new static($passed), new static($failed)]);
+        return $this->newInstance([$this->newInstance($passed), $this->newInstance($failed)]);
     }
 
     /**

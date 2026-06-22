@@ -6046,6 +6046,223 @@ class SupportCollectionTest extends TestCase
             [LazyCollection::class],
         ];
     }
+
+    public function testNewInstanceIsUsedByCollectionMethods(): void
+    {
+        $collection = new TestCollectionWithExtraState([1, 2, 3, 4, 5], 'my-tag');
+
+        $filtered = $collection->filter(fn ($value) => $value > 3);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $filtered);
+        $this->assertSame('my-tag', $filtered->tag);
+        $this->assertSame([3 => 4, 4 => 5], $filtered->all());
+
+        $empty = $collection->filter(fn ($value) => $value > 100);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $empty);
+        $this->assertSame('my-tag', $empty->tag);
+        $this->assertEmpty($empty->all());
+
+        $rejected = $collection->reject(fn ($value) => $value <= 2);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $rejected);
+        $this->assertSame('my-tag', $rejected->tag);
+
+        $mapped = $collection->map(fn ($value) => $value * 2);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $mapped);
+        $this->assertSame('my-tag', $mapped->tag);
+        $this->assertSame([2, 4, 6, 8, 10], $mapped->all());
+
+        $values = $filtered->values();
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $values);
+        $this->assertSame('my-tag', $values->tag);
+
+        $duped = new TestCollectionWithExtraState([1, 1, 2, 2, 3], 'u-tag');
+        $unique = $duped->unique();
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $unique);
+        $this->assertSame('u-tag', $unique->tag);
+
+        $keys = $collection->keys();
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $keys);
+        $this->assertSame('my-tag', $keys->tag);
+
+        $sorted = $collection->sort();
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $sorted);
+        $this->assertSame('my-tag', $sorted->tag);
+
+        $sliced = $collection->slice(1, 2);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $sliced);
+        $this->assertSame('my-tag', $sliced->tag);
+
+        $chunks = $collection->chunk(2);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $chunks);
+        $this->assertSame('my-tag', $chunks->tag);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $chunks->first());
+        $this->assertSame('my-tag', $chunks->first()->tag);
+
+        $chunkWhile = $collection->chunkWhile(function ($value, $key, TestCollectionWithExtraState $chunk) {
+            $this->assertSame('my-tag', $chunk->tag);
+
+            return $value < 4;
+        });
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $chunkWhile);
+        $this->assertSame('my-tag', $chunkWhile->tag);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $chunkWhile->first());
+        $this->assertSame('my-tag', $chunkWhile->first()->tag);
+
+        $merged = $collection->merge([6, 7]);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $merged);
+        $this->assertSame('my-tag', $merged->tag);
+
+        $diff = $collection->diff([1, 2]);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $diff);
+        $this->assertSame('my-tag', $diff->tag);
+
+        [$pass, $fail] = $collection->partition(fn ($value) => $value > 3);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $pass);
+        $this->assertSame('my-tag', $pass->tag);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $fail);
+        $this->assertSame('my-tag', $fail->tag);
+
+        $assoc = new TestCollectionWithExtraState([
+            ['name' => 'Taylor'], ['name' => 'Nuno'],
+        ], 'p-tag');
+        $plucked = $assoc->pluck('name');
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $plucked);
+        $this->assertSame('p-tag', $plucked->tag);
+
+        $reversed = $collection->reverse();
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $reversed);
+        $this->assertSame('my-tag', $reversed->tag);
+
+        $nested = new TestCollectionWithExtraState([[1, 2], [3, 4]], 'f-tag');
+        $flat = $nested->flatten();
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $flat);
+        $this->assertSame('f-tag', $flat->tag);
+
+        $padded = $collection->pad(7, 0);
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $padded);
+        $this->assertSame('my-tag', $padded->tag);
+    }
+
+    public function testStaticFactoryMethodsForwardExtraArguments(): void
+    {
+        $made = TestCollectionWithExtraState::make([1, 2, 3], 'make-tag');
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $made);
+        $this->assertSame('make-tag', $made->tag);
+        $this->assertSame([1, 2, 3], $made->all());
+
+        $wrapped = TestCollectionWithExtraState::wrap([4, 5], 'wrap-tag');
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $wrapped);
+        $this->assertSame('wrap-tag', $wrapped->tag);
+        $this->assertSame([4, 5], $wrapped->all());
+
+        $empty = TestCollectionWithExtraState::empty('empty-tag');
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $empty);
+        $this->assertSame('empty-tag', $empty->tag);
+        $this->assertEmpty($empty->all());
+
+        $range = TestCollectionWithExtraState::range(1, 3, 1, 'range-tag');
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $range);
+        $this->assertSame('range-tag', $range->tag);
+        $this->assertSame([1, 2, 3], $range->all());
+
+        $times = TestCollectionWithExtraState::times(3, fn ($number) => $number * 10, 'times-tag');
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $times);
+        $this->assertSame('times-tag', $times->tag);
+        $this->assertSame([10, 20, 30], $times->all());
+
+        $timesZero = TestCollectionWithExtraState::times(0, null, 'zero-tag');
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $timesZero);
+        $this->assertSame('zero-tag', $timesZero->tag);
+        $this->assertEmpty($timesZero->all());
+
+        $json = TestCollectionWithExtraState::fromJson('["a","b"]', 512, 0, 'json-tag');
+        $this->assertInstanceOf(TestCollectionWithExtraState::class, $json);
+        $this->assertSame('json-tag', $json->tag);
+        $this->assertSame(['a', 'b'], $json->all());
+    }
+
+    public function testToBaseReturnsBaseCollection(): void
+    {
+        $collection = new TestCollectionWithExtraState([1, 2, 3], 'base-tag');
+
+        $base = $collection->toBase();
+
+        $this->assertInstanceOf(Collection::class, $base);
+        $this->assertNotInstanceOf(TestCollectionWithExtraState::class, $base);
+        $this->assertSame([1, 2, 3], $base->all());
+    }
+
+    public function testNewInstanceIsUsedByLazyCollectionMethods(): void
+    {
+        $collection = new TestLazyCollectionWithExtraState([1, 2, 3, 4, 5], 'lazy-tag');
+
+        $mapped = $collection->map(fn ($value) => $value * 2);
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $mapped);
+        $this->assertSame('lazy-tag', $mapped->tag);
+        $this->assertSame([2, 4, 6, 8, 10], $mapped->all());
+
+        $filtered = $collection->filter(fn ($value) => $value > 3);
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $filtered);
+        $this->assertSame('lazy-tag', $filtered->tag);
+        $this->assertSame([3 => 4, 4 => 5], $filtered->all());
+
+        $values = $filtered->values();
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $values);
+        $this->assertSame('lazy-tag', $values->tag);
+        $this->assertSame([4, 5], $values->all());
+
+        $chunks = $collection->chunk(2);
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $chunks);
+        $this->assertSame('lazy-tag', $chunks->tag);
+
+        $firstChunk = $chunks->first();
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $firstChunk);
+        $this->assertSame('lazy-tag', $firstChunk->tag);
+        $this->assertSame([1, 2], $firstChunk->all());
+
+        $chunkWhile = $collection->chunkWhile(function ($value, $key, Collection $chunk) {
+            $this->assertNotInstanceOf(TestLazyCollectionWithExtraState::class, $chunk);
+
+            return $value < 4;
+        });
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $chunkWhile);
+        $this->assertSame('lazy-tag', $chunkWhile->tag);
+
+        $firstChunkWhile = $chunkWhile->first();
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $firstChunkWhile);
+        $this->assertSame('lazy-tag', $firstChunkWhile->tag);
+        $this->assertSame([1, 2, 3], $firstChunkWhile->all());
+
+        [$pass, $fail] = $collection->partition(fn ($value) => $value > 3)->all();
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $pass);
+        $this->assertSame('lazy-tag', $pass->tag);
+        $this->assertSame([3 => 4, 4 => 5], $pass->all());
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $fail);
+        $this->assertSame('lazy-tag', $fail->tag);
+        $this->assertSame([1, 2, 3], $fail->all());
+    }
+
+    public function testLazyCollectionFactoryMethodsForwardExtraArgumentsAndRemainLazy(): void
+    {
+        $made = TestLazyCollectionWithExtraState::make([1, 2, 3], 'make-tag');
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $made);
+        $this->assertSame('make-tag', $made->tag);
+        $this->assertSame([1, 2, 3], $made->all());
+
+        $range = TestLazyCollectionWithExtraState::range(1, PHP_INT_MAX, 1, 'range-tag');
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $range);
+        $this->assertSame('range-tag', $range->tag);
+        $this->assertSame([1, 2, 3], $range->take(3)->all());
+
+        $times = TestLazyCollectionWithExtraState::times(INF, null, 'times-tag');
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $times);
+        $this->assertSame('times-tag', $times->tag);
+        $this->assertSame([1, 2, 3], $times->take(3)->all());
+
+        $mappedTimes = TestLazyCollectionWithExtraState::times(INF, fn ($number) => $number * 10, 'mapped-times-tag');
+        $this->assertInstanceOf(TestLazyCollectionWithExtraState::class, $mappedTimes);
+        $this->assertSame('mapped-times-tag', $mappedTimes->tag);
+        $this->assertSame([10, 20, 30], $mappedTimes->take(3)->all());
+    }
 }
 
 class TestSupportCollectionHigherOrderItem
@@ -6180,6 +6397,32 @@ class TestCollectionMapIntoObject
 
 class TestCollectionSubclass extends Collection
 {
+}
+
+class TestCollectionWithExtraState extends Collection
+{
+    public function __construct(mixed $items = [], public string $tag = '')
+    {
+        parent::__construct($items);
+    }
+
+    protected function newInstance(mixed $items = []): static
+    {
+        return new static($items, $this->tag);
+    }
+}
+
+class TestLazyCollectionWithExtraState extends LazyCollection
+{
+    public function __construct(mixed $source = null, public string $tag = '')
+    {
+        parent::__construct($source);
+    }
+
+    protected function newInstance(mixed $items = []): static
+    {
+        return new static($items, $this->tag);
+    }
 }
 
 enum StaffEnum

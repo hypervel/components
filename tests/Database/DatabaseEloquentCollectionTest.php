@@ -528,6 +528,78 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals(new Collection([$one]), $c->except([2, 3]));
     }
 
+    public function testNewInstanceIsUsedByEloquentCollectionMethods(): void
+    {
+        $one = new CollectionModel;
+        $one->id = 1;
+        $two = new CollectionModel;
+        $two->id = 2;
+        $three = new CollectionModel;
+        $three->id = 3;
+
+        $collection = new TestEloquentCollectionWithExtraState([$one, $two], 'model-tag');
+
+        $merged = $collection->merge([$two, $three]);
+        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $merged);
+        $this->assertSame('model-tag', $merged->tag);
+        $this->assertSame([$one, $two, $three], $merged->values()->all());
+
+        $diff = $collection->diff(new Collection([$two, $three]));
+        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $diff);
+        $this->assertSame('model-tag', $diff->tag);
+        $this->assertSame([$one], $diff->values()->all());
+
+        $intersect = $collection->intersect(new Collection([$two, $three]));
+        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $intersect);
+        $this->assertSame('model-tag', $intersect->tag);
+        $this->assertSame([$two], $intersect->values()->all());
+
+        $unique = (new TestEloquentCollectionWithExtraState([$one, $one, $two], 'unique-tag'))->unique();
+        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $unique);
+        $this->assertSame('unique-tag', $unique->tag);
+        $this->assertSame([$one, $two], $unique->values()->all());
+
+        $only = $collection->only([2]);
+        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $only);
+        $this->assertSame('model-tag', $only->tag);
+        $this->assertSame([$two], $only->values()->all());
+
+        $except = $collection->except([2]);
+        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $except);
+        $this->assertSame('model-tag', $except->tag);
+        $this->assertSame([$one], $except->values()->all());
+
+        $empty = new TestEloquentCollectionWithExtraState([], 'empty-tag');
+
+        $found = $empty->find([1]);
+        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $found);
+        $this->assertSame('empty-tag', $found->tag);
+        $this->assertEmpty($found->all());
+
+        $fresh = $empty->fresh();
+        $this->assertInstanceOf(TestEloquentCollectionWithExtraState::class, $fresh);
+        $this->assertSame('empty-tag', $fresh->tag);
+        $this->assertEmpty($fresh->all());
+    }
+
+    public function testEloquentCollectionBaseDowngradesDoNotUseNewInstance(): void
+    {
+        $model = new CollectionModel;
+        $model->id = 1;
+
+        $collection = new TestEloquentCollectionWithExtraState([$model], 'model-tag');
+
+        $keys = $collection->keys();
+        $this->assertInstanceOf(BaseCollection::class, $keys);
+        $this->assertNotInstanceOf(TestEloquentCollectionWithExtraState::class, $keys);
+        $this->assertSame([0], $keys->all());
+
+        $plucked = $collection->pluck('id');
+        $this->assertInstanceOf(BaseCollection::class, $plucked);
+        $this->assertNotInstanceOf(TestEloquentCollectionWithExtraState::class, $plucked);
+        $this->assertSame([1], $plucked->all());
+    }
+
     public function testMakeHiddenAddsHiddenOnEntireCollection()
     {
         $c = new Collection([new CollectionModel]);
@@ -829,6 +901,19 @@ class CollectionModel extends Model
     public function getTestAttribute(): string
     {
         return 'test';
+    }
+}
+
+class TestEloquentCollectionWithExtraState extends Collection
+{
+    public function __construct(mixed $items = [], public string $tag = '')
+    {
+        parent::__construct($items);
+    }
+
+    protected function newInstance(mixed $items = []): static
+    {
+        return new static($items, $this->tag);
     }
 }
 
