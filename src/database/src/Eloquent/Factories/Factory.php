@@ -627,10 +627,18 @@ abstract class Factory
     /**
      * Define an attached relationship for the model.
      *
-     * @param array<string, mixed>|(callable(): array<string, mixed>) $pivot
+     * @param array<string, mixed>|(callable(): array<string, mixed>)|list<array<string, mixed>> $pivot
      */
     public function hasAttached(self|Collection|Model|array $factory, callable|array $pivot = [], ?string $relationship = null): static
     {
+        if (is_array($pivot) && $pivot !== [] && array_is_list($pivot) && array_all($pivot, fn ($parameter) => is_array($parameter))) {
+            $factory = $factory instanceof Factory && $factory->count === null
+                ? $factory->count(count($pivot))
+                : $factory;
+
+            $pivot = new Sequence(...$pivot);
+        }
+
         return $this->newInstance([
             'has' => $this->has->concat([new BelongsToManyRelationship(
                 $factory,
