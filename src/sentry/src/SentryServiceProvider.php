@@ -31,6 +31,7 @@ class SentryServiceProvider extends ServiceProvider
         $this->bootFeatures();
         $this->registerPublishing();
         $this->registerCommands();
+        $this->registerLogChannels();
 
         /* @phpstan-ignore-next-line */
         Coroutine::afterCreated(function () {
@@ -123,6 +124,29 @@ class SentryServiceProvider extends ServiceProvider
             } catch (Throwable $e) {
                 // Ensure that features do not break the whole application
             }
+        }
+    }
+
+    /**
+     * Register the log channels.
+     */
+    protected function registerLogChannels(): void
+    {
+        $config = $this->app->get(ConfigInterface::class);
+
+        $logChannels = $config->get('logging.channels', []);
+
+        if (! array_key_exists('sentry', $logChannels)) {
+            $config->set('logging.channels.sentry', [
+                'driver' => 'sentry',
+            ]);
+        }
+
+        if (! array_key_exists('sentry_logs', $logChannels)) {
+            $config->set('logging.channels.sentry_logs', [
+                'driver' => 'sentry_logs',
+                'level' => $config->get('sentry.logs_channel_level', 'debug'),
+            ]);
         }
     }
 
