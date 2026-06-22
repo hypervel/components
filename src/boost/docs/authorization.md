@@ -317,6 +317,8 @@ if (Gate::allows(Ability::UpdatePost, $post)) {
 }
 ```
 
+The user model's `can` and `cannot` helpers also accept enum cases.
+
 <a name="inline-authorization"></a>
 ### Inline Authorization
 
