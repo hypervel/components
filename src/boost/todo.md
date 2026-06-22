@@ -12,10 +12,6 @@
 
 ## Configuration
 
-## Authorization
-
-- Widen `Gate::allowIf()` / `Gate::denyIf()` `$code` type. Laravel allows arbitrary response codes; Hypervel's `Response` / `AuthorizationException` already support `int|string|null`, but `Gate::allowIf()` and `denyIf()` only accept `?string`. Correct fix: change those method signatures and facade docblocks to `int|string|null`.
-
 ## Blade
 
 - Port Blade `@context` support. The copied Laravel Blade doc includes the `@context` / `@endcontext` directives, but Hypervel's `BladeCompiler` does not use Laravel's `CompilesContexts` concern and `src/view/src/Compilers/Concerns/CompilesContexts.php` does not exist. Hypervel already has the `context()` helper and `Hypervel\Support\Facades\Context`, so the correct fix is to port Laravel's compiler concern using Hypervel namespaces and add it to `BladeCompiler`.

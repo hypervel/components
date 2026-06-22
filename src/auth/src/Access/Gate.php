@@ -130,7 +130,7 @@ class Gate implements GateContract
      *
      * @throws AuthorizationException
      */
-    public function allowIf(mixed $condition, ?string $message = null, ?string $code = null): Response
+    public function allowIf(mixed $condition, ?string $message = null, int|string|null $code = null): Response
     {
         return $this->authorizeOnDemand($condition, $message, $code, true);
     }
@@ -140,7 +140,7 @@ class Gate implements GateContract
      *
      * @throws AuthorizationException
      */
-    public function denyIf(mixed $condition, ?string $message = null, ?string $code = null): Response
+    public function denyIf(mixed $condition, ?string $message = null, int|string|null $code = null): Response
     {
         return $this->authorizeOnDemand($condition, $message, $code, false);
     }
@@ -150,7 +150,7 @@ class Gate implements GateContract
      *
      * @throws AuthorizationException
      */
-    protected function authorizeOnDemand(mixed $condition, ?string $message, ?string $code, bool $allowWhenResponseIs): Response
+    protected function authorizeOnDemand(mixed $condition, ?string $message, int|string|null $code, bool $allowWhenResponseIs): Response
     {
         $user = $this->resolveUser();
 
