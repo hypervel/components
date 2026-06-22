@@ -26,6 +26,7 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use ReflectionClass;
+use SortDirection;
 use stdClass;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
@@ -2058,7 +2059,7 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
-    public function testSortBy($collection)
+    public function testSortBy($collection): void
     {
         $data = new $collection(['taylor', 'dayle']);
         $data = $data->sortBy(function ($x) {
@@ -2066,6 +2067,17 @@ class SupportCollectionTest extends TestCase
         });
 
         $this->assertEquals(['dayle', 'taylor'], array_values($data->all()));
+
+        $data = new $collection(['dayle', 'taylor']);
+        $data = $data->sortBy(
+            function ($x) {
+                return $x;
+            },
+            SORT_REGULAR,
+            SortDirection::Descending
+        );
+
+        $this->assertEquals(['taylor', 'dayle'], array_values($data->all()));
 
         $data = new $collection(['dayle', 'taylor']);
         $data = $data->sortByDesc(function ($x) {
@@ -2087,6 +2099,15 @@ class SupportCollectionTest extends TestCase
         $data = $data->sortBy('name', SORT_STRING, true);
 
         $this->assertEquals([['name' => 'taylor'], ['name' => 'dayle']], array_values($data->all()));
+    }
+
+    #[DataProvider('collectionClassProvider')]
+    public function testSortByIntegerKey($collection): void
+    {
+        $data = new $collection([['taylor', 2], ['dayle', 1]]);
+
+        $this->assertEquals([['dayle', 1], ['taylor', 2]], array_values($data->sortBy(1)->all()));
+        $this->assertEquals([['taylor', 2], ['dayle', 1]], array_values($data->sortByDesc(1)->all()));
     }
 
     #[DataProvider('collectionClassProvider')]
@@ -2142,7 +2163,7 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
-    public function testSortByMany($collection)
+    public function testSortByMany($collection): void
     {
         $defaultLocale = setlocale(LC_ALL, 0);
 
@@ -2156,6 +2177,35 @@ class SupportCollectionTest extends TestCase
         rsort($expected);
         $data = $data->sortBy([['item', 'desc']]);
         $this->assertEquals($data->pluck('item')->toArray(), $expected);
+
+        rsort($expected);
+        $data = $data->sortBy([['item', false]]);
+        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+
+        sort($expected);
+        $data = $data->sortBy([['item', SortDirection::Ascending]]);
+        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+
+        rsort($expected);
+        $data = $data->sortBy([['item', SortDirection::Descending]]);
+        $this->assertEquals($data->pluck('item')->toArray(), $expected);
+
+        $multiSortData = new $collection([
+            ['group' => 'b', 'score' => 1],
+            ['group' => 'a', 'score' => 1],
+            ['group' => 'a', 'score' => 3],
+            ['group' => 'b', 'score' => 2],
+        ]);
+
+        $this->assertSame([
+            ['group' => 'a', 'score' => 3],
+            ['group' => 'a', 'score' => 1],
+            ['group' => 'b', 'score' => 2],
+            ['group' => 'b', 'score' => 1],
+        ], $multiSortData->sortBy([
+            ['group', SortDirection::Ascending],
+            ['score', SortDirection::Descending],
+        ])->values()->all());
 
         sort($expected, SORT_STRING);
         $data = $data->sortBy(['item'], SORT_STRING);
@@ -2248,11 +2298,12 @@ class SupportCollectionTest extends TestCase
     }
 
     #[DataProvider('collectionClassProvider')]
-    public function testSortKeys($collection)
+    public function testSortKeys($collection): void
     {
         $data = new $collection(['b' => 'dayle', 'a' => 'taylor']);
 
         $this->assertSame(['a' => 'taylor', 'b' => 'dayle'], $data->sortKeys()->all());
+        $this->assertSame(['b' => 'dayle', 'a' => 'taylor'], $data->sortKeys(SORT_REGULAR, SortDirection::Descending)->all());
     }
 
     #[DataProvider('collectionClassProvider')]

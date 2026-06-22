@@ -20,6 +20,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use InvalidArgumentException;
 use RuntimeException;
+use SortDirection;
 
 /**
  * @template TValue
@@ -49,7 +50,7 @@ trait BuildsQueries
 
             $limit = is_null($remaining) ? $count : min($count, $remaining);
 
-            if ($limit == 0) {
+            if ($limit === 0) {
                 break;
             }
 
@@ -57,7 +58,7 @@ trait BuildsQueries
 
             $countResults = $results->count();
 
-            if ($countResults == 0) {
+            if ($countResults === 0) {
                 break;
             }
 
@@ -73,7 +74,7 @@ trait BuildsQueries
             unset($results);
 
             ++$page;
-        } while ($countResults == $count);
+        } while ($countResults === $count);
 
         return true;
     }
@@ -132,7 +133,7 @@ trait BuildsQueries
      */
     public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
-        return $this->orderedChunkById($count, $callback, $column, $alias, descending: true);
+        return $this->orderedChunkById($count, $callback, $column, $alias, descending: SortDirection::Descending);
     }
 
     /**
@@ -140,7 +141,7 @@ trait BuildsQueries
      *
      * @param callable(\Hypervel\Support\Collection<int, TValue>, int): mixed $callback
      */
-    public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, bool $descending = false): bool
+    public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): bool
     {
         $column ??= $this->defaultKeyName();
         $alias ??= $column;
@@ -159,22 +160,21 @@ trait BuildsQueries
 
             $limit = is_null($remaining) ? $count : min($count, $remaining);
 
-            if ($limit == 0) {
+            if ($limit === 0) {
                 break;
             }
 
             // We'll execute the query for the given page and get the results. If there are
             // no results we can just break and return from here. When there are results
             // we will call the callback with the current chunk of these results here.
-            if ($descending) {
-                $results = $clone->forPageBeforeId($limit, $lastId, $column)->get();
-            } else {
-                $results = $clone->forPageAfterId($limit, $lastId, $column)->get();
-            }
+            $results = match ($descending) {
+                SortDirection::Ascending, false => $clone->forPageAfterId($limit, $lastId, $column)->get(),
+                SortDirection::Descending, true => $clone->forPageBeforeId($limit, $lastId, $column)->get(),
+            };
 
             $countResults = $results->count();
 
-            if ($countResults == 0) {
+            if ($countResults === 0) {
                 break;
             }
 
@@ -199,7 +199,7 @@ trait BuildsQueries
             unset($results);
 
             ++$page;
-        } while ($countResults == $count);
+        } while ($countResults === $count);
 
         return true;
     }
@@ -267,7 +267,7 @@ trait BuildsQueries
      */
     public function lazyByIdDesc(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): LazyCollection
     {
-        return $this->orderedLazyById($chunkSize, $column, $alias, true);
+        return $this->orderedLazyById($chunkSize, $column, $alias, SortDirection::Descending);
     }
 
     /**
@@ -275,7 +275,7 @@ trait BuildsQueries
      *
      * @return \Hypervel\Support\LazyCollection<int, TValue>
      */
-    protected function orderedLazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null, bool $descending = false): LazyCollection
+    protected function orderedLazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): LazyCollection
     {
         if ($chunkSize < 1) {
             throw new InvalidArgumentException('The chunk size should be at least 1');
@@ -291,11 +291,10 @@ trait BuildsQueries
             while (true) {
                 $clone = clone $this;
 
-                if ($descending) {
-                    $results = $clone->forPageBeforeId($chunkSize, $lastId, $column)->get();
-                } else {
-                    $results = $clone->forPageAfterId($chunkSize, $lastId, $column)->get();
-                }
+                $results = match ($descending) {
+                    SortDirection::Ascending, false => $clone->forPageAfterId($chunkSize, $lastId, $column)->get(),
+                    SortDirection::Descending, true => $clone->forPageBeforeId($chunkSize, $lastId, $column)->get(),
+                };
 
                 foreach ($results as $result) {
                     yield $result;

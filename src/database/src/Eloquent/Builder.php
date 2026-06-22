@@ -29,6 +29,7 @@ use Hypervel\Support\Traits\ForwardsCalls;
 use InvalidArgumentException;
 use ReflectionClass;
 use ReflectionMethod;
+use SortDirection;
 
 /**
  * @template TModel of \Hypervel\Database\Eloquent\Model
@@ -952,7 +953,7 @@ class Builder implements BuilderContract
     protected function enforceOrderBy(): void
     {
         if (empty($this->query->orders) && empty($this->query->unionOrders)) {
-            $this->orderBy($this->model->getQualifiedKeyName(), 'asc');
+            $this->orderBy($this->model->getQualifiedKeyName(), SortDirection::Ascending);
         }
     }
 

@@ -19,6 +19,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\StrCache;
 use InvalidArgumentException;
+use SortDirection;
 
 /**
  * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
@@ -525,11 +526,23 @@ class BelongsToMany extends Relation
      * Add an "order by" clause for a pivot table column.
      *
      * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @param 'asc'|'desc'|SortDirection $direction
      * @return $this
      */
-    public function orderByPivot(mixed $column, string $direction = 'asc'): static
+    public function orderByPivot(mixed $column, SortDirection|string $direction = SortDirection::Ascending): static
     {
         return $this->orderBy($this->qualifyPivotColumn($column), $direction);
+    }
+
+    /**
+     * Add an "order by desc" clause for a pivot table column.
+     *
+     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
+     * @return $this
+     */
+    public function orderByPivotDesc(mixed $column): static
+    {
+        return $this->orderBy($this->qualifyPivotColumn($column), SortDirection::Descending);
     }
 
     /**
@@ -938,7 +951,7 @@ class BelongsToMany extends Relation
      */
     public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
-        return $this->orderedChunkById($count, $callback, $column, $alias, descending: true);
+        return $this->orderedChunkById($count, $callback, $column, $alias, descending: SortDirection::Descending);
     }
 
     /**
@@ -958,7 +971,7 @@ class BelongsToMany extends Relation
     /**
      * Chunk the results of a query by comparing IDs in a given order.
      */
-    public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, bool $descending = false): bool
+    public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, SortDirection|bool $descending = false): bool
     {
         $column ??= $this->getRelated()->qualifyColumn(
             $this->getRelatedKeyName()

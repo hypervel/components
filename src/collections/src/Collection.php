@@ -13,6 +13,7 @@ use Hypervel\Support\Traits\EnumeratesValues;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\TransformsToResourceCollection;
 use InvalidArgumentException;
+use SortDirection;
 use stdClass;
 use Traversable;
 use UnitEnum;
@@ -1529,9 +1530,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Sort the collection using the given callback.
      *
-     * @param array<array-key, array{string, string}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|string>|(callable(TValue, TKey): mixed)|string $callback
+     * @param array<array-key, array{int|string, 'asc'|'desc'|SortDirection}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
      */
-    public function sortBy(callable|array|string $callback, int $options = SORT_REGULAR, bool $descending = false): static
+    public function sortBy(callable|array|int|string $callback, int $options = SORT_REGULAR, SortDirection|bool $descending = false): static
     {
         if (is_array($callback) && ! is_callable($callback)) {
             return $this->sortByMany($callback, $options);
@@ -1548,8 +1549,10 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
             $results[$key] = $callback($value, $key);
         }
 
-        $descending ? arsort($results, $options)
-            : asort($results, $options);
+        match ($descending) {
+            false, SortDirection::Ascending => asort($results, $options),
+            true, SortDirection::Descending => arsort($results, $options),
+        };
 
         // Once we have sorted all of the keys in the array, we will loop through them
         // and grab the corresponding model so we can set the underlying items list
@@ -1564,7 +1567,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Sort the collection using multiple comparisons.
      *
-     * @param array<array-key, array{string, string}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|string> $comparisons
+     * @param array<array-key, array{int|string, 'asc'|'desc'|SortDirection}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|int|string> $comparisons
      */
     protected function sortByMany(array $comparisons = [], int $options = SORT_REGULAR): static
     {
@@ -1576,15 +1579,18 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
                 $prop = $comparison[0];
 
-                $ascending = Arr::get($comparison, 1, true) === true
-                             || Arr::get($comparison, 1, true) === 'asc';
+                $direction = match (Arr::get($comparison, 1, true)) {
+                    true, 'asc', SortDirection::Ascending => SortDirection::Ascending,
+                    false, 'desc', SortDirection::Descending => SortDirection::Descending,
+                    default => SortDirection::Descending,
+                };
 
                 if (! is_string($prop) && is_callable($prop)) {
                     $result = $prop($a, $b);
                 } else {
                     $values = [data_get($a, $prop), data_get($b, $prop)];
 
-                    if (! $ascending) {
+                    if ($direction === SortDirection::Descending) {
                         $values = array_reverse($values);
                     }
 
@@ -1619,15 +1625,15 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Sort the collection in descending order using the given callback.
      *
-     * @param array<array-key, array{string, string}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|string>|(callable(TValue, TKey): mixed)|string $callback
+     * @param array<array-key, array{int|string, 'asc'|'desc'|SortDirection}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
      */
-    public function sortByDesc(callable|array|string $callback, int $options = SORT_REGULAR): static
+    public function sortByDesc(callable|array|int|string $callback, int $options = SORT_REGULAR): static
     {
         if (is_array($callback) && ! is_callable($callback)) {
             foreach ($callback as $index => $key) {
                 $comparison = Arr::wrap($key);
 
-                $comparison[1] = 'desc';
+                $comparison[1] = SortDirection::Descending;
 
                 $callback[$index] = $comparison;
             }
@@ -1639,11 +1645,14 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Sort the collection keys.
      */
-    public function sortKeys(int $options = SORT_REGULAR, bool $descending = false): static
+    public function sortKeys(int $options = SORT_REGULAR, SortDirection|bool $descending = false): static
     {
         $items = $this->items;
 
-        $descending ? krsort($items, $options) : ksort($items, $options);
+        match ($descending) {
+            false, SortDirection::Ascending => ksort($items, $options),
+            true, SortDirection::Descending => krsort($items, $options),
+        };
 
         return $this->newInstance($items);
     }
@@ -1653,7 +1662,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function sortKeysDesc(int $options = SORT_REGULAR): static
     {
-        return $this->sortKeys($options, true);
+        return $this->sortKeys($options, SortDirection::Descending);
     }
 
     /**

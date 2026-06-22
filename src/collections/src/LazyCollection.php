@@ -19,6 +19,7 @@ use Iterator;
 use IteratorAggregate;
 use IteratorIterator;
 use Override;
+use SortDirection;
 use stdClass;
 use Traversable;
 use UnitEnum;
@@ -1422,19 +1423,19 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     }
 
     #[Override]
-    public function sortBy(callable|array|string $callback, int $options = SORT_REGULAR, bool $descending = false): static
+    public function sortBy(callable|array|int|string $callback, int $options = SORT_REGULAR, SortDirection|bool $descending = false): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
     #[Override]
-    public function sortByDesc(callable|array|string $callback, int $options = SORT_REGULAR): static
+    public function sortByDesc(callable|array|int|string $callback, int $options = SORT_REGULAR): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
     #[Override]
-    public function sortKeys(int $options = SORT_REGULAR, bool $descending = false): static
+    public function sortKeys(int $options = SORT_REGULAR, SortDirection|bool $descending = false): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
