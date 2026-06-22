@@ -14,7 +14,6 @@
 
 ## Authorization
 
-- Add `Hypervel\Routing\Attributes\Controllers\Authorize`. Laravel has `Illuminate\Routing\Attributes\Controllers\Authorize`; Hypervel docs already reference the Hypervel equivalent, but the class does not exist. Correct fix: port Laravel's attribute, extending `Hypervel\Routing\Attributes\Controllers\Middleware` and using `Hypervel\Auth\Middleware\Authorize::using(...)`.
 - Widen `Authorizable` ability types to accept `UnitEnum`. `Gate`, route `can()`, and `Authorize::using()` support enum abilities, but `Hypervel\Foundation\Auth\Access\Authorizable::can/canAny/cant/cannot` are typed as `iterable|string`, so `$user->can(Ability::UpdatePost)` currently TypeErrors. Correct fix: add `UnitEnum` to those method signatures and to `Hypervel\Contracts\Auth\Access\Authorizable::can`.
 - Widen `Gate::allowIf()` / `Gate::denyIf()` `$code` type. Laravel allows arbitrary response codes; Hypervel's `Response` / `AuthorizationException` already support `int|string|null`, but `Gate::allowIf()` and `denyIf()` only accept `?string`. Correct fix: change those method signatures and facade docblocks to `int|string|null`.
 
@@ -87,8 +86,6 @@
 
 ## Routing
 
-- Merge controller middleware from all supported sources. `Hypervel\Routing\Route::controllerMiddleware()` currently returns middleware from `HasMiddleware`, or the base controller's `getMiddleware()`, or controller attributes, but does not combine them. Laravel merges attribute middleware with the static / instance middleware path. Correct fix: port Laravel's merge behavior and add coverage for controllers that use attributes together with `HasMiddleware` or base-controller middleware.
-- Align `Hypervel\Routing\Attributes\Controllers\Middleware` with Laravel's attribute API. Laravel accepts `Closure|string $middleware` and exposes the middleware value on a `$middleware` property; Hypervel currently accepts only `string $value`, and `Route::attributeProvidedControllerMiddleware()` reads `$instance->value`. Correct fix: port the Laravel constructor / property shape and update route extraction accordingly. Documentation should continue avoiding closure literals inside attributes while PHP does not allow them as attribute arguments.
 - Make `URL::defaults()` coroutine-safe. The URL generation docs show setting request-wide URL defaults from middleware, but `Hypervel\Routing\UrlGenerator::defaults()` mutates `Hypervel\Routing\RouteUrlGenerator::$defaultParameters` on the worker singleton. In Swoole workers, one request's defaults can leak or race into concurrent and later requests. Correct fix: store request-level named parameter defaults in `CoroutineContext`, preserve any intentional boot-time defaults, keep `getDefaultParameters()` reading the effective defaults, and add coroutine-isolation coverage.
 
 ## Queue
