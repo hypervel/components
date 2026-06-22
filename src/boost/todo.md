@@ -12,10 +12,6 @@
 
 ## Configuration
 
-## Blade
-
-- Fix `CompilesComponents::compileProps()` helper variable cleanup. Laravel unsets `$__defined_vars`, `$__key`, and `$__value`; Hypervel currently only unsets `$__defined_vars`, so the generated component template can leak internal helper variables into scope.
-
 ## Boost
 
 - Implement Hypervel Boost's installation flow and revisit the Boost section of `installation.md` once the implementation is complete. The current docs describe the intended `composer require hypervel/boost --dev` and `php artisan boost:install` workflow, but `src/boost` currently contains the documentation package only. Correct fix: add the interactive installer command and supporting tools, then update the installation docs for any differences from Laravel Boost.
@@ -24,6 +20,7 @@
 ## Documentation
 
 - Re-run the introduction benchmarks against Hypervel 0.4 before publishing externally. The benchmark tables currently preserve the 0.3 results so the comparison is not lost during the docs port, but Hypervel 0.4's decoupled runtime should have fresh measurements before those numbers are treated as current.
+
 ## Collections
 
 - Port Laravel's `Collection` / `LazyCollection` `newInstance()` extension hook. Laravel routes derived collection instances through a protected `newInstance($items = [])` method, while Hypervel currently uses direct `new static(...)` calls throughout the collection classes. Correct fix: add the protected `newInstance()` method and update the internal factory paths Laravel uses it for, so subclasses can control how derived collections are constructed.
