@@ -13,10 +13,6 @@
     ],
     "authors": [
         {
-            "name": "Taylor Otwell",
-            "email": "taylor@laravel.com"
-        },
-        {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
         },

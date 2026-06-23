@@ -6,7 +6,7 @@ namespace Hypervel\Horizon\Listeners;
 
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Events\JobFailed;
-use Hypervel\Queue\Events\JobFailed as LaravelJobFailed;
+use Hypervel\Queue\Events\JobFailed as HypervelJobFailed;
 use Hypervel\Queue\Jobs\RedisJob;
 
 class MarshalFailedEvent
@@ -24,7 +24,7 @@ class MarshalFailedEvent
     /**
      * Handle the event.
      */
-    public function handle(LaravelJobFailed $event): void
+    public function handle(HypervelJobFailed $event): void
     {
         if (! $event->job instanceof RedisJob) {
             return;

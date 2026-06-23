@@ -127,6 +127,7 @@ class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProv
         }
 
         return ($this->lockProviderResolver)()
+            // IMPORTANT: Uses Laravel's key for cross-framework queue interoperability.
             ->lock('laravel-failed-jobs', 5)
             ->block(10, function () use ($callback) {
                 return $callback();
