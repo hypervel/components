@@ -17,6 +17,7 @@ class PoolOption implements PoolOptionInterface
      * @param float $connectTimeout Timeout in seconds for establishing a connection
      * @param float $waitTimeout Timeout in seconds for waiting to get a connection from pool
      * @param float $heartbeat Heartbeat interval in seconds (-1 to disable)
+     * @param float $heartbeatTimeout Heartbeat timeout in seconds
      * @param float $maxIdleTime Maximum idle time in seconds before connection is closed
      * @param array<int, string> $events Events to trigger on connection lifecycle
      */
@@ -26,6 +27,7 @@ class PoolOption implements PoolOptionInterface
         private float $connectTimeout = 10.0,
         private float $waitTimeout = 3.0,
         private float $heartbeat = -1,
+        private float $heartbeatTimeout = 1.0,
         private float $maxIdleTime = 60.0,
         private array $events = [],
     ) {
@@ -93,6 +95,11 @@ class PoolOption implements PoolOptionInterface
         return $this->heartbeat;
     }
 
+    public function getHeartbeatTimeout(): float
+    {
+        return $this->heartbeatTimeout;
+    }
+
     /**
      * Set the heartbeat interval in seconds.
      *
@@ -103,6 +110,20 @@ class PoolOption implements PoolOptionInterface
     public function setHeartbeat(float $heartbeat): static
     {
         $this->heartbeat = $heartbeat;
+
+        return $this;
+    }
+
+    /**
+     * Set the heartbeat timeout in seconds.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
+     */
+    public function setHeartbeatTimeout(float $heartbeatTimeout): static
+    {
+        $this->heartbeatTimeout = $heartbeatTimeout;
 
         return $this;
     }
