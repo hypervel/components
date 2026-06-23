@@ -2109,7 +2109,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame(1, $result);
     }
 
-    public function testRetryFailureZeroesLastUseTime()
+    public function testRetryFailureMarksConnectionInvalid()
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -2146,6 +2146,11 @@ class RedisConnectionTest extends TestCase
             {
                 return $this->lastUseTime;
             }
+
+            public function isInvalidForTest(): bool
+            {
+                return $this->invalid;
+            }
         };
 
         // lastUseTime should be non-zero after initial construction
@@ -2158,7 +2163,88 @@ class RedisConnectionTest extends TestCase
             $this->assertSame('reconnect failed', $exception->getMessage());
         }
 
-        $this->assertSame(0.0, $connection->getLastUseTime());
+        $this->assertGreaterThan(0.0, $connection->getLastUseTime());
+        $this->assertTrue($connection->isInvalidForTest());
+    }
+
+    public function testReconnectClearsInvalidState()
+    {
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('select')->andReturn(true);
+
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'database' => 1], $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+
+            public function invalidateForTest(): void
+            {
+                $this->markInvalid();
+            }
+
+            public function isInvalidForTest(): bool
+            {
+                return $this->invalid;
+            }
+        };
+
+        $connection->invalidateForTest();
+
+        $this->assertTrue($connection->isInvalidForTest());
+
+        $connection->reconnect();
+
+        $this->assertFalse($connection->isInvalidForTest());
+    }
+
+    public function testInvalidStateIsNotMaskedByFreshReleaseTime()
+    {
+        $pool = m::mock(PoolInterface::class);
+        $pool->shouldReceive('getOption')->andReturn(new PoolOption(maxIdleTime: 60.0));
+
+        $redis = m::mock(Redis::class);
+
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+
+            public function invalidateForTest(): void
+            {
+                $this->markInvalid();
+            }
+
+            public function setLastReleaseTimeForTest(float $lastReleaseTime): void
+            {
+                $this->lastReleaseTime = $lastReleaseTime;
+            }
+        };
+
+        $connection->invalidateForTest();
+        $connection->setLastReleaseTimeForTest(microtime(true));
+
+        $this->assertFalse($connection->check());
     }
 
     public function testScanWithArrayOptions()
