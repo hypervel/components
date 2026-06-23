@@ -113,6 +113,7 @@ To see how read / write connections should be configured, let's look at this exa
         'connect_timeout' => 10.0,
         'wait_timeout' => 3.0,
         'heartbeat' => -1,
+        'heartbeat_timeout' => 1.0,
         'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
     ],
 ],
@@ -144,12 +145,13 @@ Each connection may define its own `pool` configuration:
         'connect_timeout' => 10.0,
         'wait_timeout' => 3.0,
         'heartbeat' => -1,
+        'heartbeat_timeout' => 1.0,
         'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
     ],
 ],
 ```
 
-The `min_connections` option determines the minimum number of connections kept in the pool, while the `max_connections` option determines the maximum number of connections that may be opened for the worker. The `connect_timeout` option controls how long Hypervel will wait while opening a new database connection. The `wait_timeout` option controls how long a coroutine may wait for an available connection when the pool is exhausted. The `heartbeat` option controls how often idle pooled connections are pinged to keep them alive and detect broken sockets; set this value to `-1` to disable heartbeats. The `max_idle_time` option controls how long an idle connection may remain in the pool before it is closed.
+The `min_connections` option determines the minimum number of connections kept warm in the pool, while the `max_connections` option determines the maximum number of connections that may be opened for the worker. The `connect_timeout` option controls how long Hypervel will wait while opening a new database connection. The `wait_timeout` option controls how long a coroutine may wait for an available connection when the pool is exhausted. The `heartbeat` option controls how often Hypervel validates idle pooled connections; set this value to `-1` to disable heartbeats. When heartbeats are enabled, Hypervel keeps the minimum idle connection set alive with a raw `SELECT 1` ping that does not fire query events, query logs, or query duration handlers. The `heartbeat_timeout` option controls how long a heartbeat ping may run before the connection is discarded. The `max_idle_time` option controls how long idle connections above the minimum pool size may remain in the pool before they are closed.
 
 Hypervel's default database configuration also includes a `pgsql-pooled` connection. This connection is intended for PostgreSQL transaction poolers such as PgBouncer and uses separate `DB_POOLED_*` environment variables. It also sets `migrations_connection` to `pgsql`, allowing your application to use the pooled connection at runtime while migration commands use the direct PostgreSQL connection.
 
