@@ -1,0 +1,382 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Integration\Database\Sqlite;
+
+use Closure;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Database\Connectors\SQLiteConnector;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Pool\DbPool;
+use Hypervel\Database\Pool\PooledConnection;
+use Hypervel\Support\ClassInvoker;
+use Hypervel\Testbench\TestCase;
+use PDO;
+use PDOStatement;
+use ReflectionProperty;
+
+use function Hypervel\Coroutine\run;
+
+class DbPoolHeartbeatTest extends TestCase
+{
+    protected bool $runTestsInCoroutine = false;
+
+    protected string $databasePath;
+
+    /**
+     * @var InspectableHeartbeatDbPool[]
+     */
+    protected array $pools = [];
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $app->make('config')->set('app.stdout_log.level', []);
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->databasePath = sys_get_temp_dir() . '/hypervel_db_pool_heartbeat_' . getmypid() . '_' . spl_object_id($this) . '.sqlite';
+        touch($this->databasePath);
+
+        $this->app->instance('db.connector.sqlite', new SQLiteConnector);
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->pools as $pool) {
+            run(fn () => $pool->flushAll());
+        }
+
+        if (file_exists($this->databasePath)) {
+            @unlink($this->databasePath);
+        }
+
+        parent::tearDown();
+    }
+
+    public function testDisabledHeartbeatDoesNotStartTimer(): void
+    {
+        $pool = $this->createPool([
+            'heartbeat' => -1,
+        ]);
+
+        $this->assertSame(0, $pool->heartbeatTimerClosureCount());
+    }
+
+    public function testEnabledHeartbeatStartsTimerAndFlushAllClearsIt(): void
+    {
+        $pool = $this->createPool([
+            'heartbeat' => 0.001,
+        ]);
+
+        $this->assertSame(1, $pool->heartbeatTimerClosureCount());
+
+        run(fn () => $pool->flushAll());
+
+        $this->assertSame(0, $pool->heartbeatTimerClosureCount());
+    }
+
+    public function testHeartbeatKeepsMinimumConnectionsWarmAndEvictsExpiredExtras(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 3,
+                'heartbeat' => -1,
+                'max_idle_time' => 1.0,
+            ]);
+
+            $connections = [
+                $pool->get(),
+                $pool->get(),
+                $pool->get(),
+            ];
+
+            foreach ($connections as $connection) {
+                $connection->getConnection()->getPdo();
+                $connection->release();
+                $this->ageReleasedConnection($connection);
+            }
+
+            $pool->runHeartbeatForTest();
+
+            $this->assertSame(1, $pool->getCurrentConnections());
+            $this->assertSame(1, $pool->getConnectionsInChannel());
+        });
+    }
+
+    public function testHeartbeatValidationKeepsMinimumConnectionCheckoutValid(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+                'max_idle_time' => 1.0,
+            ]);
+
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+            $pdo = $connection->getPdo();
+
+            $pooledConnection->release();
+            $this->ageReleasedConnection($pooledConnection);
+
+            $pool->runHeartbeatForTest();
+
+            /** @var PooledConnection $nextPooledConnection */
+            $nextPooledConnection = $pool->get();
+
+            $this->assertSame($connection, $nextPooledConnection->getConnection());
+            $this->assertSame($pdo, $nextPooledConnection->getConnection()->getPdo());
+
+            $nextPooledConnection->release();
+        });
+    }
+
+    public function testHeartbeatDoesNotRealizeLazyPdoClosures(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'heartbeat' => -1,
+            ]);
+
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+
+            $this->assertInstanceOf(Closure::class, $connection->getRawPdo());
+
+            $pooledConnection->release();
+            $pool->runHeartbeatForTest();
+
+            $this->assertInstanceOf(Closure::class, $connection->getRawPdo());
+        });
+    }
+
+    public function testHeartbeatPingDoesNotFireQueryInstrumentation(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'heartbeat' => -1,
+            ]);
+
+            $events = 0;
+            $this->app->make(Dispatcher::class)->listen(QueryExecuted::class, function () use (&$events) {
+                ++$events;
+            });
+
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+            $connection->getPdo();
+            $pooledConnection->release();
+
+            $connection->enableQueryLog();
+            $connection->whenQueryingForLongerThan(-1, function () use (&$events) {
+                ++$events;
+            });
+
+            $pool->runHeartbeatForTest();
+
+            $this->assertSame(0, $events);
+            $this->assertSame([], $connection->getQueryLog());
+            $this->assertSame(0.0, $connection->totalQueryDuration());
+        });
+    }
+
+    public function testHeartbeatOnlyTouchesIdleConnections(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 2,
+                'heartbeat' => -1,
+                'max_idle_time' => 1.0,
+            ]);
+
+            $borrowed = $pool->get();
+            $idle = $pool->get();
+            $idle->getConnection()->getPdo();
+            $idle->release();
+            $this->ageReleasedConnection($idle);
+
+            $pool->runHeartbeatForTest();
+
+            $this->assertSame(1, $borrowed->getConnection()->selectOne('SELECT 1 as result')->result);
+            $this->assertSame(1, $pool->getCurrentConnections());
+            $this->assertSame(0, $pool->getConnectionsInChannel());
+
+            $borrowed->release();
+        });
+    }
+
+    public function testFailedHeartbeatPingDiscardsConnectionBelowMinimum(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ], FailingHeartbeatDbPool::class);
+
+            $pooledConnection = $pool->get();
+            $pooledConnection->release();
+
+            $pool->runHeartbeatForTest();
+
+            $this->assertSame(0, $pool->getCurrentConnections());
+            $this->assertSame(0, $pool->getConnectionsInChannel());
+        });
+    }
+
+    public function testHeartbeatDiscardsInvalidIdleConnectionBelowMinimum(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ]);
+
+            $pooledConnection = $pool->get();
+            $pooledConnection->release();
+
+            (new ReflectionProperty(PooledConnection::class, 'invalid'))->setValue($pooledConnection, true);
+
+            $pool->runHeartbeatForTest();
+
+            $this->assertSame(0, $pool->getCurrentConnections());
+            $this->assertSame(0, $pool->getConnectionsInChannel());
+        });
+    }
+
+    public function testHeartbeatPingTimeoutDiscardsWithoutRequeueingLateCompletion(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+                'heartbeat_timeout' => 0.001,
+            ], SlowHeartbeatDbPool::class);
+
+            $pooledConnection = $pool->get();
+            $pooledConnection->release();
+
+            $startedAt = microtime(true);
+            $pool->runHeartbeatForTest();
+            $elapsed = microtime(true) - $startedAt;
+
+            $this->assertLessThan(0.05, $elapsed);
+            $this->assertSame(0, $pool->getCurrentConnections());
+            $this->assertSame(0, $pool->getConnectionsInChannel());
+
+            usleep(100000);
+
+            $this->assertSame(0, $pool->getConnectionsInChannel());
+        });
+    }
+
+    /**
+     * @param array<string, mixed> $poolOptions
+     */
+    protected function createPool(array $poolOptions = [], string $poolClass = InspectableHeartbeatDbPool::class): InspectableHeartbeatDbPool
+    {
+        $this->app->make('config')->set('database.connections.heartbeat_test', [
+            'driver' => 'sqlite',
+            'database' => $this->databasePath,
+            'prefix' => '',
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 2,
+                'connect_timeout' => 10.0,
+                'wait_timeout' => 3.0,
+                'heartbeat' => -1,
+                'heartbeat_timeout' => 1.0,
+                'max_idle_time' => 60.0,
+                ...$poolOptions,
+            ],
+        ]);
+
+        $pool = new $poolClass($this->app, 'heartbeat_test');
+        $this->pools[] = $pool;
+
+        return $pool;
+    }
+
+    protected function ageReleasedConnection(PooledConnection $connection): void
+    {
+        $lastReleaseTime = new ReflectionProperty(PooledConnection::class, 'lastReleaseTime');
+        $lastUseTime = new ReflectionProperty(PooledConnection::class, 'lastUseTime');
+
+        $lastReleaseTime->setValue($connection, microtime(true) - 5.0);
+        $lastUseTime->setValue($connection, microtime(true) - 5.0);
+    }
+}
+
+class InspectableHeartbeatDbPool extends DbPool
+{
+    public function runHeartbeatForTest(): void
+    {
+        $this->heartbeat();
+    }
+
+    public function heartbeatTimerClosureCount(): int
+    {
+        $timer = (new ReflectionProperty(DbPool::class, 'heartbeatTimer'))->getValue($this);
+
+        return $timer === null ? 0 : count((new ClassInvoker($timer))->closures);
+    }
+}
+
+class FailingHeartbeatDbPool extends InspectableHeartbeatDbPool
+{
+    protected function createConnection(): ConnectionInterface
+    {
+        return new FailingHeartbeatPooledConnection($this->container, $this, $this->config);
+    }
+}
+
+class FailingHeartbeatPooledConnection extends PooledConnection
+{
+    public function ping(float $timeout): bool
+    {
+        return false;
+    }
+}
+
+class SlowHeartbeatDbPool extends InspectableHeartbeatDbPool
+{
+    protected function createConnection(): ConnectionInterface
+    {
+        return new SlowHeartbeatPooledConnection($this->container, $this, $this->config);
+    }
+}
+
+class SlowHeartbeatPooledConnection extends PooledConnection
+{
+    protected function getOpenPdos(): array
+    {
+        return [new SlowHeartbeatPdo];
+    }
+}
+
+class SlowHeartbeatPdo extends PDO
+{
+    public function __construct()
+    {
+    }
+
+    public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
+    {
+        usleep(50000);
+
+        return false;
+    }
+}
