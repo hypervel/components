@@ -623,7 +623,7 @@ abstract class RedisConnection extends BaseConnection
 
             return $this->executeCommand($name, $arguments);
         } catch (Throwable $exception) {
-            $this->lastUseTime = 0.0;
+            $this->markInvalid();
             throw $exception;
         }
     }
