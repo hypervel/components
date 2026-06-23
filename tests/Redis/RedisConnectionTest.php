@@ -259,7 +259,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
-    public function testQueueingModeReshapesSetArgumentsButPreservesRawQueuedReturn()
+    public function testQueueingModeReshapesSetArgumentsButPreservesRawQueuedReturn(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
         $redis = m::mock(Redis::class);
@@ -277,7 +277,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
-    public function testQueueingModeReshapesHmsetArgumentsButPreservesRawQueuedReturn()
+    public function testQueueingModeReshapesHmsetArgumentsButPreservesRawQueuedReturn(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
         $redis = m::mock(Redis::class);
@@ -295,7 +295,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
-    public function testQueueingModeReshapesLremArgumentsButPreservesRawQueuedReturn()
+    public function testQueueingModeReshapesLremArgumentsButPreservesRawQueuedReturn(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
         $redis = m::mock(Redis::class);
@@ -313,7 +313,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
-    public function testQueueingModeReshapesZaddArgumentsButPreservesRawQueuedReturn()
+    public function testQueueingModeReshapesZaddArgumentsButPreservesRawQueuedReturn(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
         $redis = m::mock(Redis::class);
@@ -331,7 +331,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
-    public function testQueueingModeReshapesZrangebyscoreArgumentsButPreservesRawQueuedReturn()
+    public function testQueueingModeReshapesZrangebyscoreArgumentsButPreservesRawQueuedReturn(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
         $redis = m::mock(Redis::class);
@@ -349,7 +349,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
-    public function testQueueingModeReshapesZinterstoreArgumentsButPreservesRawQueuedReturn()
+    public function testQueueingModeReshapesZinterstoreArgumentsButPreservesRawQueuedReturn(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
         $redis = m::mock(Redis::class);
@@ -367,7 +367,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
-    public function testPrepareEvalShapesArgumentsForQueueingMode()
+    public function testPrepareEvalShapesArgumentsForQueueingMode(): void
     {
         $connection = new class extends PhpRedisConnectionStub {
             public function prepareEvalForTest(mixed ...$arguments): array
@@ -382,7 +382,7 @@ class RedisConnectionTest extends TestCase
         );
     }
 
-    public function testPrepareEvalshaFallsBackToEvalForQueueingMode()
+    public function testPrepareEvalshaFallsBackToEvalForQueueingMode(): void
     {
         $connection = new class extends PhpRedisConnectionStub {
             public function prepareEvalshaForTest(mixed ...$arguments): array
@@ -397,7 +397,7 @@ class RedisConnectionTest extends TestCase
         );
     }
 
-    public function testQueueingModeReshapesExecuteRawArgumentsButPreservesRawQueuedReturn()
+    public function testQueueingModeReshapesExecuteRawArgumentsButPreservesRawQueuedReturn(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
         $redis = m::mock(Redis::class);
@@ -1638,7 +1638,7 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($result);
     }
 
-    public function testEvalReordersArguments()
+    public function testEvalReordersArguments(): void
     {
         // Can't mock eval() on phpredis — Mockery's proxy falls through to the
         // C extension which tries a real connection. Instead, override callEval
@@ -1682,7 +1682,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame(['mykey'], $captured['arguments']);
     }
 
-    public function testEvalReordersMultipleArguments()
+    public function testEvalReordersMultipleArguments(): void
     {
         $captured = [];
         $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends PhpRedisConnection {
@@ -1723,7 +1723,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame(['mykey', 'myarg'], $captured['arguments']);
     }
 
-    public function testEvalWithNoKeysOrArguments()
+    public function testEvalWithNoKeysOrArguments(): void
     {
         $captured = [];
         $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends PhpRedisConnection {
@@ -1764,7 +1764,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame([], $captured['arguments']);
     }
 
-    public function testSubscribeThrowsOnPooledConnection()
+    public function testSubscribeThrowsOnPooledConnection(): void
     {
         $connection = $this->mockRedisConnection();
 
@@ -1774,7 +1774,7 @@ class RedisConnectionTest extends TestCase
         $connection->__call('subscribe', [['channel1'], function () {}]);
     }
 
-    public function testPsubscribeThrowsOnPooledConnection()
+    public function testPsubscribeThrowsOnPooledConnection(): void
     {
         $connection = $this->mockRedisConnection();
 
@@ -1784,7 +1784,7 @@ class RedisConnectionTest extends TestCase
         $connection->__call('psubscribe', [['channel:*'], function () {}]);
     }
 
-    public function testReconnectSetsSerializerOption()
+    public function testReconnectSetsSerializerOption(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -1809,7 +1809,7 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectSetsPrefixOption()
+    public function testReconnectSetsPrefixOption(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -1834,7 +1834,7 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectSetsConnectionLevelPhpRedisOptions()
+    public function testReconnectSetsConnectionLevelPhpRedisOptions(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -1871,7 +1871,7 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectDoesNotSetReadTimeoutOptionWhenEmpty()
+    public function testReconnectDoesNotSetReadTimeoutOptionWhenEmpty(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -1894,7 +1894,7 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectSetsNumericBackoffAlgorithmAsIs()
+    public function testReconnectSetsNumericBackoffAlgorithmAsIs(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -1919,7 +1919,7 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectThrowsOnUnknownBackoffAlgorithm()
+    public function testReconnectThrowsOnUnknownBackoffAlgorithm(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -1944,7 +1944,7 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectThrowsOnUnknownOption()
+    public function testReconnectThrowsOnUnknownOption(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -1969,7 +1969,7 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectSetsNumericOptions()
+    public function testReconnectSetsNumericOptions(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -1996,7 +1996,7 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectAuthenticatesWhenAuthConfigured()
+    public function testReconnectAuthenticatesWhenAuthConfigured(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -2021,7 +2021,7 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testReconnectDoesNotAuthenticateWhenAuthEmpty()
+    public function testReconnectDoesNotAuthenticateWhenAuthEmpty(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -2044,7 +2044,7 @@ class RedisConnectionTest extends TestCase
         };
     }
 
-    public function testCloseNullsConnection()
+    public function testCloseNullsConnection(): void
     {
         $connection = $this->mockRedisConnection();
 
@@ -2058,7 +2058,7 @@ class RedisConnectionTest extends TestCase
         $this->assertNull($connection->client());
     }
 
-    public function testCloseInvokesNativeRedisClose()
+    public function testCloseInvokesNativeRedisClose(): void
     {
         $connection = $this->mockRedisConnection();
         $redis = m::mock(Redis::class);
@@ -2073,7 +2073,7 @@ class RedisConnectionTest extends TestCase
         $this->assertNull($connection->client());
     }
 
-    public function testCloseSwallowsExceptionFromNativeRedisClose()
+    public function testCloseSwallowsExceptionFromNativeRedisClose(): void
     {
         $connection = $this->mockRedisConnection();
         $redis = m::mock(Redis::class);
@@ -2089,7 +2089,7 @@ class RedisConnectionTest extends TestCase
         $this->assertNull($connection->client());
     }
 
-    public function testClusterTransformFiresInAtomicMode()
+    public function testClusterTransformFiresInAtomicMode(): void
     {
         $connection = new PhpRedisClusterConnectionStub;
         $connection->shouldTransform(true);
@@ -2109,7 +2109,7 @@ class RedisConnectionTest extends TestCase
         $this->assertSame(1, $result);
     }
 
-    public function testRetryFailureMarksConnectionInvalid()
+    public function testRetryFailureMarksConnectionInvalid(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -2167,7 +2167,7 @@ class RedisConnectionTest extends TestCase
         $this->assertTrue($connection->isInvalidForTest());
     }
 
-    public function testReconnectClearsInvalidState()
+    public function testReconnectClearsInvalidState(): void
     {
         $pool = $this->getMockedPool();
         $redis = m::mock(Redis::class);
@@ -2208,7 +2208,7 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($connection->isInvalidForTest());
     }
 
-    public function testInvalidStateIsNotMaskedByFreshReleaseTime()
+    public function testInvalidStateIsNotMaskedByFreshReleaseTime(): void
     {
         $pool = m::mock(PoolInterface::class);
         $pool->shouldReceive('getOption')->andReturn(new PoolOption(maxIdleTime: 60.0));
@@ -2247,7 +2247,7 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($connection->check());
     }
 
-    public function testScanWithArrayOptions()
+    public function testScanWithArrayOptions(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
         $cursor = 0;
