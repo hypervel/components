@@ -24,6 +24,8 @@ abstract class Connection implements ConnectionInterface
 
     protected float $lastReleaseTime = 0.0;
 
+    protected bool $invalid = false;
+
     private ?Dispatcher $dispatcher = null;
 
     private ?StdoutLoggerInterface $logger = null;
@@ -79,10 +81,14 @@ abstract class Connection implements ConnectionInterface
      */
     public function check(): bool
     {
+        if ($this->invalid) {
+            return false;
+        }
+
         $maxIdleTime = $this->pool->getOption()->getMaxIdleTime();
         $now = microtime(true);
 
-        if ($now > $maxIdleTime + $this->lastUseTime) {
+        if ($now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
             return false;
         }
 
@@ -105,6 +111,22 @@ abstract class Connection implements ConnectionInterface
     public function getLastReleaseTime(): float
     {
         return $this->lastReleaseTime;
+    }
+
+    /**
+     * Mark the connection as invalid.
+     */
+    protected function markInvalid(): void
+    {
+        $this->invalid = true;
+    }
+
+    /**
+     * Mark the connection as valid.
+     */
+    protected function markValid(): void
+    {
+        $this->invalid = false;
     }
 
     /**
