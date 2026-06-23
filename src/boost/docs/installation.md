@@ -197,6 +197,8 @@ You are free to use any code editor you wish when developing Hypervel applicatio
 
 For extensive and robust PHP support, take a look at [PhpStorm](https://www.jetbrains.com/phpstorm/), a JetBrains IDE. PhpStorm includes powerful code completion, refactoring, navigation, and debugging tools for PHP applications.
 
+Hypervel's application skeleton includes the `swoole/ide-helper` package in development so IDEs can understand Swoole classes, constants, and functions.
+
 <a name="hypervel-and-ai"></a>
 ## Hypervel and AI
 
