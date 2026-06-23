@@ -277,7 +277,6 @@
         "phpunit/phpunit": "^13.0.3",
         "pusher/pusher-php-server": "^7.2",
         "resend/resend-php": "^1.0",
-        "swoole/ide-helper": "^6.0.2",
         "symfony/filesystem": "^8.0",
         "symfony/http-client": "^8.0",
         "symfony/mailgun-mailer": "^8.0",
