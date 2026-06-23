@@ -977,6 +977,9 @@ class Connection implements ConnectionInterface
 
         // Reset record modification state
         $this->recordsModified = false;
+
+        // Reset execution errors for the next borrow window.
+        $this->errorCount = 0;
     }
 
     /**
