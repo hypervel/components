@@ -12,10 +12,12 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Pool\Events\ReleaseConnection;
 use PDO;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
@@ -192,7 +194,10 @@ class PooledConnection implements PoolConnectionInterface
         $result = new Channel(1);
 
         $started = go(static function () use ($pdos, $result) {
-            $result->push(self::pingPdos($pdos), 0.0);
+            try {
+                $result->push(self::pingPdos($pdos), 0.0);
+            } catch (CanceledException) {
+            }
         });
 
         if ($started === false) {
@@ -200,6 +205,8 @@ class PooledConnection implements PoolConnectionInterface
         }
 
         if ($result->pop($timeout) !== true) {
+            Coroutine::cancelById($started, throwException: true);
+
             return false;
         }
 
@@ -353,7 +360,11 @@ class PooledConnection implements PoolConnectionInterface
             }
 
             return true;
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if ($exception instanceof CanceledException) {
+                throw $exception;
+            }
+
             return false;
         }
     }

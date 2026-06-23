@@ -2,21 +2,26 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Database\Sqlite;
+namespace Hypervel\Tests\Integration\Database\Sqlite\DbPoolHeartbeatTest;
 
 use Closure;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 use PDO;
 use PDOStatement;
+use Psr\Log\AbstractLogger;
 use ReflectionProperty;
+use RuntimeException;
+use Stringable;
 
 use function Hypervel\Coroutine\run;
 
@@ -259,6 +264,8 @@ class DbPoolHeartbeatTest extends TestCase
     public function testHeartbeatPingTimeoutDiscardsWithoutRequeueingLateCompletion(): void
     {
         run(function () {
+            SlowHeartbeatPdo::$coroutineId = null;
+
             $pool = $this->createPool([
                 'min_connections' => 1,
                 'max_connections' => 1,
@@ -276,9 +283,51 @@ class DbPoolHeartbeatTest extends TestCase
             $this->assertLessThan(0.05, $elapsed);
             $this->assertSame(0, $pool->getCurrentConnections());
             $this->assertSame(0, $pool->getConnectionsInChannel());
+            $this->assertIsInt(SlowHeartbeatPdo::$coroutineId);
+            $this->assertFalse(Coroutine::exists(SlowHeartbeatPdo::$coroutineId));
 
             usleep(100000);
 
+            $this->assertSame(0, $pool->getConnectionsInChannel());
+        });
+    }
+
+    public function testSuccessfulHeartbeatPingAfterFlushDiscardsConnection(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ], FlushingHeartbeatDbPool::class);
+
+            $pooledConnection = $pool->get();
+            $pooledConnection->release();
+
+            $pool->runHeartbeatForTest();
+
+            $this->assertSame(0, $pool->getCurrentConnections());
+            $this->assertSame(0, $pool->getConnectionsInChannel());
+        });
+    }
+
+    public function testHeartbeatDiscardOnlyDecrementsOnceWhenLoggerThrows(): void
+    {
+        run(function () {
+            $this->app->instance(StdoutLoggerInterface::class, new ThrowingHeartbeatLogger);
+
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ], OpenTransactionFailingHeartbeatDbPool::class);
+
+            $pooledConnection = $pool->get();
+            $pooledConnection->release();
+
+            $pool->runHeartbeatForTest();
+
+            $this->assertSame(0, $pool->getCurrentConnections());
             $this->assertSame(0, $pool->getConnectionsInChannel());
         });
     }
@@ -351,6 +400,48 @@ class FailingHeartbeatPooledConnection extends PooledConnection
     }
 }
 
+class FlushingHeartbeatDbPool extends InspectableHeartbeatDbPool
+{
+    protected function createConnection(): ConnectionInterface
+    {
+        return new FlushingHeartbeatPooledConnection($this->container, $this, $this->config);
+    }
+}
+
+class FlushingHeartbeatPooledConnection extends PooledConnection
+{
+    public function ping(float $timeout): bool
+    {
+        $this->pool->flushAll();
+
+        return true;
+    }
+}
+
+class OpenTransactionFailingHeartbeatDbPool extends InspectableHeartbeatDbPool
+{
+    protected function createConnection(): ConnectionInterface
+    {
+        return new OpenTransactionFailingHeartbeatPooledConnection($this->container, $this, $this->config);
+    }
+}
+
+class OpenTransactionFailingHeartbeatPooledConnection extends FailingHeartbeatPooledConnection
+{
+    public function hasOpenTransaction(): bool
+    {
+        return true;
+    }
+}
+
+class ThrowingHeartbeatLogger extends AbstractLogger implements StdoutLoggerInterface
+{
+    public function log($level, string|Stringable $message, array $context = []): void
+    {
+        throw new RuntimeException('Logger failed.');
+    }
+}
+
 class SlowHeartbeatDbPool extends InspectableHeartbeatDbPool
 {
     protected function createConnection(): ConnectionInterface
@@ -369,12 +460,16 @@ class SlowHeartbeatPooledConnection extends PooledConnection
 
 class SlowHeartbeatPdo extends PDO
 {
+    public static ?int $coroutineId = null;
+
     public function __construct()
     {
     }
 
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false
     {
+        self::$coroutineId = Coroutine::id();
+
         usleep(50000);
 
         return false;

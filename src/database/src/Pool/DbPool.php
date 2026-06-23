@@ -34,6 +34,8 @@ class DbPool extends Pool
 
     protected ?int $heartbeatTimerId = null;
 
+    protected int $heartbeatGeneration = 0;
+
     /**
      * Shared PDO for in-memory SQLite. All pool slots must share the same PDO
      * instance, otherwise each would get its own empty database.
@@ -71,6 +73,9 @@ class DbPool extends Pool
         $this->startHeartbeat();
     }
 
+    /**
+     * Destroy the database pool.
+     */
     public function __destruct()
     {
         $this->clearHeartbeat();
@@ -145,7 +150,15 @@ class DbPool extends Pool
 
         $this->heartbeatTimerId = $this->heartbeatTimer->tick(
             $this->option->getHeartbeat(),
-            fn () => $this->heartbeat()
+            function (bool $isClosing): ?string {
+                if ($isClosing) {
+                    return Timer::STOP;
+                }
+
+                $this->heartbeat();
+
+                return null;
+            }
         );
     }
 
@@ -154,6 +167,8 @@ class DbPool extends Pool
      */
     protected function clearHeartbeat(): void
     {
+        ++$this->heartbeatGeneration;
+
         if ($this->heartbeatTimer === null || $this->heartbeatTimerId === null) {
             return;
         }
@@ -192,15 +207,21 @@ class DbPool extends Pool
                 return;
             }
 
+            $heartbeatGeneration = $this->heartbeatGeneration;
+
             if ($connection->ping($this->option->getHeartbeatTimeout())) {
-                $this->release($connection);
+                if ($heartbeatGeneration === $this->heartbeatGeneration) {
+                    $this->release($connection);
+                } else {
+                    $this->discardHeartbeatConnection($connection);
+                }
 
                 return;
             }
 
             $this->discardHeartbeatConnection($connection);
         } catch (Throwable $exception) {
-            $this->getLogger()?->error('Database heartbeat failed: ' . $exception);
+            $this->logHeartbeatError('Database heartbeat failed: ' . $exception);
             $this->discardHeartbeatConnection($connection);
         }
     }
@@ -214,12 +235,23 @@ class DbPool extends Pool
 
         try {
             if ($connection->hasOpenTransaction()) {
-                $this->getLogger()?->error('Database heartbeat found an idle connection with an open transaction.');
+                $this->logHeartbeatError('Database heartbeat found an idle connection with an open transaction.');
             }
 
             $connection->close();
         } catch (Throwable $exception) {
-            $this->getLogger()?->error('Database heartbeat close failed: ' . $exception);
+            $this->logHeartbeatError('Database heartbeat close failed: ' . $exception);
+        }
+    }
+
+    /**
+     * Log a heartbeat error without breaking pool cleanup.
+     */
+    protected function logHeartbeatError(string $message): void
+    {
+        try {
+            $this->getLogger()?->error($message);
+        } catch (Throwable) {
         }
     }
 
