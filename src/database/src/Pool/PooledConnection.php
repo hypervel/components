@@ -11,10 +11,14 @@ use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
+use Hypervel\Engine\Channel;
 use Hypervel\Pool\Events\ReleaseConnection;
+use PDO;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
+
+use function Hypervel\Coroutine\go;
 
 /**
  * Wraps a database Connection for use with Hypervel's connection pool.
@@ -38,6 +42,8 @@ class PooledConnection implements PoolConnectionInterface
     protected float $lastUseTime = 0.0;
 
     protected float $lastReleaseTime = 0.0;
+
+    protected bool $invalid = false;
 
     protected ?Dispatcher $dispatcher = null;
 
@@ -126,6 +132,7 @@ class PooledConnection implements PoolConnectionInterface
         }
 
         $this->lastUseTime = microtime(true);
+        $this->markValid();
 
         return true;
     }
@@ -135,6 +142,10 @@ class PooledConnection implements PoolConnectionInterface
      */
     public function check(): bool
     {
+        if ($this->invalid) {
+            return false;
+        }
+
         if ($this->connection === null) {
             return false;
         }
@@ -142,11 +153,57 @@ class PooledConnection implements PoolConnectionInterface
         $maxIdleTime = $this->pool->getOption()->getMaxIdleTime();
         $now = microtime(true);
 
-        if ($now > $maxIdleTime + $this->lastUseTime) {
+        if ($now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
             return false;
         }
 
         $this->lastUseTime = $now;
+
+        return true;
+    }
+
+    /**
+     * Determine if this connection has been idle long enough to be evicted.
+     */
+    public function isIdleExpired(?float $now = null): bool
+    {
+        if ($this->lastReleaseTime === 0.0) {
+            return false;
+        }
+
+        return ($now ?? microtime(true)) > $this->pool->getOption()->getMaxIdleTime() + $this->lastReleaseTime;
+    }
+
+    /**
+     * Ping already-open PDO connections.
+     */
+    public function ping(float $timeout): bool
+    {
+        if ($this->invalid || ! $this->connection instanceof Connection) {
+            return false;
+        }
+
+        $pdos = $this->getOpenPdos();
+
+        if ($pdos === []) {
+            return true;
+        }
+
+        $result = new Channel(1);
+
+        $started = go(static function () use ($pdos, $result) {
+            $result->push(self::pingPdos($pdos), 0.0);
+        });
+
+        if ($started === false) {
+            return false;
+        }
+
+        if ($result->pop($timeout) !== true) {
+            return false;
+        }
+
+        $this->lastUseTime = microtime(true);
 
         return true;
     }
@@ -176,13 +233,15 @@ class PooledConnection implements PoolConnectionInterface
     {
         try {
             if ($this->connection instanceof Connection) {
+                $errorCount = $this->connection->getErrorCount();
+
                 // Reset all per-request state to prevent leaks between coroutines
                 $this->connection->resetForPool();
 
                 // Check error count and mark as stale if too high
-                if ($this->connection->getErrorCount() > self::MAX_ERROR_COUNT) {
+                if ($errorCount > self::MAX_ERROR_COUNT) {
                     $this->logger->warning('Connection has too many errors, marking as stale.');
-                    $this->lastUseTime = 0.0;
+                    $this->markInvalid();
                 }
 
                 // Roll back any uncommitted transactions (including nested savepoints)
@@ -202,7 +261,7 @@ class PooledConnection implements PoolConnectionInterface
         } catch (Throwable $exception) {
             $this->logger->error('Release connection failed: ' . $exception);
             // Mark as stale so it will be recreated
-            $this->lastUseTime = 0.0;
+            $this->markInvalid();
         } finally {
             $this->pool->release($this);
         }
@@ -222,6 +281,81 @@ class PooledConnection implements PoolConnectionInterface
     public function getLastReleaseTime(): float
     {
         return $this->lastReleaseTime;
+    }
+
+    /**
+     * Determine if the underlying connection has an open transaction.
+     */
+    public function hasOpenTransaction(): bool
+    {
+        return $this->connection instanceof Connection
+            && $this->connection->transactionLevel() > 0;
+    }
+
+    /**
+     * Mark the connection as invalid.
+     */
+    protected function markInvalid(): void
+    {
+        $this->invalid = true;
+    }
+
+    /**
+     * Mark the connection as valid.
+     */
+    protected function markValid(): void
+    {
+        $this->invalid = false;
+    }
+
+    /**
+     * Get already-open PDO instances.
+     *
+     * @return PDO[]
+     */
+    protected function getOpenPdos(): array
+    {
+        if (! $this->connection instanceof Connection) {
+            return [];
+        }
+
+        $writePdo = $this->connection->getRawPdo();
+        $readPdo = $this->connection->getRawReadPdo();
+        $pdos = [];
+
+        if ($writePdo instanceof PDO) {
+            $pdos[] = $writePdo;
+        }
+
+        if ($readPdo instanceof PDO && $readPdo !== $writePdo) {
+            $pdos[] = $readPdo;
+        }
+
+        return $pdos;
+    }
+
+    /**
+     * Ping PDO instances.
+     *
+     * @param PDO[] $pdos
+     */
+    protected static function pingPdos(array $pdos): bool
+    {
+        try {
+            foreach ($pdos as $pdo) {
+                $statement = $pdo->query('SELECT 1');
+
+                if ($statement === false) {
+                    return false;
+                }
+
+                $statement->closeCursor();
+            }
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**
