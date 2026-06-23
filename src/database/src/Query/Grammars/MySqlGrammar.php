@@ -307,7 +307,7 @@ class MySqlGrammar extends Grammar
         $sql = $this->compileInsert($query, $values);
 
         if ($useUpsertAlias) {
-            $sql .= ' as laravel_upsert_alias';
+            $sql .= ' as hypervel_upsert_alias';
         }
 
         $sql .= ' on duplicate key update ';
@@ -318,7 +318,7 @@ class MySqlGrammar extends Grammar
             }
 
             return $useUpsertAlias
-                ? $this->wrap($value) . ' = ' . $this->wrap('laravel_upsert_alias') . '.' . $this->wrap($value)
+                ? $this->wrap($value) . ' = ' . $this->wrap('hypervel_upsert_alias') . '.' . $this->wrap($value)
                 : $this->wrap($value) . ' = values(' . $this->wrap($value) . ')';
         })->implode(', ');
 
