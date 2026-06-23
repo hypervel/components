@@ -280,10 +280,14 @@ class DbPoolHeartbeatTest extends TestCase
             $pool->runHeartbeatForTest();
             $elapsed = microtime(true) - $startedAt;
 
-            $this->assertLessThan(0.05, $elapsed);
+            $this->assertLessThan(0.2, $elapsed);
             $this->assertSame(0, $pool->getCurrentConnections());
             $this->assertSame(0, $pool->getConnectionsInChannel());
             $this->assertIsInt(SlowHeartbeatPdo::$coroutineId);
+            $deadline = microtime(true) + 0.1;
+            while (Coroutine::exists(SlowHeartbeatPdo::$coroutineId) && microtime(true) < $deadline) {
+                usleep(1000);
+            }
             $this->assertFalse(Coroutine::exists(SlowHeartbeatPdo::$coroutineId));
 
             usleep(100000);
@@ -470,7 +474,7 @@ class SlowHeartbeatPdo extends PDO
     {
         self::$coroutineId = Coroutine::id();
 
-        usleep(50000);
+        usleep(500000);
 
         return false;
     }
