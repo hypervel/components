@@ -74,11 +74,6 @@ class Middleware
     protected array $groupReplacements = [];
 
     /**
-     * The Folio / page middleware for the application.
-     */
-    protected array $pageMiddleware = [];
-
-    /**
      * Indicates if the "trust hosts" middleware is enabled.
      */
     protected bool $trustHosts = false;
@@ -279,16 +274,6 @@ class Middleware
                 $this->replaceInGroup($group, $search, $replace);
             }
         }
-
-        return $this;
-    }
-
-    /**
-     * Register the Folio / page middleware for the application.
-     */
-    public function pages(array $middleware): static
-    {
-        $this->pageMiddleware = $middleware;
 
         return $this;
     }
@@ -626,14 +611,6 @@ class Middleware
         $this->authenticatedSessions = true;
 
         return $this;
-    }
-
-    /**
-     * Get the Folio / page middleware for the application.
-     */
-    public function getPageMiddleware(): array
-    {
-        return $this->pageMiddleware;
     }
 
     /**

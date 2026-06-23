@@ -20,7 +20,6 @@ use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\View;
-use Laravel\Folio\Folio;
 use Throwable;
 
 class ApplicationBuilder
@@ -34,11 +33,6 @@ class ApplicationBuilder
      * Any additional routing callbacks that should be invoked while registering routes.
      */
     protected array $additionalRoutingCallbacks = [];
-
-    /**
-     * The Folio / page middleware that have been defined by the user.
-     */
-    protected array $pageMiddleware = [];
 
     /**
      * Create a new application builder instance.
@@ -131,13 +125,12 @@ class ApplicationBuilder
         array|string|null $api = null,
         ?string $commands = null,
         ?string $channels = null,
-        ?string $pages = null,
         ?string $health = null,
         string $apiPrefix = 'api',
         ?callable $then = null,
     ): static {
-        if (is_null($using) && (is_string($web) || is_array($web) || is_string($api) || is_array($api) || is_string($pages) || is_string($health)) || is_callable($then)) {
-            $using = $this->buildRoutingCallback($web, $api, $pages, $health, $apiPrefix, $then);
+        if (is_null($using) && (is_string($web) || is_array($web) || is_string($api) || is_array($api) || is_string($health)) || is_callable($then)) {
+            $using = $this->buildRoutingCallback($web, $api, $health, $apiPrefix, $then);
 
             if (is_string($health)) {
                 PreventRequestsDuringMaintenance::except($health);
@@ -169,12 +162,11 @@ class ApplicationBuilder
     protected function buildRoutingCallback(
         array|string|null $web,
         array|string|null $api,
-        ?string $pages,
         ?string $health,
         string $apiPrefix,
         ?callable $then,
     ): Closure {
-        return function () use ($web, $api, $pages, $health, $apiPrefix, $then) {
+        return function () use ($web, $api, $health, $apiPrefix, $then) {
             if (is_string($api) || is_array($api)) {
                 if (is_array($api)) {
                     foreach ($api as $apiRoute) {
@@ -225,12 +217,6 @@ class ApplicationBuilder
                 $callback();
             }
 
-            if (is_string($pages)
-                && realpath($pages) !== false
-                && class_exists(Folio::class)) {
-                Folio::route($pages, middleware: $this->pageMiddleware);
-            }
-
             if (is_callable($then)) {
                 $then($this->app);
             }
@@ -250,7 +236,6 @@ class ApplicationBuilder
                 $callback($middleware);
             }
 
-            $this->pageMiddleware = $middleware->getPageMiddleware();
             $kernel->setGlobalMiddleware($middleware->getGlobalMiddleware());
             $kernel->setMiddlewareGroups($middleware->getMiddlewareGroups());
             $kernel->setMiddlewareAliases($middleware->getMiddlewareAliases());
