@@ -152,15 +152,6 @@ class Connection implements ConnectionInterface
     protected array $queryDurationHandlers = [];
 
     /**
-     * Indicates if the query duration listener has been registered.
-     *
-     * We use a single persistent listener that iterates over all handlers,
-     * rather than one listener per handler, to prevent listener accumulation
-     * when connections are reset for pooling.
-     */
-    protected bool $queryDurationListenerRegistered = false;
-
-    /**
      * Indicates if the connection is in a "dry run".
      */
     protected bool $pretending = false;
@@ -761,8 +752,29 @@ class Connection implements ConnectionInterface
         $this->totalQueryDuration += $time ?? 0.0;
 
         $readWriteType = $this->latestReadWriteTypeUsed();
+        $events = $this->events;
+        $hasQueryExecutedListeners = $events?->hasListeners(QueryExecuted::class) ?? false;
 
-        $this->event(QueryExecuted::class, fn () => new QueryExecuted($query, $bindings, $time, $this, $readWriteType));
+        if ($hasQueryExecutedListeners || $this->queryDurationHandlers !== []) {
+            $event = new QueryExecuted($query, $bindings, $time, $this, $readWriteType);
+
+            if ($hasQueryExecutedListeners && $events !== null) {
+                $events->dispatch($event);
+            }
+
+            $handlers = [];
+
+            foreach ($this->queryDurationHandlers as $key => $config) {
+                if (! $config['has_run'] && $this->totalQueryDuration() > $config['threshold']) {
+                    $this->queryDurationHandlers[$key]['has_run'] = true;
+                    $handlers[] = $config['handler'];
+                }
+            }
+
+            foreach ($handlers as $handler) {
+                $handler($this, $event);
+            }
+        }
 
         $query = $this->pretending === true
             ? $this->queryGrammar->substituteBindingsIntoRawSql($query, $bindings)
@@ -799,22 +811,6 @@ class Connection implements ConnectionInterface
             'handler' => $handler,
             'has_run' => false,
         ];
-
-        // Register a single persistent listener that iterates over all handlers.
-        // This prevents listener accumulation when connections are reset for pooling.
-        // Only set the flag if a dispatcher is present; otherwise the listener
-        // won't actually be registered and we should try again next time.
-        if (! $this->queryDurationListenerRegistered && $this->events) {
-            $this->listen(function ($event) {
-                foreach ($this->queryDurationHandlers as $key => $config) {
-                    if (! $config['has_run'] && $this->totalQueryDuration() > $config['threshold']) {
-                        $config['handler']($this, $event);
-                        $this->queryDurationHandlers[$key]['has_run'] = true;
-                    }
-                }
-            });
-            $this->queryDurationListenerRegistered = true;
-        }
     }
 
     /**

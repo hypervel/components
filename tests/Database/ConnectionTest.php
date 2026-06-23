@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Events\Dispatcher;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 
@@ -100,8 +102,6 @@ class ConnectionTest extends TestCase
 
     /**
      * Test that multiple whenQueryingForLongerThan handlers work correctly.
-     *
-     * Uses a single persistent listener internally, but all handlers should fire.
      */
     public function testMultipleQueryDurationHandlersAllFire(): void
     {
@@ -127,6 +127,30 @@ class ConnectionTest extends TestCase
         $this->assertTrue($fired['handler1'], 'Handler 1 should have fired');
         $this->assertTrue($fired['handler2'], 'Handler 2 should have fired');
         $this->assertTrue($fired['handler3'], 'Handler 3 should have fired');
+    }
+
+    /**
+     * Test that connection-local query duration handlers do not register shared dispatcher listeners.
+     */
+    public function testQueryDurationHandlersDoNotRegisterSharedDispatcherListeners(): void
+    {
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+        $connection = DB::connection();
+        $fired = false;
+
+        $this->assertArrayNotHasKey(QueryExecuted::class, $events->getRawListeners());
+
+        $connection->whenQueryingForLongerThan(-1, function () use (&$fired) {
+            $fired = true;
+        });
+
+        $this->assertArrayNotHasKey(QueryExecuted::class, $events->getRawListeners());
+
+        $connection->select('SELECT 1');
+
+        $this->assertTrue($fired);
+        $this->assertArrayNotHasKey(QueryExecuted::class, $events->getRawListeners());
     }
 
     /**
