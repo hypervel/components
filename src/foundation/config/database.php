@@ -21,6 +21,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Database Connection Pools
+    |--------------------------------------------------------------------------
+    |
+    | Database connections may define a "pool" array for long-lived workers.
+    | Heartbeats are disabled with -1; positive values keep the minimum
+    | idle connections validated without firing query events or logs.
+    |
+    */
+
+    /*
+    |--------------------------------------------------------------------------
     | Database Connections
     |--------------------------------------------------------------------------
     |
@@ -69,6 +80,7 @@ return [
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
                 'heartbeat' => -1,
+                'heartbeat_timeout' => 1.0,
                 'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
             ],
         ],
@@ -97,6 +109,7 @@ return [
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
                 'heartbeat' => -1,
+                'heartbeat_timeout' => 1.0,
                 'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
             ],
         ],
@@ -123,6 +136,7 @@ return [
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
                 'heartbeat' => -1,
+                'heartbeat_timeout' => 1.0,
                 'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
             ],
         ],
@@ -150,6 +164,7 @@ return [
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
                 'heartbeat' => -1,
+                'heartbeat_timeout' => 1.0,
                 'max_idle_time' => (float) env('DB_POOLED_MAX_IDLE_TIME', 60),
             ],
         ],
