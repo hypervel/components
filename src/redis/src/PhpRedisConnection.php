@@ -59,6 +59,7 @@ class PhpRedisConnection extends RedisConnection
         }
 
         $this->connection = $redis;
+        $this->markValid();
         $this->lastUseTime = microtime(true);
 
         if (($this->config['event']['enable'] ?? false) && $this->container->bound('events')) {

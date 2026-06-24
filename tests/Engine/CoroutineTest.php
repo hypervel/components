@@ -10,11 +10,12 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Tests\TestCase;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class CoroutineTest extends TestCase
 {
-    public function testCoroutineCreate()
+    public function testCoroutineCreate(): void
     {
         $coroutine = new Coroutine(function () {
             $this->assertTrue(true);
@@ -26,7 +27,7 @@ class CoroutineTest extends TestCase
         $this->assertIsInt($coroutine->getId());
     }
 
-    public function testCoroutineCreateStatic()
+    public function testCoroutineCreateStatic(): void
     {
         $coroutine = Coroutine::create(function () {
             $this->assertTrue(true);
@@ -36,7 +37,7 @@ class CoroutineTest extends TestCase
         $this->assertIsInt($coroutine->getId());
     }
 
-    public function testCoroutineContext()
+    public function testCoroutineContext(): void
     {
         $id = uniqid();
         $coroutine = Coroutine::create(function () use ($id) {
@@ -54,13 +55,13 @@ class CoroutineTest extends TestCase
         $this->assertNull(Coroutine::getContextFor($coroutine->getId()));
     }
 
-    public function testCoroutineId()
+    public function testCoroutineId(): void
     {
         $this->assertIsInt($id = Coroutine::id());
         $this->assertGreaterThan(0, $id);
     }
 
-    public function testCoroutinePid()
+    public function testCoroutinePid(): void
     {
         $pid = Coroutine::id();
         Coroutine::create(function () use ($pid) {
@@ -77,7 +78,7 @@ class CoroutineTest extends TestCase
         });
     }
 
-    public function testCoroutinePidHasBeenDestroyed()
+    public function testCoroutinePidHasBeenDestroyed(): void
     {
         $co = Coroutine::create(function () {
         });
@@ -90,12 +91,12 @@ class CoroutineTest extends TestCase
         }
     }
 
-    public function testCoroutineInTopCoroutine()
+    public function testCoroutineInTopCoroutine(): void
     {
         $this->assertSame(0, Coroutine::pid());
     }
 
-    public function testCoroutineDefer()
+    public function testCoroutineDefer(): void
     {
         $channel = new Channel(2);
         Coroutine::create(function () use ($channel) {
@@ -110,7 +111,7 @@ class CoroutineTest extends TestCase
         $this->assertSame(2, $channel->pop());
     }
 
-    public function testTheOrderForCoroutineDefer()
+    public function testTheOrderForCoroutineDefer(): void
     {
         $channel = new Channel(3);
         Coroutine::create(function () use ($channel) {
@@ -129,7 +130,7 @@ class CoroutineTest extends TestCase
         $this->assertSame(2, $channel->pop());
     }
 
-    public function testCoroutineResumeById()
+    public function testCoroutineResumeById(): void
     {
         $channel = new Channel(10);
         Coroutine::create(function () use ($channel) {
@@ -151,14 +152,35 @@ class CoroutineTest extends TestCase
         $this->assertSame(5, $channel->pop());
     }
 
-    public function testCoroutineList()
+    public function testCoroutineCancelById(): void
+    {
+        $channel = new Channel(2);
+        $coroutine = Coroutine::create(function () use ($channel) {
+            try {
+                $channel->push(1);
+                usleep(100000);
+                $channel->push(2);
+            } catch (CanceledException) {
+                $channel->push('cancelled');
+            }
+        });
+
+        $this->assertSame(1, $channel->pop());
+        $this->assertTrue(Coroutine::exists($coroutine->getId()));
+        $this->assertTrue(Coroutine::cancelById($coroutine->getId(), throwException: true));
+        $this->assertFalse(Coroutine::exists($coroutine->getId()));
+        $this->assertSame('cancelled', $channel->pop(0.01));
+        $this->assertFalse($channel->pop(0.01));
+    }
+
+    public function testCoroutineList(): void
     {
         $list = Coroutine::list();
         $this->assertIsIterable($list);
         $this->assertContains(Coroutine::id(), $list);
     }
 
-    public function testCoroutineListCount()
+    public function testCoroutineListCount(): void
     {
         Coroutine::create(function () {
             usleep(100000);

@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Database\Pool;
 
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Coordinator\Timer;
 use Hypervel\Pool\Frequency;
 use Hypervel\Pool\Pool;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
 use PDO;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Database connection pool.
@@ -25,6 +29,12 @@ use PDO;
 class DbPool extends Pool
 {
     protected array $config;
+
+    protected ?Timer $heartbeatTimer = null;
+
+    protected ?int $heartbeatTimerId = null;
+
+    protected int $heartbeatGeneration = 0;
 
     /**
      * Shared PDO for in-memory SQLite. All pool slots must share the same PDO
@@ -52,11 +62,23 @@ class DbPool extends Pool
 
         parent::__construct($container, $name, $poolOptions);
 
+        $this->heartbeatTimer = new Timer($this->getLogger());
+
         // For in-memory SQLite, pre-create a shared PDO so all pool slots
         // see the same database. This must happen after parent::__construct.
         if ($this->isInMemorySqlite()) {
             $this->sharedInMemorySqlitePdo = $this->createSharedInMemorySqlitePdo();
         }
+
+        $this->startHeartbeat();
+    }
+
+    /**
+     * Destroy the database pool.
+     */
+    public function __destruct()
+    {
+        $this->clearHeartbeat();
     }
 
     /**
@@ -111,7 +133,137 @@ class DbPool extends Pool
      */
     public function flushAll(): void
     {
+        $this->clearHeartbeat();
+
         parent::flushAll();
         $this->sharedInMemorySqlitePdo = null;
+    }
+
+    /**
+     * Start the heartbeat timer if configured.
+     */
+    protected function startHeartbeat(): void
+    {
+        if ($this->heartbeatTimer === null || $this->option->getHeartbeat() <= 0 || $this->sharedInMemorySqlitePdo !== null) {
+            return;
+        }
+
+        $this->heartbeatTimerId = $this->heartbeatTimer->tick(
+            $this->option->getHeartbeat(),
+            function (bool $isClosing): ?string {
+                if ($isClosing) {
+                    return Timer::STOP;
+                }
+
+                $this->heartbeat();
+
+                return null;
+            }
+        );
+    }
+
+    /**
+     * Clear the heartbeat timer.
+     */
+    protected function clearHeartbeat(): void
+    {
+        ++$this->heartbeatGeneration;
+
+        if ($this->heartbeatTimer === null || $this->heartbeatTimerId === null) {
+            return;
+        }
+
+        $this->heartbeatTimer->clear($this->heartbeatTimerId);
+        $this->heartbeatTimerId = null;
+    }
+
+    /**
+     * Run one heartbeat sweep over currently idle connections.
+     */
+    protected function heartbeat(): void
+    {
+        $connectionsToInspect = $this->getConnectionsInChannel();
+
+        for ($i = 0; $i < $connectionsToInspect; ++$i) {
+            $connection = $this->channel->pop(0.001);
+
+            if (! $connection instanceof PooledConnection) {
+                break;
+            }
+
+            $this->heartbeatConnection($connection);
+        }
+    }
+
+    /**
+     * Heartbeat one idle connection.
+     */
+    protected function heartbeatConnection(PooledConnection $connection): void
+    {
+        try {
+            if ($connection->isIdleExpired() && $this->currentConnections > $this->option->getMinConnections()) {
+                $this->discardHeartbeatConnection($connection);
+
+                return;
+            }
+
+            $heartbeatGeneration = $this->heartbeatGeneration;
+
+            if ($connection->ping($this->option->getHeartbeatTimeout())) {
+                if ($heartbeatGeneration === $this->heartbeatGeneration) {
+                    $this->release($connection);
+                } else {
+                    $this->discardHeartbeatConnection($connection);
+                }
+
+                return;
+            }
+
+            $this->discardHeartbeatConnection($connection);
+        } catch (Throwable $exception) {
+            $this->logHeartbeatError('Database heartbeat failed: ' . $exception);
+            $this->discardHeartbeatConnection($connection);
+        }
+    }
+
+    /**
+     * Discard an idle connection from the pool.
+     */
+    protected function discardHeartbeatConnection(PooledConnection $connection): void
+    {
+        --$this->currentConnections;
+
+        try {
+            if ($connection->hasOpenTransaction()) {
+                $this->logHeartbeatError('Database heartbeat found an idle connection with an open transaction.');
+            }
+
+            $connection->close();
+        } catch (Throwable $exception) {
+            $this->logHeartbeatError('Database heartbeat close failed: ' . $exception);
+        }
+    }
+
+    /**
+     * Log a heartbeat error without breaking pool cleanup.
+     */
+    protected function logHeartbeatError(string $message): void
+    {
+        try {
+            $this->getLogger()?->error($message);
+        } catch (Throwable) {
+        }
+    }
+
+    /**
+     * Get the logger instance if available.
+     */
+    protected function getLogger(): ?LoggerInterface
+    {
+        if (! $this->container->has(StdoutLoggerInterface::class)) {
+            return null;
+        }
+
+        return $this->container->make(StdoutLoggerInterface::class);
     }
 }

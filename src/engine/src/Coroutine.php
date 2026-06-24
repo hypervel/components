@@ -133,6 +133,15 @@ class Coroutine implements CoroutineInterface
     }
 
     /**
+     * Cancel a coroutine by ID.
+     */
+    public static function cancelById(int $id, bool $throwException = false): bool
+    {
+        /* @phpstan-ignore arguments.count (@TODO: Remove once PHPStan's bundled JetBrains Swoole stub includes Swoole 6.2's throw_exception parameter.) */
+        return SwooleCo::cancel($id, $throwException);
+    }
+
+    /**
      * Get the coroutine statistics.
      */
     public static function stats(): array
@@ -143,7 +152,7 @@ class Coroutine implements CoroutineInterface
     /**
      * Determine if a coroutine exists.
      */
-    public static function exists(?int $id = null): bool
+    public static function exists(int $id): bool
     {
         return SwooleCo::exists($id);
     }

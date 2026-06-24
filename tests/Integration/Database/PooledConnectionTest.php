@@ -275,6 +275,62 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertGreaterThan($initialTime, $pooledConnection->getLastUseTime());
     }
 
+    public function testInvalidConnectionReconnectsEvenWithFreshReleaseTime(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $originalConnection = $pooledConnection->getConnection();
+
+        (new ReflectionProperty(PooledConnection::class, 'invalid'))->setValue($pooledConnection, true);
+        (new ReflectionProperty(PooledConnection::class, 'lastReleaseTime'))->setValue($pooledConnection, microtime(true));
+
+        $this->assertNotSame($originalConnection, $pooledConnection->getActiveConnection());
+    }
+
+    public function testReleaseSnapshotsErrorCountBeforeResettingConnection(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $connection = $pooledConnection->getConnection();
+
+        (new ReflectionProperty(Connection::class, 'errorCount'))->setValue($connection, 101);
+
+        $pooledConnection->release();
+
+        $this->assertSame(0, $connection->getErrorCount());
+
+        /** @var PooledConnection $nextPooledConnection */
+        $nextPooledConnection = $pool->get();
+
+        $this->assertNotSame($connection, $nextPooledConnection->getConnection());
+
+        $nextPooledConnection->release();
+    }
+
+    public function testReleaseResetsErrorCountForNextBorrowWindow(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $connection = $pooledConnection->getConnection();
+
+        (new ReflectionProperty(Connection::class, 'errorCount'))->setValue($connection, 1);
+
+        $pooledConnection->release();
+
+        $this->assertSame(0, $connection->getErrorCount());
+
+        /** @var PooledConnection $nextPooledConnection */
+        $nextPooledConnection = $pool->get();
+
+        $this->assertSame($connection, $nextPooledConnection->getConnection());
+
+        $nextPooledConnection->release();
+    }
+
     public function testSharedPdoForInMemorySqlite(): void
     {
         $pool = new DbPool($this->app, 'pool_test');
