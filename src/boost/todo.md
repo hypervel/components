@@ -25,7 +25,7 @@
 
 ## Database
 
-- Consider built-in early jitter for DB pool `max_lifetime`. Exact max-lifetime recycling can make a burst-created cohort of idle connections expire in the same heartbeat tick, causing synchronized reconnects. A clean design would avoid an extra config knob and assign each connection an effective lifetime between 90-100% of `max_lifetime`, so the configured value remains the upper bound while reconnects are spread out.
+- Consider built-in early jitter for database and Redis pool `max_lifetime`. Exact max-lifetime recycling can make a burst-created cohort of idle connections expire in the same heartbeat tick, causing synchronized reconnects. A clean design would avoid an extra config knob and assign each connection an effective lifetime between 90-100% of `max_lifetime`, so the configured value remains the upper bound while reconnects are spread out.
 
 ## Foundation
 
@@ -48,11 +48,6 @@
 
 - Port a `workbench:install` command for Hypervel Testbench. Hypervel has Workbench runtime support, but no scaffolding command for package authors to create the recommended `workbench/` directory and `testbench.yaml`. Correct fix: add an install command adapted to Hypervel's supported Workbench keys (`install`, `auth`, `health`, `sync`, and `discovers`), generate a sensible package-local Workbench skeleton, register the command through Testbench's command loader, and add command coverage.
 - Investigate adding Spatie-style role and permission lookup helpers to the permission package. The package is based on `spatie/laravel-permission`, but currently lacks helpers such as `Role::findByName()`, `Role::findById()`, `Role::findOrCreate()`, `Permission::findByName()`, `Permission::findById()`, and `Permission::findOrCreate()`. Check Spatie's current implementation and decide whether these helpers should be ported for API parity, adapted for Hypervel's guard and cache behavior, or intentionally omitted.
-
-## Pool
-
-- Make `Hypervel\Pool\KeepaliveConnection` honor disabled heartbeat configuration. `PoolOption` documents `heartbeat => -1` as disabled, but `KeepaliveConnection::getHeartbeatSeconds()` currently turns any non-positive heartbeat into a 10-second interval and `addHeartbeat()` always creates a timer. Correct fix: only create the heartbeat timer when `PoolOption::getHeartbeat() > 0`; when heartbeat is `<= 0`, do not start a timer or run heartbeat work. Keep `max_idle_time` behavior separate from heartbeat.
-- Add Redis pool heartbeat and max-lifetime support. Redis pools expose a `heartbeat` config key today, but `Hypervel\Redis\RedisPool` extends the base pool and no Redis code consumes `PoolOption::getHeartbeat()` or starts a heartbeat timer. Correct fix: add opt-in Redis heartbeat and max-lifetime recycling for idle pooled Redis connections, keep both disabled by default, and test that borrowed connections are never recycled.
 
 ## Routing
 

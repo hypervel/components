@@ -10,6 +10,8 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
+use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Pool\Connection as BaseConnection;
 use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
@@ -21,7 +23,10 @@ use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
 use RedisException;
+use Swoole\Coroutine\CanceledException;
 use Throwable;
+
+use function Hypervel\Coroutine\go;
 
 /**
  * Abstract base class for pooled Redis connections with Laravel-style method transformations.
@@ -336,6 +341,10 @@ abstract class RedisConnection extends BaseConnection
 
     protected Redis|RedisCluster|null $connection = null;
 
+    protected float $createdAt = 0.0;
+
+    protected bool $availableForReuse = false;
+
     protected ?Dispatcher $eventDispatcher = null;
 
     protected array $config = [
@@ -438,6 +447,8 @@ abstract class RedisConnection extends BaseConnection
     public function getActiveConnection(): static
     {
         if ($this->check()) {
+            $this->availableForReuse = false;
+
             return $this;
         }
 
@@ -446,6 +457,37 @@ abstract class RedisConnection extends BaseConnection
         }
 
         return $this;
+    }
+
+    /**
+     * Check if the connection is still valid.
+     */
+    public function check(): bool
+    {
+        if ($this->invalid) {
+            return false;
+        }
+
+        if ($this->connection === null) {
+            return false;
+        }
+
+        $now = microtime(true);
+
+        if ($this->availableForReuse) {
+            // Mirrors Database\Pool\PooledConnection recycling logic. Keep in sync.
+            if ($this->isLifetimeExpired($now)) {
+                return false;
+            }
+
+            if ($now > $this->pool->getOption()->getMaxIdleTime() + max($this->lastReleaseTime, $this->lastUseTime)) {
+                return false;
+            }
+
+            $this->lastUseTime = $now;
+        }
+
+        return true;
     }
 
     /**
@@ -468,6 +510,18 @@ abstract class RedisConnection extends BaseConnection
      * Reconnect to Redis.
      */
     abstract public function reconnect(): bool;
+
+    /**
+     * Mark the underlying Redis client as freshly connected.
+     */
+    protected function markReconnected(): void
+    {
+        $now = microtime(true);
+        $this->lastUseTime = $now;
+        $this->createdAt = $now;
+        $this->availableForReuse = false;
+        $this->markValid();
+    }
 
     /**
      * Set configured options on a Redis or RedisCluster client.
@@ -582,6 +636,39 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
+     * Check the Redis client for heartbeat health.
+     */
+    public function heartbeatCheck(float $timeout): bool
+    {
+        if ($this->invalid || ! ($this->connection instanceof Redis || $this->connection instanceof RedisCluster)) {
+            return false;
+        }
+
+        $result = new Channel(1);
+
+        $started = go(function () use ($result) {
+            try {
+                $result->push($this->pingForHeartbeat(), 0.0);
+            } catch (CanceledException) {
+            }
+        });
+
+        if ($started === false) {
+            return false;
+        }
+
+        if ($result->pop($timeout) !== true) {
+            Coroutine::cancelById($started, throwException: true);
+
+            return false;
+        }
+
+        $this->lastUseTime = microtime(true);
+
+        return true;
+    }
+
+    /**
      * Release the connection back to pool.
      */
     public function release(): void
@@ -592,12 +679,14 @@ abstract class RedisConnection extends BaseConnection
             $defaultDb = (int) ($this->config['database'] ?? 0);
             if ($this->database !== null && $this->database !== $defaultDb) {
                 $this->select($defaultDb);
-                $this->database = null;
             }
-
-            parent::release();
         } catch (Throwable $exception) {
             $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
+            $this->markInvalid();
+        } finally {
+            $this->database = null;
+            $this->availableForReuse = true;
+            parent::release();
         }
     }
 
@@ -607,6 +696,41 @@ abstract class RedisConnection extends BaseConnection
     public function setDatabase(?int $database): void
     {
         $this->database = $database;
+    }
+
+    /**
+     * Determine if this connection has been idle long enough to be evicted.
+     */
+    public function isIdleExpired(?float $now = null): bool
+    {
+        if ($this->lastReleaseTime === 0.0) {
+            return false;
+        }
+
+        // Heartbeat pings must not keep request-idle connections alive forever.
+        return ($now ?? microtime(true)) > $this->pool->getOption()->getMaxIdleTime() + $this->lastReleaseTime;
+    }
+
+    /**
+     * Get the connection generation creation time.
+     */
+    public function getCreatedAt(): float
+    {
+        return $this->createdAt;
+    }
+
+    /**
+     * Determine if this connection generation has reached its maximum lifetime.
+     */
+    public function isLifetimeExpired(?float $now = null): bool
+    {
+        $maxLifetime = $this->pool->getOption()->getMaxLifetime();
+
+        if ($maxLifetime <= 0) {
+            return false;
+        }
+
+        return ($now ?? microtime(true)) >= $this->createdAt + $maxLifetime;
     }
 
     /**
@@ -645,6 +769,42 @@ abstract class RedisConnection extends BaseConnection
     public function isCluster(): bool
     {
         return false;
+    }
+
+    /**
+     * Ping Redis for heartbeat health without shadowing the public Redis PING command.
+     */
+    protected function pingForHeartbeat(): bool
+    {
+        try {
+            if ($this->connection instanceof Redis) {
+                return $this->connection->ping() !== false;
+            }
+
+            if ($this->connection instanceof RedisCluster) {
+                $masters = $this->connection->_masters();
+
+                if ($masters === []) {
+                    return false;
+                }
+
+                foreach ($masters as $master) {
+                    if ($this->connection->ping($master) === false) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            return false;
+        } catch (Throwable $exception) {
+            if ($exception instanceof CanceledException) {
+                throw $exception;
+            }
+
+            return false;
+        }
     }
 
     /**
