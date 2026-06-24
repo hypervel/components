@@ -26,6 +26,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
 use JsonSerializable;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -68,8 +69,10 @@ class PendingRequest
 
     /**
      * The raw body for the request.
+     *
+     * @var null|resource|StreamInterface|string
      */
-    protected StreamInterface|string|null $pendingBody = null;
+    protected mixed $pendingBody = null;
 
     /**
      * The pending files for the request.
@@ -242,10 +245,18 @@ class PendingRequest
 
     /**
      * Attach a raw body to the request.
+     *
+     * @param null|resource|StreamInterface|string|Stringable $content
+     *
+     * @throws InvalidArgumentException
      */
-    public function withBody(StreamInterface|string $content, string $contentType = 'application/json'): static
+    public function withBody(mixed $content, string $contentType = 'application/json'): static
     {
         $this->bodyFormat('body');
+
+        $content = $this->normalizeRequestOptionValue($content);
+
+        $this->ensureValidRequestBody($content);
 
         $this->pendingBody = $content;
 
@@ -773,6 +784,11 @@ class PendingRequest
         );
     }
 
+    /*
+     * Laravel's pool() and batch() APIs are intentionally not ported.
+     * Use coroutine-native parallel(), Parallel, or defer instead.
+     */
+
     /**
      * Send the request to the given URL.
      *
@@ -916,18 +932,13 @@ class PendingRequest
     protected function parseMultipartBodyFormat(array $data): array
     {
         return (new Collection($data))
-            ->flatMap(function ($value, $key) {
-                if (is_array($value)) {
-                    if (isset($value['name'], $value['contents'])) {
-                        return [$value];
-                    }
-
-                    return (new Collection($value))->map(function ($item) use ($key) {
-                        return ['name' => $key . '[]', 'contents' => $item];
-                    });
+            ->map(function ($value, $key) {
+                // If the array has 'name' and 'contents' keys, it's already formatted for multipart...
+                if (is_array($value) && isset($value['name'], $value['contents'])) {
+                    return $value;
                 }
 
-                return [['name' => $key, 'contents' => $value]];
+                return ['name' => $key, 'contents' => $value];
             })
             ->values()
             ->all();
@@ -1011,16 +1022,10 @@ class PendingRequest
             return $exception;
         }
 
-        $potentialTries = is_array($this->tries)
-            ? count($this->tries) + 1
-            : $this->tries;
+        $exception = $response instanceof Response ? $response->toException() : $response;
 
-        if ($attempt < $potentialTries && $shouldRetry) {
-            $options['delay'] = value(
-                $this->retryDelay,
-                $attempt,
-                $response instanceof Response ? $response->toException() : $response
-            );
+        if ($attempt < $this->getMaximumAttempts() && $shouldRetry) {
+            $options['delay'] = $this->retryDelayInMilliseconds($attempt, $exception);
 
             return $this->makePromise($method, $url, $options, $attempt + 1);
         }
@@ -1035,11 +1040,31 @@ class PendingRequest
             }
         }
 
-        if ($potentialTries > 1 && $this->retryThrow) {
+        if ($this->getMaximumAttempts() > 1 && $this->retryThrow) {
             return $response instanceof Response ? $response->toException() : $response;
         }
 
         return $response;
+    }
+
+    /**
+     * Get the maximum number of attempts for the request.
+     */
+    protected function getMaximumAttempts(): int
+    {
+        return is_array($this->tries)
+            ? count($this->tries) + 1
+            : $this->tries;
+    }
+
+    /**
+     * Get the delay in milliseconds before the next retry attempt.
+     */
+    protected function retryDelayInMilliseconds(int $attempt, mixed $exception): int|float
+    {
+        return is_array($this->tries)
+            ? $this->tries[$attempt - 1] ?? 0
+            : value($this->retryDelay, $attempt, $exception);
     }
 
     /**
@@ -1093,6 +1118,10 @@ class PendingRequest
             $data = $data->jsonSerialize();
         }
 
+        if (is_array($data) && $this->bodyFormat === 'multipart') {
+            return $this->normalizeMultipartOption($data);
+        }
+
         return is_array($data) ? $data : [];
     }
 
@@ -1102,16 +1131,198 @@ class PendingRequest
     protected function normalizeRequestOptions(array $options): array
     {
         foreach ($options as $key => $value) {
-            $options[$key] = match (true) {
-                is_array($value) => $this->normalizeRequestOptions($value),
-                $value instanceof Stringable => $value->toString(),
-                $value instanceof JsonSerializable => $value,
-                $value instanceof Arrayable => $this->normalizeRequestOptions($value->toArray()),
-                default => $value,
-            };
+            if ($key === 'headers' && is_array($value)) {
+                $options[$key] = $this->normalizeHeaderValues($value);
+
+                continue;
+            }
+
+            if (($key === 'query' || $key === 'form_params') && is_array($value)) {
+                $options[$key] = $this->normalizeNonFiniteFloatValues(
+                    $this->normalizeRequestOptionValue($value)
+                );
+
+                continue;
+            }
+
+            if ($key === 'multipart' && is_array($value)) {
+                $options[$key] = $this->normalizeMultipartOption($value);
+
+                continue;
+            }
+
+            if ($key === 'body') {
+                $options[$key] = $this->normalizeRequestOptionValue($value);
+
+                $this->ensureValidRequestBody($options[$key]);
+
+                continue;
+            }
+
+            $options[$key] = $this->normalizeRequestOptionValue($value);
         }
 
         return $options;
+    }
+
+    /**
+     * Normalize the given header values.
+     */
+    protected function normalizeHeaderValues(array $headers): array
+    {
+        foreach ($headers as $name => $value) {
+            $headers[$name] = $this->normalizeHeaderValue($value);
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Normalize the given header value.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function normalizeHeaderValue(mixed $value): string|array
+    {
+        if (is_array($value)) {
+            if ($value === []) {
+                return '';
+            }
+
+            foreach ($value as $key => $item) {
+                $value[$key] = match (true) {
+                    $item === null => '',
+                    is_scalar($item) => $this->normalizeScalarString($item),
+                    $item instanceof Stringable => $item->toString(),
+                    default => throw new InvalidArgumentException('HTTP header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.'),
+                };
+            }
+
+            return $value;
+        }
+
+        return match (true) {
+            $value === null => '',
+            is_scalar($value) => $this->normalizeScalarString($value),
+            $value instanceof Stringable => $value->toString(),
+            default => throw new InvalidArgumentException('HTTP header values must be scalar, null, Hypervel Stringable, or arrays of scalar, null, or Hypervel Stringable values.'),
+        };
+    }
+
+    /**
+     * Normalize non-finite floats within a nested array.
+     */
+    protected function normalizeNonFiniteFloatValues(array $values): array
+    {
+        foreach ($values as $key => $value) {
+            if (is_array($value)) {
+                $values[$key] = $this->normalizeNonFiniteFloatValues($value);
+            } elseif (is_float($value) && ! is_finite($value)) {
+                $values[$key] = $this->normalizeScalarString($value);
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * Normalize the given multipart option.
+     */
+    protected function normalizeMultipartOption(array $multipart): array
+    {
+        foreach ($multipart as $index => $part) {
+            if (! is_array($part)) {
+                $multipart[$index] = $this->normalizeRequestOptionValue($part);
+
+                continue;
+            }
+
+            foreach ($part as $key => $value) {
+                if ($key === 'headers' && is_array($value)) {
+                    continue;
+                }
+
+                $part[$key] = $this->normalizeRequestOptionValue($value);
+
+                if ($key === 'contents') {
+                    if (is_array($part[$key])) {
+                        $part[$key] = $this->normalizeNonFiniteFloatValues($part[$key]);
+                    } elseif (is_float($part[$key]) && ! is_finite($part[$key])) {
+                        $part[$key] = $this->normalizeScalarString($part[$key]);
+                    }
+                }
+            }
+
+            $multipart[$index] = $part;
+        }
+
+        return $this->normalizeMultipartHeaders($multipart);
+    }
+
+    /**
+     * Normalize the given multipart headers.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function normalizeMultipartHeaders(array $multipart): array
+    {
+        foreach ($multipart as $index => $part) {
+            if (is_array($part) && isset($part['headers']) && is_array($part['headers'])) {
+                foreach ($part['headers'] as $name => $value) {
+                    $multipart[$index]['headers'][$name] = match (true) {
+                        $value === [] => '',
+                        $value === null => '',
+                        is_scalar($value) => $this->normalizeScalarString($value),
+                        $value instanceof Stringable => $value->toString(),
+                        default => throw new InvalidArgumentException('Multipart header values must be scalar, null, or Hypervel Stringable.'),
+                    };
+                }
+            }
+        }
+
+        return $multipart;
+    }
+
+    /**
+     * Normalize the given request option value.
+     */
+    protected function normalizeRequestOptionValue(mixed $value): mixed
+    {
+        return match (true) {
+            is_array($value) => array_map(fn ($item) => $this->normalizeRequestOptionValue($item), $value),
+            $value instanceof Stringable => $value->toString(),
+            $value instanceof JsonSerializable => $value,
+            $value instanceof Arrayable => $this->normalizeRequestOptionValue($value->toArray()),
+            default => $value,
+        };
+    }
+
+    /**
+     * Normalize a scalar to a string without triggering PHP 8.5 non-finite float warnings.
+     */
+    protected function normalizeScalarString(bool|float|int|string $value): string
+    {
+        if (is_float($value) && ! is_finite($value)) {
+            return match (true) {
+                is_nan($value) => 'NAN',
+                $value > 0 => 'INF',
+                default => '-INF',
+            };
+        }
+
+        return (string) $value;
+    }
+
+    /**
+     * Ensure the given request body can be passed to Guzzle.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function ensureValidRequestBody(mixed $body): void
+    {
+        if (! is_string($body) && ! is_null($body) && ! is_resource($body) && ! $body instanceof StreamInterface) {
+            throw new InvalidArgumentException('HTTP request body must be a string, resource, Psr\Http\Message\StreamInterface, or null.');
+        }
     }
 
     /**
@@ -1198,7 +1409,7 @@ class PendingRequest
                 return $promise->then(function ($response) use ($request, $options) {
                     $this->factory?->recordRequestResponsePair(
                         (new Request($request))
-                            ->withData($options['hypervel_data'])
+                            ->withData($options['hypervel_data'] ?? [])
                             ->setRequestAttributes($this->attributes),
                         $this->newResponse($response)
                     );
@@ -1218,7 +1429,7 @@ class PendingRequest
             return function ($request, $options) use ($handler) {
                 $response = ($this->stubCallbacks ?? new Collection)
                     ->map
-                    ->__invoke((new Request($request))->withData($options['hypervel_data'])->setRequestAttributes($this->attributes), $options)
+                    ->__invoke((new Request($request))->withData($options['hypervel_data'] ?? [])->setRequestAttributes($this->attributes), $options)
                     ->filter()
                     ->first();
 
@@ -1274,7 +1485,7 @@ class PendingRequest
                 $callbackResult = call_user_func(
                     $callback,
                     (new Request($request))
-                        ->withData($options['hypervel_data'])
+                        ->withData($options['hypervel_data'] ?? [])
                         ->setRequestAttributes($this->attributes),
                     $options,
                     $this
@@ -1322,7 +1533,7 @@ class PendingRequest
     protected function runAfterResponseCallbacks(Response $response): Response
     {
         foreach ($this->afterResponseCallbacks as $callback) {
-            $returnedResponse = $callback($response);
+            $returnedResponse = $callback($response, $this->request);
 
             if ($returnedResponse instanceof Response) {
                 $response = $returnedResponse;
