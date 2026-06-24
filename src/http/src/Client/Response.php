@@ -13,6 +13,7 @@ use Hypervel\Http\Client\Concerns\DeterminesStatusCode;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Traits\Macroable;
+use Hypervel\Support\Traits\Tappable;
 use InvalidArgumentException;
 use LogicException;
 use Psr\Http\Message\ResponseInterface;
@@ -24,7 +25,7 @@ use Stringable;
  */
 class Response implements ArrayAccess, Stringable
 {
-    use DeterminesStatusCode, Macroable {
+    use DeterminesStatusCode, Tappable, Macroable {
         __call as macroCall;
     }
 
@@ -37,6 +38,11 @@ class Response implements ArrayAccess, Stringable
      * Whether the response body has been decoded.
      */
     protected bool $hasDecoded = false;
+
+    /**
+     * The flags that were used when decoding the JSON response.
+     */
+    protected int $decodingFlags = 0;
 
     /**
      * The custom decode callback.
@@ -59,6 +65,11 @@ class Response implements ArrayAccess, Stringable
     protected false|int|null $truncateExceptionsAt = null;
 
     /**
+     * The flags passed to json_decode by default.
+     */
+    public static int $defaultJsonDecodingFlags = 0;
+
+    /**
      * Create a new response instance.
      */
     public function __construct(protected ResponseInterface $response)
@@ -76,10 +87,15 @@ class Response implements ArrayAccess, Stringable
     /**
      * Get the JSON decoded body of the response as an array or scalar value.
      */
-    public function json(?string $key = null, mixed $default = null): mixed
+    public function json(?string $key = null, mixed $default = null, ?int $flags = null): mixed
     {
-        if (! $this->hasDecoded) {
-            $this->decoded = $this->decode($this->body());
+        $flags = $this->decodeUsing instanceof Closure
+            ? 0
+            : ($flags ?? self::$defaultJsonDecodingFlags);
+
+        if (! $this->hasDecoded || $this->decodingFlags !== $flags) {
+            $this->decoded = $this->decode($this->body(), flags: $flags);
+            $this->decodingFlags = $flags;
             $this->hasDecoded = true;
         }
 
@@ -102,9 +118,13 @@ class Response implements ArrayAccess, Stringable
      *
      *  This method will return an array of objects.
      */
-    public function object(): array|object|null
+    public function object(?int $flags = null): array|object|null
     {
-        return $this->decode($this->body(), true);
+        return $this->decode(
+            $this->body(),
+            true,
+            $this->decodeUsing instanceof Closure ? 0 : ($flags ?? self::$defaultJsonDecodingFlags)
+        );
     }
 
     /**
@@ -119,6 +139,7 @@ class Response implements ArrayAccess, Stringable
         $this->decodeUsing = $callback;
         $this->decoded = null;
         $this->hasDecoded = false;
+        $this->decodingFlags = 0;
 
         return $this;
     }
@@ -126,29 +147,29 @@ class Response implements ArrayAccess, Stringable
     /**
      * Decode the given response body.
      */
-    protected function decode(string $body, bool $asObject = false): mixed
+    protected function decode(string $body, bool $asObject = false, int $flags = 0): mixed
     {
         if ($this->decodeUsing instanceof Closure) {
             return ($this->decodeUsing)($body, $asObject);
         }
 
-        return json_decode($body, ! $asObject);
+        return json_decode($body, ! $asObject, flags: $flags);
     }
 
     /**
      * Get the JSON decoded body of the response as a collection.
      */
-    public function collect(?string $key = null): Collection
+    public function collect(?string $key = null, ?int $flags = null): Collection
     {
-        return new Collection($this->json($key));
+        return new Collection($this->json($key, flags: $flags));
     }
 
     /**
      * Get the JSON decoded body of the response as a fluent object.
      */
-    public function fluent(?string $key = null): Fluent
+    public function fluent(?string $key = null, ?int $flags = null): Fluent
     {
-        return new Fluent((array) $this->json($key));
+        return new Fluent((array) $this->json($key, flags: $flags));
     }
 
     /**
@@ -429,11 +450,11 @@ class Response implements ArrayAccess, Stringable
             $content = $json;
         }
 
-        if (! is_null($key)) {
-            dump(data_get($content, $key));
-        } else {
-            dump($content);
+        if ($request = $this->transferStats?->getRequest()) {
+            dump('"' . $request->getMethod() . ' ' . $request->getUri() . '" ' . $this->status());
         }
+
+        dump(is_null($key) ? $content : data_get($content, $key));
 
         return $this;
     }
@@ -514,6 +535,14 @@ class Response implements ArrayAccess, Stringable
     public function offsetUnset($offset): void
     {
         throw new LogicException('Response data may not be mutated using array access.');
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$defaultJsonDecodingFlags = 0;
     }
 
     /**
