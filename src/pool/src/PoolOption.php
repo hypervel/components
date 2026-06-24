@@ -19,6 +19,7 @@ class PoolOption implements PoolOptionInterface
      * @param float $heartbeat Heartbeat interval in seconds (-1 to disable)
      * @param float $heartbeatTimeout Heartbeat timeout in seconds
      * @param float $maxIdleTime Maximum idle time in seconds before connection is closed
+     * @param float $maxLifetime Maximum lifetime in seconds before connection is recycled (-1 to disable)
      * @param array<int, string> $events Events to trigger on connection lifecycle
      */
     public function __construct(
@@ -29,6 +30,7 @@ class PoolOption implements PoolOptionInterface
         private float $heartbeat = -1,
         private float $heartbeatTimeout = 1.0,
         private float $maxIdleTime = 60.0,
+        private float $maxLifetime = -1.0,
         private array $events = [],
     ) {
     }
@@ -162,6 +164,28 @@ class PoolOption implements PoolOptionInterface
     public function setMaxIdleTime(float $maxIdleTime): static
     {
         $this->maxIdleTime = $maxIdleTime;
+
+        return $this;
+    }
+
+    /**
+     * Get the maximum lifetime in seconds before a connection is recycled.
+     */
+    public function getMaxLifetime(): float
+    {
+        return $this->maxLifetime;
+    }
+
+    /**
+     * Set the maximum lifetime in seconds before a connection is recycled.
+     *
+     * Boot-only. The value persists on the worker-lifetime pool option and is
+     * read by every subsequent pool operation. Per-request use races across
+     * coroutines.
+     */
+    public function setMaxLifetime(float $maxLifetime): static
+    {
+        $this->maxLifetime = $maxLifetime;
 
         return $this;
     }
