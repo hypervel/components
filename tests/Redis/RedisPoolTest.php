@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\FrequencyInterface;
 use Hypervel\Pool\Connection;
@@ -96,6 +97,7 @@ class RedisPoolTest extends TestCase
 
         $container = m::mock(Container::class);
         $container->shouldReceive('make')->with(RedisConfig::class)->once()->andReturn($redisConfig);
+        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);
 
         return $container;
     }
