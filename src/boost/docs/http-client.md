@@ -940,9 +940,9 @@ Http::fake([
 To test your application's behavior if a `Hypervel\Http\Client\RequestException` is thrown, you may use the `failedRequest` method:
 
 ```php
-Http::fake([
-    'github.com/*' => Http::failedRequest(['code' => 'not_found'], 404),
-]);
+$this->mock(GithubService::class)
+    ->shouldReceive('getUser')
+    ->andThrow(Http::failedRequest(['code' => 'not_found'], 404));
 ```
 
 <a name="faking-response-sequences"></a>
