@@ -146,6 +146,62 @@ class DbPoolHeartbeatTest extends TestCase
         });
     }
 
+    public function testHeartbeatDiscardsLifetimeExpiredIdleConnectionBeforePinging(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+                'max_lifetime' => 1.0,
+            ], LifetimeExpiredPingTrackingDbPool::class);
+
+            $pooledConnection = $pool->get();
+            $this->assertInstanceOf(LifetimeExpiredPingTrackingPooledConnection::class, $pooledConnection);
+
+            $connection = $pooledConnection->getConnection();
+            $pooledConnection->release();
+
+            $this->ageConnectionGeneration($pooledConnection);
+
+            $pool->runHeartbeatForTest();
+
+            $this->assertFalse($pooledConnection->pingCalled);
+            $this->assertSame(0, $pool->getCurrentConnections());
+            $this->assertSame(0, $pool->getConnectionsInChannel());
+
+            $nextPooledConnection = $pool->get();
+
+            $this->assertNotSame($connection, $nextPooledConnection->getConnection());
+
+            $nextPooledConnection->release();
+        });
+    }
+
+    public function testHeartbeatDoesNotRecycleBorrowedLifetimeExpiredConnection(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+                'max_lifetime' => 1.0,
+            ]);
+
+            $borrowed = $pool->get();
+
+            $this->ageConnectionGeneration($borrowed);
+
+            $pool->runHeartbeatForTest();
+
+            $this->assertSame(1, $borrowed->getConnection()->selectOne('SELECT 1 as result')->result);
+            $this->assertSame(1, $pool->getCurrentConnections());
+            $this->assertSame(0, $pool->getConnectionsInChannel());
+
+            $borrowed->release();
+        });
+    }
+
     public function testHeartbeatDoesNotRealizeLazyPdoClosures(): void
     {
         run(function () {
@@ -353,6 +409,7 @@ class DbPoolHeartbeatTest extends TestCase
                 'heartbeat' => -1,
                 'heartbeat_timeout' => 1.0,
                 'max_idle_time' => 60.0,
+                'max_lifetime' => -1.0,
                 ...$poolOptions,
             ],
         ]);
@@ -370,6 +427,11 @@ class DbPoolHeartbeatTest extends TestCase
 
         $lastReleaseTime->setValue($connection, microtime(true) - 5.0);
         $lastUseTime->setValue($connection, microtime(true) - 5.0);
+    }
+
+    protected function ageConnectionGeneration(PooledConnection $connection): void
+    {
+        (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, microtime(true) - 5.0);
     }
 }
 
@@ -401,6 +463,26 @@ class FailingHeartbeatPooledConnection extends PooledConnection
     public function ping(float $timeout): bool
     {
         return false;
+    }
+}
+
+class LifetimeExpiredPingTrackingDbPool extends InspectableHeartbeatDbPool
+{
+    protected function createConnection(): ConnectionInterface
+    {
+        return new LifetimeExpiredPingTrackingPooledConnection($this->container, $this, $this->config);
+    }
+}
+
+class LifetimeExpiredPingTrackingPooledConnection extends PooledConnection
+{
+    public bool $pingCalled = false;
+
+    public function ping(float $timeout): bool
+    {
+        $this->pingCalled = true;
+
+        return true;
     }
 }
 

@@ -173,6 +173,7 @@ abstract class Pool implements PoolInterface
             heartbeat: $options['heartbeat'] ?? -1,
             heartbeatTimeout: $options['heartbeat_timeout'] ?? 1.0,
             maxIdleTime: $options['max_idle_time'] ?? 60.0,
+            maxLifetime: $options['max_lifetime'] ?? -1.0,
             events: $options['events'] ?? [],
         );
     }

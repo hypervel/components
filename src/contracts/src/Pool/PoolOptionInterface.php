@@ -42,6 +42,11 @@ interface PoolOptionInterface
     public function getMaxIdleTime(): float;
 
     /**
+     * Get the maximum lifetime in seconds before a connection is recycled.
+     */
+    public function getMaxLifetime(): float;
+
+    /**
      * Get the events to trigger on connection lifecycle.
      */
     public function getEvents(): array;

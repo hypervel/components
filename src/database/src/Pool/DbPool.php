@@ -201,7 +201,15 @@ class DbPool extends Pool
     protected function heartbeatConnection(PooledConnection $connection): void
     {
         try {
-            if ($connection->isIdleExpired() && $this->currentConnections > $this->option->getMinConnections()) {
+            $now = microtime(true);
+
+            if ($connection->isLifetimeExpired($now)) {
+                $this->discardHeartbeatConnection($connection);
+
+                return;
+            }
+
+            if ($connection->isIdleExpired($now) && $this->currentConnections > $this->option->getMinConnections()) {
                 $this->discardHeartbeatConnection($connection);
 
                 return;

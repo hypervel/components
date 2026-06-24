@@ -25,8 +25,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | Database connections may define a "pool" array for long-lived workers.
-    | Heartbeats are disabled with -1; positive values keep the minimum
-    | idle connections validated without firing query events or logs.
+    | Heartbeats validate idle connections, while max lifetime recycling
+    | rotates old idle connection generations before they are reused.
     |
     */
 
@@ -79,9 +79,10 @@ return [
                 'max_connections' => (int) env('DB_MAX_CONNECTIONS', 10),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'heartbeat_timeout' => 1.0,
+                'heartbeat' => (float) env('DB_HEARTBEAT', -1),
+                'heartbeat_timeout' => (float) env('DB_HEARTBEAT_TIMEOUT', 1.0),
                 'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
+                'max_lifetime' => (float) env('DB_MAX_LIFETIME', -1),
             ],
         ],
 
@@ -108,9 +109,10 @@ return [
                 'max_connections' => (int) env('DB_MAX_CONNECTIONS', 10),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'heartbeat_timeout' => 1.0,
+                'heartbeat' => (float) env('DB_HEARTBEAT', -1),
+                'heartbeat_timeout' => (float) env('DB_HEARTBEAT_TIMEOUT', 1.0),
                 'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
+                'max_lifetime' => (float) env('DB_MAX_LIFETIME', -1),
             ],
         ],
 
@@ -135,9 +137,10 @@ return [
                 'max_connections' => (int) env('DB_MAX_CONNECTIONS', 10),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'heartbeat_timeout' => 1.0,
+                'heartbeat' => (float) env('DB_HEARTBEAT', -1),
+                'heartbeat_timeout' => (float) env('DB_HEARTBEAT_TIMEOUT', 1.0),
                 'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
+                'max_lifetime' => (float) env('DB_MAX_LIFETIME', -1),
             ],
         ],
 
@@ -163,9 +166,10 @@ return [
                 'max_connections' => (int) env('DB_POOLED_MAX_CONNECTIONS', 20),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'heartbeat_timeout' => 1.0,
+                'heartbeat' => (float) env('DB_POOLED_HEARTBEAT', -1),
+                'heartbeat_timeout' => (float) env('DB_POOLED_HEARTBEAT_TIMEOUT', 1.0),
                 'max_idle_time' => (float) env('DB_POOLED_MAX_IDLE_TIME', 60),
+                'max_lifetime' => (float) env('DB_POOLED_MAX_LIFETIME', -1),
             ],
         ],
     ],

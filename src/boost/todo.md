@@ -25,7 +25,7 @@
 
 ## Database
 
-- Add max-lifetime recycling support for pooled database connections. Heartbeat keeps minimum idle connections validated for the worker lifetime, but rotating database poolers and managed proxies may still benefit from periodically replacing otherwise healthy long-lived sockets. Correct fix: add an opt-in pool option that recycles idle pooled DB connections older than the configured lifetime without affecting borrowed connections or normal query execution.
+- Consider built-in early jitter for DB pool `max_lifetime`. Exact max-lifetime recycling can make a burst-created cohort of idle connections expire in the same heartbeat tick, causing synchronized reconnects. A clean design would avoid an extra config knob and assign each connection an effective lifetime between 90-100% of `max_lifetime`, so the configured value remains the upper bound while reconnects are spread out.
 
 ## Foundation
 
@@ -52,6 +52,7 @@
 ## Pool
 
 - Make `Hypervel\Pool\KeepaliveConnection` honor disabled heartbeat configuration. `PoolOption` documents `heartbeat => -1` as disabled, but `KeepaliveConnection::getHeartbeatSeconds()` currently turns any non-positive heartbeat into a 10-second interval and `addHeartbeat()` always creates a timer. Correct fix: only create the heartbeat timer when `PoolOption::getHeartbeat() > 0`; when heartbeat is `<= 0`, do not start a timer or run heartbeat work. Keep `max_idle_time` behavior separate from heartbeat.
+- Add Redis pool heartbeat and max-lifetime support. Redis pools expose a `heartbeat` config key today, but `Hypervel\Redis\RedisPool` extends the base pool and no Redis code consumes `PoolOption::getHeartbeat()` or starts a heartbeat timer. Correct fix: add opt-in Redis heartbeat and max-lifetime recycling for idle pooled Redis connections, keep both disabled by default, and test that borrowed connections are never recycled.
 
 ## Routing
 
