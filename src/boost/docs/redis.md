@@ -57,8 +57,10 @@ You may configure your application's Redis settings via the `config/database.php
             'max_connections' => (int) env('REDIS_MAX_CONNECTIONS', 10),
             'connect_timeout' => 10.0,
             'wait_timeout' => 3.0,
-            'heartbeat' => -1,
+            'heartbeat' => (float) env('REDIS_HEARTBEAT', -1),
+            'heartbeat_timeout' => (float) env('REDIS_HEARTBEAT_TIMEOUT', 1.0),
             'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
+            'max_lifetime' => (float) env('REDIS_MAX_LIFETIME', -1),
         ],
     ],
 
@@ -78,8 +80,10 @@ You may configure your application's Redis settings via the `config/database.php
             'max_connections' => (int) env('REDIS_CACHE_MAX_CONNECTIONS', env('REDIS_MAX_CONNECTIONS', 10)),
             'connect_timeout' => 10.0,
             'wait_timeout' => 3.0,
-            'heartbeat' => -1,
+            'heartbeat' => (float) env('REDIS_CACHE_HEARTBEAT', env('REDIS_HEARTBEAT', -1)),
+            'heartbeat_timeout' => (float) env('REDIS_CACHE_HEARTBEAT_TIMEOUT', env('REDIS_HEARTBEAT_TIMEOUT', 1.0)),
             'max_idle_time' => (float) env('REDIS_CACHE_MAX_IDLE_TIME', env('REDIS_MAX_IDLE_TIME', 60)),
+            'max_lifetime' => (float) env('REDIS_CACHE_MAX_LIFETIME', env('REDIS_MAX_LIFETIME', -1)),
         ],
     ],
 ],
@@ -262,12 +266,16 @@ Hypervel pools Redis connections so commands can reuse established sockets acros
         'connect_timeout' => 10.0,
         'wait_timeout' => 3.0,
         'heartbeat' => -1,
+        'heartbeat_timeout' => 1.0,
         'max_idle_time' => 60.0,
+        'max_lifetime' => -1,
     ],
 ],
 ```
 
-The `min_connections` and `max_connections` options define the size of the pool. The `wait_timeout` option controls how long a coroutine will wait for a pooled connection to become available, while `max_idle_time` controls how long an idle connection may remain in the pool before it is recycled.
+The `min_connections` and `max_connections` options define the size of the pool. The `connect_timeout` option controls how long Hypervel will wait while opening a new Redis connection. The `wait_timeout` option controls how long a coroutine may wait for a pooled connection to become available. The `heartbeat` option controls how often Hypervel validates idle connections in the worker pool; set this value to `-1` to disable background heartbeats. The `heartbeat_timeout` option controls how long a heartbeat ping may run before the connection is discarded. The `max_idle_time` option controls how long an idle connection may remain reusable before it is recycled, and the `max_lifetime` option controls how long a pooled connection generation may live before it is recycled while idle or before it is reused; set `max_lifetime` to `-1` to disable lifetime recycling.
+
+Idle and lifetime recycling are checked when a connection is borrowed from the pool. When heartbeat is enabled, Hypervel also runs a background sweep over idle pooled Redis connections so stale sockets are found before a request needs them. Heartbeat and max lifetime recycling apply to Hypervel's worker pool whether the connection points directly at Redis, a managed Redis service, or a proxy.
 
 <a name="interacting-with-redis"></a>
 ## Interacting With Redis
