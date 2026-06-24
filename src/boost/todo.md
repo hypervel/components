@@ -51,7 +51,6 @@
 
 ## Pool
 
-- Make `Hypervel\Pool\KeepaliveConnection` honor disabled heartbeat configuration. `PoolOption` documents `heartbeat => -1` as disabled, but `KeepaliveConnection::getHeartbeatSeconds()` currently turns any non-positive heartbeat into a 10-second interval and `addHeartbeat()` always creates a timer. Correct fix: only create the heartbeat timer when `PoolOption::getHeartbeat() > 0`; when heartbeat is `<= 0`, do not start a timer or run heartbeat work. Keep `max_idle_time` behavior separate from heartbeat.
 - Add Redis pool heartbeat and max-lifetime support. Redis pools expose a `heartbeat` config key today, but `Hypervel\Redis\RedisPool` extends the base pool and no Redis code consumes `PoolOption::getHeartbeat()` or starts a heartbeat timer. Correct fix: add opt-in Redis heartbeat and max-lifetime recycling for idle pooled Redis connections, keep both disabled by default, and test that borrowed connections are never recycled.
 
 ## Routing

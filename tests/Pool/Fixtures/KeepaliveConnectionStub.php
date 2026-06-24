@@ -12,6 +12,8 @@ class KeepaliveConnectionStub extends KeepaliveConnection
 {
     public Timer $timer;
 
+    public int $closeCount = 0;
+
     protected mixed $activeConnection = null;
 
     public function setActiveConnection(mixed $connection): void
@@ -26,6 +28,8 @@ class KeepaliveConnectionStub extends KeepaliveConnection
 
     protected function sendClose(mixed $connection): void
     {
+        ++$this->closeCount;
+
         $data = CoroutineContext::get('test.pool.heartbeat_connection', []);
         $data['close'] = 'close protocol';
         CoroutineContext::set('test.pool.heartbeat_connection', $data);

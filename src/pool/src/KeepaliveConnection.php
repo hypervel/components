@@ -161,19 +161,29 @@ abstract class KeepaliveConnection implements ConnectionInterface
     }
 
     /**
-     * Add a heartbeat timer.
+     * Add a heartbeat timer when heartbeat is enabled.
+     *
+     * For keepalive connections, max_idle_time eviction is driven by this
+     * timer, so disabling heartbeat also disables background idle closing.
      */
     protected function addHeartbeat(): void
     {
         $this->connected = true;
-        $this->timerId = $this->timer->tick($this->getHeartbeatSeconds(), function () {
+
+        $heartbeat = $this->pool->getOption()->getHeartbeat();
+
+        if ($heartbeat <= 0) {
+            return;
+        }
+
+        $this->timerId = $this->timer->tick($heartbeat, function () {
             try {
                 if (! $this->isConnected()) {
                     return;
                 }
 
                 if ($this->isTimeout()) {
-                    // The socket does not use in double of heartbeat.
+                    // Close the socket if it has been idle longer than max_idle_time.
                     $this->close();
 
                     return;
@@ -188,20 +198,6 @@ abstract class KeepaliveConnection implements ConnectionInterface
                 }
             }
         });
-    }
-
-    /**
-     * Get the heartbeat interval in seconds.
-     */
-    protected function getHeartbeatSeconds(): int
-    {
-        $heartbeat = $this->pool->getOption()->getHeartbeat();
-
-        if ($heartbeat > 0) {
-            return intval($heartbeat);
-        }
-
-        return 10;
     }
 
     /**
