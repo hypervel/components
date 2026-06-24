@@ -47,6 +47,8 @@ class PooledConnection implements PoolConnectionInterface
 
     protected float $createdAt = 0.0;
 
+    protected bool $availableForReuse = false;
+
     protected bool $invalid = false;
 
     protected ?Dispatcher $dispatcher = null;
@@ -80,6 +82,8 @@ class PooledConnection implements PoolConnectionInterface
     public function getActiveConnection(): Connection
     {
         if ($this->check()) {
+            $this->availableForReuse = false;
+
             return $this->connection;
         }
 
@@ -138,6 +142,7 @@ class PooledConnection implements PoolConnectionInterface
         $now = microtime(true);
         $this->lastUseTime = $now;
         $this->createdAt = $now;
+        $this->availableForReuse = false;
         $this->markValid();
 
         return true;
@@ -158,17 +163,21 @@ class PooledConnection implements PoolConnectionInterface
 
         $now = microtime(true);
 
-        if ($this->isLifetimeExpired($now)) {
-            return false;
+        if ($this->availableForReuse) {
+            // Time-based recycling is a reuse rule; it must not replace a connection
+            // while the borrowed wrapper may still hold transaction state.
+            if ($this->isLifetimeExpired($now)) {
+                return false;
+            }
+
+            $maxIdleTime = $this->pool->getOption()->getMaxIdleTime();
+
+            if ($now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
+                return false;
+            }
+
+            $this->lastUseTime = $now;
         }
-
-        $maxIdleTime = $this->pool->getOption()->getMaxIdleTime();
-
-        if ($now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
-            return false;
-        }
-
-        $this->lastUseTime = $now;
 
         return true;
     }
@@ -279,6 +288,7 @@ class PooledConnection implements PoolConnectionInterface
             // Mark as stale so it will be recreated
             $this->markInvalid();
         } finally {
+            $this->availableForReuse = true;
             $this->pool->release($this);
         }
     }

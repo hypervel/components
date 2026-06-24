@@ -264,17 +264,28 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertTrue($fired, 'ReleaseConnection event should be dispatched when configured');
     }
 
-    public function testLastUseTimeUpdatedOnCheck(): void
+    public function testLastUseTimeUpdatedOnReuseCheck(): void
     {
         $pool = new DbPool($this->app, 'pool_test');
-        $pooledConnection = $this->createPooledConnection($pool);
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $pooledConnection->getConnection();
 
         $initialTime = $pooledConnection->getLastUseTime();
 
-        usleep(10000); // 10ms
-        $pooledConnection->check();
+        $pooledConnection->release();
 
-        $this->assertGreaterThan($initialTime, $pooledConnection->getLastUseTime());
+        usleep(10000); // 10ms
+
+        /** @var PooledConnection $nextPooledConnection */
+        $nextPooledConnection = $pool->get();
+        $nextPooledConnection->getConnection();
+
+        $this->assertSame($pooledConnection, $nextPooledConnection);
+        $this->assertGreaterThan($initialTime, $nextPooledConnection->getLastUseTime());
+
+        $nextPooledConnection->release();
     }
 
     public function testInvalidConnectionReconnectsEvenWithFreshReleaseTime(): void
@@ -289,7 +300,7 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertNotSame($originalConnection, $pooledConnection->getActiveConnection());
     }
 
-    public function testExpiredLifetimeReconnectsBeforeReuseEvenWithoutHeartbeat(): void
+    public function testExpiredLifetimeDoesNotReconnectDuringActiveBorrow(): void
     {
         $this->app->make('config')->set('database.connections.pool_test.pool.max_lifetime', 1.0);
 
@@ -299,10 +310,28 @@ class PooledConnectionTest extends DatabaseTestCase
 
         $this->assertSame(1.0, $pool->getOption()->getMaxLifetime());
 
+        $originalConnection->beginTransaction();
         $this->ageConnectionGeneration($pooledConnection);
 
-        $this->assertFalse($pooledConnection->check());
-        $this->assertNotSame($originalConnection, $pooledConnection->getActiveConnection());
+        $this->assertTrue($pooledConnection->check());
+        $this->assertSame($originalConnection, $pooledConnection->getActiveConnection());
+        $this->assertSame(1, $originalConnection->transactionLevel());
+
+        $originalConnection->rollBack();
+    }
+
+    public function testExpiredIdleTimeDoesNotReconnectDuringActiveBorrow(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.max_idle_time', 1.0);
+
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $originalConnection = $pooledConnection->getConnection();
+
+        $this->ageActiveConnectionUse($pooledConnection);
+
+        $this->assertTrue($pooledConnection->check());
+        $this->assertSame($originalConnection, $pooledConnection->getActiveConnection());
     }
 
     public function testExpiredLifetimeReconnectsWhenBorrowedFromPoolAgainWithoutHeartbeat(): void
@@ -525,5 +554,10 @@ class PooledConnectionTest extends DatabaseTestCase
     private function ageConnectionGeneration(PooledConnection $connection): void
     {
         (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, microtime(true) - 5.0);
+    }
+
+    private function ageActiveConnectionUse(PooledConnection $connection): void
+    {
+        (new ReflectionProperty(PooledConnection::class, 'lastUseTime'))->setValue($connection, microtime(true) - 5.0);
     }
 }
