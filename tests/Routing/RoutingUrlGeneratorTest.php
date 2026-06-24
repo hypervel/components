@@ -21,6 +21,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
+use function Hypervel\Coroutine\parallel;
+
 class RoutingUrlGeneratorTest extends RoutingTestCase
 {
     public function testBasicGeneration()
@@ -978,6 +980,115 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
                 tap(new RoutableInterfaceStub, fn ($x) => $x->key = 'concretePost'),
             ]),
         );
+    }
+
+    public function testRequestDefaultsAreIsolatedAcrossCoroutines(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $routes->add(new Route(['GET'], '{locale}/dashboard', ['as' => 'dashboard', fn () => '']));
+
+        [$first, $second] = parallel([
+            function () use ($url) {
+                RequestContext::set(Request::create('https://first.example.com/'));
+                $url->defaults(['locale' => 'en']);
+                usleep(5000);
+
+                return $url->route('dashboard');
+            },
+            function () use ($url) {
+                RequestContext::set(Request::create('https://second.example.com/'));
+                $url->defaults(['locale' => 'fr']);
+                usleep(2500);
+
+                return $url->route('dashboard');
+            },
+        ]);
+
+        $this->assertSame('https://first.example.com/en/dashboard', $first);
+        $this->assertSame('https://second.example.com/fr/dashboard', $second);
+    }
+
+    public function testGlobalDefaultsAreVisibleAcrossRequestCoroutines(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults(['locale' => 'en']);
+        $routes->add(new Route(['GET'], '{locale}/dashboard', ['as' => 'dashboard', fn () => '']));
+
+        [$first, $second] = parallel([
+            function () use ($url) {
+                RequestContext::set(Request::create('https://first.example.com/'));
+                usleep(5000);
+
+                return $url->route('dashboard');
+            },
+            function () use ($url) {
+                RequestContext::set(Request::create('https://second.example.com/'));
+                usleep(2500);
+
+                return $url->route('dashboard');
+            },
+        ]);
+
+        $this->assertSame('https://first.example.com/en/dashboard', $first);
+        $this->assertSame('https://second.example.com/en/dashboard', $second);
+    }
+
+    public function testRequestDefaultsOverrideGlobalDefaults(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults(['locale' => 'en', 'tenant' => 'global']);
+        RequestContext::set(Request::create('https://request.example.com/'));
+        $url->defaults(['locale' => 'fr']);
+
+        $routes->add(new Route(['GET'], '{locale}/{tenant}/dashboard', ['as' => 'dashboard', fn () => '']));
+
+        $this->assertSame('https://request.example.com/fr/global/dashboard', $url->route('dashboard'));
+    }
+
+    public function testRequestDefaultsCanMaskGlobalDefaultsWithNull(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        $url->defaults(['locale' => 'en']);
+        RequestContext::set(Request::create('https://request.example.com/'));
+        $url->defaults(['locale' => null]);
+
+        $routes->add(new Route(['GET'], '{locale}/dashboard', ['as' => 'dashboard', fn () => '']));
+
+        $this->expectException(UrlGenerationException::class);
+
+        $url->route('dashboard');
+    }
+
+    public function testRequestDefaultsAccumulate(): void
+    {
+        $url = new UrlGenerator(
+            $routes = new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        RequestContext::set(Request::create('https://request.example.com/'));
+        $url->defaults(['locale' => 'en']);
+        $url->defaults(['tenant' => 'acme']);
+
+        $routes->add(new Route(['GET'], '{locale}/{tenant}/dashboard', ['as' => 'dashboard', fn () => '']));
+
+        $this->assertSame('https://request.example.com/en/acme/dashboard', $url->route('dashboard'));
     }
 
     public function testComplexRouteGenerationWithDefaultsAndBindingFields()

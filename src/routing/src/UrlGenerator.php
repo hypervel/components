@@ -44,6 +44,11 @@ class UrlGenerator implements UrlGeneratorContract
     protected const FORCED_ROOT_CONTEXT_KEY = '__routing.url.forced_root';
 
     /**
+     * Context key for request-scoped default route parameters.
+     */
+    protected const DEFAULT_PARAMETERS_CONTEXT_KEY = '__routing.url.default_parameters';
+
+    /**
      * The route collection.
      */
     protected RouteCollectionInterface $routes;
@@ -579,18 +584,36 @@ class UrlGenerator implements UrlGeneratorContract
 
     /**
      * Set the default named parameters used by the URL generator.
+     *
+     * Request-scoped when a request is present: the defaults are stored in
+     * coroutine Context and isolated to the current request. Outside a request
+     * (boot, queue jobs, scheduled tasks, console), they are stored on the
+     * worker-global route URL generator, shared across concurrent coroutines
+     * and persisting for the worker lifetime until changed or flushed.
      */
     public function defaults(array $defaults): void
     {
+        if (RequestContext::getOrNull() !== null) {
+            CoroutineContext::set(
+                self::DEFAULT_PARAMETERS_CONTEXT_KEY,
+                array_merge(CoroutineContext::get(self::DEFAULT_PARAMETERS_CONTEXT_KEY, []), $defaults)
+            );
+
+            return;
+        }
+
         $this->routeUrl()->defaults($defaults);
     }
 
     /**
-     * Get the default named parameters used by the URL generator.
+     * Get the effective default named parameters used by the URL generator.
      */
     public function getDefaultParameters(): array
     {
-        return $this->routeUrl()->defaultParameters;
+        return array_merge(
+            $this->routeUrl()->defaultParameters,
+            CoroutineContext::get(self::DEFAULT_PARAMETERS_CONTEXT_KEY, [])
+        );
     }
 
     /**
@@ -662,6 +685,7 @@ class UrlGenerator implements UrlGeneratorContract
         CoroutineContext::forget(self::FORCED_ROOT_CONTEXT_KEY);
         CoroutineContext::forget(self::CACHED_ROOT_CONTEXT_KEY);
         CoroutineContext::forget(self::CACHED_SCHEME_CONTEXT_KEY);
+        CoroutineContext::forget(self::DEFAULT_PARAMETERS_CONTEXT_KEY);
     }
 
     /**
@@ -729,7 +753,7 @@ class UrlGenerator implements UrlGeneratorContract
             $this->routeGenerator = null;
 
             if (! empty($defaults)) {
-                $this->defaults($defaults);
+                $this->routeUrl()->defaults($defaults);
             }
         });
     }
