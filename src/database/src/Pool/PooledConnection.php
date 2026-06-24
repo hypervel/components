@@ -45,6 +45,8 @@ class PooledConnection implements PoolConnectionInterface
 
     protected float $lastReleaseTime = 0.0;
 
+    protected float $createdAt = 0.0;
+
     protected bool $invalid = false;
 
     protected ?Dispatcher $dispatcher = null;
@@ -133,7 +135,9 @@ class PooledConnection implements PoolConnectionInterface
             );
         }
 
-        $this->lastUseTime = microtime(true);
+        $now = microtime(true);
+        $this->lastUseTime = $now;
+        $this->createdAt = $now;
         $this->markValid();
 
         return true;
@@ -152,8 +156,13 @@ class PooledConnection implements PoolConnectionInterface
             return false;
         }
 
-        $maxIdleTime = $this->pool->getOption()->getMaxIdleTime();
         $now = microtime(true);
+
+        if ($this->isLifetimeExpired($now)) {
+            return false;
+        }
+
+        $maxIdleTime = $this->pool->getOption()->getMaxIdleTime();
 
         if ($now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
             return false;
@@ -291,6 +300,28 @@ class PooledConnection implements PoolConnectionInterface
     }
 
     /**
+     * Get the connection generation creation time.
+     */
+    public function getCreatedAt(): float
+    {
+        return $this->createdAt;
+    }
+
+    /**
+     * Determine if this connection generation has reached its maximum lifetime.
+     */
+    public function isLifetimeExpired(?float $now = null): bool
+    {
+        $maxLifetime = $this->pool->getOption()->getMaxLifetime();
+
+        if ($maxLifetime <= 0) {
+            return false;
+        }
+
+        return ($now ?? microtime(true)) >= $this->createdAt + $maxLifetime;
+    }
+
+    /**
      * Determine if the underlying connection has an open transaction.
      */
     public function hasOpenTransaction(): bool
@@ -399,5 +430,7 @@ class PooledConnection implements PoolConnectionInterface
                 new ConnectionEstablished($connection)
             );
         }
+
+        $this->createdAt = microtime(true);
     }
 }
