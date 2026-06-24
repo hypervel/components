@@ -41,7 +41,9 @@ class PooledConnectionTest extends DatabaseTestCase
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
                 'heartbeat' => -1,
+                'heartbeat_timeout' => 1.0,
                 'max_idle_time' => 60.0,
+                'max_lifetime' => -1.0,
             ],
         ]);
     }
@@ -287,6 +289,85 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertNotSame($originalConnection, $pooledConnection->getActiveConnection());
     }
 
+    public function testExpiredLifetimeReconnectsBeforeReuseEvenWithoutHeartbeat(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.max_lifetime', 1.0);
+
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $originalConnection = $pooledConnection->getConnection();
+
+        $this->assertSame(1.0, $pool->getOption()->getMaxLifetime());
+
+        $this->ageConnectionGeneration($pooledConnection);
+
+        $this->assertFalse($pooledConnection->check());
+        $this->assertNotSame($originalConnection, $pooledConnection->getActiveConnection());
+    }
+
+    public function testExpiredLifetimeReconnectsWhenBorrowedFromPoolAgainWithoutHeartbeat(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.max_lifetime', 1.0);
+
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+        $originalConnection = $pooledConnection->getConnection();
+        $pooledConnection->release();
+
+        $this->ageConnectionGeneration($pooledConnection);
+
+        /** @var PooledConnection $nextPooledConnection */
+        $nextPooledConnection = $pool->get();
+
+        $this->assertSame($pooledConnection, $nextPooledConnection);
+        $this->assertNotSame($originalConnection, $nextPooledConnection->getConnection());
+
+        $nextPooledConnection->release();
+    }
+
+    public function testDisabledMaxLifetimeDoesNotRecycleAgedConnectionGeneration(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $originalConnection = $pooledConnection->getConnection();
+
+        $this->assertSame(-1.0, $pool->getOption()->getMaxLifetime());
+
+        $this->ageConnectionGeneration($pooledConnection);
+
+        $this->assertFalse($pooledConnection->isLifetimeExpired());
+        $this->assertTrue($pooledConnection->check());
+        $this->assertSame($originalConnection, $pooledConnection->getActiveConnection());
+    }
+
+    public function testPingDoesNotExtendConnectionLifetime(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $pooledConnection->getConnection()->getPdo();
+
+        $createdAt = $pooledConnection->getCreatedAt();
+
+        $this->assertTrue($pooledConnection->ping(1.0));
+        $this->assertSame($createdAt, $pooledConnection->getCreatedAt());
+    }
+
+    public function testConnectionRefreshResetsLifetime(): void
+    {
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+        $connection = $pooledConnection->getConnection();
+
+        $this->ageConnectionGeneration($pooledConnection);
+        $expiredAt = $pooledConnection->getCreatedAt();
+
+        $connection->reconnect();
+
+        $this->assertGreaterThan($expiredAt, $pooledConnection->getCreatedAt());
+    }
+
     public function testReleaseSnapshotsErrorCountBeforeResettingConnection(): void
     {
         $pool = new DbPool($this->app, 'pool_test');
@@ -439,5 +520,10 @@ class PooledConnectionTest extends DatabaseTestCase
         $config['name'] = $name;
 
         return new PooledConnection($this->app, $pool, $config);
+    }
+
+    private function ageConnectionGeneration(PooledConnection $connection): void
+    {
+        (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, microtime(true) - 5.0);
     }
 }
