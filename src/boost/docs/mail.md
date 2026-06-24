@@ -79,7 +79,7 @@ After configuring your application's default mailer, add the following options t
 ```php
 'cloudflare' => [
     'account_id' => env('CLOUDFLARE_ACCOUNT_ID'),
-    'key' => env('CLOUDFLARE_KEY'),
+    'token' => env('CLOUDFLARE_TOKEN'),
 ],
 ```
 
@@ -299,7 +299,7 @@ The round robin transport selects a random mailer from the list of configured ma
 <a name="transport-pooling"></a>
 ### Transport Pooling
 
-Hypervel pools mail transports that hold persistent connections or API clients so they can be safely reused across concurrent requests. Pooling applies to the `smtp`, `sendmail`, `mailgun`, `ses-v2`, `postmark`, `resend`, `failover`, and `roundrobin` transports.
+Hypervel pools mail transports that hold persistent connections or API clients so they can be safely reused across concurrent requests. Pooling applies to the `smtp`, `sendmail`, `mailgun`, `ses-v2`, `postmark`, `resend`, `cloudflare`, `failover`, and `roundrobin` transports.
 
 The default pool settings are suitable for most applications. If your application sends a high volume of concurrent mail, or if you encounter pool exhaustion errors, you may tune the pool for any mailer by adding a `pool` configuration option to the mailer's configuration array:
 

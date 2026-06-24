@@ -29,8 +29,6 @@
 
 ## Mail
 
-- Port Cloudflare mail transport support. The copied mail docs include a Cloudflare driver section, but `Hypervel\Mail\MailManager` has no `createCloudflareTransport()` method and `Hypervel\Mail\Transport\CloudflareTransport` does not exist. Correct fix: port Laravel's `CloudflareTransport` to `src/mail/src/Transport/CloudflareTransport.php`, add `createCloudflareTransport()` to `MailManager` using `services.cloudflare.account_id` and `services.cloudflare.token` / `services.cloudflare.key`, add `cloudflare` to the pooled transport list, update the supported transport comments in the mail config files, and port Laravel's matching mail manager tests.
-
 ## Packages
 
 - Port a `workbench:install` command for Hypervel Testbench. Hypervel has Workbench runtime support, but no scaffolding command for package authors to create the recommended `workbench/` directory and `testbench.yaml`. Correct fix: add an install command adapted to Hypervel's supported Workbench keys (`install`, `auth`, `health`, `sync`, and `discovers`), generate a sensible package-local Workbench skeleton, register the command through Testbench's command loader, and add command coverage.
