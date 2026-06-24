@@ -8,6 +8,7 @@ use Composer\InstalledVersions;
 use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Testbench\Foundation\Console\CreateSqliteDbCommand;
 use Hypervel\Testbench\Foundation\Console\DropSqliteDbCommand;
+use Hypervel\Testbench\Foundation\Console\InstallCommand;
 use Hypervel\Testbench\Foundation\Console\PurgeSkeletonCommand;
 use Hypervel\Testbench\Foundation\Console\ServeCommand;
 use Hypervel\Testbench\Foundation\Console\SyncSkeletonCommand;
@@ -47,6 +48,8 @@ class TestbenchServiceProviderTest extends TestCase
         $this->assertInstanceOf(CreateSqliteDbCommand::class, $commands['package:create-sqlite-db']);
         $this->assertArrayHasKey('package:drop-sqlite-db', $commands);
         $this->assertInstanceOf(DropSqliteDbCommand::class, $commands['package:drop-sqlite-db']);
+        $this->assertArrayHasKey('package:install', $commands);
+        $this->assertInstanceOf(InstallCommand::class, $commands['package:install']);
         $this->assertArrayHasKey('package:purge-skeleton', $commands);
         $this->assertInstanceOf(PurgeSkeletonCommand::class, $commands['package:purge-skeleton']);
         $this->assertArrayHasKey('serve', $commands);

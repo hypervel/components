@@ -1,0 +1,25 @@
+providers:
+  - {{ WorkbenchServiceProvider }}
+
+migrations:
+  - workbench/database/migrations
+
+seeders:
+  - {{ WorkbenchDatabaseSeeder }}
+
+workbench:
+  install: true
+  auth: true
+  health: true
+  discovers:
+    config: true
+    factories: true
+    web: true
+    api: true
+    commands: true
+    components: false
+    views: true
+  sync:
+    - from: storage
+      to: workbench/storage
+      reverse: true
