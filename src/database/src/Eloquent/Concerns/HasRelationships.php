@@ -6,6 +6,8 @@ namespace Hypervel\Database\Eloquent\Concerns;
 
 use Closure;
 use Hypervel\Database\ClassMorphViolationException;
+use Hypervel\Database\Eloquent\Attributes\Initialize;
+use Hypervel\Database\Eloquent\Attributes\Touches;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -61,6 +63,17 @@ trait HasRelationships
      * The relation resolver callbacks.
      */
     protected static array $relationResolvers = [];
+
+    /**
+     * Initialize the HasRelationships trait.
+     */
+    #[Initialize]
+    public function initializeHasRelationships(): void
+    {
+        if (empty($this->touches)) {
+            $this->touches = static::resolveClassAttribute(Touches::class, 'relations') ?? [];
+        }
+    }
 
     /**
      * Get the dynamic relation resolver if defined or inherited, or return null.

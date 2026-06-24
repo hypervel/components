@@ -18,9 +18,12 @@ use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Eloquent\Attributes\Boot;
+use Hypervel\Database\Eloquent\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
 use Hypervel\Database\Eloquent\Attributes\Scope as LocalScope;
+use Hypervel\Database\Eloquent\Attributes\Table;
 use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
+use Hypervel\Database\Eloquent\Attributes\WithoutIncrementing;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
@@ -246,6 +249,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected static array $resolvedBuilderClasses = [];
 
     /**
+     * Cache of resolved class attributes.
+     *
+     * @var array<string, null|object>
+     */
+    protected static array $classAttributes = [];
+
+    /**
      * Cache of soft deletable models.
      *
      * @var array<class-string<self>, bool>
@@ -290,6 +300,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $this->bootIfNotBooted();
 
         $this->initializeTraits();
+
+        $this->initializeModelAttributes();
 
         $this->syncOriginal();
 
@@ -381,6 +393,42 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Initialize the model attributes from class attributes.
+     */
+    public function initializeModelAttributes(): void
+    {
+        /** @var null|Table $table */
+        $table = static::resolveClassAttribute(Table::class);
+
+        $reflection = new ReflectionClass(static::class);
+
+        $declaresTable = $reflection->hasProperty('table')
+            && $reflection->getProperty('table')->getDeclaringClass()->getName() === static::class;
+
+        if (! $declaresTable && $reflection->getAttributes(Table::class) !== []) {
+            $this->table = $table->name ?? null;
+        } else {
+            $this->table ??= $table->name ?? null;
+        }
+
+        $this->connection ??= static::resolveClassAttribute(ConnectionAttribute::class, 'name');
+
+        if ($this->primaryKey === 'id' && $table && $table->key !== null) {
+            $this->primaryKey = $table->key;
+        }
+
+        if ($this->keyType === 'int' && $table && $table->keyType !== null) {
+            $this->keyType = $table->keyType;
+        }
+
+        if (static::resolveClassAttribute(WithoutIncrementing::class) !== null) {
+            $this->incrementing = false;
+        } elseif ($table && $table->incrementing !== null) {
+            $this->incrementing = $table->incrementing;
+        }
+    }
+
+    /**
      * Perform any actions required after the model boots.
      */
     protected static function booted(): void
@@ -408,6 +456,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     {
         static::$booted = [];
         static::$bootedCallbacks = [];
+        static::$classAttributes = [];
 
         static::$globalScopes = [];
     }
@@ -447,7 +496,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     {
         $class = $class ?: static::class;
 
-        if (! get_class_vars($class)['timestamps'] || ! $class::UPDATED_AT) {
+        if (! $class::UPDATED_AT) {
+            return true;
+        }
+
+        $timestamps = static::resolveClassAttribute(Table::class, 'timestamps', $class)
+            ?? get_class_vars($class)['timestamps'];
+
+        if (! $timestamps) {
             return true;
         }
 
@@ -1757,7 +1813,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             $this->getCreatedAtColumn(),
             $this->getUpdatedAtColumn(),
             ...$this->uniqueIds(),
-            'laravel_through_key',
+            'hypervel_through_key',
         ]));
 
         $attributes = Arr::except(
@@ -1867,6 +1923,40 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     public static function unsetConnectionResolver(): void
     {
         static::$resolver = null;
+    }
+
+    /**
+     * Resolve an attribute from the model class or its parents.
+     *
+     * @template TAttribute of object
+     *
+     * @param class-string<TAttribute> $attributeClass
+     */
+    protected static function resolveClassAttribute(string $attributeClass, ?string $property = null, ?string $class = null): mixed
+    {
+        $class ??= static::class;
+
+        $cacheKey = $class . '@' . $attributeClass;
+
+        if (! array_key_exists($cacheKey, static::$classAttributes)) {
+            $instance = null;
+            $reflection = new ReflectionClass($class);
+
+            do {
+                $attributes = $reflection->getAttributes($attributeClass);
+
+                if ($attributes !== []) {
+                    $instance = $attributes[0]->newInstance();
+                    break;
+                }
+            } while ($reflection = $reflection->getParentClass());
+
+            static::$classAttributes[$cacheKey] = $instance;
+        }
+
+        $instance = static::$classAttributes[$cacheKey];
+
+        return $instance === null ? null : ($property !== null ? $instance->{$property} : $instance);
     }
 
     /**
@@ -2208,6 +2298,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$bootedCallbacks = [];
         static::$traitInitializers = [];
         static::$globalScopes = [];
+        static::$classAttributes = [];
         static::$modelsShouldPreventLazyLoading = false;
         static::$modelsShouldAutomaticallyEagerLoadRelationships = false;
         static::$lazyLoadingViolationCallback = null;
@@ -2414,6 +2505,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         $this->bootIfNotBooted();
 
         $this->initializeTraits();
+
+        $this->initializeModelAttributes();
 
         if (static::isAutomaticallyEagerLoadingRelationships()) {
             $this->withRelationshipAutoloading();

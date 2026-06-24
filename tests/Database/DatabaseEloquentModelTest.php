@@ -3936,12 +3936,44 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame('Anytown', $model->address_line_two);
     }
 
-    public function testCollectedByAttribute()
+    public function testCollectedByAttribute(): void
     {
         $model = new ModelWithCollectedByAttribute;
         $collection = $model->newCollection([$model]);
 
         $this->assertInstanceOf(CustomEloquentCollection::class, $collection);
+    }
+
+    public function testCollectedByAttributeIsInherited(): void
+    {
+        $model = new ModelChildWithCollectedByAttribute;
+        $collection = $model->newCollection([$model]);
+
+        $this->assertInstanceOf(CustomEloquentCollection::class, $collection);
+    }
+
+    public function testCollectedByAttributeIsInheritedThroughAbstractParent(): void
+    {
+        $model = new ModelConcreteChildOfAbstractWithCollectedByAttribute;
+        $collection = $model->newCollection([$model]);
+
+        $this->assertInstanceOf(CustomEloquentCollection::class, $collection);
+    }
+
+    public function testNewCollectionWorksForConcreteModelExtendingAbstractModel(): void
+    {
+        $model = new ModelConcreteChild;
+        $collection = $model->newCollection([$model]);
+
+        $this->assertInstanceOf(Collection::class, $collection);
+    }
+
+    public function testCollectedByAttributeOnChildOverridesParent(): void
+    {
+        $model = new ModelChildWithCollectedByAttributeOverride;
+        $collection = $model->newCollection([$model]);
+
+        $this->assertInstanceOf(CustomChildEloquentCollection::class, $collection);
     }
 
     public function testUseFactoryAttribute()
@@ -4821,7 +4853,36 @@ class ModelWithCollectedByAttribute extends Model
 {
 }
 
+class ModelChildWithCollectedByAttribute extends ModelWithCollectedByAttribute
+{
+}
+
+abstract class ModelAbstractWithCollectedByAttribute extends ModelWithCollectedByAttribute
+{
+}
+
+class ModelConcreteChildOfAbstractWithCollectedByAttribute extends ModelAbstractWithCollectedByAttribute
+{
+}
+
+abstract class ModelAbstractParent extends Model
+{
+}
+
+class ModelConcreteChild extends ModelAbstractParent
+{
+}
+
+#[CollectedBy(CustomChildEloquentCollection::class)]
+class ModelChildWithCollectedByAttributeOverride extends ModelWithCollectedByAttribute
+{
+}
+
 class CustomEloquentCollection extends Collection
+{
+}
+
+class CustomChildEloquentCollection extends Collection
 {
 }
 

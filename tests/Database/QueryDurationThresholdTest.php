@@ -52,6 +52,24 @@ class QueryDurationThresholdTest extends TestCase
         $this->assertSame(1, $called);
     }
 
+    public function testItIsOnlyCalledOnceWhenHandlerRunsAnotherQuery()
+    {
+        $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $connection->setEventDispatcher($this->app->make(Dispatcher::class));
+        $called = 0;
+
+        $connection->whenQueryingForLongerThan(CarbonInterval::milliseconds(1), function (Connection $connection) use (&$called) {
+            ++$called;
+
+            $connection->logQuery('nested', [], 1);
+        });
+
+        $connection->logQuery('outer', [], 1);
+        $connection->logQuery('outer', [], 1);
+
+        $this->assertSame(1, $called);
+    }
+
     public function testItIsOnlyCalledOnceWhenGivenDateTime()
     {
         Carbon::setTestNow($this->now = Carbon::create(2017, 6, 27, 13, 14, 15, 'UTC'));

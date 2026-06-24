@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use Carbon\CarbonInterval;
 use Closure;
+use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
+use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use PDO;
@@ -27,9 +32,15 @@ use function Hypervel\Support\enum_value;
  */
 class DatabaseManager implements ConnectionResolverInterface
 {
+    use InteractsWithTime;
     use Macroable {
         __call as macroCall;
     }
+
+    /**
+     * Context key for query duration handlers that have run in the current coroutine.
+     */
+    public const QUERY_DURATION_HANDLERS_CONTEXT_KEY = '__database.query_duration_handlers';
 
     /**
      * The active connection instances.
@@ -54,6 +65,18 @@ class DatabaseManager implements ConnectionResolverInterface
      * The callback to be executed to reconnect to a database.
      */
     protected Closure $reconnector;
+
+    /**
+     * All registered query duration handlers.
+     *
+     * @var array<int, array{connection: string, key: string, threshold: float|int, handler: callable}>
+     */
+    protected array $queryDurationHandlers = [];
+
+    /**
+     * Indicates if the manager-level query duration listener has been registered.
+     */
+    protected bool $queryDurationListenerRegistered = false;
 
     /**
      * Create a new database manager instance.
@@ -355,6 +378,56 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
+     * Register a callback to be invoked when the current connection queries for longer than a given amount of time.
+     *
+     * Boot-only. The callback persists on the database manager for the worker lifetime and affects every subsequent request for the same connection.
+     */
+    public function whenQueryingForLongerThan(DateTimeInterface|CarbonInterval|float|int $threshold, callable $handler): void
+    {
+        $connectionName = $this->getEffectiveConnectionName();
+        $key = count($this->queryDurationHandlers);
+
+        $threshold = $threshold instanceof DateTimeInterface
+            ? $this->secondsUntil($threshold) * 1000
+            : $threshold;
+
+        $threshold = $threshold instanceof CarbonInterval
+            ? $threshold->totalMilliseconds
+            : $threshold;
+
+        $this->queryDurationHandlers[] = [
+            'connection' => $connectionName,
+            'key' => $this->queryDurationHandlerKey($key, $connectionName),
+            'threshold' => $threshold,
+            'handler' => $handler,
+        ];
+
+        $this->registerQueryDurationListener();
+    }
+
+    /**
+     * Allow all the query duration handlers to run again for the current connection.
+     */
+    public function allowQueryDurationHandlersToRunAgain(): void
+    {
+        $connectionName = $this->getEffectiveConnectionName();
+        /** @var array<string, true> $ranHandlers */
+        $ranHandlers = CoroutineContext::get(self::QUERY_DURATION_HANDLERS_CONTEXT_KEY, []);
+
+        foreach ($this->queryDurationHandlers as $config) {
+            if ($config['connection'] === $connectionName) {
+                unset($ranHandlers[$config['key']]);
+            }
+        }
+
+        CoroutineContext::set(self::QUERY_DURATION_HANDLERS_CONTEXT_KEY, $ranHandlers);
+
+        /** @var Connection $connection */
+        $connection = $this->connection($connectionName);
+        $connection->allowQueryDurationHandlersToRunAgain();
+    }
+
+    /**
      * Set the default connection name for the current execution context.
      *
      * Writes to coroutine Context so concurrent requests in the same Swoole
@@ -378,6 +451,72 @@ class DatabaseManager implements ConnectionResolverInterface
     protected function getConnectionContextKey(string $name): string
     {
         return sprintf('__database.connection.%s', $name);
+    }
+
+    /**
+     * Get the current effective connection name.
+     */
+    protected function getEffectiveConnectionName(): string
+    {
+        return $this->getDefaultConnection();
+    }
+
+    /**
+     * Register the manager-level query duration listener.
+     */
+    protected function registerQueryDurationListener(): void
+    {
+        if ($this->queryDurationListenerRegistered || ! $this->app->bound('events')) {
+            return;
+        }
+
+        /** @var Dispatcher $events */
+        $events = $this->app->make('events');
+
+        $events->listen(QueryExecuted::class, function (QueryExecuted $event) {
+            $matchingHandlers = [];
+
+            foreach ($this->queryDurationHandlers as $config) {
+                if ($event->connectionName === $config['connection']) {
+                    $matchingHandlers[] = $config;
+                }
+            }
+
+            if ($matchingHandlers === []) {
+                return;
+            }
+
+            /** @var array<string, true> $ranHandlers */
+            $ranHandlers = CoroutineContext::get(self::QUERY_DURATION_HANDLERS_CONTEXT_KEY, []);
+            $handlers = [];
+
+            foreach ($matchingHandlers as $config) {
+                if (! isset($ranHandlers[$config['key']]) && $event->connection->totalQueryDuration() > $config['threshold']) {
+                    $ranHandlers[$config['key']] = true;
+                    $handlers[] = $config['handler'];
+                }
+            }
+
+            if ($handlers === []) {
+                return;
+            }
+
+            CoroutineContext::set(self::QUERY_DURATION_HANDLERS_CONTEXT_KEY, $ranHandlers);
+
+            foreach ($handlers as $handler) {
+                $handler($event->connection, $event);
+            }
+        });
+
+        $this->queryDurationListenerRegistered = true;
+    }
+
+    /**
+     * Get the coroutine-local key for a query duration handler registration.
+     */
+    protected function queryDurationHandlerKey(int $key, string $connectionName): string
+    {
+        return $connectionName . ':' . $key;
     }
 
     /**

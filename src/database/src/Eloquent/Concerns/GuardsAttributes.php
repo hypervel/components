@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Concerns;
 
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\Eloquent\Attributes\Fillable;
+use Hypervel\Database\Eloquent\Attributes\Guarded;
+use Hypervel\Database\Eloquent\Attributes\Initialize;
+use Hypervel\Database\Eloquent\Attributes\Unguarded;
 
 trait GuardsAttributes
 {
@@ -28,6 +32,23 @@ trait GuardsAttributes
      * @var array<class-string,list<string>>
      */
     protected static array $guardableColumns = [];
+
+    /**
+     * Initialize the GuardsAttributes trait.
+     */
+    #[Initialize]
+    public function initializeGuardsAttributes(): void
+    {
+        $this->mergeFillable(static::resolveClassAttribute(Fillable::class, 'columns') ?? []);
+
+        if ($this->guarded === ['*']) {
+            if (static::resolveClassAttribute(Unguarded::class) !== null) {
+                $this->guarded = [];
+            } else {
+                $this->guarded = static::resolveClassAttribute(Guarded::class, 'columns') ?? ['*'];
+            }
+        }
+    }
 
     /**
      * Get the fillable attributes for the model.
@@ -58,6 +79,10 @@ trait GuardsAttributes
      */
     public function mergeFillable(array $fillable): static
     {
+        if ($fillable === []) {
+            return $this;
+        }
+
         $this->fillable = array_values(array_unique(array_merge($this->fillable, $fillable)));
 
         return $this;

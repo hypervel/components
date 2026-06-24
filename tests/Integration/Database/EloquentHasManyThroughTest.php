@@ -68,25 +68,25 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
 
         $result = $user->teamMates()->first();
         $this->assertEquals(
-            $mate1->refresh()->getAttributes() + ['laravel_through_key' => '1'],
+            $mate1->refresh()->getAttributes() + ['hypervel_through_key' => '1'],
             $result->getAttributes()
         );
 
         $result = $user->teamMatesWithPendingRelation()->first();
         $this->assertEquals(
-            $mate1->refresh()->getAttributes() + ['laravel_through_key' => '1'],
+            $mate1->refresh()->getAttributes() + ['hypervel_through_key' => '1'],
             $result->getAttributes()
         );
 
         $result = $user->teamMates()->firstWhere('name', 'Jack');
         $this->assertEquals(
-            $mate2->refresh()->getAttributes() + ['laravel_through_key' => '1'],
+            $mate2->refresh()->getAttributes() + ['hypervel_through_key' => '1'],
             $result->getAttributes()
         );
 
         $result = $user->teamMatesWithPendingRelation()->firstWhere('name', 'Jack');
         $this->assertEquals(
-            $mate2->refresh()->getAttributes() + ['laravel_through_key' => '1'],
+            $mate2->refresh()->getAttributes() + ['hypervel_through_key' => '1'],
             $result->getAttributes()
         );
     }
@@ -100,10 +100,10 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
         User::create(['name' => Str::random(), 'team_id' => $team1->id]);
 
         $teamMates = $user->teamMatesWithGlobalScope;
-        $this->assertEquals(['id' => 2, 'laravel_through_key' => 1], $teamMates[0]->getAttributes());
+        $this->assertEquals(['id' => 2, 'hypervel_through_key' => 1], $teamMates[0]->getAttributes());
 
         $teamMates = $user->teamMatesWithGlobalScopeWithPendingRelation;
-        $this->assertEquals(['id' => 2, 'laravel_through_key' => 1], $teamMates[0]->getAttributes());
+        $this->assertEquals(['id' => 2, 'hypervel_through_key' => 1], $teamMates[0]->getAttributes());
     }
 
     public function testHasSelf()

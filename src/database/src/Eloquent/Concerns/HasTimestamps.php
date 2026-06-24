@@ -6,6 +6,9 @@ namespace Hypervel\Database\Eloquent\Concerns;
 
 use Carbon\CarbonInterface;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Database\Eloquent\Attributes\Initialize;
+use Hypervel\Database\Eloquent\Attributes\Table;
+use Hypervel\Database\Eloquent\Attributes\WithoutTimestamps;
 use Hypervel\Support\Facades\Date;
 
 trait HasTimestamps
@@ -19,6 +22,26 @@ trait HasTimestamps
      * Indicates if the model should be timestamped.
      */
     public bool $timestamps = true;
+
+    /**
+     * Initialize the HasTimestamps trait.
+     */
+    #[Initialize]
+    public function initializeHasTimestamps(): void
+    {
+        if ($this->timestamps === true) {
+            if (static::resolveClassAttribute(WithoutTimestamps::class) !== null) {
+                $this->timestamps = false;
+            } else {
+                /** @var null|Table $table */
+                $table = static::resolveClassAttribute(Table::class);
+
+                if ($table && $table->timestamps !== null) {
+                    $this->timestamps = $table->timestamps;
+                }
+            }
+        }
+    }
 
     /**
      * Update the model's update timestamp.

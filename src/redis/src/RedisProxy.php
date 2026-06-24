@@ -53,9 +53,14 @@ class RedisProxy implements ConnectionContract
         'connect',
         'getActiveConnection',
         'getConnection',
+        'getCreatedAt',
         'getLastReleaseTime',
         'getLastUseTime',
         'getShouldTransform',
+        'heartbeatCheck',
+        'isIdleExpired',
+        'isLifetimeExpired',
+        'masters',
         'pconnect',
         'reconnect',
         'release',
@@ -313,6 +318,8 @@ class RedisProxy implements ConnectionContract
         $connection = $this->getConnection($hasContextConnection, $transform);
 
         try {
+            $connection->getConnection();
+
             return $callback($connection);
         } finally {
             if (! $hasContextConnection) {
@@ -339,6 +346,8 @@ class RedisProxy implements ConnectionContract
         }
 
         try {
+            $connection->getConnection();
+
             return $callback();
         } finally {
             if (! $hadContextConnection) {

@@ -10,12 +10,15 @@ use Attribute;
  * Declare global scopes to be automatically applied to the model.
  *
  * Can be applied to model classes or traits. Supports both single scope
- * class and arrays of scope classes. Repeatable for multiple declarations.
+ * class and arrays of scope classes. Attributes on parent model classes are
+ * inherited by child models. Repeatable for multiple declarations.
  */
 #[Attribute(Attribute::TARGET_CLASS | Attribute::IS_REPEATABLE)]
 class ScopedBy
 {
     /**
+     * Create a new attribute instance.
+     *
      * @param class-string|class-string[] $classes
      */
     public function __construct(

@@ -21,6 +21,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Database Connection Pools
+    |--------------------------------------------------------------------------
+    |
+    | Database connections may define a "pool" array for long-lived workers.
+    | Heartbeats validate idle connections, while max lifetime recycling
+    | rotates old idle connection generations before they are reused.
+    |
+    */
+
+    /*
+    |--------------------------------------------------------------------------
     | Database Connections
     |--------------------------------------------------------------------------
     |
@@ -68,8 +79,10 @@ return [
                 'max_connections' => (int) env('DB_MAX_CONNECTIONS', 10),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat' => (float) env('DB_HEARTBEAT', -1),
+                'heartbeat_timeout' => (float) env('DB_HEARTBEAT_TIMEOUT', 1.0),
                 'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
+                'max_lifetime' => (float) env('DB_MAX_LIFETIME', -1),
             ],
         ],
 
@@ -96,8 +109,10 @@ return [
                 'max_connections' => (int) env('DB_MAX_CONNECTIONS', 10),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat' => (float) env('DB_HEARTBEAT', -1),
+                'heartbeat_timeout' => (float) env('DB_HEARTBEAT_TIMEOUT', 1.0),
                 'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
+                'max_lifetime' => (float) env('DB_MAX_LIFETIME', -1),
             ],
         ],
 
@@ -122,8 +137,10 @@ return [
                 'max_connections' => (int) env('DB_MAX_CONNECTIONS', 10),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat' => (float) env('DB_HEARTBEAT', -1),
+                'heartbeat_timeout' => (float) env('DB_HEARTBEAT_TIMEOUT', 1.0),
                 'max_idle_time' => (float) env('DB_MAX_IDLE_TIME', 60),
+                'max_lifetime' => (float) env('DB_MAX_LIFETIME', -1),
             ],
         ],
 
@@ -149,8 +166,10 @@ return [
                 'max_connections' => (int) env('DB_POOLED_MAX_CONNECTIONS', 20),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat' => (float) env('DB_POOLED_HEARTBEAT', -1),
+                'heartbeat_timeout' => (float) env('DB_POOLED_HEARTBEAT_TIMEOUT', 1.0),
                 'max_idle_time' => (float) env('DB_POOLED_MAX_IDLE_TIME', 60),
+                'max_lifetime' => (float) env('DB_POOLED_MAX_LIFETIME', -1),
             ],
         ],
     ],
@@ -203,8 +222,10 @@ return [
                 'max_connections' => (int) env('REDIS_MAX_CONNECTIONS', 10),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat' => (float) env('REDIS_HEARTBEAT', -1),
+                'heartbeat_timeout' => (float) env('REDIS_HEARTBEAT_TIMEOUT', 1.0),
                 'max_idle_time' => (float) env('REDIS_MAX_IDLE_TIME', 60),
+                'max_lifetime' => (float) env('REDIS_MAX_LIFETIME', -1),
             ],
         ],
 
@@ -224,8 +245,10 @@ return [
                 'max_connections' => (int) env('REDIS_CACHE_MAX_CONNECTIONS', env('REDIS_MAX_CONNECTIONS', 10)),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat' => (float) env('REDIS_CACHE_HEARTBEAT', env('REDIS_HEARTBEAT', -1)),
+                'heartbeat_timeout' => (float) env('REDIS_CACHE_HEARTBEAT_TIMEOUT', env('REDIS_HEARTBEAT_TIMEOUT', 1.0)),
                 'max_idle_time' => (float) env('REDIS_CACHE_MAX_IDLE_TIME', env('REDIS_MAX_IDLE_TIME', 60)),
+                'max_lifetime' => (float) env('REDIS_CACHE_MAX_LIFETIME', env('REDIS_MAX_LIFETIME', -1)),
             ],
         ],
 
@@ -245,8 +268,10 @@ return [
                 'max_connections' => (int) env('REDIS_SESSION_MAX_CONNECTIONS', env('REDIS_MAX_CONNECTIONS', 10)),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat' => (float) env('REDIS_SESSION_HEARTBEAT', env('REDIS_HEARTBEAT', -1)),
+                'heartbeat_timeout' => (float) env('REDIS_SESSION_HEARTBEAT_TIMEOUT', env('REDIS_HEARTBEAT_TIMEOUT', 1.0)),
                 'max_idle_time' => (float) env('REDIS_SESSION_MAX_IDLE_TIME', env('REDIS_MAX_IDLE_TIME', 60)),
+                'max_lifetime' => (float) env('REDIS_SESSION_MAX_LIFETIME', env('REDIS_MAX_LIFETIME', -1)),
             ],
         ],
 
@@ -266,8 +291,10 @@ return [
                 'max_connections' => (int) env('REDIS_QUEUE_MAX_CONNECTIONS', env('REDIS_MAX_CONNECTIONS', 10)),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat' => (float) env('REDIS_QUEUE_HEARTBEAT', env('REDIS_HEARTBEAT', -1)),
+                'heartbeat_timeout' => (float) env('REDIS_QUEUE_HEARTBEAT_TIMEOUT', env('REDIS_HEARTBEAT_TIMEOUT', 1.0)),
                 'max_idle_time' => (float) env('REDIS_QUEUE_MAX_IDLE_TIME', env('REDIS_MAX_IDLE_TIME', 60)),
+                'max_lifetime' => (float) env('REDIS_QUEUE_MAX_LIFETIME', env('REDIS_MAX_LIFETIME', -1)),
             ],
         ],
 
@@ -287,8 +314,10 @@ return [
                 'max_connections' => (int) env('REDIS_REVERB_MAX_CONNECTIONS', env('REDIS_MAX_CONNECTIONS', 10)),
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
-                'heartbeat' => -1,
+                'heartbeat' => (float) env('REDIS_REVERB_HEARTBEAT', env('REDIS_HEARTBEAT', -1)),
+                'heartbeat_timeout' => (float) env('REDIS_REVERB_HEARTBEAT_TIMEOUT', env('REDIS_HEARTBEAT_TIMEOUT', 1.0)),
                 'max_idle_time' => (float) env('REDIS_REVERB_MAX_IDLE_TIME', env('REDIS_MAX_IDLE_TIME', 60)),
+                'max_lifetime' => (float) env('REDIS_REVERB_MAX_LIFETIME', env('REDIS_MAX_LIFETIME', -1)),
             ],
         ],
     ],

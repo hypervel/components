@@ -397,19 +397,6 @@ class HandleExceptionsTest extends TestCase
         Env::getRepository()->clear('LOG_DEPRECATIONS_WHILE_TESTING');
     }
 
-    public function testForgetApp()
-    {
-        $instance = $this->handleExceptions();
-
-        $appResolver = fn () => (new ReflectionClass($instance))->getProperty('app')->getValue($instance);
-
-        $this->assertNotNull($appResolver());
-
-        HandleExceptions::forgetApp();
-
-        $this->assertNull($appResolver());
-    }
-
     public function testHandlerForgetsPreviousApp()
     {
         $instance = $this->handleExceptions();

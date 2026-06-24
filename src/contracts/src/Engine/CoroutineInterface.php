@@ -61,9 +61,14 @@ interface CoroutineInterface
     public static function yield(): bool;
 
     /**
-     * Resume the coroutine by coroutine Id.
+     * Resume the coroutine by coroutine ID.
      */
     public static function resumeById(int $id): bool;
+
+    /**
+     * Cancel the coroutine by coroutine ID.
+     */
+    public static function cancelById(int $id, bool $throwException = false): bool;
 
     /**
      * Get the coroutine stats.

@@ -142,23 +142,26 @@ class Arr
     /**
      * Flatten a multi-dimensional associative array with dots.
      */
-    public static function dot(iterable $array, string $prepend = ''): array
+    public static function dot(iterable $array, string $prepend = '', int|float $depth = INF): array
     {
         $results = [];
 
-        $flatten = function ($data, $prefix) use (&$results, &$flatten): void {
+        $flatten = function ($data, $prefix, $currentDepth) use (&$results, &$flatten, $depth): void {
             foreach ($data as $key => $value) {
                 $newKey = $prefix . $key;
 
-                if (is_array($value) && ! empty($value)) {
-                    $flatten($value, $newKey . '.');
+                if (is_array($value) && ! empty($value) && $currentDepth < $depth) {
+                    $flatten($value, $newKey . '.', $currentDepth + 1);
                 } else {
                     $results[$newKey] = $value;
                 }
             }
         };
 
-        $flatten($array, $prepend);
+        $flatten($array, $prepend, 0);
+
+        // Destroy self-referencing closure to avoid memory leak...
+        $flatten = null;
 
         return $results;
     }

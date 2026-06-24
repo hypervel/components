@@ -32,9 +32,19 @@ interface PoolOptionInterface
     public function getHeartbeat(): float;
 
     /**
+     * Get the heartbeat timeout in seconds.
+     */
+    public function getHeartbeatTimeout(): float;
+
+    /**
      * Get the maximum idle time in seconds before a connection is closed.
      */
     public function getMaxIdleTime(): float;
+
+    /**
+     * Get the maximum lifetime in seconds before a connection is recycled.
+     */
+    public function getMaxLifetime(): float;
 
     /**
      * Get the events to trigger on connection lifecycle.

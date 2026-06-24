@@ -172,7 +172,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
             'email',
             'created_at',
             'updated_at',
-            'laravel_through_key',
+            'hypervel_through_key',
         ], array_keys($contract->getAttributes()));
     }
 
@@ -184,7 +184,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->assertEquals([
             'title',
             'body',
-            'laravel_through_key',
+            'hypervel_through_key',
         ], array_keys($contract->getAttributes()));
     }
 
@@ -204,7 +204,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
                 'email',
                 'created_at',
                 'updated_at',
-                'laravel_through_key', ], array_keys($contract->getAttributes()));
+                'hypervel_through_key', ], array_keys($contract->getAttributes()));
         });
     }
 
@@ -225,7 +225,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
                 'email',
                 'created_at',
                 'updated_at',
-                'laravel_through_key', ], array_keys($contract->getAttributes()));
+                'hypervel_through_key', ], array_keys($contract->getAttributes()));
         }
     }
 
@@ -244,7 +244,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
                 'email',
                 'created_at',
                 'updated_at',
-                'laravel_through_key', ], array_keys($contract->getAttributes()));
+                'hypervel_through_key', ], array_keys($contract->getAttributes()));
         });
     }
 
@@ -263,7 +263,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
                 'email',
                 'created_at',
                 'updated_at',
-                'laravel_through_key', ], array_keys($contract->getAttributes()));
+                'hypervel_through_key', ], array_keys($contract->getAttributes()));
         });
     }
 

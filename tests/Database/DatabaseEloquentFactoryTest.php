@@ -18,6 +18,7 @@ use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Factories\Sequence;
 use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
@@ -90,6 +91,7 @@ class DatabaseEloquentFactoryTest extends TestCase
             $table->foreignId('role_id');
             $table->foreignId('user_id');
             $table->string('admin')->default('N');
+            $table->json('meta')->nullable();
         });
     }
 
@@ -552,6 +554,28 @@ class DatabaseEloquentFactoryTest extends TestCase
         unset($_SERVER['__test.role.creating-role']);
     }
 
+    public function testBelongsToManyRelationshipWithPivotJsonColumn(): void
+    {
+        $user = UserFactory::new()
+            ->hasAttached(RoleFactory::new(), ['meta' => ['foo' => 'bar']], 'factoryTestRoles')
+            ->create();
+
+        $this->assertCount(1, $user->factoryTestRoles);
+        $this->assertSame(['foo' => 'bar'], $user->factoryTestRoles[0]->pivot->meta);
+    }
+
+    public function testBelongsToManyRelationshipWithPivotArrays(): void
+    {
+        $user = UserFactory::new()
+            ->hasAttached(RoleFactory::new(), [['admin' => 'Y'], ['admin' => 'N', 'meta' => ['foo' => 'bar']]], 'factoryTestRoles')
+            ->create();
+
+        $this->assertCount(2, $user->factoryTestRoles);
+        $this->assertSame('Y', $user->factoryTestRoles[0]->pivot->admin);
+        $this->assertSame('N', $user->factoryTestRoles[1]->pivot->admin);
+        $this->assertSame(['foo' => 'bar'], $user->factoryTestRoles[1]->pivot->meta);
+    }
+
     public function testSequences()
     {
         $users = UserFactory::times(2)->sequence(
@@ -749,6 +773,22 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertInstanceOf(User::class, $post->author);
         $this->assertSame('Taylor Otwell', $post->author->name);
         $this->assertCount(2, $post->comments);
+    }
+
+    public function testDynamicHasMethodsWithMultipleArrays(): void
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model . 'Factory';
+        });
+
+        $user = UserFactory::new()
+            ->hasPosts(['title' => 'First Post'], ['title' => 'Second Post'], ['title' => 'Third Post'])
+            ->create();
+
+        $this->assertCount(3, $user->posts);
+        $this->assertSame('First Post', $user->posts[0]->title);
+        $this->assertSame('Second Post', $user->posts[1]->title);
+        $this->assertSame('Third Post', $user->posts[2]->title);
     }
 
     public function testCanBeMacroable()
@@ -1178,7 +1218,7 @@ class User extends Eloquent
 
     public function factoryTestRoles()
     {
-        return $this->belongsToMany(Role::class, 'role_user', 'user_id', 'role_id')->withPivot('admin');
+        return $this->belongsToMany(Role::class, 'role_user', 'user_id', 'role_id')->using(UserRolePivot::class)->withPivot(['admin', 'meta']);
     }
 }
 
@@ -1290,6 +1330,15 @@ class Role extends Eloquent
     {
         return $this->belongsToMany(User::class, 'role_user', 'role_id', 'user_id')->withPivot('admin');
     }
+}
+
+class UserRolePivot extends Pivot
+{
+    protected ?string $table = 'role_user';
+
+    public bool $timestamps = false;
+
+    protected array $casts = ['meta' => 'array'];
 }
 
 class GuessModelFactory extends Factory

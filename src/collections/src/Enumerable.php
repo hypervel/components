@@ -992,6 +992,11 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     public function reject(mixed $callback = true): static;
 
     /**
+     * Flatten a multi-dimensional associative array with dots.
+     */
+    public function dot(int|float $depth = INF): static;
+
+    /**
      * Convert a flatten "dot" notation array into an expanded array.
      */
     public function undot(): static;
