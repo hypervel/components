@@ -569,11 +569,11 @@ Examples: `tests/Inertia/CoroutineIsolationTest.php`, `tests/Container/Coroutine
 
 #### Static State and Test Cleanup
 
-`AfterEachTestSubscriber` handles global static state cleanup between tests. It calls `flushState()` on framework classes that accumulate static state (Mockery, HandleExceptions, Carbon, Number, Eloquent Model, Paginator, etc.). **Never add cleanup for these in `tearDown()`** — it's already handled.
+`AfterEachTestSubscriber` handles global static state cleanup between tests. It calls `flushState()` on framework classes that accumulate static state (Mockery, HandleExceptions, Carbon, Number, Eloquent Model, Paginator, etc.). **Never add cleanup for these in `tearDown()`** — it's already handled. Testbench-specific flush helpers are not the global cleanup registry.
 
 When porting source classes that use static properties for caching (e.g., `$booted`, `$globalScopes`, resolved config values, compiled formats):
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
-2. Check whether the subscriber (`tests/Support/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
+2. Check whether the subscriber (`tests/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
 
 Place `flushState()` at the end of the class. The only exception is when the class has trailing magic dispatch/lifecycle methods (`__call`, `__callStatic`, `__get`, `__set`, `__isset`, `__unset`, `__destruct`) at the end; in that case, place `flushState()` immediately before that trailing magic-method block. `__invoke()` is not a placement anchor.
 

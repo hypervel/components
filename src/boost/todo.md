@@ -27,10 +27,6 @@
 
 - Wire SMS support for Hypervel Horizon long-wait notifications. The Horizon docs show `Horizon::routeSmsNotificationsTo(...)` and `Hypervel\Horizon\Horizon` stores the configured number, but `Hypervel\Horizon\Notifications\LongWaitDetected::via()` and `Hypervel\Horizon\Listeners\SendNotification` currently have the SMS / Nexmo route commented out because no SMS client is supported yet. Correct fix: add a supported SMS notification channel, route long-wait notifications to it when `Horizon::$smsNumber` is set, add the matching notification message method, document the channel prerequisite, and add coverage for mail, Slack, and SMS routing.
 
-## Http
-
-- Port FailOnUnknownFields form request support
-
 ## Mail
 
 - Port Cloudflare mail transport support. The copied mail docs include a Cloudflare driver section, but `Hypervel\Mail\MailManager` has no `createCloudflareTransport()` method and `Hypervel\Mail\Transport\CloudflareTransport` does not exist. Correct fix: port Laravel's `CloudflareTransport` to `src/mail/src/Transport/CloudflareTransport.php`, add `createCloudflareTransport()` to `MailManager` using `services.cloudflare.account_id` and `services.cloudflare.token` / `services.cloudflare.key`, add `cloudflare` to the pooled transport list, update the supported transport comments in the mail config files, and port Laravel's matching mail manager tests.

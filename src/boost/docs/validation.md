@@ -506,6 +506,8 @@ class PublicWebhookRequest extends FormRequest
 }
 ```
 
+Confirmation fields are accepted when the base field uses the `confirmed` rule, including custom `confirmed:...` field names.
+
 Rejecting unknown fields can provide additional protection against mass-assignment style issues by preventing unexpected input keys from flowing deeper into your application. However, you should still configure your model's `$fillable` / `$guarded` properties and only persist trusted, validated input.
 
 <a name="customizing-the-redirect-location"></a>
