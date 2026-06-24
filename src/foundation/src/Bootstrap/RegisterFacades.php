@@ -24,6 +24,9 @@ class RegisterFacades
             ->get('app.aliases', []);
         $aliases = array_merge($packageAliases, $configAliases);
 
+        // Hypervel intentionally supports only explicit facade aliases. Laravel's
+        // runtime-generated real-time facades hide dependencies, confuse PHPStan,
+        // and are a poor fit for long-lived workers.
         $this->registerAliases($aliases);
     }
 
