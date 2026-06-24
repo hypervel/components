@@ -49,10 +49,6 @@
 - Port a `workbench:install` command for Hypervel Testbench. Hypervel has Workbench runtime support, but no scaffolding command for package authors to create the recommended `workbench/` directory and `testbench.yaml`. Correct fix: add an install command adapted to Hypervel's supported Workbench keys (`install`, `auth`, `health`, `sync`, and `discovers`), generate a sensible package-local Workbench skeleton, register the command through Testbench's command loader, and add command coverage.
 - Investigate adding Spatie-style role and permission lookup helpers to the permission package. The package is based on `spatie/laravel-permission`, but currently lacks helpers such as `Role::findByName()`, `Role::findById()`, `Role::findOrCreate()`, `Permission::findByName()`, `Permission::findById()`, and `Permission::findOrCreate()`. Check Spatie's current implementation and decide whether these helpers should be ported for API parity, adapted for Hypervel's guard and cache behavior, or intentionally omitted.
 
-## Pool
-
-- Add Redis pool heartbeat and max-lifetime support. Redis pools expose a `heartbeat` config key today, but `Hypervel\Redis\RedisPool` extends the base pool and no Redis code consumes `PoolOption::getHeartbeat()` or starts a heartbeat timer. Correct fix: add opt-in Redis heartbeat and max-lifetime recycling for idle pooled Redis connections, keep both disabled by default, and test that borrowed connections are never recycled.
-
 ## Routing
 
 - Make `URL::defaults()` coroutine-safe. The URL generation docs show setting request-wide URL defaults from middleware, but `Hypervel\Routing\UrlGenerator::defaults()` mutates `Hypervel\Routing\RouteUrlGenerator::$defaultParameters` on the worker singleton. In Swoole workers, one request's defaults can leak or race into concurrent and later requests. Correct fix: store request-level named parameter defaults in `CoroutineContext`, preserve any intentional boot-time defaults, keep `getDefaultParameters()` reading the effective defaults, and add coroutine-isolation coverage.
