@@ -327,6 +327,7 @@ class RedisPoolHeartbeatTest extends TestCase
 
             $connection->release();
 
+            $this->assertNull((new ReflectionProperty(RedisConnection::class, 'database'))->getValue($connection));
             $this->assertSame(1, $pool->getCurrentConnections());
             $this->assertSame(1, $pool->getConnectionsInChannel());
 

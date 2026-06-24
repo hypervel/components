@@ -50,7 +50,7 @@ class HeartbeatConnectionTest extends TestCase
         $pool = $container->make(HeartbeatPoolStub::class);
         /** @var KeepaliveConnectionStub $connection */
         $connection = $pool->get();
-        $connection->setActiveConnection($conn = new class {
+        $connection->setActiveConnection(new class {
             public function send(string $data): string
             {
                 return str_repeat($data, 2);

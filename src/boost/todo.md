@@ -25,7 +25,7 @@
 
 ## Database
 
-- Consider built-in early jitter for DB pool `max_lifetime`. Exact max-lifetime recycling can make a burst-created cohort of idle connections expire in the same heartbeat tick, causing synchronized reconnects. A clean design would avoid an extra config knob and assign each connection an effective lifetime between 90-100% of `max_lifetime`, so the configured value remains the upper bound while reconnects are spread out.
+- Consider built-in early jitter for database and Redis pool `max_lifetime`. Exact max-lifetime recycling can make a burst-created cohort of idle connections expire in the same heartbeat tick, causing synchronized reconnects. A clean design would avoid an extra config knob and assign each connection an effective lifetime between 90-100% of `max_lifetime`, so the configured value remains the upper bound while reconnects are spread out.
 
 ## Foundation
 

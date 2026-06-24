@@ -685,6 +685,7 @@ abstract class RedisConnection extends BaseConnection
             $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
             $this->markInvalid();
         } finally {
+            $this->database = null;
             $this->availableForReuse = true;
             parent::release();
         }
@@ -707,6 +708,7 @@ abstract class RedisConnection extends BaseConnection
             return false;
         }
 
+        // Heartbeat pings must not keep request-idle connections alive forever.
         return ($now ?? microtime(true)) > $this->pool->getOption()->getMaxIdleTime() + $this->lastReleaseTime;
     }
 
