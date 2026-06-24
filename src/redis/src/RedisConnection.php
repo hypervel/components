@@ -679,7 +679,6 @@ abstract class RedisConnection extends BaseConnection
             $defaultDb = (int) ($this->config['database'] ?? 0);
             if ($this->database !== null && $this->database !== $defaultDb) {
                 $this->select($defaultDb);
-                $this->database = null;
             }
         } catch (Throwable $exception) {
             $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
