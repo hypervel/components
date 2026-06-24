@@ -270,7 +270,7 @@ class PhpRedisClusterConnectionTest extends TestCase
     public function testReconnectClearsCachedDefaultNode()
     {
         $pool = m::mock(PoolInterface::class);
-        $pool->shouldReceive('getOption')->andReturn(m::mock(PoolOption::class));
+        $pool->shouldReceive('getOption')->andReturn(new PoolOption);
 
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->andReturn(false);
@@ -327,7 +327,7 @@ class PhpRedisClusterConnectionTest extends TestCase
     private function getMockedPool(): PoolInterface
     {
         $pool = m::mock(PoolInterface::class);
-        $pool->shouldReceive('getOption')->andReturn(m::mock(PoolOption::class));
+        $pool->shouldReceive('getOption')->andReturn(new PoolOption);
 
         return $pool;
     }

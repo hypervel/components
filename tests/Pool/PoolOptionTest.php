@@ -30,4 +30,24 @@ class PoolOptionTest extends TestCase
         $this->assertSame($option, $option->setMaxLifetime(30.0));
         $this->assertSame(30.0, $option->getMaxLifetime());
     }
+
+    public function testJitteredLifetimeDeadlineDefaultsToDisabled(): void
+    {
+        $this->assertSame(0.0, PoolOption::jitteredLifetimeDeadline(100.0, -1.0));
+        $this->assertSame(0.0, PoolOption::jitteredLifetimeDeadline(100.0, 0.0));
+    }
+
+    public function testJitteredLifetimeDeadlineKeepsConfiguredLifetimeAsUpperBound(): void
+    {
+        $createdAt = 100.0;
+        $maxLifetime = 60.0;
+
+        $deadline = PoolOption::jitteredLifetimeDeadline($createdAt, $maxLifetime);
+
+        $this->assertGreaterThanOrEqual(
+            $createdAt + ($maxLifetime * PoolOption::MIN_LIFETIME_JITTER_BASIS / PoolOption::LIFETIME_JITTER_SCALE),
+            $deadline
+        );
+        $this->assertLessThanOrEqual($createdAt + $maxLifetime, $deadline);
+    }
 }

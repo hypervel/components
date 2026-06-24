@@ -2282,7 +2282,7 @@ class RedisConnectionTest extends TestCase
     {
         $pool = m::mock(PoolInterface::class);
         $pool->shouldReceive('getOption')
-            ->andReturn(m::mock(PoolOption::class));
+            ->andReturn(new PoolOption);
 
         return $pool;
     }

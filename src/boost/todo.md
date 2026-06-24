@@ -23,10 +23,6 @@
 
 ## Collections
 
-## Database
-
-- Consider built-in early jitter for database and Redis pool `max_lifetime`. Exact max-lifetime recycling can make a burst-created cohort of idle connections expire in the same heartbeat tick, causing synchronized reconnects. A clean design would avoid an extra config knob and assign each connection an effective lifetime between 90-100% of `max_lifetime`, so the configured value remains the upper bound while reconnects are spread out.
-
 ## Foundation
 
 - Port Laravel's real-time facade loader. The copied facade docs show `Facades\App\Contracts\Publisher`, but Hypervel's `Hypervel\Foundation\Bootstrap\RegisterFacades` only registers configured aliases with `class_alias()` and has no equivalent of Laravel's `Illuminate\Foundation\AliasLoader` that intercepts `Facades\...` classes and generates facade stubs. Correct fix: port the alias loader using Hypervel namespaces, register it from `RegisterFacades`, generate real-time facade classes that extend `Hypervel\Support\Facades\Facade`, and add tests proving `Facades\App\Contracts\Publisher::shouldReceive(...)` resolves and mocks the underlying container binding.

@@ -10,6 +10,7 @@ use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Pool\Connection as BaseConnection;
+use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
@@ -230,6 +231,35 @@ class RedisPoolHeartbeatTest extends TestCase
             $this->assertSame(2, $connection->reconnectCount);
 
             $nextConnection->release();
+        });
+    }
+
+    public function testConnectionGenerationLifetimeIsJitteredWithinConfiguredUpperBound(): void
+    {
+        run(function () {
+            $pool = $this->createPool([
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+                'max_lifetime' => 60.0,
+            ]);
+
+            $connection = $pool->get();
+            $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
+
+            $createdAt = $connection->getCreatedAt();
+            $lifetimeExpiresAt = (new ReflectionProperty(RedisConnection::class, 'lifetimeExpiresAt'))
+                ->getValue($connection);
+
+            $this->assertGreaterThanOrEqual(
+                $createdAt + (60.0 * PoolOption::MIN_LIFETIME_JITTER_BASIS / PoolOption::LIFETIME_JITTER_SCALE),
+                $lifetimeExpiresAt
+            );
+            $this->assertLessThanOrEqual($createdAt + 60.0, $lifetimeExpiresAt);
+            $this->assertFalse($connection->isLifetimeExpired($lifetimeExpiresAt - 0.001));
+            $this->assertTrue($connection->isLifetimeExpired($lifetimeExpiresAt));
+
+            $connection->release();
         });
     }
 
@@ -483,6 +513,12 @@ class RedisPoolHeartbeatTest extends TestCase
     protected function ageConnectionGeneration(RedisConnection $connection): void
     {
         (new ReflectionProperty(RedisConnection::class, 'createdAt'))->setValue($connection, microtime(true) - 5.0);
+
+        $lifetimeExpiresAt = new ReflectionProperty(RedisConnection::class, 'lifetimeExpiresAt');
+
+        if ($lifetimeExpiresAt->getValue($connection) > 0.0) {
+            $lifetimeExpiresAt->setValue($connection, microtime(true) - 1.0);
+        }
     }
 
     protected function ageReleaseTimeButKeepLastUseFresh(RedisConnection $connection): void

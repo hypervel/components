@@ -13,6 +13,7 @@ use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Pool\Events\ReleaseConnection;
+use Hypervel\Pool\PoolOption;
 use PDO;
 use ReflectionProperty;
 
@@ -383,6 +384,26 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertSame($createdAt, $pooledConnection->getCreatedAt());
     }
 
+    public function testConnectionGenerationLifetimeIsJitteredWithinConfiguredUpperBound(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.max_lifetime', 60.0);
+
+        $pool = new DbPool($this->app, 'pool_test');
+        $pooledConnection = $this->createPooledConnection($pool);
+
+        $createdAt = $pooledConnection->getCreatedAt();
+        $lifetimeExpiresAt = (new ReflectionProperty(PooledConnection::class, 'lifetimeExpiresAt'))
+            ->getValue($pooledConnection);
+
+        $this->assertGreaterThanOrEqual(
+            $createdAt + (60.0 * PoolOption::MIN_LIFETIME_JITTER_BASIS / PoolOption::LIFETIME_JITTER_SCALE),
+            $lifetimeExpiresAt
+        );
+        $this->assertLessThanOrEqual($createdAt + 60.0, $lifetimeExpiresAt);
+        $this->assertFalse($pooledConnection->isLifetimeExpired($lifetimeExpiresAt - 0.001));
+        $this->assertTrue($pooledConnection->isLifetimeExpired($lifetimeExpiresAt));
+    }
+
     public function testConnectionRefreshResetsLifetime(): void
     {
         $pool = new DbPool($this->app, 'pool_test');
@@ -554,6 +575,12 @@ class PooledConnectionTest extends DatabaseTestCase
     private function ageConnectionGeneration(PooledConnection $connection): void
     {
         (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, microtime(true) - 5.0);
+
+        $lifetimeExpiresAt = new ReflectionProperty(PooledConnection::class, 'lifetimeExpiresAt');
+
+        if ($lifetimeExpiresAt->getValue($connection) > 0.0) {
+            $lifetimeExpiresAt->setValue($connection, microtime(true) - 1.0);
+        }
     }
 
     private function ageActiveConnectionUse(PooledConnection $connection): void

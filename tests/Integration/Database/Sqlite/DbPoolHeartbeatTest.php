@@ -432,6 +432,12 @@ class DbPoolHeartbeatTest extends TestCase
     protected function ageConnectionGeneration(PooledConnection $connection): void
     {
         (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, microtime(true) - 5.0);
+
+        $lifetimeExpiresAt = new ReflectionProperty(PooledConnection::class, 'lifetimeExpiresAt');
+
+        if ($lifetimeExpiresAt->getValue($connection) > 0.0) {
+            $lifetimeExpiresAt->setValue($connection, microtime(true) - 1.0);
+        }
     }
 }
 
