@@ -585,6 +585,7 @@ class QueuedEventsTest extends TestCase
         $job->shouldReceive('hasFailed')->andReturn(false);
         $job->shouldReceive('isDeleted')->andReturn(false);
         $job->shouldReceive('isReleased')->andReturn(false);
+        $job->shouldReceive('attempts')->andReturn(1);
         $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
         $job->shouldReceive('delete')->once();
 

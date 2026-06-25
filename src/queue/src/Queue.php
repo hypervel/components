@@ -7,6 +7,7 @@ namespace Hypervel\Queue;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\DebounceLock;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
@@ -311,6 +312,7 @@ abstract class Queue
             && $this->container->has('db.transactions')
         ) {
             $this->addUniqueJobRollbackCallback($job);
+            $this->addDebouncedJobRollbackCallback($job);
 
             return $this->container->make('db.transactions')
                 ->addCallback(
@@ -361,6 +363,22 @@ abstract class Queue
         $this->container->make('db.transactions')->addCallbackForRollback(
             function () use ($job) {
                 (new UniqueLock($this->container->make(Cache::class)))->release($job);
+            }
+        );
+    }
+
+    /**
+     * Register a transaction rollback callback that releases the debounce token for the given job.
+     */
+    protected function addDebouncedJobRollbackCallback(object|string $job): void
+    {
+        if (! is_object($job) || ($job->debounceOwner ?? '') === '') {
+            return;
+        }
+
+        $this->container->make('db.transactions')->addCallbackForRollback(
+            function () use ($job) {
+                (new DebounceLock($this->container->make(Cache::class)))->release($job, $job->debounceOwner ?? '');
             }
         );
     }

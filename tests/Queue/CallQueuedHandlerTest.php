@@ -120,6 +120,29 @@ class CallQueuedHandlerTest extends TestCase
         $handler->call($job, ['command' => $serialized]);
     }
 
+    public function testUniqueUntilProcessingRetryDoesNotReleaseLockAgain(): void
+    {
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->with(Cache::class)->never();
+
+        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher->shouldReceive('dispatchNow')->once();
+        $dispatcher->shouldReceive('getCommandHandler')->andReturn(null);
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('isReleased')->andReturn(false);
+        $job->shouldReceive('attempts')->andReturn(2);
+        $job->shouldReceive('hasFailed')->andReturn(false);
+        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
+        $job->shouldReceive('delete')->once();
+
+        $command = new CallQueuedHandlerTestUniqueUntilProcessingJob;
+        $serialized = serialize($command);
+
+        $handler = new CallQueuedHandler($dispatcher, $container);
+        $handler->call($job, ['command' => $serialized]);
+    }
+
     public function testHandleModelNotFoundFailsJobWhenDeleteWhenMissingModelsIsFalse()
     {
         $container = m::mock(ContainerContract::class);

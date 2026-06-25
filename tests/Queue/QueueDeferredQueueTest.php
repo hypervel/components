@@ -108,6 +108,20 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->push(new DeferredQueueAfterCommitUniqueJob));
     }
 
+    public function testItAddsATransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
+    {
+        $deferred = new DeferredQueue;
+        $deferred->setConnectionName('deferred');
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+
+        $deferred->setContainer($container);
+        run(fn () => $deferred->push(new DeferredQueueAfterCommitDebouncedJob));
+    }
+
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
     {
         $deferred = new DeferredQueue;
@@ -260,6 +274,29 @@ class QueueDeferredQueueTest extends TestCase
         $deferred->setContainer($container);
 
         run(fn () => $deferred->later(5, new DeferredQueueAfterCommitUniqueJob));
+    }
+
+    public function testLaterAddsTransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+
+        $deferred = new DeferredQueue(timer: $timer);
+        $deferred->setConnectionName('deferred');
+
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                $callback();
+                return null;
+            });
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+        $deferred->setContainer($container);
+
+        run(fn () => $deferred->later(5, new DeferredQueueAfterCommitDebouncedJob));
     }
 
     public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
@@ -438,6 +475,19 @@ class DeferredQueueAfterCommitUniqueJob implements ShouldBeUnique
     use InteractsWithQueue;
 
     public $afterCommit = true;
+
+    public function handle(): void
+    {
+    }
+}
+
+class DeferredQueueAfterCommitDebouncedJob
+{
+    use InteractsWithQueue;
+
+    public bool $afterCommit = true;
+
+    public string $debounceOwner = 'owner-token';
 
     public function handle(): void
     {

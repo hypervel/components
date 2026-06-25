@@ -47,6 +47,11 @@ trait Queueable
     public mixed $deduplicator = null;
 
     /**
+     * The lock owner token for debounce supersession checks.
+     */
+    public string $debounceOwner = '';
+
+    /**
      * The number of seconds before the job should be made available.
      */
     public array|DateInterval|DateTimeInterface|int|null $delay = null;

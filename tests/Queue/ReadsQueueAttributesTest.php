@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue\ReadsQueueAttributesTest;
 
+use Hypervel\Bus\Queueable as BusQueueable;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
@@ -97,6 +98,13 @@ class ReadsQueueAttributesTest extends TestCase
         $this->assertSame(3, $this->getAttributeValue($job, Tries::class));
     }
 
+    public function testAttributeOnTraitIsRead(): void
+    {
+        $job = new TraitAttributeJob;
+
+        $this->assertSame(45, $this->getAttributeValue($job, Backoff::class));
+    }
+
     public function testPropertyFallbackWhenNoAttribute()
     {
         $job = new PropertyOnlyJob;
@@ -120,11 +128,25 @@ class ReadsQueueAttributesTest extends TestCase
         $this->assertSame('default', $this->getAttributeValue($job, Tries::class, null, 'default'));
     }
 
-    public function testAttributeTakesPrecedenceOverProperty()
+    public function testDefaultPropertyDoesNotOverrideAttribute(): void
     {
         $job = new AttributeAndPropertyJob;
 
         $this->assertSame(10, $this->getAttributeValue($job, Tries::class, 'tries'));
+    }
+
+    public function testChangedPropertyOverridesAttribute(): void
+    {
+        $job = (new ChangedQueuePropertyJob)->onQueue('low');
+
+        $this->assertSame('low', $this->getAttributeValue($job, Queue::class, 'queue'));
+    }
+
+    public function testChildPropertyOverridesInheritedAttribute(): void
+    {
+        $job = new ChildPropertyOverrideJob;
+
+        $this->assertSame(9, $this->getAttributeValue($job, Tries::class, 'tries'));
     }
 }
 
@@ -187,6 +209,16 @@ class ChildJob extends ParentJob
 {
 }
 
+#[Backoff(45)]
+trait BackoffTrait
+{
+}
+
+class TraitAttributeJob
+{
+    use BackoffTrait;
+}
+
 class PropertyOnlyJob
 {
     public int $tries = 5;
@@ -200,4 +232,20 @@ class PlainJob
 class AttributeAndPropertyJob
 {
     public int $tries = 5;
+}
+
+#[Queue('high')]
+class ChangedQueuePropertyJob
+{
+    use BusQueueable;
+}
+
+#[Tries(3)]
+class ParentPropertyOverrideJob
+{
+}
+
+class ChildPropertyOverrideJob extends ParentPropertyOverrideJob
+{
+    public int $tries = 9;
 }

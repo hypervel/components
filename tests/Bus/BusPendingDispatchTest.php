@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
+use Hypervel\Bus\Queueable;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Queue\PreparesForDispatch;
 use Hypervel\Foundation\Bus\PendingDispatch;
+use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
@@ -45,6 +50,13 @@ class BusPendingDispatchTest extends TestCase
     {
         $this->job->shouldReceive('onQueue')->once()->with('test-queue');
         $this->pendingDispatch->onQueue('test-queue');
+    }
+
+    public function testConditionableCanConfigurePendingDispatch(): void
+    {
+        $this->job->shouldReceive('onQueue')->once()->with('conditional-queue');
+
+        $this->pendingDispatch->when(true, fn ($pendingDispatch) => $pendingDispatch->onQueue('conditional-queue'));
     }
 
     public function testOnGroup()
@@ -116,10 +128,66 @@ class BusPendingDispatchTest extends TestCase
         $this->assertSame($this->job, $this->pendingDispatch->getJob());
     }
 
+    public function testPrepareForDispatchCanAbortDispatchBeforeDebounceCacheIsResolved(): void
+    {
+        Container::setInstance($container = new Container);
+
+        try {
+            $dispatcher = m::mock(Dispatcher::class);
+            $dispatcher->shouldReceive('dispatch')->never();
+            $dispatcher->shouldReceive('dispatchAfterResponse')->never();
+            $container->instance(Dispatcher::class, $dispatcher);
+
+            $job = new PreparingDebouncedPendingDispatchJob(false);
+            $pendingDispatch = new PendingDispatch($job);
+            unset($pendingDispatch);
+
+            $this->assertSame('', $job->debounceOwner);
+        } finally {
+            Container::setInstance(null);
+        }
+    }
+
+    public function testPrepareForDispatchAllowsDispatch(): void
+    {
+        Container::setInstance($container = new Container);
+
+        try {
+            $dispatcher = m::mock(Dispatcher::class);
+            $dispatcher->shouldReceive('dispatch')->once()->with(m::type(PreparingPendingDispatchJob::class));
+            $dispatcher->shouldReceive('dispatchAfterResponse')->never();
+            $container->instance(Dispatcher::class, $dispatcher);
+
+            $pendingDispatch = new PendingDispatch(new PreparingPendingDispatchJob(true));
+            unset($pendingDispatch);
+        } finally {
+            Container::setInstance(null);
+        }
+    }
+
     public function testDynamicallyProxyMethods()
     {
         $newJob = m::mock(stdClass::class);
         $this->job->shouldReceive('appendToChain')->once()->with($newJob);
         $this->pendingDispatch->appendToChain($newJob);
     }
+}
+
+class PreparingPendingDispatchJob implements PreparesForDispatch
+{
+    public function __construct(
+        protected bool $shouldDispatch
+    ) {
+    }
+
+    public function prepareForDispatch(): bool
+    {
+        return $this->shouldDispatch;
+    }
+}
+
+#[DebounceFor(30)]
+class PreparingDebouncedPendingDispatchJob extends PreparingPendingDispatchJob
+{
+    use Queueable;
 }

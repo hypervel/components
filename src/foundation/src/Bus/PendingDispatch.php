@@ -7,17 +7,25 @@ namespace Hypervel\Foundation\Bus;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Bus\DebounceLock;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
+use Hypervel\Contracts\Queue\PreparesForDispatch;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Foundation\Queue\InteractsWithUniqueJobs;
+use Hypervel\Queue\Attributes\DebounceFor;
+use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Support\Traits\Conditionable;
+use LogicException;
 use UnitEnum;
 
 class PendingDispatch
 {
+    use Conditionable;
     use InteractsWithUniqueJobs;
+    use ReadsQueueAttributes;
 
     /**
      * Indicates if the job should be dispatched immediately after sending the response.
@@ -171,8 +179,16 @@ class PendingDispatch
      */
     protected function shouldDispatch(): bool
     {
+        if ($this->job instanceof PreparesForDispatch && $this->job->prepareForDispatch() === false) {
+            return false;
+        }
+
         if (! $this->job instanceof ShouldBeUnique) {
             return true;
+        }
+
+        if ($this->getAttributeValue($this->job, DebounceFor::class, 'debounceFor') !== null) {
+            throw new LogicException('A debounced job cannot also implement ShouldBeUnique.');
         }
 
         $cache = Container::getInstance()
@@ -180,6 +196,30 @@ class PendingDispatch
 
         return (new UniqueLock($cache))
             ->acquire($this->job);
+    }
+
+    /**
+     * Acquire a debounce lock for the job and set its delay.
+     *
+     * @throws LogicException
+     */
+    protected function acquireDebounceLock(): void
+    {
+        /** @var ?int $debounceFor */
+        $debounceFor = $this->getAttributeValue($this->job, DebounceFor::class, 'debounceFor');
+
+        if ($debounceFor === null) {
+            return;
+        }
+
+        $result = (new DebounceLock(Container::getInstance()->make(Cache::class)))
+            ->acquire($this->job, $debounceFor);
+
+        $this->job->debounceOwner = $result['owner'];
+
+        if (is_null($this->job->delay)) {
+            $this->job->delay = $result['maxWaitExceeded'] ? 0 : $debounceFor;
+        }
     }
 
     /**
@@ -204,6 +244,9 @@ class PendingDispatch
 
             return;
         }
+
+        $this->acquireDebounceLock();
+
         if ($this->afterResponse) {
             Container::getInstance()
                 ->make(Dispatcher::class)

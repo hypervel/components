@@ -27,19 +27,15 @@
 ## Horizon
 
 - Wire SMS support for Hypervel Horizon long-wait notifications. The Horizon docs show `Horizon::routeSmsNotificationsTo(...)` and `Hypervel\Horizon\Horizon` stores the configured number, but `Hypervel\Horizon\Notifications\LongWaitDetected::via()` and `Hypervel\Horizon\Listeners\SendNotification` currently have the SMS / Nexmo route commented out because no SMS client is supported yet. Correct fix: add a supported SMS notification channel, route long-wait notifications to it when `Horizon::$smsNumber` is set, add the matching notification message method, document the channel prerequisite, and add coverage for mail, Slack, and SMS routing.
+- Fix the `Hypervel\Tests\Integration\Horizon\Feature\MetricsTest::testSnapshotOfMetricsPerformanceCanBeStored` parallel-suite flake. The test passes repeatedly in isolation but failed once under `composer test:parallel`, which points to shared Redis Horizon metrics snapshot state or test-time state leaking across ParaTest workers. Correct fix: audit Horizon metrics Redis key namespacing and test cleanup, isolate snapshot keys per parallel worker where needed, confirm `CarbonImmutable::setTestNow()` is reset between Horizon tests, and keep the exact snapshot assertions strong.
 
 ## Mail
 
 ## Packages
 
-- Port a `workbench:install` command for Hypervel Testbench. Hypervel has Workbench runtime support, but no scaffolding command for package authors to create the recommended `workbench/` directory and `testbench.yaml`. Correct fix: add an install command adapted to Hypervel's supported Workbench keys (`install`, `auth`, `health`, `sync`, and `discovers`), generate a sensible package-local Workbench skeleton, register the command through Testbench's command loader, and add command coverage.
-- Investigate adding Spatie-style role and permission lookup helpers to the permission package. The package is based on `spatie/laravel-permission`, but currently lacks helpers such as `Role::findByName()`, `Role::findById()`, `Role::findOrCreate()`, `Permission::findByName()`, `Permission::findById()`, and `Permission::findOrCreate()`. Check Spatie's current implementation and decide whether these helpers should be ported for API parity, adapted for Hypervel's guard and cache behavior, or intentionally omitted.
-
 ## Queue
 
-- Port debounced jobs. The copied queue docs document `#[DebounceFor]`, `debounceId()`, `debounceVia()`, and `Hypervel\Queue\Events\JobDebounced`, but the attribute, event, and debounce dispatch path do not exist in the current queue package. Correct fix: port Laravel's debounced job support, including cache coordination, max-wait behavior, superseded-job removal, the `JobDebounced` event, and the matching test coverage.
 - Port `Hypervel\Queue\Attributes\Delay`. The copied event docs show `#[Delay(60)]` on a queued listener class, but the attribute does not exist in `src/queue/src/Attributes/` and `Hypervel\Events\Dispatcher::queueHandler()` does not read it. Delay is currently configurable only via the listener's `$delay` property or `withDelay()` method. Correct fix: port Laravel's `Illuminate\Queue\Attributes\Delay` as `Hypervel\Queue\Attributes\Delay`, wire it into `Dispatcher::queueHandler()` alongside the existing `Connection` and `Queue` attribute reads, and port the matching Laravel listener tests.
-- Port `Hypervel\Contracts\Queue\PreparesForDispatch` and wire it into `Hypervel\Foundation\Bus\PendingDispatch::shouldDispatch()`. Laravel lets a job implement `prepareForDispatch()` and return `false` to abort dispatch before uniqueness locks are acquired; Hypervel currently has no contract and `PendingDispatch::shouldDispatch()` only checks `ShouldBeUnique`.
 - Port queue interruption support. Laravel has `Illuminate\Contracts\Queue\Interruptible`, dispatches `WorkerInterrupted` when the worker receives `SIGQUIT`, `SIGTERM`, or `SIGINT`, and calls `interrupted($signal)` on the running queued command when it implements the contract. Hypervel's worker currently only flips `$shouldQuit` on those signals, has no `WorkerInterrupted` event, and never notifies the running command. Correct fix: add `Hypervel\Contracts\Queue\Interruptible`, port the event, track the current job/command path needed by `Worker::notifyJobOfSignal()`, dispatch the event, and call `interrupted($signal)` before the worker exits.
 
 ## Scheduling
@@ -51,6 +47,8 @@
 - Port `Str::initials()` and fluent `Stringable::initials()`. The copied strings docs document `Str::initials('taylor otwell')` with a `capitalize` argument and `Str::of('Taylor Otwell')->initials()`, but neither method exists in `Hypervel\Support\Str` or `Hypervel\Support\Stringable`. Correct fix: port Laravel's `Str::initials()` implementation, add `Stringable::initials()`, and port Laravel's matching Support tests.
 
 - Port `Hypervel\Support\Uri::authority()`. The copied helpers docs show `$uri->authority()` in the URI inspection example, but `Hypervel\Support\Uri` currently exposes `scheme()`, `user()`, `password()`, `host()`, `port()`, `path()`, `pathSegments()`, `query()`, and `fragment()` without the Laravel `authority()` method. Correct fix: add `authority(): ?string` returning the underlying URI authority and port Laravel's `SupportUriTest` coverage for user info, host, and authority inspection.
+
+- Add shared worker-lifetime metadata caching for class attribute reads. Attribute consumers repeatedly reflect the same job, listener, mailable, notification, and broadcast event classes to read stable class metadata. Correct fix: add a shared metadata cache keyed by class name that caches only stable reflection results such as default properties and attribute instances / declaring classes, while still reading runtime property values and initialization state from each object instance. Do not use trait-level static caches because they fragment per consuming class and create duplicated reset wiring.
 
 ## Telescope
 
