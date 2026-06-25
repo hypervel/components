@@ -27,7 +27,6 @@
 ## Horizon
 
 - Wire SMS support for Hypervel Horizon long-wait notifications. The Horizon docs show `Horizon::routeSmsNotificationsTo(...)` and `Hypervel\Horizon\Horizon` stores the configured number, but `Hypervel\Horizon\Notifications\LongWaitDetected::via()` and `Hypervel\Horizon\Listeners\SendNotification` currently have the SMS / Nexmo route commented out because no SMS client is supported yet. Correct fix: add a supported SMS notification channel, route long-wait notifications to it when `Horizon::$smsNumber` is set, add the matching notification message method, document the channel prerequisite, and add coverage for mail, Slack, and SMS routing.
-- Fix the `Hypervel\Tests\Integration\Horizon\Feature\MetricsTest::testSnapshotOfMetricsPerformanceCanBeStored` parallel-suite flake. The test passes repeatedly in isolation but failed once under `composer test:parallel`, which points to shared Redis Horizon metrics snapshot state or test-time state leaking across ParaTest workers. Correct fix: audit Horizon metrics Redis key namespacing and test cleanup, isolate snapshot keys per parallel worker where needed, confirm `CarbonImmutable::setTestNow()` is reset between Horizon tests, and keep the exact snapshot assertions strong.
 
 ## Mail
 

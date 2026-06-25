@@ -13,6 +13,15 @@ use Mockery as m;
 
 class MetricsTest extends IntegrationTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Clear through Horizon's metrics repository so every test starts from
+        // the same explicit state, even if Redis pool state survives setUp.
+        resolve(MetricsRepository::class)->clear();
+    }
+
     public function testTotalThroughputIsStored()
     {
         Queue::push(new Jobs\BasicJob);
@@ -121,13 +130,16 @@ class MetricsTest extends IntegrationTestCase
         $this->work();
 
         // Take initial snapshot and set initial timestamp...
-        CarbonImmutable::setTestNow($firstTimestamp = CarbonImmutable::now());
+        $firstTimestamp = CarbonImmutable::create(2026, 1, 1, 0, 0, 0);
+        $secondTimestamp = $firstTimestamp->addSecond();
+
+        CarbonImmutable::setTestNow($firstTimestamp);
         resolve(MetricsRepository::class)->snapshot();
 
         // Work another job and take another snapshot...
         Queue::push(new Jobs\BasicJob);
         $this->work();
-        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(1));
+        CarbonImmutable::setTestNow($secondTimestamp);
         resolve(MetricsRepository::class)->snapshot();
 
         $snapshots = resolve(MetricsRepository::class)->snapshotsForJob(Jobs\BasicJob::class);
@@ -142,7 +154,7 @@ class MetricsTest extends IntegrationTestCase
             (object) [
                 'throughput' => 1,
                 'runtime' => 3,
-                'time' => CarbonImmutable::now()->getTimestamp(),
+                'time' => $secondTimestamp->getTimestamp(),
             ],
         ], $snapshots);
 
@@ -159,7 +171,7 @@ class MetricsTest extends IntegrationTestCase
                 'throughput' => 1,
                 'runtime' => 3,
                 'wait' => 0,
-                'time' => CarbonImmutable::now()->getTimestamp(),
+                'time' => $secondTimestamp->getTimestamp(),
             ],
         ], $snapshots);
     }
