@@ -62,6 +62,88 @@ class CacheTest extends TestCase
         $this->assertTrue($this->testUser->hasRole('testRole'));
     }
 
+    public function testRoleAssignmentMutationsInvalidateWarmModelRoleCache(): void
+    {
+        $this->assertFalse($this->testUser->hasRole('testRole'));
+
+        $this->testUser->assignRole('testRole');
+        $this->assertTrue($this->testUser->hasRole('testRole'));
+
+        $this->testUser->removeRole('testRole');
+        $this->assertFalse($this->testUser->hasRole('testRole'));
+
+        $this->testUser->syncRoles('testRole2');
+        $this->assertFalse($this->testUser->hasRole('testRole'));
+        $this->assertTrue($this->testUser->hasRole('testRole2'));
+    }
+
+    public function testDirectPermissionMutationsInvalidateWarmModelPermissionCache(): void
+    {
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+
+        $this->testUser->givePermissionTo('edit-articles');
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+
+        $this->testUser->revokePermissionTo('edit-articles');
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+    }
+
+    public function testSyncPermissionsWithForbiddenInvalidatesWarmModelPermissionCache(): void
+    {
+        $this->testUser->givePermissionTo('edit-articles');
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+        $this->assertFalse($this->testUser->hasForbiddenPermission('edit-articles'));
+
+        $this->testUser->syncPermissionsWithForbidden(
+            allowed: ['edit-news'],
+            forbidden: ['edit-articles'],
+        );
+
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+        $this->assertTrue($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-news'));
+    }
+
+    public function testRolePermissionMutationsInvalidateWarmGlobalPermissionCatalog(): void
+    {
+        $this->testUser->assignRole('testRole');
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+
+        $this->testUserRole->revokePermissionTo('edit-articles');
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+    }
+
+    public function testRoleForbiddenPermissionMutationsInvalidateWarmGlobalPermissionCatalog(): void
+    {
+        $this->testUser->assignRole('testRole');
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+        $this->assertFalse($this->testUser->hasForbiddenPermissionViaRoles('edit-articles'));
+
+        $this->testUserRole->syncPermissionsWithForbidden(forbidden: ['edit-articles']);
+
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+        $this->assertTrue($this->testUser->hasForbiddenPermissionViaRoles('edit-articles'));
+    }
+
+    public function testWildcardPermissionMutationsInvalidateWarmWildcardIndex(): void
+    {
+        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
+        $this->flushPermissionState();
+        $this->app->make(PermissionContract::class)::create(['name' => 'posts.*']);
+
+        $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
+
+        $this->testUser->givePermissionTo('posts.*');
+        $this->assertTrue($this->testUser->hasPermissionTo('posts.create'));
+
+        $this->testUser->revokePermissionTo('posts.*');
+        $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
+    }
+
     public function testGlobalCatalogIsNotHeldOnWorkerSingletonAfterSharedCacheIsForgotten(): void
     {
         $this->testUser->assignRole('testRole');
