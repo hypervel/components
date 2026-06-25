@@ -20,7 +20,7 @@ class CacheResetCommand extends Command
      */
     public function handle(PermissionRegistrar $permissionRegistrar): int
     {
-        $cacheExists = $permissionRegistrar->getCacheRepository()->has($permissionRegistrar->cacheKey);
+        $cacheExists = $permissionRegistrar->getCacheRepository()->has($permissionRegistrar->getCacheKey());
 
         if ($permissionRegistrar->forgetCachedPermissions()) {
             $this->info('Permission cache flushed.');

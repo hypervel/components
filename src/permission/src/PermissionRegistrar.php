@@ -37,6 +37,11 @@ class PermissionRegistrar
 
     public const WILDCARD_PERMISSION_INDEX_CONTEXT_KEY = '__permission.wildcard_index';
 
+    /**
+     * The callback used to scope permission cache keys.
+     */
+    protected static ?Closure $cacheKeyResolver = null;
+
     protected string $permissionClass;
 
     protected string $roleClass;
@@ -203,7 +208,7 @@ class PermissionRegistrar
         $this->clearPermissionsCollection();
         $this->bumpModelAssignmentCacheVersion();
 
-        return $this->cacheRepository()->forget($this->cacheKey);
+        return $this->cacheRepository()->forget($this->getCacheKey());
     }
 
     /**
@@ -275,7 +280,7 @@ class PermissionRegistrar
         $teamId = $this->teams ? (string) ($this->getPermissionsTeamId() ?? 'global') : 'none';
 
         return implode(':', [
-            $prefix,
+            $this->scopedCacheKey($prefix),
             $this->modelAssignmentCacheVersion(),
             $model->getMorphClass(),
             $model->getKey(),
@@ -288,7 +293,7 @@ class PermissionRegistrar
      */
     public function modelAssignmentCacheVersion(): int
     {
-        return $this->cacheRepository()->rememberForever($this->modelCacheVersionKey, fn () => 1);
+        return $this->cacheRepository()->rememberForever($this->scopedCacheKey($this->modelCacheVersionKey), fn () => 1);
     }
 
     /**
@@ -297,16 +302,17 @@ class PermissionRegistrar
     public function bumpModelAssignmentCacheVersion(): int
     {
         $cache = $this->cacheRepository();
-        $cache->add($this->modelCacheVersionKey, 1);
+        $key = $this->scopedCacheKey($this->modelCacheVersionKey);
+        $cache->add($key, 1);
 
-        $version = $cache->increment($this->modelCacheVersionKey);
+        $version = $cache->increment($key);
 
         if (is_int($version)) {
             return $version;
         }
 
-        $version = ((int) $cache->get($this->modelCacheVersionKey, 1)) + 1;
-        $cache->forever($this->modelCacheVersionKey, $version);
+        $version = ((int) $cache->get($key, 1)) + 1;
+        $cache->forever($key, $version);
 
         return $version;
     }
@@ -359,13 +365,20 @@ class PermissionRegistrar
     protected function wildcardPermissionIndexKey(Model $record): string
     {
         $teamId = $this->teams ? (string) ($this->getPermissionsTeamId() ?? 'global') : 'none';
-
-        return implode(':', [
+        $segments = [
             $this->modelAssignmentCacheVersion(),
             $record->getMorphClass(),
             $record->getKey(),
             $teamId,
-        ]);
+        ];
+
+        $scope = $this->cacheKeyScopeSegment();
+
+        if ($scope !== '') {
+            array_unshift($segments, $scope);
+        }
+
+        return implode(':', $segments);
     }
 
     /**
@@ -384,15 +397,17 @@ class PermissionRegistrar
      */
     private function permissionCatalog(): array
     {
-        $catalog = CoroutineContext::get(self::PERMISSION_CATALOG_CONTEXT_KEY);
+        $contextKey = $this->getCacheKey();
+        $catalogs = CoroutineContext::get(self::PERMISSION_CATALOG_CONTEXT_KEY, []);
 
-        if (is_array($catalog)) {
-            return $catalog;
+        if (isset($catalogs[$contextKey]) && is_array($catalogs[$contextKey])) {
+            /** @var array{permissions: Collection, roles: Collection} */
+            return $catalogs[$contextKey];
         }
 
         /** @var array{permissions: array<int, array<string, mixed>>, roles: array<int, array<string, mixed>>} $payload */
         $payload = $this->cacheRepository()->remember(
-            $this->cacheKey,
+            $contextKey,
             $this->cacheExpirationTime,
             fn () => $this->getSerializedPermissionsForCache(),
         );
@@ -404,7 +419,8 @@ class PermissionRegistrar
             'permissions' => $this->getHydratedPermissionCollection($payload['permissions'], $roles),
         ];
 
-        CoroutineContext::set(self::PERMISSION_CATALOG_CONTEXT_KEY, $catalog);
+        $catalogs[$contextKey] = $catalog;
+        CoroutineContext::set(self::PERMISSION_CATALOG_CONTEXT_KEY, $catalogs);
 
         return $catalog;
     }
@@ -498,6 +514,51 @@ class PermissionRegistrar
     public function getPermissionClass(): string
     {
         return $this->permissionClass;
+    }
+
+    /**
+     * Get the scoped global permission cache key.
+     */
+    public function getCacheKey(): string
+    {
+        return $this->scopedCacheKey($this->cacheKey);
+    }
+
+    /**
+     * Set the cache key resolver for permission caches.
+     *
+     * The callback receives no arguments and should return a string that
+     * identifies the current cache scope, such as a tenant id in a
+     * multi-tenant app. It is evaluated fresh on every cache-key build so
+     * coroutine-local request context is current. Keep the resolver cheap;
+     * one permission check can build keys for multiple cache surfaces.
+     *
+     * Boot-only. The resolver persists in a static property for the worker
+     * lifetime and runs on every permission cache lookup.
+     *
+     * @param Closure(): string $callback
+     */
+    public static function resolveCacheKeyUsing(Closure $callback): void
+    {
+        static::$cacheKeyResolver = $callback;
+    }
+
+    /**
+     * Build a scoped cache key.
+     */
+    protected function scopedCacheKey(string $key): string
+    {
+        $scope = $this->cacheKeyScopeSegment();
+
+        return $scope === '' ? $key : "{$key}:{$scope}";
+    }
+
+    /**
+     * Resolve the current cache key scope segment.
+     */
+    protected function cacheKeyScopeSegment(): string
+    {
+        return static::$cacheKeyResolver ? (static::$cacheKeyResolver)() : '';
     }
 
     /**
@@ -753,6 +814,8 @@ class PermissionRegistrar
      */
     public static function flushState(): void
     {
+        static::$cacheKeyResolver = null;
+
         $app = BaseContainer::getInstance();
 
         if ($app->bound(self::class)) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
@@ -19,7 +20,7 @@ class CacheTest extends TestCase
 
         $this->testUser->hasPermissionTo('edit-articles');
 
-        $payload = $registrar->getCacheRepository()->get($registrar->cacheKey);
+        $payload = $registrar->getCacheRepository()->get($registrar->getCacheKey());
 
         $this->assertIsArray($payload);
 
@@ -77,13 +78,176 @@ class CacheTest extends TestCase
                 'is_forbidden' => false,
             ]);
 
-        $registrar->getCacheRepository()->forget($registrar->cacheKey);
+        $registrar->getCacheRepository()->forget($registrar->getCacheKey());
 
         $results = parallel([
             fn (): bool => $this->testUser->hasPermissionTo('publish-articles'),
         ]);
 
         $this->assertTrue($results[0]);
+    }
+
+    public function testCustomCacheKeyResolverScopesGlobalPermissionCatalogCache(): void
+    {
+        $tenant = 'tenant-a';
+        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
+            return $tenant;
+        });
+
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $store = $registrar->getCacheRepository()->getStore();
+
+        $registrar->getPermissions();
+
+        $this->assertArrayHasKey($registrar->cacheKey . ':tenant-a', $store->all());
+
+        $tenant = 'tenant-b';
+        $registrar->clearPermissionsCollection();
+        $registrar->getPermissions();
+
+        $items = $store->all();
+
+        $this->assertArrayHasKey($registrar->cacheKey . ':tenant-a', $items);
+        $this->assertArrayHasKey($registrar->cacheKey . ':tenant-b', $items);
+    }
+
+    public function testCustomCacheKeyResolverScopesModelAssignmentAndVersionCaches(): void
+    {
+        $tenant = 'tenant-a';
+        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
+            return $tenant;
+        });
+
+        $this->testUser->assignRole('testRole');
+        $registrar = $this->app->make(PermissionRegistrar::class);
+        $store = $registrar->getCacheRepository()->getStore();
+
+        $this->assertTrue($this->testUser->hasRole('testRole'));
+
+        $tenant = 'tenant-b';
+        $this->assertTrue($this->testUser->hasRole('testRole'));
+
+        $keys = array_keys($store->all());
+
+        $this->assertContains('hypervel.permission.cache.model.version:tenant-a', $keys);
+        $this->assertContains('hypervel.permission.cache.model.version:tenant-b', $keys);
+        $this->assertNotEmpty(array_filter(
+            $keys,
+            fn (string $key): bool => str_starts_with($key, 'hypervel.permission.cache.model.roles:tenant-a:'),
+        ));
+        $this->assertNotEmpty(array_filter(
+            $keys,
+            fn (string $key): bool => str_starts_with($key, 'hypervel.permission.cache.model.roles:tenant-b:'),
+        ));
+    }
+
+    public function testCustomCacheKeyResolverPreventsCrossTenantBleedForRoleGrantedPermissions(): void
+    {
+        $tenant = 'tenant-a';
+        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
+            return $tenant;
+        });
+
+        $this->testUser->assignRole('testRole');
+        $this->testUserRole->givePermissionTo('edit-articles');
+
+        $this->assertTrue($this->testUser->hasRole('testRole'));
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+
+        $connection = $this->testUserRole->getConnection();
+        $connection->table(Config::modelHasRolesTable())->delete();
+        $connection->table(Config::roleHasPermissionsTable())->delete();
+
+        $this->assertTrue($this->testUser->hasRole('testRole'));
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+
+        $tenant = 'tenant-b';
+
+        $this->assertFalse($this->testUser->hasRole('testRole'));
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+    }
+
+    public function testCustomCacheKeyResolverPreventsCrossTenantBleedForDirectPermissions(): void
+    {
+        $tenant = 'tenant-a';
+        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
+            return $tenant;
+        });
+
+        $this->testUser->givePermissionTo('edit-articles');
+
+        $this->assertTrue($this->testUser->hasDirectPermission('edit-articles'));
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+
+        $this->testUser->getConnection()->table(Config::modelHasPermissionsTable())->delete();
+
+        $this->assertTrue($this->testUser->hasDirectPermission('edit-articles'));
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+
+        $tenant = 'tenant-b';
+
+        $this->assertFalse($this->testUser->hasDirectPermission('edit-articles'));
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+    }
+
+    public function testWildcardIndexKeyDoesNotIncludeEmptyCacheScopeSegment(): void
+    {
+        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
+        $this->flushPermissionState();
+
+        $this->app->make(PermissionContract::class)::create(['name' => 'posts.*']);
+        $this->testUser->givePermissionTo('posts.*');
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $registrar->getWildcardPermissionIndex($this->testUser);
+
+        $keys = array_keys(CoroutineContext::get(PermissionRegistrar::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, []));
+
+        $this->assertNotEmpty($keys);
+        $this->assertFalse(str_starts_with($keys[0], ':'));
+    }
+
+    public function testCustomCacheKeyResolverScopesWildcardIndexesInCoroutineContext(): void
+    {
+        $tenant = 'tenant-a';
+        PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
+            return $tenant;
+        });
+
+        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
+        $this->flushPermissionState();
+
+        $this->app->make(PermissionContract::class)::create(['name' => 'posts.*']);
+        $this->testUser->givePermissionTo('posts.*');
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $registrar->getWildcardPermissionIndex($this->testUser);
+
+        $tenant = 'tenant-b';
+        $registrar->getWildcardPermissionIndex($this->testUser);
+
+        $keys = array_keys(CoroutineContext::get(PermissionRegistrar::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, []));
+
+        $this->assertNotEmpty(array_filter($keys, fn (string $key): bool => str_starts_with($key, 'tenant-a:')));
+        $this->assertNotEmpty(array_filter($keys, fn (string $key): bool => str_starts_with($key, 'tenant-b:')));
+    }
+
+    public function testFlushStateClearsCustomCacheKeyResolver(): void
+    {
+        PermissionRegistrar::resolveCacheKeyUsing(fn (): string => 'tenant-a');
+
+        $this->assertSame(
+            'hypervel.permission.cache.roles:tenant-a',
+            $this->app->make(PermissionRegistrar::class)->getCacheKey(),
+        );
+
+        PermissionRegistrar::flushState();
+
+        $this->assertSame(
+            'hypervel.permission.cache.roles',
+            $this->app->make(PermissionRegistrar::class)->getCacheKey(),
+        );
     }
 
     public function testDeletingRoleCleansRolePermissionPivotWithoutForeignKeyCascades(): void

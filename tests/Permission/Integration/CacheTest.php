@@ -239,7 +239,7 @@ class CacheTest extends TestCase
             $roles[1]->pivot->getAttribute($this->registrar->pivotPermission),
         );
 
-        $payload = $this->registrar->getCacheRepository()->get($this->registrar->cacheKey);
+        $payload = $this->registrar->getCacheRepository()->get($this->registrar->getCacheKey());
 
         $matchingRoles = array_filter(
             $payload['roles'],

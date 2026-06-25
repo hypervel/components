@@ -1065,6 +1065,23 @@ Then update the published migration so the `roles`, `permissions`, and pivot tab
 
 The permission registrar caches role and permission metadata using the configured cache store. Hot checks also use Hypervel's memo cache layer for the current coroutine, so repeated checks in one request or job avoid repeated cache-store reads.
 
+By default, the cache is app-wide. If the same role or permission data can resolve to different records depending on request context, such as in a multi-tenant application with tenant-scoped permission tables, register a cache key resolver in a service provider:
+
+```php
+use Hypervel\Permission\PermissionRegistrar;
+
+public function boot(): void
+{
+    PermissionRegistrar::resolveCacheKeyUsing(
+        fn (): string => 'tenant:' . tenantId(),
+    );
+}
+```
+
+The resolver adds a context segment to the global permission catalog, model assignment caches, assignment-cache version, and wildcard permission indexes. Since the resolver is called during each cache-key build, it can safely read request-specific coroutine context. Teams still scope inside this context, so a multi-tenant app can have independent teams for each tenant.
+
+**Why a static callback, not a config closure?** Config files are evaluated once at boot in Swoole. A closure calling `tenantId()` in config would capture the boot-time tenant (likely null), not the per-request tenant. The static resolver callback runs fresh when permission cache keys are built, reading the current coroutine's context.
+
 Built-in mutation methods refresh the relevant cache automatically:
 
 ```php
@@ -1158,7 +1175,7 @@ Prefer policies and Gate checks when authorization depends on both the user and 
 <a name="performance"></a>
 ## Performance
 
-Permission checks use cached role and permission data after the first lookup. Model role assignments and direct permission assignments have their own cache keys, and those keys include the model type, model key, active team id when teams are enabled, and an assignment-cache version.
+Permission checks use cached role and permission data after the first lookup. Model role assignments and direct permission assignments have their own cache keys, and those keys include the model type, model key, active team id when teams are enabled, assignment-cache version, and the custom cache-key scope when one is registered.
 
 If you need to display a model's roles or permissions, eager load the relationships you will render:
 
