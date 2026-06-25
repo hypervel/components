@@ -15,6 +15,31 @@ use ReflectionClass;
 class Guard
 {
     /**
+     * @var array<class-string, mixed>
+     */
+    protected static array $defaultGuardNames = [];
+
+    /**
+     * @var array<class-string<Model>, string>
+     */
+    protected static array $modelKeyNames = [];
+
+    /**
+     * @var array<string, null|class-string<Model>>
+     */
+    protected static array $providerModels = [];
+
+    /**
+     * @var array<class-string, array<int, string>>
+     */
+    protected static array $configAuthGuards = [];
+
+    /**
+     * @var array<string, null|class-string<Model>>
+     */
+    protected static array $modelsForGuards = [];
+
+    /**
      * Return a collection of guard names suitable for the model,
      * as indicated by the presence of a $guard_name property or a guardName() method on the model.
      */
@@ -31,7 +56,7 @@ class Guard
         }
 
         if (! isset($guardName)) {
-            $guardName = (new ReflectionClass($class))->getDefaultProperties()['guard_name'] ?? null;
+            $guardName = self::getDefaultGuardNameProperty($class);
         }
 
         if ($guardName) {
@@ -48,18 +73,36 @@ class Guard
      */
     protected static function getProviderModel(string $provider): ?string
     {
+        if (array_key_exists($provider, self::$providerModels)) {
+            return self::$providerModels[$provider];
+        }
+
         $providerConfig = self::config()->array("auth.providers.{$provider}", []);
 
         // Handle LDAP provider or standard Eloquent provider
         if (isset($providerConfig['driver']) && $providerConfig['driver'] === 'ldap') {
-            return $providerConfig['database']['model'] ?? null;
+            /** @var null|class-string<Model> */
+            return self::$providerModels[$provider] = $providerConfig['database']['model'] ?? null;
         }
 
         if (isset($providerConfig['model'])) {
-            return $providerConfig['model'];
+            /** @var class-string<Model> */
+            return self::$providerModels[$provider] = $providerConfig['model'];
         }
 
-        return null;
+        return self::$providerModels[$provider] = null;
+    }
+
+    /**
+     * Get the default guard_name property for a model class.
+     */
+    protected static function getDefaultGuardNameProperty(string $class): mixed
+    {
+        if (array_key_exists($class, self::$defaultGuardNames)) {
+            return self::$defaultGuardNames[$class];
+        }
+
+        return self::$defaultGuardNames[$class] = (new ReflectionClass($class))->getDefaultProperties()['guard_name'] ?? null;
     }
 
     /**
@@ -99,7 +142,11 @@ class Guard
      */
     protected static function getConfigAuthGuards(string $class): Collection
     {
-        return (new Collection(self::guards()))
+        if (isset(self::$configAuthGuards[$class])) {
+            return new Collection(self::$configAuthGuards[$class]);
+        }
+
+        return new Collection(self::$configAuthGuards[$class] = (new Collection(self::guards()))
             ->map(function (array $guard): ?string {
                 if (! isset($guard['provider'])) {
                     return null;
@@ -111,7 +158,9 @@ class Guard
                 return static::getProviderModel($provider);
             })
             ->filter(fn ($model) => $class === $model)
-            ->keys();
+            ->keys()
+            ->values()
+            ->all());
     }
 
     /**
@@ -119,14 +168,28 @@ class Guard
      */
     public static function getModelForGuard(string $guard): ?string
     {
+        if (array_key_exists($guard, self::$modelsForGuards)) {
+            return self::$modelsForGuards[$guard];
+        }
+
         $provider = self::config()->get("auth.guards.{$guard}.provider");
 
         if (! $provider) {
-            return null;
+            return self::$modelsForGuards[$guard] = null;
         }
 
         /** @var string $provider */
-        return static::getProviderModel($provider);
+        return self::$modelsForGuards[$guard] = static::getProviderModel($provider);
+    }
+
+    /**
+     * Get a model's key name without repeatedly constructing the model.
+     *
+     * @param class-string<Model> $modelClass
+     */
+    public static function getModelKeyName(string $modelClass): string
+    {
+        return self::$modelKeyNames[$modelClass] ??= (new $modelClass)->getKeyName();
     }
 
     /**
@@ -176,5 +239,17 @@ class Guard
         }
 
         return null;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        self::$defaultGuardNames = [];
+        self::$modelKeyNames = [];
+        self::$providerModels = [];
+        self::$configAuthGuards = [];
+        self::$modelsForGuards = [];
     }
 }

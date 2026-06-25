@@ -13,6 +13,7 @@ use Hypervel\Http\Response;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
+use Hypervel\Permission\Guard;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\PermissionServiceProvider;
 use Hypervel\Support\Facades\Route;
@@ -298,6 +299,7 @@ abstract class TestCase extends TestbenchTestCase
      */
     protected function flushPermissionState(): void
     {
+        Guard::flushState();
         $this->app->make('cache')->store('array')->clear();
         $this->app->forgetInstance(PermissionRegistrar::class);
         $this->app->make(PermissionRegistrar::class)->forgetCachedPermissions();

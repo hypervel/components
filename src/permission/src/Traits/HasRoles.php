@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Traits;
 
-use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
@@ -12,6 +12,7 @@ use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\Events\RoleAttachedEvent;
 use Hypervel\Permission\Events\RoleDetachedEvent;
+use Hypervel\Permission\Guard;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Support\Arr;
@@ -42,15 +43,17 @@ trait HasRoles
                 return;
             }
 
+            $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+
             if ($model instanceof Permission) {
                 $model->getConnection()
                     ->table(Config::modelHasPermissionsTable())
-                    ->where(app(PermissionRegistrar::class)->pivotPermission, $model->getKey())
+                    ->where($registrar->pivotPermission, $model->getKey())
                     ->delete();
 
                 $model->getConnection()
                     ->table(Config::roleHasPermissionsTable())
-                    ->where(app(PermissionRegistrar::class)->pivotPermission, $model->getKey())
+                    ->where($registrar->pivotPermission, $model->getKey())
                     ->delete();
             } else {
                 $model->getConnection()
@@ -60,7 +63,7 @@ trait HasRoles
                     ->delete();
             }
 
-            app(PermissionRegistrar::class)->bumpModelAssignmentCacheVersion();
+            $registrar->bumpModelAssignmentCacheVersion();
         });
 
         static::saved(function (Model $model): void {
@@ -76,7 +79,7 @@ trait HasRoles
     public function getRoleClass(): string
     {
         if (! $this->roleClass) {
-            $this->roleClass = app(PermissionRegistrar::class)->getRoleClass();
+            $this->roleClass = $this->permissionRegistrar()->getRoleClass();
         }
 
         return $this->roleClass;
@@ -92,7 +95,7 @@ trait HasRoles
             'model',
             Config::modelHasRolesTable(),
             Config::morphKey(),
-            app(PermissionRegistrar::class)->pivotRole
+            $this->permissionRegistrar()->pivotRole
         );
 
         if (! Config::teamsEnabled()) {
@@ -118,8 +121,8 @@ trait HasRoles
             return $this->relationCollection($this->loadMissing('roles'), 'roles');
         }
 
-        $registrar = app(PermissionRegistrar::class);
-        $roleKey = (new ($this->getRoleClass())())->getKeyName();
+        $registrar = $this->permissionRegistrar();
+        $roleKey = Guard::getModelKeyName($this->getRoleClass());
         $assignments = $registrar->rememberModelRoleAssignments(
             $model,
             fn (): array => $this->roles()
@@ -157,7 +160,7 @@ trait HasRoles
             return $this->getRoleClass()::{$method}($role, $guard ?: $this->getDefaultGuardName());
         }, Arr::wrap($roles));
 
-        $key = (new ($this->getRoleClass())())->getKeyName();
+        $key = Guard::getModelKeyName($this->getRoleClass());
 
         return $query->{! $without ? 'whereHas' : 'whereDoesntHave'}(
             'roles',
@@ -291,7 +294,7 @@ trait HasRoles
         $roles = $this->collectRoles($roles);
 
         $model = $this;
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = $this->permissionRegistrar();
         $teamPivot = $registrar->teams && ! $this instanceof Permission
             ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
 
@@ -345,7 +348,7 @@ trait HasRoles
             return;
         }
 
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = $this->permissionRegistrar();
 
         foreach ($this->queuedRoleAssignments as $assignment) {
             $this->roles()->attach($assignment['roles'], $assignment['pivot']);
@@ -374,7 +377,7 @@ trait HasRoles
             return;
         }
 
-        $events = app(Dispatcher::class);
+        $events = $this->eventDispatcher();
 
         if ($events->hasListeners(RoleAttachedEvent::class)) {
             $events->dispatch(new RoleAttachedEvent($this, $roles));
@@ -398,7 +401,7 @@ trait HasRoles
         if ($this instanceof Permission) {
             $this->forgetCachedPermissions();
         } else {
-            app(PermissionRegistrar::class)->forgetModelRoleCache($this);
+            $this->permissionRegistrar()->forgetModelRoleCache($this);
         }
 
         $this->forgetWildcardPermissionIndex();
@@ -419,7 +422,7 @@ trait HasRoles
             return;
         }
 
-        $events = app(Dispatcher::class);
+        $events = $this->eventDispatcher();
 
         if ($events->hasListeners(RoleDetachedEvent::class)) {
             $events->dispatch(new RoleDetachedEvent($this, $roles));
@@ -450,7 +453,7 @@ trait HasRoles
             $this->setRelation('roles', collect());
         }
 
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = $this->permissionRegistrar();
         $teamPivot = $registrar->teams && ! $this instanceof Permission
             ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
 
@@ -490,7 +493,7 @@ trait HasRoles
         }
 
         if (is_int($roles) || PermissionRegistrar::isUid($roles)) {
-            $key = (new ($this->getRoleClass())())->getKeyName();
+            $key = Guard::getModelKeyName($this->getRoleClass());
 
             return $guard
                 ? $roleCollection->where('guard_name', $guard)->contains($key, $roles)

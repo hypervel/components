@@ -644,6 +644,10 @@ class PermissionRegistrar
      */
     protected function pivotIsForbidden(Model $model): bool
     {
+        if (! $model->relationLoaded('pivot')) {
+            return false;
+        }
+
         $pivot = $model->getRelation('pivot');
 
         return $pivot instanceof Pivot && (bool) $pivot->getAttribute('is_forbidden');
@@ -667,11 +671,17 @@ class PermissionRegistrar
     private function getHydratedPermissionCollection(array $permissions, Collection $roles): Collection
     {
         $permissionInstance = (new ($this->getPermissionClass())())->newInstance([], true);
+        $rolesByKey = $roles->keyBy(fn (Model $role): string => (string) $role->getKey());
 
         return Collection::make(array_map(
-            fn (array $item) => (clone $permissionInstance)
-                ->setRawAttributes((array) $item['attributes'], true)
-                ->setRelation('roles', $this->getHydratedPermissionRoleCollection((array) $item['roles'], $permissionInstance, $roles)),
+            function (array $item) use ($permissionInstance, $rolesByKey): Model {
+                $permission = (clone $permissionInstance)->setRawAttributes((array) $item['attributes'], true);
+
+                return $permission->setRelation(
+                    'roles',
+                    $this->getHydratedPermissionRoleCollection((array) $item['roles'], $permission, $rolesByKey),
+                );
+            },
             $permissions,
         ));
     }
@@ -699,10 +709,8 @@ class PermissionRegistrar
     private function getHydratedPermissionRoleCollection(array $roles, Model $permission, Collection $roleCatalog): Collection
     {
         return Collection::make(array_values(array_filter(array_map(function (array $item) use ($permission, $roleCatalog): ?Model {
-            $role = $roleCatalog->first(fn (Model $role): bool => self::attributeMatches(
-                $role->getKey(),
-                $item['pivot'][$this->pivotRole] ?? null,
-            ));
+            $roleKey = $item['pivot'][$this->pivotRole] ?? null;
+            $role = $roleKey === null ? null : $roleCatalog->get((string) $roleKey);
 
             if (! $role) {
                 return null;

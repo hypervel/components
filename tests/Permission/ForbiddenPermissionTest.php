@@ -48,6 +48,21 @@ class ForbiddenPermissionTest extends TestCase
         $this->assertFalse($this->testUser->getAllPermissions()->contains('name', 'edit-articles'));
     }
 
+    public function testRoleForbiddenPermissionOverridesAllowedRolePermission(): void
+    {
+        $allowedRole = $this->app->make(RoleContract::class)::create(['name' => 'allowed']);
+        $forbiddenRole = $this->app->make(RoleContract::class)::create(['name' => 'forbidden']);
+
+        $allowedRole->givePermissionTo('edit-articles');
+        $forbiddenRole->giveForbiddenTo('edit-articles');
+        $this->testUser->assignRole($allowedRole, $forbiddenRole);
+
+        $this->assertTrue($this->testUser->hasForbiddenPermissionViaRoles('edit-articles'));
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+        $this->assertFalse($this->testUser->getPermissionsViaRoles()->contains('name', 'edit-articles'));
+        $this->assertFalse($this->testUser->getAllPermissions()->contains('name', 'edit-articles'));
+    }
+
     public function testForbiddenPermissionWinsWhenAllowedAndForbiddenAreSyncedTogether(): void
     {
         $changes = $this->testUser->syncPermissionsWithForbidden(

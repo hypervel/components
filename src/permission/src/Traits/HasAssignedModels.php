@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Traits;
 
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Query\Builder;
@@ -26,7 +27,7 @@ trait HasAssignedModels
             return $this;
         }
 
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
         $teamPivot = $this->teamPivot();
 
         foreach ($this->groupModelsByMorphClass($models, $modelClass) as $morphClass => $ids) {
@@ -50,7 +51,7 @@ trait HasAssignedModels
      */
     public function removeFromModels(array|Collection|Model|int|string $models, ?string $modelClass = null): static
     {
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
         foreach ($this->groupModelsByMorphClass($models, $modelClass) as $morphClass => $ids) {
             $this->relationForModel($morphClass)->detach($ids);
@@ -70,7 +71,7 @@ trait HasAssignedModels
      */
     public function syncModels(array|Collection|Model|int|string $models, ?string $modelClass = null): static
     {
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
         if ($this->exists) {
             $this->newPivotQueryForRole()->delete();
@@ -97,7 +98,7 @@ trait HasAssignedModels
             $modelClass,
             'model',
             Config::modelHasRolesTable(),
-            app(PermissionRegistrar::class)->pivotRole,
+            Container::getInstance()->make(PermissionRegistrar::class)->pivotRole,
             Config::morphKey(),
         );
     }
@@ -156,6 +157,6 @@ trait HasAssignedModels
     {
         return $this->getConnection()
             ->table(Config::modelHasRolesTable())
-            ->where(app(PermissionRegistrar::class)->pivotRole, $this->getKey());
+            ->where(Container::getInstance()->make(PermissionRegistrar::class)->pivotRole, $this->getKey());
     }
 }

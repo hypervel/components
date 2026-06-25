@@ -24,7 +24,7 @@ class PermissionMiddlewareTest extends TestCase
     {
         parent::setUp();
 
-        $this->permissionMiddleware = new PermissionMiddleware;
+        $this->permissionMiddleware = $this->app->make(PermissionMiddleware::class);
     }
 
     public function testGuestCannotAccessPermissionProtectedRoute(): void

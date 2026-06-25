@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Traits;
 
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
@@ -39,6 +40,22 @@ trait HasPermissions
     private array $queuedPermissionAssignments = [];
 
     /**
+     * Get the permission registrar.
+     */
+    protected function permissionRegistrar(): PermissionRegistrar
+    {
+        return Container::getInstance()->make(PermissionRegistrar::class);
+    }
+
+    /**
+     * Get the event dispatcher.
+     */
+    protected function eventDispatcher(): Dispatcher
+    {
+        return Container::getInstance()->make(Dispatcher::class);
+    }
+
+    /**
      * Boot the permission relation cleanup callback.
      */
     public static function bootHasPermissions(): void
@@ -57,18 +74,20 @@ trait HasPermissions
             }
 
             if ($model instanceof Role) {
+                $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+
                 $model->getConnection()
                     ->table(Config::modelHasRolesTable())
-                    ->where(app(PermissionRegistrar::class)->pivotRole, $model->getKey())
+                    ->where($registrar->pivotRole, $model->getKey())
                     ->delete();
 
                 $model->getConnection()
                     ->table(Config::roleHasPermissionsTable())
-                    ->where(app(PermissionRegistrar::class)->pivotRole, $model->getKey())
+                    ->where($registrar->pivotRole, $model->getKey())
                     ->delete();
             }
 
-            app(PermissionRegistrar::class)->bumpModelAssignmentCacheVersion();
+            Container::getInstance()->make(PermissionRegistrar::class)->bumpModelAssignmentCacheVersion();
         });
 
         static::saved(function (Model $model): void {
@@ -84,7 +103,7 @@ trait HasPermissions
     public function getPermissionClass(): string
     {
         if (! $this->permissionClass) {
-            $this->permissionClass = app(PermissionRegistrar::class)->getPermissionClass();
+            $this->permissionClass = $this->permissionRegistrar()->getPermissionClass();
         }
 
         return $this->permissionClass;
@@ -122,7 +141,7 @@ trait HasPermissions
             'model',
             Config::modelHasPermissionsTable(),
             Config::morphKey(),
-            app(PermissionRegistrar::class)->pivotPermission
+            $this->permissionRegistrar()->pivotPermission
         )->withPivot('is_forbidden');
 
         if (! Config::teamsEnabled()) {
@@ -148,8 +167,8 @@ trait HasPermissions
             return $this->relationCollection($this, 'permissions');
         }
 
-        $registrar = app(PermissionRegistrar::class);
-        $permissionKey = (new ($this->getPermissionClass())())->getKeyName();
+        $registrar = $this->permissionRegistrar();
+        $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
         $assignments = $registrar->rememberModelPermissionAssignments(
             $model,
             fn (): array => $this->permissions()
@@ -210,12 +229,21 @@ trait HasPermissions
     {
         $permissions = $this->convertToPermissionModels($permissions);
 
-        $permissionKey = (new ($this->getPermissionClass())())->getKeyName();
-        $roleKey = (new ($this instanceof Role ? static::class : $this->getRoleClass())())->getKeyName();
-
-        $rolesWithPermissions = $this instanceof Role ? [] : array_unique(
-            array_reduce($permissions, fn ($result, $permission) => array_merge($result, $this->relationCollection($permission, 'roles')->all()), [])
-        );
+        $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
+        $roleKey = Guard::getModelKeyName($this instanceof Role ? static::class : $this->getRoleClass());
+        $roleIdsWithPermissions = $this instanceof Role ? [] : array_values(array_unique(
+            array_reduce(
+                $permissions,
+                fn (array $result, Model $permission): array => array_merge(
+                    $result,
+                    $this->relationCollection($permission, 'roles')
+                        ->map(fn (Model $role) => $role->getAttribute($roleKey))
+                        ->all(),
+                ),
+                [],
+            ),
+            SORT_REGULAR,
+        ));
 
         return $query->where(
             fn (Builder $query) => $query
@@ -225,12 +253,12 @@ trait HasPermissions
                         ->whereIn(Config::permissionsTable() . ".{$permissionKey}", array_column($permissions, $permissionKey))
                 )
                 ->when(
-                    count($rolesWithPermissions),
+                    count($roleIdsWithPermissions),
                     fn ($whenQuery) => $whenQuery
                         ->{! $without ? 'orWhereHas' : 'whereDoesntHave'}(
                             'roles',
                             fn (Builder $subQuery) => $subQuery
-                                ->whereIn(Config::rolesTable() . ".{$roleKey}", array_column($rolesWithPermissions, $roleKey))
+                                ->whereIn(Config::rolesTable() . ".{$roleKey}", $roleIdsWithPermissions)
                         )
                 )
         );
@@ -353,10 +381,10 @@ trait HasPermissions
             throw WildcardPermissionInvalidArgument::create();
         }
 
-        return app($this->getWildcardClass(), ['record' => $this])->implies(
+        return Container::getInstance()->make($this->getWildcardClass(), ['record' => $this])->implies(
             $permission,
             $guardName,
-            app(PermissionRegistrar::class)->getWildcardPermissionIndex($this),
+            $this->permissionRegistrar()->getWildcardPermissionIndex($this),
         );
     }
 
@@ -452,22 +480,11 @@ trait HasPermissions
      */
     public function getPermissionsViaRoles(): Collection
     {
-        if ($this instanceof Role || $this instanceof Permission) {
-            return collect();
-        }
+        $permissions = $this->getPermissionsViaRolesWithPivots();
+        $forbiddenPermissionKeys = $this->forbiddenPermissionKeys($permissions);
 
-        $roles = $this->getCachedRoles();
-        $roleKey = (new ($this->getRoleClass())())->getKeyName();
-        $roleIds = $roles->map(fn (Model $role): string => (string) $role->getKey())->all();
-
-        return app(PermissionRegistrar::class)
-            ->getPermissions([], false, $this->getPermissionClass())
-            ->flatMap(
-                fn (Model $permission): Collection => $this->relationCollection($permission, 'roles')
-                    ->filter(fn (Model $role): bool => in_array((string) $role->getAttribute($roleKey), $roleIds, true))
-                    ->map(fn (Model $role): Model => $this->permissionWithRolePivot($permission, $role))
-            )
-            ->reject(fn (Model $permission): bool => $this->pivotIsForbidden($permission))
+        return $permissions
+            ->reject(fn (Model $permission): bool => isset($forbiddenPermissionKeys[$this->permissionComparisonKey($permission)]))
             ->sort()->values();
     }
 
@@ -476,18 +493,15 @@ trait HasPermissions
      */
     public function getAllPermissions(): Collection
     {
-        /** @var Collection $permissions */
-        $permissions = $this->getCachedDirectPermissions();
+        $directPermissions = $this->getCachedDirectPermissions();
+        $viaRolePermissions = $this instanceof Permission
+            ? collect()
+            : $this->getPermissionsViaRolesWithPivots();
+        $forbiddenPermissionKeys = $this->forbiddenPermissionKeys($directPermissions, $viaRolePermissions);
 
-        if (! $this instanceof Permission) {
-            $permissions = $permissions->merge($this->getPermissionsViaRoles());
-        }
-
-        return $permissions
-            ->reject(
-                fn (Model $permission): bool => $this->hasForbiddenPermission($permission->getKey(), $permission->getAttribute('guard_name'))
-                || $this->hasForbiddenPermissionViaRoles($permission->getKey(), $permission->getAttribute('guard_name'))
-            )
+        return $directPermissions
+            ->merge($viaRolePermissions)
+            ->reject(fn (Model $permission): bool => isset($forbiddenPermissionKeys[$this->permissionComparisonKey($permission)]))
             ->unique(fn (Model $permission): string => (string) $permission->getKey())
             ->sort()
             ->values();
@@ -550,7 +564,7 @@ trait HasPermissions
     {
         $permissions = $this->collectPermissions($permissions);
         $model = $this;
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = $this->permissionRegistrar();
         $teamPivot = $registrar->teams && ! $this instanceof Role
             ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
         $pivot = $teamPivot + ['is_forbidden' => $isForbidden];
@@ -603,7 +617,7 @@ trait HasPermissions
             return;
         }
 
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = $this->permissionRegistrar();
 
         foreach ($this->queuedPermissionAssignments as $assignment) {
             $this->permissions()->attach($assignment['permissions'], $assignment['pivot']);
@@ -632,7 +646,7 @@ trait HasPermissions
             return;
         }
 
-        $events = app(Dispatcher::class);
+        $events = $this->eventDispatcher();
 
         if ($events->hasListeners(PermissionAttachedEvent::class)) {
             $events->dispatch(new PermissionAttachedEvent($this, $permissions));
@@ -641,7 +655,7 @@ trait HasPermissions
 
     public function forgetWildcardPermissionIndex(): void
     {
-        app(PermissionRegistrar::class)->forgetWildcardPermissionIndex(
+        $this->permissionRegistrar()->forgetWildcardPermissionIndex(
             $this instanceof Role ? null : $this,
         );
     }
@@ -685,7 +699,7 @@ trait HasPermissions
             $allowedIds,
             fn (int|string $allowedId): bool => ! in_array($allowedId, $forbiddenIds, true),
         ));
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = $this->permissionRegistrar();
         $teamPivot = $registrar->teams && ! $this instanceof Role
             ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
 
@@ -707,7 +721,7 @@ trait HasPermissions
         if ($this instanceof Role) {
             $this->forgetCachedPermissions();
         } else {
-            app(PermissionRegistrar::class)->forgetModelPermissionCache($model);
+            $this->permissionRegistrar()->forgetModelPermissionCache($model);
         }
 
         $this->forgetWildcardPermissionIndex();
@@ -729,7 +743,7 @@ trait HasPermissions
         if ($this instanceof Role) {
             $this->forgetCachedPermissions();
         } else {
-            app(PermissionRegistrar::class)->forgetModelPermissionCache($this);
+            $this->permissionRegistrar()->forgetModelPermissionCache($this);
         }
 
         $this->dispatchPermissionDetachedEvent($storedPermission);
@@ -750,7 +764,7 @@ trait HasPermissions
             return;
         }
 
-        $events = app(Dispatcher::class);
+        $events = $this->eventDispatcher();
 
         if ($events->hasListeners(PermissionDetachedEvent::class)) {
             $events->dispatch(new PermissionDetachedEvent($this, $permission));
@@ -782,21 +796,64 @@ trait HasPermissions
             return false;
         }
 
-        $roles = $this->getCachedRoles();
-        $roleKey = (new ($this->getRoleClass())())->getKeyName();
-        $roleIds = $roles->map(fn (Model $role): string => (string) $role->getKey())->all();
-
-        return app(PermissionRegistrar::class)
-            ->getPermissions([], false, $this->getPermissionClass())
-            ->flatMap(
-                fn (Model $permission): Collection => $this->relationCollection($permission, 'roles')
-                    ->filter(fn (Model $role): bool => in_array((string) $role->getAttribute($roleKey), $roleIds, true))
-                    ->map(fn (Model $role): Model => $this->permissionWithRolePivot($permission, $role))
-            )
+        return $this->getPermissionsViaRolesWithPivots()
             ->contains(
                 fn (Model $storedPermission): bool => $this->pivotIsForbidden($storedPermission)
                 && $this->storedPermissionMatches($storedPermission, $permission, $guardName)
             );
+    }
+
+    /**
+     * Return permissions granted through the model's roles with role-permission pivot data.
+     */
+    protected function getPermissionsViaRolesWithPivots(): Collection
+    {
+        if ($this instanceof Role || $this instanceof Permission) {
+            return collect();
+        }
+
+        $roles = $this->getCachedRoles();
+
+        if ($roles->isEmpty()) {
+            return collect();
+        }
+
+        $roleKey = Guard::getModelKeyName($this->getRoleClass());
+        $roleIds = array_flip($roles->map(fn (Model $role): string => (string) $role->getKey())->all());
+
+        return $this->permissionRegistrar()
+            ->getPermissions([], false, $this->getPermissionClass())
+            ->flatMap(
+                fn (Model $permission): Collection => $this->relationCollection($permission, 'roles')
+                    ->filter(fn (Model $role): bool => isset($roleIds[(string) $role->getAttribute($roleKey)]))
+                    ->map(fn (Model $role): Model => $this->permissionWithRolePivot($permission, $role))
+            );
+    }
+
+    /**
+     * Build lookup keys for forbidden permissions.
+     */
+    protected function forbiddenPermissionKeys(Collection ...$permissionCollections): array
+    {
+        $keys = [];
+
+        foreach ($permissionCollections as $permissions) {
+            foreach ($permissions as $permission) {
+                if ($permission instanceof Model && $this->pivotIsForbidden($permission)) {
+                    $keys[$this->permissionComparisonKey($permission)] = true;
+                }
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * Build a permission comparison key.
+     */
+    protected function permissionComparisonKey(Model $permission): string
+    {
+        return $permission->getAttribute('guard_name') . ':' . $permission->getKey();
     }
 
     /**
@@ -923,7 +980,7 @@ trait HasPermissions
      */
     public function forgetCachedPermissions(): void
     {
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $this->permissionRegistrar()->forgetCachedPermissions();
     }
 
     /**

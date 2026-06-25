@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Models;
 
 use Carbon\CarbonInterface;
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
@@ -71,7 +72,7 @@ class Permission extends Model implements PermissionContract
      */
     public function roles(): BelongsToMany
     {
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
         return $this->belongsToMany(
             Config::roleModel(),
@@ -90,7 +91,7 @@ class Permission extends Model implements PermissionContract
             getModelForGuard($this->attributes['guard_name'] ?? Config::defaultGuard()),
             'model',
             Config::modelHasPermissionsTable(),
-            app(PermissionRegistrar::class)->pivotPermission,
+            Container::getInstance()->make(PermissionRegistrar::class)->pivotPermission,
             Config::morphKey()
         );
     }
@@ -124,7 +125,7 @@ class Permission extends Model implements PermissionContract
     public static function findById(int|string $id, ?string $guardName = null): PermissionContract
     {
         $guardName ??= Guard::getDefaultName(static::class);
-        $permission = static::getPermission([(new static)->getKeyName() => $id, 'guard_name' => $guardName]);
+        $permission = static::getPermission([Guard::getModelKeyName(static::class) => $id, 'guard_name' => $guardName]);
 
         if (! $permission) {
             throw PermissionDoesNotExist::withId($id, $guardName);
@@ -156,7 +157,7 @@ class Permission extends Model implements PermissionContract
      */
     protected static function getPermissions(array $params = [], bool $onlyOne = false): Collection
     {
-        return app(PermissionRegistrar::class)
+        return Container::getInstance()->make(PermissionRegistrar::class)
             ->getPermissions($params, $onlyOne, static::class);
     }
 

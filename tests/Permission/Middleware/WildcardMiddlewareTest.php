@@ -26,9 +26,9 @@ class WildcardMiddlewareTest extends TestCase
     {
         parent::setUp();
 
-        $this->roleMiddleware = new RoleMiddleware;
-        $this->permissionMiddleware = new PermissionMiddleware;
-        $this->roleOrPermissionMiddleware = new RoleOrPermissionMiddleware;
+        $this->roleMiddleware = $this->app->make(RoleMiddleware::class);
+        $this->permissionMiddleware = $this->app->make(PermissionMiddleware::class);
+        $this->roleOrPermissionMiddleware = $this->app->make(RoleOrPermissionMiddleware::class);
 
         $this->app->make('config')->set('permission.enable_wildcard_permission', true);
         $this->flushPermissionState();

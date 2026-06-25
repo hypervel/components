@@ -157,6 +157,18 @@ class HasPermissionsTest extends TestCase
         $this->assertCount(2, User::withoutPermission(['edit-news'])->get());
     }
 
+    public function testItCanScopeUsersWhenMultiplePermissionsShareTheSameRole(): void
+    {
+        User::all()->each(fn ($item) => $item->delete());
+
+        $user = User::create(['email' => 'user@test.com']);
+        $this->testUserRole->givePermissionTo(['edit-articles', 'edit-news']);
+        $user->assignRole('testRole');
+
+        $this->assertCount(1, User::permission(['edit-articles', 'edit-news'])->get());
+        $this->assertTrue(User::permission(['edit-articles', 'edit-news'])->first()->is($user));
+    }
+
     public function testItCanScopeUsersUsingACollection(): void
     {
         User::all()->each(fn ($item) => $item->delete());

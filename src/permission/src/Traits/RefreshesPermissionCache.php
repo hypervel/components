@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Traits;
 
+use Hypervel\Container\Container;
 use Hypervel\Permission\PermissionRegistrar;
 
 trait RefreshesPermissionCache
@@ -14,11 +15,11 @@ trait RefreshesPermissionCache
     public static function bootRefreshesPermissionCache(): void
     {
         static::saved(function (): void {
-            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            Container::getInstance()->make(PermissionRegistrar::class)->forgetCachedPermissions();
         });
 
         static::deleted(function (): void {
-            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            Container::getInstance()->make(PermissionRegistrar::class)->forgetCachedPermissions();
         });
     }
 }

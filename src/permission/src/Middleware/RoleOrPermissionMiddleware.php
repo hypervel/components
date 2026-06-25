@@ -6,12 +6,12 @@ namespace Hypervel\Permission\Middleware;
 
 use Closure;
 use Hypervel\Contracts\Auth\Access\Authorizable;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Guard;
 use Hypervel\Permission\Support\Config;
-use Hypervel\Support\Facades\Auth;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -19,11 +19,18 @@ use function Hypervel\Support\enum_value;
 class RoleOrPermissionMiddleware
 {
     /**
+     * Create a new middleware instance.
+     */
+    public function __construct(protected AuthFactory $auth)
+    {
+    }
+
+    /**
      * Handle an incoming request.
      */
     public function handle(Request $request, Closure $next, mixed $roleOrPermission, ?string $guard = null): Response
     {
-        $authGuard = Auth::guard($guard);
+        $authGuard = $this->auth->guard($guard);
 
         $user = $authGuard->user();
 

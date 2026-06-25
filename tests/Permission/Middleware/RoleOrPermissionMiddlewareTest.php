@@ -22,7 +22,7 @@ class RoleOrPermissionMiddlewareTest extends TestCase
     {
         parent::setUp();
 
-        $this->roleOrPermissionMiddleware = new RoleOrPermissionMiddleware;
+        $this->roleOrPermissionMiddleware = $this->app->make(RoleOrPermissionMiddleware::class);
     }
 
     public function testGuestCannotAccessProtectedRoute(): void

@@ -6,7 +6,9 @@ namespace Hypervel\Permission;
 
 use Composer\InstalledVersions;
 use Hypervel\Cache\CacheManager;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Permission\Commands\AssignRoleCommand;
 use Hypervel\Permission\Commands\CacheResetCommand;
@@ -75,7 +77,7 @@ class PermissionServiceProvider extends ServiceProvider
      */
     public static function bladeMethodWrapper(string $method, mixed $role, ?string $guard = null): bool
     {
-        $authGuard = auth($guard);
+        $authGuard = Container::getInstance()->make(AuthFactory::class)->guard($guard);
 
         return $authGuard->check() && $authGuard->user()->{$method}($role);
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Models;
 
 use Carbon\CarbonInterface;
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
@@ -64,7 +65,7 @@ class Role extends Model implements RoleContract
 
         $params = ['name' => $attributes['name'], 'guard_name' => $attributes['guard_name']];
 
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
         if ($registrar->teams) {
             $teamsKey = $registrar->teamsKey;
@@ -88,7 +89,7 @@ class Role extends Model implements RoleContract
      */
     public function permissions(): BelongsToMany
     {
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
         return $this->belongsToMany(
             Config::permissionModel(),
@@ -107,7 +108,7 @@ class Role extends Model implements RoleContract
             getModelForGuard($this->attributes['guard_name'] ?? Config::defaultGuard()),
             'model',
             Config::modelHasRolesTable(),
-            app(PermissionRegistrar::class)->pivotRole,
+            Container::getInstance()->make(PermissionRegistrar::class)->pivotRole,
             Config::morphKey()
         );
     }
@@ -142,7 +143,7 @@ class Role extends Model implements RoleContract
     {
         $guardName ??= Guard::getDefaultName(static::class);
 
-        $role = static::findByParam([(new static)->getKeyName() => $id, 'guard_name' => $guardName]);
+        $role = static::findByParam([Guard::getModelKeyName(static::class) => $id, 'guard_name' => $guardName]);
 
         if (! $role) {
             throw RoleDoesNotExist::withId($id, $guardName);
@@ -166,7 +167,7 @@ class Role extends Model implements RoleContract
         $role = static::findByParam($attributes);
 
         if (! $role) {
-            $registrar = app(PermissionRegistrar::class);
+            $registrar = Container::getInstance()->make(PermissionRegistrar::class);
             if ($registrar->teams) {
                 $teamsKey = $registrar->teamsKey;
                 $attributes[$teamsKey] = getPermissionsTeamId();
@@ -187,7 +188,7 @@ class Role extends Model implements RoleContract
     {
         $query = static::query();
 
-        $registrar = app(PermissionRegistrar::class);
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
         if ($registrar->teams) {
             $teamsKey = $registrar->teamsKey;
