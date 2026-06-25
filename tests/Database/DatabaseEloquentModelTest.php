@@ -3403,6 +3403,20 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertTrue($called);
     }
 
+    public function testFlushGuardableColumnsRestoresOnlyGuardableColumnMetadata(): void
+    {
+        $reflection = new ReflectionClass(Model::class);
+        $resolver = m::mock(Resolver::class);
+
+        Model::setConnectionResolver($resolver);
+        $reflection->setStaticPropertyValue('guardableColumns', [ModelStub::class => ['id']]);
+
+        Model::flushGuardableColumns();
+
+        $this->assertSame($resolver, Model::getConnectionResolver());
+        $this->assertSame([], $reflection->getStaticPropertyValue('guardableColumns'));
+    }
+
     public function testFlushStateRestoresStaticState()
     {
         $reflection = new ReflectionClass(Model::class);

@@ -155,7 +155,7 @@ class Commander
                 resolvingCallback: $this->resolveApplicationCallback(),
                 options: array_filter([
                     'load_environment_variables' => $hasEnvironmentFile(),
-                    'extra' => $this->config->getExtraAttributes(),
+                    'extra' => $this->extraAttributes(),
                 ]),
             );
 
@@ -180,11 +180,24 @@ class Commander
                 $this->config['migrations'] ?? [],
                 $this->config['seeders'] ?? false,
             ))->bootstrap($app);
-
-            foreach ($this->providers as $provider) {
-                $app->register($provider);
-            }
         };
+    }
+
+    /**
+     * Get extra attributes for the Testbench application.
+     *
+     * @return array<string, mixed>
+     */
+    protected function extraAttributes(): array
+    {
+        $attributes = $this->config->getExtraAttributes();
+
+        $attributes['providers'] = array_values(array_unique([
+            ...$attributes['providers'],
+            ...$this->providers,
+        ]));
+
+        return $attributes;
     }
 
     /**

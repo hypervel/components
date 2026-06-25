@@ -12,6 +12,11 @@ interface Factory
     public function guard(?string $name = null): Guard|StatefulGuard;
 
     /**
+     * Get the default authentication driver name.
+     */
+    public function getDefaultDriver(): string;
+
+    /**
      * Set the default guard the factory should serve.
      */
     public function shouldUse(?string $name): void;

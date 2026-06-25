@@ -4,97 +4,81 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Middleware;
 
-use BackedEnum;
 use Closure;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Http\Request;
-use Hypervel\Permission\Exceptions\RoleException;
+use Hypervel\Http\Response;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
-use Hypervel\Support\Collection;
-use Symfony\Component\HttpFoundation\Response;
+use Hypervel\Permission\Guard;
+use Hypervel\Permission\Support\Config;
 use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class RoleMiddleware
 {
     /**
      * Create a new middleware instance.
      */
-    public function __construct(protected Container $container)
+    public function __construct(protected AuthFactory $auth)
     {
     }
 
     /**
      * Handle an incoming request.
      */
-    public function handle(Request $request, Closure $next, string ...$roles): Response
+    public function handle(Request $request, Closure $next, mixed $role, ?string $guard = null): Response
     {
-        $auth = $this->container->make('auth');
-        $user = $auth->user();
-        if (! $user) {
-            throw new UnauthorizedException(
-                401,
-                sprintf(
-                    'User is not authenticated. Cannot check roles: %s',
-                    self::parseRolesToString($roles)
-                )
-            );
+        $authGuard = $this->auth->guard($guard);
+
+        $user = $authGuard->user();
+
+        // For machine-to-machine Passport clients
+        if (! $user && $request->bearerToken() && Config::usePassportClientCredentials()) {
+            $user = Guard::getPassportClient($guard);
         }
 
-        if (! method_exists($user, 'hasAnyRoles')) {
-            throw new UnauthorizedException(
-                500,
-                sprintf(
-                    'User "%s" does not have the "hasAnyRoles" method. Cannot check roles: %s',
-                    /* @phpstan-ignore-next-line */
-                    $user->getAuthIdentifier(),
-                    self::parseRolesToString($roles)
-                )
-            );
+        if (! $user) {
+            throw UnauthorizedException::notLoggedIn();
         }
-        $roles = explode('|', self::parseRolesToString($roles));
-        /* @phpstan-ignore-next-line */
-        if (! $user->hasAnyRoles($roles)) {
-            throw new RoleException(
-                403,
-                sprintf(
-                    'User "%s" does not have any of the required roles: %s',
-                    /* @phpstan-ignore-next-line */
-                    $user->getAuthIdentifier(),
-                    self::parseRolesToString($roles)
-                ),
-                null,
-                [],
-                0,
-                $roles
-            );
+
+        if (! method_exists($user, 'hasAnyRole')) {
+            throw UnauthorizedException::missingTraitHasRoles($user);
+        }
+
+        $roles = explode('|', self::parseRolesToString($role));
+        $hasAnyRole = Closure::fromCallable([$user, 'hasAnyRole']);
+
+        if (! $hasAnyRole($roles)) {
+            throw UnauthorizedException::forRoles($roles);
         }
 
         return $next($request);
     }
 
     /**
-     * Generate a unique identifier for the middleware based on the roles.
+     * Specify the role and guard for the middleware.
      */
-    public static function using(array|UnitEnum|int|string ...$roles): string
+    public static function using(array|string|UnitEnum $role, ?string $guard = null): string
     {
-        return static::class . ':' . self::parseRolesToString($roles);
+        $roleString = self::parseRolesToString($role);
+
+        $args = is_null($guard) ? $roleString : "{$roleString},{$guard}";
+
+        return static::class . ':' . $args;
     }
 
-    public static function parseRolesToString(array $roles)
+    /**
+     * Parse the roles into a pipe-delimited string.
+     */
+    protected static function parseRolesToString(array|string|UnitEnum $role): string
     {
-        $roles = Collection::make($roles)
-            ->flatten()
-            ->values()
-            ->all();
+        $role = enum_value($role);
 
-        $role = array_map(function ($role) {
-            return match (true) {
-                $role instanceof BackedEnum => $role->value,
-                $role instanceof UnitEnum => $role->name,
-                default => $role,
-            };
-        }, $roles);
+        if (is_array($role)) {
+            return implode('|', array_map(fn ($r) => enum_value($r), $role));
+        }
 
-        return implode('|', $role);
+        return (string) $role;
     }
 }

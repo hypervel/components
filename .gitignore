@@ -15,6 +15,7 @@
 /docs/.vuepress/dist/
 /docs/.vuepress/.cache
 /docs/.vuepress/.temp
+/docs/reviews/
 /node_modules
 /src/*/node_modules
 /src/wayfinder/tests/.generated

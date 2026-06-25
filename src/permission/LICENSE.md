@@ -2,8 +2,6 @@ The MIT License (MIT)
 
 Copyright (c) Spatie bvba info@spatie.be
 
-Copyright (c) Hyperf
-
 Copyright (c) Hypervel
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

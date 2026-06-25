@@ -146,6 +146,9 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Notifications\ChannelManager::flushState();
         \Hypervel\Pagination\AbstractCursorPaginator::flushState();
         \Hypervel\Pagination\AbstractPaginator::flushState();
+        \Hypervel\Permission\DefaultTeamResolver::flushState();
+        \Hypervel\Permission\Guard::flushState();
+        \Hypervel\Permission\PermissionRegistrar::flushState();
         \Hypervel\Pipeline\Pipeline::flushState();
         \Hypervel\Process\Factory::flushState();
         \Hypervel\Prompts\Prompt::flushState();

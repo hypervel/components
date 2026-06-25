@@ -12,8 +12,7 @@ return new class extends Migration {
      */
     public function getConnection(): ?string
     {
-        return config('permission.storage.database.connection')
-            ?: parent::getConnection();
+        return config('permission.storage.database.connection') ?: parent::getConnection();
     }
 
     /**
@@ -23,53 +22,109 @@ return new class extends Migration {
     {
         $schema = Schema::connection($this->getConnection());
 
-        $schema->create('roles', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->string('name')->unique();
+        $teams = (bool) config('permission.teams');
+        $tableNames = (array) config('permission.table_names');
+        $columnNames = (array) config('permission.column_names');
+        $pivotRole = $columnNames['role_pivot_key'] ?? 'role_id';
+        $pivotPermission = $columnNames['permission_pivot_key'] ?? 'permission_id';
+        $teamForeignKey = $columnNames['team_foreign_key'] ?? 'team_id';
+        $modelMorphKey = $columnNames['model_morph_key'] ?? 'model_id';
+
+        throw_if($tableNames === [], 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
+        throw_if($teams && $teamForeignKey === '', 'Error: team_foreign_key on config/permission.php not loaded. Run [php artisan config:clear] and try again.');
+
+        $schema->create($tableNames['permissions'], static function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
             $table->string('guard_name');
             $table->timestamps();
 
-            $table->index(['name', 'guard_name']);
+            $table->unique(['name', 'guard_name']);
         });
 
-        $schema->create('permissions', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->string('name')->unique();
+        $schema->create($tableNames['roles'], static function (Blueprint $table) use ($teams, $teamForeignKey): void {
+            $table->id();
+
+            if ($teams) {
+                $table->unsignedBigInteger($teamForeignKey)->nullable();
+                $table->index($teamForeignKey, 'roles_team_foreign_key_index');
+            }
+
+            $table->string('name');
             $table->string('guard_name');
             $table->timestamps();
-            $table->index(['name', 'guard_name']);
-        });
-        $schema->create('role_has_permissions', function (Blueprint $table) {
-            $table->unsignedBigInteger('permission_id');
-            $table->unsignedBigInteger('role_id');
-            $table->boolean('is_forbidden');
-            $table->timestamps();
 
-            $table->primary(['permission_id', 'role_id']);
-            $table->index('role_id');
-            $table->index('permission_id');
+            if ($teams) {
+                $table->unique([$teamForeignKey, 'name', 'guard_name']);
+            } else {
+                $table->unique(['name', 'guard_name']);
+            }
         });
 
-        $schema->create('owner_has_permissions', function (Blueprint $table) {
-            $table->unsignedBigInteger('permission_id');
-            $table->morphs('owner');
-            $table->boolean('is_forbidden');
-            $table->timestamps();
+        $schema->create($tableNames['model_has_permissions'], static function (Blueprint $table) use ($tableNames, $modelMorphKey, $pivotPermission, $teams, $teamForeignKey): void {
+            $table->unsignedBigInteger($pivotPermission);
+            $table->string('model_type');
+            $table->unsignedBigInteger($modelMorphKey);
+            $table->boolean('is_forbidden')->default(false);
+            $table->index([$modelMorphKey, 'model_type'], 'model_has_permissions_model_id_model_type_index');
 
-            $table->primary(['permission_id', 'owner_id', 'owner_type']);
-            $table->index('owner_id');
-            $table->index('permission_id');
+            $table->foreign($pivotPermission)
+                ->references('id')
+                ->on($tableNames['permissions'])
+                ->cascadeOnDelete();
+
+            if ($teams) {
+                $table->unsignedBigInteger($teamForeignKey);
+                $table->index($teamForeignKey, 'model_has_permissions_team_foreign_key_index');
+
+                $table->primary([$teamForeignKey, $pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'], 'model_has_permissions_permission_model_type_primary');
+            } else {
+                $table->primary([$pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'], 'model_has_permissions_permission_model_type_primary');
+            }
         });
 
-        $schema->create('owner_has_roles', function (Blueprint $table) {
-            $table->unsignedBigInteger('role_id');
-            $table->morphs('owner');
-            $table->timestamps();
+        $schema->create($tableNames['model_has_roles'], static function (Blueprint $table) use ($tableNames, $modelMorphKey, $pivotRole, $teams, $teamForeignKey): void {
+            $table->unsignedBigInteger($pivotRole);
+            $table->string('model_type');
+            $table->unsignedBigInteger($modelMorphKey);
+            $table->index([$modelMorphKey, 'model_type'], 'model_has_roles_model_id_model_type_index');
 
-            $table->primary(['role_id', 'owner_id', 'owner_type']);
-            $table->index('owner_id');
-            $table->index('role_id');
+            $table->foreign($pivotRole)
+                ->references('id')
+                ->on($tableNames['roles'])
+                ->cascadeOnDelete();
+
+            if ($teams) {
+                $table->unsignedBigInteger($teamForeignKey);
+                $table->index($teamForeignKey, 'model_has_roles_team_foreign_key_index');
+
+                $table->primary([$teamForeignKey, $pivotRole, $modelMorphKey, 'model_type'], 'model_has_roles_role_model_type_primary');
+            } else {
+                $table->primary([$pivotRole, $modelMorphKey, 'model_type'], 'model_has_roles_role_model_type_primary');
+            }
         });
+
+        $schema->create($tableNames['role_has_permissions'], static function (Blueprint $table) use ($tableNames, $pivotRole, $pivotPermission): void {
+            $table->unsignedBigInteger($pivotPermission);
+            $table->unsignedBigInteger($pivotRole);
+            $table->boolean('is_forbidden')->default(false);
+
+            $table->foreign($pivotPermission)
+                ->references('id')
+                ->on($tableNames['permissions'])
+                ->cascadeOnDelete();
+
+            $table->foreign($pivotRole)
+                ->references('id')
+                ->on($tableNames['roles'])
+                ->cascadeOnDelete();
+
+            $table->primary([$pivotPermission, $pivotRole, 'is_forbidden'], 'role_has_permissions_permission_id_role_id_primary');
+        });
+
+        app('cache')
+            ->store(config('permission.cache.store') !== 'default' ? config('permission.cache.store') : null)
+            ->forget(config('permission.cache.keys.roles'));
     }
 
     /**
@@ -78,10 +133,15 @@ return new class extends Migration {
     public function down(): void
     {
         $schema = Schema::connection($this->getConnection());
-        $schema->dropIfExists('owner_has_roles');
-        $schema->dropIfExists('owner_has_permissions');
-        $schema->dropIfExists('role_has_permissions');
-        $schema->dropIfExists('permissions');
-        $schema->dropIfExists('roles');
+
+        $tableNames = (array) config('permission.table_names');
+
+        throw_if($tableNames === [], 'Error: config/permission.php not found and defaults could not be merged. Please publish the package configuration before proceeding, or drop the tables manually.');
+
+        $schema->dropIfExists($tableNames['role_has_permissions']);
+        $schema->dropIfExists($tableNames['model_has_roles']);
+        $schema->dropIfExists($tableNames['model_has_permissions']);
+        $schema->dropIfExists($tableNames['roles']);
+        $schema->dropIfExists($tableNames['permissions']);
     }
 };

@@ -41,6 +41,7 @@ class TestbenchServiceProvider extends ServiceProvider
                 : Foundation\Console\TestFallbackCommand::class,
             Foundation\Console\CreateSqliteDbCommand::class,
             Foundation\Console\DropSqliteDbCommand::class,
+            Foundation\Console\InstallCommand::class,
             Foundation\Console\PurgeSkeletonCommand::class,
             Foundation\Console\ServeCommand::class,
             Foundation\Console\SyncSkeletonCommand::class,

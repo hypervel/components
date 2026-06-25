@@ -2288,6 +2288,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     }
 
     /**
+     * Flush cached guardable column metadata.
+     */
+    public static function flushGuardableColumns(): void
+    {
+        static::$guardableColumns = [];
+    }
+
+    /**
      * Flush all static state.
      */
     public static function flushState(): void
@@ -2314,7 +2322,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         static::$isMassPrunable = [];
         static::$resolvedCollectionClasses = [];
         static::$relationResolvers = [];
-        static::$guardableColumns = [];
+        static::flushGuardableColumns();
         static::$snakeAttributes = true;
         static::$mutatorCache = [];
         static::$attributeMutatorCache = [];
