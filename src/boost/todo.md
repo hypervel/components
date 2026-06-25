@@ -5,6 +5,7 @@
 - Create hypervel/react-starter-kit
 - Port Fortify package
 - Port Passport package
+- Replace permission package fake Passport client-credentials coverage with real Passport tests once Passport is ported. The current tests use a local fake guard/client so the permission package can keep Passport middleware parity without depending on a package that does not exist yet.
 
 ## Artisan
 
