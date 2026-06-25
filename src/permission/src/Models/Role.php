@@ -8,41 +8,231 @@ use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
-use Hypervel\Permission\Traits\HasPermission;
+use Hypervel\Permission\Exceptions\GuardDoesNotMatch;
+use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
+use Hypervel\Permission\Exceptions\RoleAlreadyExists;
+use Hypervel\Permission\Exceptions\RoleDoesNotExist;
+use Hypervel\Permission\Guard;
+use Hypervel\Permission\PermissionRegistrar;
+use Hypervel\Permission\Support\Config;
+use Hypervel\Permission\Traits\HasAssignedModels;
+use Hypervel\Permission\Traits\HasPermissions;
+use Hypervel\Permission\Traits\RefreshesPermissionCache;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
- * @property int $id
+ * @property int|string $id
  * @property string $name
  * @property string $guard_name
- * @property CarbonInterface $created_at
- * @property CarbonInterface $updated_at
- * @property-read Collection<Permission> $permissions
+ * @property null|CarbonInterface $created_at
+ * @property null|CarbonInterface $updated_at
+ * @property-read Collection<int, Permission> $permissions
+ * @property-read Collection<int, Model> $users
  */
 class Role extends Model implements RoleContract
 {
-    use HasPermission;
+    use HasAssignedModels;
+    use HasPermissions;
+    use RefreshesPermissionCache;
+
+    protected array $guarded = [];
+
+    public function __construct(array $attributes = [])
+    {
+        $attributes['guard_name'] ??= Guard::getDefaultName(static::class);
+
+        parent::__construct($attributes);
+
+        $this->guarded[] = $this->primaryKey;
+        $this->table = Config::rolesTable() ?: parent::getTable();
+    }
 
     /**
-     * The attributes that are mass assignable.
+     * @return Role|RoleContract
+     *
+     * @throws RoleAlreadyExists
      */
-    protected array $fillable = [
-        'name',
-        'guard_name',
-    ];
+    public static function create(array $attributes = []): RoleContract
+    {
+        $attributes['guard_name'] ??= Guard::getDefaultName(static::class);
+        $attributes['name'] = enum_value($attributes['name']);
+
+        $params = ['name' => $attributes['name'], 'guard_name' => $attributes['guard_name']];
+
+        $registrar = app(PermissionRegistrar::class);
+
+        if ($registrar->teams) {
+            $teamsKey = $registrar->teamsKey;
+
+            if (array_key_exists($teamsKey, $attributes)) {
+                $params[$teamsKey] = $attributes[$teamsKey];
+            } else {
+                $attributes[$teamsKey] = getPermissionsTeamId();
+            }
+        }
+
+        if (static::findByParam($params)) {
+            throw RoleAlreadyExists::create($attributes['name'], $attributes['guard_name']);
+        }
+
+        return static::query()->create($attributes);
+    }
 
     /**
      * A role may be given various permissions.
      */
     public function permissions(): BelongsToMany
     {
+        $registrar = app(PermissionRegistrar::class);
+
         return $this->belongsToMany(
-            config('permission.models.permission', Permission::class),
-            config('permission.table_names.role_has_permissions', 'role_has_permissions'),
-            config('permission.column_names.role_pivot_key', 'role_id'),
-            config('permission.column_names.permission_pivot_key', 'permission_id'),
-        )
-            ->withTimestamps()
-            ->withPivot(['is_forbidden']);
+            Config::permissionModel(),
+            Config::roleHasPermissionsTable(),
+            $registrar->pivotRole,
+            $registrar->pivotPermission
+        )->withPivot('is_forbidden');
+    }
+
+    /**
+     * A role belongs to some users of the model associated with its guard.
+     */
+    public function users(): BelongsToMany
+    {
+        return $this->morphedByMany(
+            getModelForGuard($this->attributes['guard_name'] ?? Config::defaultGuard()),
+            'model',
+            Config::modelHasRolesTable(),
+            app(PermissionRegistrar::class)->pivotRole,
+            Config::morphKey()
+        );
+    }
+
+    /**
+     * Find a role by its name and guard name.
+     *
+     * @return Role|RoleContract
+     *
+     * @throws RoleDoesNotExist
+     */
+    public static function findByName(UnitEnum|string $name, ?string $guardName = null): RoleContract
+    {
+        $name = enum_value($name);
+        $guardName ??= Guard::getDefaultName(static::class);
+
+        $role = static::findByParam(['name' => $name, 'guard_name' => $guardName]);
+
+        if (! $role) {
+            throw RoleDoesNotExist::named($name, $guardName);
+        }
+
+        return $role;
+    }
+
+    /**
+     * Find a role by its id (and optionally guardName).
+     *
+     * @return Role|RoleContract
+     */
+    public static function findById(int|string $id, ?string $guardName = null): RoleContract
+    {
+        $guardName ??= Guard::getDefaultName(static::class);
+
+        $role = static::findByParam([(new static)->getKeyName() => $id, 'guard_name' => $guardName]);
+
+        if (! $role) {
+            throw RoleDoesNotExist::withId($id, $guardName);
+        }
+
+        return $role;
+    }
+
+    /**
+     * Find or create role by its name (and optionally guardName).
+     *
+     * @return Role|RoleContract
+     */
+    public static function findOrCreate(UnitEnum|string $name, ?string $guardName = null): RoleContract
+    {
+        $name = enum_value($name);
+        $guardName ??= Guard::getDefaultName(static::class);
+
+        $attributes = ['name' => $name, 'guard_name' => $guardName];
+
+        $role = static::findByParam($attributes);
+
+        if (! $role) {
+            $registrar = app(PermissionRegistrar::class);
+            if ($registrar->teams) {
+                $teamsKey = $registrar->teamsKey;
+                $attributes[$teamsKey] = getPermissionsTeamId();
+            }
+
+            return static::query()->create($attributes);
+        }
+
+        return $role;
+    }
+
+    /**
+     * Finds a role based on an array of parameters.
+     *
+     * @return null|Role|RoleContract
+     */
+    protected static function findByParam(array $params = []): ?RoleContract
+    {
+        $query = static::query();
+
+        $registrar = app(PermissionRegistrar::class);
+
+        if ($registrar->teams) {
+            $teamsKey = $registrar->teamsKey;
+
+            $query->where(
+                fn ($q) => $q->whereNull($teamsKey)
+                    ->orWhere($teamsKey, $params[$teamsKey] ?? getPermissionsTeamId())
+            );
+            unset($params[$teamsKey]);
+        }
+
+        foreach ($params as $key => $value) {
+            $query->where($key, $value);
+        }
+
+        return $query->first();
+    }
+
+    /**
+     * Determine if the role may perform the given permission.
+     *
+     * @throws GuardDoesNotMatch|PermissionDoesNotExist
+     */
+    public function hasPermissionTo(UnitEnum|int|string|PermissionContract $permission, ?string $guardName = null): bool
+    {
+        if ($this->hasForbiddenPermission($permission, $guardName)) {
+            return false;
+        }
+
+        if ($this->getWildcardClass()) {
+            return $this->hasWildcardPermission($permission, $guardName);
+        }
+
+        $permission = $this->filterPermission($permission, $guardName);
+
+        if (! $this->getGuardNames()->contains($permission->guard_name)) {
+            throw GuardDoesNotMatch::create($permission->guard_name, $guardName ? collect([$guardName]) : $this->getGuardNames());
+        }
+
+        $matchedPermission = $this->loadMissing('permissions')
+            ->getRelation('permissions')
+            ->first(fn (Model $rolePermission): bool => $rolePermission->getKey() === $permission->getKey());
+        $pivot = $matchedPermission?->getRelation('pivot');
+
+        return $matchedPermission !== null
+            && (! $pivot instanceof Pivot || ! (bool) $pivot->getAttribute('is_forbidden'));
     }
 }
