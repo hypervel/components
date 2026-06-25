@@ -4,146 +4,217 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Middleware;
 
-use Closure;
-use Hypervel\Auth\AuthManager;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\Request;
-use Hypervel\Permission\Exceptions\PermissionException;
+use Hypervel\Http\Response;
+use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middleware\PermissionMiddleware;
-use Hypervel\Permission\Models\Permission;
-use Hypervel\Tests\Permission\Enums\Permission as PermissionEnum;
-use Hypervel\Tests\Permission\Models\User;
-use Hypervel\Tests\Permission\PermissionTestCase;
-use Mockery as m;
-use Symfony\Component\HttpFoundation\Response;
+use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Facades\Gate;
+use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
+use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
+use Hypervel\Tests\Permission\TestCase;
+use InvalidArgumentException;
 
-class PermissionMiddlewareTest extends PermissionTestCase
+class PermissionMiddlewareTest extends TestCase
 {
-    protected PermissionMiddleware $middleware;
-
-    protected Request $request;
-
-    protected Closure $next;
-
-    protected Response $response;
-
-    protected Container $container;
-
-    protected AuthManager $authManager;
+    protected PermissionMiddleware $permissionMiddleware;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = m::mock(Container::class);
-        $this->authManager = m::mock(AuthManager::class);
-        $this->container->shouldReceive('make')
-            ->with('auth')
-            ->andReturn($this->authManager);
-
-        $this->middleware = new PermissionMiddleware($this->container);
-        $this->request = Request::create('http://example.com');
-        $this->response = new Response;
-        $this->next = fn () => $this->response;
+        $this->permissionMiddleware = new PermissionMiddleware;
     }
 
-    protected function tearDown(): void
+    public function testGuestCannotAccessPermissionProtectedRoute(): void
     {
-        parent::tearDown();
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-articles'));
     }
 
-    public function testProcessThrowsUnauthorizedExceptionWhenUserNotLoggedIn(): void
+    public function testUserCanAccessRouteWithDirectPermission(): void
     {
-        $this->authManager->shouldReceive('user')->once()->andReturn(null);
+        Auth::login($this->testUser);
 
-        $this->expectException(UnauthorizedException::class);
+        $this->testUser->givePermissionTo('edit-articles');
 
-        $this->middleware->handle($this->request, $this->next, 'view');
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'edit-articles'));
     }
 
-    public function testProcessThrowsUnauthorizedExceptionWhenUserMissingHasAnyPermissionMethod(): void
+    public function testSuperAdminGateBeforeCanAccessPermissionProtectedRoute(): void
     {
-        $user = m::mock();
-        $user->shouldReceive('getAuthIdentifier')->andReturn('');
+        Auth::login($this->testUser);
 
-        $this->authManager->shouldReceive('user')->once()->andReturn($user);
+        Gate::before(fn ($user): ?bool => $user->getKey() === $this->testUser->getKey() ? true : null);
 
-        $this->expectException(UnauthorizedException::class);
-        $this->expectExceptionMessage(
-            'User "" does not have the "hasAnyPermissions" method. Cannot check permissions: view'
-        );
-
-        $this->middleware->handle($this->request, $this->next, 'view');
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'edit-articles'));
     }
 
-    public function testProcessThrowsPermissionExceptionWhenUserLacksPermission(): void
+    public function testUserCanAccessRouteWithOneOfSeveralPermissions(): void
     {
-        $user = User::create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        Auth::login($this->testUser);
 
-        $this->authManager->shouldReceive('user')->once()->andReturn($user);
+        $this->testUser->givePermissionTo('edit-articles');
 
-        $this->expectException(PermissionException::class);
-        $this->expectExceptionMessage(
-            'User "' . $user->getAuthIdentifier() . '" does not have any of the required permissions: view'
-        );
-
-        $this->middleware->handle($this->request, $this->next, 'view');
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'edit-news|edit-articles'));
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, ['edit-news', 'edit-articles']));
     }
 
-    public function testProcessSucceedsWhenUserHasPermission(): void
+    public function testUserCanAccessRouteWithWildcardPermission(): void
     {
-        $user = User::create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
+        $this->flushPermissionState();
 
-        Permission::create([
-            'name' => 'view',
-            'guard_name' => 'web',
-        ]);
+        Auth::login($this->testUser);
 
-        $user->givePermissionTo('view');
+        $this->app->make(Permission::class)::create(['name' => 'articles.*.test']);
+        $this->testUser->givePermissionTo('articles.*.test');
 
-        $this->authManager->shouldReceive('user')->once()->andReturn($user);
-
-        $result = $this->middleware->handle($this->request, $this->next, 'view');
-
-        $this->assertSame($this->response, $result);
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'news.edit|articles.create.test'));
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, ['news.edit', 'articles.create.test']));
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'articles.create.other'));
     }
 
-    public function testProcessWithMultiplePermissionsSucceedsWhenUserHasAny(): void
+    public function testUserCannotAccessRouteWithoutMatchingPermission(): void
     {
-        $user = User::create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        Auth::login($this->testUser);
 
-        Permission::create([
-            'name' => 'view',
-            'guard_name' => 'web',
-        ]);
+        $this->testUser->givePermissionTo('edit-articles');
 
-        $user->givePermissionTo('view');
-
-        $this->authManager->shouldReceive('user')->once()->andReturn($user);
-
-        $result = $this->middleware->handle($this->request, $this->next, 'view', 'edit');
-
-        $this->assertSame($this->response, $result);
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-news'));
     }
 
-    public function testParsePermissionsToStringWithMixedArray(): void
+    public function testUserCannotAccessRouteWithoutPermissions(): void
     {
-        $result = PermissionMiddleware::parsePermissionsToString([
-            'view',
-            PermissionEnum::Edit,
-            'manage',
-        ]);
+        Auth::login($this->testUser);
 
-        $this->assertEquals('view|edit|manage', $result);
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-articles|edit-news'));
+    }
+
+    public function testUserCanAccessRouteWithPermissionViaRole(): void
+    {
+        Auth::login($this->testUser);
+
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->testUser->assignRole('testRole');
+
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'edit-articles'));
+    }
+
+    public function testUserWithoutHasRolesTraitCannotAccessRoute(): void
+    {
+        Auth::login(UserWithoutHasRoles::create(['email' => 'test_not_has_roles@user.com']));
+
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-news'));
+    }
+
+    public function testGuardSpecificPermissionIsUsed(): void
+    {
+        $this->app->make(Permission::class)->create(['name' => 'admin-permission2', 'guard_name' => 'web']);
+        $adminPermission = $this->app->make(Permission::class)->create(['name' => 'admin-permission2', 'guard_name' => 'admin']);
+
+        Auth::guard('admin')->login($this->testAdmin);
+
+        $this->testAdmin->givePermissionTo($adminPermission);
+
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'admin-permission2', 'admin'));
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'admin-permission2', 'web'));
+    }
+
+    public function testUserCannotAccessPermissionWithAdminGuardWhileLoggedInUsingDefaultGuard(): void
+    {
+        Auth::login($this->testUser);
+
+        $this->testUser->givePermissionTo('edit-articles');
+
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-articles', 'admin'));
+    }
+
+    public function testUserCanAccessPermissionWithAdminGuardWhileLoggedInUsingAdminGuard(): void
+    {
+        Auth::guard('admin')->login($this->testAdmin);
+
+        $this->testAdmin->givePermissionTo('admin-permission');
+
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'admin-permission', 'admin'));
+    }
+
+    public function testItCanBeCreatedWithStaticUsingMethod(): void
+    {
+        $this->assertSame(PermissionMiddleware::class . ':edit-articles', PermissionMiddleware::using('edit-articles'));
+        $this->assertSame(PermissionMiddleware::class . ':edit-articles,my-guard', PermissionMiddleware::using('edit-articles', 'my-guard'));
+        $this->assertSame(PermissionMiddleware::class . ':edit-articles|edit-news', PermissionMiddleware::using(['edit-articles', 'edit-news']));
+    }
+
+    public function testItCanHandleEnumPermissionsWithStaticUsingMethod(): void
+    {
+        $this->assertSame(PermissionMiddleware::class . ':view articles', PermissionMiddleware::using(TestRolePermissionsEnum::ViewArticles));
+        $this->assertSame(PermissionMiddleware::class . ':view articles,my-guard', PermissionMiddleware::using(TestRolePermissionsEnum::ViewArticles, 'my-guard'));
+        $this->assertSame(PermissionMiddleware::class . ':view articles|edit articles', PermissionMiddleware::using([
+            TestRolePermissionsEnum::ViewArticles,
+            TestRolePermissionsEnum::EditArticles,
+        ]));
+    }
+
+    public function testItCanHandleEnumPermissionsWithHandleMethod(): void
+    {
+        $this->app->make(Permission::class)->create(['name' => TestRolePermissionsEnum::ViewArticles->value]);
+        $this->app->make(Permission::class)->create(['name' => TestRolePermissionsEnum::EditArticles->value]);
+
+        Auth::login($this->testUser);
+        $this->testUser->givePermissionTo(TestRolePermissionsEnum::ViewArticles);
+
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, TestRolePermissionsEnum::ViewArticles));
+
+        $this->testUser->givePermissionTo(TestRolePermissionsEnum::EditArticles);
+
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, [
+            TestRolePermissionsEnum::ViewArticles,
+            TestRolePermissionsEnum::EditArticles,
+        ]));
+    }
+
+    public function testItExposesRequiredPermissionsOnTheUnauthorizedException(): void
+    {
+        Auth::login($this->testUser);
+
+        try {
+            $this->permissionMiddleware->handle(new Request, function (): Response {
+                return (new Response)->setContent('<html></html>');
+            }, 'permission.some');
+        } catch (UnauthorizedException $exception) {
+            $this->assertSame(['permission.some'], $exception->getRequiredPermissions());
+
+            return;
+        }
+
+        $this->fail('Expected unauthorized permission exception was not thrown.');
+    }
+
+    public function testItCanDisplayRequiredPermissionsOnTheUnauthorizedException(): void
+    {
+        Auth::login($this->testUser);
+        $this->app->make('config')->set('permission.display_permission_in_exception', true);
+
+        try {
+            $this->permissionMiddleware->handle(new Request, function (): Response {
+                return (new Response)->setContent('<html></html>');
+            }, 'some-permission');
+        } catch (UnauthorizedException $exception) {
+            $this->assertStringEndsWith('Necessary permissions are some-permission', $exception->getMessage());
+
+            return;
+        }
+
+        $this->fail('Expected unauthorized permission exception was not thrown.');
+    }
+
+    public function testItThrowsForMissingCustomGuard(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->permissionMiddleware->handle(new Request, function (): Response {
+            return (new Response)->setContent('<html></html>');
+        }, 'edit-articles', 'xxx');
     }
 }
