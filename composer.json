@@ -105,6 +105,7 @@
             "src/log/src/functions.php",
             "src/prompts/src/helpers.php",
             "src/reflection/src/helpers.php",
+            "src/permission/src/helpers.php",
             "src/collections/src/functions.php",
             "src/collections/src/helpers.php",
             "src/support/src/functions.php",
