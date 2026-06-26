@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Commands;
 
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Support\Facades\Date;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -26,11 +26,9 @@ class ScheduleInterruptCommand extends Command
 
     /**
      * Create a new schedule interrupt command.
-     *
-     * @param CacheFactory $cache the cache store implementation
      */
     public function __construct(
-        protected CacheFactory $cache
+        protected Cache $cache
     ) {
         parent::__construct();
     }
@@ -48,7 +46,6 @@ class ScheduleInterruptCommand extends Command
             return self::FAILURE;
         }
 
-        /* @phpstan-ignore-next-line */
         $this->cache->put(
             'hypervel:schedule:interrupt',
             true,

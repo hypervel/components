@@ -34,10 +34,6 @@
 
 ## Queue
 
-## Scheduling
-
-- Port `schedule:pause`, `schedule:continue`, and the `evenWhenPaused()` event modifier. The copied scheduling doc documents temporarily pausing scheduled task processing without redeploying, but Hypervel has no `SchedulePauseCommand` or `ScheduleContinueCommand`, and `Hypervel\Console\Scheduling\ManagesAttributes` has no `evenWhenPaused()` method. Correct fix: port Laravel's pause / continue commands using a cache flag, add the event modifier and pending-attribute merge behavior, gate the `schedule:run` loop so paused events are skipped unless they opt in, and port Laravel's matching coverage.
-
 ## Support
 
 - Port `Str::initials()` and fluent `Stringable::initials()`. The copied strings docs document `Str::initials('taylor otwell')` with a `capitalize` argument and `Str::of('Taylor Otwell')->initials()`, but neither method exists in `Hypervel\Support\Str` or `Hypervel\Support\Stringable`. Correct fix: port Laravel's `Str::initials()` implementation, add `Stringable::initials()`, and port Laravel's matching Support tests.

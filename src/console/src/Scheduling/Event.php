@@ -100,6 +100,16 @@ class Event
     protected bool $ensureOutputIsBeingCaptured = false;
 
     /**
+     * Indicates whether the execution was skipped due to the mutex already being reserved.
+     */
+    public bool $skippedBecauseOverlapping = false;
+
+    /**
+     * Indicates whether this event currently owns the overlapping mutex.
+     */
+    protected bool $mutexAcquired = false;
+
+    /**
      * Create a new event instance.
      *
      * @param EventMutex $mutex the event mutex implementation
@@ -123,7 +133,11 @@ class Event
      */
     public function run(Container $container): mixed
     {
+        $this->skippedBecauseOverlapping = false;
+
         if ($this->shouldSkipDueToOverlapping()) {
+            $this->skippedBecauseOverlapping = true;
+
             return null;
         }
 
@@ -141,8 +155,17 @@ class Event
      */
     public function shouldSkipDueToOverlapping(): bool
     {
-        return $this->withoutOverlapping
-            && ! $this->mutex->create($this);
+        if (! $this->withoutOverlapping) {
+            return false;
+        }
+
+        if ($this->mutex->create($this)) {
+            $this->mutexAcquired = true;
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -282,6 +305,14 @@ class Event
     public function runsInMaintenanceMode(): bool
     {
         return $this->evenInMaintenanceMode;
+    }
+
+    /**
+     * Determine if the event runs when the scheduler is paused.
+     */
+    public function runsWhenPaused(): bool
+    {
+        return $this->evenWhenPaused;
     }
 
     /**
@@ -749,12 +780,23 @@ class Event
     }
 
     /**
+     * Release the event mutex if this process owns it during signal termination.
+     */
+    public function releaseMutexOnTerminationSignal(): void
+    {
+        if ($this->releaseOnTerminationSignals && $this->mutexAcquired) {
+            $this->removeMutex();
+        }
+    }
+
+    /**
      * Delete the mutex for the event.
      */
     protected function removeMutex(): void
     {
-        if ($this->withoutOverlapping) {
+        if ($this->withoutOverlapping && $this->mutexAcquired) {
             $this->mutex->forget($this);
+            $this->mutexAcquired = false;
         }
     }
 

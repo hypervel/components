@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Scheduling;
 
 use DateTimeZone;
+use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Container\Container;
@@ -15,8 +16,8 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 use TypeError;
 
@@ -126,6 +127,106 @@ class EventTest extends TestCase
         $event = new Event(m::mock(EventMutex::class), 'php -i');
         $event->daysOfMonth([1, 10, 20, 30]);
         $this->assertSame('0 0 1,10,20,30 * *', $event->getExpression());
+    }
+
+    public function testEventDoesNotRunWhenPausedByDefault()
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        $this->assertFalse($event->runsWhenPaused());
+    }
+
+    public function testEventRunsWhenMarkedAsEvenWhenPaused()
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+        $event->evenWhenPaused();
+
+        $this->assertTrue($event->runsWhenPaused());
+    }
+
+    public function testEventMarksSkippedWhenMutexAlreadyExists()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->once()->andReturnFalse();
+
+        $event = new CallbackEvent($eventMutex, function () {
+            return 0;
+        });
+        $event->name('test');
+        $event->withoutOverlapping();
+
+        $this->assertNull($event->run($this->container));
+        $this->assertTrue($event->skippedBecauseOverlapping);
+    }
+
+    public function testEventResetsSkippedBecauseOverlappingWhenItRuns()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->andReturnFalse();
+
+        $event = new CallbackEvent($eventMutex, function () {
+            return 0;
+        });
+        $event->name('test');
+        $event->withoutOverlapping();
+
+        $this->assertNull($event->run($this->container));
+        $this->assertTrue($event->skippedBecauseOverlapping);
+
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->once()->andReturnTrue();
+        $eventMutex->shouldReceive('forget')->once();
+
+        $event = new CallbackEvent($eventMutex, function () {
+            return 0;
+        });
+        $event->name('test');
+        $event->withoutOverlapping();
+        $event->skippedBecauseOverlapping = true;
+
+        $this->container->instance(Filesystem::class, new Filesystem);
+
+        $this->assertSame(0, $event->run($this->container));
+        $this->assertFalse($event->skippedBecauseOverlapping);
+    }
+
+    public function testReleaseMutexOnTerminationSignalReleasesOwnedMutex()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->once()->andReturnTrue();
+        $eventMutex->shouldReceive('forget')->once();
+
+        $event = new Event($eventMutex, 'php -i');
+        $event->withoutOverlapping();
+
+        $this->assertFalse($event->shouldSkipDueToOverlapping());
+
+        $event->releaseMutexOnTerminationSignal();
+    }
+
+    public function testReleaseMutexOnTerminationSignalDoesNotReleaseUnownedMutex()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldNotReceive('forget');
+
+        $event = new Event($eventMutex, 'php -i');
+        $event->withoutOverlapping();
+
+        $event->releaseMutexOnTerminationSignal();
+    }
+
+    public function testReleaseMutexOnTerminationSignalHonorsReleaseFlag()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->once()->andReturnTrue();
+        $eventMutex->shouldNotReceive('forget');
+
+        $event = new Event($eventMutex, 'php -i');
+        $event->withoutOverlapping(releaseOnTerminationSignals: false);
+
+        $this->assertFalse($event->shouldSkipDueToOverlapping());
+
+        $event->releaseMutexOnTerminationSignal();
     }
 
     public function testAppendOutput()

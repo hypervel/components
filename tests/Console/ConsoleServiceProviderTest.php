@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Console;
 use Hypervel\Console\Commands\ScheduleClearCacheCommand;
 use Hypervel\Console\Commands\ScheduleInterruptCommand;
 use Hypervel\Console\Commands\ScheduleListCommand;
+use Hypervel\Console\Commands\SchedulePauseCommand;
+use Hypervel\Console\Commands\ScheduleResumeCommand;
 use Hypervel\Console\Commands\ScheduleRunCommand;
 use Hypervel\Console\Commands\ScheduleTestCommand;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
@@ -24,6 +26,9 @@ class ConsoleServiceProviderTest extends TestCase
             'schedule:list' => ScheduleListCommand::class,
             'schedule:run' => ScheduleRunCommand::class,
             'schedule:interrupt' => ScheduleInterruptCommand::class,
+            'schedule:pause' => SchedulePauseCommand::class,
+            'schedule:resume' => ScheduleResumeCommand::class,
+            'schedule:continue' => ScheduleResumeCommand::class,
             'schedule:test' => ScheduleTestCommand::class,
         ];
 

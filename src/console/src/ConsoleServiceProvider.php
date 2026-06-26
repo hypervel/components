@@ -7,6 +7,8 @@ namespace Hypervel\Console;
 use Hypervel\Console\Commands\ScheduleClearCacheCommand;
 use Hypervel\Console\Commands\ScheduleInterruptCommand;
 use Hypervel\Console\Commands\ScheduleListCommand;
+use Hypervel\Console\Commands\SchedulePauseCommand;
+use Hypervel\Console\Commands\ScheduleResumeCommand;
 use Hypervel\Console\Commands\ScheduleRunCommand;
 use Hypervel\Console\Commands\ScheduleTestCommand;
 use Hypervel\Support\ServiceProvider;
@@ -23,6 +25,8 @@ class ConsoleServiceProvider extends ServiceProvider
             ScheduleListCommand::class,
             ScheduleRunCommand::class,
             ScheduleInterruptCommand::class,
+            SchedulePauseCommand::class,
+            ScheduleResumeCommand::class,
             ScheduleTestCommand::class,
         ]);
     }

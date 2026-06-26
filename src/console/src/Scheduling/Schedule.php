@@ -97,6 +97,16 @@ class Schedule
     protected array $groupStack = [];
 
     /**
+     * Indicates if the scheduler can be paused.
+     */
+    public static bool $pausable = true;
+
+    /**
+     * Indicates if the scheduler can be interrupted.
+     */
+    public static bool $interruptible = true;
+
+    /**
      * Create a new schedule instance.
      *
      * @param null|DateTimeZone|string $timezone the timezone the date should be evaluated on
@@ -428,6 +438,18 @@ class Schedule
     }
 
     /**
+     * Disable pause and interrupt polling for the scheduler.
+     *
+     * Boot-only. Mutates process-global scheduler flags; runtime use changes
+     * pause and interrupt behavior for every concurrent scheduler run.
+     */
+    public static function withoutInterruptionPolling(): void
+    {
+        static::$pausable = false;
+        static::$interruptible = false;
+    }
+
+    /**
      * Get the job dispatcher, if available.
      *
      * @throws RuntimeException
@@ -454,6 +476,8 @@ class Schedule
      */
     public static function flushState(): void
     {
+        static::$pausable = true;
+        static::$interruptible = true;
         static::flushMacros();
     }
 
@@ -466,7 +490,11 @@ class Schedule
             return $this->macroCall($method, $parameters);
         }
 
-        if (method_exists(PendingEventAttributes::class, $method)) {
+        if (
+            method_exists(PendingEventAttributes::class, $method)
+            || in_array($method, PendingEventAttributes::DEFERRED_EVENT_METHODS, true)
+            || Event::hasMacro($method)
+        ) {
             $this->attributes ??= $this->groupStack ? clone end($this->groupStack) : new PendingEventAttributes($this);
 
             return $this->attributes->{$method}(...$parameters);

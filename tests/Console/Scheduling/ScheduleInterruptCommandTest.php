@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Scheduling;
 
 use DateTimeInterface;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
@@ -13,12 +13,12 @@ class ScheduleInterruptCommandTest extends TestCase
 {
     public function testInterruptCommandBroadcastsSignal()
     {
-        $cache = m::mock(CacheFactory::class);
+        $cache = m::mock(Cache::class);
         $cache->shouldReceive('put')
             ->once()
             ->with('hypervel:schedule:interrupt', true, m::type(DateTimeInterface::class));
 
-        $this->app->instance(CacheFactory::class, $cache);
+        $this->app->instance(Cache::class, $cache);
 
         $this->artisan('schedule:interrupt')
             ->assertSuccessful();
@@ -50,12 +50,12 @@ class ScheduleInterruptCommandTest extends TestCase
 
     public function testInterruptCommandAcceptsCustomMinutes()
     {
-        $cache = m::mock(CacheFactory::class);
+        $cache = m::mock(Cache::class);
         $cache->shouldReceive('put')
             ->once()
             ->with('hypervel:schedule:interrupt', true, m::type(DateTimeInterface::class));
 
-        $this->app->instance(CacheFactory::class, $cache);
+        $this->app->instance(Cache::class, $cache);
 
         $this->artisan('schedule:interrupt', ['--minutes' => '5'])
             ->assertSuccessful();
