@@ -683,6 +683,14 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     }
 
     /**
+     * Convert the given string to only its initials.
+     */
+    public function initials(bool $capitalize = false): static
+    {
+        return new static(Str::initials($this->value, $capitalize));
+    }
+
+    /**
      * Convert the given string to APA-style title case.
      */
     public function apa(): static
@@ -747,17 +755,17 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Convert a value to studly caps case.
      */
-    public function studly(): static
+    public function studly(bool $normalize = false): static
     {
-        return new static(Str::studly($this->value));
+        return new static(Str::studly($this->value, $normalize));
     }
 
     /**
      * Convert the string to Pascal case.
      */
-    public function pascal(): static
+    public function pascal(bool $normalize = false): static
     {
-        return new static(Str::pascal($this->value));
+        return new static(Str::pascal($this->value, $normalize));
     }
 
     /**

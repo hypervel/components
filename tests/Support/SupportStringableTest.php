@@ -1177,30 +1177,32 @@ class SupportStringableTest extends TestCase
 
     public function testStudly()
     {
-        $this->assertSame('LaravelPHPFramework', (string) $this->stringable('laravel_p_h_p_framework')->studly());
-        $this->assertSame('LaravelPhpFramework', (string) $this->stringable('laravel_php_framework')->studly());
-        $this->assertSame('LaravelPhPFramework', (string) $this->stringable('laravel-phP-framework')->studly());
-        $this->assertSame('LaravelPhpFramework', (string) $this->stringable('laravel  -_-  php   -_-   framework   ')->studly());
+        $this->assertSame('HypervelPHPFramework', (string) $this->stringable('hypervel_p_h_p_framework')->studly());
+        $this->assertSame('HypervelPhpFramework', (string) $this->stringable('hypervel_php_framework')->studly());
+        $this->assertSame('HypervelPhPFramework', (string) $this->stringable('hypervel-phP-framework')->studly());
+        $this->assertSame('HypervelPhpFramework', (string) $this->stringable('hypervel  -_-  php   -_-   framework   ')->studly());
 
         $this->assertSame('FooBar', (string) $this->stringable('fooBar')->studly());
         $this->assertSame('FooBar', (string) $this->stringable('foo_bar')->studly());
-        $this->assertSame('FooBar', (string) $this->stringable('foo_bar')->studly()); // test cache
         $this->assertSame('FooBarBaz', (string) $this->stringable('foo-barBaz')->studly());
         $this->assertSame('FooBarBaz', (string) $this->stringable('foo-bar_baz')->studly());
+        $this->assertSame('Cbor', (string) $this->stringable('CBOR')->studly(normalize: true));
+        $this->assertSame('AllCaps', (string) $this->stringable('ALL_CAPS')->studly(normalize: true));
     }
 
     public function testPascal()
     {
-        $this->assertSame('LaravelPHPFramework', (string) $this->stringable('laravel_p_h_p_framework')->pascal());
-        $this->assertSame('LaravelPhpFramework', (string) $this->stringable('laravel_php_framework')->pascal());
-        $this->assertSame('LaravelPhPFramework', (string) $this->stringable('laravel-phP-framework')->pascal());
-        $this->assertSame('LaravelPhpFramework', (string) $this->stringable('laravel  -_-  php   -_-   framework   ')->pascal());
+        $this->assertSame('HypervelPHPFramework', (string) $this->stringable('hypervel_p_h_p_framework')->pascal());
+        $this->assertSame('HypervelPhpFramework', (string) $this->stringable('hypervel_php_framework')->pascal());
+        $this->assertSame('HypervelPhPFramework', (string) $this->stringable('hypervel-phP-framework')->pascal());
+        $this->assertSame('HypervelPhpFramework', (string) $this->stringable('hypervel  -_-  php   -_-   framework   ')->pascal());
 
         $this->assertSame('FooBar', (string) $this->stringable('fooBar')->pascal());
         $this->assertSame('FooBar', (string) $this->stringable('foo_bar')->pascal());
-        $this->assertSame('FooBar', (string) $this->stringable('foo_bar')->pascal()); // test cache
         $this->assertSame('FooBarBaz', (string) $this->stringable('foo-barBaz')->pascal());
         $this->assertSame('FooBarBaz', (string) $this->stringable('foo-bar_baz')->pascal());
+        $this->assertSame('Cbor', (string) $this->stringable('CBOR')->pascal(normalize: true));
+        $this->assertSame('AllCaps', (string) $this->stringable('ALL_CAPS')->pascal(normalize: true));
     }
 
     public function testCamel()
@@ -1212,7 +1214,6 @@ class SupportStringableTest extends TestCase
 
         $this->assertSame('fooBar', (string) $this->stringable('FooBar')->camel());
         $this->assertSame('fooBar', (string) $this->stringable('foo_bar')->camel());
-        $this->assertSame('fooBar', (string) $this->stringable('foo_bar')->camel()); // test cache
         $this->assertSame('fooBarBaz', (string) $this->stringable('Foo-barBaz')->camel());
         $this->assertSame('fooBarBaz', (string) $this->stringable('foo-bar_baz')->camel());
     }
@@ -1494,6 +1495,14 @@ class SupportStringableTest extends TestCase
         $this->assertFalse($this->stringable('Foo')->exactly('foo'));
         $this->assertFalse($this->stringable('[]')->exactly([]));
         $this->assertFalse($this->stringable('0')->exactly(0));
+    }
+
+    public function testInitials()
+    {
+        $this->assertSame('TO', $this->stringable('Taylor Otwell')->initials()->value());
+        $this->assertSame('to', $this->stringable('taylor otwell')->initials()->value());
+        $this->assertSame('TO', $this->stringable('taylor otwell')->initials(capitalize: true)->value());
+        $this->assertSame('JB', $this->stringable('james bond')->initials(capitalize: true)->value());
     }
 
     public function testToInteger()

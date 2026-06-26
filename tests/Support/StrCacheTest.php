@@ -47,6 +47,7 @@ class StrCacheTest extends TestCase
     {
         $this->assertSame('FooBar', StrCache::studly('foo_bar'));
         $this->assertSame('FooBarBaz', StrCache::studly('foo_bar_baz'));
+        $this->assertSame('Cbor', StrCache::studly('CBOR', normalize: true));
     }
 
     public function testStudlyReturnsCachedResult()
@@ -55,6 +56,13 @@ class StrCacheTest extends TestCase
         $second = StrCache::studly('foo_bar');
 
         $this->assertSame($first, $second);
+    }
+
+    public function testStudlyCacheKeysIncludeNormalizeFlag()
+    {
+        $this->assertSame('CBOR', StrCache::studly('CBOR'));
+        $this->assertSame('Cbor', StrCache::studly('CBOR', normalize: true));
+        $this->assertSame('CBOR', StrCache::studly('CBOR'));
     }
 
     public function testPlural()

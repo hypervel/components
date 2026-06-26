@@ -32,7 +32,7 @@ class StrCache
     /**
      * The cache of studly-cased words.
      *
-     * @var array<string, string>
+     * @var array<string, array<int, string>>
      */
     protected static array $studlyCache = [];
 
@@ -84,13 +84,13 @@ class StrCache
     /**
      * Convert a value to studly case (cached).
      */
-    public static function studly(string $value): string
+    public static function studly(string $value, bool $normalize = false): string
     {
-        if (isset(static::$studlyCache[$value])) {
-            return static::$studlyCache[$value];
+        if (isset(static::$studlyCache[$value][(int) $normalize])) {
+            return static::$studlyCache[$value][(int) $normalize];
         }
 
-        return static::$studlyCache[$value] = Str::studly($value);
+        return static::$studlyCache[$value][(int) $normalize] = Str::studly($value, $normalize);
     }
 
     /**

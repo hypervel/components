@@ -36,8 +36,6 @@
 
 ## Support
 
-- Port `Str::initials()` and fluent `Stringable::initials()`. The copied strings docs document `Str::initials('taylor otwell')` with a `capitalize` argument and `Str::of('Taylor Otwell')->initials()`, but neither method exists in `Hypervel\Support\Str` or `Hypervel\Support\Stringable`. Correct fix: port Laravel's `Str::initials()` implementation, add `Stringable::initials()`, and port Laravel's matching Support tests.
-
 - Port `Hypervel\Support\Uri::authority()`. The copied helpers docs show `$uri->authority()` in the URI inspection example, but `Hypervel\Support\Uri` currently exposes `scheme()`, `user()`, `password()`, `host()`, `port()`, `path()`, `pathSegments()`, `query()`, and `fragment()` without the Laravel `authority()` method. Correct fix: add `authority(): ?string` returning the underlying URI authority and port Laravel's `SupportUriTest` coverage for user info, host, and authority inspection.
 
 - Add shared worker-lifetime metadata caching for class attribute reads. Attribute consumers repeatedly reflect the same job, listener, mailable, notification, and broadcast event classes to read stable class metadata. Correct fix: add a shared metadata cache keyed by class name that caches only stable reflection results such as default properties and attribute instances / declaring classes, while still reading runtime property values and initialization state from each object instance. Do not use trait-level static caches because they fragment per consuming class and create duplicated reset wiring.
