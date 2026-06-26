@@ -49,6 +49,11 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     protected function setUp(): void
     {
+        if ($this->withoutBootingFramework()) {
+            parent::setUp();
+            return;
+        }
+
         if (! static::$hasBootstrappedTestbench) {
             Bootstrapper::bootstrap();
             static::$hasBootstrappedTestbench = true;
@@ -109,6 +114,11 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     protected function tearDown(): void
     {
+        if ($this->withoutBootingFramework()) {
+            parent::tearDown();
+            return;
+        }
+
         // Execute AfterEach attributes INSIDE coroutine context
         $this->runInCoroutine(fn () => $this->tearDownTheTestEnvironmentUsingTestCase());
 

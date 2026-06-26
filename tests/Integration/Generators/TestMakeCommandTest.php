@@ -11,7 +11,7 @@ class TestMakeCommandTest extends TestCase
         'tests/Unit/FooTest.php',
     ];
 
-    public function testItCanGenerateFeatureTest()
+    public function testItCanGenerateFeatureTest(): void
     {
         $this->artisan('make:test', ['name' => 'FooTest'])
             ->assertExitCode(0);
@@ -25,19 +25,21 @@ class TestMakeCommandTest extends TestCase
         ], 'tests/Feature/FooTest.php');
     }
 
-    public function testItCanGenerateUnitTest()
+    public function testItCanGenerateUnitTest(): void
     {
         $this->artisan('make:test', ['name' => 'FooTest', '--unit' => true])
             ->assertExitCode(0);
 
         $this->assertFileContains([
             'namespace Tests\Unit;',
-            'use PHPUnit\Framework\TestCase;',
+            'use Hypervel\Foundation\Testing\Attributes\UnitTest;',
+            'use Tests\TestCase;',
             'class FooTest extends TestCase',
+            '#[UnitTest]',
         ], 'tests/Unit/FooTest.php');
     }
 
-    public function testItCanGenerateFeatureTestUsingPest()
+    public function testItCanGenerateFeatureTestUsingPest(): void
     {
         $this->artisan('make:test', ['name' => 'FooTest', '--pest' => true])
             ->assertExitCode(0);
@@ -49,7 +51,7 @@ class TestMakeCommandTest extends TestCase
         ], 'tests/Feature/FooTest.php');
     }
 
-    public function testItCanGenerateUnitTestUsingPest()
+    public function testItCanGenerateUnitTestUsingPest(): void
     {
         $this->artisan('make:test', ['name' => 'FooTest', '--unit' => true, '--pest' => true])
             ->assertExitCode(0);

@@ -38,9 +38,6 @@
 
 ## Testing
 
-- Port the `#[UnitTest]` testing attribute and no-boot test lifecycle. The copied testing docs reference `Hypervel\Foundation\Testing\Attributes\UnitTest` to skip booting the application for a single test method, but Hypervel currently has no `UnitTest` attribute and `Hypervel\Foundation\Testing\TestCase::setUp()` / `tearDown()` always call the framework lifecycle. Laravel implements this with `Illuminate\Foundation\Testing\Attributes\UnitTest` and a memoized `withoutBootingFramework()` check on the current test method. Correct fix: add the attribute class, add the per-method reflection check to Hypervel's test case lifecycle, skip application boot / teardown when present, preserve `RunTestsInCoroutine` behavior unless deliberately disabled by the test class, and port Laravel's coverage.
-- Update the PHPUnit `make:test --unit` stub to use Hypervel's coroutine-aware application test case. The testing docs recommend extending `Tests\TestCase` for Hypervel application tests so they run through `RunTestsInCoroutine`, but `src/foundation/src/Console/stubs/test.unit.stub` currently extends raw `PHPUnit\Framework\TestCase`. Correct fix: change the unit stub to extend `Tests\TestCase`, keep `#[UnitTest]` as an optional per-method optimization for tests that should skip booting the application, and update the generator coverage.
-
 ## Validation
 
 - Port Rule::string() fluent string rule builder

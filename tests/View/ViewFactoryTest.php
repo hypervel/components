@@ -237,6 +237,8 @@ class ViewFactoryTest extends TestCase
         $factory->creator('name', fn () => true);
 
         $factory->callCreator($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCallCreatorsDoesDispatchEventsWhenIsNecessaryUsingNamespacedWildcards()
@@ -263,6 +265,8 @@ class ViewFactoryTest extends TestCase
         $factory->creator('namespaced::*', fn () => true);
 
         $factory->callCreator($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCallCreatorsDoesDispatchEventsWhenIsNecessaryUsingNamespacedNestedWildcards()
@@ -294,6 +298,8 @@ class ViewFactoryTest extends TestCase
         $factory->creator(['namespaced::*', 'welcome'], fn () => true);
 
         $factory->callCreator($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCallCreatorsDoesDispatchEventsWhenIsNecessaryUsingWildcards()
@@ -320,6 +326,8 @@ class ViewFactoryTest extends TestCase
         $factory->creator('*', fn () => true);
 
         $factory->callCreator($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCallCreatorsDoesDispatchEventsWhenIsNecessaryUsingNormalizedNames()
@@ -348,6 +356,8 @@ class ViewFactoryTest extends TestCase
         $factory->creator('components.button', fn () => true);
 
         $factory->callCreator($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCallComposerDoesDispatchEventsWhenIsNecessary()
@@ -372,6 +382,8 @@ class ViewFactoryTest extends TestCase
         $factory->composer('name', fn () => true);
 
         $factory->callComposer($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCallComposerDoesDispatchEventsWhenIsNecessaryAndUsingTheArrayFormat()
@@ -396,6 +408,8 @@ class ViewFactoryTest extends TestCase
         $factory->composer(['name'], fn () => true);
 
         $factory->callComposer($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCallComposersDoesDispatchEventsWhenIsNecessaryUsingNamespacedWildcards()
@@ -420,6 +434,8 @@ class ViewFactoryTest extends TestCase
         $factory->composer('namespaced::*', fn () => true);
 
         $factory->callComposer($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCallComposersDoesDispatchEventsWhenIsNecessaryUsingNamespacedNestedWildcards()
@@ -448,6 +464,8 @@ class ViewFactoryTest extends TestCase
         $factory->composer(['namespaced::*', 'welcome'], fn () => true);
 
         $factory->callComposer($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCallComposersDoesDispatchEventsWhenIsNecessaryUsingWildcards()
@@ -472,6 +490,8 @@ class ViewFactoryTest extends TestCase
         $factory->composer('*', fn () => true);
 
         $factory->callComposer($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCallComposersDoesDispatchEventsWhenIsNecessaryUsingNormalizedNames()
@@ -496,6 +516,8 @@ class ViewFactoryTest extends TestCase
         $factory->composer('components.button', fn () => true);
 
         $factory->callComposer($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testComposersAreProperlyRegistered()
@@ -573,6 +595,8 @@ class ViewFactoryTest extends TestCase
         $factory->getDispatcher()->shouldReceive('dispatch')->once()->with('composing: name', [$view]);
 
         $factory->callComposer($view);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testComposersAreRegisteredWithSlashAndDot()
@@ -581,6 +605,8 @@ class ViewFactoryTest extends TestCase
         $factory->getDispatcher()->shouldReceive('listen')->with('composing: foo.bar', m::any())->twice();
         $factory->composer('foo.bar', '');
         $factory->composer('foo/bar', '');
+
+        $this->addToAssertionCount(1);
     }
 
     public function testRenderCountHandling()
@@ -903,6 +929,8 @@ class ViewFactoryTest extends TestCase
         $factory->setContainer(m::mock(Container::class));
         $factory->make('foo/bar');
         $factory->make('foo.bar');
+
+        $this->addToAssertionCount(1);
     }
 
     public function testNamespacedViewNamesAreNormalizedProperly()
@@ -914,6 +942,8 @@ class ViewFactoryTest extends TestCase
         $factory->setContainer(m::mock(Container::class));
         $factory->make('vendor/package::foo/bar');
         $factory->make('vendor/package::foo.bar');
+
+        $this->addToAssertionCount(1);
     }
 
     public function testExceptionIsThrownForUnknownExtension()

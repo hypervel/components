@@ -48,13 +48,21 @@ trait RunTestsInCoroutine
                 CoroutineContext::copyFromNonCoroutine();
             }
 
+            $shouldBootFramework = $this->shouldBootFrameworkForTest();
+
             try {
-                $this->invokeSetupInCoroutine();
+                if ($shouldBootFramework) {
+                    $this->invokeSetupInCoroutine();
+                }
+
                 $testResult = $this->{$methodName}(...$testArguments);
             } catch (Throwable $e) {
                 $exception = $e;
             } finally {
-                $this->invokeTearDownInCoroutine();
+                if ($shouldBootFramework) {
+                    $this->invokeTearDownInCoroutine();
+                }
+
                 $this->cleanupTestContext();
                 Timer::clearAll();
                 CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
@@ -67,6 +75,14 @@ trait RunTestsInCoroutine
         }
 
         return $testResult;
+    }
+
+    /**
+     * Determine if framework lifecycle hooks should run for this test.
+     */
+    protected function shouldBootFrameworkForTest(): bool
+    {
+        return true;
     }
 
     protected function invokeSetupInCoroutine(): void

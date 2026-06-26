@@ -69,9 +69,15 @@ class ServerTest extends TestCase
 
     public function testDeferOnOpenLogsExceptionFromOnOpen()
     {
+        $logged = false;
+
         $logger = Mockery::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing();
         $logger->shouldReceive('error')->once()->with(Mockery::on(
-            fn (string $message) => str_contains($message, 'onOpen failed')
+            function (string $message) use (&$logged): bool {
+                $logged = str_contains($message, 'onOpen failed');
+
+                return $logged;
+            }
         ));
 
         $container = $this->createContainer($logger);
@@ -90,6 +96,8 @@ class ServerTest extends TestCase
 
         // Yield to allow the deferred callback to execute.
         usleep(1000);
+
+        $this->assertTrue($logged);
     }
 
     public function testConnectionOpenedEventIsDispatched()
@@ -125,8 +133,16 @@ class ServerTest extends TestCase
 
     public function testConnectionOpenedEventNotDispatchedWithoutListeners()
     {
+        $hasListenersChecked = false;
+
         $dispatcher = Mockery::mock(EventDispatcherContract::class);
-        $dispatcher->shouldReceive('hasListeners')->with(ConnectionOpened::class)->andReturnFalse();
+        $dispatcher->shouldReceive('hasListeners')->with(ConnectionOpened::class)->andReturnUsing(
+            function () use (&$hasListenersChecked): bool {
+                $hasListenersChecked = true;
+
+                return false;
+            }
+        );
         $dispatcher->shouldNotReceive('dispatch');
 
         $container = $this->createContainer(dispatcher: $dispatcher);
@@ -143,6 +159,8 @@ class ServerTest extends TestCase
         });
         $channel->pop();
         usleep(1000);
+
+        $this->assertTrue($hasListenersChecked);
     }
 
     public function testConnectionOpenedEventDispatchedEvenWhenOnOpenThrows()

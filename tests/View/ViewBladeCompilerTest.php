@@ -76,6 +76,8 @@ class ViewBladeCompilerTest extends TestCase
         $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(false);
         $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
         $compiler->compile('foo');
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCompileCompilesFileAndReturnsContentsCreatingDirectory(): void
@@ -87,6 +89,8 @@ class ViewBladeCompilerTest extends TestCase
         $files->shouldReceive('exists')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php')->andReturn(false);
         $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
         $compiler->compile('foo');
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCompileUpdatesCacheIfChanged(): void
@@ -99,6 +103,8 @@ class ViewBladeCompilerTest extends TestCase
         $files->shouldReceive('hash')->once()->with($compiledPath, 'xxh128')->andReturn(hash('xxh128', 'outdated content'));
         $files->shouldReceive('replace')->once()->with($compiledPath, 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
         $compiler->compile('foo');
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCompileKeepsCacheIfUnchanged(): void
@@ -113,6 +119,8 @@ class ViewBladeCompilerTest extends TestCase
         $files->shouldReceive('lastModified')->once()->with($compiledPath)->andReturn(200);
         $files->shouldReceive('replace')->never();
         $compiler->compile('foo');
+
+        $this->addToAssertionCount(1);
     }
 
     public function testCompileRefreshesCacheTimestampIfUnchangedButExpired(): void
@@ -206,6 +214,8 @@ class ViewBladeCompilerTest extends TestCase
             'first' => fn () => $compiler->compile('first'),
             'second' => fn () => $compiler->compile('second'),
         ]);
+
+        $this->addToAssertionCount(1);
     }
 
     public function testRawTagsCanBeSetToLegacyValues(): void
@@ -230,6 +240,8 @@ class ViewBladeCompilerTest extends TestCase
         $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2foo') . '.php', $compiled);
 
         $compiler->compile('foo');
+
+        $this->addToAssertionCount(1);
     }
 
     public static function appendViewPathDataProvider(): array
@@ -283,6 +295,8 @@ class ViewBladeCompilerTest extends TestCase
         $files->shouldReceive('replace')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2') . '.php', 'Hello World');
         $compiler->setPath('');
         $compiler->compile();
+
+        $this->addToAssertionCount(1);
     }
 
     public function testIncludesZeroPath(): void
