@@ -7,7 +7,7 @@ namespace Hypervel\Validation\Rules;
 use Closure;
 use Stringable;
 
-class RequiredIf implements Stringable
+class RequiredUnless implements Stringable
 {
     /**
      * The condition that validates the attribute.
@@ -28,9 +28,9 @@ class RequiredIf implements Stringable
     public function __toString(): string
     {
         if (is_callable($this->condition)) {
-            return call_user_func($this->condition) ? 'required' : '';
+            return call_user_func($this->condition) ? '' : 'required';
         }
 
-        return $this->condition ? 'required' : '';
+        return $this->condition ? '' : 'required';
     }
 }

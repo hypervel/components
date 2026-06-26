@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Support\Fluent;
+use Hypervel\Tests\TestCase;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\ValidationRuleParser;
-use PHPUnit\Framework\TestCase;
 
 class ValidationRuleParserTest extends TestCase
 {
-    public function testConditionalRulesAreProperlyExpandedAndFiltered()
+    public function testConditionalRulesAreProperlyExpandedAndFiltered(): void
     {
         $isAdmin = true;
 
@@ -52,7 +52,7 @@ class ValidationRuleParserTest extends TestCase
         ], $rules);
     }
 
-    public function testEmptyRulesArePreserved()
+    public function testEmptyRulesArePreserved(): void
     {
         $isAdmin = true;
 
@@ -71,14 +71,14 @@ class ValidationRuleParserTest extends TestCase
         ], $rules);
     }
 
-    public function testEmptyRulesCanBeExploded()
+    public function testEmptyRulesCanBeExploded(): void
     {
         $parser = new ValidationRuleParser(['foo' => 'bar']);
 
         $this->assertIsObject($parser->explode(['foo' => []]));
     }
 
-    public function testConditionalRulesWithDefault()
+    public function testConditionalRulesWithDefault(): void
     {
         $isAdmin = true;
 
@@ -99,7 +99,7 @@ class ValidationRuleParserTest extends TestCase
         ], $rules);
     }
 
-    public function testEmptyConditionalRulesArePreserved()
+    public function testEmptyConditionalRulesArePreserved(): void
     {
         $isAdmin = true;
 
@@ -116,7 +116,7 @@ class ValidationRuleParserTest extends TestCase
         ], $rules);
     }
 
-    public function testExplodeFailsParsingSingleRegexRuleContainingPipe()
+    public function testExplodeFailsParsingSingleRegexRuleContainingPipe(): void
     {
         $data = ['items' => [['type' => 'foo']]];
 
@@ -128,7 +128,7 @@ class ValidationRuleParserTest extends TestCase
         $this->assertSame('bar)$/i', $exploded->rules['items.0.type'][1]);
     }
 
-    public function testExplodeProperlyParsesSingleRegexRuleNotContainingPipe()
+    public function testExplodeProperlyParsesSingleRegexRuleNotContainingPipe(): void
     {
         $data = ['items' => [['type' => 'foo']]];
 
@@ -140,7 +140,7 @@ class ValidationRuleParserTest extends TestCase
         $this->assertSame('max:20', $exploded->rules['items.0.type'][1]);
     }
 
-    public function testExplodeProperlyParsesRegexWithArrayOfRules()
+    public function testExplodeProperlyParsesRegexWithArrayOfRules(): void
     {
         $data = ['items' => [['type' => 'foo']]];
 
@@ -152,7 +152,7 @@ class ValidationRuleParserTest extends TestCase
         $this->assertSame('regex:/^(foo|bar)$/i', $exploded->rules['items.0.type'][1]);
     }
 
-    public function testExplodeProperlyParsesRegexThatDoesNotContainPipe()
+    public function testExplodeProperlyParsesRegexThatDoesNotContainPipe(): void
     {
         $data = ['items' => [['type' => 'foo']]];
 
@@ -164,7 +164,7 @@ class ValidationRuleParserTest extends TestCase
         $this->assertSame('regex:/^(bar)$/i', $exploded->rules['items.0.type'][1]);
     }
 
-    public function testExplodeFailsParsingRegexWithOtherRulesInSingleString()
+    public function testExplodeFailsParsingRegexWithOtherRulesInSingleString(): void
     {
         $data = ['items' => [['type' => 'foo']]];
 
@@ -177,7 +177,7 @@ class ValidationRuleParserTest extends TestCase
         $this->assertSame('bar)$/i', $exploded->rules['items.0.type'][2]);
     }
 
-    public function testExplodeGeneratesNestedRules()
+    public function testExplodeGeneratesNestedRules(): void
     {
         $parser = (new ValidationRuleParser([
             'users' => [
@@ -200,7 +200,7 @@ class ValidationRuleParserTest extends TestCase
         $this->assertEquals(['users.*.name' => ['users.0.name']], $results->implicitAttributes);
     }
 
-    public function testExplodeGeneratesNestedRulesForNonNestedData()
+    public function testExplodeGeneratesNestedRulesForNonNestedData(): void
     {
         $parser = (new ValidationRuleParser([
             'name' => 'Taylor Otwell',
@@ -222,7 +222,7 @@ class ValidationRuleParserTest extends TestCase
         $this->assertEquals([], $results->implicitAttributes);
     }
 
-    public function testExplodeHandlesForwardSlashesInWildcardRule()
+    public function testExplodeHandlesForwardSlashesInWildcardRule(): void
     {
         $parser = (new ValidationRuleParser([
             'redirects' => [
@@ -244,7 +244,7 @@ class ValidationRuleParserTest extends TestCase
         ], $results->implicitAttributes);
     }
 
-    public function testExplodeHandlesArraysOfNestedRules()
+    public function testExplodeHandlesArraysOfNestedRules(): void
     {
         $parser = (new ValidationRuleParser([
             'users' => [
@@ -282,7 +282,7 @@ class ValidationRuleParserTest extends TestCase
         ], $results->implicitAttributes);
     }
 
-    public function testExplodeHandlesRecursivelyNestedRules()
+    public function testExplodeHandlesRecursivelyNestedRules(): void
     {
         $parser = (new ValidationRuleParser([
             'users' => [['name' => 'Taylor Otwell']],
@@ -314,7 +314,7 @@ class ValidationRuleParserTest extends TestCase
         $this->assertEquals(['users.*.name' => ['users.0.name']], $results->implicitAttributes);
     }
 
-    public function testExplodeHandlesSegmentingNestedRules()
+    public function testExplodeHandlesSegmentingNestedRules(): void
     {
         $parser = (new ValidationRuleParser([
             'items' => [
@@ -354,7 +354,7 @@ class ValidationRuleParserTest extends TestCase
         ], $results->implicitAttributes);
     }
 
-    public function testExplodeHandlesStringDateRule()
+    public function testExplodeHandlesStringDateRule(): void
     {
         $parser = (new ValidationRuleParser([
             'date' => '2021-01-01',
@@ -374,7 +374,7 @@ class ValidationRuleParserTest extends TestCase
         ], $results->rules);
     }
 
-    public function testExplodeHandlesDateRule()
+    public function testExplodeHandlesDateRule(): void
     {
         $parser = (new ValidationRuleParser([
             'date' => '2021-01-01',
@@ -393,7 +393,7 @@ class ValidationRuleParserTest extends TestCase
         ], $results->rules);
     }
 
-    public function testExplodeHandlesDateRuleWithAdditionalRules()
+    public function testExplodeHandlesDateRuleWithAdditionalRules(): void
     {
         $parser = (new ValidationRuleParser([
             'date' => '2021-01-01',
@@ -413,7 +413,7 @@ class ValidationRuleParserTest extends TestCase
         ], $results->rules);
     }
 
-    public function testExplodeHandlesNumericStringRule()
+    public function testExplodeHandlesNumericStringRule(): void
     {
         $parser = (new ValidationRuleParser([
             'number' => 42,
@@ -433,7 +433,7 @@ class ValidationRuleParserTest extends TestCase
         ], $results->rules);
     }
 
-    public function testExplodeHandlesNumericRule()
+    public function testExplodeHandlesNumericRule(): void
     {
         $parser = (new ValidationRuleParser([
             'number' => 42,
@@ -452,7 +452,7 @@ class ValidationRuleParserTest extends TestCase
         ], $results->rules);
     }
 
-    public function testExplodeHandlesNumericRuleWithAdditionalRules()
+    public function testExplodeHandlesNumericRuleWithAdditionalRules(): void
     {
         $parser = (new ValidationRuleParser([
             'number' => 42,
@@ -472,7 +472,67 @@ class ValidationRuleParserTest extends TestCase
         ], $results->rules);
     }
 
-    public function testExplodeExpandsWildcardStringRules()
+    public function testExplodeHandlesStringRule(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'name' => 'Taylor',
+        ]));
+
+        $rules = [
+            'name' => Rule::string(),
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'name' => [
+                'string',
+            ],
+        ], $results->rules);
+    }
+
+    public function testExplodeHandlesStringRuleWithAdditionalRules(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'name' => 'Taylor',
+        ]));
+
+        $rules = [
+            'name' => Rule::string()->min(3),
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'name' => [
+                'string',
+                'min:3',
+            ],
+        ], $results->rules);
+    }
+
+    public function testExplodeHandlesStringRuleWithAdditionalRulesInsideArray(): void
+    {
+        $parser = (new ValidationRuleParser([
+            'name' => 'Taylor',
+        ]));
+
+        $rules = [
+            'name' => ['required', Rule::string()->min(3)],
+        ];
+
+        $results = $parser->explode($rules);
+
+        $this->assertEquals([
+            'name' => [
+                'required',
+                'string',
+                'min:3',
+            ],
+        ], $results->rules);
+    }
+
+    public function testExplodeExpandsWildcardStringRules(): void
     {
         $parser = new ValidationRuleParser([
             'items' => [
@@ -499,7 +559,7 @@ class ValidationRuleParserTest extends TestCase
         ], $results->implicitAttributes);
     }
 
-    public function testExplodeExpandsDeeplyNestedWildcardStringRules()
+    public function testExplodeExpandsDeeplyNestedWildcardStringRules(): void
     {
         $parser = new ValidationRuleParser([
             'orders' => [
@@ -527,7 +587,7 @@ class ValidationRuleParserTest extends TestCase
         ], $results->implicitAttributes);
     }
 
-    public function testExplodeExpandsWildcardWithStringArrayKeys()
+    public function testExplodeExpandsWildcardWithStringArrayKeys(): void
     {
         $parser = new ValidationRuleParser([
             'settings' => [

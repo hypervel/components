@@ -7,7 +7,7 @@ namespace Hypervel\Validation\Rules;
 use Closure;
 use Stringable;
 
-class RequiredIf implements Stringable
+class ExcludeUnless implements Stringable
 {
     /**
      * The condition that validates the attribute.
@@ -15,11 +15,11 @@ class RequiredIf implements Stringable
     public bool|Closure $condition;
 
     /**
-     * Create a new required validation rule based on a condition.
+     * Create a new exclude validation rule based on a condition.
      */
-    public function __construct(bool|Closure|null $condition)
+    public function __construct(bool|Closure $condition)
     {
-        $this->condition = $condition ?? false;
+        $this->condition = $condition;
     }
 
     /**
@@ -28,9 +28,9 @@ class RequiredIf implements Stringable
     public function __toString(): string
     {
         if (is_callable($this->condition)) {
-            return call_user_func($this->condition) ? 'required' : '';
+            return call_user_func($this->condition) ? '' : 'exclude';
         }
 
-        return $this->condition ? 'required' : '';
+        return $this->condition ? '' : 'exclude';
     }
 }

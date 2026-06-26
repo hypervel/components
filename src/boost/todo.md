@@ -38,10 +38,6 @@
 
 ## Testing
 
-## Validation
-
-- Port Rule::string() fluent string rule builder
-
 ## Vite
 
 - Port Laravel's recursive Vite import resolution. Laravel resolves static imports recursively via `Vite::resolveImports()`, while `Hypervel\Foundation\Vite::__invoke()` currently only preloads each entry chunk's direct `imports`, so nested imported chunks and nested CSS can be omitted from generated preload / stylesheet tags. Correct fix: port Laravel's recursive import resolver into `Hypervel\Foundation\Vite`, use it when collecting imports for an entry chunk, and port Laravel's nested import / nested CSS Vite tests.

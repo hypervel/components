@@ -5,16 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Exception;
+use Hypervel\Tests\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\RequiredIf;
 use Hypervel\Validation\Validator;
-use InvalidArgumentException;
-use PHPUnit\Framework\TestCase;
+use stdClass;
+use TypeError;
 
 class ValidationRequiredIfTest extends TestCase
 {
-    public function testItClosureReturnsFormatsAStringVersionOfTheRule()
+    public function testItClosureReturnsFormatsAStringVersionOfTheRule(): void
     {
         $rule = new RequiredIf(function () {
             return true;
@@ -35,20 +36,30 @@ class ValidationRequiredIfTest extends TestCase
         $rule = new RequiredIf(false);
 
         $this->assertSame('', (string) $rule);
+
+        $rule = new RequiredIf(null);
+
+        $this->assertSame('', (string) $rule);
     }
 
-    public function testItOnlyCallableAndBooleanAreAcceptableArgumentsOfTheRule()
+    public function testItOnlyClosureBooleanAndNullAreAcceptableArgumentsOfTheRule(): void
     {
-        $rule = new RequiredIf(false);
+        new RequiredIf(false);
+        new RequiredIf(true);
+        new RequiredIf(null);
+        new RequiredIf(fn () => true);
 
-        $rule = new RequiredIf(true);
-
-        $this->expectException(InvalidArgumentException::class);
-
-        $rule = new RequiredIf('phpinfo');
+        foreach ([1, 1.1, 'phpinfo', new stdClass] as $condition) {
+            try {
+                new RequiredIf($condition);
+                $this->fail('The RequiredIf constructor must not accept ' . gettype($condition));
+            } catch (TypeError) {
+                $this->assertTrue(true);
+            }
+        }
     }
 
-    public function testItReturnedRuleIsNotSerializable()
+    public function testItReturnedRuleIsNotSerializable(): void
     {
         $this->expectException(Exception::class);
 
@@ -57,7 +68,7 @@ class ValidationRequiredIfTest extends TestCase
         }));
     }
 
-    public function testRequiredIfRuleValidation()
+    public function testRequiredIfRuleValidation(): void
     {
         $trans = new Translator(new ArrayLoader, 'en');
 
