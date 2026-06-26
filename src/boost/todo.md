@@ -36,8 +36,6 @@
 
 ## Support
 
-- Add shared worker-lifetime metadata caching for class attribute reads. Attribute consumers repeatedly reflect the same job, listener, mailable, notification, and broadcast event classes to read stable class metadata. Correct fix: add a shared metadata cache keyed by class name that caches only stable reflection results such as default properties and attribute instances / declaring classes, while still reading runtime property values and initialization state from each object instance. Do not use trait-level static caches because they fragment per consuming class and create duplicated reset wiring.
-
 ## Telescope
 
 - Port Laravel's `telescope:install` command. The copied Telescope docs document `php artisan telescope:install`, but Hypervel currently only registers `telescope:publish`, `telescope:clear`, `telescope:pause`, `telescope:prune`, and `telescope:resume`. Hypervel already publishes the provider stub, config, and migrations under the `telescope-provider`, `telescope-config`, and `telescope-migrations` tags. Correct fix: port Laravel Telescope's install command with Hypervel namespaces, publish those three tags, register `App\Providers\TelescopeServiceProvider` in `bootstrap/providers.php` via `Hypervel\Support\ServiceProvider::addProviderToBootstrapFile()`, register the command in `Hypervel\Telescope\TelescopeServiceProvider`, and add command coverage.

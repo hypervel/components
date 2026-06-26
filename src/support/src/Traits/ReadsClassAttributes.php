@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
-use Exception;
+use Hypervel\Support\ClassMetadataCache;
 use ReflectionClass;
 
 trait ReadsClassAttributes
@@ -14,9 +14,9 @@ trait ReadsClassAttributes
      */
     protected function getAttributeValue(object $target, string $attributeClass, ?string $property = null, mixed $default = null): mixed
     {
-        $reflection = new ReflectionClass($target);
+        $reflection = ClassMetadataCache::reflectClass($target);
 
-        $defaultProperties = $reflection->getDefaultProperties();
+        $defaultProperties = ClassMetadataCache::defaultProperties($target);
 
         if ($property !== null
             && isset($target->{$property})
@@ -53,32 +53,15 @@ trait ReadsClassAttributes
      */
     protected function getAttributeInstance(object $target, string $attributeClass, ?ReflectionClass &$declaringClass = null): ?object
     {
-        $reflection = new ReflectionClass($target);
+        $attribute = ClassMetadataCache::getAttribute($target, $attributeClass);
 
-        try {
-            do {
-                $attributes = $reflection->getAttributes($attributeClass);
-
-                if (count($attributes) > 0) {
-                    $declaringClass = $reflection;
-
-                    return $attributes[0]->newInstance();
-                }
-
-                foreach ($reflection->getTraits() as $trait) {
-                    $attributes = $trait->getAttributes($attributeClass);
-
-                    if (count($attributes) > 0) {
-                        $declaringClass = $reflection;
-
-                        return $attributes[0]->newInstance();
-                    }
-                }
-            } while ($reflection = $reflection->getParentClass());
-        } catch (Exception) {
+        if ($attribute === null) {
+            return null;
         }
 
-        return null;
+        $declaringClass = $attribute->declaringClass;
+
+        return $attribute->instance;
     }
 
     /**

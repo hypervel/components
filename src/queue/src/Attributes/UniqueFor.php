@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Attributes;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS)]
-class UniqueFor
+readonly class UniqueFor
 {
     /**
      * Create a new attribute instance.

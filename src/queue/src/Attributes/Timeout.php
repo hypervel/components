@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Attributes;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS)]
-class Timeout
+readonly class Timeout
 {
     /**
      * Create a new attribute instance.

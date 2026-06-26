@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Attributes;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS)]
-class MaxExceptions
+readonly class MaxExceptions
 {
     /**
      * Create a new attribute instance.

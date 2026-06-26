@@ -191,6 +191,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\Arr::flushState();
         \Hypervel\Support\Benchmark::flushState();
         \Hypervel\Support\BinaryCodec::flushState();
+        \Hypervel\Support\ClassMetadataCache::flushState();
         \Hypervel\Support\ClearStatCache::flushState();
         \Hypervel\Support\Collection::flushState();
         \Hypervel\Support\Composer::flushState();

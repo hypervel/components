@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Attributes;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS)]
-class DebounceFor
+readonly class DebounceFor
 {
     /**
      * Create a new attribute instance.
