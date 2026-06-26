@@ -36,10 +36,6 @@
 
 ## Support
 
-## Telescope
-
-- Port Laravel's `telescope:install` command. The copied Telescope docs document `php artisan telescope:install`, but Hypervel currently only registers `telescope:publish`, `telescope:clear`, `telescope:pause`, `telescope:prune`, and `telescope:resume`. Hypervel already publishes the provider stub, config, and migrations under the `telescope-provider`, `telescope-config`, and `telescope-migrations` tags. Correct fix: port Laravel Telescope's install command with Hypervel namespaces, publish those three tags, register `App\Providers\TelescopeServiceProvider` in `bootstrap/providers.php` via `Hypervel\Support\ServiceProvider::addProviderToBootstrapFile()`, register the command in `Hypervel\Telescope\TelescopeServiceProvider`, and add command coverage.
-
 ## Testing
 
 - Port an app-facing `php artisan test` command. The copied testing docs document `php artisan test`, including `--parallel`, `--coverage`, `--min`, `--profile`, `--recreate-databases`, `--drop-databases`, `--without-databases`, `--without-cache`, and ParaTest pass-through options such as `--processes`, but Hypervel currently ships only `make:test` for applications and `package:test` for Testbench package development. The underlying machinery already exists: `Hypervel\Testing\ParallelRunner`, `Hypervel\Testing\ParallelTesting`, parallel database / cache / view handling, and Collision's coverage / printer support used by Testbench's `package:test` command. Correct fix: add a Hypervel application test command, or a Hypervel Collision adapter, that shells out to PHPUnit / ParaTest using `Hypervel\Testing\ParallelRunner`, sets the `HYPERVEL_PARALLEL_TESTING_*` environment variables, preserves PHPUnit / ParaTest pass-through arguments, and port the matching command coverage.

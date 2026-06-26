@@ -30,8 +30,8 @@ class InstallCommand extends Command
         $this->components->info('Installing Horizon resources.');
 
         collect([
-            'Service Provider' => fn () => $this->callSilent('vendor:publish', ['--tag' => 'horizon-provider']) == 0,
-            'Configuration' => fn () => $this->callSilent('vendor:publish', ['--tag' => 'horizon-config']) == 0,
+            'Service Provider' => fn (): bool => $this->callSilent('vendor:publish', ['--tag' => 'horizon-provider']) === 0,
+            'Configuration' => fn (): bool => $this->callSilent('vendor:publish', ['--tag' => 'horizon-config']) === 0,
         ])->each(fn ($task, $description) => $this->components->task($description, $task));
 
         $this->registerHorizonServiceProvider();
@@ -40,27 +40,13 @@ class InstallCommand extends Command
     }
 
     /**
-     * Register the Horizon service provider in the application configuration file.
+     * Register the Horizon service provider in the application bootstrap file.
      */
     protected function registerHorizonServiceProvider(): void
     {
         $namespace = Str::replaceLast('\\', '', $this->hypervel->getNamespace());
 
-        if (file_exists($this->hypervel->bootstrapPath('providers.php'))) {
-            ServiceProvider::addProviderToBootstrapFile("{$namespace}\\Providers\\HorizonServiceProvider");
-        } else {
-            $appConfig = file_get_contents(config_path('app.php'));
-
-            if (Str::contains($appConfig, $namespace . '\Providers\HorizonServiceProvider::class')) {
-                return;
-            }
-
-            file_put_contents(config_path('app.php'), str_replace(
-                "{$namespace}\\Providers\\EventServiceProvider::class," . PHP_EOL,
-                "{$namespace}\\Providers\\EventServiceProvider::class," . PHP_EOL . "        {$namespace}\\Providers\\HorizonServiceProvider::class," . PHP_EOL,
-                $appConfig
-            ));
-        }
+        ServiceProvider::addProviderToBootstrapFile("{$namespace}\\Providers\\HorizonServiceProvider");
 
         file_put_contents(app_path('Providers/HorizonServiceProvider.php'), str_replace(
             'namespace App\Providers;',
