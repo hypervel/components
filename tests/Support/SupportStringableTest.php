@@ -55,11 +55,11 @@ class SupportStringableTest extends TestCase
 
     public function testIsUrl()
     {
-        $this->assertTrue($this->stringable('https://laravel.com')->isUrl());
-        $this->assertTrue($this->stringable('https://laravel.com')->isUrl(['https']));
+        $this->assertTrue($this->stringable('https://hypervel.org')->isUrl());
+        $this->assertTrue($this->stringable('https://hypervel.org')->isUrl(['https']));
 
         $this->assertFalse($this->stringable('invalid url')->isUrl());
-        $this->assertFalse($this->stringable('https://laravel.com')->isUrl(['http']));
+        $this->assertFalse($this->stringable('https://hypervel.org')->isUrl(['http']));
     }
 
     public function testIsUuid()
@@ -96,20 +96,20 @@ class SupportStringableTest extends TestCase
 
     public function testIsMatch()
     {
-        $this->assertTrue($this->stringable('Hello, Laravel!')->isMatch('/.*,.*!/'));
-        $this->assertTrue($this->stringable('Hello, Laravel!')->isMatch('/^.*$(.*)/'));
-        $this->assertTrue($this->stringable('Hello, Laravel!')->isMatch('/laravel/i'));
-        $this->assertTrue($this->stringable('Hello, Laravel!')->isMatch('/^(.*(.*(.*)))/'));
+        $this->assertTrue($this->stringable('Hello, Hypervel!')->isMatch('/.*,.*!/'));
+        $this->assertTrue($this->stringable('Hello, Hypervel!')->isMatch('/^.*$(.*)/'));
+        $this->assertTrue($this->stringable('Hello, Hypervel!')->isMatch('/hypervel/i'));
+        $this->assertTrue($this->stringable('Hello, Hypervel!')->isMatch('/^(.*(.*(.*)))/'));
 
-        $this->assertFalse($this->stringable('Hello, Laravel!')->isMatch('/H.o/'));
-        $this->assertFalse($this->stringable('Hello, Laravel!')->isMatch('/^laravel!/i'));
-        $this->assertFalse($this->stringable('Hello, Laravel!')->isMatch('/laravel!(.*)/'));
-        $this->assertFalse($this->stringable('Hello, Laravel!')->isMatch('/^[a-zA-Z,!]+$/'));
+        $this->assertFalse($this->stringable('Hello, Hypervel!')->isMatch('/H.o/'));
+        $this->assertFalse($this->stringable('Hello, Hypervel!')->isMatch('/^hypervel!/i'));
+        $this->assertFalse($this->stringable('Hello, Hypervel!')->isMatch('/hypervel!(.*)/'));
+        $this->assertFalse($this->stringable('Hello, Hypervel!')->isMatch('/^[a-zA-Z,!]+$/'));
 
-        $this->assertTrue($this->stringable('Hello, Laravel!')->isMatch(['/.*,.*!/', '/H.o/']));
-        $this->assertTrue($this->stringable('Hello, Laravel!')->isMatch(['/^laravel!/i', '/^.*$(.*)/']));
-        $this->assertTrue($this->stringable('Hello, Laravel!')->isMatch(['/laravel/i', '/laravel!(.*)/']));
-        $this->assertTrue($this->stringable('Hello, Laravel!')->isMatch(['/^[a-zA-Z,!]+$/', '/^(.*(.*(.*)))/']));
+        $this->assertTrue($this->stringable('Hello, Hypervel!')->isMatch(['/.*,.*!/', '/H.o/']));
+        $this->assertTrue($this->stringable('Hello, Hypervel!')->isMatch(['/^hypervel!/i', '/^.*$(.*)/']));
+        $this->assertTrue($this->stringable('Hello, Hypervel!')->isMatch(['/hypervel/i', '/hypervel!(.*)/']));
+        $this->assertTrue($this->stringable('Hello, Hypervel!')->isMatch(['/^[a-zA-Z,!]+$/', '/^(.*(.*(.*)))/']));
     }
 
     public function testIsEmpty()
@@ -195,9 +195,9 @@ class SupportStringableTest extends TestCase
 
     public function testUcwords()
     {
-        $this->assertSame('Laravel', (string) $this->stringable('laravel')->ucwords());
-        $this->assertSame('Laravel Framework', (string) $this->stringable('laravel framework')->ucwords());
-        $this->assertSame('Laravel-Framework', (string) $this->stringable('laravel-framework')->ucwords('-'));
+        $this->assertSame('Hypervel', (string) $this->stringable('hypervel')->ucwords());
+        $this->assertSame('Hypervel Framework', (string) $this->stringable('hypervel framework')->ucwords());
+        $this->assertSame('Hypervel-Framework', (string) $this->stringable('hypervel-framework')->ucwords('-'));
         $this->assertSame('Мама', (string) $this->stringable('мама')->ucwords());
         $this->assertSame('Мама Мыла Раму', (string) $this->stringable('мама мыла раму')->ucwords());
         $this->assertSame('JJ Watt', (string) $this->stringable('JJ watt')->ucwords());
@@ -256,7 +256,7 @@ class SupportStringableTest extends TestCase
 
     public function testDedup()
     {
-        $this->assertSame(' laravel php framework ', (string) $this->stringable(' laravel   php  framework ')->deduplicate());
+        $this->assertSame(' hypervel php framework ', (string) $this->stringable(' hypervel   php  framework ')->deduplicate());
         $this->assertSame('what', (string) $this->stringable('whaaat')->deduplicate('a'));
         $this->assertSame('/some/odd/path/', (string) $this->stringable('/some//odd//path/')->deduplicate('/'));
         $this->assertSame('ムだム', (string) $this->stringable('ムだだム')->deduplicate('だ'));
@@ -277,7 +277,7 @@ class SupportStringableTest extends TestCase
     public function testUcsplitOnStringable()
     {
         $this->assertSame(['Taylor', 'Otwell'], $this->stringable('TaylorOtwell')->ucsplit()->toArray());
-        $this->assertSame(['Hello', 'From', 'Laravel'], $this->stringable('HelloFromLaravel')->ucsplit()->toArray());
+        $this->assertSame(['Hello', 'From', 'Hypervel'], $this->stringable('HelloFromHypervel')->ucsplit()->toArray());
         $this->assertSame(['He_llo_', 'World'], $this->stringable('He_llo_World')->ucsplit()->toArray());
     }
 
@@ -642,7 +642,7 @@ class SupportStringableTest extends TestCase
 
     public function testNewLine()
     {
-        $this->assertSame('Laravel' . PHP_EOL, (string) $this->stringable('Laravel')->newLine());
+        $this->assertSame('Hypervel' . PHP_EOL, (string) $this->stringable('Hypervel')->newLine());
         $this->assertSame('foo' . PHP_EOL . PHP_EOL . 'bar', (string) $this->stringable('foo')->newLine(2)->append('bar'));
     }
 
@@ -918,7 +918,7 @@ class SupportStringableTest extends TestCase
             with
             spaces
         ')->squish());
-        $this->assertSame('laravel php framework', (string) $this->stringable('   laravel   php   framework   ')->squish());
+        $this->assertSame('hypervel php framework', (string) $this->stringable('   hypervel   php   framework   ')->squish());
         $this->assertSame('123', (string) $this->stringable('   123    ')->squish());
         $this->assertSame('だ', (string) $this->stringable('だ')->squish());
         $this->assertSame('ム', (string) $this->stringable('ム')->squish());
@@ -1021,7 +1021,7 @@ class SupportStringableTest extends TestCase
 
     public function testKebab()
     {
-        $this->assertSame('laravel-php-framework', (string) $this->stringable('LaravelPhpFramework')->kebab());
+        $this->assertSame('hypervel-php-framework', (string) $this->stringable('HypervelPhpFramework')->kebab());
     }
 
     public function testLower()
@@ -1039,15 +1039,15 @@ class SupportStringableTest extends TestCase
     public function testLimit()
     {
         $this->assertSame(
-            'Laravel is...',
-            (string) $this->stringable('Laravel is a free, open source PHP web application framework.')->limit(10)
+            'Hypervel i...',
+            (string) $this->stringable('Hypervel is a free, open source PHP web application framework.')->limit(10)
         );
         $this->assertSame('这是一...', (string) $this->stringable('这是一段中文')->limit(6));
 
-        $string = 'The PHP framework for web artisans.';
+        $string = 'The PHP framework for high-performance apps.';
         $this->assertSame('The PHP...', (string) $this->stringable($string)->limit(7));
         $this->assertSame('The PHP', (string) $this->stringable($string)->limit(7, ''));
-        $this->assertSame('The PHP framework for web artisans.', (string) $this->stringable($string)->limit(100));
+        $this->assertSame('The PHP framework for high-performance apps.', (string) $this->stringable($string)->limit(100));
 
         $nonAsciiString = '这是一段中文';
         $this->assertSame('这是一...', (string) $this->stringable($nonAsciiString)->limit(6));
@@ -1158,16 +1158,16 @@ class SupportStringableTest extends TestCase
 
     public function testSnake()
     {
-        $this->assertSame('laravel_p_h_p_framework', (string) $this->stringable('LaravelPHPFramework')->snake());
-        $this->assertSame('laravel_php_framework', (string) $this->stringable('LaravelPhpFramework')->snake());
-        $this->assertSame('laravel php framework', (string) $this->stringable('LaravelPhpFramework')->snake(' '));
-        $this->assertSame('laravel_php_framework', (string) $this->stringable('Laravel Php Framework')->snake());
-        $this->assertSame('laravel_php_framework', (string) $this->stringable('Laravel    Php      Framework   ')->snake());
+        $this->assertSame('hypervel_p_h_p_framework', (string) $this->stringable('HypervelPHPFramework')->snake());
+        $this->assertSame('hypervel_php_framework', (string) $this->stringable('HypervelPhpFramework')->snake());
+        $this->assertSame('hypervel php framework', (string) $this->stringable('HypervelPhpFramework')->snake(' '));
+        $this->assertSame('hypervel_php_framework', (string) $this->stringable('Hypervel Php Framework')->snake());
+        $this->assertSame('hypervel_php_framework', (string) $this->stringable('Hypervel    Php      Framework   ')->snake());
         // ensure cache keys don't overlap
-        $this->assertSame('laravel__php__framework', (string) $this->stringable('LaravelPhpFramework')->snake('__'));
-        $this->assertSame('laravel_php_framework_', (string) $this->stringable('LaravelPhpFramework_')->snake('_'));
-        $this->assertSame('laravel_php_framework', (string) $this->stringable('laravel php Framework')->snake());
-        $this->assertSame('laravel_php_frame_work', (string) $this->stringable('laravel php FrameWork')->snake());
+        $this->assertSame('hypervel__php__framework', (string) $this->stringable('HypervelPhpFramework')->snake('__'));
+        $this->assertSame('hypervel_php_framework_', (string) $this->stringable('HypervelPhpFramework_')->snake('_'));
+        $this->assertSame('hypervel_php_framework', (string) $this->stringable('hypervel php Framework')->snake());
+        $this->assertSame('hypervel_php_frame_work', (string) $this->stringable('hypervel php FrameWork')->snake());
         // prevent breaking changes
         $this->assertSame('foo-bar', (string) $this->stringable('foo-bar')->snake());
         $this->assertSame('foo-_bar', (string) $this->stringable('Foo-Bar')->snake());
@@ -1207,10 +1207,10 @@ class SupportStringableTest extends TestCase
 
     public function testCamel()
     {
-        $this->assertSame('laravelPHPFramework', (string) $this->stringable('Laravel_p_h_p_framework')->camel());
-        $this->assertSame('laravelPhpFramework', (string) $this->stringable('Laravel_php_framework')->camel());
-        $this->assertSame('laravelPhPFramework', (string) $this->stringable('Laravel-phP-framework')->camel());
-        $this->assertSame('laravelPhpFramework', (string) $this->stringable('Laravel  -_-  php   -_-   framework   ')->camel());
+        $this->assertSame('hypervelPHPFramework', (string) $this->stringable('Hypervel_p_h_p_framework')->camel());
+        $this->assertSame('hypervelPhpFramework', (string) $this->stringable('Hypervel_php_framework')->camel());
+        $this->assertSame('hypervelPhPFramework', (string) $this->stringable('Hypervel-phP-framework')->camel());
+        $this->assertSame('hypervelPhpFramework', (string) $this->stringable('Hypervel  -_-  php   -_-   framework   ')->camel());
 
         $this->assertSame('fooBar', (string) $this->stringable('FooBar')->camel());
         $this->assertSame('fooBar', (string) $this->stringable('foo_bar')->camel());
@@ -1253,16 +1253,16 @@ class SupportStringableTest extends TestCase
 
     public function testSubstrCount()
     {
-        $this->assertSame(3, $this->stringable('laravelPHPFramework')->substrCount('a'));
-        $this->assertSame(0, $this->stringable('laravelPHPFramework')->substrCount('z'));
-        $this->assertSame(1, $this->stringable('laravelPHPFramework')->substrCount('l', 2));
-        $this->assertSame(0, $this->stringable('laravelPHPFramework')->substrCount('z', 2));
-        $this->assertSame(1, $this->stringable('laravelPHPFramework')->substrCount('k', -1));
-        $this->assertSame(1, $this->stringable('laravelPHPFramework')->substrCount('k', -1));
-        $this->assertSame(1, $this->stringable('laravelPHPFramework')->substrCount('a', 1, 2));
-        $this->assertSame(1, $this->stringable('laravelPHPFramework')->substrCount('a', 1, 2));
-        $this->assertSame(3, $this->stringable('laravelPHPFramework')->substrCount('a', 1, -2));
-        $this->assertSame(1, $this->stringable('laravelPHPFramework')->substrCount('a', -10, -3));
+        $this->assertSame(1, $this->stringable('hypervelPHPFramework')->substrCount('a'));
+        $this->assertSame(0, $this->stringable('hypervelPHPFramework')->substrCount('z'));
+        $this->assertSame(1, $this->stringable('hypervelPHPFramework')->substrCount('l', 2));
+        $this->assertSame(0, $this->stringable('hypervelPHPFramework')->substrCount('z', 2));
+        $this->assertSame(1, $this->stringable('hypervelPHPFramework')->substrCount('k', -1));
+        $this->assertSame(1, $this->stringable('hypervelPHPFramework')->substrCount('k', -1));
+        $this->assertSame(0, $this->stringable('hypervelPHPFramework')->substrCount('a', 1, 2));
+        $this->assertSame(0, $this->stringable('hypervelPHPFramework')->substrCount('a', 1, 2));
+        $this->assertSame(1, $this->stringable('hypervelPHPFramework')->substrCount('a', 1, -2));
+        $this->assertSame(1, $this->stringable('hypervelPHPFramework')->substrCount('a', -10, -3));
     }
 
     public function testPosition()
@@ -1285,8 +1285,8 @@ class SupportStringableTest extends TestCase
     public function testSubstrReplace()
     {
         $this->assertSame('12:00', (string) $this->stringable('1200')->substrReplace(':', 2, 0));
-        $this->assertSame('The Laravel Framework', (string) $this->stringable('The Framework')->substrReplace('Laravel ', 4, 0));
-        $this->assertSame('Laravel – The PHP Framework for Web Artisans', (string) $this->stringable('Laravel Framework')->substrReplace('– The PHP Framework for Web Artisans', 8));
+        $this->assertSame('The Hypervel Framework', (string) $this->stringable('The Framework')->substrReplace('Hypervel ', 4, 0));
+        $this->assertSame('Hypervel – The PHP Framework for High-Performance Apps', (string) $this->stringable('Hypervel Framework')->substrReplace('– The PHP Framework for High-Performance Apps', 9));
     }
 
     public function testPadBoth()
@@ -1332,9 +1332,9 @@ class SupportStringableTest extends TestCase
     public function testJsonSerialize()
     {
         $this->assertSame('"foo"', json_encode($this->stringable('foo')));
-        $this->assertSame('"laravel-php-framework"', json_encode($this->stringable('LaravelPhpFramework')->kebab()));
-        $this->assertSame('["laravel-php-framework"]', json_encode([$this->stringable('LaravelPhpFramework')->kebab()]));
-        $this->assertSame('{"title":"laravel-php-framework"}', json_encode(['title' => $this->stringable('LaravelPhpFramework')->kebab()]));
+        $this->assertSame('"hypervel-php-framework"', json_encode($this->stringable('HypervelPhpFramework')->kebab()));
+        $this->assertSame('["hypervel-php-framework"]', json_encode([$this->stringable('HypervelPhpFramework')->kebab()]));
+        $this->assertSame('{"title":"hypervel-php-framework"}', json_encode(['title' => $this->stringable('HypervelPhpFramework')->kebab()]));
     }
 
     public function testTap()
@@ -1381,7 +1381,7 @@ class SupportStringableTest extends TestCase
     public function testInlineMarkdown()
     {
         $this->assertEquals("<em>hello world</em>\n", $this->stringable('*hello world*')->inlineMarkdown());
-        $this->assertEquals("<a href=\"https://laravel.com\"><strong>Laravel</strong></a>\n", $this->stringable('[**Laravel**](https://laravel.com)')->inlineMarkdown());
+        $this->assertEquals("<a href=\"https://hypervel.org\"><strong>Hypervel</strong></a>\n", $this->stringable('[**Hypervel**](https://hypervel.org)')->inlineMarkdown());
 
         $extension = new class implements ExtensionInterface {
             public bool $configured = false;
@@ -1426,7 +1426,7 @@ class SupportStringableTest extends TestCase
     public function testWordCount()
     {
         $this->assertEquals(2, $this->stringable('Hello, world!')->wordCount());
-        $this->assertEquals(10, $this->stringable('Hi, this is my first contribution to the Laravel framework.')->wordCount());
+        $this->assertEquals(10, $this->stringable('Hi, this is my first contribution to the Hypervel framework.')->wordCount());
     }
 
     public function testWrap()
@@ -1567,13 +1567,13 @@ class SupportStringableTest extends TestCase
 
     public function testToUri()
     {
-        $sentence = 'Laravel is a PHP framework. You can access the docs in: {https://laravel.com/docs}';
+        $sentence = 'Hypervel is a PHP framework. You can access the docs in: {https://hypervel.org/docs}';
 
         $uri = $this->stringable($sentence)->between('{', '}')->toUri();
 
         $this->assertInstanceOf(Uri::class, $uri);
-        $this->assertSame('https://laravel.com/docs', (string) $uri);
-        $this->assertSame('https://laravel.com/docs', $uri->toHtml());
+        $this->assertSame('https://hypervel.org/docs', (string) $uri);
+        $this->assertSame('https://hypervel.org/docs', $uri->toHtml());
     }
 
     public function testArrayAccess()
