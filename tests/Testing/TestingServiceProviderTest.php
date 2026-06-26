@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing;
 
+use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\Console\TestCommand;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Testing\TestingServiceProvider;
 
@@ -38,13 +40,13 @@ class TestingServiceProviderTest extends TestCase
         ];
     }
 
-    public function testRegistersParallelTestingSingleton()
+    public function testRegistersParallelTestingSingleton(): void
     {
         $this->assertTrue($this->app->bound(ParallelTesting::class));
         $this->assertInstanceOf(ParallelTesting::class, $this->app->make(ParallelTesting::class));
     }
 
-    public function testReturnsSameInstance()
+    public function testReturnsSameInstance(): void
     {
         $first = $this->app->make(ParallelTesting::class);
         $second = $this->app->make(ParallelTesting::class);
@@ -52,7 +54,16 @@ class TestingServiceProviderTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testCallbacksRegisteredViaServiceAreInvoked()
+    public function testRegistersApplicationTestCommand(): void
+    {
+        /** @var array<string, object> $commands */
+        $commands = $this->app->make(ConsoleKernel::class)->all();
+
+        $this->assertArrayHasKey('test', $commands);
+        $this->assertInstanceOf(TestCommand::class, $commands['test']);
+    }
+
+    public function testCallbacksRegisteredViaServiceAreInvoked(): void
     {
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
 

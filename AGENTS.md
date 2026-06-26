@@ -851,27 +851,29 @@ Some test files reference classes defined in other test files. Laravel gets away
 
 #### Helper Class Namespacing
 
-Laravel tests define helper classes (models, stubs) with generic names like `User`, `Post`, `Comment`. When multiple test files use the same namespace and define classes with the same name, PHP throws "Cannot redeclare class" errors.
+Laravel tests often define helper classes (models, stubs) with generic names like `User`, `Post`, or `Comment`. When multiple test files use the same namespace and define classes with the same name, PHP throws "Cannot redeclare class" errors.
 
-**Use test-specific namespaces** (matching Laravel's pattern):
+**Use test-specific namespaces only for collision-prone helper classes** (matching Laravel's pattern):
 
 ```php
-// WRONG - shared namespace causes conflicts
+// WRONG - shared namespace causes conflicts for generic helper names
 namespace Hypervel\Tests\Integration\Database;
 
 class EloquentDeleteTest extends DatabaseTestCase { ... }
 class Comment extends Model {}  // Conflicts with Comment in other files!
 
-// CORRECT - test-specific namespace isolates classes
+// CORRECT - test-specific namespace isolates generic helper names
 namespace Hypervel\Tests\Integration\Database\EloquentDeleteTest;
 
 class EloquentDeleteTest extends DatabaseTestCase { ... }
 class Comment extends Model {}  // No conflict - different namespace
 ```
 
-The namespace includes the test class name as the final segment. This means:
-- Each test file has its own namespace
-- Helper classes can use simple names (`Comment`, `Post`, `User`)
+Use this when helper classes have generic names likely to appear in other test files. Do not add extra namespaces for helper classes whose names already include the tested feature or package context, such as `FailingHorizonInstallCommand` or `MissingProviderTelescopeInstallCommand`.
+
+When a test-specific namespace is needed, the namespace includes the test class name as the final segment. This means:
+- Each affected test file has its own namespace
+- Generic helper classes can use simple names (`Comment`, `Post`, `User`)
 - No `$table` properties needed (Eloquent derives `comments` from `Comment`)
 - No explicit foreign keys needed (Eloquent derives `user_id` from `User`)
 
@@ -897,7 +899,7 @@ This list is exhaustive. Any other missing functionality requires investigation 
 6. Add type declarations to model properties
 7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
 8. Add `->andReturnSelf()` to chained method mocks
-9. Use test-specific namespace if file defines helper classes — avoids "Cannot redeclare class" errors when multiple test files define classes with the same name (e.g., `...Database\EloquentDeleteTest`)
+9. Use a test-specific namespace only when helper classes have generic, collision-prone names — already-specific helper names do not need extra namespace ceremony.
 10. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
 11. Run tests and fix any remaining type errors
 

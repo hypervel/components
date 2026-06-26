@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
-use NunoMaduro\Collision\Adapters\Laravel\Inspector;
 use NunoMaduro\Collision\Provider;
 use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Input\ArgvInput;
@@ -60,7 +59,7 @@ class ErrorRenderer
         $handler = (new Provider)
             ->getHandler()
             ->setOutput($this->output);
-        $handler->setInspector(new Inspector($throwable));
+        $handler->setInspector(new CollisionInspector($throwable));
         $handler->handle();
     }
 }

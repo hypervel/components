@@ -1015,9 +1015,6 @@ The `package:test` command runs your package tests through PHPUnit or ParaTest:
 vendor/bin/testbench package:test
 ```
 
-> [!NOTE]
-> The `package:test` command requires `nunomaduro/collision` as a development dependency. If it is not installed, Testbench will offer to install it for you.
-
 To run tests in parallel, pass the `--parallel` option:
 
 ```shell
@@ -1029,7 +1026,6 @@ The command supports the following options:
 | Option | Description |
 | --- | --- |
 | `--without-tty` | Disable TTY output. |
-| `--compact` | Use the compact Collision printer output. |
 | `--configuration=` | Read PHPUnit configuration from the given XML file. |
 | `--coverage` | Collect code coverage. |
 | `--min=` | Fail when coverage is below the given percentage. |
@@ -1038,6 +1034,7 @@ The command supports the following options:
 | `--recreate-databases` | Re-create test databases before parallel testing. |
 | `--drop-databases` | Drop test databases after parallel testing. |
 | `--without-databases` | Disable parallel database setup. |
+| `--without-cache` | Disable parallel cache prefix setup. |
 
 Additional PHPUnit and ParaTest arguments may be passed after the command options:
 
