@@ -20,9 +20,10 @@ use InvalidArgumentException;
 use JsonSerializable;
 use League\Uri\Contracts\UriInterface;
 use League\Uri\Uri as LeagueUri;
-use Stringable;
+use SensitiveParameter;
+use Stringable as BaseStringable;
 
-class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
+class Uri implements Htmlable, JsonSerializable, Responsable, BaseStringable
 {
     use Conditionable;
     use Dumpable;
@@ -42,7 +43,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     /**
      * Create a new parsed URI instance.
      */
-    public function __construct(string|Stringable|UriInterface $uri = '')
+    public function __construct(string|BaseStringable|UriInterface $uri = '')
     {
         $this->uri = $uri instanceof UriInterface ? $uri : LeagueUri::new((string) $uri);
     }
@@ -50,7 +51,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     /**
      * Create a new URI instance.
      */
-    public static function of(string|Stringable|UriInterface $uri = ''): static
+    public static function of(string|BaseStringable|UriInterface $uri = ''): static
     {
         return new static($uri);
     }
@@ -102,6 +103,14 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     }
 
     /**
+     * Get the URI's authority.
+     */
+    public function authority(): ?string
+    {
+        return $this->uri->getAuthority();
+    }
+
+    /**
      * Get the URI's scheme.
      */
     public function scheme(): ?string
@@ -147,8 +156,10 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
      * Get the URI's path.
      *
      * Empty or missing paths are returned as a single "/".
+     *
+     * @return non-empty-string
      */
-    public function path(): ?string
+    public function path(): string
     {
         $path = trim((string) $this->uri->getPath(), '/');
 
@@ -186,7 +197,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     /**
      * Specify the scheme of the URI.
      */
-    public function withScheme(string|Stringable $scheme): static
+    public function withScheme(string|BaseStringable $scheme): static
     {
         return new static($this->uri->withScheme($scheme));
     }
@@ -194,7 +205,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     /**
      * Specify the user and password for the URI.
      */
-    public function withUser(string|Stringable|null $user, string|Stringable|null $password = null): static
+    public function withUser(string|BaseStringable|null $user, #[SensitiveParameter] string|BaseStringable|null $password = null): static
     {
         return new static($this->uri->withUserInfo($user, $password));
     }
@@ -202,7 +213,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     /**
      * Specify the host of the URI.
      */
-    public function withHost(string|Stringable $host): static
+    public function withHost(string|BaseStringable $host): static
     {
         return new static($this->uri->withHost($host));
     }
@@ -218,7 +229,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     /**
      * Specify the path of the URI.
      */
-    public function withPath(string|Stringable $path): static
+    public function withPath(string|BaseStringable $path): static
     {
         return new static($this->uri->withPath(Str::start((string) $path, '/')));
     }
@@ -311,6 +322,14 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     }
 
     /**
+     * Remove the fragment from the URI.
+     */
+    public function withoutFragment(): static
+    {
+        return new static($this->uri->withFragment(null));
+    }
+
+    /**
      * Create a redirect HTTP response for the given URI.
      */
     public function redirect(int $status = 302, array $headers = []): RedirectResponse
@@ -351,7 +370,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
             return $this->value();
         }
 
-        return Str::replace(Str::after($this->value(), '?'), $this->query()->decode(), $this->value());
+        return Str::replace($this->query()->value(), $this->query()->decode(), $this->value());
     }
 
     /**
@@ -359,7 +378,15 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
      */
     public function value(): string
     {
-        return (string) $this;
+        return $this->toString();
+    }
+
+    /**
+     * Get the string representation of the URI.
+     */
+    public function toString(): string
+    {
+        return $this->uri->toString();
     }
 
     /**
@@ -368,6 +395,14 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     public function isEmpty(): bool
     {
         return trim($this->value()) === '';
+    }
+
+    /**
+     * Determine if the URI is not an empty string.
+     */
+    public function isNotEmpty(): bool
+    {
+        return ! $this->isEmpty();
     }
 
     /**
@@ -412,7 +447,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
      */
     public function __toString(): string
     {
-        return $this->uri->toString();
+        return $this->toString();
     }
 
     /**
