@@ -10,6 +10,8 @@ use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Tests\TestCase;
@@ -71,6 +73,44 @@ class BusDispatcherTest extends TestCase
         });
 
         $dispatcher->dispatch(new BusDispatcherTestSpecificQueueAndDelayCommand);
+
+        Container::setInstance(null);
+    }
+
+    public function testCommandsThatShouldQueueIsQueuedUsingQueueAndDelayAttributes(): void
+    {
+        $container = new Container;
+        $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
+        $queueRoutes->shouldReceive('getQueue')->andReturn(null);
+        $queueRoutes->shouldReceive('getConnection')->andReturn(null);
+        Container::setInstance($container);
+        $dispatcher = new Dispatcher($container, function () {
+            $mock = m::mock(Queue::class);
+            $mock->shouldReceive('later')->once()->with(10, m::type(BusDispatcherTestSpecificQueueAndDelayAttributesCommand::class), '', 'foo');
+
+            return $mock;
+        });
+
+        $dispatcher->dispatch(new BusDispatcherTestSpecificQueueAndDelayAttributesCommand);
+
+        Container::setInstance(null);
+    }
+
+    public function testCommandDelayPropertyOverridesDelayAttribute(): void
+    {
+        $container = new Container;
+        $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
+        $queueRoutes->shouldReceive('getQueue')->andReturn(null);
+        $queueRoutes->shouldReceive('getConnection')->andReturn(null);
+        Container::setInstance($container);
+        $dispatcher = new Dispatcher($container, function () {
+            $mock = m::mock(Queue::class);
+            $mock->shouldReceive('later')->once()->with(60, m::type(BusDispatcherTestSpecificQueueAndDelayAttributeWithPropertyCommand::class), '', 'foo');
+
+            return $mock;
+        });
+
+        $dispatcher->dispatch((new BusDispatcherTestSpecificQueueAndDelayAttributeWithPropertyCommand)->delay(60));
 
         Container::setInstance(null);
     }
@@ -185,6 +225,19 @@ class BusDispatcherTestSpecificQueueAndDelayCommand implements ShouldQueue
     public $queue = 'foo';
 
     public $delay = 10;
+}
+
+#[QueueAttribute('foo')]
+#[Delay(10)]
+class BusDispatcherTestSpecificQueueAndDelayAttributesCommand implements ShouldQueue
+{
+}
+
+#[QueueAttribute('foo')]
+#[Delay(10)]
+class BusDispatcherTestSpecificQueueAndDelayAttributeWithPropertyCommand implements ShouldQueue
+{
+    use Queueable;
 }
 
 class BusDispatcherQueueable implements ShouldQueue

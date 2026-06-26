@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Redis\Factory as Redis;
+use Hypervel\Queue\Events\JobQueued;
+use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
@@ -60,6 +63,33 @@ class QueueRedisQueueTest extends TestCase
         $container->shouldHaveReceived('bound')->with('events')->twice();
 
         Queue::createPayloadUsing(null);
+    }
+
+    public function testJobQueueingAndQueuedEventsAreSkippedWhenNoListenersAreRegistered(): void
+    {
+        $now = Carbon::now();
+        Carbon::setTestNow($now);
+        $uuid = $this->mockUuid();
+
+        $queue = $this->getMockBuilder(RedisQueue::class)->onlyMethods(['getRandomId'])->setConstructorArgs([$redis = m::mock(Redis::class), 'default', 'default'])->getMock();
+        $queue->expects($this->once())->method('getRandomId')->willReturn('foo');
+        $queue->setContainer($container = m::mock(Container::class));
+        $queue->setConnectionName('default');
+
+        $redisProxy = m::mock(RedisProxy::class);
+        $redisProxy->shouldReceive('eval')->once()->with(LuaScripts::push(), 2, 'queues:default', 'queues:default:notify', json_encode(['uuid' => $uuid, 'displayName' => 'foo', 'job' => 'foo', 'maxTries' => null, 'maxExceptions' => null, 'failOnTimeout' => false, 'backoff' => null, 'timeout' => null, 'data' => ['data'], 'createdAt' => $now->getTimestamp(), 'id' => 'foo', 'attempts' => 0, 'delay' => null]));
+        $redis->shouldReceive('connection')->once()->andReturn($redisProxy);
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturn(false)->once();
+        $events->shouldReceive('hasListeners')->with(JobQueued::class)->andReturn(false)->once();
+        $events->shouldNotReceive('dispatch');
+
+        $container->shouldReceive('bound')->with('events')->andReturn(true)->twice();
+        $container->shouldReceive('make')->with('events')->andReturn($events)->twice();
+
+        $id = $queue->push('foo', ['data']);
+        $this->assertSame('foo', $id);
     }
 
     public function testPushProperlyPushesJobOntoRedisWithTwoCustomPayloadHook()

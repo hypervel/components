@@ -12,6 +12,7 @@ use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
@@ -391,10 +392,16 @@ abstract class Queue
     protected function raiseJobQueueingEvent(?string $queue, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay): void
     {
         if ($this->container->bound('events')) {
+            /** @var EventDispatcher $events */
+            $events = $this->container->make('events');
+
+            if (! $events->hasListeners(JobQueueing::class)) {
+                return;
+            }
+
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $this->container['events']
-                ->dispatch(new JobQueueing($this->connectionName, $queue, $job, $payload, $delay));
+            $events->dispatch(new JobQueueing($this->connectionName, $queue, $job, $payload, $delay));
         }
     }
 
@@ -406,10 +413,16 @@ abstract class Queue
     protected function raiseJobQueuedEvent(?string $queue, mixed $jobId, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay): void
     {
         if ($this->container->bound('events')) {
+            /** @var EventDispatcher $events */
+            $events = $this->container->make('events');
+
+            if (! $events->hasListeners(JobQueued::class)) {
+                return;
+            }
+
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $this->container['events']
-                ->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
+            $events->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
         }
     }
 

@@ -25,6 +25,7 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Queue\Attributes\FailOnTimeout;
 use Hypervel\Queue\Attributes\MaxExceptions;
@@ -821,7 +822,7 @@ class Dispatcher implements DispatcherContract
 
         $delay = method_exists($listener, 'withDelay')
             ? (isset($arguments[0]) ? $listener->withDelay($arguments[0]) : $listener->withDelay())
-            : $listener->delay ?? null;
+            : $this->getAttributeValue($listener, Delay::class, 'delay');
 
         if (is_null($queue)) {
             $queue = $this->resolveQueueFromQueueRoute($listener) ?? null;

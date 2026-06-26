@@ -16,6 +16,7 @@ use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\QueueManager;
@@ -107,6 +108,40 @@ class QueuedEventsTest extends TestCase
         });
 
         $d->listen('some.event', TestDispatcherGetDelay::class . '@handle');
+        $d->dispatch('some.event', ['foo', 'bar']);
+    }
+
+    public function testDelayIsSetByAttribute(): void
+    {
+        $d = new Dispatcher;
+        $factory = m::mock(QueueFactory::class);
+        $queue = m::mock(Queue::class);
+
+        $factory->shouldReceive('connection')->once()->with(null)->andReturn($queue);
+        $queue->shouldReceive('laterOn')->once()->with(null, 30, m::type(CallQueuedListener::class));
+
+        $d->setQueueResolver(function () use ($factory) {
+            return $factory;
+        });
+
+        $d->listen('some.event', TestDispatcherGetDelayFromAttribute::class . '@handle');
+        $d->dispatch('some.event', ['foo', 'bar']);
+    }
+
+    public function testWithDelayOverridesDelayAttribute(): void
+    {
+        $d = new Dispatcher;
+        $factory = m::mock(QueueFactory::class);
+        $queue = m::mock(Queue::class);
+
+        $factory->shouldReceive('connection')->once()->with(null)->andReturn($queue);
+        $queue->shouldReceive('laterOn')->once()->with(null, 20, m::type(CallQueuedListener::class));
+
+        $d->setQueueResolver(function () use ($factory) {
+            return $factory;
+        });
+
+        $d->listen('some.event', TestDispatcherGetDelayMethodOverridesAttribute::class . '@handle');
         $d->dispatch('some.event', ['foo', 'bar']);
     }
 
@@ -653,6 +688,27 @@ class TestDispatcherGetDelay implements ShouldQueue
     }
 
     public function withDelay()
+    {
+        return 20;
+    }
+}
+
+#[Delay(30)]
+class TestDispatcherGetDelayFromAttribute implements ShouldQueue
+{
+    public function handle(): void
+    {
+    }
+}
+
+#[Delay(30)]
+class TestDispatcherGetDelayMethodOverridesAttribute implements ShouldQueue
+{
+    public function handle(): void
+    {
+    }
+
+    public function withDelay(): int
     {
         return 20;
     }

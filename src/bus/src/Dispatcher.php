@@ -13,6 +13,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Bus\PendingChain;
 use Hypervel\Pipeline\Pipeline;
 use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Queue\InteractsWithQueue;
@@ -204,8 +205,10 @@ class Dispatcher implements QueueingDispatcher
             ?? $this->resolveQueueFromQueueRoute($command)
             ?? null;
 
-        if (isset($command->delay)) {
-            return $queue->later($command->delay, $command, queue: $queueName);
+        $delay = $this->getAttributeValue($command, Delay::class, 'delay');
+
+        if (isset($delay)) {
+            return $queue->later($delay, $command, queue: $queueName);
         }
 
         return $queue->push($command, queue: $queueName);

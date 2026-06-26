@@ -16,8 +16,9 @@ use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\NotificationSender;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mailer\Exception\HttpTransportException;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Contracts\HttpClient\ResponseInterface;
@@ -229,6 +230,95 @@ class NotificationSenderTest extends TestCase
         $sender = new NotificationSender($manager, $bus, $events);
 
         $sender->send($notifiable, new DummyQueuedNotificationWithStringVia);
+    }
+
+    public function testItCanSendQueuedNotificationsWithDelayAttribute(): void
+    {
+        $notification = new #[Delay(30)] class extends Notification implements ShouldQueue {
+            use Queueable;
+
+            public function via(mixed $notifiable): string
+            {
+                return 'mail';
+            }
+        };
+
+        $notifiable = m::mock(Notifiable::class);
+        $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('getContainer')->andReturn(app());
+        $manager->shouldReceive('resolveQueueFromQueueRoute')->andReturn(null);
+        $manager->shouldReceive('resolveConnectionFromQueueRoute')->andReturn(null);
+
+        $bus = m::mock(BusDispatcherContract::class);
+        $bus->shouldReceive('dispatch')
+            ->once()
+            ->withArgs(function ($job) {
+                return $job->delay === 30;
+            });
+
+        $events = m::mock(Dispatcher::class);
+
+        $sender = new NotificationSender($manager, $bus, $events);
+
+        $sender->send($notifiable, $notification);
+    }
+
+    public function testQueuedNotificationWithDelayOverridesDelayAttribute(): void
+    {
+        $notification = new #[Delay(30)] class extends Notification implements ShouldQueue {
+            use Queueable;
+
+            public function via(mixed $notifiable): string
+            {
+                return 'mail';
+            }
+
+            public function withDelay(mixed $notifiable, string $channel): int
+            {
+                return 60;
+            }
+        };
+
+        $notifiable = m::mock(Notifiable::class);
+        $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('getContainer')->andReturn(app());
+        $manager->shouldReceive('resolveQueueFromQueueRoute')->andReturn(null);
+        $manager->shouldReceive('resolveConnectionFromQueueRoute')->andReturn(null);
+
+        $bus = m::mock(BusDispatcherContract::class);
+        $bus->shouldReceive('dispatch')
+            ->once()
+            ->withArgs(function ($job) {
+                return $job->delay === 60;
+            });
+
+        $events = m::mock(Dispatcher::class);
+
+        $sender = new NotificationSender($manager, $bus, $events);
+
+        $sender->send($notifiable, $notification);
+    }
+
+    public function testItCanSendQueuedNotificationsWithDelayProperty(): void
+    {
+        $notifiable = m::mock(Notifiable::class);
+        $manager = m::mock(ChannelManager::class);
+        $manager->shouldReceive('getContainer')->andReturn(app());
+        $manager->shouldReceive('resolveQueueFromQueueRoute')->andReturn(null);
+        $manager->shouldReceive('resolveConnectionFromQueueRoute')->andReturn(null);
+
+        $bus = m::mock(BusDispatcherContract::class);
+        $bus->shouldReceive('dispatch')
+            ->once()
+            ->withArgs(function ($job) {
+                return $job->delay === 45;
+            });
+
+        $events = m::mock(Dispatcher::class);
+
+        $sender = new NotificationSender($manager, $bus, $events);
+
+        $sender->send($notifiable, (new DummyQueuedNotificationWithStringVia)->delay(45));
     }
 
     public function testNotificationFailedSentWithoutHttpTransportException()

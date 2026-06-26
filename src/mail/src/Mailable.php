@@ -18,6 +18,9 @@ use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Contracts\Translation\HasLocalePreference;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Support\Collection;
 use Hypervel\Support\EncodedHtmlString;
 use Hypervel\Support\HtmlString;
@@ -26,6 +29,7 @@ use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Localizable;
 use Hypervel\Support\Traits\Macroable;
+use Hypervel\Support\Traits\ReadsClassAttributes;
 use Hypervel\Support\Traits\Tappable;
 use Hypervel\Testing\Constraints\SeeInOrder;
 use PHPUnit\Framework\Assert as PHPUnit;
@@ -38,7 +42,7 @@ use Symfony\Component\Mime\Address;
 
 class Mailable implements MailableContract, Renderable
 {
-    use Conditionable, ForwardsCalls, Localizable, Tappable, Macroable {
+    use Conditionable, ForwardsCalls, Localizable, ReadsClassAttributes, Tappable, Macroable {
         __call as macroCall;
     }
 
@@ -183,17 +187,19 @@ class Mailable implements MailableContract, Renderable
      */
     public function queue(QueueFactory $queue): mixed
     {
-        if (isset($this->delay)) {
-            return $this->later($this->delay, $queue);
+        $delay = $this->getAttributeValue($this, Delay::class, 'delay');
+
+        if (isset($delay)) {
+            return $this->later($delay, $queue);
         }
 
-        $connection = property_exists($this, 'connection') ? $this->connection : null;
+        $connection = $this->getAttributeValue($this, Connection::class, 'connection');
 
         if (is_null($connection) && method_exists($queue, 'resolveConnectionFromQueueRoute')) {
             $connection = $queue->resolveConnectionFromQueueRoute($this);
         }
 
-        $queueName = property_exists($this, 'queue') ? $this->queue : null;
+        $queueName = $this->getAttributeValue($this, QueueAttribute::class, 'queue');
 
         if (is_null($queueName) && method_exists($queue, 'resolveQueueFromQueueRoute')) {
             $queueName = $queue->resolveQueueFromQueueRoute($this);
@@ -210,9 +216,9 @@ class Mailable implements MailableContract, Renderable
      */
     public function later(DateInterval|DateTimeInterface|int $delay, QueueFactory $queue): mixed
     {
-        $connection = property_exists($this, 'connection') ? $this->connection : null;
+        $connection = $this->getAttributeValue($this, Connection::class, 'connection');
 
-        $queueName = property_exists($this, 'queue') ? $this->queue : null;
+        $queueName = $this->getAttributeValue($this, QueueAttribute::class, 'queue');
 
         if (is_null($connection) && method_exists($queue, 'resolveConnectionFromQueueRoute')) {
             $connection = $queue->resolveConnectionFromQueueRoute($this);
