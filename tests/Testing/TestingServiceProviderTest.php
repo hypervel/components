@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing;
 
+use Hypervel\Contracts\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\Console\TestCommand;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Testing\TestingServiceProvider;
 
@@ -50,6 +52,15 @@ class TestingServiceProviderTest extends TestCase
         $second = $this->app->make(ParallelTesting::class);
 
         $this->assertSame($first, $second);
+    }
+
+    public function testRegistersApplicationTestCommand()
+    {
+        /** @var array<string, object> $commands */
+        $commands = $this->app->make(ConsoleKernel::class)->all();
+
+        $this->assertArrayHasKey('test', $commands);
+        $this->assertInstanceOf(TestCommand::class, $commands['test']);
     }
 
     public function testCallbacksRegisteredViaServiceAreInvoked()
