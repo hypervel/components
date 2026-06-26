@@ -87,6 +87,10 @@ class InstallCommandTest extends TestCase
         $this->artisan('horizon:install')
             ->expectsOutputToContain('HorizonServiceProvider file was not published.')
             ->assertExitCode(HypervelCommand::FAILURE);
+
+        $providers = require $this->app->getBootstrapProvidersPath();
+
+        $this->assertNotContains('App\Providers\HorizonServiceProvider', $providers);
     }
 
     public function testInstallCommandFailsWhenBootstrapProvidersFileIsMissing(): void

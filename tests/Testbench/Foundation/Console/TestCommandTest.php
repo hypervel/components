@@ -50,6 +50,24 @@ class TestCommandTest extends TestCase
     }
 
     #[Test]
+    public function itFiltersParallelOnlyOptionsFromPhpunitArgumentsForPackageTests(): void
+    {
+        $command = new TestCommandHarness;
+
+        $arguments = $command->phpunitArgumentsPublic([
+            '--parallel',
+            '--drop-databases',
+            '--without-cache',
+            '--filter=Foundation',
+        ]);
+
+        $this->assertContains('--filter=Foundation', $arguments);
+        $this->assertNotContains('--parallel', $arguments);
+        $this->assertNotContains('--drop-databases', $arguments);
+        $this->assertNotContains('--without-cache', $arguments);
+    }
+
+    #[Test]
     public function itBuildsPhpunitEnvironmentVariablesForPackageTests(): void
     {
         $command = new TestCommandHarness(['profile' => true]);

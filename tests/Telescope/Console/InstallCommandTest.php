@@ -93,6 +93,10 @@ class InstallCommandTest extends TestCase
         $this->artisan('telescope:install')
             ->expectsOutputToContain('TelescopeServiceProvider file was not published.')
             ->assertExitCode(HypervelCommand::FAILURE);
+
+        $providers = require $this->app->getBootstrapProvidersPath();
+
+        $this->assertNotContains('App\Providers\TelescopeServiceProvider', $providers);
     }
 
     public function testInstallCommandFailsWhenBootstrapProvidersFileIsMissing(): void

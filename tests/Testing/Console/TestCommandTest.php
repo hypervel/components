@@ -149,6 +149,27 @@ class TestCommandTest extends TestCase
     }
 
     #[Test]
+    public function itFiltersParallelOnlyOptionsFromPhpunitArguments(): void
+    {
+        $this->writePhpunitConfiguration();
+
+        $command = new TestCommandHarness;
+        $command->setHypervel($this->app);
+
+        $arguments = $command->phpunitArgumentsPublic([
+            '--parallel',
+            '--drop-databases',
+            '--without-cache',
+            '--filter=Example',
+        ]);
+
+        $this->assertContains('--filter=Example', $arguments);
+        $this->assertNotContains('--parallel', $arguments);
+        $this->assertNotContains('--drop-databases', $arguments);
+        $this->assertNotContains('--without-cache', $arguments);
+    }
+
+    #[Test]
     public function itUsesTheRequestedEnvironmentForChildProcesses(): void
     {
         $this->writePhpunitConfiguration();

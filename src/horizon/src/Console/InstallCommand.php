@@ -67,13 +67,6 @@ class InstallCommand extends Command
     protected function registerHorizonServiceProvider(): bool
     {
         $namespace = Str::replaceLast('\\', '', $this->hypervel->getNamespace());
-
-        if (! ServiceProvider::addProviderToBootstrapFile("{$namespace}\\Providers\\HorizonServiceProvider")) {
-            $this->components->error('Unable to register HorizonServiceProvider in bootstrap/providers.php.');
-
-            return false;
-        }
-
         $providerPath = $this->hypervel->path('Providers/HorizonServiceProvider.php');
 
         if (! is_file($providerPath) || ! is_readable($providerPath)) {
@@ -96,6 +89,12 @@ class InstallCommand extends Command
             $contents,
         )) === false) {
             $this->components->error('Unable to update the HorizonServiceProvider namespace.');
+
+            return false;
+        }
+
+        if (! ServiceProvider::addProviderToBootstrapFile("{$namespace}\\Providers\\HorizonServiceProvider")) {
+            $this->components->error('Unable to register HorizonServiceProvider in bootstrap/providers.php.');
 
             return false;
         }

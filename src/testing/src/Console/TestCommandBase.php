@@ -236,6 +236,7 @@ abstract class TestCommandBase extends Command
         $filteredOptions = $this->filterForwardedArguments(
             arguments: $options,
             exact: ['-q', '--quiet', '--without-tty', '--coverage', '--profile', '--ansi', '--no-ansi'],
+            prefixes: ['-p', '--parallel', '--recreate-databases', '--drop-databases', '--without-databases', '--without-cache'],
             valueOptions: ['--env', '--min', '--configuration'],
         );
 
