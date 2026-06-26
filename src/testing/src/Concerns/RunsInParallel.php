@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Testing\Concerns;
 
 use Closure;
+use Hypervel\Contracts\Console\Kernel;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Testing\ParallelConsoleOutput;
@@ -125,6 +127,16 @@ trait RunsInParallel
     protected function createApplication(): \Hypervel\Contracts\Foundation\Application
     {
         $applicationResolver = static::$applicationResolver ?: function () {
+            $path = Application::inferBasePath() . '/bootstrap/app.php';
+
+            if (file_exists($path)) {
+                $app = require $path;
+
+                $app->make(Kernel::class)->bootstrap();
+
+                return $app;
+            }
+
             throw new RuntimeException('Parallel Runner unable to resolve application.');
         };
 
