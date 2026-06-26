@@ -9,6 +9,7 @@ use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueManager;
+use Hypervel\Contracts\Queue\Interruptible;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Coordinator\Timer;
@@ -24,6 +25,9 @@ use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobReleasedAfterException;
 use Hypervel\Queue\Events\JobTimedOut;
 use Hypervel\Queue\Events\Looping;
+use Hypervel\Queue\Events\WorkerInterrupted;
+use Hypervel\Queue\Events\WorkerPausing;
+use Hypervel\Queue\Events\WorkerResuming;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Support\Carbon;
@@ -159,7 +163,7 @@ class Worker
     public function daemon(string $connectionName, string $queue, WorkerOptions $options, ?callable $monitorTimeoutJobs = null): int
     {
         if ($this->supportsAsyncSignals()) {
-            $this->listenForSignals();
+            $this->listenForSignals($connectionName, $queue, $options);
         }
 
         $lastRestart = $this->getTimestampOfLastQueueRestart();
@@ -855,15 +859,82 @@ class Worker
     /**
      * Enable async signals for the process.
      */
-    protected function listenForSignals(): void
+    protected function listenForSignals(string $connectionName, string $queue, WorkerOptions $options): void
     {
         pcntl_async_signals(true);
 
-        pcntl_signal(SIGQUIT, fn () => $this->shouldQuit = true);
-        pcntl_signal(SIGTERM, fn () => $this->shouldQuit = true);
-        pcntl_signal(SIGINT, fn () => $this->shouldQuit = true);
-        pcntl_signal(SIGUSR2, fn () => $this->paused = true);
-        pcntl_signal(SIGCONT, fn () => $this->paused = false);
+        foreach ([SIGQUIT, SIGTERM, SIGINT] as $signal) {
+            pcntl_signal($signal, fn (int $signal) => $this->handleInterruptionSignal(
+                $signal,
+                $connectionName,
+                $queue,
+                $options
+            ));
+        }
+
+        pcntl_signal(SIGUSR2, fn () => $this->handlePauseSignal($connectionName, $queue, $options));
+        pcntl_signal(SIGCONT, fn () => $this->handleResumeSignal($connectionName, $queue, $options));
+    }
+
+    /**
+     * Handle a worker interruption signal.
+     */
+    protected function handleInterruptionSignal(int $signal, string $connectionName, string $queue, WorkerOptions $options): void
+    {
+        $this->shouldQuit = true;
+
+        $this->events->dispatch(new WorkerInterrupted($signal, $connectionName, $queue, $options));
+
+        $this->notifyJobsOfSignal($signal);
+    }
+
+    /**
+     * Handle a worker pause signal.
+     */
+    protected function handlePauseSignal(string $connectionName, string $queue, WorkerOptions $options): void
+    {
+        $this->paused = true;
+
+        $this->events->dispatch(new WorkerPausing($connectionName, $queue, $options));
+    }
+
+    /**
+     * Handle a worker resume signal.
+     */
+    protected function handleResumeSignal(string $connectionName, string $queue, WorkerOptions $options): void
+    {
+        $this->paused = false;
+
+        $this->events->dispatch(new WorkerResuming($connectionName, $queue, $options));
+    }
+
+    /**
+     * Pass the signal to the running jobs.
+     */
+    protected function notifyJobsOfSignal(int $signal): void
+    {
+        foreach ($this->runningJobs as $runningJob) {
+            /** @var JobContract $job */
+            $job = $runningJob['job'];
+
+            $getResolvedJob = [$job, 'getResolvedJob'];
+
+            if (! is_callable($getResolvedJob)) {
+                continue;
+            }
+
+            $handler = $getResolvedJob();
+
+            if (! $handler instanceof CallQueuedHandler) {
+                continue;
+            }
+
+            $command = $handler->getRunningCommand();
+
+            if ($command instanceof Interruptible) {
+                $command->interrupted($signal);
+            }
+        }
     }
 
     /**

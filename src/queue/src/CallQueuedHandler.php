@@ -29,6 +29,11 @@ use Throwable;
 class CallQueuedHandler
 {
     /**
+     * The command currently being processed.
+     */
+    protected mixed $runningCommand = null;
+
+    /**
      * Create a new handler instance.
      */
     public function __construct(
@@ -58,7 +63,13 @@ class CallQueuedHandler
             return;
         }
 
-        $this->dispatchThroughMiddleware($job, $command);
+        $this->runningCommand = $command;
+
+        try {
+            $this->dispatchThroughMiddleware($job, $command);
+        } finally {
+            $this->runningCommand = null;
+        }
 
         if (! $job->isReleased() && ! $this->commandShouldBeUniqueUntilProcessing($command)) {
             $this->ensureUniqueJobLockIsReleased($command);
@@ -367,5 +378,13 @@ class CallQueuedHandler
         if (method_exists($command, 'invokeChainCatchCallbacks')) {
             $command->invokeChainCatchCallbacks($e);
         }
+    }
+
+    /**
+     * Get the command currently being processed.
+     */
+    public function getRunningCommand(): mixed
+    {
+        return $this->runningCommand;
     }
 }

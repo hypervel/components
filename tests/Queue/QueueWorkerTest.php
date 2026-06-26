@@ -12,9 +12,11 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Queue\Interruptible;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Job as QueueJobContract;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
@@ -22,6 +24,9 @@ use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobReleasedAfterException;
 use Hypervel\Queue\Events\Looping;
+use Hypervel\Queue\Events\WorkerInterrupted;
+use Hypervel\Queue\Events\WorkerPausing;
+use Hypervel\Queue\Events\WorkerResuming;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\MaxAttemptsExceededException;
@@ -579,6 +584,112 @@ class QueueWorkerTest extends TestCase
         }));
     }
 
+    public function testWorkerInterruptionSignalDispatchesEventAndNotifiesRunningJobs(): void
+    {
+        $workerOptions = new WorkerOptions;
+        $interruptible = new class implements Interruptible {
+            public array $signals = [];
+
+            public function interrupted(int $signal): void
+            {
+                $this->signals[] = $signal;
+            }
+        };
+
+        $handler = m::mock(CallQueuedHandler::class);
+        $handler->shouldReceive('getRunningCommand')->once()->andReturn($interruptible);
+
+        $job = new WorkerFakeJob;
+        $job->resolvedJob = $handler;
+
+        $worker = $this->getWorker('default', ['queue' => []]);
+        $worker->registerCoroutineJobForTest($job, $workerOptions);
+        $worker->handleInterruptionSignalForTest(SIGTERM, 'default', 'queue', $workerOptions);
+
+        $this->assertTrue($worker->shouldQuit);
+        $this->assertSame([SIGTERM], $interruptible->signals);
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($workerOptions) {
+            return $event instanceof WorkerInterrupted
+                && $event->signal === SIGTERM
+                && $event->connectionName === 'default'
+                && $event->queue === 'queue'
+                && $event->workerOptions === $workerOptions;
+        }))->once();
+    }
+
+    public function testNotifyJobsOfSignalNotifiesEveryRunningInterruptibleJob(): void
+    {
+        $workerOptions = new WorkerOptions;
+        $firstInterruptible = new WorkerInterruptibleJob;
+        $secondInterruptible = new WorkerInterruptibleJob;
+
+        $worker = $this->getWorker('default', ['queue' => []]);
+        $worker->registerCoroutineJobForTest($this->workerJobWithRunningCommand($firstInterruptible), $workerOptions);
+        $worker->registerCoroutineJobForTest($this->workerJobWithRunningCommand($secondInterruptible), $workerOptions);
+
+        $worker->notifyJobsOfSignalForTest(SIGINT);
+
+        $this->assertSame([SIGINT], $firstInterruptible->signals);
+        $this->assertSame([SIGINT], $secondInterruptible->signals);
+    }
+
+    public function testNotifyJobsOfSignalIgnoresNonInterruptibleCommandsAndOtherHandlers(): void
+    {
+        $workerOptions = new WorkerOptions;
+        $nonInterruptible = new WorkerNonInterruptibleJob;
+
+        $worker = $this->getWorker('default', ['queue' => []]);
+        $worker->registerCoroutineJobForTest($this->workerJobWithRunningCommand($nonInterruptible), $workerOptions);
+
+        $otherHandlerJob = new WorkerFakeJob;
+        $otherHandlerJob->resolvedJob = new class {
+        };
+        $worker->registerCoroutineJobForTest($otherHandlerJob, $workerOptions);
+
+        $worker->notifyJobsOfSignalForTest(SIGQUIT);
+
+        $this->assertSame([], $nonInterruptible->signals);
+    }
+
+    public function testNotifyJobsOfSignalIgnoresJobsWithoutResolvedHandlers(): void
+    {
+        $workerOptions = new WorkerOptions;
+        $interruptible = new WorkerInterruptibleJob;
+
+        $worker = $this->getWorker('default', ['queue' => []]);
+        $worker->registerCoroutineJobForTest(new WorkerContractOnlyJob, $workerOptions);
+        $worker->registerCoroutineJobForTest($this->workerJobWithRunningCommand($interruptible), $workerOptions);
+
+        $worker->notifyJobsOfSignalForTest(SIGQUIT);
+
+        $this->assertSame([SIGQUIT], $interruptible->signals);
+    }
+
+    public function testWorkerPauseAndResumeSignalEventsCarryWorkerContext(): void
+    {
+        $workerOptions = new WorkerOptions;
+        $worker = $this->getWorker('default', ['queue' => []]);
+
+        $worker->handlePauseSignalForTest('default', 'queue', $workerOptions);
+        $this->assertTrue($worker->paused);
+
+        $worker->handleResumeSignalForTest('default', 'queue', $workerOptions);
+        $this->assertFalse($worker->paused);
+
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($workerOptions) {
+            return $event instanceof WorkerPausing
+                && $event->connectionName === 'default'
+                && $event->queue === 'queue'
+                && $event->workerOptions === $workerOptions;
+        }))->once();
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(function ($event) use ($workerOptions) {
+            return $event instanceof WorkerResuming
+                && $event->connectionName === 'default'
+                && $event->queue === 'queue'
+                && $event->workerOptions === $workerOptions;
+        }))->once();
+    }
+
     public function testJobReleasedEvent()
     {
         $e = new RuntimeException;
@@ -632,6 +743,17 @@ class QueueWorkerTest extends TestCase
 
         return $options;
     }
+
+    private function workerJobWithRunningCommand(object $command): WorkerFakeJob
+    {
+        $handler = m::mock(CallQueuedHandler::class);
+        $handler->shouldReceive('getRunningCommand')->once()->andReturn($command);
+
+        $job = new WorkerFakeJob;
+        $job->resolvedJob = $handler;
+
+        return $job;
+    }
 }
 
 /**
@@ -661,6 +783,31 @@ class InsomniacWorker extends Worker
     public function memoryExceeded(float $memoryLimit): bool
     {
         return $this->stopOnMemoryExceeded;
+    }
+
+    public function handleInterruptionSignalForTest(int $signal, string $connectionName, string $queue, WorkerOptions $options): void
+    {
+        parent::handleInterruptionSignal($signal, $connectionName, $queue, $options);
+    }
+
+    public function handlePauseSignalForTest(string $connectionName, string $queue, WorkerOptions $options): void
+    {
+        parent::handlePauseSignal($connectionName, $queue, $options);
+    }
+
+    public function handleResumeSignalForTest(string $connectionName, string $queue, WorkerOptions $options): void
+    {
+        parent::handleResumeSignal($connectionName, $queue, $options);
+    }
+
+    public function notifyJobsOfSignalForTest(int $signal): void
+    {
+        parent::notifyJobsOfSignal($signal);
+    }
+
+    public function registerCoroutineJobForTest(Job $job, WorkerOptions $options): string
+    {
+        return parent::registerCoroutineJob($job, $options);
     }
 }
 
@@ -840,6 +987,8 @@ class WorkerFakeJob implements QueueJobContract
 
     public $rawBody = '';
 
+    public mixed $resolvedJob = null;
+
     public function __construct($callback = null)
     {
         $this->callback = $callback ?: function () {
@@ -973,9 +1122,147 @@ class WorkerFakeJob implements QueueJobContract
         return $this->rawBody;
     }
 
+    public function getResolvedJob(): mixed
+    {
+        return $this->resolvedJob;
+    }
+
     public function timeout(): int
     {
         return time() + 60;
+    }
+}
+
+class WorkerContractOnlyJob implements QueueJobContract
+{
+    public function uuid(): ?string
+    {
+        return null;
+    }
+
+    public function getJobId(): int|string|null
+    {
+        return null;
+    }
+
+    public function payload(): array
+    {
+        return [];
+    }
+
+    public function fire(): void
+    {
+    }
+
+    public function release(int $delay = 0): void
+    {
+    }
+
+    public function isReleased(): bool
+    {
+        return false;
+    }
+
+    public function delete(): void
+    {
+    }
+
+    public function isDeleted(): bool
+    {
+        return false;
+    }
+
+    public function isDeletedOrReleased(): bool
+    {
+        return false;
+    }
+
+    public function attempts(): int
+    {
+        return 0;
+    }
+
+    public function hasFailed(): bool
+    {
+        return false;
+    }
+
+    public function markAsFailed(): void
+    {
+    }
+
+    public function fail(?Throwable $e = null): void
+    {
+    }
+
+    public function maxTries(): ?int
+    {
+        return null;
+    }
+
+    public function maxExceptions(): ?int
+    {
+        return null;
+    }
+
+    public function timeout(): ?int
+    {
+        return null;
+    }
+
+    public function retryUntil(): ?int
+    {
+        return null;
+    }
+
+    public function getName(): string
+    {
+        return self::class;
+    }
+
+    public function resolveName(): string
+    {
+        return self::class;
+    }
+
+    public function resolveQueuedJobClass(): string
+    {
+        return self::class;
+    }
+
+    public function getConnectionName(): string
+    {
+        return '';
+    }
+
+    public function getQueue(): string
+    {
+        return '';
+    }
+
+    public function getRawBody(): string
+    {
+        return '';
+    }
+}
+
+class WorkerInterruptibleJob implements Interruptible
+{
+    public array $signals = [];
+
+    public function interrupted(int $signal): void
+    {
+        $this->signals[] = $signal;
+    }
+}
+
+class WorkerNonInterruptibleJob
+{
+    public array $signals = [];
+
+    public function interrupted(int $signal): void
+    {
+        $this->signals[] = $signal;
     }
 }
 

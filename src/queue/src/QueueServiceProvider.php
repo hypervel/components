@@ -53,6 +53,7 @@ class QueueServiceProvider extends ServiceProvider
     {
         $this->configureSerializableClosureUses();
 
+        $this->registerCallQueuedHandler();
         $this->registerManager();
         $this->registerConnection();
         $this->registerWorker();
@@ -103,6 +104,15 @@ class QueueServiceProvider extends ServiceProvider
 
             return $data;
         });
+    }
+
+    /**
+     * Register the queued job handler.
+     */
+    protected function registerCallQueuedHandler(): void
+    {
+        $this->app->bind(CallQueuedHandler::class);
+        $this->app->bind('Illuminate\Queue\CallQueuedHandler', CallQueuedHandler::class);
     }
 
     /**

@@ -34,8 +34,6 @@
 
 ## Queue
 
-- Port queue interruption support. Laravel has `Illuminate\Contracts\Queue\Interruptible`, dispatches `WorkerInterrupted` when the worker receives `SIGQUIT`, `SIGTERM`, or `SIGINT`, and calls `interrupted($signal)` on the running queued command when it implements the contract. Hypervel's worker currently only flips `$shouldQuit` on those signals, has no `WorkerInterrupted` event, and never notifies the running command. Correct fix: add `Hypervel\Contracts\Queue\Interruptible`, port the event, track the current job/command path needed by `Worker::notifyJobOfSignal()`, dispatch the event, and call `interrupted($signal)` before the worker exits.
-
 ## Scheduling
 
 - Port `schedule:pause`, `schedule:continue`, and the `evenWhenPaused()` event modifier. The copied scheduling doc documents temporarily pausing scheduled task processing without redeploying, but Hypervel has no `SchedulePauseCommand` or `ScheduleContinueCommand`, and `Hypervel\Console\Scheduling\ManagesAttributes` has no `evenWhenPaused()` method. Correct fix: port Laravel's pause / continue commands using a cache flag, add the event modifier and pending-attribute merge behavior, gate the `schedule:run` loop so paused events are skipped unless they opt in, and port Laravel's matching coverage.
