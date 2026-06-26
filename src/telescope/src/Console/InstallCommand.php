@@ -26,37 +26,68 @@ class InstallCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): void
+    public function handle(): int
     {
         $this->components->info('Installing Telescope resources.');
 
-        collect([
-            'Service Provider' => fn (): bool => $this->callSilent('vendor:publish', ['--tag' => 'telescope-provider']) === 0,
-            'Configuration' => fn (): bool => $this->callSilent('vendor:publish', ['--tag' => 'telescope-config']) === 0,
-        ])->each(fn ($task, $description) => $this->components->task($description, $task));
+        if (! $this->publishResource('Service Provider', 'telescope-provider')
+            || ! $this->publishResource('Configuration', 'telescope-config')
+            || ! $this->publishMigrations()) {
+            return self::FAILURE;
+        }
 
-        $this->publishMigrations();
-
-        $this->registerTelescopeServiceProvider();
+        if (! $this->registerTelescopeServiceProvider()) {
+            return self::FAILURE;
+        }
 
         $this->components->info('Telescope scaffolding installed successfully.');
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Publish a Telescope resource.
+     */
+    protected function publishResource(string $description, string $tag): bool
+    {
+        $published = false;
+
+        $this->components->task($description, function () use (&$published, $tag): bool {
+            return $published = $this->callSilent('vendor:publish', ['--tag' => $tag]) === 0;
+        });
+
+        if (! $published) {
+            $this->components->error("Unable to publish Telescope {$description}.");
+        }
+
+        return $published;
     }
 
     /**
      * Publish the Telescope migrations.
      */
-    protected function publishMigrations(): void
+    protected function publishMigrations(): bool
     {
         if ($this->hasPublishedTelescopeMigration()) {
             $this->components->warn('Telescope migration already exists.');
 
-            return;
+            return true;
         }
+
+        $published = false;
 
         $this->components->task(
             'Migrations',
-            fn (): bool => $this->callSilent('vendor:publish', ['--tag' => 'telescope-migrations']) === 0
+            function () use (&$published): bool {
+                return $published = $this->callSilent('vendor:publish', ['--tag' => 'telescope-migrations']) === 0;
+            }
         );
+
+        if (! $published) {
+            $this->components->error('Unable to publish Telescope Migrations.');
+        }
+
+        return $published;
     }
 
     /**
@@ -79,16 +110,42 @@ class InstallCommand extends Command
     /**
      * Register the Telescope service provider in the application bootstrap file.
      */
-    protected function registerTelescopeServiceProvider(): void
+    protected function registerTelescopeServiceProvider(): bool
     {
         $namespace = Str::replaceLast('\\', '', $this->hypervel->getNamespace());
 
-        ServiceProvider::addProviderToBootstrapFile("{$namespace}\\Providers\\TelescopeServiceProvider");
+        if (! ServiceProvider::addProviderToBootstrapFile("{$namespace}\\Providers\\TelescopeServiceProvider")) {
+            $this->components->error('Unable to register TelescopeServiceProvider in bootstrap/providers.php.');
 
-        file_put_contents(app_path('Providers/TelescopeServiceProvider.php'), str_replace(
+            return false;
+        }
+
+        $providerPath = $this->hypervel->path('Providers/TelescopeServiceProvider.php');
+
+        if (! is_file($providerPath) || ! is_readable($providerPath)) {
+            $this->components->error('TelescopeServiceProvider file was not published.');
+
+            return false;
+        }
+
+        $contents = file_get_contents($providerPath);
+
+        if ($contents === false) {
+            $this->components->error('Unable to read the TelescopeServiceProvider file.');
+
+            return false;
+        }
+
+        if (file_put_contents($providerPath, str_replace(
             'namespace App\Providers;',
             "namespace {$namespace}\\Providers;",
-            file_get_contents(app_path('Providers/TelescopeServiceProvider.php'))
-        ));
+            $contents,
+        )) === false) {
+            $this->components->error('Unable to update the TelescopeServiceProvider namespace.');
+
+            return false;
+        }
+
+        return true;
     }
 }

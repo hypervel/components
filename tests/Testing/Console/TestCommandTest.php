@@ -40,6 +40,13 @@ class TestCommandTest extends TestCase
         $command->cleanupTemporaryConfigurationFilePublic();
 
         $this->assertFileDoesNotExist($configurationFile);
+
+        $nextArguments = $command->phpunitArgumentsPublic([]);
+        $nextConfigurationArgument = $this->firstConfigurationArgument($nextArguments);
+        $nextConfigurationFile = substr($nextConfigurationArgument, strlen('--configuration='));
+
+        $this->assertNotSame($configurationFile, $nextConfigurationFile);
+        $this->assertFileExists($nextConfigurationFile);
     }
 
     #[Test]
@@ -122,12 +129,16 @@ class TestCommandTest extends TestCase
             '--parallel',
             '--drop-databases',
             '--without-cache',
+            '--profile',
+            '--env=ci',
             '--filter=Example',
         ]);
         $variables = $command->paratestEnvironmentVariablesPublic();
 
         $this->assertContains('--runner=' . ParallelRunner::class, $arguments);
         $this->assertContains('--filter=Example', $arguments);
+        $this->assertNotContains('--profile', $arguments);
+        $this->assertNotContains('--env=ci', $arguments);
         $this->assertSame(1, $variables['HYPERVEL_PARALLEL_TESTING']);
         $this->assertTrue($variables['HYPERVEL_PARALLEL_TESTING_RECREATE_DATABASES']);
         $this->assertTrue($variables['HYPERVEL_PARALLEL_TESTING_DROP_DATABASES']);
@@ -135,6 +146,48 @@ class TestCommandTest extends TestCase
         $this->assertTrue($variables['HYPERVEL_PARALLEL_TESTING_WITHOUT_CACHE']);
         $this->assertSame('1', $variables[TestCommand::PROFILE_ENV]);
         $this->assertIsString($variables[TestCommand::PROFILE_DIRECTORY_ENV]);
+    }
+
+    #[Test]
+    public function itUsesTheRequestedEnvironmentForChildProcesses(): void
+    {
+        $this->writePhpunitConfiguration();
+
+        $command = new TestCommandHarness(['env' => 'ci']);
+        $command->setHypervel($this->app);
+
+        $phpunitArguments = $command->phpunitArgumentsPublic(['--env=ci', '--filter=Example']);
+        $paratestArguments = $command->paratestArgumentsPublic(['--env=ci', '--filter=Example']);
+
+        $this->assertSame('ci', $command->phpunitEnvironmentVariablesPublic()['APP_ENV']);
+        $this->assertSame('ci', $command->paratestEnvironmentVariablesPublic()['APP_ENV']);
+        $this->assertContains('--filter=Example', $phpunitArguments);
+        $this->assertContains('--filter=Example', $paratestArguments);
+        $this->assertNotContains('--env=ci', $phpunitArguments);
+        $this->assertNotContains('--env=ci', $paratestArguments);
+    }
+
+    #[Test]
+    public function itParsesTheConfiguredParatestConfigurationFile(): void
+    {
+        file_put_contents($this->app->basePath('phpunit.xml'), <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="vendor/autoload.php" cacheDirectory=".phpunit.cache">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>
+XML);
+        $this->writePhpunitConfiguration(file: 'custom-phpunit.xml');
+
+        $command = new TestCommandHarness(['configuration' => 'custom-phpunit.xml'], commonArguments: []);
+        $command->setHypervel($this->app);
+
+        $arguments = $command->paratestArgumentsPublic(['--configuration=custom-phpunit.xml']);
+
+        $this->assertContains('--cache-directory', $arguments);
     }
 
     #[Test]
@@ -169,9 +222,9 @@ class TestCommandTest extends TestCase
     /**
      * Write a PHPUnit configuration file into the disposable testbench app.
      */
-    protected function writePhpunitConfiguration(string $extensions = ''): void
+    protected function writePhpunitConfiguration(string $extensions = '', string $file = 'phpunit.xml'): void
     {
-        file_put_contents($this->app->basePath('phpunit.xml'), <<<XML
+        file_put_contents($this->app->basePath($file), <<<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit bootstrap="vendor/autoload.php">
     {$extensions}
@@ -284,6 +337,7 @@ final class TestCommandHarness extends TestCommand
     public function __construct(
         private readonly array $options = [],
         private readonly ?string $basePath = null,
+        private readonly ?array $commonArguments = null,
     ) {
         parent::__construct();
     }
@@ -308,6 +362,17 @@ final class TestCommandHarness extends TestCommand
     protected function usingPest(): bool
     {
         return false;
+    }
+
+    /**
+     * Get the common arguments of PHPUnit and Pest.
+     *
+     * @return array<int, string>
+     */
+    #[Override]
+    protected function commonArguments(): array
+    {
+        return $this->commonArguments ?? parent::commonArguments();
     }
 
     /**
@@ -351,6 +416,16 @@ final class TestCommandHarness extends TestCommand
     public function paratestArgumentsPublic(array $options): array
     {
         return $this->paratestArguments($options);
+    }
+
+    /**
+     * Expose PHPUnit environment variables.
+     *
+     * @return array<string, null|bool|int|string>
+     */
+    public function phpunitEnvironmentVariablesPublic(): array
+    {
+        return $this->phpunitEnvironmentVariables();
     }
 
     /**

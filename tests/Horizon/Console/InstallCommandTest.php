@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Horizon\Console;
 
+use Hypervel\Console\Command as HypervelCommand;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Horizon\Console\InstallCommand;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Testbench\TestCase;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
 class InstallCommandTest extends TestCase
 {
@@ -68,6 +71,33 @@ class InstallCommandTest extends TestCase
         );
     }
 
+    public function testInstallCommandFailsWhenPublishingFails(): void
+    {
+        $this->app->singleton(InstallCommand::class, FailingHorizonInstallCommand::class);
+
+        $this->artisan('horizon:install')
+            ->expectsOutputToContain('Unable to publish Horizon Service Provider.')
+            ->assertExitCode(HypervelCommand::FAILURE);
+    }
+
+    public function testInstallCommandFailsWhenProviderFileWasNotPublished(): void
+    {
+        $this->app->singleton(InstallCommand::class, MissingProviderHorizonInstallCommand::class);
+
+        $this->artisan('horizon:install')
+            ->expectsOutputToContain('HorizonServiceProvider file was not published.')
+            ->assertExitCode(HypervelCommand::FAILURE);
+    }
+
+    public function testInstallCommandFailsWhenBootstrapProvidersFileIsMissing(): void
+    {
+        unlink($this->app->getBootstrapProvidersPath());
+
+        $this->artisan('horizon:install')
+            ->expectsOutputToContain('Unable to register HorizonServiceProvider in bootstrap/providers.php.')
+            ->assertExitCode(HypervelCommand::FAILURE);
+    }
+
     /**
      * Get files published by the install command.
      *
@@ -79,5 +109,27 @@ class InstallCommandTest extends TestCase
             $this->app->configPath('horizon.php'),
             $this->app->path('Providers/HorizonServiceProvider.php'),
         ];
+    }
+}
+
+class FailingHorizonInstallCommand extends InstallCommand
+{
+    /**
+     * Call another console command silently.
+     */
+    public function callSilent(SymfonyCommand|string $command, array $arguments = []): int
+    {
+        return self::FAILURE;
+    }
+}
+
+class MissingProviderHorizonInstallCommand extends InstallCommand
+{
+    /**
+     * Call another console command silently.
+     */
+    public function callSilent(SymfonyCommand|string $command, array $arguments = []): int
+    {
+        return self::SUCCESS;
     }
 }

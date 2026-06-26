@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Console;
 
+use Hypervel\Console\Command as HypervelCommand;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Telescope\Console\InstallCommand;
 use Hypervel\Telescope\TelescopeServiceProvider;
 use Hypervel\Testbench\TestCase;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
 class InstallCommandTest extends TestCase
 {
@@ -74,6 +77,33 @@ class InstallCommandTest extends TestCase
         $this->assertCount(1, $this->publishedTelescopeMigrations());
     }
 
+    public function testInstallCommandFailsWhenPublishingFails(): void
+    {
+        $this->app->singleton(InstallCommand::class, FailingTelescopeInstallCommand::class);
+
+        $this->artisan('telescope:install')
+            ->expectsOutputToContain('Unable to publish Telescope Service Provider.')
+            ->assertExitCode(HypervelCommand::FAILURE);
+    }
+
+    public function testInstallCommandFailsWhenProviderFileWasNotPublished(): void
+    {
+        $this->app->singleton(InstallCommand::class, MissingProviderTelescopeInstallCommand::class);
+
+        $this->artisan('telescope:install')
+            ->expectsOutputToContain('TelescopeServiceProvider file was not published.')
+            ->assertExitCode(HypervelCommand::FAILURE);
+    }
+
+    public function testInstallCommandFailsWhenBootstrapProvidersFileIsMissing(): void
+    {
+        unlink($this->app->getBootstrapProvidersPath());
+
+        $this->artisan('telescope:install')
+            ->expectsOutputToContain('Unable to register TelescopeServiceProvider in bootstrap/providers.php.')
+            ->assertExitCode(HypervelCommand::FAILURE);
+    }
+
     public function testInstallCommandDoesNotRepublishExistingTelescopeMigration(): void
     {
         $this->artisan('telescope:install')->assertSuccessful();
@@ -104,5 +134,27 @@ class InstallCommandTest extends TestCase
             $this->app->path('Providers/TelescopeServiceProvider.php'),
             ...$this->publishedTelescopeMigrations(),
         ];
+    }
+}
+
+class FailingTelescopeInstallCommand extends InstallCommand
+{
+    /**
+     * Call another console command silently.
+     */
+    public function callSilent(SymfonyCommand|string $command, array $arguments = []): int
+    {
+        return self::FAILURE;
+    }
+}
+
+class MissingProviderTelescopeInstallCommand extends InstallCommand
+{
+    /**
+     * Call another console command silently.
+     */
+    public function callSilent(SymfonyCommand|string $command, array $arguments = []): int
+    {
+        return self::SUCCESS;
     }
 }

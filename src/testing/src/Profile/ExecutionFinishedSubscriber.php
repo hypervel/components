@@ -6,6 +6,7 @@ namespace Hypervel\Testing\Profile;
 
 use PHPUnit\Event\TestRunner\ExecutionFinished;
 use PHPUnit\Event\TestRunner\ExecutionFinishedSubscriber as ExecutionFinishedSubscriberContract;
+use RuntimeException;
 
 class ExecutionFinishedSubscriber implements ExecutionFinishedSubscriberContract
 {
@@ -29,8 +30,8 @@ class ExecutionFinishedSubscriber implements ExecutionFinishedSubscriberContract
             return;
         }
 
-        if (! is_dir($this->directory)) {
-            mkdir($this->directory, 0777, true);
+        if (! is_dir($this->directory) && ! @mkdir($this->directory, 0777, true) && ! is_dir($this->directory)) {
+            throw new RuntimeException(sprintf('Unable to create profile directory [%s].', $this->directory));
         }
 
         $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';

@@ -40,13 +40,13 @@ class TestingServiceProviderTest extends TestCase
         ];
     }
 
-    public function testRegistersParallelTestingSingleton()
+    public function testRegistersParallelTestingSingleton(): void
     {
         $this->assertTrue($this->app->bound(ParallelTesting::class));
         $this->assertInstanceOf(ParallelTesting::class, $this->app->make(ParallelTesting::class));
     }
 
-    public function testReturnsSameInstance()
+    public function testReturnsSameInstance(): void
     {
         $first = $this->app->make(ParallelTesting::class);
         $second = $this->app->make(ParallelTesting::class);
@@ -54,7 +54,7 @@ class TestingServiceProviderTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function testRegistersApplicationTestCommand()
+    public function testRegistersApplicationTestCommand(): void
     {
         /** @var array<string, object> $commands */
         $commands = $this->app->make(ConsoleKernel::class)->all();
@@ -63,7 +63,7 @@ class TestingServiceProviderTest extends TestCase
         $this->assertInstanceOf(TestCommand::class, $commands['test']);
     }
 
-    public function testCallbacksRegisteredViaServiceAreInvoked()
+    public function testCallbacksRegisteredViaServiceAreInvoked(): void
     {
         $_SERVER['HYPERVEL_PARALLEL_TESTING'] = true;
 

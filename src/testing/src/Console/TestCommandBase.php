@@ -85,6 +85,10 @@ abstract class TestCommandBase extends Command
 
         $parallel = (bool) $this->option('parallel');
 
+        if ($this->option('profile')) {
+            $this->ensureProfileDirectoryExists($this->profileDirectory());
+        }
+
         $process = (new Process(
             command: array_merge(
                 $this->binary(),
@@ -250,7 +254,7 @@ abstract class TestCommandBase extends Command
 
         $filteredOptions = $this->filterForwardedArguments(
             arguments: $options,
-            exact: ['--coverage', '-q', '--quiet', '--without-tty', '--ansi', '--no-ansi'],
+            exact: ['--coverage', '--profile', '-q', '--quiet', '--without-tty', '--ansi', '--no-ansi'],
             prefixes: ['-p', '--parallel', '--recreate-databases', '--drop-databases', '--without-databases', '--without-cache'],
             valueOptions: ['--env', '--min', '--configuration', '--runner'],
         );
@@ -263,7 +267,7 @@ abstract class TestCommandBase extends Command
 
         $inputDefinition = new InputDefinition;
         Options::setInputDefinition($inputDefinition);
-        $input = new ArgvInput($arguments, $inputDefinition);
+        $input = new ArgvInput(['paratest', ...$arguments], $inputDefinition);
         $paraTestOptions = Options::fromConsoleInput($input, $this->basePath());
 
         if (! $paraTestOptions->configuration->hasCoverageCacheDirectory()) {
@@ -368,8 +372,10 @@ abstract class TestCommandBase extends Command
      */
     protected function baseEnvironmentVariables(): Collection
     {
+        $environment = $this->option('env');
+
         return new Collection([
-            'APP_ENV' => 'testing',
+            'APP_ENV' => is_string($environment) && $environment !== '' ? $environment : 'testing',
         ]);
     }
 
@@ -466,6 +472,16 @@ abstract class TestCommandBase extends Command
     }
 
     /**
+     * Ensure the profile directory exists.
+     */
+    protected function ensureProfileDirectoryExists(string $directory): void
+    {
+        if (! is_dir($directory) && ! @mkdir($directory, 0777, true) && ! is_dir($directory)) {
+            throw new RuntimeException(sprintf('Unable to create profile directory [%s].', $directory));
+        }
+    }
+
+    /**
      * Add the profile extension to a temporary PHPUnit configuration file.
      */
     protected function profileConfigurationFile(string $file): string
@@ -519,8 +535,11 @@ abstract class TestCommandBase extends Command
      */
     protected function cleanupTemporaryConfigurationFile(): void
     {
-        if ($this->temporaryConfigurationFile !== null && is_file($this->temporaryConfigurationFile)) {
-            unlink($this->temporaryConfigurationFile);
+        $temporaryConfigurationFile = $this->temporaryConfigurationFile;
+        $this->temporaryConfigurationFile = null;
+
+        if ($temporaryConfigurationFile !== null && is_file($temporaryConfigurationFile)) {
+            unlink($temporaryConfigurationFile);
         }
     }
 
@@ -565,16 +584,19 @@ abstract class TestCommandBase extends Command
      */
     protected function cleanupProfileDirectory(): void
     {
-        if ($this->profileDirectory === null || ! is_dir($this->profileDirectory)) {
+        $profileDirectory = $this->profileDirectory;
+        $this->profileDirectory = null;
+
+        if ($profileDirectory === null || ! is_dir($profileDirectory)) {
             return;
         }
 
-        foreach (glob($this->profileDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $path) {
+        foreach (glob($profileDirectory . DIRECTORY_SEPARATOR . '*') ?: [] as $path) {
             if (is_file($path)) {
                 unlink($path);
             }
         }
 
-        rmdir($this->profileDirectory);
+        rmdir($profileDirectory);
     }
 }
