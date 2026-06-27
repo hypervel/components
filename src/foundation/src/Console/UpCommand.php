@@ -58,7 +58,7 @@ class UpCommand extends Command
      */
     protected function reloadWorkers(): void
     {
-        $pidFile = $this->hypervel->make('config')->get('server.settings.pid_file');
+        $pidFile = $this->hypervel->make('config')->string('server.settings.pid_file', '');
 
         if (empty($pidFile) || ! is_file($pidFile)) {
             return;

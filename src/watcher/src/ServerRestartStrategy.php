@@ -32,18 +32,18 @@ class ServerRestartStrategy implements RestartStrategy
     ) {
         $config = $container->make('config');
 
-        $pidFile = $config->get('server.settings.pid_file');
+        $pidFile = $config->string('server.settings.pid_file', '');
         if (empty($pidFile)) {
             throw new FileNotFoundException('The config of pid_file is not found.');
         }
 
-        if ($config->get('server.settings.daemonize', false)) {
+        if ($config->boolean('server.settings.daemonize', false)) {
             throw new InvalidArgumentException('Please set `server.settings.daemonize` to false');
         }
 
         $this->pidFile = $pidFile;
-        $this->bin = $config->get('watcher.bin', PHP_BINARY);
-        $this->command = $config->get('watcher.command', 'artisan serve');
+        $this->bin = $config->string('watcher.bin', PHP_BINARY);
+        $this->command = $config->string('watcher.command', 'artisan serve');
         $this->filesystem = new Filesystem;
         $this->channel = new Channel(1);
         $this->channel->push(true);

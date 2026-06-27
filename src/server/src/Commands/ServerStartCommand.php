@@ -57,7 +57,7 @@ class ServerStartCommand extends SymfonyCommand
             ->setEventDispatcher($this->container->make('events'))
             ->setLogger($this->container->make(StdoutLoggerInterface::class));
 
-        $serverConfig = $this->container->make('config')->get('server', []);
+        $serverConfig = $this->container->make('config')->array('server', []);
         if (! $serverConfig) {
             throw new InvalidArgumentException('At least one server should be defined.');
         }

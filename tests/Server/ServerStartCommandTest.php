@@ -56,7 +56,7 @@ class ServerStartCommandTest extends TestCase
         $serverFactory->shouldReceive('start')->once();
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('get')->once()->with('server', [])->andReturn(['http' => ['port' => 9501]]);
+        $config->shouldReceive('array')->once()->with('server', [])->andReturn(['http' => ['port' => 9501]]);
 
         $dispatcher = m::mock(DispatcherContract::class);
         $logger = m::mock(StdoutLoggerInterface::class);
