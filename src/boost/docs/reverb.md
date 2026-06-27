@@ -420,7 +420,7 @@ hypervel        hard  nofile  10000
 <a name="workers"></a>
 ### Workers
 
-Reverb runs on Swoole's native WebSocket server and shares the configured WebSocket port across your Swoole workers. Increasing the number of workers increases the amount of parallel work Reverb can perform, but each worker also uses its own memory. You may configure the worker count using the `SERVER_WORKERS_NUMBER` environment variable read by your application's `config/server.php` configuration file.
+Reverb runs on Swoole's native WebSocket server and shares the configured WebSocket port across your Swoole workers. Increasing the number of workers increases the amount of parallel work Reverb can perform, but each worker also uses its own memory. You may configure the worker count using the `SERVER_WORKERS` environment variable read by your application's `config/server.php` configuration file.
 
 In single-instance mode, Reverb uses a Swoole table to track channel subscription counts, presence member counts, webhook locks, and per-application connection limits across workers. The default table sizes are suitable for most applications, but you may tune them if you have a large number of channels or presence members:
 
