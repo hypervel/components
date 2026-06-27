@@ -109,9 +109,9 @@ class ReverbServiceProvider extends ServiceProvider
     protected function registerWebSocketServer(): void
     {
         $config = $this->app->make('config');
-        $reverbServer = $config->get('reverb.servers.reverb', []);
+        $reverbServer = $config->array('reverb.servers.reverb', []);
 
-        $servers = $config->get('server.servers', []);
+        $servers = $config->array('server.servers', []);
 
         $servers[] = [
             'name' => 'reverb',

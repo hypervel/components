@@ -90,13 +90,13 @@ class PermissionRegistrar
     public function initializeCache(): void
     {
         /** @var class-string<Permission> $permissionClass */
-        $permissionClass = $this->config->get('permission.models.permission', Permission::class);
+        $permissionClass = $this->config->string('permission.models.permission', Permission::class);
         /** @var class-string<Role> $roleClass */
-        $roleClass = $this->config->get('permission.models.role', Role::class);
+        $roleClass = $this->config->string('permission.models.role', Role::class);
         /** @var null|class-string<Model> $teamClass */
         $teamClass = $this->config->get('permission.models.team');
         /** @var class-string<PermissionsTeamResolver> $teamResolverClass */
-        $teamResolverClass = $this->config->get('permission.team_resolver', DefaultTeamResolver::class);
+        $teamResolverClass = $this->config->string('permission.team_resolver', DefaultTeamResolver::class);
 
         $this->permissionClass = $permissionClass;
         $this->roleClass = $roleClass;

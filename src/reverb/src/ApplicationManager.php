@@ -14,7 +14,7 @@ class ApplicationManager extends Manager
     public function createConfigDriver(): ConfigApplicationProvider
     {
         return new ConfigApplicationProvider(
-            collect($this->config->get('reverb.apps.apps', []))
+            collect($this->config->array('reverb.apps.apps', []))
         );
     }
 
@@ -23,6 +23,6 @@ class ApplicationManager extends Manager
      */
     public function getDefaultDriver(): string
     {
-        return $this->config->get('reverb.apps.provider', 'config');
+        return $this->config->string('reverb.apps.provider', 'config');
     }
 }
