@@ -75,7 +75,7 @@ class KeyNamingIntegrationTest extends RedisCacheIntegrationTestCase
 
         Cache::tags(['mytag'])->put('mykey', 'value', 60);
 
-        // In all mode, the ZSET stores the namespaced key (sha1 of tags + key)
+        // In all mode, the ZSET stores the namespaced key (xxh128 of tags + key)
         $entries = $this->getAllModeTagEntries('mytag');
         $this->assertCount(1, $entries);
     }

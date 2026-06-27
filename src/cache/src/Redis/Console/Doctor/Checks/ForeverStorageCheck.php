@@ -46,7 +46,7 @@ final class ForeverStorageCheck implements CheckInterface
             );
             $this->testAnyModeHashTtl($context, $result, $foreverTag, $foreverKey);
         } else {
-            // All mode: key is namespaced with sha1 of tag IDs
+            // All mode: key is namespaced with xxh128 of tag IDs
             $namespacedKey = $context->namespacedKey([$foreverTag], $foreverKey);
             $keyTtl = $context->redis->ttl($context->cachePrefix . $namespacedKey);
             $result->assert(

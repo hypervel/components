@@ -69,7 +69,7 @@ class StoreContext
     /**
      * Get the tag identifier (without cache prefix).
      *
-     * Used by All mode for namespace computation (sha1 of sorted tag IDs).
+     * Used by all mode for namespace computation (xxh128 of tag IDs in requested order).
      * Format: "_any:tag:{tagName}:entries" or "_all:tag:{tagName}:entries"
      */
     public function tagId(string $tag): string

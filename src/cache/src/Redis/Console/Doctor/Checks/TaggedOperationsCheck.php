@@ -40,7 +40,7 @@ final class TaggedOperationsCheck implements CheckInterface
             );
             $this->testAnyMode($context, $result, $tag, $key);
         } else {
-            // All mode: key is namespaced with sha1 of tags
+            // All mode: key is namespaced with xxh128 of tags
             // Direct get without tags will NOT find the item
             $result->assert(
                 $context->cache->get($key) === null,
