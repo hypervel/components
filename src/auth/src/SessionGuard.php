@@ -99,7 +99,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         $this->provider = $provider;
         $this->timebox = $timebox ?: new Timebox;
 
-        $classHash = sha1(static::class);
+        $classHash = hash('xxh128', static::class);
         $this->hashedName = 'login_' . $this->name . '_' . $classHash;
         $this->hashedRecallerName = 'remember_' . $this->name . '_' . $classHash;
     }
