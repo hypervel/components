@@ -473,7 +473,7 @@ class Event
     {
         if (is_null($this->output)) {
             $this->ensureOutputIsBeingCaptured = true;
-            $this->sendOutputTo(storage_path('logs/schedule-' . sha1($this->mutexName()) . '.log'));
+            $this->sendOutputTo(storage_path('logs/schedule-' . hash('xxh128', $this->mutexName()) . '.log'));
         }
     }
 
@@ -764,7 +764,7 @@ class Event
         }
 
         return 'framework' . DIRECTORY_SEPARATOR . 'schedule-'
-            . sha1($this->expression . static::normalizeCommand($this->command ?? ''));
+            . hash('xxh128', $this->expression . static::normalizeCommand($this->command ?? ''));
     }
 
     /**
