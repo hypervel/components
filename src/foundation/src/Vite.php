@@ -345,7 +345,7 @@ class Vite implements Htmlable
                 $manifest,
             ]);
 
-            foreach ($chunk['imports'] ?? [] as $import) {
+            foreach ($this->resolveImports($manifest, $chunk) as $import) {
                 $preloads->push([
                     $import,
                     $this->assetPath("{$buildDirectory}/{$manifest[$import]['file']}"),
@@ -625,6 +625,7 @@ class Vite implements Htmlable
             'crossorigin' => $this->resolveStylesheetTagAttributes($src, $url, $chunk, $manifest)['crossorigin'] ?? false,
         ] : [
             'rel' => 'modulepreload',
+            'as' => 'script',
             'href' => $url,
             'nonce' => $this->cspNonce() ?? false,
             'crossorigin' => $this->resolveScriptTagAttributes($src, $url, $chunk, $manifest)['crossorigin'] ?? false,
@@ -828,6 +829,30 @@ class Vite implements Htmlable
         }
 
         return md5_file($path) ?: null;
+    }
+
+    /**
+     * Recursively resolve all imports for the given chunk.
+     */
+    protected function resolveImports(array $manifest, array $chunk, array $seen = []): array
+    {
+        $imports = [];
+
+        foreach ($chunk['imports'] ?? [] as $import) {
+            if (isset($seen[$import])) {
+                continue;
+            }
+
+            $seen[$import] = true;
+
+            $imports[] = $import;
+
+            if (isset($manifest[$import])) {
+                $imports = array_merge($imports, $this->resolveImports($manifest, $manifest[$import], $seen));
+            }
+        }
+
+        return $imports;
     }
 
     /**

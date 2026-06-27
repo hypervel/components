@@ -86,6 +86,85 @@ class FoundationViteTest extends TestCase
         );
     }
 
+    public function testViteWithNestedCssImport(): void
+    {
+        $buildDir = Str::random();
+        $this->makeViteManifest([
+            'resources/js/app.js' => [
+                'src' => 'resources/js/app.js',
+                'file' => 'assets/app.versioned.js',
+                'imports' => [
+                    '_layout.js',
+                ],
+            ],
+            '_layout.js' => [
+                'file' => 'assets/layout.versioned.js',
+                'css' => [
+                    'assets/layout.versioned.css',
+                ],
+                'imports' => [
+                    '_header.js',
+                ],
+            ],
+            '_header.js' => [
+                'file' => 'assets/header.versioned.js',
+                'css' => [
+                    'assets/header.versioned.css',
+                ],
+            ],
+        ], $buildDir);
+
+        $result = app(Vite::class)(['resources/js/app.js'], $buildDir);
+
+        $this->assertStringEndsWith(
+            '<link rel="stylesheet" href="https://example.com/' . $buildDir . '/assets/layout.versioned.css" />'
+            . '<link rel="stylesheet" href="https://example.com/' . $buildDir . '/assets/header.versioned.css" />'
+            . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app.versioned.js"></script>',
+            $result->toHtml()
+        );
+    }
+
+    public function testViteWithCyclicNestedImports(): void
+    {
+        $buildDir = Str::random();
+        $this->makeViteManifest([
+            'resources/js/app.js' => [
+                'src' => 'resources/js/app.js',
+                'file' => 'assets/app.versioned.js',
+                'imports' => [
+                    '_layout.js',
+                ],
+            ],
+            '_layout.js' => [
+                'file' => 'assets/layout.versioned.js',
+                'imports' => [
+                    '_header.js',
+                ],
+            ],
+            '_header.js' => [
+                'file' => 'assets/header.versioned.js',
+                'css' => [
+                    'assets/header.versioned.css',
+                ],
+                'imports' => [
+                    '_layout.js',
+                ],
+            ],
+        ], $buildDir);
+
+        $result = app(Vite::class)(['resources/js/app.js'], $buildDir);
+
+        $this->assertSame(
+            '<link rel="preload" as="style" href="https://example.com/' . $buildDir . '/assets/header.versioned.css" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/app.versioned.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/layout.versioned.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/header.versioned.js" />'
+            . '<link rel="stylesheet" href="https://example.com/' . $buildDir . '/assets/header.versioned.css" />'
+            . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app.versioned.js"></script>',
+            $result->toHtml()
+        );
+    }
+
     public function testViteHotModuleReplacementWithJsOnly()
     {
         $this->makeViteHotFile();
@@ -714,15 +793,15 @@ class FoundationViteTest extends TestCase
 
         $this->assertSame(
             '<link rel="preload" as="style" href="https://example.com/' . $buildDir . '/assets/app.9842b564.css" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/Login.8c52c4a3.js" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/app.a26d8e4d.js" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/AuthenticationCard.47ef70cc.js" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/AuthenticationCardLogo.9999a373.js" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/Checkbox.33ba23f3.js" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/TextInput.e2f0248c.js" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/InputLabel.d245ec4e.js" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/PrimaryButton.931d2859.js" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/_plugin-vue_export-helper.cdc0426e.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/Login.8c52c4a3.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/app.a26d8e4d.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/AuthenticationCard.47ef70cc.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/_plugin-vue_export-helper.cdc0426e.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/AuthenticationCardLogo.9999a373.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/Checkbox.33ba23f3.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/TextInput.e2f0248c.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/InputLabel.d245ec4e.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/PrimaryButton.931d2859.js" />'
             . '<link rel="stylesheet" href="https://example.com/' . $buildDir . '/assets/app.9842b564.css" />'
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/Login.8c52c4a3.js"></script>',
             $result->toHtml()
@@ -734,30 +813,39 @@ class FoundationViteTest extends TestCase
             ],
             'https://example.com/' . $buildDir . '/assets/Login.8c52c4a3.js' => [
                 'rel="modulepreload"',
+                'as="script"',
             ],
             'https://example.com/' . $buildDir . '/assets/app.a26d8e4d.js' => [
                 'rel="modulepreload"',
+                'as="script"',
             ],
             'https://example.com/' . $buildDir . '/assets/AuthenticationCard.47ef70cc.js' => [
                 'rel="modulepreload"',
-            ],
-            'https://example.com/' . $buildDir . '/assets/AuthenticationCardLogo.9999a373.js' => [
-                'rel="modulepreload"',
-            ],
-            'https://example.com/' . $buildDir . '/assets/Checkbox.33ba23f3.js' => [
-                'rel="modulepreload"',
-            ],
-            'https://example.com/' . $buildDir . '/assets/TextInput.e2f0248c.js' => [
-                'rel="modulepreload"',
-            ],
-            'https://example.com/' . $buildDir . '/assets/InputLabel.d245ec4e.js' => [
-                'rel="modulepreload"',
-            ],
-            'https://example.com/' . $buildDir . '/assets/PrimaryButton.931d2859.js' => [
-                'rel="modulepreload"',
+                'as="script"',
             ],
             'https://example.com/' . $buildDir . '/assets/_plugin-vue_export-helper.cdc0426e.js' => [
                 'rel="modulepreload"',
+                'as="script"',
+            ],
+            'https://example.com/' . $buildDir . '/assets/AuthenticationCardLogo.9999a373.js' => [
+                'rel="modulepreload"',
+                'as="script"',
+            ],
+            'https://example.com/' . $buildDir . '/assets/Checkbox.33ba23f3.js' => [
+                'rel="modulepreload"',
+                'as="script"',
+            ],
+            'https://example.com/' . $buildDir . '/assets/TextInput.e2f0248c.js' => [
+                'rel="modulepreload"',
+                'as="script"',
+            ],
+            'https://example.com/' . $buildDir . '/assets/InputLabel.d245ec4e.js' => [
+                'rel="modulepreload"',
+                'as="script"',
+            ],
+            'https://example.com/' . $buildDir . '/assets/PrimaryButton.931d2859.js' => [
+                'rel="modulepreload"',
+                'as="script"',
             ],
         ], ViteFacade::preloadedAssets());
     }
@@ -852,8 +940,8 @@ class FoundationViteTest extends TestCase
 
         $this->assertSame(
             '<link rel="preload" as="style" href="https://example.com/' . $buildDir . '/assets/app.versioned.css" general="attribute" crossorigin data-persistent-across-pages="YES" keep-me empty-string="" zero="0" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/app.versioned.js" general="attribute" crossorigin data-persistent-across-pages="YES" keep-me empty-string="" zero="0" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/import.versioned.js" general="attribute" crossorigin data-persistent-across-pages="YES" keep-me empty-string="" zero="0" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/app.versioned.js" general="attribute" crossorigin data-persistent-across-pages="YES" keep-me empty-string="" zero="0" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/import.versioned.js" general="attribute" crossorigin data-persistent-across-pages="YES" keep-me empty-string="" zero="0" />'
             . '<link rel="stylesheet" href="https://example.com/' . $buildDir . '/assets/app.versioned.css" />'
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app.versioned.js"></script>',
             $result->toHtml()
@@ -872,6 +960,7 @@ class FoundationViteTest extends TestCase
             ],
             "https://example.com/{$buildDir}/assets/app.versioned.js" => [
                 'rel="modulepreload"',
+                'as="script"',
                 'general="attribute"',
                 'crossorigin',
                 'data-persistent-across-pages="YES"',
@@ -881,6 +970,7 @@ class FoundationViteTest extends TestCase
             ],
             "https://example.com/{$buildDir}/assets/import.versioned.js" => [
                 'rel="modulepreload"',
+                'as="script"',
                 'general="attribute"',
                 'crossorigin',
                 'data-persistent-across-pages="YES"',
@@ -1018,8 +1108,8 @@ class FoundationViteTest extends TestCase
 
         $this->assertSame(
             '<link rel="preload" as="style" href="https://example.com/' . $buildDir . '/assets/app.versioned.css" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/app.versioned.js" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/import.versioned.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/app.versioned.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/import.versioned.js" />'
             . '<link rel="stylesheet" href="https://example.com/' . $buildDir . '/assets/app.versioned.css" />'
             . '<link rel="stylesheet" href="https://example.com/' . $buildDir . '/assets/app-nopreload.versioned.css" />'
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app.versioned.js"></script>'
@@ -1034,9 +1124,11 @@ class FoundationViteTest extends TestCase
             ],
             "https://example.com/{$buildDir}/assets/app.versioned.js" => [
                 'rel="modulepreload"',
+                'as="script"',
             ],
             "https://example.com/{$buildDir}/assets/import.versioned.js" => [
                 'rel="modulepreload"',
+                'as="script"',
             ],
         ], ViteFacade::preloadedAssets());
     }
@@ -1063,7 +1155,7 @@ class FoundationViteTest extends TestCase
 
         $this->assertSame(
             '<link rel="preload" as="style" href="https://example.com/' . $buildDir . '/assets/app.versioned.css" nonce="expected-nonce" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/app.versioned.js" nonce="expected-nonce" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/app.versioned.js" nonce="expected-nonce" />'
             . '<link rel="stylesheet" href="https://example.com/' . $buildDir . '/assets/app.versioned.css" nonce="expected-nonce" />'
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app.versioned.js" nonce="expected-nonce"></script>',
             $result->toHtml()
@@ -1077,6 +1169,7 @@ class FoundationViteTest extends TestCase
             ],
             "https://example.com/{$buildDir}/assets/app.versioned.js" => [
                 'rel="modulepreload"',
+                'as="script"',
                 'nonce="expected-nonce"',
             ],
         ], ViteFacade::preloadedAssets());
@@ -1109,7 +1202,7 @@ class FoundationViteTest extends TestCase
 
         $this->assertSame(
             '<link rel="preload" as="style" href="https://example.com/' . $buildDir . '/assets/app.versioned.css" crossorigin="style-crossorigin" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/app.versioned.js" crossorigin="script-crossorigin" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/app.versioned.js" crossorigin="script-crossorigin" />'
             . '<link rel="stylesheet" href="https://example.com/' . $buildDir . '/assets/app.versioned.css" crossorigin="style-crossorigin" />'
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app.versioned.js" crossorigin="script-crossorigin"></script>',
             $result->toHtml()
@@ -1123,6 +1216,7 @@ class FoundationViteTest extends TestCase
             ],
             "https://example.com/{$buildDir}/assets/app.versioned.js" => [
                 'rel="modulepreload"',
+                'as="script"',
                 'crossorigin="script-crossorigin"',
             ],
         ], ViteFacade::preloadedAssets());
@@ -1147,7 +1241,7 @@ class FoundationViteTest extends TestCase
         $result = app(Vite::class)(['resources/js/app.js'], $buildDir);
 
         $this->assertSame(
-            '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/app-from-custom-manifest.versioned.js" />'
+            '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/app-from-custom-manifest.versioned.js" />'
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app-from-custom-manifest.versioned.js"></script>',
             $result->toHtml()
         );
@@ -1181,8 +1275,8 @@ class FoundationViteTest extends TestCase
 
         $this->assertSame(
             '<link rel="preload" as="style" href="https://example.com/' . $buildDir . '/assets/app-versioned.css" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/app-versioned.js" />'
-            . '<link rel="modulepreload" href="https://example.com/' . $buildDir . '/assets/Welcome-versioned.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/app-versioned.js" />'
+            . '<link rel="modulepreload" as="script" href="https://example.com/' . $buildDir . '/assets/Welcome-versioned.js" />'
             . '<link rel="stylesheet" href="https://example.com/' . $buildDir . '/assets/app-versioned.css" />'
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/app-versioned.js"></script>'
             . '<script type="module" src="https://example.com/' . $buildDir . '/assets/Welcome-versioned.js"></script>',
@@ -1196,9 +1290,11 @@ class FoundationViteTest extends TestCase
             ],
             "https://example.com/{$buildDir}/assets/app-versioned.js" => [
                 'rel="modulepreload"',
+                'as="script"',
             ],
             "https://example.com/{$buildDir}/assets/Welcome-versioned.js" => [
                 'rel="modulepreload"',
+                'as="script"',
             ],
         ], ViteFacade::preloadedAssets());
     }
@@ -1233,27 +1329,27 @@ class FoundationViteTest extends TestCase
         $html = (string) ViteFacade::withEntryPoints(['resources/js/app.js'])->useBuildDirectory($buildDir)->prefetch(concurrency: 3)->toHtml();
 
         $expectedAssets = Js::from([
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js", 'fetchpriority' => 'low'],
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js"),
         ]);
         $this->assertSame(<<<HTML
-        <link rel="preload" as="style" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><link rel="modulepreload" href="https://example.com/{$buildDir}/assets/app-lliD09ip.js" /><link rel="modulepreload" href="https://example.com/{$buildDir}/assets/index-BSdK3M0e.js" /><link rel="stylesheet" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><script type="module" src="https://example.com/{$buildDir}/assets/app-lliD09ip.js"></script>
+        <link rel="preload" as="style" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/app-lliD09ip.js" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/index-BSdK3M0e.js" /><link rel="stylesheet" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><script type="module" src="https://example.com/{$buildDir}/assets/app-lliD09ip.js"></script>
         <script>
              window.addEventListener('load', () => window.setTimeout(() => {
                 const makeLink = (asset) => {
@@ -1306,18 +1402,18 @@ class FoundationViteTest extends TestCase
         $html = (string) ViteFacade::withEntryPoints(['resources/js/app.js', 'resources/js/Pages/Auth/Login.vue'])->useBuildDirectory($buildDir)->prefetch(concurrency: 3)->toHtml();
 
         $expectedAssets = Js::from([
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js", 'fetchpriority' => 'low'],
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js"),
         ]);
         $this->assertStringContainsString(<<<JAVASCRIPT
                 loadNext({$expectedAssets}, 3)
@@ -1333,24 +1429,24 @@ class FoundationViteTest extends TestCase
         $html = (string) ViteFacade::withEntryPoints(['resources/js/app.js'])->useBuildDirectory($buildDir)->prefetch(concurrency: 10)->toHtml();
 
         $expectedAssets = Js::from([
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js", 'fetchpriority' => 'low'],
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js"),
         ]);
         $this->assertStringContainsString(<<<JAVASCRIPT
                 loadNext({$expectedAssets}, 10)
@@ -1366,28 +1462,28 @@ class FoundationViteTest extends TestCase
         $html = (string) ViteFacade::withEntryPoints(['resources/js/app.js'])->useBuildDirectory($buildDir)->prefetch()->toHtml();
 
         $expectedAssets = Js::from([
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js", 'fetchpriority' => 'low'],
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js"),
         ]);
 
         $this->assertSame(<<<HTML
-        <link rel="preload" as="style" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><link rel="modulepreload" href="https://example.com/{$buildDir}/assets/app-lliD09ip.js" /><link rel="modulepreload" href="https://example.com/{$buildDir}/assets/index-BSdK3M0e.js" /><link rel="stylesheet" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><script type="module" src="https://example.com/{$buildDir}/assets/app-lliD09ip.js"></script>
+        <link rel="preload" as="style" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/app-lliD09ip.js" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/index-BSdK3M0e.js" /><link rel="stylesheet" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><script type="module" src="https://example.com/{$buildDir}/assets/app-lliD09ip.js"></script>
         <script>
              window.addEventListener('load', () => window.setTimeout(() => {
                 const makeLink = (asset) => {
@@ -1417,24 +1513,24 @@ class FoundationViteTest extends TestCase
         $html = (string) tap(ViteFacade::withEntryPoints(['resources/js/app.js'])->useBuildDirectory($buildDir)->prefetch(concurrency: 3))->useCspNonce('abc123')->toHtml();
 
         $expectedAssets = Js::from([
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js", 'nonce' => 'abc123', 'fetchpriority' => 'low'],
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js", ['nonce' => 'abc123']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js", ['nonce' => 'abc123']),
         ]);
         $this->assertStringContainsString(<<<JAVASCRIPT
                 loadNext({$expectedAssets}, 3)
@@ -1456,24 +1552,24 @@ class FoundationViteTest extends TestCase
         ])->toHtml();
 
         $expectedAssets = Js::from([
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js", 'key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value', 'fetchpriority' => 'low'],
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js", ['key' => 'value', 'key-only' => 'key-only', 'true-value' => 'true-value']),
         ]);
 
         $this->assertStringContainsString(<<<JAVASCRIPT
@@ -1490,30 +1586,30 @@ class FoundationViteTest extends TestCase
         $html = (string) ViteFacade::withEntryPoints(['resources/js/admin.js'])->useBuildDirectory($buildDir)->prefetch(concurrency: 3)->toHtml();
 
         $expectedAssets = Js::from([
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/admin-runtime-import-CRvLQy6v.js", 'fetchpriority' => 'low'],
-            ['rel' => 'prefetch', 'href' => "https://example.com/{$buildDir}/assets/admin-runtime-import-import-DKMIaPXC.js", 'fetchpriority' => 'low'],
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ConfirmPassword-CDwcgU8E.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/GuestLayout-BY3LC-73.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/TextInput-C8CCB_U_.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/PrimaryButton-DuXwr-9M.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ApplicationLogo-BhIZH06z.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/_plugin-vue_export-helper-DlAUqK2U.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ForgotPassword-B0WWE0BO.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Login-DAFSdGSW.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Register-CfYQbTlA.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/ResetPassword-BNl7a4X1.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/VerifyEmail-CyukB_SZ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Dashboard-DM_LxQy2.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/AuthenticatedLayout-DfWF52N1.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Edit-CYV2sXpe.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/DeleteUserForm-B1oHFaVP.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdatePasswordForm-CaeWqGla.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/UpdateProfileInformationForm-CJwkYwQQ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/Welcome-D_7l79PQ.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/admin-runtime-import-CRvLQy6v.js"),
+            $this->prefetchScriptAsset("https://example.com/{$buildDir}/assets/admin-runtime-import-import-DKMIaPXC.js"),
             ['rel' => 'prefetch', 'as' => 'style', 'href' => "https://example.com/{$buildDir}/assets/admin-runtime-import-BlmN0T4U.css", 'fetchpriority' => 'low'],
         ]);
         $this->assertSame(<<<HTML
-        <link rel="preload" as="style" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><link rel="preload" as="style" href="https://example.com/{$buildDir}/assets/admin-BctAalm_.css" /><link rel="modulepreload" href="https://example.com/{$buildDir}/assets/admin-Sefg0Q45.js" /><link rel="modulepreload" href="https://example.com/{$buildDir}/assets/index-BSdK3M0e.js" /><link rel="stylesheet" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><link rel="stylesheet" href="https://example.com/{$buildDir}/assets/admin-BctAalm_.css" /><script type="module" src="https://example.com/{$buildDir}/assets/admin-Sefg0Q45.js"></script>
+        <link rel="preload" as="style" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><link rel="preload" as="style" href="https://example.com/{$buildDir}/assets/admin-BctAalm_.css" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/admin-Sefg0Q45.js" /><link rel="modulepreload" as="script" href="https://example.com/{$buildDir}/assets/index-BSdK3M0e.js" /><link rel="stylesheet" href="https://example.com/{$buildDir}/assets/index-B3s1tYeC.css" /><link rel="stylesheet" href="https://example.com/{$buildDir}/assets/admin-BctAalm_.css" /><script type="module" src="https://example.com/{$buildDir}/assets/admin-Sefg0Q45.js"></script>
         <script>
              window.addEventListener('load', () => window.setTimeout(() => {
                 const makeLink = (asset) => {
@@ -1667,6 +1763,17 @@ class FoundationViteTest extends TestCase
         }
 
         file_put_contents($path . '/' . $asset, $content);
+    }
+
+    protected function prefetchScriptAsset(string $url, array $attributes = []): array
+    {
+        return [
+            'rel' => 'prefetch',
+            'as' => 'script',
+            'href' => $url,
+            ...$attributes,
+            'fetchpriority' => 'low',
+        ];
     }
 
     protected function makeViteHotFile($path = null)

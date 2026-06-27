@@ -345,7 +345,13 @@ export default defineConfig({
     laravel({
       input: ['resources/js/app.ts'],
       ssr: 'resources/js/ssr.ts',
-      refresh: true,
+      refresh: [
+        'app/View/Components/**',
+        'lang/**',
+        'resources/lang/**',
+        'resources/views/**',
+        'routes/**',
+      ],
     }),
     svelte(),
   ],
@@ -561,7 +567,7 @@ These assets will now be processed by Vite when running `npm run build`. You can
 <a name="blade-refreshing-on-save"></a>
 ### Refreshing on Save
 
-When your application is built using traditional server-side rendering with Blade, Vite can improve your development workflow by automatically refreshing the browser when you make changes to view files in your application. To get started, you can simply specify the `refresh` option as `true`.
+When your application is built using traditional server-side rendering with Blade, Vite can improve your development workflow by automatically refreshing the browser when you make changes to view files in your application. To get started, specify the Hypervel paths that should trigger a full page refresh:
 
 ```js
 import { defineConfig } from 'vite';
@@ -571,13 +577,19 @@ export default defineConfig({
     plugins: [
         laravel({
             // ...
-            refresh: true,
+            refresh: [
+                'app/View/Components/**',
+                'lang/**',
+                'resources/lang/**',
+                'resources/views/**',
+                'routes/**',
+            ],
         }),
     ],
 });
 ```
 
-When the `refresh` option is `true`, saving files in the following directories will trigger the browser to perform a full page refresh while you are running `npm run dev`:
+With this configuration, saving files in the following directories will trigger the browser to perform a full page refresh while you are running `npm run dev`:
 
 - `app/View/Components/**`
 - `lang/**`
@@ -1079,7 +1091,13 @@ export default defineConfig({
     plugins: [
         laravel({
             input: 'resources/js/app.js',
-            refresh: true,
+            refresh: [
+                'app/View/Components/**',
+                'lang/**',
+                'resources/lang/**',
+                'resources/views/**',
+                'routes/**',
+            ],
         }),
     ],
     server: {  // [tl! add]
@@ -1103,7 +1121,13 @@ export default defineConfig({
     plugins: [
         laravel({
             input: 'resources/js/app.js',
-            refresh: true,
+            refresh: [
+                'app/View/Components/**',
+                'lang/**',
+                'resources/lang/**',
+                'resources/views/**',
+                'routes/**',
+            ],
         }),
     ],
     server: {  // [tl! add]
