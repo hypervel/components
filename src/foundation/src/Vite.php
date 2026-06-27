@@ -828,7 +828,7 @@ class Vite implements Htmlable
             return null;
         }
 
-        return md5_file($path) ?: null;
+        return hash_file('xxh128', $path) ?: null;
     }
 
     /**
