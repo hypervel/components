@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\Middleware\Authenticate;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Http\Request;
@@ -33,11 +34,23 @@ class FrontendRequestsAreStatefulTest extends TestCase
         ];
     }
 
-    public function setUp(): void
+    protected function setUp(): void
     {
         parent::setUp();
 
-        $this->app->make('config')->set([
+        $this->registerRoutes();
+    }
+
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            SanctumServiceProvider::class,
+        ];
+    }
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $app->make('config')->set([
             'auth.guards.sanctum.driver' => 'sanctum',
             'auth.guards.sanctum.provider' => 'users',
             'auth.providers.users.model' => User::class,
@@ -46,11 +59,6 @@ class FrontendRequestsAreStatefulTest extends TestCase
                 PreventRequestForgery::class,
             ],
         ]);
-
-        $this->app->make(SanctumServiceProvider::class)->register();
-        $this->app->make(SanctumServiceProvider::class)->boot();
-
-        $this->registerRoutes();
     }
 
     protected function registerRoutes(): void
@@ -101,7 +109,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
         }, ['middleware' => $apiMiddleware]);
     }
 
-    public function testMiddlewareKeepsSessionLoggedInWhenSanctumRequestChangesPassword()
+    public function testMiddlewareKeepsSessionLoggedInWhenSanctumRequestChangesPassword(): void
     {
         $user = $this->createUser();
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Sanctum\Sanctum;
@@ -25,25 +26,32 @@ class GuardTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->register(SanctumServiceProvider::class);
-
-        $this->app->make('config')
-            ->set([
-                'auth.guards.sanctum' => [
-                    'driver' => 'sanctum',
-                    'provider' => 'users',
-                ],
-                'auth.guards.web' => [
-                    'driver' => 'session',
-                    'provider' => 'users',
-                ],
-                'auth.providers.users.model' => TestUser::class,
-                'auth.providers.users.driver' => 'eloquent',
-                'sanctum.guard' => ['web'],
-            ]);
-
         $this->createUsersTable();
         $this->defineTestRoutes();
+    }
+
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            SanctumServiceProvider::class,
+        ];
+    }
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $app->make('config')->set([
+            'auth.guards.sanctum' => [
+                'driver' => 'sanctum',
+                'provider' => 'users',
+            ],
+            'auth.guards.web' => [
+                'driver' => 'session',
+                'provider' => 'users',
+            ],
+            'auth.providers.users.model' => TestUser::class,
+            'auth.providers.users.driver' => 'eloquent',
+            'sanctum.guard' => ['web'],
+        ]);
     }
 
     /**

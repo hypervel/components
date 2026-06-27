@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
@@ -14,20 +15,21 @@ use Symfony\Component\HttpFoundation\Cookie;
 
 class FrontendCookieHardeningTest extends TestCase
 {
-    protected function setUp(): void
+    protected function getPackageProviders(ApplicationContract $app): array
     {
-        parent::setUp();
+        return [
+            SanctumServiceProvider::class,
+        ];
+    }
 
-        $this->app->make('config')->set([
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $app->make('config')->set([
             'session.driver' => 'array',
             'session.http_only' => false,
             'session.same_site' => 'strict',
             'sanctum.stateful' => ['test.com'],
         ]);
-
-        $provider = $this->app->make(SanctumServiceProvider::class);
-        $provider->register();
-        $provider->boot();
     }
 
     public function testStatefulFrontendRequestForcesSecureSessionCookieAttributes(): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -11,29 +12,29 @@ use Hypervel\Tests\Sanctum\Fixtures\User;
 
 class ActingAsTest extends TestCase
 {
-    protected function setUp(): void
+    protected function getPackageProviders(ApplicationContract $app): array
     {
-        parent::setUp();
+        return [
+            SanctumServiceProvider::class,
+        ];
+    }
 
-        // Register the Sanctum service provider
-        $this->app->register(SanctumServiceProvider::class);
-
-        // Configure auth guards
-        $this->app->make('config')
-            ->set([
-                'auth.guards.sanctum' => [
-                    'driver' => 'sanctum',
-                    'provider' => 'users',
-                ],
-                'auth.guards.api' => [
-                    'driver' => 'sanctum',
-                    'provider' => 'users',
-                ],
-                'auth.providers.users' => [
-                    'driver' => 'eloquent',
-                    'model' => User::class,
-                ],
-            ]);
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $app->make('config')->set([
+            'auth.guards.sanctum' => [
+                'driver' => 'sanctum',
+                'provider' => 'users',
+            ],
+            'auth.guards.api' => [
+                'driver' => 'sanctum',
+                'provider' => 'users',
+            ],
+            'auth.providers.users' => [
+                'driver' => 'eloquent',
+                'model' => User::class,
+            ],
+        ]);
     }
 
     public function testActingAsSetsUserInContext(): void

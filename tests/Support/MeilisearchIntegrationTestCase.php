@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithMeilisearch;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -47,9 +48,18 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
         $this->meilisearchTestPrefix = $this->testPrefix; // Sync trait's prefix
 
         parent::setUp();
+    }
 
-        $this->app->register(ScoutServiceProvider::class);
-        $this->configureMeilisearch();
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            ScoutServiceProvider::class,
+        ];
+    }
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $this->configureMeilisearch($app);
     }
 
     /**
@@ -90,9 +100,9 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
     /**
      * Configure Meilisearch from environment variables.
      */
-    protected function configureMeilisearch(): void
+    protected function configureMeilisearch(ApplicationContract $app): void
     {
-        $config = $this->app->make('config');
+        $config = $app->make('config');
 
         $host = env('MEILISEARCH_HOST', '127.0.0.1');
         $port = env('MEILISEARCH_PORT', '7700');
