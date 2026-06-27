@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
@@ -23,6 +24,11 @@ use Mockery\LegacyMockInterface;
  */
 class CacheManager implements FactoryContract
 {
+    /**
+     * The context key prefix for memoized cache repositories.
+     */
+    protected const MEMOIZED_CONTEXT_KEY_PREFIX = '__cache.memoized.';
+
     /**
      * The array of resolved cache stores.
      */
@@ -61,28 +67,39 @@ class CacheManager implements FactoryContract
 
     /**
      * Get a memoized cache driver instance.
+     *
+     * The memoized repository is isolated to the current coroutine and resets
+     * when the coroutine ends.
      */
     public function memo(?string $driver = null): CacheRepository
     {
         $driver = $driver ?? $this->getDefaultDriver();
 
-        $bindingKey = "cache.__memoized:{$driver}";
+        // Laravel uses a scoped container binding here. Hypervel stores this
+        // directly in coroutine context because coroutine teardown is the
+        // request reset boundary.
+        return CoroutineContext::getOrSet(
+            self::MEMOIZED_CONTEXT_KEY_PREFIX . $driver,
+            fn (): CacheRepository => $this->createMemoizedRepository($driver),
+        );
+    }
 
+    /**
+     * Create a memoized repository for the given driver.
+     */
+    protected function createMemoizedRepository(string $driver): CacheRepository
+    {
         $isSpy = isset($this->app['cache']) && $this->app['cache'] instanceof LegacyMockInterface;
 
-        $this->app->scopedIf($bindingKey, function () use ($driver, $isSpy) {
-            /** @var Repository $store */
-            $store = $this->store($driver);
+        /** @var Repository $store */
+        $store = $this->store($driver);
 
-            $repository = $this->repository(
-                new MemoizedStore($driver, $store),
-                ['events' => false]
-            );
+        $repository = $this->repository(
+            new MemoizedStore($driver, $store),
+            ['events' => false]
+        );
 
-            return $isSpy ? Mockery::spy($repository) : $repository;
-        });
-
-        return $this->app->make($bindingKey);
+        return $isSpy ? Mockery::spy($repository) : $repository;
     }
 
     /**
