@@ -13,7 +13,7 @@ namespace Hypervel\Support\Facades;
  * @method static mixed getRequire(string $path, array $data = [])
  * @method static mixed requireOnce(string $path, array $data = [])
  * @method static \Hypervel\Support\LazyCollection lines(string $path)
- * @method static string|false hash(string $path, string $algorithm = 'md5')
+ * @method static string|false hash(string $path, string $algorithm = 'xxh128')
  * @method static bool|int put(string $path, resource|string $contents, bool $lock = false)
  * @method static void replace(string $path, string $content, int|null $mode = null)
  * @method static void replaceInFile(array|string $search, array|string $replace, string $path)
