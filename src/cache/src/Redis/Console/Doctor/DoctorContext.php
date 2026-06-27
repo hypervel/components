@@ -69,8 +69,8 @@ final class DoctorContext
     /**
      * Compute the namespaced key for a tagged cache item in all mode.
      *
-     * In all mode, cache keys are prefixed with sha1 of sorted tag IDs.
-     * Format: "{sha1}:{key}"
+     * In all mode, cache keys are prefixed with xxh128 of tag IDs in the requested order.
+     * Format: "{xxh128}:{key}"
      *
      * @param array<string> $tags The tag names
      * @param string $key The cache key
@@ -78,9 +78,7 @@ final class DoctorContext
      */
     public function namespacedKey(array $tags, string $key): string
     {
-        $tagIds = array_map(fn (string $tag) => $this->tagId($tag), $tags);
-        sort($tagIds);
-        $namespace = sha1(implode('|', $tagIds));
+        $namespace = hash('xxh128', $this->cache->tags($tags)->getTags()->getNamespace());
 
         return $namespace . ':' . $key;
     }

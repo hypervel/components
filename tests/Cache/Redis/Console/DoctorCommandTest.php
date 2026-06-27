@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Console;
 
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
@@ -257,6 +258,27 @@ class DoctorCommandTest extends TestCase
         $this->assertSame(1, $result);
         $outputText = $output->fetch();
         $this->assertStringContainsString('Could not detect', $outputText);
+    }
+
+    public function testDoctorContextNamespacedKeyMatchesTaggedCacheNamespaceOrder(): void
+    {
+        $repository = new Repository(new ArrayStore);
+        $store = m::mock(RedisStore::class);
+        $redis = m::mock(PhpRedisConnection::class);
+
+        $context = new DoctorContext($repository, $store, $redis, 'prefix:', 'array');
+
+        $repository->tags(['beta', 'alpha'])->put('key', 'value', 60);
+
+        $this->assertSame(
+            $repository->tags(['beta', 'alpha'])->taggedItemKey('key'),
+            $context->namespacedKey(['beta', 'alpha'], 'key')
+        );
+
+        $this->assertNotSame(
+            $repository->tags(['alpha', 'beta'])->taggedItemKey('key'),
+            $context->namespacedKey(['beta', 'alpha'], 'key')
+        );
     }
 
     public function testDoctorDisplaysSystemInformation(): void
