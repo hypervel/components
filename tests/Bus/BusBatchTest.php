@@ -64,6 +64,16 @@ class BusBatchTest extends TestCase
         unset($_SERVER['__finally.batch'], $_SERVER['__progress.batch'], $_SERVER['__then.batch'], $_SERVER['__catch.batch'], $_SERVER['__catch.exception']);
     }
 
+    public function testBatchRepositoryUsesDefaultDatabaseConnectionWhenBatchingDatabaseIsNull(): void
+    {
+        $this->app->make('config')->set('queue.batching.database', null);
+        $this->app->forgetInstance(DatabaseBatchRepository::class);
+
+        $repository = $this->app->make(DatabaseBatchRepository::class);
+
+        $this->assertSame($this->app->make('db')->connection(), $repository->connection());
+    }
+
     public function testJobsCanBeAddedToTheBatch()
     {
         $queue = m::mock(Factory::class);

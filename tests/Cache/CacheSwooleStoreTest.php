@@ -9,9 +9,11 @@ use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use Swoole\Table;
 
@@ -45,6 +47,23 @@ class CacheSwooleStoreTest extends TestCase
         $store = $this->createStore($table);
 
         $this->assertNull($store->get('foo'));
+    }
+
+    public function testMissingSwooleTableConfigThrowsTableNotDefinedException(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('get')
+            ->once()
+            ->with('cache.swoole_tables.missing')
+            ->andReturn(null);
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Swoole table [missing] is not defined.');
+
+        (new SwooleTableManager($container))->get('missing');
     }
 
     public function testExpiredItemsReturnNull()

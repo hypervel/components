@@ -304,7 +304,7 @@ abstract class ServiceProvider
     {
         $this->publishes($paths, $groups);
 
-        if ($this->app->make('config')->get('database.migrations.update_date_on_publish', false)) {
+        if ($this->app->make('config')->boolean('database.migrations.update_date_on_publish', false)) {
             static::$publishableMigrationPaths = array_unique(
                 array_merge(
                     static::$publishableMigrationPaths,

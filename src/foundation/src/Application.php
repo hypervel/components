@@ -888,7 +888,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function registerConfiguredProviders(): void
     {
-        $providers = (new Collection($this->make('config')->get('app.providers', [])))
+        $providers = (new Collection($this->make('config')->array('app.providers', [])))
             ->partition(fn (string $provider) => str_starts_with($provider, 'Hypervel\\'));
 
         $discovered = static::sortByPriority($this->discoverProviders());

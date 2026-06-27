@@ -18,8 +18,8 @@ class RegisterProvidersTest extends TestCase
     {
         $mergedProviders = null;
         $config = m::mock(Repository::class);
-        $config->shouldReceive('get')
-            ->with('app.providers')
+        $config->shouldReceive('array')
+            ->with('app.providers', ServiceProvider::defaultProviders()->toArray())
             ->andReturn([
                 TestTwoServiceProvider::class,
             ]);
@@ -29,7 +29,7 @@ class RegisterProvidersTest extends TestCase
             ->andReturnUsing(function (string $key, array $value) use (&$mergedProviders) {
                 $mergedProviders = $value;
             });
-        $config->shouldReceive('get')
+        $config->shouldReceive('array')
             ->with('app.providers', [])
             ->andReturnUsing(function () use (&$mergedProviders) {
                 return $mergedProviders ?? [];

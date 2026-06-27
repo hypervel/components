@@ -174,7 +174,7 @@ class SentryServiceProvider extends ServiceProvider
             $clientBuilder->setSdkVersion(Version::SDK_VERSION);
 
             // Set the pooled transport for async sending via Swoole coroutines
-            $poolConfig = $this->app->make('config')->get('sentry.pool', []);
+            $poolConfig = $this->app->make('config')->array('sentry.pool', []);
             $transport = new HttpPoolTransport(
                 new Pool($clientBuilder->getOptions(), $this->app, $poolConfig)
             );
@@ -454,7 +454,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerFeatures(): void
     {
-        $features = $this->app->make('config')->get('sentry.features', []);
+        $features = $this->app->make('config')->array('sentry.features', []);
 
         foreach ($features as $feature) {
             $this->app->singleton($feature);
@@ -479,7 +479,7 @@ class SentryServiceProvider extends ServiceProvider
     {
         $bootActive = $this->hasDsnSet() || $this->hasSpotlightEnabled();
 
-        $features = $this->app->make('config')->get('sentry.features', []);
+        $features = $this->app->make('config')->array('sentry.features', []);
 
         foreach ($features as $feature) {
             try {

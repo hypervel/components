@@ -114,7 +114,7 @@ trait CreatesApplication
      */
     protected function getApplicationProviders(ApplicationContract $app): array
     {
-        return $app->make('config')->get('app.providers', []);
+        return $app->make('config')->array('app.providers', []);
     }
 
     /**

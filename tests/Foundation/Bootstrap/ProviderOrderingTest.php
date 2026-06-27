@@ -141,6 +141,7 @@ use App\Providers\ProviderOrderingTest\AppBetaProvider;
 use Hypervel\Config\Repository;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
+use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use ReflectionMethod;
@@ -412,15 +413,15 @@ class ProviderOrderingTest extends TestCase
         $mergedProviders = null;
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('get')
-            ->with('app.providers')
+        $config->shouldReceive('array')
+            ->with('app.providers', ServiceProvider::defaultProviders()->toArray())
             ->andReturn($configProviders);
         $config->shouldReceive('set')
             ->with('app.providers', m::type('array'))
             ->andReturnUsing(function (string $key, array $value) use (&$mergedProviders) {
                 $mergedProviders = $value;
             });
-        $config->shouldReceive('get')
+        $config->shouldReceive('array')
             ->with('app.providers', [])
             ->andReturnUsing(function () use (&$mergedProviders) {
                 return $mergedProviders ?? [];

@@ -59,7 +59,7 @@ class HttpServiceProvider extends ServiceProvider
     {
         $this->app->bind('request', function ($app) {
             return RequestContext::getOrNull()
-                ?? Request::create($app->make('config')->get('app.url', 'http://localhost'));
+                ?? Request::create($app->make('config')->string('app.url', 'http://localhost'));
         });
     }
 

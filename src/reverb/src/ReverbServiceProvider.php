@@ -61,7 +61,7 @@ class ReverbServiceProvider extends ServiceProvider
             'reverb'
         );
 
-        if (! $this->app->make('config')->get('reverb.enabled', true)) {
+        if (! $this->app->make('config')->boolean('reverb.enabled', true)) {
             return;
         }
 
@@ -85,8 +85,8 @@ class ReverbServiceProvider extends ServiceProvider
         $this->app->singleton(DeferredWebhookManager::class);
 
         $this->app->singleton(WebhookBatchBuffer::class, function ($app) {
-            $connectionName = (string) $app->make('config')
-                ->get('reverb.servers.reverb.scaling.connection', 'reverb');
+            $connectionName = $app->make('config')
+                ->string('reverb.servers.reverb.scaling.connection', 'reverb');
 
             return new WebhookBatchBuffer(
                 $app->make('redis')->connection($connectionName)
@@ -217,7 +217,7 @@ class ReverbServiceProvider extends ServiceProvider
      */
     protected function registerRoutes(ReverbRouter $router): void
     {
-        $path = $this->app->make('config')->get('reverb.servers.reverb.path', '');
+        $path = $this->app->make('config')->string('reverb.servers.reverb.path', '');
 
         $router->prefix($path)->group(function () use ($router) {
             $router->get('/app/{appKey}', WebSocketHandler::class);
@@ -247,7 +247,7 @@ class ReverbServiceProvider extends ServiceProvider
             ], ['reverb', 'reverb-config']);
         }
 
-        if (! $this->app->make('config')->get('reverb.enabled', true)) {
+        if (! $this->app->make('config')->boolean('reverb.enabled', true)) {
             return;
         }
 
