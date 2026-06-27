@@ -52,13 +52,13 @@ class ScanFileDriverTest extends TestCase
         $logger = ContainerStub::getLogger();
         $logger->shouldReceive('warning')->andReturn(null);
 
-        // Anonymous stub that returns different MD5 maps on successive calls.
+        // Anonymous stub that returns different file hash maps on successive calls.
         // Tick 1: {A, C} — establishes baseline.
         // Tick 2: {A, B, C_changed} — B is added, C is modified, A is unchanged.
         $driver = new class($option, $logger) extends ScanFileDriver {
             private int $callCount = 0;
 
-            protected function getWatchMD5(): array
+            protected function getWatchFileHashes(): array
             {
                 return match (++$this->callCount) {
                     1 => ['/tmp/A.php' => 'hash_a', '/tmp/C.php' => 'hash_c'],

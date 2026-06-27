@@ -12,7 +12,7 @@ return [
     |
     | The driver used to detect file changes. Available drivers:
     |
-    | - ScanFileDriver: Cross-platform, polls files using MD5 checksums.
+    | - ScanFileDriver: Cross-platform, polls files using file hashes.
     | - FindDriver: Uses `find -mmin` (Linux) or `gfind` (macOS via Homebrew).
     | - FindNewerDriver: Uses `find -newer` with a reference file for comparison.
     | - FswatchDriver: Uses `fswatch` (macOS native or Linux via `apt`/`brew`).

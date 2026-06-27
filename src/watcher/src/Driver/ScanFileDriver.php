@@ -14,7 +14,7 @@ class ScanFileDriver extends AbstractDriver
 {
     protected Filesystem $filesystem;
 
-    protected ?array $lastMD5 = null;
+    protected ?array $lastFileHashes = null;
 
     public function __construct(protected Option $option, private StdoutLoggerInterface $logger)
     {
@@ -23,27 +23,27 @@ class ScanFileDriver extends AbstractDriver
     }
 
     /**
-     * Watch for file changes by polling MD5 checksums.
+     * Watch for file changes by polling file hashes.
      */
     public function watch(Channel $channel): void
     {
         $seconds = $this->option->getScanIntervalSeconds();
         $this->timerId = $this->timer->tick($seconds, function () use ($channel) {
-            $currentMD5 = $this->getWatchMD5();
-            if ($this->lastMD5 && $this->lastMD5 !== $currentMD5) {
+            $currentFileHashes = $this->getWatchFileHashes();
+            if ($this->lastFileHashes && $this->lastFileHashes !== $currentFileHashes) {
                 // Added files (in current but not in last).
-                $addedFiles = array_diff_key($currentMD5, $this->lastMD5);
-                foreach ($addedFiles as $pathName => $md5) {
+                $addedFiles = array_diff_key($currentFileHashes, $this->lastFileHashes);
+                foreach (array_keys($addedFiles) as $pathName) {
                     $channel->push($pathName);
                 }
 
                 // Deleted files (in last but not in current).
-                $deletedFiles = array_diff_key($this->lastMD5, $currentMD5);
+                $deletedFiles = array_diff_key($this->lastFileHashes, $currentFileHashes);
 
                 // Modified files (same path, different hash).
                 $modifiedFiles = [];
-                foreach ($currentMD5 as $pathName => $md5) {
-                    if (isset($this->lastMD5[$pathName]) && $this->lastMD5[$pathName] !== $md5) {
+                foreach ($currentFileHashes as $pathName => $fileHash) {
+                    if (isset($this->lastFileHashes[$pathName]) && $this->lastFileHashes[$pathName] !== $fileHash) {
                         $modifiedFiles[] = $pathName;
                     }
                 }
@@ -51,7 +51,7 @@ class ScanFileDriver extends AbstractDriver
                 $this->logger->debug(sprintf(
                     '%s Watching: Total:%d, Change:%d, Add:%d, Delete:%d.',
                     self::class,
-                    count($currentMD5),
+                    count($currentFileHashes),
                     count($modifiedFiles),
                     count($addedFiles),
                     count($deletedFiles),
@@ -65,16 +65,16 @@ class ScanFileDriver extends AbstractDriver
                     $this->logger->warning('Delete files must be restarted manually to take effect.');
                 }
             }
-            $this->lastMD5 = $currentMD5;
+            $this->lastFileHashes = $currentFileHashes;
         });
     }
 
     /**
-     * Compute MD5 checksums for all watched files.
+     * Compute hashes for all watched files.
      */
-    protected function getWatchMD5(): array
+    protected function getWatchFileHashes(): array
     {
-        $filesMD5 = [];
+        $fileHashes = [];
         $basePath = base_path();
 
         // Scan watched directories.
@@ -87,7 +87,7 @@ class ScanFileDriver extends AbstractDriver
                 if (! $watchPath->matches($relativePath)) {
                     continue;
                 }
-                $filesMD5[$pathName] = md5(file_get_contents($pathName));
+                $fileHashes[$pathName] = $this->filesystem->hash($pathName);
             }
         }
 
@@ -95,10 +95,10 @@ class ScanFileDriver extends AbstractDriver
         foreach ($this->option->getFilePaths() as $watchPath) {
             $pathName = base_path($watchPath->path);
             if (file_exists($pathName)) {
-                $filesMD5[$pathName] = md5(file_get_contents($pathName));
+                $fileHashes[$pathName] = $this->filesystem->hash($pathName);
             }
         }
 
-        return $filesMD5;
+        return $fileHashes;
     }
 }
