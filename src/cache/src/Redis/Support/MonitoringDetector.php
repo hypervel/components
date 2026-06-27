@@ -30,7 +30,7 @@ class MonitoringDetector
         $detected = [];
 
         // Hypervel Telescope
-        if (class_exists(Telescope::class) && $this->config->get('telescope.enabled')) {
+        if (class_exists(Telescope::class) && $this->config->boolean('telescope.enabled', false)) {
             $detected['Hypervel Telescope'] = 'TELESCOPE_ENABLED=false';
         }
 

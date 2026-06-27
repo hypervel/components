@@ -502,7 +502,7 @@ class SentryServiceProvider extends ServiceProvider
     {
         $config = $this->app->make('config');
 
-        $logChannels = $config->get('logging.channels', []);
+        $logChannels = $config->array('logging.channels', []);
 
         if (! array_key_exists('sentry', $logChannels)) {
             $config->set('logging.channels.sentry', [
@@ -513,7 +513,7 @@ class SentryServiceProvider extends ServiceProvider
         if (! array_key_exists('sentry_logs', $logChannels)) {
             $config->set('logging.channels.sentry_logs', [
                 'driver' => 'sentry_logs',
-                'level' => $config->get('sentry.logs_channel_level', 'debug'),
+                'level' => $config->string('sentry.logs_channel_level', 'debug'),
             ]);
         }
     }

@@ -54,13 +54,13 @@ class DoctorCommandTest extends TestCase
     {
         // Set up config with a redis store
         $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('array')
             ->with('cache.stores', [])
             ->andReturn([
                 'file' => ['driver' => 'file'],
                 'redis' => ['driver' => 'redis', 'connection' => 'default'],
             ]);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('cache.default', 'file')
             ->andReturn('file');
         $config->shouldReceive('get')
@@ -117,7 +117,7 @@ class DoctorCommandTest extends TestCase
         }
 
         $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('cache.default', 'file')
             ->andReturn('file');
         $config->shouldReceive('get')
@@ -178,7 +178,7 @@ class DoctorCommandTest extends TestCase
     public function testDoctorRunsChecksWhileRedisConnectionIsBorrowed(): void
     {
         $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('cache.default', 'file')
             ->andReturn('redis');
 
@@ -265,7 +265,7 @@ class DoctorCommandTest extends TestCase
     public function testDoctorDisplaysTagMode(): void
     {
         $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('cache.default', 'file')
             ->andReturn('redis');
         $config->shouldReceive('get')
@@ -326,13 +326,13 @@ class DoctorCommandTest extends TestCase
     {
         // Set up config with NO redis stores
         $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('array')
             ->with('cache.stores', [])
             ->andReturn([
                 'file' => ['driver' => 'file'],
                 'array' => ['driver' => 'array'],
             ]);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('cache.default', 'file')
             ->andReturn('file');
 
@@ -351,12 +351,12 @@ class DoctorCommandTest extends TestCase
     public function testDoctorDisplaysSystemInformation(): void
     {
         $config = m::mock(ConfigRepository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('array')
             ->with('cache.stores', [])
             ->andReturn([
                 'redis' => ['driver' => 'redis', 'connection' => 'default'],
             ]);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('cache.default', 'file')
             ->andReturn('redis');
         $config->shouldReceive('get')

@@ -280,7 +280,7 @@ class BenchmarkCommand extends Command
         }
 
         $config = $this->hypervel->make('config');
-        $env = $config->get('app.env', 'production');
+        $env = $config->string('app.env', 'production');
         $scale = $this->option('scale');
 
         $this->warn('WARNING: This benchmark will put EXTREME load on your Redis instance');
@@ -564,7 +564,10 @@ class BenchmarkCommand extends Command
         $this->line('   <fg=cyan>php artisan cache:clear ' . $this->storeName . '</>');
         $this->newLine();
         $this->line('   Option 2 - Clear only benchmark keys (preserves other cache):');
-        $cachePrefix = $config->get("cache.stores.{$this->storeName}.prefix", $config->get('cache.prefix', ''));
+        $cachePrefix = $config->string(
+            "cache.stores.{$this->storeName}.prefix",
+            $config->string('cache.prefix', ''),
+        );
         $this->line('   <fg=cyan>redis-cli KEYS "' . $cachePrefix . BenchmarkContext::KEY_PREFIX . '*" | xargs redis-cli DEL</>');
     }
 
