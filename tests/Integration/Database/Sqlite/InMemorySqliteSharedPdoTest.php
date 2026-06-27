@@ -87,7 +87,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
             ],
         ];
 
-        $configKey = 'in_memory_test_' . md5($database);
+        $configKey = 'in_memory_test_' . hash('xxh128', $database);
         $config->set("database.connections.{$configKey}", $connectionConfig);
 
         $factory = $this->getPoolFactory();
