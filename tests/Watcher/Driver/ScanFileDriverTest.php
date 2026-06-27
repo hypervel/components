@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Watcher\Driver;
 
 use Hypervel\Engine\Channel;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Watcher\Fixtures\ContainerStub;
 use Hypervel\Tests\Watcher\Fixtures\ScanFileDriverStub;
@@ -12,6 +13,7 @@ use Hypervel\Watcher\Driver\ScanFileDriver;
 use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
+use Mockery as m;
 
 class ScanFileDriverTest extends TestCase
 {
@@ -88,5 +90,68 @@ class ScanFileDriverTest extends TestCase
             $driver->stop();
             $channel->close();
         }
+    }
+
+    public function testEmptyBaselineReportsNewFiles(): void
+    {
+        $option = new Option(
+            driver: ScanFileDriver::class,
+            watchPaths: [
+                new WatchPath('/tmp', WatchPathType::Directory),
+            ],
+            scanInterval: 1,
+        );
+
+        $logger = ContainerStub::getLogger();
+        $logger->shouldReceive('warning')->andReturn(null);
+
+        $driver = new class($option, $logger) extends ScanFileDriver {
+            public function process(Channel $channel, array $fileHashes): void
+            {
+                $this->processFileHashes($channel, $fileHashes);
+            }
+        };
+
+        $channel = new Channel(10);
+
+        try {
+            $driver->process($channel, []);
+            $driver->process($channel, ['/tmp/B.php' => 'hash_b']);
+
+            $this->assertSame('/tmp/B.php', $channel->pop(0.1));
+            $this->assertFalse($channel->pop(0.01));
+        } finally {
+            $driver->stop();
+            $channel->close();
+        }
+    }
+
+    public function testUnreadableFileHashesReturnNull(): void
+    {
+        $option = new Option(
+            driver: ScanFileDriver::class,
+            watchPaths: [
+                new WatchPath('/tmp/unreadable.php', WatchPathType::File),
+            ],
+            scanInterval: 1,
+        );
+
+        $logger = ContainerStub::getLogger();
+        $filesystem = m::mock(Filesystem::class);
+        $filesystem->shouldReceive('hash')
+            ->once()
+            ->with('/tmp/unreadable.php')
+            ->andReturn(false);
+
+        $driver = new class($option, $logger, $filesystem) extends ScanFileDriver {
+            public function hashPath(string $path): ?string
+            {
+                return $this->hashFile($path);
+            }
+        };
+
+        $this->assertNull($driver->hashPath('/tmp/unreadable.php'));
+
+        $driver->stop();
     }
 }
