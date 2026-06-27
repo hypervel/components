@@ -621,7 +621,7 @@ class Migrator
             }
         }
 
-        return $config->get(
+        return $config->string(
             "database.connections.{$name}.migrations_connection",
             $name,
         );

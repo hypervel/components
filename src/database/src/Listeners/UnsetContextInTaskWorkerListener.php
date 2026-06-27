@@ -34,7 +34,7 @@ class UnsetContextInTaskWorkerListener
         }
 
         $connectionResolver = $this->container->make('db.resolver');
-        $connections = (array) $this->config->get('database.connections', []);
+        $connections = $this->config->array('database.connections', []);
 
         foreach (array_keys($connections) as $name) {
             $contextKey = (fn () => $this->getContextKey($name))->call($connectionResolver); // @phpstan-ignore method.notFound (Closure::call() binds to concrete ConnectionResolver which has protected getContextKey())
