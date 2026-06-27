@@ -130,7 +130,7 @@ class AllTaggedCache extends TaggedCache
             $values,
             $seconds,
             $this->tags->tagIds(),
-            sha1($this->tags->getNamespace()) . ':'
+            hash('xxh128', $this->tags->getNamespace()) . ':'
         );
 
         if ($result) {
