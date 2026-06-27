@@ -144,7 +144,7 @@ Token caching is disabled by default. You may enable and configure it in your ap
 'cache' => [
     'enabled' => env('SANCTUM_CACHE_ENABLED', false),
     'store' => env('SANCTUM_CACHE_STORE'),
-    'ttl' => env('SANCTUM_CACHE_TTL', 3600),
+    'ttl' => env('SANCTUM_CACHE_TTL', 300),
     'prefix' => env('SANCTUM_CACHE_PREFIX', 'sanctum'),
     'last_used_at_update_interval' => env('SANCTUM_LAST_USED_UPDATE_INTERVAL', 300),
 ],
@@ -152,7 +152,9 @@ Token caching is disabled by default. You may enable and configure it in your ap
 
 The `store` option determines which cache store is used. When this value is `null`, Sanctum uses your application's default cache store. The `ttl` option controls how long token and tokenable entries remain cached, in seconds. The `prefix` option is prepended to Sanctum's cache keys.
 
-The `last_used_at_update_interval` option controls how frequently Sanctum writes a cached token's `last_used_at` timestamp back to the database. The default value is `300`, so the timestamp is updated at most once every five minutes for each token while caching is enabled.
+Sanctum also caches missing token IDs and missing tokenable models as `null` results for the configured TTL. This protects your database from repeated lookups for the same revoked, deleted, or orphaned token data. Because token IDs come from request input, use a cache store with bounded memory or an eviction policy when enabling token caching on public endpoints.
+
+The `last_used_at_update_interval` option controls how frequently Sanctum writes a cached token's `last_used_at` timestamp back to the database. The default value is `300`, so the timestamp is updated at most once every five minutes for each token while caching is enabled. The cache TTL should be greater than or equal to this interval so active cached tokens do not expire before the next allowed timestamp write.
 
 Sanctum token caching pairs well with the authentication package's [user lookup cache](/docs/{{version}}/authentication#user-lookup-cache). Token-authenticated routes often need both the personal access token and its user model, so enabling both caches can reduce repeated database reads on hot authenticated endpoints.
 

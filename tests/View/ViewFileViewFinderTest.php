@@ -5,19 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View;
 
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Tests\TestCase;
 use Hypervel\View\FileViewFinder;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 
 class ViewFileViewFinderTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testBasicViewFinding()
     {
         $finder = $this->getFinder();

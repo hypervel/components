@@ -13,8 +13,6 @@ class EventsSubscriberTest extends TestCase
 {
     public function testEventSubscribers()
     {
-        $this->expectNotToPerformAssertions();
-
         $d = new Dispatcher($container = m::mock(Container::class));
         $subs = m::mock(ExampleSubscriber::class);
         $subs->shouldReceive('subscribe')->once()->with($d);
@@ -25,8 +23,6 @@ class EventsSubscriberTest extends TestCase
 
     public function testEventSubscribeCanAcceptObject()
     {
-        $this->expectNotToPerformAssertions();
-
         $d = new Dispatcher;
         $subs = m::mock(ExampleSubscriber::class);
         $subs->shouldReceive('subscribe')->once()->with($d);
