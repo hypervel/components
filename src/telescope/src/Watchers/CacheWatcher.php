@@ -49,7 +49,7 @@ class CacheWatcher extends Watcher
     public static function enableCacheEvents(Application $app): void
     {
         $config = $app->make('config');
-        foreach (array_keys($config->get('cache.stores', [])) as $store) {
+        foreach (array_keys($config->array('cache.stores', [])) as $store) {
             $config->set("cache.stores.{$store}.events", true);
         }
 

@@ -132,6 +132,16 @@ class GeneratorCommandTest extends TestCase
         $this->assertNull($definition->getOption('target-namespace')->getDefault());
     }
 
+    public function testUserProviderModelReturnsNullWhenAuthConfigIsMissing(): void
+    {
+        $this->app->make('config')->set('auth', []);
+
+        $command = new GeneratorCommandStub;
+        $command->setHypervel($this->app);
+
+        $this->assertNull($command->exposedUserProviderModel());
+    }
+
     public function testIsReservedNameReturnsTrueForReservedWords()
     {
         $command = new GeneratorCommandStub;

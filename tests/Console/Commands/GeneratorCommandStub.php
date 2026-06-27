@@ -61,6 +61,14 @@ class GeneratorCommandStub extends GeneratorCommand
         return $this->rootNamespace();
     }
 
+    /**
+     * Expose userProviderModel() for testing.
+     */
+    public function exposedUserProviderModel(): ?string
+    {
+        return $this->userProviderModel();
+    }
+
     protected function rootNamespace(): string
     {
         return 'App\\';

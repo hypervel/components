@@ -16,7 +16,7 @@ class TaskCallback
 
     public function __construct(protected Dispatcher $dispatcher, Repository $config)
     {
-        $this->taskEnableCoroutine = (bool) $config->get('server.settings.task_enable_coroutine', false);
+        $this->taskEnableCoroutine = $config->boolean('server.settings.task_enable_coroutine', false);
     }
 
     /**
