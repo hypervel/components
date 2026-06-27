@@ -2,21 +2,18 @@
 
 ## Authentication
 
-- Create hypervel/react-starter-kit
+- Create hypervel/react-starter-kit. Include the standard skeleton pieces that currently only exist as follow-ups: a `composer dev` script for running the Hypervel development server and frontend asset watcher together, plus explicit Hypervel Vite refresh paths instead of the Laravel plugin's `refresh: true` shortcut.
 - Port Fortify package
 - Port Passport package
 - Replace permission package fake Passport client-credentials coverage with real Passport tests once Passport is ported. The current tests use a local fake guard/client so the permission package can keep Passport middleware parity without depending on a package that does not exist yet.
 
 ## Artisan
 
-- Add a `composer dev` script to the `hypervel/hypervel` application skeleton and the `hypervel/react-starter-kit` skeleton. The script should start the Hypervel development server and frontend asset watcher together using the package manager tools already included with each skeleton, so new applications have a simple one-command local development workflow.
-
-## Configuration
+- Add a `composer dev` script to the `hypervel/hypervel` application skeleton. The script should start the Hypervel development server and frontend asset watcher together using the package manager tools already included with the skeleton, so new applications have a simple one-command local development workflow.
 
 ## Boost
 
 - Implement Hypervel Boost's installation flow and revisit the Boost section of `installation.md` once the implementation is complete. The current docs describe the intended `composer require hypervel/boost --dev` and `php artisan boost:install` workflow, but `src/boost` currently contains the documentation package only. Correct fix: add the interactive installer command and supporting tools, then update the installation docs for any differences from Laravel Boost.
-- Publish a Hypervel AI agent playbook at `hypervel.org/for/agents`. The copied installation docs include a Laravel agent prompt section, but Hypervel does not yet have an equivalent public playbook. Correct fix: write and publish a Hypervel-specific Markdown guide covering installation, project layout, Swoole / coroutine considerations, testing, and package conventions before adding the agent-prompt section back to the installation docs.
 
 ## Documentation
 
@@ -27,17 +24,3 @@
 ## Horizon
 
 - Wire SMS support for Hypervel Horizon long-wait notifications. The Horizon docs show `Horizon::routeSmsNotificationsTo(...)` and `Hypervel\Horizon\Horizon` stores the configured number, but `Hypervel\Horizon\Notifications\LongWaitDetected::via()` and `Hypervel\Horizon\Listeners\SendNotification` currently have the SMS / Nexmo route commented out because no SMS client is supported yet. Correct fix: add a supported SMS notification channel, route long-wait notifications to it when `Horizon::$smsNumber` is set, add the matching notification message method, document the channel prerequisite, and add coverage for mail, Slack, and SMS routing.
-
-## Mail
-
-## Packages
-
-## Queue
-
-## Support
-
-## Testing
-
-## Vite
-
-- Configure the React starter kit with explicit Vite refresh paths once it includes a Vite config. The Vite docs and application skeleton now pass Hypervel-specific watch paths explicitly instead of delegating to the Laravel Vite plugin's `refresh: true` defaults, but `contrib/hypervel/react-starter-kit` currently contains only a README.
