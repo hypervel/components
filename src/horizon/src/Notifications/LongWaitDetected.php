@@ -108,6 +108,6 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
      */
     public function signature(): string
     {
-        return md5($this->longWaitConnection . $this->longWaitQueue);
+        return hash('xxh128', $this->longWaitConnection . $this->longWaitQueue);
     }
 }

@@ -42,6 +42,6 @@ class IncomingExceptionEntry extends IncomingEntry
      */
     public function familyHash(): string
     {
-        return md5($this->content['file'] . $this->content['line']);
+        return hash('xxh128', $this->content['file'] . $this->content['line']);
     }
 }
