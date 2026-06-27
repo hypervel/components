@@ -57,11 +57,11 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
         }
 
         if ($driver === 'single') {
-            $config->set('logging.channels.deprecations', array_merge($config->get('logging.channels.single'), [
+            $config->set('logging.channels.deprecations', array_merge($config->array('logging.channels.single'), [
                 'path' => self::$app->storagePath(join_paths('logs', 'deprecations.log')),
             ]));
         } else {
-            $config->set('logging.channels.deprecations', $config->get("logging.channels.{$driver}"));
+            $config->set('logging.channels.deprecations', $config->array("logging.channels.{$driver}"));
         }
 
         $config->set('logging.deprecations', [

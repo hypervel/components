@@ -21,7 +21,7 @@ class JWTServiceProvider extends ServiceProvider
         $this->app->singleton(BlacklistContract::class, function ($app) {
             $config = $app->make('config');
 
-            $storageClass = $config->get('jwt.providers.storage');
+            $storageClass = $config->string('jwt.providers.storage');
             $storage = match ($storageClass) {
                 TaggedCache::class => new TaggedCache($app['cache']->store()),
                 default => $app->make($storageClass),
@@ -29,8 +29,8 @@ class JWTServiceProvider extends ServiceProvider
 
             return new Blacklist(
                 $storage,
-                (int) $config->get('jwt.blacklist_grace_period', 0),
-                (int) $config->get('jwt.blacklist_refresh_ttl', 20160)
+                $config->integer('jwt.blacklist_grace_period', 0),
+                $config->integer('jwt.blacklist_refresh_ttl', 20160)
             );
         });
 

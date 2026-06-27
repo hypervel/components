@@ -559,7 +559,7 @@ trait CreatesApplication
         }
 
         $config = $app->make('config');
-        $existing = $config->get('app.aliases', []);
+        $existing = $config->array('app.aliases', []);
         $config->set('app.aliases', array_merge($existing, $aliases));
     }
 

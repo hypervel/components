@@ -67,7 +67,7 @@ class JWTManagerTest extends TestCase
 
         $this->mockUuid($jti);
 
-        $this->config->shouldReceive('get')->with('jwt.blacklist_enabled', false)->andReturnTrue();
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled', false)->andReturnTrue();
         $this->provider->shouldReceive('encode')->with($payload)->andReturn($token);
 
         $this->assertEquals($token, $this->createManager()->encode($payload));
@@ -85,9 +85,9 @@ class JWTManagerTest extends TestCase
             'jti' => 'foo',
         ];
 
-        $this->config->shouldReceive('get')->with('jwt.blacklist_enabled', false)->andReturnTrue();
-        $this->config->shouldReceive('get')->with('jwt.validations', [])->andReturn([ValidationStub::class]);
-        $this->config->shouldReceive('get')->with('jwt')->andReturn([]);
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled', false)->andReturnTrue();
+        $this->config->shouldReceive('array')->with('jwt.validations', [])->andReturn([ValidationStub::class]);
+        $this->config->shouldReceive('array')->with('jwt')->andReturn([]);
         $this->provider->shouldReceive('decode')->with($token)->andReturn($payload);
         $this->blacklist->shouldReceive('has')->with($payload)->andReturn(false);
 
@@ -109,9 +109,9 @@ class JWTManagerTest extends TestCase
             'jti' => 'foo',
         ];
 
-        $this->config->shouldReceive('get')->with('jwt.blacklist_enabled', false)->andReturnTrue();
-        $this->config->shouldReceive('get')->with('jwt.validations', [])->andReturn([ValidationStub::class]);
-        $this->config->shouldReceive('get')->with('jwt')->andReturn([]);
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled', false)->andReturnTrue();
+        $this->config->shouldReceive('array')->with('jwt.validations', [])->andReturn([ValidationStub::class]);
+        $this->config->shouldReceive('array')->with('jwt')->andReturn([]);
         $this->provider->shouldReceive('decode')->once()->with($token)->andReturn($payload);
         $this->blacklist->shouldReceive('has')->with($payload)->andReturn(true);
 
@@ -140,10 +140,10 @@ class JWTManagerTest extends TestCase
 
         $this->mockUuid($refreshJti);
 
-        $this->config->shouldReceive('get')->with('jwt.blacklist_enabled', false)->andReturnTrue();
-        $this->config->shouldReceive('get')->with('jwt.validations', [])->andReturn([ValidationStub::class]);
-        $this->config->shouldReceive('get')->with('jwt')->andReturn([]);
-        $this->config->shouldReceive('get')->with('jwt.persistent_claims', [])->andReturn(['iss']);
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled', false)->andReturnTrue();
+        $this->config->shouldReceive('array')->with('jwt.validations', [])->andReturn([ValidationStub::class]);
+        $this->config->shouldReceive('array')->with('jwt')->andReturn([]);
+        $this->config->shouldReceive('array')->with('jwt.persistent_claims', [])->andReturn(['iss']);
         $this->provider->shouldReceive('decode')->twice()->with('foo.bar.baz')->andReturn($payload);
         $this->provider->shouldReceive('encode')->with($refreshPayload)->andReturn($refreshedToken);
         $this->blacklist->shouldReceive('has')->with($payload)->andReturn(false);
@@ -164,7 +164,7 @@ class JWTManagerTest extends TestCase
             'jti' => 'foo',
         ];
 
-        $this->config->shouldReceive('get')->with('jwt.blacklist_enabled', false)->andReturnTrue();
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled', false)->andReturnTrue();
         $this->provider->shouldReceive('decode')->once()->with('foo.bar.baz')->andReturn($payload);
         $this->blacklist->shouldReceive('has')->with($payload)->andReturn(false);
         $this->blacklist->shouldReceive('add')->with($payload)->andReturn(true);
@@ -184,7 +184,7 @@ class JWTManagerTest extends TestCase
             'jti' => 'foo',
         ];
 
-        $this->config->shouldReceive('get')->with('jwt.blacklist_enabled', false)->andReturnTrue();
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled', false)->andReturnTrue();
         $this->provider->shouldReceive('decode')->once()->with('foo.bar.baz')->andReturn($payload);
         $this->blacklist->shouldReceive('has')->with($payload)->andReturn(false);
         $this->blacklist->shouldReceive('addForever')->with($payload)->andReturn(true);
@@ -199,7 +199,7 @@ class JWTManagerTest extends TestCase
 
         $token = 'foo.bar.baz';
 
-        $this->config->shouldReceive('get')->with('jwt.blacklist_enabled', false)->andReturnFalse();
+        $this->config->shouldReceive('boolean')->with('jwt.blacklist_enabled', false)->andReturnFalse();
 
         $this->createManager()->invalidate($token);
     }
@@ -237,7 +237,7 @@ class JWTManagerTest extends TestCase
 
     private function createManager(): JWTManager
     {
-        $this->config->shouldReceive('get')->with('jwt.driver', 'lcobucci')->andReturn('dummy');
+        $this->config->shouldReceive('string')->with('jwt.driver', 'lcobucci')->andReturn('dummy');
 
         $manager = new JWTManager($this->container);
 

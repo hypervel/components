@@ -140,7 +140,7 @@ return [
     | Validations
     |--------------------------------------------------------------------------
     |
-    | Sepcify default validations that jwt tokens.
+    | Specify the default validations for JWT tokens.
     |
     */
     'validations' => [
@@ -230,7 +230,7 @@ return [
     |
     */
 
-    'blacklist_grace_period' => env('JWT_BLACKLIST_GRACE_PERIOD', 0),
+    'blacklist_grace_period' => (int) env('JWT_BLACKLIST_GRACE_PERIOD', 0),
 
     /*
     | -------------------------------------------------------------------------
@@ -241,7 +241,7 @@ return [
     |
     */
 
-    'blacklist_refresh_ttl' => env('JWT_BLACKLIST_REFRESH_TTL', 20160),
+    'blacklist_refresh_ttl' => (int) env('JWT_BLACKLIST_REFRESH_TTL', 20160),
 
     /*
     |--------------------------------------------------------------------------

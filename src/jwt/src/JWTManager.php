@@ -32,7 +32,7 @@ class JWTManager extends Manager implements ManagerContract
     ) {
         parent::__construct($container);
         $this->blacklist = $container->make(BlacklistContract::class);
-        $this->blacklistEnabled = $this->config->get('jwt.blacklist_enabled', false);
+        $this->blacklistEnabled = $this->config->boolean('jwt.blacklist_enabled', false);
     }
 
     /**
@@ -40,7 +40,7 @@ class JWTManager extends Manager implements ManagerContract
      */
     public function createLcobucciDriver(): Lcobucci
     {
-        $class = $this->config->get('jwt.providers.jwt', Lcobucci::class);
+        $class = $this->config->string('jwt.providers.jwt', Lcobucci::class);
 
         if (! is_a($class, Lcobucci::class, true)) {
             throw new RuntimeException('JWT provider must be an instance of ' . Lcobucci::class);
@@ -48,8 +48,8 @@ class JWTManager extends Manager implements ManagerContract
 
         return new $class(
             (string) $this->config->get('jwt.secret'),
-            (string) $this->config->get('jwt.algo'),
-            (array) $this->config->get('jwt.keys'),
+            $this->config->string('jwt.algo'),
+            $this->config->array('jwt.keys'),
         );
     }
 
@@ -58,7 +58,7 @@ class JWTManager extends Manager implements ManagerContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->config->get('jwt.driver', 'lcobucci');
+        return $this->config->string('jwt.driver', 'lcobucci');
     }
 
     public function encode(array $payload): string
@@ -87,7 +87,7 @@ class JWTManager extends Manager implements ManagerContract
 
     protected function validatePayload(array $payload): void
     {
-        foreach ($this->config->get('jwt.validations', []) as $validation) {
+        foreach ($this->config->array('jwt.validations', []) as $validation) {
             $this->getValidation($validation)
                 ->validate($payload);
         }
@@ -99,7 +99,7 @@ class JWTManager extends Manager implements ManagerContract
             return $validation;
         }
 
-        return $this->validations[$class] = new $class($this->config->get('jwt'));
+        return $this->validations[$class] = new $class($this->config->array('jwt'));
     }
 
     public function refresh(string $token, bool $forceForever = false): string
@@ -131,7 +131,7 @@ class JWTManager extends Manager implements ManagerContract
     {
         // Get the claims to be persisted from the payload
         $persistentClaims = Collection::make($payload)
-            ->only($this->config->get('jwt.persistent_claims', []))
+            ->only($this->config->array('jwt.persistent_claims', []))
             ->toArray();
 
         // persist the relevant claims
