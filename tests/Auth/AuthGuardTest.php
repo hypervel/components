@@ -844,7 +844,8 @@ class AuthGuardTest extends TestCase
         $guard = $this->getGuard();
 
         $this->assertStringContainsString('default', $guard->getName());
-        $this->assertStringStartsWith('login_default_', $guard->getName());
+        $this->assertSame('login_default_' . hash('xxh128', SessionGuard::class), $guard->getName());
+        $this->assertSame('remember_default_' . hash('xxh128', SessionGuard::class), $guard->getRecallerName());
     }
 
     protected function getGuard()

@@ -148,14 +148,14 @@ class CallbackEventTest extends TestCase
         $event = new CallbackEvent($this->mutex, fn () => true);
         $event->name('unique-task-name');
 
-        $this->assertSame('framework/schedule-' . sha1('unique-task-name'), $event->mutexName());
+        $this->assertSame('framework/schedule-' . hash('xxh128', 'unique-task-name'), $event->mutexName());
     }
 
     public function testMutexNameWithoutDescription(): void
     {
         $event = new CallbackEvent($this->mutex, fn () => true);
 
-        $this->assertSame('framework/schedule-' . sha1(''), $event->mutexName());
+        $this->assertSame('framework/schedule-' . hash('xxh128', ''), $event->mutexName());
     }
 
     public function testShouldSkipDueToOverlappingReturnsFalseWithoutDescription(): void

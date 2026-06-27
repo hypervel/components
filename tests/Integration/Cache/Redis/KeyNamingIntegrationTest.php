@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
+use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\Redis\Support\StoreContext;
+use Hypervel\Cache\Repository;
 use Hypervel\Cache\TagMode;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Facades\Cache;
 use Redis;
 
@@ -75,9 +78,42 @@ class KeyNamingIntegrationTest extends RedisCacheIntegrationTestCase
 
         Cache::tags(['mytag'])->put('mykey', 'value', 60);
 
-        // In all mode, the ZSET stores the namespaced key (sha1 of tags + key)
+        // In all mode, the ZSET stores the namespaced key (xxh128 of tags + key)
         $entries = $this->getAllModeTagEntries('mytag');
         $this->assertCount(1, $entries);
+    }
+
+    public function testDoctorContextNamespacedKeyMatchesAllModeRedisTaggedKey(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        $cache = Cache::store('redis');
+        $this->assertInstanceOf(Repository::class, $cache);
+
+        $taggedCache = $cache->tags(['beta', 'alpha']);
+        $taggedCache->put('key', 'value', 60);
+
+        $store = $this->store();
+
+        $store->getContext()->withConnection(function (RedisConnection $redis) use ($cache, $store, $taggedCache): void {
+            $context = new DoctorContext(
+                cache: $cache,
+                store: $store,
+                redis: $redis,
+                cachePrefix: $store->getPrefix(),
+                storeName: 'redis',
+            );
+
+            $namespacedKey = $context->namespacedKey(['beta', 'alpha'], 'key');
+            $reversedNamespacedKey = $context->namespacedKey(['alpha', 'beta'], 'key');
+
+            $this->assertSame($taggedCache->taggedItemKey('key'), $namespacedKey);
+            $this->assertNotSame($namespacedKey, $reversedNamespacedKey);
+            $this->assertRedisKeyExists($this->getCachePrefix() . $namespacedKey);
+            $this->assertTrue($this->allModeTagHasEntry('beta', $namespacedKey));
+            $this->assertTrue($this->allModeTagHasEntry('alpha', $namespacedKey));
+            $this->assertFalse($this->allModeTagHasEntry('beta', $reversedNamespacedKey));
+        });
     }
 
     public function testAllModeZsetScoreIsExpiryTimestamp(): void

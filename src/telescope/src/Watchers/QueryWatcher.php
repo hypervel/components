@@ -64,7 +64,7 @@ class QueryWatcher extends Watcher
      */
     public function familyHash(QueryExecuted $event): string
     {
-        return md5($event->sql);
+        return hash('xxh128', $event->sql);
     }
 
     /**

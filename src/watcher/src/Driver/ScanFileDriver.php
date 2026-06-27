@@ -14,67 +14,86 @@ class ScanFileDriver extends AbstractDriver
 {
     protected Filesystem $filesystem;
 
-    protected ?array $lastMD5 = null;
+    /**
+     * @var null|array<string, string>
+     */
+    protected ?array $lastFileHashes = null;
 
-    public function __construct(protected Option $option, private StdoutLoggerInterface $logger)
-    {
+    public function __construct(
+        protected Option $option,
+        private StdoutLoggerInterface $logger,
+        ?Filesystem $filesystem = null
+    ) {
         parent::__construct($option);
-        $this->filesystem = new Filesystem;
+
+        $this->filesystem = $filesystem ?? new Filesystem;
     }
 
     /**
-     * Watch for file changes by polling MD5 checksums.
+     * Watch for file changes by polling file hashes.
      */
     public function watch(Channel $channel): void
     {
         $seconds = $this->option->getScanIntervalSeconds();
         $this->timerId = $this->timer->tick($seconds, function () use ($channel) {
-            $currentMD5 = $this->getWatchMD5();
-            if ($this->lastMD5 && $this->lastMD5 !== $currentMD5) {
-                // Added files (in current but not in last).
-                $addedFiles = array_diff_key($currentMD5, $this->lastMD5);
-                foreach ($addedFiles as $pathName => $md5) {
-                    $channel->push($pathName);
-                }
-
-                // Deleted files (in last but not in current).
-                $deletedFiles = array_diff_key($this->lastMD5, $currentMD5);
-
-                // Modified files (same path, different hash).
-                $modifiedFiles = [];
-                foreach ($currentMD5 as $pathName => $md5) {
-                    if (isset($this->lastMD5[$pathName]) && $this->lastMD5[$pathName] !== $md5) {
-                        $modifiedFiles[] = $pathName;
-                    }
-                }
-
-                $this->logger->debug(sprintf(
-                    '%s Watching: Total:%d, Change:%d, Add:%d, Delete:%d.',
-                    self::class,
-                    count($currentMD5),
-                    count($modifiedFiles),
-                    count($addedFiles),
-                    count($deletedFiles),
-                ));
-
-                if (count($deletedFiles) === 0) {
-                    foreach ($modifiedFiles as $pathName) {
-                        $channel->push($pathName);
-                    }
-                } else {
-                    $this->logger->warning('Delete files must be restarted manually to take effect.');
-                }
-            }
-            $this->lastMD5 = $currentMD5;
+            $this->processFileHashes($channel, $this->getWatchFileHashes());
         });
     }
 
     /**
-     * Compute MD5 checksums for all watched files.
+     * Process a new file hash snapshot.
+     *
+     * @param array<string, string> $currentFileHashes
      */
-    protected function getWatchMD5(): array
+    protected function processFileHashes(Channel $channel, array $currentFileHashes): void
     {
-        $filesMD5 = [];
+        if ($this->lastFileHashes !== null && $this->lastFileHashes !== $currentFileHashes) {
+            // Added files (in current but not in last).
+            $addedFiles = array_diff_key($currentFileHashes, $this->lastFileHashes);
+            foreach (array_keys($addedFiles) as $pathName) {
+                $channel->push($pathName);
+            }
+
+            // Deleted files (in last but not in current).
+            $deletedFiles = array_diff_key($this->lastFileHashes, $currentFileHashes);
+
+            // Modified files (same path, different hash).
+            $modifiedFiles = [];
+            foreach ($currentFileHashes as $pathName => $fileHash) {
+                if (isset($this->lastFileHashes[$pathName]) && $this->lastFileHashes[$pathName] !== $fileHash) {
+                    $modifiedFiles[] = $pathName;
+                }
+            }
+
+            $this->logger->debug(sprintf(
+                '%s Watching: Total:%d, Change:%d, Add:%d, Delete:%d.',
+                self::class,
+                count($currentFileHashes),
+                count($modifiedFiles),
+                count($addedFiles),
+                count($deletedFiles),
+            ));
+
+            if (count($deletedFiles) === 0) {
+                foreach ($modifiedFiles as $pathName) {
+                    $channel->push($pathName);
+                }
+            } else {
+                $this->logger->warning('Delete files must be restarted manually to take effect.');
+            }
+        }
+
+        $this->lastFileHashes = $currentFileHashes;
+    }
+
+    /**
+     * Compute hashes for all watched files.
+     *
+     * @return array<string, string>
+     */
+    protected function getWatchFileHashes(): array
+    {
+        $fileHashes = [];
         $basePath = base_path();
 
         // Scan watched directories.
@@ -87,7 +106,10 @@ class ScanFileDriver extends AbstractDriver
                 if (! $watchPath->matches($relativePath)) {
                     continue;
                 }
-                $filesMD5[$pathName] = md5(file_get_contents($pathName));
+                $fileHash = $this->hashFile($pathName);
+                if ($fileHash !== null) {
+                    $fileHashes[$pathName] = $fileHash;
+                }
             }
         }
 
@@ -95,10 +117,23 @@ class ScanFileDriver extends AbstractDriver
         foreach ($this->option->getFilePaths() as $watchPath) {
             $pathName = base_path($watchPath->path);
             if (file_exists($pathName)) {
-                $filesMD5[$pathName] = md5(file_get_contents($pathName));
+                $fileHash = $this->hashFile($pathName);
+                if ($fileHash !== null) {
+                    $fileHashes[$pathName] = $fileHash;
+                }
             }
         }
 
-        return $filesMD5;
+        return $fileHashes;
+    }
+
+    /**
+     * Hash a watched file.
+     */
+    protected function hashFile(string $path): ?string
+    {
+        $hash = $this->filesystem->hash($path);
+
+        return $hash === false ? null : $hash;
     }
 }

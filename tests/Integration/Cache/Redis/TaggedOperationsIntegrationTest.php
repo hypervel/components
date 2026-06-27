@@ -45,7 +45,7 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 
         $this->assertNotEmpty($entries, 'ZSET should contain entries');
 
-        // The key stored is the namespaced key (sha1 of tag names + key)
+        // The key stored is the namespaced key (xxh128 of tag names + key)
         // We can't predict the exact key, but we can verify an entry exists
         $this->assertCount(1, $entries);
     }

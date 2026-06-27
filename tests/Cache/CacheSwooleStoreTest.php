@@ -247,11 +247,11 @@ class CacheSwooleStoreTest extends TestCase
         $store = $this->createStore($table);
 
         for ($i = 0; $i < 256; ++$i) {
-            $store->put(sha1("key:{$i}"), $i, 100);
+            $store->put(hash('xxh128', "key:{$i}"), $i, 100);
         }
 
-        $this->assertNull($store->get(sha1('key:0')));
-        $this->assertSame(255, $store->get(sha1('key:255')));
+        $this->assertNull($store->get(hash('xxh128', 'key:0')));
+        $this->assertSame(255, $store->get(hash('xxh128', 'key:255')));
         $this->assertLessThanOrEqual(128, $table->count());
     }
 

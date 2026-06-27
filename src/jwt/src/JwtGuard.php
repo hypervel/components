@@ -183,7 +183,7 @@ class JwtGuard implements Guard
      */
     protected function decodeToken(string $token): array
     {
-        $contextKey = "__auth.guards.{$this->name}.payload." . md5($token);
+        $contextKey = "__auth.guards.{$this->name}.payload." . hash('xxh128', $token);
 
         return CoroutineContext::getOrSet($contextKey, fn () => $this->jwtManager->decode($token));
     }
@@ -279,7 +279,7 @@ class JwtGuard implements Guard
             return "__auth.guards.{$this->name}.user.default";
         }
 
-        return "__auth.guards.{$this->name}.user." . md5($token);
+        return "__auth.guards.{$this->name}.user." . hash('xxh128', $token);
     }
 
     /**

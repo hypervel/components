@@ -64,6 +64,10 @@ class FailoverStoreTest extends TestCase
     public function testSeparateFailoverStoresDoNotShareFailureEventsForTheSameFailingStore()
     {
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')
+            ->twice()
+            ->with(CacheFailedOver::class)
+            ->andReturn(true);
         $events->shouldReceive('dispatch')
             ->twice()
             ->with(m::on(fn (object $event) => $event instanceof CacheFailedOver && $event->storeName === 'failing'));
@@ -98,6 +102,42 @@ class FailoverStoreTest extends TestCase
 
         $this->assertSame('fallback-a', $storeA->get('test-a'));
         $this->assertSame('fallback-b', $storeB->get('test-b'));
+    }
+
+    public function testFailoverCacheSkipsFailedOverEventWhenThereAreNoListeners(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')
+            ->once()
+            ->with(CacheFailedOver::class)
+            ->andReturn(false);
+        $events->shouldNotReceive('dispatch');
+
+        $failingRepository = m::mock(CacheRepository::class);
+        $failingRepository->shouldReceive('getRaw')
+            ->once()
+            ->with('test')
+            ->andThrow(new Exception('The primary store failed.'));
+
+        $fallbackRepository = m::mock(CacheRepository::class);
+        $fallbackRepository->shouldReceive('getRaw')
+            ->once()
+            ->with('test')
+            ->andReturn('fallback');
+
+        $cacheManager = m::mock(CacheManager::class);
+        $cacheManager->shouldReceive('store')
+            ->with('failing')
+            ->once()
+            ->andReturn($failingRepository);
+        $cacheManager->shouldReceive('store')
+            ->with('fallback')
+            ->once()
+            ->andReturn($fallbackRepository);
+
+        $store = new FailoverStore($cacheManager, $events, ['failing', 'fallback']);
+
+        $this->assertSame('fallback', $store->get('test'));
     }
 
     public function testNullSentinelRoundTripsThroughFailoverStorePrimary()

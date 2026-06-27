@@ -29,7 +29,7 @@ class CacheFileStoreTest extends TestCase
     public function testPutCreatesMissingDirectories()
     {
         $files = $this->mockFilesystem();
-        $hash = sha1('foo');
+        $hash = hash('xxh128', 'foo');
         $contents = '0000000000';
         $full_dir = __DIR__ . '/' . substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
         $files->expects($this->once())->method('makeDirectory')->with($this->equalTo($full_dir), $this->equalTo(0777), $this->equalTo(true));
@@ -43,7 +43,7 @@ class CacheFileStoreTest extends TestCase
     {
         $files = $this->mockFilesystem();
 
-        $hash = sha1('O--L / key');
+        $hash = hash('xxh128', 'O--L / key');
         $filePath = __DIR__ . '/' . substr($hash, 0, 2) . '/' . substr($hash, 2, 2) . '/' . $hash;
         $ten9s = '9999999999'; // The "forever" time value.
         $fileContents = $ten9s . serialize('gold');
@@ -62,7 +62,7 @@ class CacheFileStoreTest extends TestCase
     {
         $files = $this->mockFilesystem();
 
-        $hash = sha1('O--L / key');
+        $hash = hash('xxh128', 'O--L / key');
         $filePath = __DIR__ . '/' . substr($hash, 0, 2) . '/' . substr($hash, 2, 2) . '/' . $hash;
         $ten9s = '9999999999'; // The "forever" time value.
         $fileContents = $ten9s . serialize('gold');
@@ -101,7 +101,7 @@ class CacheFileStoreTest extends TestCase
         $store = $this->getMockBuilder(FileStore::class)->onlyMethods(['expiration'])->setConstructorArgs([$files, __DIR__])->getMock();
         $store->expects($this->once())->method('expiration')->with($this->equalTo(10))->willReturn(1111111111);
         $contents = '1111111111' . serialize('Hello World');
-        $hash = sha1('foo');
+        $hash = hash('xxh128', 'foo');
         $cache_dir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
         $files->expects($this->once())->method('put')->with($this->equalTo(__DIR__ . '/' . $cache_dir . '/' . $hash), $this->equalTo($contents))->willReturn(strlen($contents));
         $result = $store->put('foo', 'Hello World', 10);
@@ -118,7 +118,7 @@ class CacheFileStoreTest extends TestCase
         $key = 'foo';
         $content = 'Hello World';
         $ttl = 60;
-        $hash = sha1($key);
+        $hash = hash('xxh128', $key);
         $path = __DIR__ . '/' . substr($hash, 0, 2) . '/' . substr($hash, 2, 2) . '/' . $hash;
 
         $store->expects($this->once())
@@ -146,7 +146,7 @@ class CacheFileStoreTest extends TestCase
         $files = m::mock(Filesystem::class);
         $files->shouldIgnoreMissing();
         $store = new FileStore($files, __DIR__, 0644);
-        $hash = sha1('foo');
+        $hash = hash('xxh128', 'foo');
         $cache_dir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
         $files->shouldReceive('put')->withArgs([__DIR__ . '/' . $cache_dir . '/' . $hash, m::any(), m::any()])->andReturnUsing(function ($name, $value) {
             return strlen($value);
@@ -166,7 +166,7 @@ class CacheFileStoreTest extends TestCase
         $files = m::mock(Filesystem::class);
         $files->shouldIgnoreMissing();
         $store = new FileStore($files, __DIR__, 0606);
-        $hash = sha1('foo');
+        $hash = hash('xxh128', 'foo');
         $cache_parent_dir = substr($hash, 0, 2);
         $cache_dir = $cache_parent_dir . '/' . substr($hash, 2, 2);
 
@@ -189,7 +189,7 @@ class CacheFileStoreTest extends TestCase
     {
         $files = $this->mockFilesystem();
         $contents = '9999999999' . serialize('Hello World');
-        $hash = sha1('foo');
+        $hash = hash('xxh128', 'foo');
         $cache_dir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
         $files->expects($this->once())->method('put')->with($this->equalTo(__DIR__ . '/' . $cache_dir . '/' . $hash), $this->equalTo($contents))->willReturn(strlen($contents));
         $store = new FileStore($files, __DIR__);
@@ -296,7 +296,7 @@ class CacheFileStoreTest extends TestCase
         $valueAfterIncrement = $expiration . serialize(2);
         $store = new FileStore($files, __DIR__);
         $files->expects($this->once())->method('get')->willReturn($initialValue);
-        $hash = sha1('foo');
+        $hash = hash('xxh128', 'foo');
         $cache_dir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
         $files->expects($this->once())->method('put')->with($this->equalTo(__DIR__ . '/' . $cache_dir . '/' . $hash), $this->equalTo($valueAfterIncrement));
         $store->increment('foo');
@@ -305,7 +305,7 @@ class CacheFileStoreTest extends TestCase
     public function testRemoveDeletesFileDoesntExist()
     {
         $files = $this->mockFilesystem();
-        $hash = sha1('foobull');
+        $hash = hash('xxh128', 'foobull');
         $cache_dir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
         $files->expects($this->once())->method('exists')->with($this->equalTo(__DIR__ . '/' . $cache_dir . '/' . $hash))->willReturn(false);
         $store = new FileStore($files, __DIR__);
@@ -315,7 +315,7 @@ class CacheFileStoreTest extends TestCase
     public function testRemoveDeletesFile()
     {
         $files = $this->mockFilesystem();
-        $hash = sha1('foobar');
+        $hash = hash('xxh128', 'foobar');
         $cache_dir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
         $store = new FileStore($files, __DIR__);
         $store->put('foobar', 'Hello Baby', 10);
@@ -465,7 +465,7 @@ class CacheFileStoreTest extends TestCase
 
     protected function getCachePath($key)
     {
-        $hash = sha1($key);
+        $hash = hash('xxh128', $key);
         $cache_dir = substr($hash, 0, 2) . '/' . substr($hash, 2, 2);
 
         return __DIR__ . '/' . $cache_dir . '/' . $hash;

@@ -157,7 +157,7 @@ class TokenGuard implements Guard
             return "__auth.guards.{$this->name}.user.default";
         }
 
-        return "__auth.guards.{$this->name}.user." . md5($token);
+        return "__auth.guards.{$this->name}.user." . hash('xxh128', $token);
     }
 
     /**

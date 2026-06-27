@@ -109,7 +109,7 @@ class ThrottleRequests
             $next,
             Collection::wrap($limiterResponse)->map(function ($limit) use ($limiterName) {
                 return (object) [
-                    'key' => self::$shouldHashKeys ? md5($limiterName . $limit->key) : $limiterName . ':' . $limit->key,
+                    'key' => self::$shouldHashKeys ? hash('xxh128', $limiterName . $limit->key) : $limiterName . ':' . $limit->key,
                     'maxAttempts' => $limit->maxAttempts,
                     'decaySeconds' => $limit->decaySeconds,
                     'afterCallback' => $limit->afterCallback,
@@ -274,7 +274,7 @@ class ThrottleRequests
      */
     private function formatIdentifier(string $value): string
     {
-        return self::$shouldHashKeys ? sha1($value) : $value;
+        return self::$shouldHashKeys ? hash('xxh128', $value) : $value;
     }
 
     /**

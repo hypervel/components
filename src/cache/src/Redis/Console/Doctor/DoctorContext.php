@@ -56,21 +56,10 @@ final class DoctorContext
     }
 
     /**
-     * Get the tag identifier (without cache prefix).
-     *
-     * Format: "_any:tag:{tagName}:entries" or "_all:tag:{tagName}:entries"
-     * Used for namespace computation in all mode.
-     */
-    public function tagId(string $tag): string
-    {
-        return $this->store->getContext()->tagId($tag);
-    }
-
-    /**
      * Compute the namespaced key for a tagged cache item in all mode.
      *
-     * In all mode, cache keys are prefixed with sha1 of sorted tag IDs.
-     * Format: "{sha1}:{key}"
+     * In all mode, cache keys are prefixed with xxh128 of tag IDs in the requested order.
+     * Format: "{xxh128}:{key}"
      *
      * @param array<string> $tags The tag names
      * @param string $key The cache key
@@ -78,9 +67,7 @@ final class DoctorContext
      */
     public function namespacedKey(array $tags, string $key): string
     {
-        $tagIds = array_map(fn (string $tag) => $this->tagId($tag), $tags);
-        sort($tagIds);
-        $namespace = sha1(implode('|', $tagIds));
+        $namespace = hash('xxh128', $this->cache->tags($tags)->getTags()->getNamespace());
 
         return $namespace . ':' . $key;
     }
@@ -156,7 +143,7 @@ final class DoctorContext
      * Returns patterns for BOTH tag modes to ensure complete cleanup
      * regardless of current mode (e.g., if config changed between runs):
      * - Untagged keys: {cachePrefix}{keyPrefix}* (same in both modes)
-     * - Tagged keys in all mode: {cachePrefix}{sha1}:{keyPrefix}* (namespaced)
+     * - Tagged keys in all mode: {cachePrefix}{xxh128}:{keyPrefix}* (namespaced)
      *
      * @param string $keyPrefix The prefix to match cache keys against
      * @return array<string> Patterns to use with SCAN/KEYS commands
@@ -166,7 +153,7 @@ final class DoctorContext
         return [
             // Untagged cache values (both modes) and any-mode tagged values
             $this->cachePrefix . $keyPrefix . '*',
-            // All-mode tagged values at {cachePrefix}{sha1}:{keyName}
+            // All-mode tagged values at {cachePrefix}{xxh128}:{keyName}
             $this->cachePrefix . '*:' . $keyPrefix . '*',
         ];
     }

@@ -659,6 +659,29 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
             . '@endComponentClass##END-COMPONENT-CLASS##', trim($result));
     }
 
+    public function testAnonymousComponentPathGeneratesXxh128PrefixHash(): void
+    {
+        $expectedHash = hash('xxh128', 'test-directory');
+        $factory = m::mock(Factory::class);
+        $factory->shouldReceive('addNamespace')->once()->with($expectedHash, 'test-directory')->andReturnSelf();
+
+        $container = new TestBladeApplication('base_path');
+        $container->instance(Factory::class, $factory);
+        $container->alias(Factory::class, 'view');
+
+        Container::setInstance($container);
+
+        $this->compiler->anonymousComponentPath('test-directory');
+
+        $this->assertSame([
+            [
+                'path' => 'test-directory',
+                'prefix' => null,
+                'prefixHash' => $expectedHash,
+            ],
+        ], $this->compiler->getAnonymousComponentPaths());
+    }
+
     public function testClasslessComponentsWithAnonymousComponentPathComponentName()
     {
         $this->mockViewFactory(function ($arg) {
@@ -754,7 +777,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
         $factory = m::mock(Factory::class);
         $factory->shouldReceive('exists')->never();
 
-        $container = new TestBladeApplication('bath_path');
+        $container = new TestBladeApplication('base_path');
         $container->instance(Factory::class, $factory);
         $container->alias(Factory::class, 'view');
 

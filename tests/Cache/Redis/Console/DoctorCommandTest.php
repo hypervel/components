@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Console;
 
+use Closure;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
@@ -15,6 +16,7 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Redis\PhpRedisConnection;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -171,6 +173,93 @@ class DoctorCommandTest extends TestCase
         // Verify the custom store was used
         $outputText = $output->fetch();
         $this->assertStringContainsString('custom-redis', $outputText);
+    }
+
+    public function testDoctorRunsChecksWhileRedisConnectionIsBorrowed(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('get')
+            ->with('cache.default', 'file')
+            ->andReturn('redis');
+
+        $this->app->instance('config', $config);
+
+        $borrowedConnection = false;
+        $assertConnectionBorrowed = function () use (&$borrowedConnection): void {
+            $this->assertTrue($borrowedConnection);
+        };
+
+        $connection = m::mock(PhpRedisConnection::class);
+        $connection->shouldReceive('info')
+            ->once()
+            ->with('server')
+            ->andReturn(['redis_version' => '7.0.0']);
+
+        $context = m::mock(StoreContext::class);
+        $context->shouldReceive('withConnection')
+            ->twice()
+            ->andReturnUsing(function (callable $callback) use (&$borrowedConnection, $connection) {
+                $borrowedConnection = true;
+
+                try {
+                    return $callback($connection);
+                } finally {
+                    $borrowedConnection = false;
+                }
+            });
+
+        $store = m::mock(RedisStore::class);
+        $store->shouldReceive('getTagMode')->andReturn(TagMode::Any);
+        $store->shouldReceive('getContext')->andReturn($context);
+        $store->shouldReceive('getPrefix')->andReturn('cache:');
+
+        $repository = m::mock(Repository::class);
+        $repository->shouldReceive('getStore')->andReturn($store);
+
+        $cacheManager = m::mock(CacheManager::class);
+        $cacheManager->shouldReceive('store')
+            ->with('redis')
+            ->andReturn($repository);
+
+        $this->app->instance(CacheContract::class, $cacheManager);
+
+        $command = new class($assertConnectionBorrowed) extends DoctorCommand {
+            public function __construct(private readonly Closure $assertConnectionBorrowed)
+            {
+                parent::__construct();
+            }
+
+            protected function runEnvironmentChecks(
+                string $storeName,
+                RedisStore $store,
+                string $taggingMode,
+                RedisConnection $redis
+            ): bool {
+                ($this->assertConnectionBorrowed)();
+
+                return true;
+            }
+
+            protected function runFunctionalChecks(DoctorContext $context): void
+            {
+                ($this->assertConnectionBorrowed)();
+            }
+
+            protected function runCleanupVerification(DoctorContext $context): void
+            {
+                ($this->assertConnectionBorrowed)();
+            }
+
+            protected function cleanup(DoctorContext $context, bool $silent = false): void
+            {
+                ($this->assertConnectionBorrowed)();
+            }
+        };
+
+        $command->setHypervel($this->app);
+        $result = $command->run(new ArrayInput(['--store' => 'redis']), new BufferedOutput);
+
+        $this->assertSame(0, $result);
     }
 
     public function testDoctorDisplaysTagMode(): void

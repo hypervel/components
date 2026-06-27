@@ -148,7 +148,7 @@ class BenchmarkContext
      * Returns patterns for BOTH tag modes to ensure complete cleanup
      * regardless of current mode (important for --compare-tag-modes):
      * - Untagged keys: {cachePrefix}{keyPrefix}* (same in both modes)
-     * - Tagged keys in all mode: {cachePrefix}{sha1}:{keyPrefix}* (namespaced)
+     * - Tagged keys in all mode: {cachePrefix}{xxh128}:{keyPrefix}* (namespaced)
      *
      * @param string $keyPrefix The prefix to match cache keys against
      * @return array<string> Patterns to use with SCAN/KEYS commands
@@ -160,7 +160,7 @@ class BenchmarkContext
         return [
             // Untagged cache values (both modes) and any-mode tagged values
             $prefix . $keyPrefix . '*',
-            // All-mode tagged values at {cachePrefix}{sha1}:{keyName}
+            // All-mode tagged values at {cachePrefix}{xxh128}:{keyName}
             $prefix . '*:' . $keyPrefix . '*',
         ];
     }
@@ -268,7 +268,7 @@ class BenchmarkContext
         $store->tags($tags)->flush();
 
         // 2. Clean up non-tagged benchmark keys using mode-aware patterns
-        // In all mode, tagged keys are at {prefix}{sha1}:{key}, so we need multiple patterns
+        // In all mode, tagged keys are at {prefix}{xxh128}:{key}, so we need multiple patterns
         foreach ($this->getCacheValuePatterns(self::KEY_PREFIX) as $pattern) {
             $this->flushKeysByPattern($storeInstance, $pattern);
         }

@@ -354,7 +354,7 @@ trait InteractsWithRedis
      */
     protected function createRedisConnectionWithPrefix(string $optPrefix): string
     {
-        $connectionName = 'test_opt_' . ($optPrefix === '' ? 'none' : md5($optPrefix));
+        $connectionName = 'test_opt_' . ($optPrefix === '' ? 'none' : hash('xxh128', $optPrefix));
 
         $config = $this->app->make('config');
 

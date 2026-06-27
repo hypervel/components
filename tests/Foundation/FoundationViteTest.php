@@ -683,7 +683,7 @@ class FoundationViteTest extends TestCase
     {
         $this->makeViteManifest(['a.js' => ['src' => 'a.js']]);
 
-        $this->assertSame('98ca5a789544599b562c9978f3147a0f', ViteFacade::manifestHash());
+        $this->assertSame('4f73e7c072a5410b92846df2052c7839', ViteFacade::manifestHash());
     }
 
     public function testItGetsDifferentHashesForDifferentManifestsInBuildMode()
@@ -691,8 +691,8 @@ class FoundationViteTest extends TestCase
         $this->makeViteManifest(['a.js' => ['src' => 'a.js']]);
         $this->makeViteManifest(['b.js' => ['src' => 'b.js']], 'admin');
 
-        $this->assertSame('98ca5a789544599b562c9978f3147a0f', ViteFacade::manifestHash());
-        $this->assertSame('928a60835978bae84e5381fbb08a38b2', ViteFacade::manifestHash('admin'));
+        $this->assertSame('4f73e7c072a5410b92846df2052c7839', ViteFacade::manifestHash());
+        $this->assertSame('fe4db42397a18ffd2e0638cca3a85567', ViteFacade::manifestHash('admin'));
     }
 
     public function testViteCanSetEntryPointsWithFluentBuilder()

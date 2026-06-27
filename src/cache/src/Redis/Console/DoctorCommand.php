@@ -109,42 +109,40 @@ class DoctorCommand extends Command
         $this->info('Checking System Requirements...');
         $this->newLine();
 
-        if (! $this->runEnvironmentChecks($storeName, $store, $tagMode)) {
-            return self::FAILURE;
-        }
+        return $store->getContext()->withConnection(function (RedisConnection $redis) use ($repository, $store, $storeName, $tagMode) {
+            if (! $this->runEnvironmentChecks($storeName, $store, $tagMode, $redis)) {
+                return self::FAILURE;
+            }
 
-        $this->info('✓ All requirements met!');
-        $this->newLine(2);
+            $this->info('✓ All requirements met!');
+            $this->newLine(2);
 
-        $this->info("Testing cache store: <fg=cyan>{$storeName}</> ({$tagMode} mode)");
-        $this->newLine();
+            $this->info("Testing cache store: <fg=cyan>{$storeName}</> ({$tagMode} mode)");
+            $this->newLine();
 
-        // Get the Redis connection from the store's context
-        $context = $store->getContext();
-        $redis = $context->withConnection(fn (RedisConnection $connection) => $connection);
+            $doctorContext = new DoctorContext(
+                cache: $repository,
+                store: $store,
+                redis: $redis,
+                cachePrefix: $store->getPrefix(),
+                storeName: $storeName,
+            );
 
-        $doctorContext = new DoctorContext(
-            cache: $repository,
-            store: $store,
-            redis: $redis,
-            cachePrefix: $store->getPrefix(),
-            storeName: $storeName,
-        );
+            // Run functional checks with cleanup
+            try {
+                $this->cleanup($doctorContext, silent: true);
+                $this->runFunctionalChecks($doctorContext);
+            } finally {
+                $this->cleanup($doctorContext);
+            }
 
-        // Run functional checks with cleanup
-        try {
-            $this->cleanup($doctorContext, silent: true);
-            $this->runFunctionalChecks($doctorContext);
-        } finally {
-            $this->cleanup($doctorContext);
-        }
+            // Run cleanup verification after cleanup
+            $this->runCleanupVerification($doctorContext);
 
-        // Run cleanup verification after cleanup
-        $this->runCleanupVerification($doctorContext);
+            $this->displaySummary();
 
-        $this->displaySummary();
-
-        return $this->testsFailed === 0 ? self::SUCCESS : self::FAILURE;
+            return $this->testsFailed === 0 ? self::SUCCESS : self::FAILURE;
+        });
     }
 
     /**
@@ -152,12 +150,8 @@ class DoctorCommand extends Command
      *
      * @return list<EnvironmentCheckInterface>
      */
-    protected function getEnvironmentChecks(string $storeName, RedisStore $store, string $tagMode): array
+    protected function getEnvironmentChecks(string $storeName, RedisStore $store, string $tagMode, RedisConnection $redis): array
     {
-        // Get connection for version checks
-        $context = $store->getContext();
-        $redis = $context->withConnection(fn (RedisConnection $connection) => $connection);
-
         return [
             new PhpRedisCheck,
             new RedisVersionCheck($redis, $tagMode),
@@ -197,11 +191,11 @@ class DoctorCommand extends Command
     /**
      * Run environment checks. Returns false if any check fails.
      */
-    protected function runEnvironmentChecks(string $storeName, RedisStore $store, string $taggingMode): bool
+    protected function runEnvironmentChecks(string $storeName, RedisStore $store, string $taggingMode, RedisConnection $redis): bool
     {
         $allPassed = true;
 
-        foreach ($this->getEnvironmentChecks($storeName, $store, $taggingMode) as $check) {
+        foreach ($this->getEnvironmentChecks($storeName, $store, $taggingMode, $redis) as $check) {
             $result = $check->run();
 
             foreach ($result->assertions as $assertion) {

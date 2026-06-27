@@ -9,6 +9,7 @@ use Closure;
 use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application;
@@ -17,7 +18,7 @@ use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Collection;
+use Hypervel\Support\Fluent;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -53,13 +54,6 @@ class DatabaseManager implements ConnectionResolverInterface
      * @var array<string, \Hypervel\Database\Connection>
      */
     protected array $connections = [];
-
-    /**
-     * The dynamically configured (DB::build) connection configurations.
-     *
-     * @var array<string, array>
-     */
-    protected array $dynamicConnectionConfigurations = [];
 
     /**
      * The callback to be executed to reconnect to a database.
@@ -141,16 +135,6 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
-     * Calculate the dynamic connection name for an on-demand connection based on its configuration.
-     */
-    public static function calculateDynamicConnectionName(array $config): string
-    {
-        return 'dynamic_' . md5((new Collection($config))->map(function ($value, $key) {
-            return $key . (is_string($value) || is_int($value) ? $value : '');
-        })->implode(''));
-    }
-
-    /**
      * Get a database connection instance from the given configuration.
      *
      * @throws RuntimeException Always - dynamic connections not supported in Hypervel
@@ -180,9 +164,10 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     protected function configuration(string $name): array
     {
-        $connections = $this->app['config']['database.connections'];
+        /** @var array<string, array> $connections */
+        $connections = $this->configValue('database.connections', []);
 
-        $config = $this->dynamicConnectionConfigurations[$name] ?? Arr::get($connections, $name);
+        $config = Arr::get($connections, $name);
 
         if (is_null($config)) {
             throw new InvalidArgumentException("Database connection [{$name}] not configured.");
@@ -373,8 +358,11 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function getDefaultConnection(): ?string
     {
+        /** @var null|string $defaultConnection */
+        $defaultConnection = $this->configValue('database.default');
+
         return CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY)
-            ?? $this->app['config']['database.default'];
+            ?? $defaultConnection;
     }
 
     /**
@@ -441,6 +429,17 @@ class DatabaseManager implements ConnectionResolverInterface
         } else {
             CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $name);
         }
+    }
+
+    /**
+     * Get a config value.
+     */
+    protected function configValue(string $key, mixed $default = null): mixed
+    {
+        /** @var ConfigRepository|Fluent $config */
+        $config = $this->app->make('config');
+
+        return $config[$key] ?? $default;
     }
 
     /**
