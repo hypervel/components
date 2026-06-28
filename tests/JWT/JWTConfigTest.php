@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\JWT;
 
+use Hypervel\JWT\Http\Parser\AuthHeaders;
+use Hypervel\JWT\Http\Parser\InputSource;
+use Hypervel\JWT\Validations\ExpiredClaim;
+use Hypervel\JWT\Validations\IssuedAtClaim;
+use Hypervel\JWT\Validations\IssuerClaim;
+use Hypervel\JWT\Validations\NotBeforeClaim;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
 
@@ -23,6 +29,24 @@ class JWTConfigTest extends TestCase
 
             $this->assertSame(30, $config['blacklist_grace_period']);
             $this->assertSame(60, $config['blacklist_refresh_ttl']);
+        } finally {
+            $this->restoreEnvironmentVariables($originalValues);
+            Env::flushRepository();
+        }
+    }
+
+    public function testLeewayIsLoadedAsIntegerFromEnvironment(): void
+    {
+        $originalValues = $this->setEnvironmentVariables([
+            'JWT_LEEWAY' => '30',
+        ]);
+
+        try {
+            Env::flushRepository();
+
+            $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+
+            $this->assertSame(30, $config['leeway']);
         } finally {
             $this->restoreEnvironmentVariables($originalValues);
             Env::flushRepository();
@@ -99,6 +123,57 @@ class JWTConfigTest extends TestCase
             $this->restoreEnvironmentVariables($originalValues);
             Env::flushRepository();
         }
+    }
+
+    public function testNewJwtOptionsAreLoadedFromEnvironment(): void
+    {
+        $originalValues = $this->setEnvironmentVariables([
+            'JWT_ISSUER' => 'https://api.example.test',
+            'JWT_REFRESH_IAT' => 'true',
+            'JWT_LOCK_SUBJECT' => 'false',
+            'JWT_TOKEN' => 'api_token',
+        ]);
+
+        try {
+            Env::flushRepository();
+
+            $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+
+            $this->assertSame('https://api.example.test', $config['issuer']);
+            $this->assertTrue($config['refresh_iat']);
+            $this->assertFalse($config['lock_subject']);
+            $this->assertSame('api_token', $config['token']);
+        } finally {
+            $this->restoreEnvironmentVariables($originalValues);
+            Env::flushRepository();
+        }
+    }
+
+    public function testDefaultParserDoesNotIncludeCookieParser(): void
+    {
+        $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+
+        $this->assertSame([AuthHeaders::class, InputSource::class], $config['parser']);
+    }
+
+    public function testNotBeforeClaimClassIsUsedInConfiguration(): void
+    {
+        $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+        $contents = file_get_contents(dirname(__DIR__, 2) . '/src/jwt/config/jwt.php');
+
+        $this->assertStringContainsString(NotBeforeClaim::class, $contents);
+        $this->assertStringNotContainsString('NotBeforeCliam', $contents);
+        $this->assertNotContains('Hypervel\JWT\Validations\NotBeforeCliam', $config['validations']);
+    }
+
+    public function testDefaultConfigurationValidatesStandardTemporalClaimsAndIssuer(): void
+    {
+        $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+
+        $this->assertContains(ExpiredClaim::class, $config['validations']);
+        $this->assertContains(IssuerClaim::class, $config['validations']);
+        $this->assertContains(IssuedAtClaim::class, $config['validations']);
+        $this->assertContains(NotBeforeClaim::class, $config['validations']);
     }
 
     /**
