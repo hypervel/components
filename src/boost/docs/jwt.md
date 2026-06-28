@@ -163,6 +163,12 @@ Inline claims passed with the guard's `claims` method override model-defined cus
 <a name="signing-keys-and-algorithms"></a>
 ### Signing Keys and Algorithms
 
+The JWT driver defaults to the bundled Lcobucci provider:
+
+```php
+'driver' => env('JWT_DRIVER', 'lcobucci'),
+```
+
 For HMAC algorithms, configure `JWT_SECRET` and `JWT_ALGO`:
 
 ```php
@@ -287,7 +293,11 @@ The `validations` option controls which validation classes run when a token is d
 ],
 ```
 
-The default configuration enables required-claim, expiration, issuer, issued-at, and not-before validation. Issuer validation only enforces a value when `jwt.issuer` is configured.
+The default configuration enables required-claim, expiration, issuer, issued-at, and not-before validation. Issuer validation only enforces a value when `jwt.issuer` is configured:
+
+```php
+'issuer' => env('JWT_ISSUER'),
+```
 
 The `required_claims` option controls which claims must exist in every token:
 
