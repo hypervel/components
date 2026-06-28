@@ -35,7 +35,7 @@ class SessionManager extends Manager
     protected function createArrayDriver(): Store
     {
         return $this->buildSession(new ArraySessionHandler(
-            $this->config->get('session.lifetime')
+            $this->config->integer('session.lifetime')
         ));
     }
 
@@ -46,8 +46,8 @@ class SessionManager extends Manager
     {
         return $this->buildSession(new CookieSessionHandler(
             $this->container->make('cookie'),
-            $this->config->get('session.lifetime'),
-            $this->config->get('session.expire_on_close')
+            $this->config->integer('session.lifetime'),
+            $this->config->boolean('session.expire_on_close')
         ));
     }
 
@@ -64,11 +64,11 @@ class SessionManager extends Manager
      */
     protected function createNativeDriver(): Store
     {
-        $lifetime = $this->config->get('session.lifetime');
+        $lifetime = $this->config->integer('session.lifetime');
 
         return $this->buildSession(new FileSessionHandler(
             $this->container->make('files'),
-            $this->config->get('session.files'),
+            $this->config->string('session.files'),
             $lifetime
         ));
     }
@@ -78,9 +78,9 @@ class SessionManager extends Manager
      */
     protected function createDatabaseDriver(): Store
     {
-        $table = $this->config->get('session.table');
+        $table = $this->config->string('session.table');
 
-        $lifetime = $this->config->get('session.lifetime');
+        $lifetime = $this->config->integer('session.lifetime');
 
         return $this->buildSession(new DatabaseSessionHandler(
             $this->container->make('db'),
@@ -123,7 +123,7 @@ class SessionManager extends Manager
 
         return new CacheBasedSessionHandler(
             clone $this->container->make('cache')->store($store),
-            $this->config->get('session.lifetime')
+            $this->config->integer('session.lifetime')
         );
     }
 
@@ -132,13 +132,13 @@ class SessionManager extends Manager
      */
     protected function buildSession(SessionHandlerInterface $handler): Store
     {
-        return $this->config->get('session.encrypt')
+        return $this->config->boolean('session.encrypt')
             ? $this->buildEncryptedSession($handler)
             : new Store(
-                $this->config->get('session.cookie'),
+                $this->config->string('session.cookie'),
                 $handler,
                 null,
-                $this->config->get('session.serialization', 'php')
+                $this->config->string('session.serialization', 'php')
             );
     }
 
@@ -148,11 +148,11 @@ class SessionManager extends Manager
     protected function buildEncryptedSession(SessionHandlerInterface $handler): EncryptedStore
     {
         return new EncryptedStore(
-            $this->config->get('session.cookie'),
+            $this->config->string('session.cookie'),
             $handler,
             $this->container->make(Encrypter::class),
             null,
-            $this->config->get('session.serialization', 'php'),
+            $this->config->string('session.serialization', 'php'),
         );
     }
 
@@ -161,7 +161,7 @@ class SessionManager extends Manager
      */
     public function shouldBlock(): bool
     {
-        return $this->config->get('session.block', false);
+        return $this->config->boolean('session.block', false);
     }
 
     /**
@@ -177,7 +177,7 @@ class SessionManager extends Manager
      */
     public function defaultRouteBlockLockSeconds(): int
     {
-        return $this->config->get('session.block_lock_seconds', 10);
+        return $this->config->integer('session.block_lock_seconds', 10);
     }
 
     /**
@@ -185,7 +185,7 @@ class SessionManager extends Manager
      */
     public function defaultRouteBlockWaitSeconds(): int
     {
-        return $this->config->get('session.block_wait_seconds', 10);
+        return $this->config->integer('session.block_wait_seconds', 10);
     }
 
     /**
@@ -193,7 +193,7 @@ class SessionManager extends Manager
      */
     public function getSessionConfig(): array
     {
-        return $this->config->get('session');
+        return $this->config->array('session');
     }
 
     /**
@@ -201,7 +201,7 @@ class SessionManager extends Manager
      */
     public function getDefaultDriver(): string
     {
-        return $this->config->get('session.driver');
+        return $this->config->string('session.driver');
     }
 
     /**
