@@ -7,12 +7,12 @@ namespace Hypervel\JWT;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Contracts\ManagerContract;
+use Hypervel\JWT\Contracts\TemporalValidation;
 use Hypervel\JWT\Contracts\ValidationContract;
 use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;
 use Hypervel\JWT\Exceptions\TokenExpiredException;
 use Hypervel\JWT\Providers\Lcobucci;
-use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Str;
@@ -30,11 +30,15 @@ class JWTManager extends Manager implements ManagerContract
      * Create a new manager instance.
      */
     public function __construct(
-        protected Container $container
+        Container $container,
+        protected ClaimFactory $claimFactory,
     ) {
         parent::__construct($container);
-        $this->blacklist = $container->make(BlacklistContract::class);
+
         $this->blacklistEnabled = $this->config->boolean('jwt.blacklist_enabled', false);
+        $this->blacklist = $this->blacklistEnabled
+            ? $container->make(BlacklistContract::class)
+            : null;
     }
 
     /**
@@ -63,15 +67,21 @@ class JWTManager extends Manager implements ManagerContract
         return $this->config->string('jwt.driver', 'lcobucci');
     }
 
+    /**
+     * Encode a payload into a token.
+     */
     public function encode(array $payload): string
     {
-        if ($this->blacklistEnabled) {
+        if ($this->blacklistEnabled && ! array_key_exists('jti', $payload)) {
             $payload['jti'] = (string) Str::uuid();
         }
 
         return $this->driver()->encode($payload);
     }
 
+    /**
+     * Decode a token into its payload.
+     */
     public function decode(string $token, bool $validate = true, bool $checkBlacklist = true): array
     {
         $payload = $this->driver()->decode($token);
@@ -80,18 +90,23 @@ class JWTManager extends Manager implements ManagerContract
             $this->validatePayload($payload);
         }
 
-        if ($this->blacklistEnabled && $checkBlacklist && $this->blacklist->has($payload)) {
+        if ($this->blacklistEnabled && $checkBlacklist && $this->blacklist()->has($payload)) {
             throw new TokenBlacklistedException('The token has been blacklisted');
         }
 
         return $payload;
     }
 
-    protected function validatePayload(array $payload): void
+    protected function validatePayload(array $payload, bool $refresh = false): void
     {
         foreach ($this->config->array('jwt.validations', []) as $validation) {
-            $this->getValidation($validation)
-                ->validate($payload);
+            $validation = $this->getValidation($validation);
+
+            if ($refresh && $validation instanceof TemporalValidation) {
+                continue;
+            }
+
+            $validation->validate($payload);
         }
     }
 
@@ -104,22 +119,61 @@ class JWTManager extends Manager implements ManagerContract
         return $this->validations[$class] = new $class($this->config->array('jwt'));
     }
 
-    public function refresh(string $token, bool $forceForever = false): string
-    {
-        $payload = $this->decode($token);
+    /**
+     * Refresh a token.
+     */
+    public function refresh(
+        string $token,
+        bool $forceForever = false,
+        bool $resetClaims = false,
+        array $customClaims = [],
+        int|false|null $ttl = false,
+    ): string {
+        $payload = $this->decodeForRefresh($token);
         $this->validateRefreshWindow($payload);
 
-        $claims = $this->buildRefreshClaims($payload);
+        if ($ttl === false) {
+            /** @var null|int $ttl */
+            $ttl = $this->config->get('jwt.ttl', 120);
+        }
+
+        $claims = $this->claimFactory->refresh(
+            payload: $payload,
+            ttl: $ttl,
+            refreshIssuedAt: $this->config->boolean('jwt.refresh_iat', false),
+            resetClaims: $resetClaims,
+            persistentClaims: $this->config->array('jwt.persistent_claims', []),
+            customClaims: $customClaims,
+        );
+
+        $newToken = $this->encode($claims);
 
         if ($this->blacklistEnabled) {
-            // Invalidate old token
             $this->invalidate($token, $forceForever);
         }
 
-        // Return the new token
-        return $this->encode($claims);
+        return $newToken;
     }
 
+    /**
+     * Decode a token for refresh.
+     */
+    protected function decodeForRefresh(string $token): array
+    {
+        $payload = $this->driver()->decode($token);
+
+        $this->validatePayload($payload, refresh: true);
+
+        if ($this->blacklistEnabled && $this->blacklist()->has($payload)) {
+            throw new TokenBlacklistedException('The token has been blacklisted');
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Invalidate a token.
+     */
     public function invalidate(string $token, bool $forceForever = false): bool
     {
         if (! $this->blacklistEnabled) {
@@ -127,8 +181,8 @@ class JWTManager extends Manager implements ManagerContract
         }
 
         return call_user_func(
-            [$this->blacklist, $forceForever ? 'addForever' : 'add'],
-            $this->decode($token, false)
+            [$this->blacklist(), $forceForever ? 'addForever' : 'add'],
+            $this->decode($token, false, false)
         );
     }
 
@@ -150,31 +204,22 @@ class JWTManager extends Manager implements ManagerContract
     }
 
     /**
-     * Build the claims for a refreshed token.
+     * Determine if the blacklist is enabled.
      */
-    protected function buildRefreshClaims(array $payload): array
+    public function hasBlacklistEnabled(): bool
     {
-        // Get the claims to be persisted from the payload
-        $persistentClaims = Collection::make($payload)
-            ->only($this->config->array('jwt.persistent_claims', []))
-            ->toArray();
+        return $this->blacklistEnabled;
+    }
 
-        // persist the relevant claims
-        $claims = array_merge(
-            $persistentClaims,
-            [
-                'sub' => $payload['sub'],
-                'iat' => $payload['iat'],
-            ]
-        );
-
-        /** @var null|int $ttl */
-        $ttl = $this->config->get('jwt.ttl', 120);
-
-        if ($ttl !== null) {
-            $claims['exp'] = Date::now()->addMinutes($ttl)->getTimestamp();
+    /**
+     * Get the configured blacklist instance.
+     */
+    protected function blacklist(): BlacklistContract
+    {
+        if ($this->blacklist === null) {
+            throw new JWTException('JWT blacklist is not configured.');
         }
 
-        return $claims;
+        return $this->blacklist;
     }
 }

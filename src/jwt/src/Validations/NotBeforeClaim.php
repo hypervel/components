@@ -7,7 +7,7 @@ namespace Hypervel\JWT\Validations;
 use Hypervel\JWT\Exceptions\TokenInvalidException;
 use Hypervel\Support\Facades\Date;
 
-class NotBeforeCliam extends AbstractValidation
+class NotBeforeClaim extends AbstractValidation
 {
     public function validate(array $payload): void
     {

@@ -25,7 +25,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Don't forget to set this in your .env file, as it will be used to sign
-    | your tokens.
+    | your tokens. You may generate it using the jwt:secret command.
     |
     | Note: This will be used for Symmetric algorithms only (HMAC),
     | since RSA and ECDSA use a private/public key combo (See below).
@@ -96,7 +96,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Specify the length of time (in minutes) that the token will be valid for.
-    | Defaults to 1 hour.
+    | Defaults to 2 hours.
     |
     | You can also set this to null, to yield a never expiring token.
     | Some people may want this behaviour for e.g. a mobile app.
@@ -129,6 +129,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Issuer
+    |--------------------------------------------------------------------------
+    |
+    | The issuer to add to newly generated tokens.
+    |
+    */
+
+    'issuer' => env('JWT_ISSUER'),
+
+    /*
+    |--------------------------------------------------------------------------
     | JWT hashing algorithm
     |--------------------------------------------------------------------------
     |
@@ -148,9 +159,10 @@ return [
     */
     'validations' => [
         \Hypervel\JWT\Validations\RequiredClaims::class,
-        // \Hypervel\JWT\Validations\ExpiredClaim::class,
-        // \Hypervel\JWT\Validations\IssuedAtClaim::class,
-        // \Hypervel\JWT\Validations\NotBeforeCliam::class,
+        \Hypervel\JWT\Validations\ExpiredClaim::class,
+        \Hypervel\JWT\Validations\IssuerClaim::class,
+        \Hypervel\JWT\Validations\IssuedAtClaim::class,
+        \Hypervel\JWT\Validations\NotBeforeClaim::class,
     ],
 
     /*
@@ -206,7 +218,7 @@ return [
     |
     */
 
-    'leeway' => env('JWT_LEEWAY', 0),
+    'leeway' => (int) env('JWT_LEEWAY', 0),
 
     /*
     |--------------------------------------------------------------------------
@@ -219,6 +231,46 @@ return [
     */
 
     'blacklist_enabled' => env('JWT_BLACKLIST_ENABLED', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Refresh Issued At
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, refreshed tokens receive a fresh iat claim. When disabled,
+    | refreshed tokens keep the original iat claim.
+    |
+    */
+
+    'refresh_iat' => env('JWT_REFRESH_IAT', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Subject Locking
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, tokens include a provider model hash to prevent the same
+    | subject ID from authenticating against a different provider model.
+    |
+    */
+
+    'lock_subject' => env('JWT_LOCK_SUBJECT', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Token Parser
+    |--------------------------------------------------------------------------
+    |
+    | Configure the request input key and ordered parser chain used to extract
+    | JWT tokens from incoming requests.
+    |
+    */
+
+    'token' => env('JWT_TOKEN', 'token'),
+
+    'parser' => [
+        \Hypervel\JWT\Http\Parser\AuthHeaders::class,
+    ],
 
     /*
     | -------------------------------------------------------------------------

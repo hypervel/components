@@ -83,7 +83,7 @@ As discussed in this documentation, you can interact with these authentication s
 <a name="hypervels-api-authentication-services"></a>
 #### Hypervel's API Authentication Services
 
-Hypervel provides two optional packages to assist you in managing API tokens and authenticating requests made with API tokens: [Passport](/docs/{{version}}/passport) and [Sanctum](/docs/{{version}}/sanctum). Please note that these libraries and Hypervel's built-in cookie based authentication libraries are not mutually exclusive. These libraries primarily focus on API token authentication while the built-in authentication services focus on cookie based browser authentication. Many applications will use both Hypervel's built-in cookie based authentication services and one of Hypervel's API authentication packages.
+Hypervel provides optional packages to assist you in managing API tokens and authenticating requests made with API tokens, including [Sanctum](/docs/{{version}}/sanctum) and [JWT authentication](/docs/{{version}}/jwt). Please note that these libraries and Hypervel's built-in cookie based authentication libraries are not mutually exclusive. These libraries primarily focus on API token authentication while the built-in authentication services focus on cookie based browser authentication. Many applications will use both Hypervel's built-in cookie based authentication services and one of Hypervel's API authentication packages.
 
 **Passport**
 
@@ -95,16 +95,22 @@ In response to the complexity of OAuth2 and developer confusion, we set out to b
 
 Hypervel Sanctum is a hybrid web / API authentication package that can manage your application's entire authentication process. This is possible because when Sanctum based applications receive a request, Sanctum will first determine if the request includes a session cookie that references an authenticated session. Sanctum accomplishes this by calling Hypervel's built-in authentication services which we discussed earlier. If the request is not being authenticated via a session cookie, Sanctum will inspect the request for an API token. If an API token is present, Sanctum will authenticate the request using that token. To learn more about this process, please consult Sanctum's ["how it works"](/docs/{{version}}/sanctum#how-it-works) documentation.
 
+**JWT Authentication**
+
+[Hypervel JWT](/docs/{{version}}/jwt) provides stateless bearer token authentication using signed JSON Web Tokens. JWT authentication is useful when your application needs signed tokens for API, mobile, or service-to-service requests and does not need Sanctum's database-backed personal access tokens or OAuth2 grant flows.
+
 <a name="summary-choosing-your-stack"></a>
 #### Summary and Choosing Your Stack
 
 In summary, if your application will be accessed using a browser and you are building a monolithic Hypervel application, your application will use Hypervel's built-in authentication services.
 
-Next, if your application offers an API that will be consumed by third parties, you will choose between [Passport](/docs/{{version}}/passport) or [Sanctum](/docs/{{version}}/sanctum) to provide API token authentication for your application. In general, Sanctum should be preferred when possible since it is a simple, complete solution for API authentication, SPA authentication, and mobile authentication, including support for "scopes" or "abilities".
+Next, if your application offers an API that will be consumed by third parties, you will choose between [Sanctum](/docs/{{version}}/sanctum), [JWT authentication](/docs/{{version}}/jwt), or an OAuth2 server to provide API token authentication for your application. In general, Sanctum should be preferred when possible since it is a simple, complete solution for API authentication, SPA authentication, and mobile authentication, including support for "scopes" or "abilities".
 
-If you are building a single-page application (SPA) that will be powered by a Hypervel backend, you should use [Hypervel Sanctum](/docs/{{version}}/sanctum). When using Sanctum, you will either need to [manually implement your own backend authentication routes](#authenticating-users) or utilize [Hypervel Fortify](/docs/{{version}}/fortify) as a headless authentication backend service that provides routes and controllers for features such as registration, password reset, email verification, and more.
+If you are building a single-page application (SPA) that will be powered by a Hypervel backend, you should use [Hypervel Sanctum](/docs/{{version}}/sanctum). When using Sanctum, you will need to [manually implement your own backend authentication routes](#authenticating-users) or use another headless authentication backend service that provides routes and controllers for features such as registration, password reset, email verification, and more.
 
-Passport may be chosen when your application absolutely needs all of the features provided by the OAuth2 specification.
+An OAuth2 server may be chosen when your application absolutely needs all of the features provided by the OAuth2 specification.
+
+JWT authentication may be chosen when your application wants stateless signed bearer tokens without storing each issued token in the database.
 
 And, if you would like to get started quickly, we are pleased to recommend [our application starter kits](/docs/{{version}}/starter-kits) as a quick way to start a new Hypervel application that already uses our preferred authentication stack of Hypervel's built-in authentication services.
 
@@ -746,12 +752,15 @@ Route::post('/settings', function () {
 
 You may define your own authentication guards using the `extend` method on the `Auth` facade. You should place your call to the `extend` method within a [service provider](/docs/{{version}}/providers). Since Hypervel already ships with an `AppServiceProvider`, we can place the code in that provider:
 
+> [!NOTE]
+> If you want to authenticate requests using JSON Web Tokens, use Hypervel's [JWT authentication](/docs/{{version}}/jwt) package. This section is for custom authentication systems that are not already provided by Hypervel.
+
 ```php
 <?php
 
 namespace App\Providers;
 
-use App\Services\Auth\JwtGuard;
+use App\Services\Auth\TokenGuard;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\ServiceProvider;
@@ -765,10 +774,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Auth::extend('jwt', function (Application $app, string $name, array $config) {
+        Auth::extend('token', function (Application $app, string $name, array $config) {
             // Return an instance of Hypervel\Contracts\Auth\Guard...
 
-            return new JwtGuard(Auth::createUserProvider($config['provider']));
+            return new TokenGuard(Auth::createUserProvider($config['provider']));
         });
     }
 }
@@ -779,7 +788,7 @@ As you can see in the example above, the callback passed to the `extend` method 
 ```php
 'guards' => [
     'api' => [
-        'driver' => 'jwt',
+        'driver' => 'token',
         'provider' => 'users',
     ],
 ],

@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Exception;
 use Hypervel\JWT\Contracts\ProviderContract;
 use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\JWT\Exceptions\SecretMissingException;
 use Hypervel\JWT\Exceptions\TokenInvalidException;
 use Hypervel\Support\Collection;
 use Lcobucci\JWT\Builder;
@@ -133,7 +134,9 @@ class Lcobucci extends Provider implements ProviderContract
                     $builder = $builder->issuedBy($value);
                     break;
                 case RegisteredClaims::AUDIENCE:
-                    $builder = $builder->permittedFor($value);
+                    $builder = is_array($value)
+                        ? $builder->permittedFor(...$value)
+                        : $builder->permittedFor($value);
                     break;
                 case RegisteredClaims::SUBJECT:
                     $builder = $builder->relatedTo((string) $value);
@@ -159,11 +162,9 @@ class Lcobucci extends Provider implements ProviderContract
             )
             : Configuration::forSymmetricSigner($this->signer, $this->getSigningKey());
 
-        $config->setValidationConstraints(
+        return $config->withValidationConstraints(
             new SignedWith($this->signer, $this->getVerificationKey())
         );
-
-        return $config;
     }
 
     /**
@@ -220,7 +221,7 @@ class Lcobucci extends Provider implements ProviderContract
         }
 
         if (! $secret = $this->getSecret()) {
-            throw new JWTException('Secret is not set.');
+            throw new SecretMissingException('Secret is not set.');
         }
 
         return $this->getKey($secret);
@@ -240,7 +241,7 @@ class Lcobucci extends Provider implements ProviderContract
         }
 
         if (! $secret = $this->getSecret()) {
-            throw new JWTException('Secret is not set.');
+            throw new SecretMissingException('Secret is not set.');
         }
 
         return $this->getKey($secret);
@@ -251,6 +252,10 @@ class Lcobucci extends Provider implements ProviderContract
      */
     protected function getKey(string $contents, string $passphrase = ''): Key
     {
+        if (str_starts_with($contents, 'file://')) {
+            return InMemory::file($contents, $passphrase);
+        }
+
         return InMemory::plainText($contents, $passphrase);
     }
 }
