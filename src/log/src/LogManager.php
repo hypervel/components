@@ -321,7 +321,7 @@ class LogManager implements LoggerInterface
     {
         return new Monolog($this->parseChannel($config), [
             $this->prepareHandler(new SyslogHandler(
-                Str::snake($this->app['config']['app.name'], '-'),
+                Str::snake($this->app->make('config')->string('app.name'), '-'),
                 $config['facility'] ?? LOG_USER,
                 $this->level($config)
             ), $config),
@@ -516,7 +516,7 @@ class LogManager implements LoggerInterface
      */
     protected function configurationFor(string $name): ?array
     {
-        return $this->app['config']["logging.channels.{$name}"];
+        return $this->app->make('config')->get("logging.channels.{$name}");
     }
 
     /**
@@ -524,7 +524,7 @@ class LogManager implements LoggerInterface
      */
     public function getDefaultDriver(): ?string
     {
-        return $this->app['config']['logging.default'];
+        return $this->app->make('config')->get('logging.default');
     }
 
     /**
@@ -534,7 +534,7 @@ class LogManager implements LoggerInterface
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app['config']['logging.default'] = $name;
+        $this->app->make('config')->set('logging.default', $name);
     }
 
     /**

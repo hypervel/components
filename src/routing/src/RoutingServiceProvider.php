@@ -70,7 +70,7 @@ class RoutingServiceProvider extends ServiceProvider
                     'request',
                     $this->requestRebinder()
                 ),
-                $app['config']['app.asset_url']
+                $app->make('config')->get('app.asset_url')
             );
         });
 

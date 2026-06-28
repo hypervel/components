@@ -44,7 +44,7 @@ class KeyGenerateCommand extends Command
             return;
         }
 
-        $this->hypervel['config']['app.key'] = $key;
+        $this->hypervel->make('config')->set('app.key', $key);
 
         $this->components->info('Application key set successfully.');
     }
@@ -55,7 +55,7 @@ class KeyGenerateCommand extends Command
     protected function generateRandomKey(): string
     {
         return 'base64:' . base64_encode(
-            Encrypter::generateKey($this->hypervel['config']['app.cipher'])
+            Encrypter::generateKey($this->hypervel->make('config')->string('app.cipher'))
         );
     }
 
@@ -64,7 +64,7 @@ class KeyGenerateCommand extends Command
      */
     protected function setKeyInEnvironmentFile(string $key): bool
     {
-        $currentKey = $this->hypervel['config']['app.key'];
+        $currentKey = $this->hypervel->make('config')->get('app.key') ?? '';
 
         if (strlen($currentKey) !== 0 && (! $this->confirmToProceed())) {
             return false;
@@ -108,7 +108,7 @@ class KeyGenerateCommand extends Command
      */
     protected function keyReplacementPattern(): string
     {
-        $escaped = preg_quote('=' . $this->hypervel['config']['app.key'], '/');
+        $escaped = preg_quote('=' . ($this->hypervel->make('config')->get('app.key') ?? ''), '/');
 
         return "/^APP_KEY{$escaped}/m";
     }
