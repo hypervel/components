@@ -6,6 +6,7 @@ namespace Hypervel\Tests\JWT\Providers;
 
 use Carbon\Carbon;
 use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\JWT\Exceptions\SecretMissingException;
 use Hypervel\JWT\Exceptions\TokenInvalidException;
 use Hypervel\JWT\Providers\Lcobucci;
 use Hypervel\JWT\Providers\Provider;
@@ -24,7 +25,7 @@ class LcobucciTest extends TestCase
         $this->testNowTimestamp = Carbon::now()->timestamp;
     }
 
-    public function testEncodeClaimsUsingASymmetricKey()
+    public function testEncodeClaimsUsingASymmetricKey(): void
     {
         $payload = [
             'sub' => 1,
@@ -50,7 +51,7 @@ class LcobucciTest extends TestCase
         $this->assertEquals($iat, $claims['iat']);
     }
 
-    public function testEncodeAndDecodeATokenUsingASymmetricKey()
+    public function testEncodeAndDecodeATokenUsingASymmetricKey(): void
     {
         $payload = [
             'sub' => 1,
@@ -72,7 +73,7 @@ class LcobucciTest extends TestCase
         $this->assertEquals($iat, $claims['iat']);
     }
 
-    public function testEncodeAndDecodeATokenUsingAnAsymmetricRs256Key()
+    public function testEncodeAndDecodeATokenUsingAnAsymmetricRs256Key(): void
     {
         $payload = [
             'sub' => 1,
@@ -102,7 +103,22 @@ class LcobucciTest extends TestCase
         $this->assertEquals($iat, $claims['iat']);
     }
 
-    public function testShouldThrowAnInvalidExceptionWhenThePayloadCouldNotBeEncoded()
+    public function testEncodeAndDecodeATokenWithMultipleAudiences(): void
+    {
+        $payload = [
+            'sub' => 1,
+            'aud' => ['https://first.example.test', 'https://second.example.test'],
+            'iat' => $this->testNowTimestamp,
+        ];
+
+        $provider = $this->getProvider($this->getRandomString(), Provider::ALGO_HS256);
+
+        $claims = $provider->decode($provider->encode($payload));
+
+        $this->assertSame(['https://first.example.test', 'https://second.example.test'], $claims['aud']);
+    }
+
+    public function testShouldThrowAnInvalidExceptionWhenThePayloadCouldNotBeEncoded(): void
     {
         $this->expectException(JWTException::class);
         $this->expectExceptionMessage('Could not create token:');
@@ -119,7 +135,7 @@ class LcobucciTest extends TestCase
         $this->getProvider($this->getRandomString(), Provider::ALGO_HS256)->encode($payload);
     }
 
-    public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecodedDueToABadSignature()
+    public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecodedDueToABadSignature(): void
     {
         $this->expectException(TokenInvalidException::class);
         $this->expectExceptionMessage('Token Signature could not be verified.');
@@ -129,7 +145,7 @@ class LcobucciTest extends TestCase
             ->decode('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiZXhwIjoxNjQ5MjYxMDY1LCJpYXQiOjE2NDkyNTc0NjUsImlzcyI6Ii9mb28iLCJjdXN0b21fY2xhaW0iOiJmb29iYXIifQ.jamiInQiin-1RUviliPjZxl0MLEnQnVTbr2sGooeXBY');
     }
 
-    public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecodedDueToTamperedToken()
+    public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecodedDueToTamperedToken(): void
     {
         $this->expectException(TokenInvalidException::class);
         $this->expectExceptionMessage('Token Signature could not be verified.');
@@ -139,7 +155,7 @@ class LcobucciTest extends TestCase
             ->decode('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIiwiZXhwIjoxNjQ5MjYxMDY1LCJpYXQiOjE2NDkyNTc0NjUsImlzcyI6Ii9mb29iYXIiLCJjdXN0b21fY2xhaW0iOiJmb29iYXIifQ.jamiInQiin-1RUviliPjZxl0MLEnQnVTbr2sGooeXBY');
     }
 
-    public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecoded()
+    public function testShouldThrowATokenInvalidExceptionWhenTheTokenCouldNotBeDecoded(): void
     {
         $this->expectException(TokenInvalidException::class);
         $this->expectExceptionMessage('Could not decode token:');
@@ -147,7 +163,7 @@ class LcobucciTest extends TestCase
         $this->getProvider('secret', Provider::ALGO_HS256)->decode('foo.bar.baz');
     }
 
-    public function testShouldThrowAnExceptionWhenTheAlgorithmPassedIsInvalid()
+    public function testShouldThrowAnExceptionWhenTheAlgorithmPassedIsInvalid(): void
     {
         $this->expectException(JWTException::class);
         $this->expectExceptionMessage('The given algorithm could not be found');
@@ -155,7 +171,7 @@ class LcobucciTest extends TestCase
         $this->getProvider('secret', 'INVALID_ALGO')->decode('foo.bar.baz');
     }
 
-    public function testShouldThrowAnExceptionWhenNoAsymmetricPublicKeyIsProvided()
+    public function testShouldThrowAnExceptionWhenNoAsymmetricPublicKeyIsProvided(): void
     {
         $this->expectException(JWTException::class);
         $this->expectExceptionMessage('Public key is not set.');
@@ -167,7 +183,7 @@ class LcobucciTest extends TestCase
         )->decode('foo.bar.baz');
     }
 
-    public function testShouldThrowAnExceptionWhenNoAsymmetricPrivateKeyIsProvided()
+    public function testShouldThrowAnExceptionWhenNoAsymmetricPrivateKeyIsProvided(): void
     {
         $this->expectException(JWTException::class);
         $this->expectExceptionMessage('Private key is not set.');
@@ -179,7 +195,39 @@ class LcobucciTest extends TestCase
         )->encode(['sub' => 1]);
     }
 
-    public function testShouldReturnThePublicKey()
+    public function testShouldThrowASecretMissingExceptionWhenNoSymmetricSecretIsProvided(): void
+    {
+        $this->expectException(SecretMissingException::class);
+        $this->expectExceptionMessage('Secret is not set.');
+
+        $this->getProvider('', Provider::ALGO_HS256);
+    }
+
+    public function testEncodeAndDecodeATokenUsingFileKeyPaths(): void
+    {
+        $payload = [
+            'sub' => 1,
+            'exp' => $exp = $this->testNowTimestamp + 3600,
+            'iat' => $iat = $this->testNowTimestamp,
+        ];
+
+        $provider = $this->getProvider(
+            'does_not_matter',
+            Provider::ALGO_RS256,
+            [
+                'private' => 'file://' . __DIR__ . '/../Fixtures/keys/id_rsa',
+                'public' => 'file://' . __DIR__ . '/../Fixtures/keys/id_rsa.pub',
+            ],
+        );
+
+        $claims = $provider->decode($provider->encode($payload));
+
+        $this->assertSame('1', $claims['sub']);
+        $this->assertSame($exp, $claims['exp']);
+        $this->assertSame($iat, $claims['iat']);
+    }
+
+    public function testShouldReturnThePublicKey(): void
     {
         $provider = $this->getProvider(
             'does_not_matter',
@@ -190,7 +238,7 @@ class LcobucciTest extends TestCase
         $this->assertSame($keys['public'], $provider->getPublicKey());
     }
 
-    public function testShouldReturnTheKeys()
+    public function testShouldReturnTheKeys(): void
     {
         $provider = $this->getProvider(
             'does_not_matter',
@@ -201,7 +249,7 @@ class LcobucciTest extends TestCase
         $this->assertSame($keys, $provider->getKeys());
     }
 
-    public function testSetAlgoTakesEffectOnEncoding()
+    public function testSetAlgoTakesEffectOnEncoding(): void
     {
         $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
 
@@ -214,7 +262,7 @@ class LcobucciTest extends TestCase
         $this->assertEquals(Provider::ALGO_HS512, $header['alg']);
     }
 
-    public function testSetSecretTakesEffectOnSigning()
+    public function testSetSecretTakesEffectOnSigning(): void
     {
         $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
 
@@ -236,7 +284,7 @@ class LcobucciTest extends TestCase
         $this->getProvider($originalSecret, Provider::ALGO_HS256)->decode($token);
     }
 
-    public function testSetKeysTakesEffectOnSigning()
+    public function testSetKeysTakesEffectOnSigning(): void
     {
         $payload = ['sub' => 1, 'iat' => $this->testNowTimestamp];
 
@@ -263,7 +311,7 @@ class LcobucciTest extends TestCase
         return new Lcobucci($secret, $algo, $keys);
     }
 
-    private function getRandomString(int $length = 64)
+    private function getRandomString(int $length = 64): string
     {
         $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
         $charactersLength = strlen($characters);
@@ -276,22 +324,22 @@ class LcobucciTest extends TestCase
         return $randomString;
     }
 
-    private function getDummyPrivateKey()
+    private function getDummyPrivateKey(): string
     {
         return file_get_contents(__DIR__ . '/../Fixtures/keys/id_rsa');
     }
 
-    private function getDummyPublicKey()
+    private function getDummyPublicKey(): string
     {
         return file_get_contents(__DIR__ . '/../Fixtures/keys/id_rsa.pub');
     }
 
-    private function getAltPrivateKey()
+    private function getAltPrivateKey(): string
     {
         return file_get_contents(__DIR__ . '/../Fixtures/keys/id_rsa_alt');
     }
 
-    private function getAltPublicKey()
+    private function getAltPublicKey(): string
     {
         return file_get_contents(__DIR__ . '/../Fixtures/keys/id_rsa_alt.pub');
     }
