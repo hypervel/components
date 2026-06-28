@@ -74,7 +74,7 @@ class AuthServiceProvider extends ServiceProvider
             return new RequirePassword(
                 $app[ResponseFactory::class],
                 $app[UrlGenerator::class],
-                $app['config']->get('auth.password_timeout'),
+                $app->make('config')->integer('auth.password_timeout', 10800),
             );
         });
     }

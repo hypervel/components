@@ -22,7 +22,7 @@ namespace Hypervel\Support\Facades;
  * @method static array getGuards()
  * @method static \Hypervel\Auth\AuthManager setApplication(\Hypervel\Contracts\Container\Container $app)
  * @method static \Hypervel\Contracts\Auth\UserProvider|null createUserProvider(string|null $provider = null)
- * @method static string getDefaultUserProvider()
+ * @method static ?string getDefaultUserProvider()
  * @method static bool check()
  * @method static bool guest()
  * @method static \Hypervel\Contracts\Auth\Authenticatable|null user()

@@ -107,14 +107,16 @@ class AuthManager implements FactoryContract
      */
     public function createSessionDriver(string $name, array $config): SessionGuard
     {
+        $repository = $this->app->make('config');
+
         $guard = new SessionGuard(
             $name,
             $this->createUserProvider($config['provider'] ?? null),
             $this->app['session.store'],
             $this->app,
-            rehashOnLogin: $this->app['config']->get('hashing.rehash_on_login', true),
-            timeboxDuration: $this->app['config']->get('auth.timebox_duration', 200000),
-            hashKey: $this->app['config']->get('app.key'),
+            rehashOnLogin: $repository->boolean('hashing.rehash_on_login', true),
+            timeboxDuration: $repository->integer('auth.timebox_duration', 200000),
+            hashKey: $repository->get('app.key'),
         );
 
         // When using the remember me functionality of the authentication services we
@@ -169,7 +171,7 @@ class AuthManager implements FactoryContract
             return $driver;
         }
 
-        return $this->app['config']['auth.defaults.guard'];
+        return $this->app->make('config')->string('auth.defaults.guard');
     }
 
     /**
