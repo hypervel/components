@@ -35,8 +35,10 @@ class JWTManager extends Manager implements ManagerContract
     ) {
         parent::__construct($container);
 
-        $this->blacklist = $container->make(BlacklistContract::class);
         $this->blacklistEnabled = $this->config->boolean('jwt.blacklist_enabled', false);
+        $this->blacklist = $this->blacklistEnabled
+            ? $container->make(BlacklistContract::class)
+            : null;
     }
 
     /**
@@ -88,7 +90,7 @@ class JWTManager extends Manager implements ManagerContract
             $this->validatePayload($payload);
         }
 
-        if ($this->blacklistEnabled && $checkBlacklist && $this->blacklist->has($payload)) {
+        if ($this->blacklistEnabled && $checkBlacklist && $this->blacklist()->has($payload)) {
             throw new TokenBlacklistedException('The token has been blacklisted');
         }
 
@@ -162,7 +164,7 @@ class JWTManager extends Manager implements ManagerContract
 
         $this->validatePayload($payload, refresh: true);
 
-        if ($this->blacklistEnabled && $this->blacklist->has($payload)) {
+        if ($this->blacklistEnabled && $this->blacklist()->has($payload)) {
             throw new TokenBlacklistedException('The token has been blacklisted');
         }
 
@@ -179,7 +181,7 @@ class JWTManager extends Manager implements ManagerContract
         }
 
         return call_user_func(
-            [$this->blacklist, $forceForever ? 'addForever' : 'add'],
+            [$this->blacklist(), $forceForever ? 'addForever' : 'add'],
             $this->decode($token, false, false)
         );
     }
@@ -207,5 +209,17 @@ class JWTManager extends Manager implements ManagerContract
     public function hasBlacklistEnabled(): bool
     {
         return $this->blacklistEnabled;
+    }
+
+    /**
+     * Get the configured blacklist instance.
+     */
+    protected function blacklist(): BlacklistContract
+    {
+        if ($this->blacklist === null) {
+            throw new JWTException('JWT blacklist is not configured.');
+        }
+
+        return $this->blacklist;
     }
 }

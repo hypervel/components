@@ -21,7 +21,6 @@
     - [Refreshing Tokens](#refreshing-tokens)
     - [Logging Out and Invalidating Tokens](#logging-out-and-invalidating-tokens)
 - [Guard Methods](#guard-methods)
-- [Middleware](#middleware)
 - [Exceptions](#exceptions)
 - [Differences From "php-open-source-saver/jwt-auth"](#differences-from-php-open-source-saver-jwt-auth)
 
@@ -280,6 +279,8 @@ use Hypervel\JWT\Http\Parser\InputSource;
 
 Cookie parsing is also available but is not enabled by default. If you add the `InputSource` or `Cookie` parser, it reads the same key configured by `jwt.token`.
 
+For a non-standard header or token scheme, implement `Hypervel\JWT\Contracts\TokenExtractor` and add that class to `jwt.parser`.
+
 <a name="validations-and-leeway"></a>
 ### Validations and Leeway
 
@@ -428,6 +429,27 @@ The `refresh` method creates a new token from the current token:
 $newToken = Auth::guard('api')->refresh();
 ```
 
+Expose refresh through a dedicated endpoint:
+
+```php
+use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\Support\Facades\Auth;
+
+Route::post('/token/refresh', function () {
+    try {
+        $token = Auth::guard('api')->refresh();
+    } catch (JWTException) {
+        abort(401, 'Token cannot be refreshed.');
+    }
+
+    abort_if($token === null, 401, 'No token provided.');
+
+    return response()->json(['token' => $token]);
+});
+```
+
+Do not protect the refresh route with `auth:api`. Refresh must be able to read an expired token that is still inside the refresh window, and normal auth middleware rejects expired access tokens before the handler runs.
+
 The refresh window is controlled by `refresh_ttl`, in minutes:
 
 ```php
@@ -512,27 +534,6 @@ Auth::guard('api')->invalidate();
 
 The `claims` and `setTTL` methods affect only the next token-producing operation.
 
-<a name="middleware"></a>
-## Middleware
-
-The package registers two sliding-token middleware aliases:
-
-```php
-Route::middleware('jwt.refresh:api')->post('/token/refresh', function () {
-    return response()->json(['refreshed' => true]);
-});
-
-Route::middleware('jwt.renew:api')->get('/profile', function () {
-    return Auth::guard('api')->user();
-});
-```
-
-The `jwt.refresh` middleware refreshes the current token and writes the new token to the response `Authorization` header.
-
-The `jwt.renew` middleware first requires a valid authenticated user, then refreshes the token and writes the new token to the response `Authorization` header.
-
-Both middleware return an unauthenticated response when the token is missing or invalid.
-
 <a name="exceptions"></a>
 ## Exceptions
 
@@ -562,6 +563,7 @@ Hypervel JWT is based on `php-open-source-saver/jwt-auth`, but its internals are
 - The parser chain is stateless. Request instances are passed to the parser for each parse so coroutine requests cannot leak through singleton services.
 - Cookie token parsing is available but not enabled by default.
 - Upstream route-parameter and Lumen parser shortcuts are not included.
+- Upstream sliding refresh middleware is not included; use an explicit refresh endpoint that calls `Auth::guard(...)->refresh()`.
 - Namshi and Lumen integrations are not included.
 - The `show_black_list_exception` option is not included; JWT exceptions fail normally.
 

@@ -14,6 +14,7 @@ This package provides stateless JWT authentication for Hypervel applications, ad
 - Hypervel's parser chain is stateless and receives the request for each parse so coroutine requests cannot leak through singleton services.
 - Cookie token parsing is available but not enabled by default.
 - Upstream route-parameter and Lumen parser shortcuts are not included.
+- Upstream sliding refresh middleware is not included; use an explicit refresh endpoint that calls `Auth::guard(...)->refresh()`.
 - Namshi and Lumen integrations are not included.
 - The `show_black_list_exception` option is not included; JWT exceptions fail normally.
 

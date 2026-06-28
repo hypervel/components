@@ -162,11 +162,9 @@ class Lcobucci extends Provider implements ProviderContract
             )
             : Configuration::forSymmetricSigner($this->signer, $this->getSigningKey());
 
-        $config->setValidationConstraints(
+        return $config->withValidationConstraints(
             new SignedWith($this->signer, $this->getVerificationKey())
         );
-
-        return $config;
     }
 
     /**

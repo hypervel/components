@@ -1869,3 +1869,125 @@ This is the cleanest performance shape: immutable metadata is cached for the wor
 - intentional upstream omissions are recorded concisely.
 - tests cover behavior and coroutine isolation.
 - `composer fix` is green.
+
+## Addendum: Tymon Follow-Up Review
+
+After the main implementation plan was written, Tymon's current `tymon/jwt-auth` package was reviewed as an additional source:
+
+- `/tmp/claude-20000/-home-binaryfire-workspace-monorepo/eeff203a-4261-4d58-80c6-bab17f200296/scratchpad/jwt-auth-tymon`
+
+Fold these final corrections into the implementation. This addendum supersedes the earlier middleware-related plan items, including the "Add Middleware" section, middleware test plan, implementation-order middleware references, and final checklist item that says middleware aliases exist.
+
+### Remove Sliding Refresh Middleware
+
+Delete the sliding-token middleware and do not register `jwt.refresh` or `jwt.renew` aliases:
+
+- `src/jwt/src/Http/Middleware/RefreshToken.php`
+- `src/jwt/src/Http/Middleware/AuthenticateAndRenew.php`
+- `tests/JWT/Http/Middleware/RefreshTokenTest.php`
+- `tests/JWT/Http/Middleware/AuthenticateAndRenewTest.php`
+
+Why:
+
+- Route protection already belongs to Hypervel's normal auth middleware plus the JWT guard.
+- The useful refresh primitive is `Auth::guard('api')->refresh()`.
+- Refreshing on every request turns normal traffic into token rotation traffic, requires blacklist writes for each request using the middleware, creates concurrent-request races, and forces clients to replace their stored token from every response header.
+
+Document the explicit refresh endpoint pattern in `src/boost/docs/jwt.md` instead. The refresh route must not be protected with `auth:api`, because normal auth validation rejects expired access tokens before `JwtGuard::refresh()` can run its refresh-window validation.
+
+```php
+use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\Support\Facades\Auth;
+
+Route::post('/token/refresh', function () {
+    try {
+        $token = Auth::guard('api')->refresh();
+    } catch (JWTException) {
+        abort(401, 'Token cannot be refreshed.');
+    }
+
+    abort_if($token === null, 401, 'No token provided.');
+
+    return response()->json(['token' => $token]);
+});
+```
+
+Keep `blacklist_grace_period`; explicit refresh can still race when clients submit concurrent refresh requests or make concurrent requests around refresh time.
+
+### Lazily Resolve Blacklist Storage and Fail Fast When Enabled
+
+`jwt.blacklist_enabled` defaults to `false`. When it is disabled, `JWTManager` should not resolve `BlacklistContract` at all:
+
+```php
+$this->blacklistEnabled = $this->config->boolean('jwt.blacklist_enabled', false);
+$this->blacklist = $this->blacklistEnabled
+    ? $container->make(BlacklistContract::class)
+    : null;
+```
+
+Keep the existing nullable blacklist property and the existing `$this->blacklistEnabled &&` guards before blacklist use.
+
+The default blacklist storage remains `Hypervel\JWT\Storage\TaggedCache`. This matches the old Hypervel 0.3 package and gives blacklist entries an isolated tag so `clear()` flushes only JWT blacklist entries.
+
+Add a fail-fast check in the `BlacklistContract` binding, not inside `TaggedCache`, so disabled-blacklist applications with non-taggable default cache stores do not fail during manager construction:
+
+```php
+$repository = $app->make('cache')->store();
+
+if ($config->boolean('jwt.blacklist_enabled', false) && ! $repository->supportsTags()) {
+    throw new RuntimeException(
+        'The JWT blacklist requires a taggable cache store. Use a taggable store or set a custom jwt.providers.storage.'
+    );
+}
+
+$storage = new TaggedCache($repository);
+```
+
+Only run this check when `jwt.providers.storage` is `TaggedCache::class`; custom storage providers are responsible for their own storage requirements.
+
+### Use the Current Lcobucci Validation API
+
+`lcobucci/jwt` 5.6.0 deprecates `Configuration::setValidationConstraints()`. Use `withValidationConstraints()` directly with no compatibility shim:
+
+```php
+return $config->withValidationConstraints(
+    new SignedWith($this->signer, $this->getVerificationKey())
+);
+```
+
+This keeps `buildConfig()` immutable and preserves `onConfigurationChanged()`, which assigns the returned configuration instance back onto the provider.
+
+### Round Blacklist TTL Up
+
+Carbon 3 returns fractional minute differences. Blacklist entries must not expire fractionally early, so round the TTL up:
+
+```php
+return (int) ceil(abs(
+    $exp->max($iat->addMinutes($this->refreshTTL))
+        ->addMinute()
+        ->diffInMinutes()
+));
+```
+
+### Do Not Add Mutable Header / Prefix Parser Configuration
+
+Do not port Tymon's `AuthHeaders::setHeaderName()` or `setHeaderPrefix()` methods.
+
+Why:
+
+- `Authorization: Bearer` is the standard JWT request header.
+- `AuthHeaders` stays stateless and safe as a worker-lifetime singleton.
+- Applications that need a custom header or scheme can add a custom `TokenExtractor` class to `jwt.parser`.
+
+### Addendum Test Coverage
+
+Add or update tests for:
+
+- `JWTManager` does not resolve `BlacklistContract` when `jwt.blacklist_enabled` is false.
+- disabled blacklist with a non-taggable default cache store does not throw.
+- enabled blacklist with `TaggedCache` and a non-taggable cache store throws a clear exception.
+- enabled blacklist with `TaggedCache` and a taggable cache store works.
+- custom blacklist storage bypasses the tag-support check.
+- blacklist TTL uses ceiling rounding for fractional minute differences.
+- Lcobucci signed-token validation still works after switching to `withValidationConstraints()`.
+- `JWTServiceProvider` no longer registers `jwt.refresh` or `jwt.renew` aliases.

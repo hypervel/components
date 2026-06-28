@@ -111,6 +111,20 @@ class JWTManagerTest extends TestCase
         $this->assertSame($token, $this->createManager()->encode($payload));
     }
 
+    public function testConstructorDoesNotResolveBlacklistWhenBlacklistIsDisabled(): void
+    {
+        $container = m::mock(Container::class);
+        $config = m::mock(Repository::class);
+
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+        $container->shouldReceive('make')->with(BlacklistContract::class)->never();
+        $config->shouldReceive('boolean')->once()->with('jwt.blacklist_enabled', false)->andReturnFalse();
+
+        $manager = new JWTManager($container, m::mock(ClaimFactory::class));
+
+        $this->assertFalse($manager->hasBlacklistEnabled());
+    }
+
     public function testDecodeAToken(): void
     {
         $token = 'foo.bar.baz';

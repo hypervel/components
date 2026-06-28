@@ -5,17 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\JWT;
 
 use Hypervel\Auth\AuthManager;
+use Hypervel\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\JWT\Console\JwtGenerateCertsCommand;
 use Hypervel\JWT\Console\JwtSecretCommand;
 use Hypervel\JWT\Contracts\BlacklistContract;
-use Hypervel\JWT\Http\Middleware\AuthenticateAndRenew;
-use Hypervel\JWT\Http\Middleware\RefreshToken;
 use Hypervel\JWT\Http\Parser\AuthHeaders;
 use Hypervel\JWT\Http\Parser\Cookie;
 use Hypervel\JWT\Http\Parser\InputSource;
 use Hypervel\JWT\Http\Parser\Parser;
 use Hypervel\JWT\Storage\TaggedCache;
 use Hypervel\Support\ServiceProvider;
+use RuntimeException;
 
 class JWTServiceProvider extends ServiceProvider
 {
@@ -56,7 +57,10 @@ class JWTServiceProvider extends ServiceProvider
 
             $storageClass = $config->string('jwt.providers.storage');
             $storage = match ($storageClass) {
-                TaggedCache::class => new TaggedCache($app->make('cache')->store()),
+                TaggedCache::class => new TaggedCache($this->cacheStoreForJwtBlacklist(
+                    $app,
+                    $config->boolean('jwt.blacklist_enabled', false)
+                )),
                 default => $app->make($storageClass),
             };
 
@@ -81,8 +85,9 @@ class JWTServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerJwtGuard();
-        $this->registerMiddleware();
 
+        // Sliding refresh middleware is intentionally not registered; refresh
+        // belongs in an explicit endpoint via JwtGuard::refresh().
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__ . '/../config/jwt.php' => config_path('jwt.php'),
@@ -120,13 +125,19 @@ class JWTServiceProvider extends ServiceProvider
     }
 
     /**
-     * Register middleware aliases.
+     * Resolve the cache store for JWT blacklist storage.
      */
-    protected function registerMiddleware(): void
+    protected function cacheStoreForJwtBlacklist(Container $app, bool $blacklistEnabled): CacheRepository
     {
-        $router = $this->app->make('router');
+        /** @var CacheRepository $repository */
+        $repository = $app->make('cache')->store();
 
-        $router->aliasMiddleware('jwt.refresh', RefreshToken::class);
-        $router->aliasMiddleware('jwt.renew', AuthenticateAndRenew::class);
+        if ($blacklistEnabled && ! $repository->supportsTags()) {
+            throw new RuntimeException(
+                'The JWT blacklist requires a taggable cache store. Use a taggable store or set a custom jwt.providers.storage.'
+            );
+        }
+
+        return $repository;
     }
 }
