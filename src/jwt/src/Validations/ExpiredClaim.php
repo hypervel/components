@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT\Validations;
 
+use Hypervel\JWT\Contracts\TemporalValidation;
 use Hypervel\JWT\Exceptions\TokenExpiredException;
 use Hypervel\Support\Facades\Date;
 
-class ExpiredClaim extends AbstractValidation
+class ExpiredClaim extends AbstractValidation implements TemporalValidation
 {
     public function validate(array $payload): void
     {
