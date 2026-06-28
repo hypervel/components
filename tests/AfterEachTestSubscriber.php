@@ -136,6 +136,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Inertia\ResponseFactory::flushState();
         \Hypervel\Inertia\Ssr\BundleDetector::flushState();
         \Hypervel\Inertia\Ssr\HttpGateway::flushState();
+        \Hypervel\JWT\ClaimFactory::flushState();
         \Hypervel\JWT\JwtGuard::flushState();
         \Hypervel\Log\Context\Repository::flushState();
         \Hypervel\Mail\Attachment::flushState();
