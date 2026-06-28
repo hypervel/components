@@ -89,16 +89,8 @@ class FilesystemManager implements FactoryContract
         return $this->disks[$name] = $this->get($name);
     }
 
-    /**
-     * Get a default cloud filesystem instance.
-     */
-    public function cloud(): Cloud
-    {
-        $name = $this->getDefaultCloudDriver();
-
-        /* @phpstan-ignore-next-line */
-        return $this->disks[$name] = $this->get($name);
-    }
+    // Laravel's cloud() default-cloud shortcut is intentionally not ported.
+    // Use named disks via disk('s3'), disk('uploads'), etc.
 
     /**
      * Build an on-demand disk.
@@ -133,7 +125,7 @@ class FilesystemManager implements FactoryContract
         }
 
         $driver = $config['driver'];
-        $hasPool = in_array($driver, $this->poolables);
+        $hasPool = in_array($driver, $this->poolables, true);
 
         if (isset($this->customCreators[$driver])) {
             if ($hasPool) {
@@ -298,7 +290,8 @@ class FilesystemManager implements FactoryContract
             [
                 Visibility::PRIVATE,
                 Visibility::PUBLIC,
-            ]
+            ],
+            true
         ) ? $visibility : Visibility::PRIVATE;
 
         $adapter = new GcsAdapter(
@@ -446,7 +439,7 @@ class FilesystemManager implements FactoryContract
      */
     protected function getConfig(string $name): array
     {
-        return $this->app['config']["filesystems.disks.{$name}"] ?: [];
+        return $this->app->make('config')->get("filesystems.disks.{$name}") ?: [];
     }
 
     /**
@@ -454,15 +447,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app['config']['filesystems.default'];
-    }
-
-    /**
-     * Get the default cloud driver name.
-     */
-    public function getDefaultCloudDriver(): string
-    {
-        return $this->app['config']['filesystems.cloud'] ?? 's3';
+        return $this->app->make('config')->string('filesystems.default');
     }
 
     /**

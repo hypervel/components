@@ -4,12 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Filesystem;
 
+use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Filesystem\Cloud;
+use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemServiceProvider;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 
 class FilesystemServiceProviderTest extends TestCase
 {
+    public function testDefaultCloudFilesystemShortcutIsNotRegistered(): void
+    {
+        $this->assertFalse($this->app->bound('filesystem.cloud'));
+        $this->assertFalse($this->app->bound(Cloud::class));
+        $this->assertInstanceOf(Filesystem::class, $this->app->make('filesystem')->disk('local'));
+
+        $this->expectException(BindingResolutionException::class);
+
+        $this->app->make('filesystem.cloud');
+    }
+
     public function testItThrowsWhenServedDisksHaveConflictingUris(): void
     {
         $this->expectException(InvalidArgumentException::class);

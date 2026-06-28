@@ -1324,7 +1324,6 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Filesystem\Factory::class,
             ],
             'filesystem.disk' => [\Hypervel\Contracts\Filesystem\Filesystem::class],
-            'filesystem.cloud' => [\Hypervel\Contracts\Filesystem\Cloud::class],
             'hash' => [\Hypervel\Hashing\HashManager::class],
             'hash.driver' => [\Hypervel\Contracts\Hashing\Hasher::class],
             'jwt' => [

@@ -13,7 +13,6 @@ use function Hypervel\Support\enum_value;
 /**
  * @method static mixed drive(\UnitEnum|string|null $name = null)
  * @method static mixed disk(\UnitEnum|string|null $name = null)
- * @method static \Hypervel\Contracts\Filesystem\Cloud cloud()
  * @method static mixed build(array|string $config)
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createLocalDriver(array $config, string $name = 'local')
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createFtpDriver(array $config)
@@ -23,7 +22,6 @@ use function Hypervel\Support\enum_value;
  * @method static \Hypervel\Contracts\Filesystem\Filesystem createScopedDriver(array $config)
  * @method static \Hypervel\Filesystem\FilesystemManager set(string $name, mixed $disk)
  * @method static string getDefaultDriver()
- * @method static string getDefaultCloudDriver()
  * @method static \Hypervel\Filesystem\FilesystemManager forgetDisk(array|string $disk)
  * @method static void purge(string|null $name = null)
  * @method static \Hypervel\Filesystem\FilesystemManager extend(string $driver, \Closure $callback, bool $poolable = false)

@@ -69,28 +69,8 @@ class AttachingFromStorageTest extends TestCase
         $this->assertSame($message, $result);
     }
 
-    public function testItCanAttachFromCloudStorage()
-    {
-        $this->app->make('config')->set('filesystems.cloud', 'local');
-
-        Storage::disk('local')->put('/cloud/report.pdf', 'cloud file contents');
-        $mail = new MailMessage;
-        $attachment = Attachment::fromCloudStorage('/cloud/report.pdf')
-            ->as('report.pdf')
-            ->withMime('application/pdf');
-
-        $attachment->attachTo($mail);
-
-        $this->assertSame([
-            'data' => 'cloud file contents',
-            'name' => 'report.pdf',
-            'options' => [
-                'mime' => 'application/pdf',
-            ],
-        ], $mail->rawAttachments[0]);
-
-        Storage::disk('local')->delete('/cloud/report.pdf');
-    }
+    // REMOVED: testItCanAttachFromCloudStorage - Hypervel omits Laravel's legacy
+    // default-cloud filesystem shortcut. Use Attachment::fromStorageDisk() with a named disk.
 
     public function testItCanCheckForStorageBasedAttachments()
     {

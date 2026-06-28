@@ -44,9 +44,7 @@ class FilesystemServiceProvider extends ServiceProvider
     {
         $this->registerManager();
 
-        $this->app->singleton('filesystem.disk', fn ($app) => $app['filesystem']->disk($this->getDefaultDriver()));
-
-        $this->app->singleton('filesystem.cloud', fn ($app) => $app['filesystem']->disk($this->getCloudDriver()));
+        $this->app->singleton('filesystem.disk', fn ($app) => $app->make('filesystem')->disk($this->getDefaultDriver()));
     }
 
     /**
@@ -70,7 +68,7 @@ class FilesystemServiceProvider extends ServiceProvider
 
         $served = [];
 
-        foreach ($this->app['config']['filesystems.disks'] ?? [] as $disk => $config) {
+        foreach ($this->app->make('config')->array('filesystems.disks', []) as $disk => $config) {
             if (! $this->shouldServeFiles($config)) {
                 continue;
             }
@@ -122,14 +120,6 @@ class FilesystemServiceProvider extends ServiceProvider
      */
     protected function getDefaultDriver(): string
     {
-        return $this->app['config']['filesystems.default'];
-    }
-
-    /**
-     * Get the default cloud based file driver.
-     */
-    protected function getCloudDriver(): string
-    {
-        return $this->app['config']['filesystems.cloud'];
+        return $this->app->make('config')->string('filesystems.default');
     }
 }
