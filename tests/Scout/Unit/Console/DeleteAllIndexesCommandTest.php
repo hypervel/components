@@ -197,7 +197,7 @@ class DeleteAllIndexesCommandTest extends TestCase
     protected function configWithPrefix(string $prefix): Repository
     {
         $config = m::mock(Repository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('scout.prefix', '')
             ->andReturn($prefix);
 

@@ -50,7 +50,7 @@ class DeleteIndexCommand extends Command
             return (new $name)->indexableAs();
         }
 
-        $prefix = $config->get('scout.prefix', '');
+        $prefix = $config->string('scout.prefix', '');
 
         return ! Str::startsWith($name, $prefix) ? $prefix . $name : $name;
     }

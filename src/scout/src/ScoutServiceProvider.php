@@ -85,8 +85,8 @@ class ScoutServiceProvider extends ServiceProvider
             $config = $this->app->make('config');
 
             $algoliaConfig = new AlgoliaSearchConfig([
-                'appId' => $config->get('scout.algolia.id'),
-                'apiKey' => $config->get('scout.algolia.secret'),
+                'appId' => $config->string('scout.algolia.id'),
+                'apiKey' => $config->string('scout.algolia.secret'),
             ]);
 
             if (is_int($connectTimeout = $config->get('scout.algolia.connect_timeout'))) {
@@ -120,8 +120,8 @@ class ScoutServiceProvider extends ServiceProvider
             // and Typesense's which has num_retries). Add HTTP-level retry at
             // the Guzzle layer for parity, using MeilisearchRetryPolicy to
             // decide what to retry and how long to wait between attempts.
-            $maxRetries = (int) $config->get('scout.meilisearch.retries', 3);
-            $baseDelayMs = (int) $config->get('scout.meilisearch.initial_retry_delay_ms', 100);
+            $maxRetries = $config->integer('scout.meilisearch.retries', 3);
+            $baseDelayMs = $config->integer('scout.meilisearch.initial_retry_delay_ms', 100);
 
             if ($maxRetries > 0) {
                 $stack = HandlerStack::create();
@@ -134,7 +134,7 @@ class ScoutServiceProvider extends ServiceProvider
             // Swoole-unsafe PSR-18 implementation (e.g. Symfony's
             // CurlHttpClient). Mirrors the Typesense binding's defensive pattern.
             return new MeilisearchClient(
-                $config->get('scout.meilisearch.host', 'http://localhost:7700'),
+                $config->string('scout.meilisearch.host', 'http://localhost:7700'),
                 $config->get('scout.meilisearch.key'),
                 new GuzzleClient($guzzleOptions),
             );
@@ -148,7 +148,7 @@ class ScoutServiceProvider extends ServiceProvider
     {
         $this->app->singleton(TypesenseClient::class, function () {
             $config = $this->app->make('config');
-            $settings = $config->get('scout.typesense.client-settings', []);
+            $settings = $config->array('scout.typesense.client-settings', []);
 
             // Explicitly inject Guzzle as the HTTP client so Typesense never
             // falls back to PSR-18 auto-discovery, which may resolve to

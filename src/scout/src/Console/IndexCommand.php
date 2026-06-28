@@ -56,7 +56,7 @@ class IndexCommand extends Command
         $this->createIndex($engine, $name, $options);
 
         if ($engine instanceof UpdatesIndexSettings) {
-            $driver = $config->get('scout.driver');
+            $driver = $config->string('scout.driver');
 
             $class = $model !== null ? get_class($model) : null;
 
@@ -65,7 +65,7 @@ class IndexCommand extends Command
                 ?? [];
 
             if ($model !== null
-                && $config->get('scout.soft_delete', false)
+                && $config->boolean('scout.soft_delete', false)
                 && in_array(SoftDeletes::class, class_uses_recursive($model))) {
                 $settings = $engine->configureSoftDeleteFilter($settings);
             }
@@ -99,7 +99,7 @@ class IndexCommand extends Command
             return (new $name)->indexableAs();
         }
 
-        $prefix = $config->get('scout.prefix', '');
+        $prefix = $config->string('scout.prefix', '');
 
         return ! Str::startsWith($name, $prefix) ? $prefix . $name : $name;
     }

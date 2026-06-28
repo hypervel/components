@@ -35,7 +35,7 @@ class DeleteAllIndexesCommand extends Command
         // Gate safety first, before resolving the engine. If prefix is empty
         // and --force isn't set, we refuse without ever instantiating the
         // driver's underlying client.
-        $prefix = $config->get('scout.prefix', '');
+        $prefix = $config->string('scout.prefix', '');
         $force = (bool) $this->option('force');
 
         if ($prefix === '' && ! $force) {
