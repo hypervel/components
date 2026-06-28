@@ -10,6 +10,7 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\JWT\ClaimFactory;
 use Hypervel\JWT\Contracts\JWTSubject;
+use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\Tests\TestCase;
 use ReflectionProperty;
 use SensitiveParameter;
@@ -54,6 +55,31 @@ class ClaimFactoryTest extends TestCase
         $this->assertSame('jwt-42', $claims['sub']);
         $this->assertSame('admin', $claims['role']);
         $this->assertSame('one', $claims['tenant']);
+    }
+
+    public function testRejectsReservedJwtSubjectClaims(): void
+    {
+        $this->expectException(JWTException::class);
+        $this->expectExceptionMessage('Custom JWT claims may not override reserved claims: exp, sub.');
+
+        $this->factory()->make(
+            new ClaimFactoryJwtSubjectUser(42, 'jwt-42', ['sub' => 999, 'exp' => 123]),
+            new ClaimFactoryProvider,
+            120,
+        );
+    }
+
+    public function testRejectsReservedInlineClaims(): void
+    {
+        $this->expectException(JWTException::class);
+        $this->expectExceptionMessage('Custom JWT claims may not override reserved claims: iss, prv.');
+
+        $this->factory()->make(
+            new ClaimFactoryUser(42),
+            new ClaimFactoryProvider,
+            120,
+            ['iss' => 'https://tenant.example.test', 'prv' => 'fake-provider'],
+        );
     }
 
     public function testSubjectMatchingHonorsProviderLock(): void
@@ -156,6 +182,21 @@ class ClaimFactoryTest extends TestCase
         );
 
         $this->assertSame(1767225600, $claims['iat']);
+    }
+
+    public function testRejectsReservedRefreshClaims(): void
+    {
+        $this->expectException(JWTException::class);
+        $this->expectExceptionMessage('Custom JWT claims may not override reserved claims: exp, jti.');
+
+        $this->factory()->refresh(
+            payload: ['sub' => 42, 'iat' => 100],
+            ttl: 120,
+            refreshIssuedAt: false,
+            resetClaims: false,
+            persistentClaims: [],
+            customClaims: ['exp' => 999, 'jti' => 'custom-jti'],
+        );
     }
 
     public function testFlushStateClearsModelHashCache(): void

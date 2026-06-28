@@ -35,6 +35,17 @@ class ParserTest extends TestCase
         $this->assertSame('header-token', $parser->parseToken($request));
     }
 
+    public function testParsesBearerHeaderAfterComma(): void
+    {
+        $parser = new Parser([new AuthHeaders]);
+
+        $request = Request::create('/', 'GET', server: [
+            'HTTP_AUTHORIZATION' => 'Basic ignored, Bearer header-token',
+        ]);
+
+        $this->assertSame('header-token', $parser->parseToken($request));
+    }
+
     public function testParsesRedirectAuthorizationHeader(): void
     {
         $parser = new Parser([new AuthHeaders]);
@@ -52,6 +63,17 @@ class ParserTest extends TestCase
 
         $request = Request::create('/', 'GET', server: [
             'HTTP_AUTHORIZATION' => 'Basic token',
+        ]);
+
+        $this->assertNull($parser->parseToken($request));
+    }
+
+    public function testReturnsNullWhenBearerIsNotTheAuthScheme(): void
+    {
+        $parser = new Parser([new AuthHeaders]);
+
+        $request = Request::create('/', 'GET', server: [
+            'HTTP_AUTHORIZATION' => 'Basic not-a-Bearer token',
         ]);
 
         $this->assertNull($parser->parseToken($request));

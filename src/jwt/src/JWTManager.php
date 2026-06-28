@@ -144,11 +144,13 @@ class JWTManager extends Manager implements ManagerContract
             customClaims: $customClaims,
         );
 
+        $newToken = $this->encode($claims);
+
         if ($this->blacklistEnabled) {
             $this->invalidate($token, $forceForever);
         }
 
-        return $this->encode($claims);
+        return $newToken;
     }
 
     /**

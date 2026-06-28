@@ -149,11 +149,12 @@ class JWTConfigTest extends TestCase
         }
     }
 
-    public function testDefaultParserDoesNotIncludeCookieParser(): void
+    public function testDefaultParserOnlyIncludesAuthorizationHeaders(): void
     {
         $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
 
-        $this->assertSame([AuthHeaders::class, InputSource::class], $config['parser']);
+        $this->assertSame([AuthHeaders::class], $config['parser']);
+        $this->assertNotContains(InputSource::class, $config['parser']);
     }
 
     public function testNotBeforeClaimClassIsUsedInConfiguration(): void

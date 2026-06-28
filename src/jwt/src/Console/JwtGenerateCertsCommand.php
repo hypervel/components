@@ -13,6 +13,15 @@ use Symfony\Component\Console\Attribute\AsCommand;
 class JwtGenerateCertsCommand extends Command
 {
     /**
+     * EC curves required by the JWA ES algorithms.
+     */
+    protected const array EC_CURVES = [
+        256 => 'prime256v1',
+        384 => 'secp384r1',
+        512 => 'secp521r1',
+    ];
+
+    /**
      * The name and signature of the console command.
      */
     protected ?string $signature = 'jwt:generate-certs
@@ -49,20 +58,27 @@ class JwtGenerateCertsCommand extends Command
             return self::FAILURE;
         }
 
-        $privateKeyPath = sprintf('%s/jwt-%s-%d-private.pem', $directory, $algorithm, $bits);
-        $publicKeyPath = sprintf('%s/jwt-%s-%d-public.pem', $directory, $algorithm, $bits);
-
-        if (! $this->option('force') && (file_exists($privateKeyPath) || file_exists($publicKeyPath))) {
-            $this->error('JWT certificates already exist. Use --force to overwrite them.');
-
-            return self::FAILURE;
-        }
+        $this->validateSha($sha);
 
         [$keyType, $algorithmIdentifier] = match ($algorithm) {
             'rsa' => [OPENSSL_KEYTYPE_RSA, sprintf('RS%d', $sha)],
             'ec' => [OPENSSL_KEYTYPE_EC, sprintf('ES%d', $sha)],
             default => throw new RuntimeException('Unknown JWT certificate algorithm.'),
         };
+
+        if ($keyType === OPENSSL_KEYTYPE_EC) {
+            $this->validateEcCurve($sha, $curve);
+        }
+
+        $keyIdentifier = $keyType === OPENSSL_KEYTYPE_EC ? $curve : (string) $bits;
+        $privateKeyPath = sprintf('%s/jwt-%s-%s-private.pem', $directory, $algorithm, $keyIdentifier);
+        $publicKeyPath = sprintf('%s/jwt-%s-%s-public.pem', $directory, $algorithm, $keyIdentifier);
+
+        if (! $this->option('force') && (file_exists($privateKeyPath) || file_exists($publicKeyPath))) {
+            $this->error('JWT certificates already exist. Use --force to overwrite them.');
+
+            return self::FAILURE;
+        }
 
         $options = [
             'digest_alg' => sprintf('sha%d', $sha),
@@ -97,8 +113,17 @@ class JwtGenerateCertsCommand extends Command
             throw new RuntimeException("Unable to create directory [{$directory}].");
         }
 
-        file_put_contents($privateKeyPath, $privateKey);
-        file_put_contents($publicKeyPath, $details['key']);
+        if (file_put_contents($privateKeyPath, $privateKey) === false) {
+            throw new RuntimeException("Unable to write private key to [{$privateKeyPath}].");
+        }
+
+        if (! chmod($privateKeyPath, 0600)) {
+            throw new RuntimeException("Unable to secure private key [{$privateKeyPath}].");
+        }
+
+        if (file_put_contents($publicKeyPath, $details['key']) === false) {
+            throw new RuntimeException("Unable to write public key to [{$publicKeyPath}].");
+        }
 
         Env::writeVariables([
             'JWT_ALGO' => $algorithmIdentifier,
@@ -110,6 +135,28 @@ class JwtGenerateCertsCommand extends Command
         $this->components->info('JWT certificates generated successfully.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Validate the SHA variant.
+     */
+    protected function validateSha(int $sha): void
+    {
+        if (! in_array($sha, [256, 384, 512], true)) {
+            throw new RuntimeException('JWT certificate SHA variant must be 256, 384, or 512.');
+        }
+    }
+
+    /**
+     * Validate the EC curve against the chosen ES algorithm.
+     */
+    protected function validateEcCurve(int $sha, string $curve): void
+    {
+        $requiredCurve = self::EC_CURVES[$sha];
+
+        if ($curve !== $requiredCurve) {
+            throw new RuntimeException("ES{$sha} requires the [{$requiredCurve}] curve.");
+        }
     }
 
     /**

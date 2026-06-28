@@ -89,7 +89,7 @@ You may customize the algorithm and key options:
 ```shell
 php artisan jwt:generate-certs --force --algo=rsa --bits=4096 --sha=512
 
-php artisan jwt:generate-certs --force --algo=ec --curve=prime256v1 --sha=512
+php artisan jwt:generate-certs --force --algo=ec --curve=prime256v1 --sha=256
 ```
 
 You may change the output directory using `--dir`. The directory may be absolute or relative to your application's base path.
@@ -246,11 +246,13 @@ When subject locking is enabled and the user provider exposes its model class, J
 <a name="token-sources"></a>
 ### Token Sources
 
-By default, JWT reads tokens from the `Authorization` bearer header and from the configured request input key:
+By default, JWT reads tokens from the `Authorization` bearer header:
 
 ```http
 Authorization: Bearer eyJhbGciOi...
 ```
+
+Request input parsing is available but is not enabled by default because URL tokens can leak through logs, browser history, and referrer headers:
 
 ```http
 /api/user?token=eyJhbGciOi...
@@ -276,7 +278,7 @@ use Hypervel\JWT\Http\Parser\InputSource;
 ],
 ```
 
-Cookie parsing is available but is not enabled by default. If you add the `Cookie` parser, it reads the same key configured by `jwt.token`.
+Cookie parsing is also available but is not enabled by default. If you add the `InputSource` or `Cookie` parser, it reads the same key configured by `jwt.token`.
 
 <a name="validations-and-leeway"></a>
 ### Validations and Leeway

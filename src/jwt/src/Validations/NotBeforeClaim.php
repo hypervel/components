@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT\Validations;
 
-use Hypervel\JWT\Contracts\TemporalValidation;
 use Hypervel\JWT\Exceptions\TokenInvalidException;
 use Hypervel\Support\Facades\Date;
 
-class NotBeforeClaim extends AbstractValidation implements TemporalValidation
+class NotBeforeClaim extends AbstractValidation
 {
     public function validate(array $payload): void
     {

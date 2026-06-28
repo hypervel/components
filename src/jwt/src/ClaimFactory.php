@@ -8,6 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\JWT\Contracts\JWTSubject;
+use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\Support\Facades\Date;
 
 class ClaimFactory
@@ -16,6 +17,11 @@ class ClaimFactory
      * Claims stamped by the factory itself when a token is refreshed.
      */
     protected const array MANAGED_REFRESH_CLAIMS = ['iat', 'nbf', 'exp', 'iss', 'jti'];
+
+    /**
+     * Claims owned by the guard, manager, or claim factory.
+     */
+    protected const array RESERVED_CUSTOM_CLAIMS = ['sub', 'prv', ...self::MANAGED_REFRESH_CLAIMS];
 
     protected static array $subjectModelHashes = [];
 
@@ -54,8 +60,13 @@ class ClaimFactory
         }
 
         if ($user instanceof JWTSubject) {
-            $claims = array_merge($claims, $user->getJWTCustomClaims());
+            $subjectClaims = $user->getJWTCustomClaims();
+            $this->rejectReservedCustomClaims($subjectClaims);
+
+            $claims = array_merge($claims, $subjectClaims);
         }
+
+        $this->rejectReservedCustomClaims($customClaims);
 
         return $this->withDefaults(array_merge($claims, $customClaims), $ttl);
     }
@@ -80,6 +91,8 @@ class ClaimFactory
         $claims = $resetClaims
             ? $persistent
             : array_diff_key($payload, $managed);
+
+        $this->rejectReservedCustomClaims($customClaims);
 
         $claims = array_merge($claims, $persistent, $customClaims, [
             'sub' => $payload['sub'],
@@ -120,6 +133,20 @@ class ClaimFactory
 
         return isset($payload['prv'])
             && hash_equals($this->subjectModelHash($model), (string) $payload['prv']);
+    }
+
+    /**
+     * Reject custom claims owned by the package.
+     */
+    protected function rejectReservedCustomClaims(array $claims): void
+    {
+        $reserved = array_intersect(array_keys($claims), self::RESERVED_CUSTOM_CLAIMS);
+
+        if ($reserved !== []) {
+            sort($reserved);
+
+            throw new JWTException('Custom JWT claims may not override reserved claims: ' . implode(', ', $reserved) . '.');
+        }
     }
 
     /**

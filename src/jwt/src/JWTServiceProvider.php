@@ -43,7 +43,7 @@ class JWTServiceProvider extends ServiceProvider
                     InputSource::class, Cookie::class => new $extractor($tokenKey),
                     default => $app->make($extractor),
                 },
-                $config->array('jwt.parser', [AuthHeaders::class, InputSource::class]),
+                $config->array('jwt.parser', [AuthHeaders::class]),
             );
 
             // The parser chain is stateless; request instances are passed per parse so

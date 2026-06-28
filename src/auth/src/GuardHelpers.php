@@ -68,6 +68,9 @@ trait GuardHelpers
 
     /**
      * Set the user provider used by the guard.
+     *
+     * Boot or tests only. The provider is stored on the worker-lifetime guard
+     * and affects every subsequent request.
      */
     public function setProvider(UserProvider $provider): void
     {

@@ -666,6 +666,29 @@ class JwtGuardTest extends TestCase
         $this->assertFalse($guard->hasUser());
     }
 
+    public function testLogoutClearsDefaultUserCacheWhenTokenOverrideIsActive(): void
+    {
+        $user = m::mock(Authenticatable::class);
+
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('hasBlacklistEnabled')->once()->andReturnFalse();
+
+        $guard = $this->createGuard(
+            jwtManager: $jwtManager,
+            request: null,
+        );
+        RequestContext::forget();
+
+        $guard->setUser($user);
+        $this->assertTrue($guard->hasUser());
+
+        $guard->setToken('active-token');
+        $guard->logout();
+
+        $this->assertNull($guard->getToken());
+        $this->assertFalse($guard->hasUser());
+    }
+
     public function testSwitchingTokensResolvesDifferentUsersInSameCoroutine(): void
     {
         $firstUser = m::mock(Authenticatable::class);
@@ -862,7 +885,7 @@ class JwtGuardTest extends TestCase
         $this->assertSame(1, $payload['sub']);
     }
 
-    public function testServiceProviderRegistersJwtGuardWhenAuthManagerResolvesAfterBoot()
+    public function testServiceProviderRegistersJwtGuardWhenAuthManagerResolvesAfterBoot(): void
     {
         $provider = m::mock(UserProvider::class);
         $container = $this->createAuthTestContainer();
@@ -879,7 +902,7 @@ class JwtGuardTest extends TestCase
         $this->assertInstanceOf(JwtGuard::class, $authManager->guard('jwt'));
     }
 
-    public function testServiceProviderRegistersJwtGuardWhenAuthManagerIsAlreadyResolved()
+    public function testServiceProviderRegistersJwtGuardWhenAuthManagerIsAlreadyResolved(): void
     {
         $provider = m::mock(UserProvider::class);
         $container = $this->createAuthTestContainer();

@@ -115,12 +115,64 @@ class JwtGenerateCertsCommandTest extends TestCase
             '--curve' => 'prime256v1',
         ])->assertSuccessful();
 
-        $this->assertFileExists($directory . '/jwt-ec-256-private.pem');
-        $this->assertFileExists($directory . '/jwt-ec-256-public.pem');
+        $privateKeyPath = $directory . '/jwt-ec-prime256v1-private.pem';
+        $publicKeyPath = $directory . '/jwt-ec-prime256v1-public.pem';
+
+        $this->assertFileExists($privateKeyPath);
+        $this->assertFileExists($publicKeyPath);
+        $this->assertSame('0600', substr(sprintf('%o', fileperms($privateKeyPath)), -4));
 
         $contents = file_get_contents($this->app->environmentFilePath());
 
         $this->assertStringContainsString('JWT_ALGO=ES256', $contents);
+        $this->assertStringContainsString('JWT_PRIVATE_KEY="file://' . $privateKeyPath . '"', $contents);
+        $this->assertStringContainsString('JWT_PUBLIC_KEY="file://' . $publicKeyPath . '"', $contents);
+    }
+
+    public function testGeneratesAllEcCertificateVariantsWithMatchingCurves(): void
+    {
+        foreach ([256 => 'prime256v1', 384 => 'secp384r1', 512 => 'secp521r1'] as $sha => $curve) {
+            $directory = $this->temporaryDirectory("ec-{$sha}");
+
+            $this->artisan('jwt:generate-certs', [
+                '--force' => true,
+                '--algo' => 'ec',
+                '--sha' => $sha,
+                '--dir' => $directory,
+                '--curve' => $curve,
+            ])->assertSuccessful();
+
+            $this->assertFileExists($directory . "/jwt-ec-{$curve}-private.pem");
+            $this->assertFileExists($directory . "/jwt-ec-{$curve}-public.pem");
+            $this->assertStringContainsString("JWT_ALGO=ES{$sha}", file_get_contents($this->app->environmentFilePath()));
+        }
+    }
+
+    public function testRejectsMismatchedEcCurve(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('ES512 requires the [secp521r1] curve.');
+
+        $this->artisan('jwt:generate-certs', [
+            '--force' => true,
+            '--algo' => 'ec',
+            '--sha' => 512,
+            '--curve' => 'prime256v1',
+            '--dir' => $this->temporaryDirectory('ec-mismatch'),
+        ]);
+    }
+
+    public function testRejectsUnsupportedShaVariant(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('JWT certificate SHA variant must be 256, 384, or 512.');
+
+        $this->artisan('jwt:generate-certs', [
+            '--force' => true,
+            '--algo' => 'rsa',
+            '--sha' => 999,
+            '--dir' => $this->temporaryDirectory('invalid-sha'),
+        ]);
     }
 
     public function testRefusesToOverwriteExistingCertificatesWithoutForce(): void

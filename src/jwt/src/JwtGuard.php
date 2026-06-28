@@ -432,12 +432,16 @@ class JwtGuard implements Guard
     public function forgetUser(): static
     {
         CoroutineContext::forget($this->getUserContextKey());
+        CoroutineContext::forget($this->getContextStateKey('user.default'));
 
         return $this;
     }
 
     /**
      * Register an authentication attempt event listener.
+     *
+     * Boot-only. Listener registrations persist on the worker-lifetime dispatcher
+     * and affect every subsequent request.
      */
     public function attempting(callable $callback): void
     {
@@ -454,6 +458,9 @@ class JwtGuard implements Guard
 
     /**
      * Set the event dispatcher instance.
+     *
+     * Boot or tests only. The dispatcher is stored on the worker-lifetime guard
+     * and affects every subsequent request.
      */
     public function setDispatcher(Dispatcher $events): void
     {

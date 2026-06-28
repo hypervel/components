@@ -22,14 +22,14 @@ class AuthHeaders implements TokenExtractor
             return null;
         }
 
-        $position = strripos($header, 'Bearer');
+        foreach (explode(',', $header) as $segment) {
+            $segment = trim($segment);
 
-        if ($position === false) {
-            return null;
+            if (strncasecmp($segment, 'Bearer ', 7) === 0) {
+                return trim(substr($segment, 7)) ?: null;
+            }
         }
 
-        $token = substr($header, $position + strlen('Bearer'));
-
-        return trim(str_contains($token, ',') ? strstr($token, ',', true) : $token) ?: null;
+        return null;
     }
 }

@@ -270,7 +270,6 @@ return [
 
     'parser' => [
         \Hypervel\JWT\Http\Parser\AuthHeaders::class,
-        \Hypervel\JWT\Http\Parser\InputSource::class,
     ],
 
     /*
