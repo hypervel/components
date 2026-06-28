@@ -29,6 +29,78 @@ class JWTConfigTest extends TestCase
         }
     }
 
+    public function testTtlIsLoadedAsIntegerFromEnvironment(): void
+    {
+        $originalValues = $this->setEnvironmentVariables([
+            'JWT_TTL' => '45',
+        ]);
+
+        try {
+            Env::flushRepository();
+
+            $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+
+            $this->assertSame(45, $config['ttl']);
+        } finally {
+            $this->restoreEnvironmentVariables($originalValues);
+            Env::flushRepository();
+        }
+    }
+
+    public function testTtlCanBeLoadedAsNullFromEnvironment(): void
+    {
+        $originalValues = $this->setEnvironmentVariables([
+            'JWT_TTL' => '(null)',
+        ]);
+
+        try {
+            Env::flushRepository();
+
+            $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+
+            $this->assertNull($config['ttl']);
+        } finally {
+            $this->restoreEnvironmentVariables($originalValues);
+            Env::flushRepository();
+        }
+    }
+
+    public function testRefreshTtlIsLoadedAsIntegerFromEnvironment(): void
+    {
+        $originalValues = $this->setEnvironmentVariables([
+            'JWT_REFRESH_TTL' => '90',
+        ]);
+
+        try {
+            Env::flushRepository();
+
+            $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+
+            $this->assertSame(90, $config['refresh_ttl']);
+        } finally {
+            $this->restoreEnvironmentVariables($originalValues);
+            Env::flushRepository();
+        }
+    }
+
+    public function testRefreshTtlCanBeLoadedAsNullFromEnvironment(): void
+    {
+        $originalValues = $this->setEnvironmentVariables([
+            'JWT_REFRESH_TTL' => '(null)',
+        ]);
+
+        try {
+            Env::flushRepository();
+
+            $config = require dirname(__DIR__, 2) . '/src/jwt/config/jwt.php';
+
+            $this->assertNull($config['refresh_ttl']);
+        } finally {
+            $this->restoreEnvironmentVariables($originalValues);
+            Env::flushRepository();
+        }
+    }
+
     /**
      * Set the given environment variables.
      *

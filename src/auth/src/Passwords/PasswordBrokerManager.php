@@ -66,7 +66,8 @@ class PasswordBrokerManager implements FactoryContract
      */
     protected function createTokenRepository(array $config): TokenRepositoryInterface
     {
-        $key = $this->app['config']['app.key'];
+        // Fail fast: a missing app key must not silently hash reset tokens with an empty key.
+        $key = $this->app->make('config')->string('app.key');
 
         if (str_starts_with($key, 'base64:')) {
             $key = base64_decode(substr($key, 7));
@@ -97,7 +98,7 @@ class PasswordBrokerManager implements FactoryContract
      */
     protected function getConfig(string $name): ?array
     {
-        return $this->app['config']["auth.passwords.{$name}"];
+        return $this->app->make('config')->get("auth.passwords.{$name}");
     }
 
     /**
@@ -115,7 +116,7 @@ class PasswordBrokerManager implements FactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app['config']['auth.defaults.passwords'] = $name;
+        $this->app->make('config')->set('auth.defaults.passwords', $name);
     }
 
     /**

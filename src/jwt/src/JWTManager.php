@@ -10,8 +10,10 @@ use Hypervel\JWT\Contracts\ManagerContract;
 use Hypervel\JWT\Contracts\ValidationContract;
 use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;
+use Hypervel\JWT\Exceptions\TokenExpiredException;
 use Hypervel\JWT\Providers\Lcobucci;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Str;
 use RuntimeException;
@@ -104,7 +106,10 @@ class JWTManager extends Manager implements ManagerContract
 
     public function refresh(string $token, bool $forceForever = false): string
     {
-        $claims = $this->buildRefreshClaims($this->decode($token));
+        $payload = $this->decode($token);
+        $this->validateRefreshWindow($payload);
+
+        $claims = $this->buildRefreshClaims($payload);
 
         if ($this->blacklistEnabled) {
             // Invalidate old token
@@ -127,6 +132,26 @@ class JWTManager extends Manager implements ManagerContract
         );
     }
 
+    /**
+     * Validate that the token is still refreshable.
+     */
+    protected function validateRefreshWindow(array $payload): void
+    {
+        /** @var null|int $refreshTtl */
+        $refreshTtl = $this->config->get('jwt.refresh_ttl', 20160);
+
+        if ($refreshTtl === null) {
+            return;
+        }
+
+        if (Date::now() > Date::createFromTimestamp($payload['iat'])->addMinutes($refreshTtl)) {
+            throw new TokenExpiredException('Token has expired and can no longer be refreshed');
+        }
+    }
+
+    /**
+     * Build the claims for a refreshed token.
+     */
     protected function buildRefreshClaims(array $payload): array
     {
         // Get the claims to be persisted from the payload
@@ -135,12 +160,21 @@ class JWTManager extends Manager implements ManagerContract
             ->toArray();
 
         // persist the relevant claims
-        return array_merge(
+        $claims = array_merge(
             $persistentClaims,
             [
                 'sub' => $payload['sub'],
                 'iat' => $payload['iat'],
             ]
         );
+
+        /** @var null|int $ttl */
+        $ttl = $this->config->get('jwt.ttl', 120);
+
+        if ($ttl !== null) {
+            $claims['exp'] = Date::now()->addMinutes($ttl)->getTimestamp();
+        }
+
+        return $claims;
     }
 }

@@ -42,10 +42,12 @@ class InertiaServiceProvider extends ServiceProvider
         $this->registerMiddleware();
 
         $this->app->bind('inertia.view-finder', function ($app) {
+            $config = $app->make('config');
+
             return new FileViewFinder(
                 $app['files'],
-                $app['config']->get('inertia.pages.paths'),
-                $app['config']->get('inertia.pages.extensions')
+                $config->array('inertia.pages.paths'),
+                $config->array('inertia.pages.extensions')
             );
         });
     }

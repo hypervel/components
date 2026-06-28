@@ -58,12 +58,15 @@ class JWTServiceProvider extends ServiceProvider
     {
         $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
             $authManager->extend('jwt', function ($app, $name, $config) use ($authManager) {
+                /** @var null|int $ttl */
+                $ttl = $app->make('config')->get('jwt.ttl', 120);
+
                 return new JwtGuard(
                     name: $name,
                     provider: $authManager->createUserProvider($config['provider'] ?? null),
                     jwtManager: $app->make('jwt'),
                     app: $app,
-                    ttl: (int) $app['config']->get('jwt.ttl', 120),
+                    ttl: $ttl,
                 );
             });
         });

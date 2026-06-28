@@ -12,7 +12,7 @@ use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\JWT\Contracts\ManagerContract;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use stdClass;
@@ -30,14 +30,14 @@ class JwtGuard implements Guard
     /**
      * Create a new JWT authentication guard.
      *
-     * @param int $ttl token time-to-live in minutes
+     * @param null|int $ttl token time-to-live in minutes, or null for no expiration
      */
     public function __construct(
         protected string $name,
         UserProvider $provider,
         protected ManagerContract $jwtManager,
         protected Container $app,
-        protected int $ttl = 120,
+        protected ?int $ttl = 120,
     ) {
         $this->provider = $provider;
     }
@@ -86,13 +86,18 @@ class JwtGuard implements Guard
      */
     public function login(AuthenticatableContract $user): string
     {
-        $now = Carbon::now();
+        $now = Date::now();
         $claims = CoroutineContext::get("__auth.guards.{$this->name}.claims", []);
-        $token = $this->jwtManager->encode(array_merge([
+        $payload = [
             'sub' => $user->getAuthIdentifier(),
-            'iat' => $now->copy()->timestamp,
-            'exp' => $now->copy()->addMinutes($this->ttl)->timestamp,
-        ], $claims));
+            'iat' => $now->getTimestamp(),
+        ];
+
+        if ($this->ttl !== null) {
+            $payload['exp'] = $now->addMinutes($this->ttl)->getTimestamp();
+        }
+
+        $token = $this->jwtManager->encode(array_merge($payload, $claims));
 
         CoroutineContext::set(
             $this->getContextKeyForToken($this->parseToken() ? $token : null),

@@ -56,7 +56,7 @@ class HandleCors
 
         $config = static::$configResolver !== null
             ? (static::$configResolver)($request)
-            : $this->container['config']->get('cors', []);
+            : $this->container->make('config')->array('cors', []);
 
         $cors = new CorsService($config);
 
@@ -102,7 +102,7 @@ class HandleCors
      */
     protected function getPathsByHost(string $host): array
     {
-        $paths = $this->container['config']->get('cors.paths', []);
+        $paths = $this->container->make('config')->array('cors.paths', []);
 
         if (isset($paths[$host])) {
             return $paths[$host];

@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+$ttl = env('JWT_TTL', 120);
+$refreshTtl = env('JWT_REFRESH_TTL', 20160);
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -103,7 +106,7 @@ return [
     |
     */
 
-    'ttl' => env('JWT_TTL', 120),
+    'ttl' => $ttl === null ? null : (int) $ttl,
 
     /*
     |--------------------------------------------------------------------------
@@ -122,7 +125,7 @@ return [
     |
     */
 
-    'refresh_ttl' => env('JWT_REFRESH_TTL', 20160),
+    'refresh_ttl' => $refreshTtl === null ? null : (int) $refreshTtl,
 
     /*
     |--------------------------------------------------------------------------

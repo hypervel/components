@@ -216,6 +216,32 @@ class JwtGuardTest extends TestCase
         $this->assertGreaterThan($capturedPayload['iat'], $capturedPayload['exp']);
     }
 
+    public function testLoginOmitsExpirationWhenTtlIsNull(): void
+    {
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifier')->andReturn(42);
+
+        $capturedPayload = null;
+        $jwtManager = m::mock(ManagerContract::class);
+        $jwtManager->shouldReceive('encode')->once()->andReturnUsing(function ($payload) use (&$capturedPayload) {
+            $capturedPayload = $payload;
+
+            return 'token';
+        });
+
+        $guard = $this->createGuard(
+            jwtManager: $jwtManager,
+            request: $this->createRequestWithBearer(null),
+            ttl: null,
+        );
+
+        $guard->login($user);
+
+        $this->assertSame(42, $capturedPayload['sub']);
+        $this->assertArrayHasKey('iat', $capturedPayload);
+        $this->assertArrayNotHasKey('exp', $capturedPayload);
+    }
+
     public function testClaimsMergeIntoNextToken()
     {
         $user = m::mock(Authenticatable::class);
@@ -486,7 +512,7 @@ class JwtGuardTest extends TestCase
         ?UserProvider $provider = null,
         ?ManagerContract $jwtManager = null,
         ?Request $request = null,
-        int $ttl = 120,
+        ?int $ttl = 120,
     ): JwtGuard {
         if ($request !== null) {
             RequestContext::set($request);
