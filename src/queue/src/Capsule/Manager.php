@@ -44,7 +44,7 @@ class Manager
      */
     protected function setupDefaultConfiguration(): void
     {
-        $this->container['config']['queue.default'] = 'default';
+        $this->container->make('config')->set('queue.default', 'default');
     }
 
     /**
@@ -114,7 +114,7 @@ class Manager
      */
     public function addConnection(array $config, string $name = 'default'): void
     {
-        $this->container['config']["queue.connections.{$name}"] = $config;
+        $this->container->make('config')->set("queue.connections.{$name}", $config);
     }
 
     /**

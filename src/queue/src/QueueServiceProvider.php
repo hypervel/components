@@ -297,7 +297,7 @@ class QueueServiceProvider extends ServiceProvider
     protected function registerFailedJobServices(): void
     {
         $this->app->singleton('queue.failer', function ($app) {
-            $config = $app['config']['queue.failed'] ?? [];
+            $config = $app->make('config')->array('queue.failed', []);
 
             if (array_key_exists('driver', $config)
                 && (is_null($config['driver']) || $config['driver'] === 'null')

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
+use Hypervel\Queue\TimeoutExceededException;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
@@ -20,7 +22,7 @@ use stdClass;
 
 class QueueBeanstalkdJobTest extends TestCase
 {
-    public function testFireProperlyCallsTheJobHandler()
+    public function testFireProperlyCallsTheJobHandler(): void
     {
         $job = $this->getJob();
         $job->getPheanstalkJob()->shouldReceive('getData')->once()->andReturn(json_encode(['job' => 'foo', 'data' => ['data']]));
@@ -30,7 +32,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->fire();
     }
 
-    public function testFailProperlyCallsTheJobHandler()
+    public function testFailProperlyCallsTheJobHandler(): void
     {
         $job = $this->getJob();
         $job->getPheanstalkJob()->shouldReceive('getData')->andReturn(json_encode(['job' => 'foo', 'uuid' => 'test-uuid', 'data' => ['data']]));
@@ -43,7 +45,30 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->fail(new Exception);
     }
 
-    public function testDeleteRemovesTheJobFromBeanstalkd()
+    public function testFailWithNullFailedDriverDoesNotRollBackDatabaseTransaction(): void
+    {
+        $job = $this->getJob();
+        $job->getPheanstalkJob()->shouldReceive('getData')->andReturn(json_encode(['job' => 'foo', 'uuid' => 'test-uuid', 'data' => ['data']]));
+        $job->getContainer()->shouldReceive('make')->once()->with('config')->andReturn(new ConfigRepository([
+            'queue' => [
+                'failed' => [
+                    'driver' => null,
+                    'database' => 'sqlite',
+                ],
+            ],
+        ]));
+        $job->getContainer()->shouldReceive('bound')->never();
+        $job->getContainer()->shouldReceive('make')->never()->with('db');
+        $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(BeanstalkdJobTestFailedTest::class));
+        $job->getPheanstalk()->shouldReceive('delete')->once()->with($job->getPheanstalkJob())->andReturnSelf();
+        $handler->shouldReceive('failed')->once()->with(['data'], m::type(TimeoutExceededException::class), 'test-uuid', m::type(BeanstalkdJob::class));
+        $job->getContainer()->shouldReceive('make')->once()->with(Dispatcher::class)->andReturn($events = m::mock(Dispatcher::class));
+        $events->shouldReceive('dispatch')->once()->with(m::type(JobFailed::class))->andReturnNull();
+
+        $job->fail(TimeoutExceededException::forJob($job));
+    }
+
+    public function testDeleteRemovesTheJobFromBeanstalkd(): void
     {
         $job = $this->getJob();
         $job->getPheanstalk()->shouldReceive('delete')->once()->with($job->getPheanstalkJob());
@@ -51,7 +76,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->delete();
     }
 
-    public function testReleaseProperlyReleasesJobOntoBeanstalkd()
+    public function testReleaseProperlyReleasesJobOntoBeanstalkd(): void
     {
         $job = $this->getJob();
         $job->getPheanstalk()->shouldReceive('release')->once()->with($job->getPheanstalkJob(), Pheanstalk::DEFAULT_PRIORITY, 0);
@@ -59,7 +84,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->release();
     }
 
-    public function testBuryProperlyBuryTheJobFromBeanstalkd()
+    public function testBuryProperlyBuryTheJobFromBeanstalkd(): void
     {
         $job = $this->getJob();
         $job->getPheanstalk()->shouldReceive('bury')->once()->with($job->getPheanstalkJob());
@@ -67,7 +92,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->bury();
     }
 
-    protected function getJob()
+    protected function getJob(): BeanstalkdJob
     {
         return new BeanstalkdJob(
             m::mock(Container::class),
@@ -81,7 +106,7 @@ class QueueBeanstalkdJobTest extends TestCase
 
 class BeanstalkdJobTestFailedTest
 {
-    public function failed(array $data, Exception $exception, string $uuid, BeanstalkdJob $job)
+    public function failed(array $data, Exception $exception, string $uuid, BeanstalkdJob $job): void
     {
     }
 }
