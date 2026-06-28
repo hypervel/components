@@ -42,7 +42,7 @@ class ComponentTest extends TestCase
 
     public function testInlineViewsGetCreated()
     {
-        $this->config->shouldReceive('get')->once()->with('view.compiled')->andReturn('/tmp');
+        $this->config->shouldReceive('string')->once()->with('view.compiled')->andReturn('/tmp');
         $this->viewFactory->shouldReceive('exists')->once()->andReturn(false);
         $this->viewFactory->shouldReceive('addNamespace')->once()->with('__components', '/tmp');
 
@@ -62,7 +62,7 @@ class ComponentTest extends TestCase
 
     public function testRenderingStringClosureFromComponent()
     {
-        $this->config->shouldReceive('get')->once()->with('view.compiled')->andReturn('/tmp');
+        $this->config->shouldReceive('string')->once()->with('view.compiled')->andReturn('/tmp');
         $this->viewFactory->shouldReceive('exists')->once()->andReturn(false);
         $this->viewFactory->shouldReceive('addNamespace')->once()->with('__components', '/tmp');
 
@@ -224,7 +224,7 @@ class ComponentTest extends TestCase
 
         $this->viewFactory->shouldReceive('exists')->twice()->andReturn(false);
 
-        $this->config->shouldReceive('get')->twice()->with('view.compiled')->andReturn('/tmp');
+        $this->config->shouldReceive('string')->twice()->with('view.compiled')->andReturn('/tmp');
 
         $this->viewFactory->shouldReceive('addNamespace')
             ->with('__components', '/tmp')
@@ -260,7 +260,7 @@ class ComponentTest extends TestCase
 
         $this->viewFactory->shouldReceive('exists')->twice()->andReturn(false);
 
-        $this->config->shouldReceive('get')->twice()->with('view.compiled')->andReturn('/tmp');
+        $this->config->shouldReceive('string')->twice()->with('view.compiled')->andReturn('/tmp');
 
         $this->viewFactory->shouldReceive('addNamespace')
             ->with('__components', '/tmp')

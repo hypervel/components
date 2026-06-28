@@ -353,7 +353,7 @@ class CacheManager implements FactoryContract
      */
     protected function getPrefix(array $config): string
     {
-        return $config['prefix'] ?? $this->app['config']['cache.prefix'];
+        return $config['prefix'] ?? $this->app->make('config')->string('cache.prefix');
     }
 
     /**
@@ -361,7 +361,7 @@ class CacheManager implements FactoryContract
      */
     protected function getSerializableClasses(array $config): array|bool|null
     {
-        return $this->app['config']['cache.serializable_classes'] ?? null;
+        return $this->app->make('config')->get('cache.serializable_classes');
     }
 
     /**
@@ -370,7 +370,7 @@ class CacheManager implements FactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app['config']["cache.stores.{$name}"];
+            return $this->app->make('config')->get("cache.stores.{$name}");
         }
 
         return ['driver' => 'null'];
@@ -381,7 +381,7 @@ class CacheManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app['config']['cache.default'] ?? 'null';
+        return $this->app->make('config')->string('cache.default', 'null');
     }
 
     /**

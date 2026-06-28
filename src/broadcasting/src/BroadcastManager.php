@@ -401,7 +401,7 @@ class BroadcastManager implements BroadcastingFactoryContract
             $this->app,
             $redis,
             $config['connection'] ?? 'default',
-            $this->app['config']->get('database.redis.options.prefix', ''),
+            $this->app->make('config')->string('database.redis.options.prefix', ''),
         );
     }
 
@@ -427,7 +427,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app['config']["broadcasting.connections.{$name}"];
+            return $this->app->make('config')->get("broadcasting.connections.{$name}");
         }
 
         return ['driver' => 'null'];
@@ -438,7 +438,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app['config']['broadcasting.default'];
+        return $this->app->make('config')->string('broadcasting.default');
     }
 
     /**
