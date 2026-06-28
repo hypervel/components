@@ -217,7 +217,7 @@ class MailManager implements FactoryContract
         $scheme = $config['scheme'] ?? null;
 
         if (! $scheme) {
-            $scheme = ($config['port'] == 465) ? 'smtps' : 'smtp';
+            $scheme = ((int) $config['port'] === 465) ? 'smtps' : 'smtp';
         }
 
         /** @var EsmtpTransport $transport */
@@ -269,7 +269,7 @@ class MailManager implements FactoryContract
     protected function createSesV2Transport(array $config): SesV2Transport
     {
         $config = array_merge(
-            $this->config->get('services.ses', []),
+            $this->config->array('services.ses', []),
             ['version' => 'latest'],
             $config
         );
@@ -341,7 +341,7 @@ class MailManager implements FactoryContract
         $factory = new MailgunTransportFactory(null, $this->getHttpClient($config));
 
         if (! isset($config['secret'])) {
-            $config = $this->config->get('services.mailgun', []);
+            $config = $this->config->array('services.mailgun', []);
         }
 
         /* @phpstan-ignore-next-line */
@@ -498,7 +498,7 @@ class MailManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->config->get('mail.default');
+        return $this->config->string('mail.default');
     }
 
     /**

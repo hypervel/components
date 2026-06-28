@@ -161,6 +161,22 @@ class MailManagerTest extends TestCase
         $this->assertSame(5876, $transport->getStream()->getPort());
     }
 
+    public function testSmtpTransportUsesSecureSchemeWhenPortIsConfiguredAsString(): void
+    {
+        $transport = (new MailManager($this->app))
+            ->createSymfonyTransport([
+                'transport' => 'smtp',
+                'host' => '127.0.0.2',
+                'port' => '465',
+                'username' => null,
+                'password' => null,
+            ]);
+
+        $this->assertInstanceOf(EsmtpTransport::class, $transport);
+        $this->assertSame(465, $transport->getStream()->getPort());
+        $this->assertTrue($transport->getStream()->isTLS());
+    }
+
     public function testPoolableMailUrlConfig()
     {
         $this->app->make('config')
