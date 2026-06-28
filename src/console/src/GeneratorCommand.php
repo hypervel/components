@@ -447,6 +447,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
     {
         $config = $this->hypervel->make('config');
 
+        // This best-effort guess returns null when auth config is absent.
         $provider = $config->get('auth.guards.' . $config->get('auth.defaults.guard') . '.provider');
 
         return $config->get("auth.providers.{$provider}.model");

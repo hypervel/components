@@ -353,7 +353,7 @@ class FoundationServiceProvider extends ServiceProvider
 
         $this->app->singleton(Renderer::class, function () {
             $errorRenderer = new HtmlErrorRenderer(
-                $this->config->get('app.debug'),
+                $this->config->boolean('app.debug', false),
             );
 
             return new Renderer(
