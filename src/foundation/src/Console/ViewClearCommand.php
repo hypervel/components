@@ -39,7 +39,7 @@ class ViewClearCommand extends Command
      */
     public function handle()
     {
-        $path = $this->hypervel['config']['view.compiled'];
+        $path = $this->hypervel->make('config')->string('view.compiled');
 
         if (! $path) {
             throw new RuntimeException('View path not found.');

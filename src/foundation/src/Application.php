@@ -527,8 +527,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function viewPath(string $path = ''): string
     {
+        $paths = $this->make('config')->array('view.paths', [$this->basePath('resources/views')]);
+
         $viewPath = rtrim(
-            $this['config']->get('view.paths')[0] ?? $this->basePath('resources/views'),
+            $paths[0] ?? $this->basePath('resources/views'),
             DIRECTORY_SEPARATOR
         );
 
@@ -802,7 +804,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function hasDebugModeEnabled(): bool
     {
-        return (bool) $this['config']->get('app.debug');
+        return $this->make('config')->boolean('app.debug', false);
     }
 
     /**

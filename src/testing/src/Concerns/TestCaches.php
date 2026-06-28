@@ -29,7 +29,7 @@ trait TestCaches
     {
         $token = ParallelTesting::token();
         $suffix = "test_{$token}_";
-        $prefix = $this->app['config']->get('cache.prefix', '');
+        $prefix = $this->app->make('config')->string('cache.prefix', '');
 
         return str_ends_with($prefix, $suffix)
             ? $prefix
