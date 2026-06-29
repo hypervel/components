@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Console\CommandSchedulingTest;
 
-use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\CacheSchedulingMutex;
@@ -33,7 +33,8 @@ class CommandSchedulingTest extends TestCase
 
             public function __construct()
             {
-                $this->store = new Repository(new ArrayStore(true));
+                // Use worker-array because scheduling mutexes must survive across scheduler coroutines.
+                $this->store = new Repository(new WorkerArrayStore(true));
             }
 
             public function store(?string $name = null): Repository
