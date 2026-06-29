@@ -39,6 +39,7 @@ use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\HtmlString;
+use Hypervel\Support\Str;
 use Hypervel\Support\Uri;
 use League\Uri\Contracts\UriInterface;
 use Psr\Log\LoggerInterface;
@@ -138,6 +139,34 @@ if (! function_exists('app')) {
         }
 
         return Container::getInstance()->make($abstract, $parameters);
+    }
+}
+
+if (! function_exists('app_id')) {
+    /**
+     * Get the configured application identifier for config defaults.
+     *
+     * Use this helper only in config files. Runtime code should read
+     * config('app.id') / $config->string('app.id') so the identifier is
+     * read from cached config instead of re-validating or re-normalizing env.
+     */
+    function app_id(): string
+    {
+        $id = env('APP_ID');
+
+        if ($id !== null && $id !== '') {
+            $id = (string) $id;
+
+            if (! preg_match('/^[a-z0-9_]+$/', $id)) {
+                throw new \InvalidArgumentException(
+                    'APP_ID must contain only lowercase letters, numbers, and underscores.'
+                );
+            }
+
+            return $id;
+        }
+
+        return Str::slug(Str::snake((string) env('APP_NAME', 'hypervel')), '_') ?: 'hypervel';
     }
 }
 

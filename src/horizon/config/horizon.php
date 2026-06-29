@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use Hypervel\Support\Str;
-
 return [
     /*
     |--------------------------------------------------------------------------
@@ -68,10 +66,7 @@ return [
     |
     */
 
-    'prefix' => env(
-        'HORIZON_PREFIX',
-        Str::slug(env('APP_NAME', 'hypervel'), '_') . '_horizon:'
-    ),
+    'prefix' => env('HORIZON_PREFIX', app_id() . '_horizon:'),
 
     /*
     |--------------------------------------------------------------------------

@@ -38,7 +38,7 @@ You may configure your application's Redis settings via the `config/database.php
 ```php
 'redis' => [
     'options' => [
-        'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'hypervel'), '_') . '_database_'),
+        'prefix' => env('REDIS_PREFIX', app_id() . ':'),
     ],
 
     'default' => [
@@ -96,7 +96,7 @@ Each standalone Redis server defined in your configuration file is required to h
 ```php
 'redis' => [
     'options' => [
-        'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'hypervel'), '_') . '_database_'),
+        'prefix' => env('REDIS_PREFIX', app_id() . ':'),
     ],
 
     'default' => [
@@ -190,7 +190,7 @@ The PhpRedis extension may also be configured to use a variety of serializers an
 ```php
 'redis' => [
     'options' => [
-        'prefix' => env('REDIS_PREFIX', Str::slug((string) env('APP_NAME', 'hypervel'), '_') . '_database_'),
+        'prefix' => env('REDIS_PREFIX', app_id() . ':'),
         'serializer' => Redis::SERIALIZER_MSGPACK,
         'compression' => Redis::COMPRESSION_LZ4,
     ],
