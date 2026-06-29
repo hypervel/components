@@ -4,257 +4,158 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hypervel\Contracts\Cache\CanFlushLocks;
-use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Carbon;
-use Hypervel\Support\InteractsWithTime;
-use RuntimeException;
 
-class ArrayStore extends TaggableStore implements CanFlushLocks, LockProvider
+class ArrayStore extends AbstractArrayStore
 {
-    use InteractsWithTime;
-    use RetrievesMultipleKeys;
+    /**
+     * The context key prefix for stored values.
+     */
+    protected const STORAGE_CONTEXT_KEY_PREFIX = '__cache.array.storage.';
 
     /**
-     * The array of stored values.
-     *
-     * @var array<string, array{value: mixed, expiresAt: float}>
+     * The context key prefix for lock records.
      */
-    protected array $storage = [];
+    protected const LOCKS_CONTEXT_KEY_PREFIX = '__cache.array.locks.';
 
     /**
-     * The array of locks.
-     *
-     * @var array<string, array{owner: ?string, expiresAt: ?Carbon}>
+     * The sequence used to build unique per-instance context keys.
      */
-    public array $locks = [];
+    // Do not reset this; live context buckets may still use earlier suffixes.
+    private static int $contextKeySequence = 0;
 
     /**
-     * Indicates if values are serialized within the store.
+     * The coroutine-local key for this store's values.
      */
-    protected bool $serializesValues;
+    protected readonly string $storageContextKey;
 
     /**
-     * The classes that should be allowed during unserialization.
+     * The coroutine-local key for this store's lock records.
      */
-    protected array|bool|null $serializableClasses;
+    protected readonly string $locksContextKey;
 
     /**
      * Create a new Array store.
      */
     public function __construct(bool $serializesValues = false, array|bool|null $serializableClasses = null)
     {
-        $this->serializesValues = $serializesValues;
-        $this->serializableClasses = $serializableClasses;
+        parent::__construct($serializesValues, $serializableClasses);
+
+        $suffix = (string) ++self::$contextKeySequence;
+
+        $this->storageContextKey = self::STORAGE_CONTEXT_KEY_PREFIX . $suffix;
+        $this->locksContextKey = self::LOCKS_CONTEXT_KEY_PREFIX . $suffix;
     }
 
     /**
-     * Get all of the cached values and their expiration times.
+     * Get the cached item for the given key.
      *
-     * @return array<string, array{value: mixed, expiresAt: float}>
+     * @return null|array{value: mixed, expiresAt: float}
      */
-    public function all(bool $unserialize = true): array
+    protected function getCacheItem(string $key): ?array
     {
-        if ($unserialize === false || $this->serializesValues === false) {
-            return $this->storage;
-        }
-
-        $storage = [];
-
-        foreach ($this->storage as $key => $data) {
-            $storage[$key] = [
-                'value' => $this->unserialize($data['value']),
-                'expiresAt' => $data['expiresAt'],
-            ];
-        }
-
-        return $storage;
+        return $this->getCacheItems()[$key] ?? null;
     }
 
     /**
-     * Retrieve an item from the cache by key.
+     * Store the cached item for the given key.
+     *
+     * @param array{value: mixed, expiresAt: float} $item
      */
-    public function get(string $key): mixed
+    protected function putCacheItem(string $key, array $item): void
     {
-        if (! isset($this->storage[$key])) {
-            return null;
-        }
+        $items = $this->getCacheItems();
+        $items[$key] = $item;
 
-        $item = $this->storage[$key];
-
-        $expiresAt = $item['expiresAt'];
-
-        if ($expiresAt !== 0.0 && (now()->getPreciseTimestamp(3) / 1000) >= $expiresAt) {
-            $this->forget($key);
-
-            return null;
-        }
-
-        return $this->serializesValues ? $this->unserialize($item['value']) : $item['value'];
+        CoroutineContext::set($this->storageContextKey, $items);
     }
 
     /**
-     * Store an item in the cache for a given number of seconds.
+     * Remove the cached item for the given key.
      */
-    public function put(string $key, mixed $value, int $seconds): bool
+    protected function forgetCacheItem(string $key): bool
     {
-        $this->storage[$key] = [
-            'value' => $this->serializesValues ? serialize($value) : $value,
-            'expiresAt' => $this->calculateExpiration($seconds),
-        ];
+        $items = $this->getCacheItems();
 
-        return true;
-    }
-
-    /**
-     * Increment the value of an item in the cache.
-     */
-    public function increment(string $key, int $value = 1): int
-    {
-        if (! is_null($existing = $this->get($key))) {
-            return tap(((int) $existing) + $value, function ($incremented) use ($key) {
-                $value = $this->serializesValues ? serialize($incremented) : $incremented;
-
-                $this->storage[$key]['value'] = $value;
-            });
-        }
-
-        $this->forever($key, $value);
-
-        return $value;
-    }
-
-    /**
-     * Decrement the value of an item in the cache.
-     */
-    public function decrement(string $key, int $value = 1): int
-    {
-        return $this->increment($key, $value * -1);
-    }
-
-    /**
-     * Store an item in the cache indefinitely.
-     */
-    public function forever(string $key, mixed $value): bool
-    {
-        return $this->put($key, $value, 0);
-    }
-
-    /**
-     * Adjust the expiration time of a cached item.
-     */
-    public function touch(string $key, int $seconds): bool
-    {
-        $item = $this->storage[$this->getPrefix() . $key] ?? null;
-
-        if (is_null($item)) {
+        if (! array_key_exists($key, $items)) {
             return false;
         }
 
-        $item['expiresAt'] = $this->calculateExpiration($seconds);
-
-        $this->storage = array_merge($this->storage, [$this->getPrefix() . $key => $item]);
-
-        return true;
-    }
-
-    /**
-     * Remove an item from the cache.
-     */
-    public function forget(string $key): bool
-    {
-        if (array_key_exists($key, $this->storage)) {
-            unset($this->storage[$key]);
-
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Remove all items from the cache.
-     */
-    public function flush(): bool
-    {
-        $this->storage = [];
+        unset($items[$key]);
+        CoroutineContext::set($this->storageContextKey, $items);
 
         return true;
     }
 
     /**
-     * Remove all locks from the store.
+     * Remove all cached items.
+     */
+    protected function clearCacheItems(): void
+    {
+        CoroutineContext::set($this->storageContextKey, []);
+    }
+
+    /**
+     * Get all cached items.
      *
-     * @throws RuntimeException
+     * @return array<string, array{value: mixed, expiresAt: float}>
      */
-    public function flushLocks(): bool
+    protected function getCacheItems(): array
     {
-        if (! $this->hasSeparateLockStore()) {
-            throw new RuntimeException('Flushing locks is only supported when the lock store is separate from the cache store.');
-        }
-
-        $this->locks = [];
-
-        return true;
+        return CoroutineContext::get($this->storageContextKey, []);
     }
 
     /**
-     * Get the cache key prefix.
+     * Get the lock record for the given name.
+     *
+     * @return null|array{owner: ?string, expiresAt: ?Carbon}
      */
-    public function getPrefix(): string
+    public function getLockRecord(string $name): ?array
     {
-        return '';
+        return $this->getLockRecords()[$name] ?? null;
     }
 
     /**
-     * Get a lock instance.
+     * Store the lock record for the given name.
+     *
+     * @param array{owner: ?string, expiresAt: ?Carbon} $record
      */
-    public function lock(string $name, int $seconds = 0, ?string $owner = null): ArrayLock
+    public function putLockRecord(string $name, array $record): void
     {
-        return new ArrayLock($this, $name, $seconds, $owner);
+        $records = $this->getLockRecords();
+        $records[$name] = $record;
+
+        CoroutineContext::set($this->locksContextKey, $records);
     }
 
     /**
-     * Restore a lock instance using the owner identifier.
+     * Remove the lock record for the given name.
      */
-    public function restoreLock(string $name, string $owner): ArrayLock
+    public function forgetLockRecord(string $name): void
     {
-        return $this->lock($name, 0, $owner);
+        $records = $this->getLockRecords();
+
+        unset($records[$name]);
+
+        CoroutineContext::set($this->locksContextKey, $records);
     }
 
     /**
-     * Get the expiration time of the key.
+     * Remove all lock records.
      */
-    protected function calculateExpiration(int $seconds): float
+    public function clearLockRecords(): void
     {
-        return $this->toTimestamp($seconds);
+        CoroutineContext::set($this->locksContextKey, []);
     }
 
     /**
-     * Get the UNIX timestamp, with milliseconds, for the given number of seconds in the future.
+     * Get all lock records.
+     *
+     * @return array<string, array{owner: ?string, expiresAt: ?Carbon}>
      */
-    protected function toTimestamp(int $seconds): float
+    protected function getLockRecords(): array
     {
-        return $seconds > 0 ? (now()->getPreciseTimestamp(3) / 1000) + $seconds : 0;
-    }
-
-    /**
-     * Determine if the lock store is separate from the cache store.
-     */
-    public function hasSeparateLockStore(): bool
-    {
-        return true;
-    }
-
-    /**
-     * Unserialize the given value.
-     */
-    protected function unserialize(string $value): mixed
-    {
-        if ($this->serializableClasses !== null) {
-            return unserialize($value, ['allowed_classes' => $this->serializableClasses]);
-        }
-
-        return unserialize($value);
+        return CoroutineContext::get($this->locksContextKey, []);
     }
 }
