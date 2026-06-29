@@ -401,6 +401,31 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertCount(3, $entries);
     }
 
+    public function testAllModeTaggedManyReadsMultipleTaggedItems(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        Cache::tags(['batch'])->putMany([
+            'item:1' => 'value1',
+            'item:2' => 'value2',
+            'item:3' => 'value3',
+        ], 60);
+
+        $result = Cache::tags(['batch'])->many([
+            'item:1',
+            'item:2',
+            'missing' => 'fallback',
+            'item:3',
+        ]);
+
+        $this->assertSame([
+            'item:1' => 'value1',
+            'item:2' => 'value2',
+            'missing' => 'fallback',
+            'item:3' => 'value3',
+        ], $result);
+    }
+
     public function testAnyModePutManyCreatesTagStructure(): void
     {
         $this->setTagMode(TagMode::Any);

@@ -18,6 +18,7 @@ use Hypervel\Cache\Events\KeyForgetFailed;
 use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\RetrievingKey;
+use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
@@ -69,6 +70,31 @@ class CacheEventsTest extends TestCase
         $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingKey::class, ['key' => 'baz', 'tags' => ['taylor']]));
         $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheHit::class, ['key' => 'baz', 'value' => 'qux', 'tags' => ['taylor']]));
         $this->assertSame('qux', $repository->tags('taylor')->get('baz'));
+    }
+
+    public function testTaggedManyTriggersManyEvents(): void
+    {
+        $dispatcher = $this->getDispatcher();
+        $repository = $this->getRepository($dispatcher);
+
+        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(RetrievingManyKeys::class, [
+            'keys' => ['baz', 'foo'],
+            'tags' => ['taylor'],
+        ]));
+        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheHit::class, [
+            'key' => 'baz',
+            'value' => 'qux',
+            'tags' => ['taylor'],
+        ]));
+        $dispatcher->shouldReceive('dispatch')->once()->with($this->assertEventMatches(CacheMissed::class, [
+            'key' => 'foo',
+            'tags' => ['taylor'],
+        ]));
+
+        $this->assertSame([
+            'baz' => 'qux',
+            'foo' => null,
+        ], $repository->tags('taylor')->many(['baz', 'foo']));
     }
 
     public function testPullTriggersEvents()

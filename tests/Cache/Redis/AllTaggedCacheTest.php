@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis;
 
 use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\NullSentinel;
+use Hypervel\Cache\Redis\AllTaggedCache;
+use Hypervel\Cache\Redis\AllTagSet;
 use Hypervel\Contracts\Events\Dispatcher;
 use Mockery as m;
 use RuntimeException;
@@ -216,6 +220,83 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         ], 5);
 
         $this->assertTrue($result);
+    }
+
+    public function testManyUsesSingleMgetWithCachedTagPrefix(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+
+        $namespace = '_all:tag:people:entries|_all:tag:author:entries';
+        $prefix = hash('xxh128', $namespace) . ':';
+
+        $connection->shouldReceive('mget')
+            ->once()
+            ->with([
+                "prefix:{$prefix}name",
+                "prefix:{$prefix}age",
+                "prefix:{$prefix}missing",
+            ])
+            ->andReturn([
+                serialize('Sally'),
+                '30',
+                null,
+            ]);
+
+        $tags = m::mock(AllTagSet::class, [$store, ['people', 'author']])->makePartial();
+        $tags->shouldReceive('getNamespace')->once()->andReturn($namespace);
+
+        $result = (new AllTaggedCache($store, $tags))->many([
+            'name' => 'unused',
+            'age',
+            'missing' => 'fallback',
+        ]);
+
+        $this->assertSame([
+            'name' => 'Sally',
+            'age' => '30',
+            'missing' => 'fallback',
+        ], $result);
+    }
+
+    public function testManyFiresTaggedManyEvents(): void
+    {
+        $connection = $this->mockConnection();
+        $key = hash('xxh128', '_all:tag:users:entries') . ':';
+        $events = [];
+
+        $connection->shouldReceive('mget')
+            ->once()
+            ->with(["prefix:{$key}profile", "prefix:{$key}missing"])
+            ->andReturn([serialize('cached'), null]);
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$events): void {
+            $events[] = $event;
+        });
+
+        $tagged = $this->createStore($connection)->tags(['users']);
+        $tagged->setEventDispatcher($dispatcher);
+
+        $this->assertSame([
+            'profile' => 'cached',
+            'missing' => null,
+        ], $tagged->many(['profile', 'missing']));
+
+        $this->assertCount(3, $events);
+        $this->assertInstanceOf(RetrievingManyKeys::class, $events[0]);
+        $this->assertSame(['profile', 'missing'], $events[0]->keys);
+        $this->assertSame(['users'], $events[0]->tags);
+
+        $this->assertInstanceOf(CacheHit::class, $events[1]);
+        $this->assertSame('profile', $events[1]->key);
+        $this->assertSame('cached', $events[1]->value);
+        $this->assertSame(['users'], $events[1]->tags);
+
+        $this->assertInstanceOf(CacheMissed::class, $events[2]);
+        $this->assertSame('missing', $events[2]->key);
+        $this->assertSame(['users'], $events[2]->tags);
     }
 
     /**

@@ -16,10 +16,6 @@ use function Hypervel\Support\enum_value;
 
 class TaggedCache extends Repository
 {
-    use RetrievesMultipleKeys {
-        putMany as putManyAlias;
-    }
-
     /**
      * The tag set instance.
      */
@@ -44,7 +40,15 @@ class TaggedCache extends Repository
             return $this->putManyForever($values);
         }
 
-        return $this->putManyAlias($values, $ttl);
+        $manyResult = null;
+
+        foreach ($values as $key => $value) {
+            $result = $this->put((string) $key, $value, $ttl);
+
+            $manyResult = is_null($manyResult) ? $result : $result && $manyResult;
+        }
+
+        return $manyResult ?: false;
     }
 
     /**
