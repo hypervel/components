@@ -1944,10 +1944,10 @@ class HttpClientTest extends TestCase
     {
         $status = 0;
         $client = $this->factory->fake([
-            'laravel.com' => $this->factory::response('', 101),
+            'https://laravel.com' => $this->factory::response('', 101),
         ]);
 
-        $response = $client->get('laravel.com')
+        $response = $client->get('https://laravel.com')
             ->onError(function ($response) use (&$status) {
                 $status = $response->status();
             });
@@ -1960,10 +1960,10 @@ class HttpClientTest extends TestCase
     {
         $status = 0;
         $client = $this->factory->fake([
-            'laravel.com' => $this->factory::response('', 201),
+            'https://laravel.com' => $this->factory::response('', 201),
         ]);
 
-        $response = $client->get('laravel.com')
+        $response = $client->get('https://laravel.com')
             ->onError(function ($response) use (&$status) {
                 $status = $response->status();
             });
@@ -1976,10 +1976,10 @@ class HttpClientTest extends TestCase
     {
         $status = 0;
         $client = $this->factory->fake([
-            'laravel.com' => $this->factory::response('', 301),
+            'https://laravel.com' => $this->factory::response('', 301),
         ]);
 
-        $response = $client->get('laravel.com')
+        $response = $client->get('https://laravel.com')
             ->onError(function ($response) use (&$status) {
                 $status = $response->status();
             });
@@ -1992,10 +1992,10 @@ class HttpClientTest extends TestCase
     {
         $status = 0;
         $client = $this->factory->fake([
-            'laravel.com' => $this->factory::response('', 401),
+            'https://laravel.com' => $this->factory::response('', 401),
         ]);
 
-        $response = $client->get('laravel.com')
+        $response = $client->get('https://laravel.com')
             ->onError(function ($response) use (&$status) {
                 $status = $response->status();
             });
@@ -2008,10 +2008,10 @@ class HttpClientTest extends TestCase
     {
         $status = 0;
         $client = $this->factory->fake([
-            'laravel.com' => $this->factory::response('', 501),
+            'https://laravel.com' => $this->factory::response('', 501),
         ]);
 
-        $response = $client->get('laravel.com')
+        $response = $client->get('https://laravel.com')
             ->onError(function ($response) use (&$status) {
                 $status = $response->status();
             });
@@ -2380,7 +2380,7 @@ class HttpClientTest extends TestCase
     public function testClientCanBeUsedExternally(): void
     {
         $this->factory->fake([
-            '200.com' => $this->factory->response('hello', 200),
+            'https://200.com' => $this->factory->response('hello', 200),
         ]);
 
         $apiClient = new class($this->factory->buildClient()) {
@@ -2391,7 +2391,7 @@ class HttpClientTest extends TestCase
 
             public function sendGetRequest(): ResponseInterface
             {
-                return $this->client->sendRequest(new GuzzleRequest('GET', '200.com'));
+                return $this->client->sendRequest(new GuzzleRequest('GET', 'https://200.com'));
             }
         };
 
@@ -3985,15 +3985,15 @@ class HttpClientTest extends TestCase
     public function testRunConcurrentInCoroutine()
     {
         $this->factory->fake([
-            'vapor.laravel.com' => $this->factory::response('foo', HttpResponse::HTTP_OK),
-            'forge.laravel.com' => $this->factory::response('bar', HttpResponse::HTTP_OK),
+            'https://vapor.laravel.com' => $this->factory::response('foo', HttpResponse::HTTP_OK),
+            'https://forge.laravel.com' => $this->factory::response('bar', HttpResponse::HTTP_OK),
         ]);
 
         $response = null;
         run(function () use (&$response) {
             $response = parallel([
-                fn () => $this->factory->get('vapor.laravel.com'),
-                fn () => $this->factory->get('forge.laravel.com'),
+                fn () => $this->factory->get('https://vapor.laravel.com'),
+                fn () => $this->factory->get('https://forge.laravel.com'),
             ]);
         });
 
