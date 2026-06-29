@@ -58,6 +58,9 @@ class InertiaServiceProviderTest extends TestCase
 
     public function testRedirectResponseFromRateLimiterIsConvertedTo303(): void
     {
+        // Use worker-array because the throttle counter must survive both requests.
+        config(['cache.limiter' => 'worker-array']);
+
         RateLimiter::for('api', fn () => Limit::perMinute(1)->response(fn () => back()));
 
         // Needed for the web middleware

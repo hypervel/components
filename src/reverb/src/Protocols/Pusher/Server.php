@@ -212,7 +212,7 @@ class Server
 
         $config = $connection->app()->rateLimiting();
 
-        $this->rateLimiter ??= new RateLimiter(app('cache')->store('array'));
+        $this->rateLimiter ??= new RateLimiter(app('cache')->store('worker-array'));
 
         $key = 'reverb:message:' . $connection->id();
 

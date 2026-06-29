@@ -13,6 +13,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Mockery;
 use Mockery\LegacyMockInterface;
@@ -133,7 +134,7 @@ class CacheManager implements FactoryContract
             return $this->callCustomCreator($config);
         }
 
-        $driverMethod = 'create' . ucfirst($config['driver']) . 'Driver';
+        $driverMethod = 'create' . Str::studly($config['driver']) . 'Driver';
 
         if (method_exists($this, $driverMethod)) {
             return $this->{$driverMethod}($config);
@@ -156,6 +157,17 @@ class CacheManager implements FactoryContract
     protected function createArrayDriver(array $config): Repository
     {
         return $this->repository(new ArrayStore(
+            $config['serialize'] ?? false,
+            $this->getSerializableClasses($config),
+        ), $config);
+    }
+
+    /**
+     * Create an instance of the worker-lifetime array cache driver.
+     */
+    protected function createWorkerArrayDriver(array $config): Repository
+    {
+        return $this->repository(new WorkerArrayStore(
             $config['serialize'] ?? false,
             $this->getSerializableClasses($config),
         ), $config);

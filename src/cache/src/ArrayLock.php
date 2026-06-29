@@ -13,12 +13,12 @@ class ArrayLock extends Lock implements RefreshableLock
     /**
      * The parent array cache store.
      */
-    protected ArrayStore $store;
+    protected AbstractArrayStore $store;
 
     /**
      * Create a new lock instance.
      */
-    public function __construct(ArrayStore $store, string $name, int $seconds, ?string $owner = null)
+    public function __construct(AbstractArrayStore $store, string $name, int $seconds, ?string $owner = null)
     {
         parent::__construct($name, $seconds, $owner);
 
@@ -30,16 +30,18 @@ class ArrayLock extends Lock implements RefreshableLock
      */
     public function acquire(): bool
     {
-        $expiration = $this->store->locks[$this->name]['expiresAt'] ?? Carbon::now()->addSecond();
+        $record = $this->store->getLockRecord($this->name);
+        $expiration = $record['expiresAt'] ?? Carbon::now()->addSecond();
 
-        if ($this->exists() && $expiration->isFuture()) {
+        if ($record !== null && $expiration->isFuture()) {
             return false;
         }
 
-        $this->store->locks[$this->name] = [
+        // WorkerArrayStore shares this check/write path across coroutines; keep it non-yielding.
+        $this->store->putLockRecord($this->name, [
             'owner' => $this->owner,
             'expiresAt' => $this->seconds === 0 ? null : Carbon::now()->addSeconds($this->seconds),
-        ];
+        ]);
 
         return true;
     }
@@ -63,11 +65,11 @@ class ArrayLock extends Lock implements RefreshableLock
     }
 
     /**
-     * Releases this lock in disregard of ownership.
+     * Release this lock in disregard of ownership.
      */
     public function forceRelease(): void
     {
-        unset($this->store->locks[$this->name]);
+        $this->store->forgetLockRecord($this->name);
     }
 
     /**
@@ -75,7 +77,7 @@ class ArrayLock extends Lock implements RefreshableLock
      */
     protected function exists(): bool
     {
-        return isset($this->store->locks[$this->name]);
+        return $this->store->getLockRecord($this->name) !== null;
     }
 
     /**
@@ -83,11 +85,7 @@ class ArrayLock extends Lock implements RefreshableLock
      */
     protected function getCurrentOwner(): ?string
     {
-        if (! $this->exists()) {
-            return null;
-        }
-
-        return $this->store->locks[$this->name]['owner'];
+        return $this->store->getLockRecord($this->name)['owner'] ?? null;
     }
 
     /**
@@ -110,7 +108,9 @@ class ArrayLock extends Lock implements RefreshableLock
             );
         }
 
-        if (! $this->exists()) {
+        $record = $this->store->getLockRecord($this->name);
+
+        if ($record === null) {
             return false;
         }
 
@@ -118,7 +118,8 @@ class ArrayLock extends Lock implements RefreshableLock
             return false;
         }
 
-        $this->store->locks[$this->name]['expiresAt'] = Carbon::now()->addSeconds($seconds);
+        $record['expiresAt'] = Carbon::now()->addSeconds($seconds);
+        $this->store->putLockRecord($this->name, $record);
 
         return true;
     }
@@ -128,11 +129,13 @@ class ArrayLock extends Lock implements RefreshableLock
      */
     public function getRemainingLifetime(): ?float
     {
-        if (! $this->exists()) {
+        $record = $this->store->getLockRecord($this->name);
+
+        if ($record === null) {
             return null;
         }
 
-        $expiresAt = $this->store->locks[$this->name]['expiresAt'];
+        $expiresAt = $record['expiresAt'];
 
         if ($expiresAt === null) {
             return null;

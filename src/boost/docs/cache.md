@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [Configuration](#configuration)
+    - [Array Cache Stores](#array-cache-stores)
     - [Driver Prerequisites](#driver-prerequisites)
     - [Swoole Table Cache](#swoole-table-cache)
     - [Building Cache Stacks](#building-cache-stacks)
@@ -45,9 +46,36 @@ Thankfully, Hypervel provides an expressive, unified API for various cache backe
 <a name="configuration"></a>
 ## Configuration
 
-Your application's cache configuration file is located at `config/cache.php`. In this file, you may specify which cache store you would like to be used by default throughout your application. Hypervel supports Redis, relational databases, file storage, Swoole tables, session storage, cache stacks, failover stores, and the `array` and `null` stores that are convenient for automated tests.
+Your application's cache configuration file is located at `config/cache.php`. In this file, you may specify which cache store you would like to be used by default throughout your application. Hypervel supports Redis, relational databases, file storage, Swoole tables, session storage, cache stacks, failover stores, and the `array`, `worker-array`, and `null` stores that are convenient for automated tests and in-memory cache data.
 
 The cache configuration file also contains a variety of other options that you may review. By default, Hypervel is configured to use the `database` cache driver, which stores serialized cache values in your application's database.
+
+<a name="array-cache-stores"></a>
+### Array Cache Stores
+
+Hypervel provides two in-memory array cache stores.
+
+The `array` store is per-request. Values written to this store are visible only during the current HTTP request, queued job, scheduled task, or other unit of work. When that work finishes, the values are discarded.
+
+Hypervel implements this with coroutine context. Child coroutines start with a fresh context by default. If you intentionally copy parent context with APIs such as `parallel(..., copyContext: true)` or `Coroutine::fork()`, the child receives the parent array cache's current values as a starting point. Later cache writes remain isolated to that child coroutine. If serialization is disabled and a cached value is an object, normal PHP object-reference behavior still applies to that object.
+
+The `worker-array` store keeps values for the lifetime of the current worker process. Values are shared by all requests, jobs, tasks, and coroutines handled by that worker. They are not shared across worker processes, servers, or restarts.
+
+Use `array` for request-local test and scratch data. Use `worker-array` only when worker-local persistence is the intended behavior:
+
+```php
+'stores' => [
+    'array' => [
+        'driver' => 'array',
+        'serialize' => false,
+    ],
+
+    'worker-array' => [
+        'driver' => 'worker-array',
+        'serialize' => false,
+    ],
+],
+```
 
 <a name="driver-prerequisites"></a>
 ### Driver Prerequisites
