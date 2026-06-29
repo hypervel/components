@@ -97,7 +97,7 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
      */
     public function increment(string $key, int $value = 1): int
     {
-        // WorkerArrayStore shares this read/modify/write path across coroutines; keep it non-yielding.
+        // When backed by WorkerArrayStore, this read/modify/write path is shared across coroutines; keep it non-yielding.
         if (! is_null($existing = $this->get($key))) {
             $incremented = ((int) $existing) + $value;
 
@@ -135,7 +135,6 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
      */
     public function touch(string $key, int $seconds): bool
     {
-        $key = $this->getPrefix() . $key;
         $item = $this->getCacheItem($key);
 
         if ($item === null) {
