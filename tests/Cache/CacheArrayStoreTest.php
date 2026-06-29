@@ -187,13 +187,16 @@ class CacheArrayStoreTest extends TestCase
     public function testLocksCanBeFlushed()
     {
         $store = new ArrayStore;
-        $store->lock('foo', 10);
-        $store->lock('bar', 10);
+        $store->put('value', 'still-here', 10);
+
+        $this->assertTrue($store->lock('foo', 10)->acquire());
+        $this->assertTrue($store->lock('bar', 10)->acquire());
         $result = $store->flushLocks();
         $this->assertTrue($result);
-        $this->assertNull($store->get('foo'));
-        $this->assertNull($store->get('bar'));
-        $this->assertEmpty($store->locks);
+
+        $this->assertTrue($store->lock('foo', 10)->acquire());
+        $this->assertTrue($store->lock('bar', 10)->acquire());
+        $this->assertSame('still-here', $store->get('value'));
     }
 
     public function testCacheKey()
@@ -359,6 +362,38 @@ class CacheArrayStoreTest extends TestCase
         $this->assertEquals([
             'foo' => ['value' => 'bar', 'expiresAt' => Carbon::now()->addSeconds(10)->getPreciseTimestamp(3) / 1000],
         ], $store->all());
+    }
+
+    public function testSeparateArrayStoreInstancesDoNotShareContextData(): void
+    {
+        $first = new ArrayStore;
+        $second = new ArrayStore;
+
+        $first->put('key', 'first', 60);
+        $second->put('key', 'second', 60);
+
+        $this->assertSame('first', $first->get('key'));
+        $this->assertSame('second', $second->get('key'));
+    }
+
+    public function testAllOnlyReturnsCurrentStoreContextData(): void
+    {
+        Carbon::setTestNow(Carbon::now());
+
+        $first = new ArrayStore;
+        $second = new ArrayStore;
+
+        $first->put('key', 'first', 60);
+        $second->put('key', 'second', 60);
+
+        $this->assertSame(['key' => 'first'], array_map(
+            fn (array $item) => $item['value'],
+            $first->all()
+        ));
+        $this->assertSame(['key' => 'second'], array_map(
+            fn (array $item) => $item['value'],
+            $second->all()
+        ));
     }
 
     public function testCanGetAllWhenSerialized()

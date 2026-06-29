@@ -9,6 +9,7 @@ use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagMode;
+use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
@@ -81,6 +82,53 @@ class CacheManagerTest extends TestCase
 
         $this->assertInstanceOf(ArrayStore::class, $arrayCache->getStore());
         $this->assertInstanceOf(NullStore::class, $nullCache->getStore());
+    }
+
+    public function testItCanBuildWorkerArrayRepositories(): void
+    {
+        $app = $this->getApp([]);
+        $cacheManager = new CacheManager($app);
+
+        $repository = $cacheManager->build(['driver' => 'worker-array']);
+
+        $this->assertInstanceOf(WorkerArrayStore::class, $repository->getStore());
+    }
+
+    public function testItResolvesMultiWordInternalDriversUsingStudlyNames(): void
+    {
+        $userConfig = [
+            'cache' => [
+                'stores' => [
+                    'worker' => [
+                        'driver' => 'worker-array',
+                    ],
+                ],
+            ],
+        ];
+
+        $cacheManager = new CacheManager($this->getApp($userConfig));
+
+        $this->assertInstanceOf(WorkerArrayStore::class, $cacheManager->store('worker')->getStore());
+    }
+
+    public function testCustomCreatorsStillOverrideMultiWordInternalDrivers(): void
+    {
+        $userConfig = [
+            'cache' => [
+                'stores' => [
+                    'worker' => [
+                        'driver' => 'worker-array',
+                    ],
+                ],
+            ],
+        ];
+
+        $cacheManager = new CacheManager($this->getApp($userConfig));
+        $repository = m::mock(CacheRepository::class);
+
+        $cacheManager->extend('worker-array', fn () => $repository);
+
+        $this->assertSame($repository, $cacheManager->store('worker'));
     }
 
     public function testItMakesRepositoryWhenContainerHasNoDispatcher()
