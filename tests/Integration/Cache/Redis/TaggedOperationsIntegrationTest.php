@@ -45,7 +45,7 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 
         $this->assertNotEmpty($entries, 'ZSET should contain entries');
 
-        // The key stored is the namespaced key (sha1 of tag names + key)
+        // The key stored is the namespaced key (xxh128 of tag names + key)
         // We can't predict the exact key, but we can verify an entry exists
         $this->assertCount(1, $entries);
     }
@@ -399,6 +399,31 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         // Should have 3 entries in the ZSET
         $entries = $this->getAllModeTagEntries('batch');
         $this->assertCount(3, $entries);
+    }
+
+    public function testAllModeTaggedManyReadsMultipleTaggedItems(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        Cache::tags(['batch'])->putMany([
+            'item:1' => 'value1',
+            'item:2' => 'value2',
+            'item:3' => 'value3',
+        ], 60);
+
+        $result = Cache::tags(['batch'])->many([
+            'item:1',
+            'item:2',
+            'missing' => 'fallback',
+            'item:3',
+        ]);
+
+        $this->assertSame([
+            'item:1' => 'value1',
+            'item:2' => 'value2',
+            'missing' => 'fallback',
+            'item:3' => 'value3',
+        ], $result);
     }
 
     public function testAnyModePutManyCreatesTagStructure(): void

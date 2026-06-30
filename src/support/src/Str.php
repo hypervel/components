@@ -1162,7 +1162,7 @@ class Str
      */
     public static function headline(string $value): string
     {
-        $parts = mb_split('\s+', $value);
+        $parts = preg_split('/\s+/u', $value, -1, PREG_SPLIT_NO_EMPTY);
 
         $parts = count($parts) > 1
             ? array_map(static::title(...), $parts)
@@ -1171,6 +1171,20 @@ class Str
         $collapsed = static::replace(['-', '_', ' '], '_', implode('_', $parts));
 
         return implode(' ', array_filter(explode('_', $collapsed)));
+    }
+
+    /**
+     * Get the "initials" representing each word in the provided string, optionally capitalizing.
+     */
+    public static function initials(string $value, bool $capitalize = false): string
+    {
+        $parts = preg_split('/\s+/u', $value, -1, PREG_SPLIT_NO_EMPTY);
+
+        $parts = array_map(fn ($part) => mb_substr($part, 0, 1), $parts);
+
+        $initials = implode('', $parts);
+
+        return $capitalize ? static::upper($initials) : $initials;
     }
 
     /**
@@ -1192,7 +1206,7 @@ class Str
 
         $endPunctuation = ['.', '!', '?', ':', '—', ','];
 
-        $words = mb_split('\s+', $value);
+        $words = preg_split('/\s+/u', $value, -1, PREG_SPLIT_NO_EMPTY);
         $wordCount = count($words);
 
         for ($i = 0; $i < $wordCount; ++$i) {
@@ -1376,9 +1390,17 @@ class Str
      *
      * @return ($value is '' ? '' : string)
      */
-    public static function studly(string $value): string
+    public static function studly(string $value, bool $normalize = false): string
     {
-        $words = mb_split('\s+', static::replace(['-', '_'], ' ', $value));
+        if ($normalize) {
+            $value = preg_replace_callback(
+                '/(^|[-_ \s])([A-Z]+)(?=[-_ \s]|$)/u',
+                fn ($matches) => $matches[1] . static::lower($matches[2]),
+                $value
+            );
+        }
+
+        $words = preg_split('/\s+/u', static::replace(['-', '_'], ' ', $value), -1, PREG_SPLIT_NO_EMPTY);
 
         $studlyWords = array_map(fn ($word) => static::ucfirst($word), $words);
 
@@ -1390,9 +1412,9 @@ class Str
      *
      * @return ($value is '' ? '' : string)
      */
-    public static function pascal(string $value): string
+    public static function pascal(string $value, bool $normalize = false): string
     {
-        return static::studly($value);
+        return static::studly($value, $normalize);
     }
 
     /**

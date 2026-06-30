@@ -11,6 +11,8 @@ use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\MemoizedStore;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\StackStore;
+use Hypervel\Cache\StackStoreProxy;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
@@ -86,7 +88,58 @@ class CacheMemoizedStoreTest extends TestCase
         $this->assertFalse($invoked);
     }
 
-    public function testManyFiresCacheHitNotCacheMissedForSentinelThroughMemoizedStack(): void
+    public function testMemoizedStoreCanWrapStackStore(): void
+    {
+        $stackRepo = $this->createStackRepository();
+        $memoizedRepo = new Repository(new MemoizedStore('stack', $stackRepo));
+
+        $invocations = 0;
+        $first = $memoizedRepo->remember('permission.roles', 60, function () use (&$invocations) {
+            ++$invocations;
+
+            return ['writer' => ['edit articles']];
+        });
+
+        $second = $memoizedRepo->remember('permission.roles', 60, function () use (&$invocations) {
+            ++$invocations;
+
+            return ['writer' => ['stale value']];
+        });
+
+        $this->assertSame(['writer' => ['edit articles']], $first);
+        $this->assertSame(['writer' => ['edit articles']], $second);
+        $this->assertSame(1, $invocations);
+
+        $freshMemoizedRepo = new Repository(new MemoizedStore('stack', $stackRepo));
+
+        $this->assertSame(['writer' => ['edit articles']], $freshMemoizedRepo->get('permission.roles'));
+    }
+
+    public function testMemoizedStorePreservesCachedNullHitsWhenWrappingStackStore(): void
+    {
+        $stackRepo = $this->createStackRepository();
+        $memoizedRepo = new Repository(new MemoizedStore('stack', $stackRepo));
+
+        $invocations = 0;
+        $first = $memoizedRepo->rememberNullable('permission.missing', 60, function () use (&$invocations) {
+            ++$invocations;
+
+            return null;
+        });
+
+        $second = $memoizedRepo->remember('permission.missing', 60, function () use (&$invocations) {
+            ++$invocations;
+
+            return 'should-not-run';
+        });
+
+        $this->assertNull($first);
+        $this->assertNull($second);
+        $this->assertSame(['permission.missing' => null], $memoizedRepo->many(['permission.missing']));
+        $this->assertSame(1, $invocations);
+    }
+
+    public function testManyFiresCacheHitNotCacheMissedForSentinelThroughMemoizedStore(): void
     {
         $innerRepo = new Repository(new ArrayStore(serializesValues: true));
         $outerRepo = new Repository(new MemoizedStore('memoized', $innerRepo));
@@ -113,5 +166,13 @@ class CacheMemoizedStoreTest extends TestCase
         // Null, not the sentinel value.
         $this->assertNull($captured[1]->value);
         $this->assertEmpty(array_filter($captured, fn ($e) => $e instanceof CacheMissed));
+    }
+
+    protected function createStackRepository(): Repository
+    {
+        return new Repository(new StackStore([
+            new StackStoreProxy(new ArrayStore(serializesValues: true), 3),
+            new StackStoreProxy(new ArrayStore(serializesValues: true)),
+        ]));
     }
 }

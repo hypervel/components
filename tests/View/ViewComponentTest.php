@@ -7,10 +7,10 @@ namespace Hypervel\Tests\View;
 use Closure;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Tests\TestCase;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentAttributeBag;
 use Hypervel\View\ComponentSlot;
-use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
 class ViewComponentTest extends TestCase

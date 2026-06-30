@@ -7,6 +7,6 @@ namespace Hypervel\Queue\Attributes;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS)]
-class DeleteWhenMissingModels
+readonly class DeleteWhenMissingModels
 {
 }

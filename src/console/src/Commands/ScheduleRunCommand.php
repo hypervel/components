@@ -14,7 +14,7 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
@@ -55,9 +55,9 @@ class ScheduleRunCommand extends Command
     protected Dispatcher $dispatcher;
 
     /**
-     * The cache factory implementation.
+     * The cache repository implementation.
      */
-    protected CacheFactory $cache;
+    protected Cache $cache;
 
     /**
      * The exception handler.
@@ -85,6 +85,16 @@ class ScheduleRunCommand extends Command
     protected ?CarbonInterface $lastChecked = null;
 
     /**
+     * Check if the scheduler is paused.
+     */
+    protected bool $paused = false;
+
+    /**
+     * Last time the paused state was checked.
+     */
+    protected ?CarbonInterface $pausedLastChecked = null;
+
+    /**
      * The concurrent instance.
      */
     protected ?Concurrent $concurrent = null;
@@ -102,12 +112,19 @@ class ScheduleRunCommand extends Command
     protected array $evaluatedEvents = [];
 
     /**
+     * The events currently running in this process.
+     *
+     * @var array<int, Event>
+     */
+    protected array $runningEvents = [];
+
+    /**
      * Execute the console command.
      */
     public function handle(
         Schedule $schedule,
         Dispatcher $dispatcher,
-        CacheFactory $cache,
+        Cache $cache,
         ExceptionHandler $handler,
     ) {
         $this->schedule = $schedule;
@@ -126,26 +143,32 @@ class ScheduleRunCommand extends Command
             return;
         }
 
-        $this->clearShouldStop();
+        $this->listenForSignals();
 
-        $noEventsAlerted = false;
-        while (! $this->shouldStop()) {
-            $startedAt = Date::now();
+        try {
+            $this->clearShouldStop();
 
-            $this->runEvents(
-                $this->schedule->dueEventsAt($this->hypervel, $startedAt),
-                $startedAt
-            );
+            $noEventsAlerted = false;
+            while (! $this->shouldStop()) {
+                $startedAt = Date::now();
 
-            if (! $this->eventsRan && ! $noEventsAlerted && ! $this->option('whisper')) {
-                $this->info('No scheduled commands are ready to run, waiting...');
-                $noEventsAlerted = true;
+                $this->runEvents(
+                    $this->schedule->dueEventsAt($this->hypervel, $startedAt),
+                    $startedAt
+                );
+
+                if (! $this->eventsRan && ! $noEventsAlerted && ! $this->option('whisper')) {
+                    $this->info('No scheduled commands are ready to run, waiting...');
+                    $noEventsAlerted = true;
+                }
+
+                Sleep::usleep(100000);
             }
 
-            Sleep::usleep(100000);
+            $this->stop();
+        } finally {
+            $this->untrap();
         }
-
-        $this->stop();
     }
 
     protected function stop(): void
@@ -175,6 +198,8 @@ class ScheduleRunCommand extends Command
             $this->clearShouldStop();
         }
 
+        // The finite --once path runs inside Waiter; signal-wait coroutines keep
+        // that scheduler coroutine alive, so mutex signal cleanup is long-run only.
         (new Waiter(-1))->wait(function () use ($events) {
             $this->runEvents($events, $this->startedAt);
 
@@ -196,6 +221,8 @@ class ScheduleRunCommand extends Command
         $hasEnteredMaintenanceMode = false;
 
         while (Date::now()->lte($this->startedAt->endOfMinute())) {
+            $paused = $this->isPaused();
+
             foreach ($events as $event) {
                 if ($this->shouldStop()) {
                     return;
@@ -211,8 +238,14 @@ class ScheduleRunCommand extends Command
                     continue;
                 }
 
+                if ($paused && ! $event->runsWhenPaused()) {
+                    $this->dispatchTaskSkipped($event);
+
+                    continue;
+                }
+
                 if (! $event->filtersPass($this->hypervel)) {
-                    $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
+                    $this->dispatchTaskSkipped($event);
 
                     continue;
                 }
@@ -232,6 +265,8 @@ class ScheduleRunCommand extends Command
 
     protected function runEvents(Collection $events, CarbonInterface $startedAt): void
     {
+        $paused = $this->isPaused();
+
         foreach ($events as $event) {
             if ($event->isRepeatable() && $event->lastChecked && ! $event->shouldRepeatNow()) {
                 continue;
@@ -241,8 +276,14 @@ class ScheduleRunCommand extends Command
                 continue;
             }
 
+            if ($paused && ! $event->runsWhenPaused()) {
+                $this->dispatchTaskSkipped($event);
+
+                continue;
+            }
+
             if (! $event->filtersPass($this->hypervel)) {
-                $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
+                $this->dispatchTaskSkipped($event);
 
                 continue;
             }
@@ -330,6 +371,8 @@ class ScheduleRunCommand extends Command
 
         $start = microtime(true);
 
+        $this->registerRunningEvent($event);
+
         try {
             $event->run($this->hypervel);
 
@@ -342,6 +385,8 @@ class ScheduleRunCommand extends Command
         } catch (Throwable $e) {
             $this->dispatcher->dispatch(new ScheduledTaskFailed($event, $e));
             $this->handler->report($e);
+        } finally {
+            $this->forgetRunningEvent($event);
         }
 
         $finishDescription = sprintf(
@@ -356,10 +401,32 @@ class ScheduleRunCommand extends Command
     }
 
     /**
+     * Determine if the schedule is paused.
+     */
+    protected function isPaused(): bool
+    {
+        if (! Schedule::$pausable) {
+            return false;
+        }
+
+        if ($this->pausedLastChecked && abs($this->pausedLastChecked->diffInSeconds()) < 1) {
+            return $this->paused;
+        }
+
+        $this->pausedLastChecked = Date::now();
+
+        return $this->paused = (bool) $this->cache->get('hypervel:schedule:paused', false);
+    }
+
+    /**
      * Determine if the schedule run should be interrupted.
      */
     protected function shouldStop(): bool
     {
+        if (! Schedule::$interruptible) {
+            return false;
+        }
+
         if (! $this->lastChecked) {
             $this->lastChecked = Date::now();
         }
@@ -370,8 +437,7 @@ class ScheduleRunCommand extends Command
 
         $this->lastChecked = Date::now();
 
-        /* @phpstan-ignore-next-line */
-        return $this->shouldStop = $this->cache->get('hypervel:schedule:interrupt', false);
+        return $this->shouldStop = (bool) $this->cache->get('hypervel:schedule:interrupt', false);
     }
 
     /**
@@ -379,9 +445,52 @@ class ScheduleRunCommand extends Command
      */
     protected function clearShouldStop(): void
     {
-        /* @phpstan-ignore-next-line */
-        $this->cache->delete('hypervel:schedule:interrupt');
+        $this->cache->forget('hypervel:schedule:interrupt');
 
         $this->shouldStop = false;
+    }
+
+    /**
+     * Listen for signals that should release owned event mutexes.
+     */
+    protected function listenForSignals(): void
+    {
+        $this->trap([SIGTERM, SIGINT, SIGQUIT], fn () => $this->releaseRunningEventMutexes());
+    }
+
+    /**
+     * Register a running event for signal cleanup.
+     */
+    protected function registerRunningEvent(Event $event): void
+    {
+        $this->runningEvents[spl_object_id($event)] = $event;
+    }
+
+    /**
+     * Forget a running event after it finishes.
+     */
+    protected function forgetRunningEvent(Event $event): void
+    {
+        unset($this->runningEvents[spl_object_id($event)]);
+    }
+
+    /**
+     * Release mutexes for events that are currently running.
+     */
+    protected function releaseRunningEventMutexes(): void
+    {
+        foreach ($this->runningEvents as $event) {
+            $event->releaseMutexOnTerminationSignal();
+        }
+    }
+
+    /**
+     * Dispatch the scheduled task skipped event when listeners are registered.
+     */
+    protected function dispatchTaskSkipped(Event $event): void
+    {
+        if ($this->dispatcher->hasListeners(ScheduledTaskSkipped::class)) {
+            $this->dispatcher->dispatch(new ScheduledTaskSkipped($event));
+        }
     }
 }

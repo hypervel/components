@@ -104,6 +104,7 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
   Modernize the title line to imperative form ("Returns" → "Return", "Retrieves" → "Retrieve") but do not remove or rewrite the body content beneath it.
   Translate non-English comments to English and fix grammar errors.
 - **Don't comment self-evident code** — Add inline comments only for a non-obvious WHY. Don't annotate framework divergences, routine casts, or type normalizations; match the surrounding comment density.
+- **Record intentional Laravel differences where future ports will look** — When a Laravel feature is intentionally not ported because it does not fit Hypervel's Swoole/coroutine architecture, or because Hypervel has a better native equivalent, record it in three places so a future port cannot miss it: (1) the package README under `Differences From Laravel`, with the reason and what to use instead; (2) a concise source comment at the natural insertion point where the skipped method/class would otherwise sit; (3) a concise `REMOVED:` comment at the matching upstream test location when tests are skipped. This is a narrow exception to the "don't annotate divergences" rule: it applies only to intentionally omitted methods or features, never to ordinary ported-and-adapted code. Closed decisions only — real gaps still worth doing go in `docs/todo.md`.
 - **Replace framework names in code** — any occurrence of the word `laravel` or `hyperf` in ported code (string literals, comments, prefixes, identifiers, etc.) must be replaced with `hypervel`, preserving the original casing. For example: `laravel_reserved_` → `hypervel_reserved_`, `LaravelExcelExporter` → `HypervelExcelExporter`, `HYPERF_VERSION` → `HYPERVEL_VERSION`. This does not apply to namespaces (which have their own conversion rules) or to references that describe the upstream source (e.g., docblock `@see` links to Laravel/Hyperf source).
 - **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
 - **Don't copy Laravel/Hyperf-specific framework details just to stay 1:1** — keep the behavior the same, but if something only exists because of the upstream framework's own packages, providers, bootstrap system, or architecture, translate it to the Hypervel equivalent or STOP and ask if there isn't one.
@@ -529,6 +530,8 @@ Update upstream test imports to point at the new Fixtures namespace.
 
 Tests that write files to disk must never write to the committed `tests/` directory. For tests needing a full app skeleton, `Testbench\TestCase` handles this automatically (see testbench entry in the directory table above). For unit/lightweight tests that just need a scratch directory, use `ParallelTesting::tempDir('TestName')` — store it as a property, create in `setUp`, delete via `Filesystem::deleteDirectory()` in `tearDown`. See `FoundationViteTest` or `OptionTest` for the pattern.
 
+The Testbench skeleton clone is shared for the whole worker, so tests that write under `BASE_PATH` must restore or delete the exact files they touch in `tearDown()`. For `.env` files, prefer `useEnvironmentPath()` with an isolated `ParallelTesting::tempDir()` directory.
+
 #### Coroutine Support
 
 All tests run inside coroutines by default. The `RunTestsInCoroutine` trait is on both base test cases (`Hypervel\Tests\TestCase` and `Hypervel\Foundation\Testing\TestCase` / Testbench), so each test method automatically runs in a fresh coroutine. Context is destroyed when the coroutine ends — no manual cleanup needed.
@@ -568,11 +571,11 @@ Examples: `tests/Inertia/CoroutineIsolationTest.php`, `tests/Container/Coroutine
 
 #### Static State and Test Cleanup
 
-`AfterEachTestSubscriber` handles global static state cleanup between tests. It calls `flushState()` on framework classes that accumulate static state (Mockery, HandleExceptions, Carbon, Number, Eloquent Model, Paginator, etc.). **Never add cleanup for these in `tearDown()`** — it's already handled.
+`AfterEachTestSubscriber` handles global static state cleanup between tests. It calls `flushState()` on framework classes that accumulate static state (Mockery, HandleExceptions, Carbon, Number, Eloquent Model, Paginator, etc.). **Never add cleanup for these in `tearDown()`** — it's already handled. Testbench-specific flush helpers are not the global cleanup registry.
 
 When porting source classes that use static properties for caching (e.g., `$booted`, `$globalScopes`, resolved config values, compiled formats):
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
-2. Check whether the subscriber (`tests/Support/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
+2. Check whether the subscriber (`tests/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
 
 Place `flushState()` at the end of the class. The only exception is when the class has trailing magic dispatch/lifecycle methods (`__call`, `__callStatic`, `__get`, `__set`, `__isset`, `__unset`, `__destruct`) at the end; in that case, place `flushState()` immediately before that trailing magic-method block. `__invoke()` is not a placement anchor.
 
@@ -850,27 +853,29 @@ Some test files reference classes defined in other test files. Laravel gets away
 
 #### Helper Class Namespacing
 
-Laravel tests define helper classes (models, stubs) with generic names like `User`, `Post`, `Comment`. When multiple test files use the same namespace and define classes with the same name, PHP throws "Cannot redeclare class" errors.
+Laravel tests often define helper classes (models, stubs) with generic names like `User`, `Post`, or `Comment`. When multiple test files use the same namespace and define classes with the same name, PHP throws "Cannot redeclare class" errors.
 
-**Use test-specific namespaces** (matching Laravel's pattern):
+**Use test-specific namespaces only for collision-prone helper classes** (matching Laravel's pattern):
 
 ```php
-// WRONG - shared namespace causes conflicts
+// WRONG - shared namespace causes conflicts for generic helper names
 namespace Hypervel\Tests\Integration\Database;
 
 class EloquentDeleteTest extends DatabaseTestCase { ... }
 class Comment extends Model {}  // Conflicts with Comment in other files!
 
-// CORRECT - test-specific namespace isolates classes
+// CORRECT - test-specific namespace isolates generic helper names
 namespace Hypervel\Tests\Integration\Database\EloquentDeleteTest;
 
 class EloquentDeleteTest extends DatabaseTestCase { ... }
 class Comment extends Model {}  // No conflict - different namespace
 ```
 
-The namespace includes the test class name as the final segment. This means:
-- Each test file has its own namespace
-- Helper classes can use simple names (`Comment`, `Post`, `User`)
+Use this when helper classes have generic names likely to appear in other test files. Do not add extra namespaces for helper classes whose names already include the tested feature or package context, such as `FailingHorizonInstallCommand` or `MissingProviderTelescopeInstallCommand`.
+
+When a test-specific namespace is needed, the namespace includes the test class name as the final segment. This means:
+- Each affected test file has its own namespace
+- Generic helper classes can use simple names (`Comment`, `Post`, `User`)
 - No `$table` properties needed (Eloquent derives `comments` from `Comment`)
 - No explicit foreign keys needed (Eloquent derives `user_id` from `User`)
 
@@ -896,7 +901,7 @@ This list is exhaustive. Any other missing functionality requires investigation 
 6. Add type declarations to model properties
 7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
 8. Add `->andReturnSelf()` to chained method mocks
-9. Use test-specific namespace if file defines helper classes — avoids "Cannot redeclare class" errors when multiple test files define classes with the same name (e.g., `...Database\EloquentDeleteTest`)
+9. Use a test-specific namespace only when helper classes have generic, collision-prone names — already-specific helper names do not need extra namespace ceremony.
 10. Remove tests for unsupported features (SQL Server/MongoDB/DynamoDB databases, Memcached/DynamoDB/MongoDB cache, dynamic connections)
 11. Run tests and fix any remaining type errors
 

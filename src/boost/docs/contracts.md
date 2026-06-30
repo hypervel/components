@@ -109,7 +109,7 @@ This table provides a quick reference to common Hypervel contracts and their equ
 | [Hypervel\Contracts\Debug\ExceptionHandler](https://github.com/hypervel/contracts/blob/{{version}}/Debug/ExceptionHandler.php) | &nbsp; |
 | [Hypervel\Contracts\Encryption\Encrypter](https://github.com/hypervel/contracts/blob/{{version}}/Encryption/Encrypter.php) | `Crypt` |
 | [Hypervel\Contracts\Events\Dispatcher](https://github.com/hypervel/contracts/blob/{{version}}/Events/Dispatcher.php) | `Event` |
-| [Hypervel\Contracts\Filesystem\Cloud](https://github.com/hypervel/contracts/blob/{{version}}/Filesystem/Cloud.php) | `Storage::cloud()` |
+| [Hypervel\Contracts\Filesystem\Cloud](https://github.com/hypervel/contracts/blob/{{version}}/Filesystem/Cloud.php) | &nbsp; |
 | [Hypervel\Contracts\Filesystem\Factory](https://github.com/hypervel/contracts/blob/{{version}}/Filesystem/Factory.php) | `Storage` |
 | [Hypervel\Contracts\Filesystem\Filesystem](https://github.com/hypervel/contracts/blob/{{version}}/Filesystem/Filesystem.php) | `Storage::disk()` |
 | [Hypervel\Contracts\Foundation\Application](https://github.com/hypervel/contracts/blob/{{version}}/Foundation/Application.php) | `App` |

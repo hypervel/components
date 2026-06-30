@@ -37,6 +37,23 @@ class UrlSigningTest extends RoutingTestCase
         });
     }
 
+    public function testSigningUrlWorksWhenPreviousKeysConfigIsMissing(): void
+    {
+        $this->app->make('config')->set('app', [
+            'key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF',
+        ]);
+
+        Route::get('/foo/{id}', function (Request $request, $id) {
+            return $request->hasValidSignature() ? 'valid' : 'invalid';
+        })->name('foo');
+
+        $this->assertIsString($url = URL::signedRoute('foo', ['id' => 1]));
+
+        tap($this->get($url), function ($response) {
+            $this->assertSame('valid', $response->original);
+        });
+    }
+
     public function testSigningUrlWithCustomRouteSlug()
     {
         Route::get('/foo/{post:slug}', function (Request $request, $slug) {

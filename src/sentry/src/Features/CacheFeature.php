@@ -54,7 +54,7 @@ class CacheFeature extends Feature
     public function onBoot(): void
     {
         $config = $this->container->make('config');
-        $stores = array_keys($config->get('cache.stores', []));
+        $stores = array_keys($config->array('cache.stores', []));
         foreach ($stores as $store) {
             $config->set("cache.stores.{$store}.events", true);
         }

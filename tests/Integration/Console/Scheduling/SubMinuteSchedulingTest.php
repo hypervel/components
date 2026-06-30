@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Console\Scheduling\SubMinuteSchedulingTest;
 
-use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\CacheSchedulingMutex;
 use Hypervel\Console\Scheduling\EventMutex;
@@ -13,6 +13,7 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
@@ -30,14 +31,13 @@ class SubMinuteSchedulingTest extends TestCase
 
         parent::setUp();
 
-        $this->schedule = $this->app->make(Schedule::class);
-
         $cache = new class implements Factory {
             public Repository $store;
 
             public function __construct()
             {
-                $this->store = new Repository(new ArrayStore(true));
+                // Use worker-array because scheduling mutexes must survive across scheduler coroutines.
+                $this->store = new Repository(new WorkerArrayStore(true));
             }
 
             public function store(?string $name = null): Repository
@@ -50,6 +50,8 @@ class SubMinuteSchedulingTest extends TestCase
 
         $container->instance(EventMutex::class, new CacheEventMutex($cache));
         $container->instance(SchedulingMutex::class, new CacheSchedulingMutex($cache));
+
+        $this->schedule = $this->app->make(Schedule::class);
     }
 
     public function testItDoesntWaitForSubMinuteEventsWhenNothingIsScheduled()
@@ -217,6 +219,60 @@ class SubMinuteSchedulingTest extends TestCase
 
         Sleep::assertSleptTimes(600);
         $this->assertEquals(60, $runs);
+    }
+
+    public function testSubMinuteEventsCanBeRunWhenScheduleIsPaused()
+    {
+        $runs = 0;
+        $this->schedule->call(function () use (&$runs) {
+            ++$runs;
+        })->everySecond()->evenWhenPaused();
+
+        Carbon::setTestNow(now()->startOfMinute());
+        $startedAt = now();
+        $cache = $this->app->make(CacheRepository::class);
+        Sleep::fake();
+        Sleep::whenFakingSleep(function ($duration) use ($startedAt, $cache) {
+            Carbon::setTestNow(now()->add($duration));
+
+            if ($startedAt->diffInSeconds() >= 30 && ! $cache->get('hypervel:schedule:paused', false)) {
+                $this->artisan('schedule:pause')
+                    ->expectsOutputToContain('Scheduled task processing has been paused.');
+            }
+        });
+
+        $this->artisan('schedule:run', ['--once' => true])
+            ->expectsOutputToContain('Running [Callback]');
+
+        Sleep::assertSleptTimes(600);
+        $this->assertEquals(60, $runs);
+    }
+
+    public function testSubMinuteEventsStopForTheRestOfTheMinuteOnceScheduleIsPaused()
+    {
+        $runs = 0;
+        $this->schedule->call(function () use (&$runs) {
+            ++$runs;
+        })->everySecond();
+
+        Carbon::setTestNow(now()->startOfMinute());
+        $startedAt = now();
+        $cache = $this->app->make(CacheRepository::class);
+        Sleep::fake();
+        Sleep::whenFakingSleep(function ($duration) use ($startedAt, $cache) {
+            Carbon::setTestNow(now()->add($duration));
+
+            if ($startedAt->diffInSeconds() >= 30 && ! $cache->get('hypervel:schedule:paused', false)) {
+                $this->artisan('schedule:pause')
+                    ->expectsOutputToContain('Scheduled task processing has been paused.');
+            }
+        });
+
+        $this->artisan('schedule:run', ['--once' => true])
+            ->expectsOutputToContain('Running [Callback]');
+
+        Sleep::assertSleptTimes(600);
+        $this->assertEquals(30, $runs);
     }
 
     public function testSubMinuteSchedulingRespectsFilters()

@@ -76,6 +76,7 @@ class SyncQueue extends Queue implements QueueContract
             && $this->container->has('db.transactions')
         ) {
             $this->addUniqueJobRollbackCallback($job);
+            $this->addDebouncedJobRollbackCallback($job);
 
             return $this->container->make('db.transactions')
                 ->addCallback(

@@ -18,10 +18,10 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Carbon;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 use TypeError;
 
 enum ScheduleTestQueueStringEnum: string
@@ -363,6 +363,51 @@ class ScheduleTest extends TestCase
         $events = $schedule->events();
         $this->assertSame(JobToTestWithSchedule::class, $events[0]->description);
         $this->assertTrue($events[0]->withoutOverlapping);
+    }
+
+    public function testItCanAddAttributesToEvents(): void
+    {
+        $schedule = new Schedule;
+
+        $event = $schedule->command('inspire')
+            ->withAttributes(['team' => 'platform'])
+            ->withAttributes(['labels' => ['maintenance']]);
+
+        $this->assertSame([
+            'team' => 'platform',
+            'labels' => ['maintenance'],
+        ], $event->attributes);
+    }
+
+    public function testItCanAddAttributesToPendingEvents(): void
+    {
+        $schedule = new Schedule;
+
+        $schedule->withAttributes(['team' => 'platform'])->command('inspire');
+        $schedule->command('queue:work');
+
+        $events = $schedule->events();
+
+        $this->assertSame(['team' => 'platform'], $events[0]->attributes);
+        $this->assertSame([], $events[1]->attributes);
+    }
+
+    public function testWithoutInterruptionPollingDisablesPauseAndInterruptChecks(): void
+    {
+        Schedule::withoutInterruptionPolling();
+
+        $this->assertFalse(Schedule::$pausable);
+        $this->assertFalse(Schedule::$interruptible);
+    }
+
+    public function testFlushStateResetsPauseAndInterruptChecks(): void
+    {
+        Schedule::withoutInterruptionPolling();
+
+        Schedule::flushState();
+
+        $this->assertTrue(Schedule::$pausable);
+        $this->assertTrue(Schedule::$interruptible);
     }
 }
 

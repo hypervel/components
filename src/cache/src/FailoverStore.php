@@ -212,7 +212,7 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
 
                     $failedCaches[] = $store;
 
-                    if (! in_array($store, $failingCaches)) {
+                    if (! in_array($store, $failingCaches) && $this->events->hasListeners(CacheFailedOver::class)) {
                         $this->events->dispatch(new CacheFailedOver($store, $e));
                     }
                 }

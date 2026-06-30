@@ -93,7 +93,7 @@ return [
     'cache' => [
         'enabled' => env('SANCTUM_CACHE_ENABLED', false),
         'store' => env('SANCTUM_CACHE_STORE'), // Uses default store if not set
-        'ttl' => env('SANCTUM_CACHE_TTL', 3600), // 1 hour
+        'ttl' => env('SANCTUM_CACHE_TTL', 300), // 5 minutes
         'prefix' => env('SANCTUM_CACHE_PREFIX', 'sanctum'),
         'last_used_at_update_interval' => env('SANCTUM_LAST_USED_UPDATE_INTERVAL', 300), // 5 minutes
     ],

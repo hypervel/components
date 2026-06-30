@@ -67,7 +67,7 @@ class MonitorCommand extends DatabaseInspectionCommand
     {
         return (new Collection(explode(',', $databases ?? '')))->map(function ($database) {
             if (! $database) {
-                $database = $this->hypervel->make('config')->get('database.default');
+                $database = $this->hypervel->make('config')->string('database.default', 'default');
             }
 
             $maxConnections = $this->option('max');

@@ -21,7 +21,7 @@ class ThrottleRequestsTest extends RoutingTestCase
         ]));
 
         $this->assertSame(
-            sha1('123'),
+            hash('xxh128', '123'),
             (new ExposesThrottleRequestSignature)->resolveRequestSignatureForTest($request)
         );
 

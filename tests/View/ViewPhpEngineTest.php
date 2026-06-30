@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View;
 
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Tests\TestCase;
 use Hypervel\View\Engines\PhpEngine;
-use PHPUnit\Framework\TestCase;
 
 class ViewPhpEngineTest extends TestCase
 {

@@ -7,6 +7,6 @@ namespace Hypervel\Queue\Attributes;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS)]
-class FailOnTimeout
+readonly class FailOnTimeout
 {
 }

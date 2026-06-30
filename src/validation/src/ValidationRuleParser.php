@@ -17,6 +17,7 @@ use Hypervel\Support\StrCache;
 use Hypervel\Validation\Rules\Date;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\Numeric;
+use Hypervel\Validation\Rules\StringRule;
 use Hypervel\Validation\Rules\Unique;
 use stdClass;
 use Stringable;
@@ -87,7 +88,7 @@ class ValidationRuleParser
         }
 
         if (is_object($rule)) {
-            if ($rule instanceof Date || $rule instanceof Numeric) {
+            if ($rule instanceof Date || $rule instanceof Numeric || $rule instanceof StringRule) {
                 return explode('|', (string) $rule);
             }
 
@@ -97,7 +98,7 @@ class ValidationRuleParser
         $rules = [];
 
         foreach ($rule as $value) {
-            if ($value instanceof Date || $value instanceof Numeric) {
+            if ($value instanceof Date || $value instanceof Numeric || $value instanceof StringRule) {
                 $rules = array_merge($rules, explode('|', (string) $value));
             } else {
                 $rules[] = $this->prepareRule($value, $attribute);

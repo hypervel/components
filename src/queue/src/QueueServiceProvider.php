@@ -53,6 +53,7 @@ class QueueServiceProvider extends ServiceProvider
     {
         $this->configureSerializableClosureUses();
 
+        $this->registerCallQueuedHandler();
         $this->registerManager();
         $this->registerConnection();
         $this->registerWorker();
@@ -103,6 +104,15 @@ class QueueServiceProvider extends ServiceProvider
 
             return $data;
         });
+    }
+
+    /**
+     * Register the queued job handler.
+     */
+    protected function registerCallQueuedHandler(): void
+    {
+        $this->app->bind(CallQueuedHandler::class);
+        $this->app->bind('Illuminate\Queue\CallQueuedHandler', CallQueuedHandler::class);
     }
 
     /**
@@ -287,7 +297,7 @@ class QueueServiceProvider extends ServiceProvider
     protected function registerFailedJobServices(): void
     {
         $this->app->singleton('queue.failer', function ($app) {
-            $config = $app['config']['queue.failed'] ?? [];
+            $config = $app->make('config')->array('queue.failed', []);
 
             if (array_key_exists('driver', $config)
                 && (is_null($config['driver']) || $config['driver'] === 'null')

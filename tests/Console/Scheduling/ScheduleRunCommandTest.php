@@ -15,7 +15,7 @@ use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Engine\Channel;
@@ -45,6 +45,10 @@ class ScheduleRunCommandTest extends TestCase
         $this->dispatched = [];
 
         $this->dispatcher = m::mock(Dispatcher::class);
+        $this->dispatcher->shouldReceive('hasListeners')
+            ->byDefault()
+            ->with(ScheduledTaskSkipped::class)
+            ->andReturnTrue();
         $this->dispatcher->shouldReceive('dispatch')
             ->andReturnUsing(function ($event) {
                 $this->dispatched[] = $event;
@@ -156,6 +160,104 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
     }
 
+    public function testSkippedTaskEventIsGuardedByRegisteredListeners()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+
+        $callbackEvent = new CallbackEvent($eventMutex, function () {
+            return 0;
+        });
+        $callbackEvent->when(false);
+
+        $this->dispatcher->shouldReceive('hasListeners')
+            ->once()
+            ->with(ScheduledTaskSkipped::class)
+            ->andReturnFalse();
+
+        $command = $this->makeCommand();
+        $this->invokeRunEvents($command, [$callbackEvent]);
+
+        $this->assertSame([], $this->dispatched);
+    }
+
+    public function testPausedTaskIsSkippedWithoutRunningFilters()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+
+        $callbackEvent = m::mock(CallbackEvent::class, [$eventMutex, function () {
+            return 0;
+        }])->makePartial();
+        $callbackEvent->shouldReceive('filtersPass')->never();
+
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('get')
+            ->once()
+            ->with('hypervel:schedule:paused', false)
+            ->andReturnTrue();
+
+        $command = $this->makeCommand($cache);
+        $this->invokeRunEvents($command, [$callbackEvent]);
+
+        $this->assertCount(1, $this->dispatched);
+        $this->assertInstanceOf(ScheduledTaskSkipped::class, $this->dispatched[0]);
+        $this->assertSame($callbackEvent, $this->dispatched[0]->task);
+    }
+
+    public function testTaskMarkedEvenWhenPausedRunsWhileSchedulerIsPaused()
+    {
+        $runCount = 0;
+
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->andReturn(true);
+        $eventMutex->shouldReceive('forget');
+
+        $callbackEvent = new CallbackEvent($eventMutex, function () use (&$runCount) {
+            ++$runCount;
+
+            return 0;
+        });
+        $callbackEvent->evenWhenPaused();
+
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('get')
+            ->once()
+            ->with('hypervel:schedule:paused', false)
+            ->andReturnTrue();
+
+        $command = $this->makeCommand($cache);
+        $this->invokeRunEvents($command, [$callbackEvent]);
+
+        $this->assertSame(1, $runCount);
+        $this->assertCount(2, $this->dispatched);
+        $this->assertInstanceOf(ScheduledTaskStarting::class, $this->dispatched[0]);
+        $this->assertInstanceOf(ScheduledTaskFinished::class, $this->dispatched[1]);
+    }
+
+    public function testPausedNonRepeatableTaskIsOnlyEvaluatedOncePerMinute()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+
+        $callbackEvent = new CallbackEvent($eventMutex, function () {
+            return 0;
+        });
+
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('get')
+            ->once()
+            ->with('hypervel:schedule:paused', false)
+            ->andReturnTrue();
+
+        $command = $this->makeCommand($cache);
+        $startedAt = Carbon::parse('2026-05-28 12:34:00');
+
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt);
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->copy()->addSeconds(30));
+
+        $this->assertCount(1, $this->dispatched);
+        $this->assertInstanceOf(ScheduledTaskSkipped::class, $this->dispatched[0]);
+        $this->assertSame($callbackEvent, $this->dispatched[0]->task);
+    }
+
     public function testNonRepeatableEventOnlyRunsOncePerMinute()
     {
         $runCount = 0;
@@ -244,18 +346,101 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertContains('bravo:failure', $results);
     }
 
+    public function testSignalCleanupReleasesMutexesForRunningOwnedEvents()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->once()->andReturnTrue();
+        $eventMutex->shouldReceive('forget')->once();
+
+        $event = new Event($eventMutex, 'test:overlap');
+        $event->withoutOverlapping();
+
+        $this->assertFalse($event->shouldSkipDueToOverlapping());
+
+        $command = $this->makeCommand();
+
+        $register = new ReflectionMethod($command, 'registerRunningEvent');
+        $register->invoke($command, $event);
+
+        $release = new ReflectionMethod($command, 'releaseRunningEventMutexes');
+        $release->invoke($command);
+    }
+
+    public function testSignalCleanupDoesNotReleaseMutexesForEventsWithoutOwnedMutexes()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldNotReceive('forget');
+
+        $event = new Event($eventMutex, 'test:overlap');
+        $event->withoutOverlapping();
+
+        $command = $this->makeCommand();
+
+        $register = new ReflectionMethod($command, 'registerRunningEvent');
+        $register->invoke($command, $event);
+
+        $release = new ReflectionMethod($command, 'releaseRunningEventMutexes');
+        $release->invoke($command);
+    }
+
+    public function testSignalCleanupHonorsReleaseOnTerminationSignalsFlag()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->once()->andReturnTrue();
+        $eventMutex->shouldNotReceive('forget');
+
+        $event = new Event($eventMutex, 'test:overlap');
+        $event->withoutOverlapping(releaseOnTerminationSignals: false);
+
+        $this->assertFalse($event->shouldSkipDueToOverlapping());
+
+        $command = $this->makeCommand();
+
+        $register = new ReflectionMethod($command, 'registerRunningEvent');
+        $register->invoke($command, $event);
+
+        $release = new ReflectionMethod($command, 'releaseRunningEventMutexes');
+        $release->invoke($command);
+    }
+
+    public function testRunningEventIsForgottenWhenEventThrows()
+    {
+        $eventMutex = m::mock(EventMutex::class);
+        $eventMutex->shouldReceive('create')->andReturn(true);
+
+        $exception = new RuntimeException('Task exploded');
+
+        $event = m::mock(Event::class, [$eventMutex, 'test:failing', null, false])->makePartial();
+        $event->shouldReceive('run')->once()->andThrow($exception);
+
+        $this->handler->shouldReceive('report')->once()->with($exception);
+
+        $command = $this->makeCommand();
+        $this->invokeRunEvent($command, $event);
+
+        $runningEvents = (new ReflectionProperty($command, 'runningEvents'))->getValue($command);
+
+        $this->assertSame([], $runningEvents);
+    }
+
     /**
      * Create a ScheduleRunCommand with mocked dependencies.
      */
-    protected function makeCommand(): ScheduleRunCommand
+    protected function makeCommand(?Cache $cache = null): ScheduleRunCommand
     {
         $command = new ScheduleRunCommand;
         $command->setHypervel($this->app);
 
+        $cache ??= m::mock(Cache::class);
+        $cache->shouldReceive('get')
+            ->byDefault()
+            ->with('hypervel:schedule:paused', false)
+            ->andReturnFalse();
+
         // Set dependencies that are normally injected via handle().
         (new ReflectionProperty($command, 'schedule'))->setValue($command, m::mock(Schedule::class));
         (new ReflectionProperty($command, 'dispatcher'))->setValue($command, $this->dispatcher);
-        (new ReflectionProperty($command, 'cache'))->setValue($command, m::mock(CacheFactory::class));
+        (new ReflectionProperty($command, 'cache'))->setValue($command, $cache);
         (new ReflectionProperty($command, 'handler'))->setValue($command, $this->handler);
 
         return $command;
@@ -268,5 +453,14 @@ class ScheduleRunCommandTest extends TestCase
     {
         $method = new ReflectionMethod($command, 'runEvents');
         $method->invoke($command, new Collection($events), $startedAt ?? Carbon::now());
+    }
+
+    /**
+     * Invoke the protected runEvent method.
+     */
+    protected function invokeRunEvent(ScheduleRunCommand $command, Event $event): void
+    {
+        $method = new ReflectionMethod($command, 'runEvent');
+        $method->invoke($command, $event);
     }
 }

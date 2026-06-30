@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
@@ -12,6 +13,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Mockery;
 use Mockery\LegacyMockInterface;
@@ -23,6 +25,11 @@ use Mockery\LegacyMockInterface;
  */
 class CacheManager implements FactoryContract
 {
+    /**
+     * The context key prefix for memoized cache repositories.
+     */
+    protected const MEMOIZED_CONTEXT_KEY_PREFIX = '__cache.memoized.';
+
     /**
      * The array of resolved cache stores.
      */
@@ -61,28 +68,39 @@ class CacheManager implements FactoryContract
 
     /**
      * Get a memoized cache driver instance.
+     *
+     * The memoized repository is isolated to the current coroutine and resets
+     * when the coroutine ends.
      */
     public function memo(?string $driver = null): CacheRepository
     {
         $driver = $driver ?? $this->getDefaultDriver();
 
-        $bindingKey = "cache.__memoized:{$driver}";
+        // Laravel uses a scoped container binding here. Hypervel stores this
+        // directly in coroutine context because coroutine teardown is the
+        // request reset boundary.
+        return CoroutineContext::getOrSet(
+            self::MEMOIZED_CONTEXT_KEY_PREFIX . $driver,
+            fn (): CacheRepository => $this->createMemoizedRepository($driver),
+        );
+    }
 
+    /**
+     * Create a memoized repository for the given driver.
+     */
+    protected function createMemoizedRepository(string $driver): CacheRepository
+    {
         $isSpy = isset($this->app['cache']) && $this->app['cache'] instanceof LegacyMockInterface;
 
-        $this->app->scopedIf($bindingKey, function () use ($driver, $isSpy) {
-            /** @var Repository $store */
-            $store = $this->store($driver);
+        /** @var Repository $store */
+        $store = $this->store($driver);
 
-            $repository = $this->repository(
-                new MemoizedStore($driver, $store),
-                ['events' => false]
-            );
+        $repository = $this->repository(
+            new MemoizedStore($driver, $store),
+            ['events' => false]
+        );
 
-            return $isSpy ? Mockery::spy($repository) : $repository;
-        });
-
-        return $this->app->make($bindingKey);
+        return $isSpy ? Mockery::spy($repository) : $repository;
     }
 
     /**
@@ -116,7 +134,7 @@ class CacheManager implements FactoryContract
             return $this->callCustomCreator($config);
         }
 
-        $driverMethod = 'create' . ucfirst($config['driver']) . 'Driver';
+        $driverMethod = 'create' . Str::studly($config['driver']) . 'Driver';
 
         if (method_exists($this, $driverMethod)) {
             return $this->{$driverMethod}($config);
@@ -139,6 +157,17 @@ class CacheManager implements FactoryContract
     protected function createArrayDriver(array $config): Repository
     {
         return $this->repository(new ArrayStore(
+            $config['serialize'] ?? false,
+            $this->getSerializableClasses($config),
+        ), $config);
+    }
+
+    /**
+     * Create an instance of the worker-lifetime array cache driver.
+     */
+    protected function createWorkerArrayDriver(array $config): Repository
+    {
+        return $this->repository(new WorkerArrayStore(
             $config['serialize'] ?? false,
             $this->getSerializableClasses($config),
         ), $config);
@@ -336,7 +365,7 @@ class CacheManager implements FactoryContract
      */
     protected function getPrefix(array $config): string
     {
-        return $config['prefix'] ?? $this->app['config']['cache.prefix'];
+        return $config['prefix'] ?? $this->app->make('config')->string('cache.prefix');
     }
 
     /**
@@ -344,7 +373,7 @@ class CacheManager implements FactoryContract
      */
     protected function getSerializableClasses(array $config): array|bool|null
     {
-        return $this->app['config']['cache.serializable_classes'] ?? null;
+        return $this->app->make('config')->get('cache.serializable_classes');
     }
 
     /**
@@ -353,7 +382,7 @@ class CacheManager implements FactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app['config']["cache.stores.{$name}"];
+            return $this->app->make('config')->get("cache.stores.{$name}");
         }
 
         return ['driver' => 'null'];
@@ -364,7 +393,7 @@ class CacheManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app['config']['cache.default'] ?? 'null';
+        return $this->app->make('config')->string('cache.default', 'null');
     }
 
     /**

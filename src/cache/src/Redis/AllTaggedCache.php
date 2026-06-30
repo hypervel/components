@@ -37,6 +37,14 @@ class AllTaggedCache extends TaggedCache
     protected \Hypervel\Cache\TagSet $tags;
 
     /**
+     * The all-mode tagged item key prefix.
+     *
+     * Safe to cache because AllTagSet identifiers are deterministic for this
+     * tag set and flush() does not rotate the namespace in all mode.
+     */
+    private ?string $cachedTaggedItemKeyPrefix = null;
+
+    /**
      * Store an item in the cache if the key does not exist.
      */
     public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
@@ -130,7 +138,7 @@ class AllTaggedCache extends TaggedCache
             $values,
             $seconds,
             $this->tags->tagIds(),
-            sha1($this->tags->getNamespace()) . ':'
+            $this->taggedItemKeyPrefix()
         );
 
         if ($result) {
@@ -279,6 +287,22 @@ class AllTaggedCache extends TaggedCache
         }
 
         return NullSentinel::unwrap($value);
+    }
+
+    /**
+     * Get a fully qualified key for a tagged item.
+     */
+    public function taggedItemKey(string $key): string
+    {
+        return $this->taggedItemKeyPrefix() . $key;
+    }
+
+    /**
+     * Get the all-mode tagged item key prefix.
+     */
+    private function taggedItemKeyPrefix(): string
+    {
+        return $this->cachedTaggedItemKeyPrefix ??= hash('xxh128', $this->tags->getNamespace()) . ':';
     }
 
     /**

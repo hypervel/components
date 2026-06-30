@@ -28,8 +28,8 @@ class PendingRequestTest extends TestCase
 
         $pending = $client->withRequestMiddleware($middleware);
 
-        Http::fake(['test' => Http::response('{"data": "test"}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertTrue(TestRequestMiddleware::$called);
         TestRequestMiddleware::reset();
@@ -45,8 +45,8 @@ class PendingRequestTest extends TestCase
             ->withRequestMiddleware($middlewareA)
             ->withAddedRequestMiddleware($middlewareB);
 
-        Http::fake(['test' => Http::response('{"data": "test"}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertTrue(TestRequestMiddleware::$called);
         $this->assertTrue(AnotherRequestMiddleware::$called);
@@ -61,8 +61,8 @@ class PendingRequestTest extends TestCase
 
         $pending = $client->withResponseMiddleware($middleware);
 
-        Http::fake(['test' => Http::response('{"data": "test"}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertTrue(TestResponseMiddleware::$called);
         TestResponseMiddleware::reset();
@@ -78,8 +78,8 @@ class PendingRequestTest extends TestCase
             ->withResponseMiddleware($middlewareA)
             ->withAddedResponseMiddleware($middlewareB);
 
-        Http::fake(['test' => Http::response('{"data": "test"}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertTrue(TestResponseMiddleware::$called);
         $this->assertTrue(AnotherResponseMiddleware::$called);
@@ -93,8 +93,8 @@ class PendingRequestTest extends TestCase
 
         $pending = $client->withRequestMiddleware([AddHeaderRequestMiddleware::class]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
+        $pending->get('https://example.test/test');
 
         Http::assertSent(function (Request $request) {
             return $request->hasHeader('X-Custom-Header')
@@ -108,8 +108,8 @@ class PendingRequestTest extends TestCase
 
         $pending = $client->withResponseMiddleware([AddHeaderResponseMiddleware::class]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $response = $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
+        $response = $pending->get('https://example.test/test');
 
         $this->assertTrue($response->hasHeader('X-Response-Header'));
         $this->assertEquals(
@@ -129,8 +129,8 @@ class PendingRequestTest extends TestCase
             SecondOrderTrackingMiddleware::class,
         ]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertEquals([1, 2], OrderTrackingMiddleware::$order);
         OrderTrackingMiddleware::reset();
@@ -144,8 +144,8 @@ class PendingRequestTest extends TestCase
             ->withRequestMiddleware([TestRequestMiddleware::class])
             ->disableMiddleware();
 
-        Http::fake(['test' => Http::response('{"data": "test"}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertFalse(TestRequestMiddleware::$called);
         TestRequestMiddleware::reset();
@@ -160,8 +160,8 @@ class PendingRequestTest extends TestCase
             ->disableMiddleware()
             ->enableMiddleware();
 
-        Http::fake(['test' => Http::response('{"data": "test"}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertTrue(TestRequestMiddleware::$called);
         TestRequestMiddleware::reset();
@@ -176,8 +176,8 @@ class PendingRequestTest extends TestCase
             ->withMiddlewareOptions($options)
             ->withRequestMiddleware([RequestOptionsCheckingMiddleware::class]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertEquals($options, RequestOptionsCheckingMiddleware::$receivedOptions);
         RequestOptionsCheckingMiddleware::reset();
@@ -192,8 +192,8 @@ class PendingRequestTest extends TestCase
             ->withMiddlewareOptions($options)
             ->withResponseMiddleware([ResponseOptionsCheckingMiddleware::class]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertEquals($options, ResponseOptionsCheckingMiddleware::$receivedOptions);
         ResponseOptionsCheckingMiddleware::reset();
@@ -204,14 +204,14 @@ class PendingRequestTest extends TestCase
         $client = new ApiClient;
 
         $pendingA = $client->withRequestMiddleware([CachingTestMiddleware::class]);
-        Http::fake(['test1' => Http::response('{"data": "test1"}')]);
-        $pendingA->get('test1');
+        Http::fake(['https://example.test/test1' => Http::response('{"data": "test1"}')]);
+        $pendingA->get('https://example.test/test1');
 
         $firstInstanceId = CachingTestMiddleware::$instanceId;
 
         $pendingB = $client->withRequestMiddleware([CachingTestMiddleware::class]);
-        Http::fake(['test2' => Http::response('{"data": "test2"}')]);
-        $pendingB->get('test2');
+        Http::fake(['https://example.test/test2' => Http::response('{"data": "test2"}')]);
+        $pendingB->get('https://example.test/test2');
 
         $this->assertEquals($firstInstanceId, CachingTestMiddleware::$instanceId);
         CachingTestMiddleware::reset();
@@ -223,14 +223,14 @@ class PendingRequestTest extends TestCase
         $clientB = new ApiClient;
 
         $pendingA = $clientA->withRequestMiddleware([CachingTestMiddleware::class]);
-        Http::fake(['test1' => Http::response('{"data": "test1"}')]);
-        $pendingA->get('test1');
+        Http::fake(['https://example.test/test1' => Http::response('{"data": "test1"}')]);
+        $pendingA->get('https://example.test/test1');
 
         $firstInstanceId = CachingTestMiddleware::$instanceId;
 
         $pendingB = $clientB->withRequestMiddleware([CachingTestMiddleware::class]);
-        Http::fake(['test2' => Http::response('{"data": "test2"}')]);
-        $pendingB->get('test2');
+        Http::fake(['https://example.test/test2' => Http::response('{"data": "test2"}')]);
+        $pendingB->get('https://example.test/test2');
 
         $this->assertNotEquals($firstInstanceId, CachingTestMiddleware::$instanceId);
         CachingTestMiddleware::reset();
@@ -249,11 +249,11 @@ class PendingRequestTest extends TestCase
 
         ConfigRecordingMiddleware::reset();
 
-        Http::fake(['first' => Http::response('{"success": true}')]);
-        $clientA->withRequestMiddleware([ConfigRecordingMiddleware::class])->get('first');
+        Http::fake(['https://first.test' => Http::response('{"success": true}')]);
+        $clientA->withRequestMiddleware([ConfigRecordingMiddleware::class])->get('https://first.test');
 
-        Http::fake(['second' => Http::response('{"success": true}')]);
-        $clientB->withRequestMiddleware([ConfigRecordingMiddleware::class])->get('second');
+        Http::fake(['https://second.test' => Http::response('{"success": true}')]);
+        $clientB->withRequestMiddleware([ConfigRecordingMiddleware::class])->get('https://second.test');
 
         $this->assertSame([
             ['api_key' => 'first-key', 'base_url' => 'https://first.test'],
@@ -270,8 +270,8 @@ class PendingRequestTest extends TestCase
         $client = new ApiClient;
         $pending = $client->withRequestMiddleware(['NonExistentMiddleware']);
 
-        Http::fake(['test' => Http::response('{"data": "test"}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"data": "test"}')]);
+        $pending->get('https://example.test/test');
     }
 
     public function testRequestMiddlewarePipelineFlow(): void
@@ -285,8 +285,8 @@ class PendingRequestTest extends TestCase
             SecondPipelineMiddleware::class,
         ]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
+        $pending->get('https://example.test/test');
 
         // Verify both middleware were called in correct order
         $this->assertEquals(['first', 'second'], PipelineTestMiddleware::$calls);
@@ -306,8 +306,8 @@ class PendingRequestTest extends TestCase
             },
         ]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertTrue($called);
         Http::assertSent(function (Request $request) {
@@ -322,8 +322,8 @@ class PendingRequestTest extends TestCase
 
         $pending = $client->withRequestMiddleware([$middleware]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
+        $pending->get('https://example.test/test');
 
         $this->assertTrue($middleware->called);
         Http::assertSent(function (Request $request) {
@@ -342,8 +342,8 @@ class PendingRequestTest extends TestCase
             SecondResponsePipelineMiddleware::class,
         ]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
+        $pending->get('https://example.test/test');
 
         // Verify both middleware were called in correct order
         $this->assertEquals(['first-response', 'second-response'], PipelineTestMiddleware::$calls);
@@ -359,8 +359,8 @@ class PendingRequestTest extends TestCase
 
         $pending = $client->withRequestMiddleware([ConfigCheckingMiddleware::class]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $pending->get('test');
+        Http::fake(['https://api.test.com/test' => Http::response('{"success": true}')]);
+        $pending->get('https://api.test.com/test');
 
         $this->assertEquals($config, ConfigCheckingMiddleware::$receivedConfig?->toArray());
         ConfigCheckingMiddleware::reset();
@@ -374,8 +374,8 @@ class PendingRequestTest extends TestCase
             ->withRequestMiddleware([AddHeaderRequestMiddleware::class])
             ->withResponseMiddleware([AddHeaderResponseMiddleware::class]);
 
-        Http::fake(['test' => Http::response('{"success": true}')]);
-        $response = $pending->get('test');
+        Http::fake(['https://example.test/test' => Http::response('{"success": true}')]);
+        $response = $pending->get('https://example.test/test');
 
         // Verify request middleware was applied
         Http::assertSent(function (Request $request) {

@@ -172,7 +172,7 @@ abstract class Component
     {
         $factory->addNamespace(
             '__components',
-            $directory = Container::getInstance()['config']->get('view.compiled')
+            $directory = Container::getInstance()->make('config')->string('view.compiled')
         );
 
         if (! is_file($viewFile = $directory . '/' . hash('xxh128', $contents) . '.blade.php')) {

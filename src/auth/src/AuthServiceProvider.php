@@ -74,7 +74,7 @@ class AuthServiceProvider extends ServiceProvider
             return new RequirePassword(
                 $app[ResponseFactory::class],
                 $app[UrlGenerator::class],
-                $app['config']->get('auth.password_timeout'),
+                $app->make('config')->integer('auth.password_timeout', 10800),
             );
         });
     }
@@ -102,12 +102,17 @@ class AuthServiceProvider extends ServiceProvider
     protected function registerEventRebindHandler(): void
     {
         $this->app->rebinding('events', function ($app, $dispatcher) {
-            if (! $app->resolved('auth')
-                || $app['auth']->hasResolvedGuards() === false) {
+            if (! $app->resolved('auth')) {
                 return;
             }
 
-            foreach ($app['auth']->getGuards() as $guard) {
+            $auth = $app->make('auth');
+
+            if ($auth->hasResolvedGuards() === false) {
+                return;
+            }
+
+            foreach ($auth->getGuards() as $guard) {
                 if (method_exists($guard, 'setDispatcher')) {
                     $guard->setDispatcher($dispatcher);
                 }

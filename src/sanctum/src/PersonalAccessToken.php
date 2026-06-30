@@ -92,10 +92,17 @@ class PersonalAccessToken extends Model implements HasAbilities
     public static function findToken(string $token): ?static
     {
         if (strpos($token, '|') === false) {
+            // Hypervel only supports the id|token format created by createToken().
+            // Laravel's legacy plain-token lookup is intentionally omitted because
+            // Sanctum's cache and invalidation paths are keyed by token ID.
             return null;
         }
 
         [$id, $plainToken] = explode('|', $token, 2);
+
+        if (! static::isValidTokenIdentifier($id)) {
+            return null;
+        }
 
         $accessToken = config('sanctum.cache.enabled')
             ? self::findTokenUsingCache($id)
@@ -121,7 +128,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     {
         $cache = self::getCache();
 
-        return $cache->remember(
+        return $cache->rememberNullable(
             self::getCacheKey($id),
             config('sanctum.cache.ttl'),
             fn () => static::find($id)
@@ -140,11 +147,23 @@ class PersonalAccessToken extends Model implements HasAbilities
         $cache = self::getCache();
         $cacheKey = self::getCacheKey($accessToken->id) . ':tokenable';
 
-        return $cache->remember(
+        return $cache->rememberNullable(
             $cacheKey,
             config('sanctum.cache.ttl'),
             fn () => $accessToken->getAttribute('tokenable')
         );
+    }
+
+    /**
+     * Determine if the token identifier can be queried by this model.
+     */
+    protected static function isValidTokenIdentifier(string $id): bool
+    {
+        if ($id === '') {
+            return false;
+        }
+
+        return (new static)->getKeyType() !== 'int' || ctype_digit($id);
     }
 
     /**

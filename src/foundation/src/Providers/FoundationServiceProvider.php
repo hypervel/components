@@ -353,7 +353,7 @@ class FoundationServiceProvider extends ServiceProvider
 
         $this->app->singleton(Renderer::class, function () {
             $errorRenderer = new HtmlErrorRenderer(
-                $this->config->get('app.debug'),
+                $this->config->boolean('app.debug', false),
             );
 
             return new Renderer(
@@ -394,15 +394,15 @@ class FoundationServiceProvider extends ServiceProvider
 
         $basePath = $this->app->basePath();
 
-        $compiledViewPath = $this->config->get('view.compiled');
+        $compiledViewPath = $this->config->string('view.compiled');
 
         $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
 
         match (true) {
-            $format == 'html' => HtmlDumper::register($basePath, $compiledViewPath),
-            $format == 'cli' => CliDumper::register($basePath, $compiledViewPath),
-            $format == 'server' => null,
-            $format && parse_url($format, PHP_URL_SCHEME) == 'tcp' => null,
+            $format === 'html' => HtmlDumper::register($basePath, $compiledViewPath),
+            $format === 'cli' => CliDumper::register($basePath, $compiledViewPath),
+            $format === 'server' => null,
+            $format && parse_url($format, PHP_URL_SCHEME) === 'tcp' => null,
             default => php_sapi_name() === 'cli' ? CliDumper::register($basePath, $compiledViewPath) : HtmlDumper::register($basePath, $compiledViewPath),
         };
     }

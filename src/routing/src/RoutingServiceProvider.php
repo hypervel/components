@@ -70,7 +70,7 @@ class RoutingServiceProvider extends ServiceProvider
                     'request',
                     $this->requestRebinder()
                 ),
-                $app['config']['app.asset_url']
+                $app->make('config')->get('app.asset_url')
             );
         });
 
@@ -82,7 +82,7 @@ class RoutingServiceProvider extends ServiceProvider
             $url->setKeyResolver(function () {
                 $config = $this->app->make('config');
 
-                return [$config->get('app.key'), ...($config->get('app.previous_keys') ?? [])];
+                return [$config->string('app.key'), ...$config->array('app.previous_keys', [])];
             });
 
             // If the route collection is "rebound", for example, when the routes stay

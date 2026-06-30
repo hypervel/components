@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\View;
 
 use Hypervel\Contracts\View\Engine;
+use Hypervel\Tests\TestCase;
 use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
-use PHPUnit\Framework\TestCase;
 
 class ViewEngineResolverTest extends TestCase
 {

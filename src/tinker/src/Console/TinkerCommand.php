@@ -113,7 +113,7 @@ class TinkerCommand extends Command
 
         $config = $this->getHypervel()->make('config');
 
-        foreach ($config->get('tinker.commands', []) as $command) {
+        foreach ($config->array('tinker.commands', []) as $command) {
             $commands[] = $this->getApplication()->addCommand(
                 $this->getHypervel()->make($command)
             );
@@ -147,7 +147,7 @@ class TinkerCommand extends Command
 
         $config = $this->getHypervel()->make('config');
 
-        return array_merge($casters, (array) $config->get('tinker.casters', []));
+        return array_merge($casters, $config->array('tinker.casters', []));
     }
 
     /**

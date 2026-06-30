@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'telescope:pause')]
@@ -24,11 +24,9 @@ class PauseCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(CacheFactory $cache)
+    public function handle(Cache $cache)
     {
-        /* @phpstan-ignore-next-line */
         if (! $cache->get('telescope:pause-recording')) {
-            /* @phpstan-ignore-next-line */
             $cache->put('telescope:pause-recording', true, now()->addDays(30));
         }
 

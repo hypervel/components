@@ -73,7 +73,7 @@ class PolicyMakeCommand extends GeneratorCommand
     {
         $config = $this->hypervel['config'];
 
-        $guard = $this->option('guard') ?: $config->get('auth.defaults.guard');
+        $guard = $this->option('guard') ?: $config->string('auth.defaults.guard');
 
         if (is_null($guardProvider = $config->get('auth.guards.' . $guard . '.provider'))) {
             throw new LogicException('The [' . $guard . '] guard is not defined in your "auth" configuration file.');

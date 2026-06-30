@@ -114,7 +114,7 @@ trait CreatesApplication
      */
     protected function getApplicationProviders(ApplicationContract $app): array
     {
-        return $app->make('config')->get('app.providers', []);
+        return $app->make('config')->array('app.providers', []);
     }
 
     /**
@@ -559,7 +559,7 @@ trait CreatesApplication
         }
 
         $config = $app->make('config');
-        $existing = $config->get('app.aliases', []);
+        $existing = $config->array('app.aliases', []);
         $config->set('app.aliases', array_merge($existing, $aliases));
     }
 

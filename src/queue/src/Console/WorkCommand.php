@@ -96,7 +96,7 @@ class WorkCommand extends Command
         $this->listenForEvents();
 
         $connection = $this->argument('connection')
-            ?: $this->config->get('queue.default');
+            ?: $this->config->string('queue.default');
 
         // We need to get the right queue for the connection which is set in the queue
         // configuration file for the application. We will pull it based on the set
@@ -139,7 +139,7 @@ class WorkCommand extends Command
      */
     protected function gatherWorkerOptions(): WorkerOptions
     {
-        $concurrencyConfig = (int) $this->config->get('queue.concurrency_number', 1);
+        $concurrencyConfig = $this->config->integer('queue.concurrency_number', 1);
         $concurrencyOption = (int) $this->option('concurrency');
         $concurrency = $concurrencyOption > 1
             ? $concurrencyOption
@@ -323,7 +323,7 @@ class WorkCommand extends Command
      */
     protected function getQueue(?string $connection): string
     {
-        return $this->option('queue') ?: $this->config->get(
+        return $this->option('queue') ?: $this->config->string(
             "queue.connections.{$connection}.queue",
             'default'
         );

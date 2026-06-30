@@ -49,7 +49,7 @@ class BusServiceProvider extends ServiceProvider
             return new DatabaseBatchRepository(
                 $app->make(BatchFactory::class),
                 $app->make('db'),
-                $app->make('config')->get('queue.batching.table', 'job_batches'),
+                $app->make('config')->string('queue.batching.table', 'job_batches'),
                 $app->make('config')->get('queue.batching.database'),
             );
         });

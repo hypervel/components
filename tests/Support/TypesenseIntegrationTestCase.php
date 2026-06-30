@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTypesense;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -47,9 +48,18 @@ abstract class TypesenseIntegrationTestCase extends TestCase
         $this->typesenseTestPrefix = $this->testPrefix; // Sync trait's prefix
 
         parent::setUp();
+    }
 
-        $this->app->register(ScoutServiceProvider::class);
-        $this->configureTypesense();
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            ScoutServiceProvider::class,
+        ];
+    }
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $this->configureTypesense($app);
     }
 
     /**
@@ -90,9 +100,9 @@ abstract class TypesenseIntegrationTestCase extends TestCase
     /**
      * Configure Typesense from environment variables.
      */
-    protected function configureTypesense(): void
+    protected function configureTypesense(ApplicationContract $app): void
     {
-        $config = $this->app->make('config');
+        $config = $app->make('config');
 
         $host = env('TYPESENSE_HOST', '127.0.0.1');
         $port = env('TYPESENSE_PORT', '8108');

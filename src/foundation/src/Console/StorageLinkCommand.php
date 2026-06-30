@@ -48,8 +48,10 @@ class StorageLinkCommand extends Command
      */
     protected function links(): array
     {
-        return $this->hypervel['config']['filesystems.links']
-            ?? [public_path('storage') => storage_path('app/public')];
+        return $this->hypervel->make('config')->array(
+            'filesystems.links',
+            [public_path('storage') => storage_path('app/public')],
+        );
     }
 
     /**

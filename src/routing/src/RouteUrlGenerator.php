@@ -18,7 +18,10 @@ class RouteUrlGenerator
     protected UrlGenerator $url;
 
     /**
-     * The named parameter defaults.
+     * The global named parameter defaults.
+     *
+     * Request-scoped defaults are stored on UrlGenerator; read effective
+     * defaults through UrlGenerator::getDefaultParameters().
      */
     public array $defaultParameters = [];
 
@@ -164,6 +167,7 @@ class RouteUrlGenerator
     protected function formatParameters(Route $route, mixed $parameters): array
     {
         $parameters = Arr::wrap($parameters);
+        $defaultParameters = $this->url->getDefaultParameters();
 
         $namedParameters = [];
         $namedQueryParameters = [];
@@ -183,7 +187,7 @@ class RouteUrlGenerator
             $bindingField = $route->bindingFieldFor($name);
             $defaultParameterKey = $bindingField ? "{$name}:{$bindingField}" : $name;
 
-            if (! isset($this->defaultParameters[$defaultParameterKey]) && ! isset($optionalParameters[$name])) {
+            if (! isset($defaultParameters[$defaultParameterKey]) && ! isset($optionalParameters[$name])) {
                 // No named parameter or default value for a required parameter, try to match to positional parameter below...
                 array_push($requiredRouteParametersWithoutDefaultsOrNamedParameters, $name);
             }
@@ -266,8 +270,8 @@ class RouteUrlGenerator
             $bindingField = $route->bindingFieldFor($key);
             $defaultParameterKey = $bindingField ? "{$key}:{$bindingField}" : $key;
 
-            if ($value === '' && isset($this->defaultParameters[$defaultParameterKey])) {
-                $namedParameters[$key] = $this->defaultParameters[$defaultParameterKey];
+            if ($value === '' && isset($defaultParameters[$defaultParameterKey])) {
+                $namedParameters[$key] = $defaultParameters[$defaultParameterKey];
             }
         }
 
@@ -352,12 +356,14 @@ class RouteUrlGenerator
      */
     protected function replaceNamedParameters(string $path, array &$parameters): string
     {
-        return preg_replace_callback('/\{(.*?)(\?)?\}/', function ($m) use (&$parameters) {
+        $defaultParameters = $this->url->getDefaultParameters();
+
+        return preg_replace_callback('/\{(.*?)(\?)?\}/', function ($m) use (&$parameters, $defaultParameters) {
             if (isset($parameters[$m[1]]) && $parameters[$m[1]] !== '') {
                 return Arr::pull($parameters, $m[1]);
             }
-            if (isset($this->defaultParameters[$m[1]])) {
-                return $this->defaultParameters[$m[1]];
+            if (isset($defaultParameters[$m[1]])) {
+                return $defaultParameters[$m[1]];
             }
             if (isset($parameters[$m[1]])) {
                 Arr::pull($parameters, $m[1]);

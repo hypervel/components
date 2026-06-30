@@ -14,6 +14,7 @@ use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Pool\Events\ReleaseConnection;
+use Hypervel\Pool\PoolOption;
 use PDO;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -46,6 +47,8 @@ class PooledConnection implements PoolConnectionInterface
     protected float $lastReleaseTime = 0.0;
 
     protected float $createdAt = 0.0;
+
+    protected float $lifetimeExpiresAt = 0.0;
 
     protected bool $availableForReuse = false;
 
@@ -141,7 +144,7 @@ class PooledConnection implements PoolConnectionInterface
 
         $now = microtime(true);
         $this->lastUseTime = $now;
-        $this->createdAt = $now;
+        $this->stampGeneration($now);
         $this->availableForReuse = false;
         $this->markValid();
 
@@ -322,13 +325,11 @@ class PooledConnection implements PoolConnectionInterface
      */
     public function isLifetimeExpired(?float $now = null): bool
     {
-        $maxLifetime = $this->pool->getOption()->getMaxLifetime();
-
-        if ($maxLifetime <= 0) {
+        if ($this->lifetimeExpiresAt <= 0) {
             return false;
         }
 
-        return ($now ?? microtime(true)) >= $this->createdAt + $maxLifetime;
+        return ($now ?? microtime(true)) >= $this->lifetimeExpiresAt;
     }
 
     /**
@@ -411,6 +412,18 @@ class PooledConnection implements PoolConnectionInterface
     }
 
     /**
+     * Stamp the current connection generation.
+     */
+    private function stampGeneration(float $now): void
+    {
+        $this->createdAt = $now;
+        $this->lifetimeExpiresAt = PoolOption::jitteredLifetimeDeadline(
+            $now,
+            $this->pool->getOption()->getMaxLifetime()
+        );
+    }
+
+    /**
      * Refresh the PDO connections.
      */
     protected function refresh(Connection $connection): void
@@ -441,6 +454,6 @@ class PooledConnection implements PoolConnectionInterface
             );
         }
 
-        $this->createdAt = microtime(true);
+        $this->stampGeneration(microtime(true));
     }
 }

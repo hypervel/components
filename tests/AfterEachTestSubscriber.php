@@ -124,6 +124,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Horizon\WorkerCommandString::flushState();
         \Hypervel\Http\Client\Request::flushState();
         \Hypervel\Http\Client\RequestException::flushState();
+        \Hypervel\Http\Client\Response::flushState();
         \Hypervel\Http\Client\ResponseSequence::flushState();
         \Hypervel\Http\Middleware\HandleCors::flushState();
         \Hypervel\Http\Middleware\TrustHosts::flushState();
@@ -135,6 +136,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Inertia\ResponseFactory::flushState();
         \Hypervel\Inertia\Ssr\BundleDetector::flushState();
         \Hypervel\Inertia\Ssr\HttpGateway::flushState();
+        \Hypervel\JWT\ClaimFactory::flushState();
         \Hypervel\JWT\JwtGuard::flushState();
         \Hypervel\Log\Context\Repository::flushState();
         \Hypervel\Mail\Attachment::flushState();
@@ -145,6 +147,9 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Notifications\ChannelManager::flushState();
         \Hypervel\Pagination\AbstractCursorPaginator::flushState();
         \Hypervel\Pagination\AbstractPaginator::flushState();
+        \Hypervel\Permission\DefaultTeamResolver::flushState();
+        \Hypervel\Permission\Guard::flushState();
+        \Hypervel\Permission\PermissionRegistrar::flushState();
         \Hypervel\Pipeline\Pipeline::flushState();
         \Hypervel\Process\Factory::flushState();
         \Hypervel\Prompts\Prompt::flushState();
@@ -187,6 +192,7 @@ final class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\Arr::flushState();
         \Hypervel\Support\Benchmark::flushState();
         \Hypervel\Support\BinaryCodec::flushState();
+        \Hypervel\Support\ClassMetadataCache::flushState();
         \Hypervel\Support\ClearStatCache::flushState();
         \Hypervel\Support\Collection::flushState();
         \Hypervel\Support\Composer::flushState();

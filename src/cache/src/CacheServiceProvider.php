@@ -30,7 +30,7 @@ class CacheServiceProvider extends ServiceProvider
 
         $this->app->singleton(RateLimiter::class, fn ($app) => new RateLimiter(
             $app->make('cache')->driver(
-                $app['config']->get('cache.limiter')
+                $app->make('config')->get('cache.limiter')
             )
         ));
 

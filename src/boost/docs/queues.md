@@ -40,6 +40,7 @@
     - [Concurrent Processing](#concurrent-processing)
     - [Queue Priorities](#queue-priorities)
     - [Queue Workers and Deployment](#queue-workers-and-deployment)
+    - [Reacting to Worker Signals](#reacting-to-worker-signals)
     - [Job Expirations and Timeouts](#job-expirations-and-timeouts)
     - [Pausing and Resuming Queue Workers](#pausing-and-resuming-queue-workers)
 - [Supervisor Configuration](#supervisor-configuration)
@@ -2477,6 +2478,65 @@ This command will instruct all queue workers to gracefully exit after they finis
 
 > [!NOTE]
 > The queue uses the [cache](/docs/{{version}}/cache) to store restart signals, so you should verify that a cache driver is properly configured for your application before using this feature.
+
+<a name="reacting-to-worker-signals"></a>
+### Reacting to Worker Signals
+
+When a queue worker receives a termination signal such as `SIGQUIT`, `SIGTERM`, or `SIGINT` while processing jobs, the worker will finish its currently running jobs before exiting. However, your jobs may need to react to the signal before the process is stopped by your server or container orchestrator. For example, a long-running import job may need to stop pulling new records and save its current progress.
+
+To react to worker signals from within a job, implement the `Hypervel\Contracts\Queue\Interruptible` interface and define an `interrupted` method on your job. The signal number received by the worker will be passed to the `interrupted` method:
+
+```php
+<?php
+
+namespace App\Jobs;
+
+use App\Models\Import;
+use Hypervel\Contracts\Queue\Interruptible;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
+
+class ImportProducts implements ShouldQueue, Interruptible
+{
+    use Queueable;
+
+    protected bool $shouldStop = false;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(
+        public Import $import,
+    ) {
+    }
+
+    /**
+     * Execute the job.
+     */
+    public function handle(): void
+    {
+        foreach ($this->import->pendingRows() as $row) {
+            if ($this->shouldStop) {
+                break;
+            }
+
+            // Import the product row...
+        }
+
+        $this->import->saveProgress();
+    }
+
+    /**
+     * Handle a signal received by the queue worker.
+     */
+    public function interrupted(int $signal): void
+    {
+        $this->shouldStop = true;
+    }
+}
+```
+
+The `interrupted` method is only invoked when the worker receives a process signal while the job is currently running. In Hypervel, a worker may run several jobs concurrently, so every currently running job that implements `Interruptible` will be notified. Keep this method lightweight, such as setting a flag or quickly saving progress, since the worker calls it synchronously while handling the signal. It is not a replacement for [timeouts](#worker-timeouts) or the job's [`failed` method](#cleaning-up-after-failed-jobs).
 
 <a name="job-expirations-and-timeouts"></a>
 ### Job Expirations and Timeouts

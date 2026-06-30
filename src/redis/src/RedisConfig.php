@@ -108,12 +108,7 @@ class RedisConfig
      */
     private function all(): array
     {
-        $redisConfig = $this->config->get('database.redis');
-        if (! is_array($redisConfig)) {
-            throw new InvalidArgumentException('The redis config must be an array.');
-        }
-
-        return $redisConfig;
+        return $this->config->array('database.redis');
     }
 
     /**

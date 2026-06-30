@@ -14,6 +14,7 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Pool\Connection as BaseConnection;
 use Hypervel\Pool\Exceptions\ConnectionException;
+use Hypervel\Pool\PoolOption;
 use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\Operations\FlushByPattern;
@@ -343,6 +344,8 @@ abstract class RedisConnection extends BaseConnection
 
     protected float $createdAt = 0.0;
 
+    protected float $lifetimeExpiresAt = 0.0;
+
     protected bool $availableForReuse = false;
 
     protected ?Dispatcher $eventDispatcher = null;
@@ -519,6 +522,10 @@ abstract class RedisConnection extends BaseConnection
         $now = microtime(true);
         $this->lastUseTime = $now;
         $this->createdAt = $now;
+        $this->lifetimeExpiresAt = PoolOption::jitteredLifetimeDeadline(
+            $now,
+            $this->pool->getOption()->getMaxLifetime()
+        );
         $this->availableForReuse = false;
         $this->markValid();
     }
@@ -724,13 +731,11 @@ abstract class RedisConnection extends BaseConnection
      */
     public function isLifetimeExpired(?float $now = null): bool
     {
-        $maxLifetime = $this->pool->getOption()->getMaxLifetime();
-
-        if ($maxLifetime <= 0) {
+        if ($this->lifetimeExpiresAt <= 0) {
             return false;
         }
 
-        return ($now ?? microtime(true)) >= $this->createdAt + $maxLifetime;
+        return ($now ?? microtime(true)) >= $this->lifetimeExpiresAt;
     }
 
     /**

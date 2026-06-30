@@ -34,7 +34,7 @@ class SyncIndexSettingsCommand extends Command
      */
     public function handle(EngineManager $manager, Repository $config): int
     {
-        $driver = $this->option('driver') ?: $config->get('scout.driver');
+        $driver = $this->option('driver') ?: $config->string('scout.driver');
 
         $engine = $manager->engine($driver);
 
@@ -44,7 +44,7 @@ class SyncIndexSettingsCommand extends Command
             return self::FAILURE;
         }
 
-        $indexes = (array) $config->get("scout.{$driver}.index-settings", []);
+        $indexes = $config->array("scout.{$driver}.index-settings", []);
 
         if (count($indexes) === 0) {
             $this->info("No index settings found for the \"{$driver}\" engine.");
@@ -64,7 +64,7 @@ class SyncIndexSettingsCommand extends Command
             }
 
             if ($model !== null
-                && $config->get('scout.soft_delete', false)
+                && $config->boolean('scout.soft_delete', false)
                 && in_array(SoftDeletes::class, class_uses_recursive($model))) {
                 $settings = $engine->configureSoftDeleteFilter($settings);
             }
@@ -87,7 +87,7 @@ class SyncIndexSettingsCommand extends Command
             return (new $name)->indexableAs();
         }
 
-        $prefix = $config->get('scout.prefix', '');
+        $prefix = $config->string('scout.prefix', '');
 
         return ! Str::startsWith($name, $prefix) ? $prefix . $name : $name;
     }

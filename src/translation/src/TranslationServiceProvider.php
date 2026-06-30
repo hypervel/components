@@ -20,10 +20,10 @@ class TranslationServiceProvider extends ServiceProvider
 
             $trans = new Translator(
                 $loader,
-                $app['config']->get('app.locale', 'en')
+                $app->make('config')->string('app.locale', 'en')
             );
 
-            $trans->setFallback($app['config']->get('app.fallback_locale', 'en'));
+            $trans->setFallback($app->make('config')->string('app.fallback_locale', 'en'));
 
             return $trans;
         });

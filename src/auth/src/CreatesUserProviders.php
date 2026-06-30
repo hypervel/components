@@ -48,7 +48,7 @@ trait CreatesUserProviders
     protected function getProviderConfiguration(?string $provider): ?array
     {
         if ($provider = $provider ?: $this->getDefaultUserProvider()) {
-            return $this->app['config']['auth.providers.' . $provider];
+            return $this->app->make('config')->get('auth.providers.' . $provider);
         }
 
         return null;
@@ -88,8 +88,8 @@ trait CreatesUserProviders
     /**
      * Get the default user provider name.
      */
-    public function getDefaultUserProvider(): string
+    public function getDefaultUserProvider(): ?string
     {
-        return $this->app['config']['auth.defaults.provider'];
+        return $this->app->make('config')->get('auth.defaults.provider');
     }
 }

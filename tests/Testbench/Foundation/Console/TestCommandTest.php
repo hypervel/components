@@ -44,22 +44,39 @@ class TestCommandTest extends TestCase
         $command = new TestCommandHarness(['no-ansi' => true]);
 
         $this->assertSame(
-            ['--colors=never', '--configuration=' . package_path('phpunit.xml.dist'), '--no-output', '--filter=Foundation'],
-            $command->phpunitArgumentsPublic(['--configuration=ignored.xml', '--filter=Foundation'])
+            ['--colors=never', '--configuration=' . package_path('phpunit.xml.dist'), '--filter=Foundation'],
+            $command->phpunitArgumentsPublic(['--configuration=ignored.xml', '--without-tty', '--filter=Foundation'])
         );
+    }
+
+    #[Test]
+    public function itFiltersParallelOnlyOptionsFromPhpunitArgumentsForPackageTests(): void
+    {
+        $command = new TestCommandHarness;
+
+        $arguments = $command->phpunitArgumentsPublic([
+            '--parallel',
+            '--drop-databases',
+            '--without-cache',
+            '--filter=Foundation',
+        ]);
+
+        $this->assertContains('--filter=Foundation', $arguments);
+        $this->assertNotContains('--parallel', $arguments);
+        $this->assertNotContains('--drop-databases', $arguments);
+        $this->assertNotContains('--without-cache', $arguments);
     }
 
     #[Test]
     public function itBuildsPhpunitEnvironmentVariablesForPackageTests(): void
     {
-        $command = new TestCommandHarness(['compact' => true, 'profile' => true]);
+        $command = new TestCommandHarness(['profile' => true]);
         $command->setHypervel($this->app);
         $variables = $command->phpunitEnvironmentVariablesPublic();
 
         $this->assertSame('testing', $variables['APP_ENV']);
-        $this->assertSame('DefaultPrinter', $variables['COLLISION_PRINTER']);
-        $this->assertSame('true', $variables['COLLISION_PRINTER_COMPACT']);
-        $this->assertSame('true', $variables['COLLISION_PRINTER_PROFILE']);
+        $this->assertSame('1', $variables[TestCommand::PROFILE_ENV]);
+        $this->assertIsString($variables[TestCommand::PROFILE_DIRECTORY_ENV]);
         $this->assertSame('(true)', $variables['TESTBENCH_PACKAGE_TESTER']);
         $this->assertSame(package_path(), $variables['TESTBENCH_WORKING_PATH']);
         $this->assertSame($this->app->basePath(), $variables['TESTBENCH_APP_BASE_PATH']);
@@ -73,12 +90,14 @@ class TestCommandTest extends TestCase
             'recreate-databases' => true,
             'drop-databases' => true,
             'without-databases' => true,
+            'without-cache' => true,
         ]);
         $command->setHypervel($this->app);
 
         $arguments = $command->paratestArgumentsPublic([
             '--parallel',
             '--drop-databases',
+            '--without-cache',
             '--filter=Foundation',
             '--configuration=ignored.xml',
         ]);
@@ -91,6 +110,7 @@ class TestCommandTest extends TestCase
         $this->assertTrue($variables['HYPERVEL_PARALLEL_TESTING_RECREATE_DATABASES']);
         $this->assertTrue($variables['HYPERVEL_PARALLEL_TESTING_DROP_DATABASES']);
         $this->assertTrue($variables['HYPERVEL_PARALLEL_TESTING_WITHOUT_DATABASES']);
+        $this->assertTrue($variables['HYPERVEL_PARALLEL_TESTING_WITHOUT_CACHE']);
         $this->assertSame('(true)', $variables['TESTBENCH_PACKAGE_TESTER']);
         $this->assertSame(package_path(), $variables['TESTBENCH_WORKING_PATH']);
         $this->assertSame($this->app->basePath(), $variables['TESTBENCH_APP_BASE_PATH']);
@@ -120,7 +140,7 @@ final class TestCommandHarness extends TestCommand
             return $this->options;
         }
 
-        return $this->options[$key] ?? null;
+        return $this->options[$key] ?? false;
     }
 
     /**

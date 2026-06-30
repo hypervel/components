@@ -56,9 +56,11 @@ class Blacklist implements BlacklistContract
         // get the latter of the two expiration dates and find
         // the number of minutes until the expiration date,
         // plus 1 minute to avoid overlap
-        return (int) abs($exp->max($iat->addMinutes($this->refreshTTL))
-            ->addMinute()
-            ->diffInMinutes());
+        return (int) ceil(abs(
+            $exp->max($iat->addMinutes($this->refreshTTL))
+                ->addMinute()
+                ->diffInMinutes()
+        ));
     }
 
     /**

@@ -444,11 +444,13 @@ You may temporarily pause scheduled task processing without changing your deploy
 php artisan schedule:pause
 ```
 
-While the scheduler is paused, no scheduled tasks will run. You may resume scheduled task processing using the `schedule:continue` command:
+While the scheduler is paused, no scheduled tasks will run. You may resume scheduled task processing using the `schedule:resume` command:
 
 ```shell
-php artisan schedule:continue
+php artisan schedule:resume
 ```
+
+The `schedule:continue` command is also available as an alias for `schedule:resume`.
 
 If a task should still run while the scheduler is paused, you may mark it with the `evenWhenPaused` method:
 
@@ -469,9 +471,23 @@ use Hypervel\Support\Facades\Schedule;
 Schedule::daily()
     ->onOneServer()
     ->timezone('America/New_York')
+    ->withAttributes(['team' => 'mail'])
     ->group(function () {
         Schedule::command('emails:send --force');
         Schedule::command('emails:prune');
+    });
+```
+
+Group definitions also replay event lifecycle callbacks and output handlers on every event in the group, so shared hooks may be defined once:
+
+```php
+Schedule::daily()
+    ->after(function () {
+        // ...
+    })
+    ->group(function () {
+        Schedule::command('reports:send');
+        Schedule::command('reports:prune');
     });
 ```
 
@@ -547,6 +563,8 @@ By default, the interrupt signal expires after one minute. You may use the `--mi
 ```shell
 php artisan schedule:interrupt --minutes=5
 ```
+
+If you do not want the scheduler to poll for pause or interrupt signals, call `Schedule::withoutInterruptionPolling()` during boot.
 
 <a name="running-the-scheduler-locally"></a>
 ### Running the Scheduler Locally

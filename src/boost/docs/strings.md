@@ -20,6 +20,8 @@ For hot paths where the input comes from a known finite set, such as class names
 use Hypervel\Support\StrCache;
 
 $snake = StrCache::snake('fooBar');
+
+$studly = StrCache::studly('CBOR', normalize: true);
 ```
 
 `StrCache` provides cached versions of `snake`, `camel`, `studly`, `plural`, `singular`, and `pluralStudly`. Use the regular `Str` methods for arbitrary or user-provided input.
@@ -1272,6 +1274,10 @@ use Hypervel\Support\Str;
 $converted = Str::pascal('foo_bar');
 
 // FooBar
+
+$converted = Str::pascal('ALL_CAPS', normalize: true);
+
+// AllCaps
 ```
 
 <a name="method-str-password"></a>
@@ -1713,6 +1719,10 @@ use Hypervel\Support\Str;
 $converted = Str::studly('foo_bar');
 
 // FooBar
+
+$converted = Str::studly('ALL_CAPS', normalize: true);
+
+// AllCaps
 ```
 
 <a name="method-str-substr"></a>
@@ -3263,6 +3273,10 @@ use Hypervel\Support\Str;
 $converted = Str::of('foo_bar')->pascal();
 
 // FooBar
+
+$converted = Str::of('ALL_CAPS')->pascal(normalize: true);
+
+// AllCaps
 ```
 
 <a name="method-fluent-str-pipe"></a>
@@ -3694,6 +3708,10 @@ use Hypervel\Support\Str;
 $converted = Str::of('foo_bar')->studly();
 
 // FooBar
+
+$converted = Str::of('ALL_CAPS')->studly(normalize: true);
+
+// AllCaps
 ```
 
 <a name="method-fluent-str-substr"></a>

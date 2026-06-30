@@ -1,0 +1,104 @@
+<?php
+
+declare(strict_types=1);
+
+use Hypervel\Database\Migrations\Migration;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+
+return new class extends Migration {
+    /**
+     * Get the migration connection name.
+     */
+    public function getConnection(): ?string
+    {
+        return config('permission.storage.database.connection') ?: parent::getConnection();
+    }
+
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        $schema = Schema::connection($this->getConnection());
+
+        $teams = (bool) config('permission.teams');
+        $tableNames = (array) config('permission.table_names');
+        $columnNames = (array) config('permission.column_names');
+        $pivotRole = $columnNames['role_pivot_key'] ?? 'role_id';
+        $pivotPermission = $columnNames['permission_pivot_key'] ?? 'permission_id';
+        $teamForeignKey = $columnNames['team_foreign_key'] ?? 'team_id';
+        $modelMorphKey = $columnNames['model_morph_key'] ?? 'model_id';
+
+        if (! $teams) {
+            return;
+        }
+
+        throw_if($tableNames === [], 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
+        throw_if($teamForeignKey === '', 'Error: team_foreign_key on config/permission.php not loaded. Run [php artisan config:clear] and try again.');
+
+        if (! $schema->hasColumn($tableNames['roles'], $teamForeignKey)) {
+            $schema->table($tableNames['roles'], static function (Blueprint $table) use ($teamForeignKey): void {
+                $table->unsignedBigInteger($teamForeignKey)->nullable()->after('id');
+                $table->index($teamForeignKey, 'roles_team_foreign_key_index');
+
+                $table->dropUnique('roles_name_guard_name_unique');
+                $table->unique([$teamForeignKey, 'name', 'guard_name']);
+            });
+        }
+
+        if (! $schema->hasColumn($tableNames['model_has_permissions'], $teamForeignKey)) {
+            $schema->table($tableNames['model_has_permissions'], static function (Blueprint $table) use ($tableNames, $teamForeignKey, $modelMorphKey, $pivotPermission): void {
+                $table->unsignedBigInteger($teamForeignKey)->default(1);
+                $table->index($teamForeignKey, 'model_has_permissions_team_foreign_key_index');
+
+                if (DB::getDriverName() !== 'sqlite') {
+                    $table->dropForeign([$pivotPermission]);
+                }
+
+                $table->dropPrimary();
+
+                $table->primary([$teamForeignKey, $pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'], 'model_has_permissions_permission_model_type_primary');
+
+                if (DB::getDriverName() !== 'sqlite') {
+                    $table->foreign($pivotPermission)
+                        ->references('id')
+                        ->on($tableNames['permissions'])
+                        ->cascadeOnDelete();
+                }
+            });
+        }
+
+        if (! $schema->hasColumn($tableNames['model_has_roles'], $teamForeignKey)) {
+            $schema->table($tableNames['model_has_roles'], static function (Blueprint $table) use ($tableNames, $teamForeignKey, $modelMorphKey, $pivotRole): void {
+                $table->unsignedBigInteger($teamForeignKey)->default(1);
+                $table->index($teamForeignKey, 'model_has_roles_team_foreign_key_index');
+
+                if (DB::getDriverName() !== 'sqlite') {
+                    $table->dropForeign([$pivotRole]);
+                }
+
+                $table->dropPrimary();
+
+                $table->primary([$teamForeignKey, $pivotRole, $modelMorphKey, 'model_type'], 'model_has_roles_role_model_type_primary');
+
+                if (DB::getDriverName() !== 'sqlite') {
+                    $table->foreign($pivotRole)
+                        ->references('id')
+                        ->on($tableNames['roles'])
+                        ->cascadeOnDelete();
+                }
+            });
+        }
+
+        app('cache')
+            ->store(config('permission.cache.store') !== 'default' ? config('permission.cache.store') : null)
+            ->forget(config('permission.cache.keys.roles'));
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void {}
+};

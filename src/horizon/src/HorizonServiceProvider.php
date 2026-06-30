@@ -33,8 +33,10 @@ class HorizonServiceProvider extends ServiceProvider
      */
     protected function normalizeConfig(): void
     {
-        if (! $this->app['config']->get('horizon.name')) {
-            $this->app['config']->set('horizon.name', $this->app['config']->get('app.name'));
+        $config = $this->app->make('config');
+
+        if (! $config->get('horizon.name')) {
+            $config->set('horizon.name', $config->string('app.name'));
         }
     }
 

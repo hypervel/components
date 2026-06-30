@@ -126,6 +126,14 @@ class AuthManagerTest extends TestCase
         $this->assertSame('foo', $manager->getDefaultUserProvider());
     }
 
+    public function testCreateUserProviderReturnsNullWhenNoProviderIsConfigured(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $this->assertNull($manager->getDefaultUserProvider());
+        $this->assertNull($manager->createUserProvider());
+    }
+
     public function testCreateNullUserProvider()
     {
         $manager = new AuthManager($this->getContainer());

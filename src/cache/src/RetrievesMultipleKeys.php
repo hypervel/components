@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+/**
+ * Fallback implementations for stores without native multi-key operations.
+ *
+ * Stores should provide native many() / putMany() implementations when their
+ * backend supports batching. Do not use this on repository wrappers such as
+ * TaggedCache, where Repository::many() preserves events, sentinels, defaults,
+ * and wrapper-store raw reads.
+ */
 trait RetrievesMultipleKeys
 {
     /**

@@ -46,9 +46,9 @@ class MailServiceProvider extends ServiceProvider
             $config = $app->make('config');
 
             return new Markdown($app->make('view'), [
-                'theme' => $config->get('mail.markdown.theme', 'default'),
-                'paths' => $config->get('mail.markdown.paths', []),
-                'extensions' => $config->get('mail.markdown.extensions', []),
+                'theme' => $config->string('mail.markdown.theme', 'default'),
+                'paths' => $config->array('mail.markdown.paths', []),
+                'extensions' => $config->array('mail.markdown.extensions', []),
             ]);
         });
     }

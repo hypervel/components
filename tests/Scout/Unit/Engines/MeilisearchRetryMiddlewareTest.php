@@ -201,7 +201,10 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         $stack->push(MeilisearchRetryPolicy::middleware(maxRetries: 3, baseDelayMs: 1));
         $stack->push(GuzzleMiddleware::history($container));
 
-        $client = new GuzzleClient(['handler' => $stack]);
+        $client = new GuzzleClient([
+            'base_uri' => 'https://meilisearch.test',
+            'handler' => $stack,
+        ]);
         $client->post('/index/posts/documents', [
             'headers' => [
                 'Authorization' => 'Bearer master-key',
@@ -243,6 +246,9 @@ class MeilisearchRetryMiddlewareTest extends TestCase
         if ($maxRetries > 0) {
             $stack->push(MeilisearchRetryPolicy::middleware($maxRetries, baseDelayMs: 1));
         }
-        return new GuzzleClient(['handler' => $stack]);
+        return new GuzzleClient([
+            'base_uri' => 'https://meilisearch.test',
+            'handler' => $stack,
+        ]);
     }
 }

@@ -34,7 +34,7 @@ class FailedTableCommand extends MigrationGeneratorCommand
      */
     protected function migrationTableName(): string
     {
-        return $this->hypervel['config']['queue.failed.table'];
+        return $this->hypervel->make('config')->string('queue.failed.table', 'failed_jobs');
     }
 
     /**

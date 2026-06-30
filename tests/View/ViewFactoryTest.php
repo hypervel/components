@@ -15,6 +15,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Tests\TestCase;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
@@ -25,17 +26,11 @@ use Hypervel\View\View;
 use Hypervel\View\ViewFinderInterface;
 use InvalidArgumentException;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use ReflectionFunction;
 use stdClass;
 
 class ViewFactoryTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testCloneIsolatesFinderAndSharedEnvironment()
     {
         $factory = new Factory(

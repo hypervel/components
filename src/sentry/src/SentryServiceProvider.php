@@ -174,7 +174,7 @@ class SentryServiceProvider extends ServiceProvider
             $clientBuilder->setSdkVersion(Version::SDK_VERSION);
 
             // Set the pooled transport for async sending via Swoole coroutines
-            $poolConfig = $this->app->make('config')->get('sentry.pool', []);
+            $poolConfig = $this->app->make('config')->array('sentry.pool', []);
             $transport = new HttpPoolTransport(
                 new Pool($clientBuilder->getOptions(), $this->app, $poolConfig)
             );
@@ -454,7 +454,7 @@ class SentryServiceProvider extends ServiceProvider
      */
     protected function registerFeatures(): void
     {
-        $features = $this->app->make('config')->get('sentry.features', []);
+        $features = $this->app->make('config')->array('sentry.features', []);
 
         foreach ($features as $feature) {
             $this->app->singleton($feature);
@@ -479,7 +479,7 @@ class SentryServiceProvider extends ServiceProvider
     {
         $bootActive = $this->hasDsnSet() || $this->hasSpotlightEnabled();
 
-        $features = $this->app->make('config')->get('sentry.features', []);
+        $features = $this->app->make('config')->array('sentry.features', []);
 
         foreach ($features as $feature) {
             try {
@@ -502,7 +502,7 @@ class SentryServiceProvider extends ServiceProvider
     {
         $config = $this->app->make('config');
 
-        $logChannels = $config->get('logging.channels', []);
+        $logChannels = $config->array('logging.channels', []);
 
         if (! array_key_exists('sentry', $logChannels)) {
             $config->set('logging.channels.sentry', [
@@ -513,7 +513,7 @@ class SentryServiceProvider extends ServiceProvider
         if (! array_key_exists('sentry_logs', $logChannels)) {
             $config->set('logging.channels.sentry_logs', [
                 'driver' => 'sentry_logs',
-                'level' => $config->get('sentry.logs_channel_level', 'debug'),
+                'level' => $config->string('sentry.logs_channel_level', 'debug'),
             ]);
         }
     }

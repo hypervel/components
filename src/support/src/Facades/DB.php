@@ -13,7 +13,6 @@ use Hypervel\Database\Console\WipeCommand;
 /**
  * @method static \Hypervel\Database\ConnectionInterface connection(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Database\ConnectionInterface build(array $config)
- * @method static string calculateDynamicConnectionName(array $config)
  * @method static \Hypervel\Database\ConnectionInterface connectUsing(string $name, array $config, bool $force = false)
  * @method static void purge(\UnitEnum|string|null $name = null)
  * @method static void disconnect(\UnitEnum|string|null $name = null)

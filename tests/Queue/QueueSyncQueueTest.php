@@ -171,6 +171,20 @@ class QueueSyncQueueTest extends TestCase
         $sync->push(new SyncQueueAfterCommitUniqueJob);
     }
 
+    public function testItAddsATransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
+    {
+        $sync = new SyncQueue;
+        $sync->setConnectionName('sync');
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+
+        $sync->setContainer($container);
+        $sync->push(new SyncQueueAfterCommitDebouncedJob);
+    }
+
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
     {
         $sync = new SyncQueue;
@@ -293,6 +307,19 @@ class SyncQueueAfterCommitUniqueJob implements ShouldBeUnique
     use InteractsWithQueue;
 
     public $afterCommit = true;
+
+    public function handle(): void
+    {
+    }
+}
+
+class SyncQueueAfterCommitDebouncedJob
+{
+    use InteractsWithQueue;
+
+    public bool $afterCommit = true;
+
+    public string $debounceOwner = 'owner-token';
 
     public function handle(): void
     {

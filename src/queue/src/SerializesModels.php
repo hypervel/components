@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Hypervel\Queue\Attributes\WithoutRelations;
-use ReflectionClass;
+use Hypervel\Support\ClassMetadataCache;
 use ReflectionProperty;
 
 trait SerializesModels
@@ -19,12 +19,10 @@ trait SerializesModels
     {
         $values = [];
 
-        $reflectionClass = new ReflectionClass($this);
-
         [$class, $properties, $classLevelWithoutRelations] = [
             get_class($this),
-            $reflectionClass->getProperties(),
-            ! empty($reflectionClass->getAttributes(WithoutRelations::class)),
+            ClassMetadataCache::properties($this),
+            ClassMetadataCache::hasClassAttribute($this, WithoutRelations::class),
         ];
 
         foreach ($properties as $property) {
@@ -57,7 +55,7 @@ trait SerializesModels
             $values[$name] = $this->getSerializedPropertyValue(
                 $value,
                 ! $classLevelWithoutRelations
-                    && empty($property->getAttributes(WithoutRelations::class))
+                    && ! ClassMetadataCache::hasPropertyAttribute($property, WithoutRelations::class)
             );
         }
 
@@ -69,7 +67,7 @@ trait SerializesModels
      */
     public function __unserialize(array $values): void
     {
-        $properties = (new ReflectionClass($this))->getProperties();
+        $properties = ClassMetadataCache::properties($this);
 
         $class = get_class($this);
 

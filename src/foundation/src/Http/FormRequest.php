@@ -12,14 +12,17 @@ use Hypervel\Contracts\Validation\Factory as ValidationFactory;
 use Hypervel\Contracts\Validation\ValidatesWhenResolved;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Foundation\Http\Attributes\ErrorBag;
+use Hypervel\Foundation\Http\Attributes\FailOnUnknownFields;
 use Hypervel\Foundation\Http\Attributes\RedirectTo;
 use Hypervel\Foundation\Http\Attributes\RedirectToRoute;
 use Hypervel\Foundation\Http\Attributes\StopOnFirstFailure;
 use Hypervel\Foundation\Http\Traits\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
+use Hypervel\Support\Arr;
 use Hypervel\Support\ValidatedInput;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
+use Hypervel\Validation\ValidationRuleParser;
 use ReflectionClass;
 
 class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
@@ -75,6 +78,18 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     protected ?Validator $validator = null;
 
     /**
+     * The unfiltered validation rules for precognitive requests.
+     *
+     * @var null|array<string, array<int, array|object|string>>
+     */
+    protected ?array $unfilteredValidationRules = null;
+
+    /**
+     * Indicates if unknown fields should be rejected for all form requests.
+     */
+    protected static bool $globalFailOnUnknownFields = false;
+
+    /**
      * Build a fresh form request hydrated from the current request.
      *
      * Invoked by the container's SelfBuilding path. Each resolution returns a
@@ -117,6 +132,12 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
             ));
         }
 
+        if ($this->shouldFailOnUnknownFields()) {
+            $validator->after(function (Validator $validator): void {
+                $this->validateNoUnknownFields($validator);
+            });
+        }
+
         $this->setValidator($validator);
 
         return $this->validator;
@@ -136,6 +157,12 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
 
             if (count($reflection->getAttributes(StopOnFirstFailure::class)) > 0) {
                 $config['stopOnFirstFailure'] = true;
+            }
+
+            $failOnUnknownFields = $reflection->getAttributes(FailOnUnknownFields::class);
+
+            if (count($failOnUnknownFields) > 0) {
+                $config['failOnUnknownFields'] = $failOnUnknownFields[0]->newInstance()->value;
             }
 
             $errorBag = $reflection->getAttributes(ErrorBag::class);
@@ -193,8 +220,10 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
         )->stopOnFirstFailure($this->stopOnFirstFailure);
 
         if ($this->isPrecognitive()) {
+            $this->unfilteredValidationRules = $validator->getRulesWithoutPlaceholders();
+
             $validator->setRules(
-                $this->filterPrecognitiveRules($validator->getRulesWithoutPlaceholders())
+                $this->filterPrecognitiveRules($this->unfilteredValidationRules)
             );
         }
 
@@ -217,6 +246,71 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
         return method_exists($this, 'rules')
             ? $this->container->call([$this, 'rules'])
             : [];
+    }
+
+    /**
+     * Determine if fields not present in rules should fail validation.
+     */
+    protected function shouldFailOnUnknownFields(): bool
+    {
+        $config = static::$attributeConfiguration[static::class];
+
+        return array_key_exists('failOnUnknownFields', $config)
+            ? $config['failOnUnknownFields'] === true
+            : static::$globalFailOnUnknownFields;
+    }
+
+    /**
+     * Validate that no unknown fields were sent as input.
+     */
+    protected function validateNoUnknownFields(Validator $validator): void
+    {
+        $knownFields = $this->knownFields($validator);
+        $input = $this->isJson() ? $this->json()->all() : $this->request->all();
+
+        foreach (array_keys(Arr::dot($input)) as $inputKey) {
+            if (! isset($knownFields[$inputKey])) {
+                /** @var string $message */
+                $message = $validator->getTranslator()->get('validation.prohibited', [
+                    'attribute' => str_replace('_', ' ', $inputKey),
+                ]);
+
+                $validator->errors()->add($inputKey, $message);
+            }
+        }
+    }
+
+    /**
+     * Get the known input fields from the validator's effective rules.
+     *
+     * @return array<string, true>
+     */
+    protected function knownFields(Validator $validator): array
+    {
+        $fields = [];
+        $rulesWithoutPlaceholders = $validator->getRulesWithoutPlaceholders();
+
+        if ($this->unfilteredValidationRules !== null) {
+            $rulesWithoutPlaceholders = array_replace($this->unfilteredValidationRules, $rulesWithoutPlaceholders);
+        }
+
+        foreach ($rulesWithoutPlaceholders as $attribute => $rules) {
+            $attribute = (string) $attribute;
+            $fields[$attribute] = true;
+
+            /** @var array<int, array|object|string> $rules */
+            $rules = (array) $rules;
+
+            foreach ($rules as $rule) {
+                [$rule, $parameters] = ValidationRuleParser::parse($rule);
+
+                if ($rule === 'Confirmed') {
+                    $fields[(string) ($parameters[0] ?? $attribute . '_confirmation')] = true;
+                }
+            }
+        }
+
+        return $fields;
     }
 
     /**
@@ -318,6 +412,17 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     }
 
     /**
+     * Enable or disable unknown-field rejection globally for all form requests.
+     *
+     * Boot-only. The flag persists in a static property for the worker lifetime
+     * and applies to every subsequent request.
+     */
+    public static function failOnUnknownFields(bool $value = true): void
+    {
+        static::$globalFailOnUnknownFields = $value;
+    }
+
+    /**
      * Set the Validator instance.
      */
     public function setValidator(Validator $validator): static
@@ -353,5 +458,6 @@ class FormRequest extends Request implements SelfBuilding, ValidatesWhenResolved
     public static function flushState(): void
     {
         static::$attributeConfiguration = [];
+        static::$globalFailOnUnknownFields = false;
     }
 }

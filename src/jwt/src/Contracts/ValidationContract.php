@@ -6,5 +6,8 @@ namespace Hypervel\JWT\Contracts;
 
 interface ValidationContract
 {
+    /**
+     * Validate the payload.
+     */
     public function validate(array $payload): void;
 }

@@ -579,6 +579,51 @@ class ServerTest extends ReverbTestCase
         $this->assertFalse($connection->wasTerminated);
     }
 
+    public function testMessageRateLimiterUsesWorkerLifetimeCacheStore(): void
+    {
+        $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [
+            'enabled' => true,
+            'max_attempts' => 1,
+            'decay_seconds' => 60,
+            'terminate_on_limit' => false,
+        ]);
+
+        $this->server->open($connection = new FakeConnection);
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'test-channel'],
+            ])
+        );
+
+        $this->assertTrue(
+            $this->app->make('cache')->store('worker-array')->has('reverb:message:' . $connection->id())
+        );
+        $this->assertFalse(
+            $this->app->make('cache')->store('array')->has('reverb:message:' . $connection->id())
+        );
+
+        $this->server->message(
+            $connection,
+            json_encode([
+                'event' => 'pusher:subscribe',
+                'data' => ['channel' => 'test-channel-overflow'],
+            ])
+        );
+
+        $connection->assertReceived([
+            'event' => 'pusher:error',
+            'data' => json_encode([
+                'code' => 4301,
+                'message' => 'Rate limit exceeded',
+            ]),
+        ]);
+
+        $this->assertFalse($connection->wasTerminated);
+    }
+
     public function testTerminatesTheConnectionWhenRateLimitIsExceededAndConfiguredToTerminate()
     {
         $this->app['config']->set('reverb.apps.apps.0.rate_limiting', [

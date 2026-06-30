@@ -185,7 +185,7 @@ class Workbench
                 $app->booted(static function () use ($app, $workbenchViewPath) {
                     tap($app->make('config'), function ($config) use ($workbenchViewPath) {
                         $config->set('view.paths', array_merge(
-                            $config->get('view.paths', []),
+                            $config->array('view.paths', []),
                             [$workbenchViewPath]
                         ));
                     });

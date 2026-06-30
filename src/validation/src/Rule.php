@@ -22,6 +22,7 @@ use Hypervel\Validation\Rules\DoesntContain;
 use Hypervel\Validation\Rules\Email;
 use Hypervel\Validation\Rules\Enum;
 use Hypervel\Validation\Rules\ExcludeIf;
+use Hypervel\Validation\Rules\ExcludeUnless;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Rules\File;
 use Hypervel\Validation\Rules\ImageFile;
@@ -29,7 +30,10 @@ use Hypervel\Validation\Rules\In;
 use Hypervel\Validation\Rules\NotIn;
 use Hypervel\Validation\Rules\Numeric;
 use Hypervel\Validation\Rules\ProhibitedIf;
+use Hypervel\Validation\Rules\ProhibitedUnless;
 use Hypervel\Validation\Rules\RequiredIf;
+use Hypervel\Validation\Rules\RequiredUnless;
+use Hypervel\Validation\Rules\StringRule;
 use Hypervel\Validation\Rules\Unique;
 use InvalidArgumentException;
 use UnitEnum;
@@ -159,9 +163,17 @@ class Rule
     /**
      * Get a required_if rule builder instance.
      */
-    public static function requiredIf(bool|Closure $callback): RequiredIf
+    public static function requiredIf(bool|Closure|null $callback): RequiredIf
     {
         return new RequiredIf($callback);
+    }
+
+    /**
+     * Get a required_unless rule builder instance.
+     */
+    public static function requiredUnless(bool|Closure|null $callback): RequiredUnless
+    {
+        return new RequiredUnless($callback);
     }
 
     /**
@@ -173,11 +185,27 @@ class Rule
     }
 
     /**
+     * Get a exclude_unless rule builder instance.
+     */
+    public static function excludeUnless(bool|Closure $callback): ExcludeUnless
+    {
+        return new ExcludeUnless($callback);
+    }
+
+    /**
      * Get a prohibited_if rule builder instance.
      */
     public static function prohibitedIf(bool|Closure $callback): ProhibitedIf
     {
         return new ProhibitedIf($callback);
+    }
+
+    /**
+     * Get a prohibited_unless rule builder instance.
+     */
+    public static function prohibitedUnless(bool|Closure $callback): ProhibitedUnless
+    {
+        return new ProhibitedUnless($callback);
     }
 
     /**
@@ -236,6 +264,14 @@ class Rule
     public static function dimensions(array $constraints = []): Dimensions
     {
         return new Dimensions($constraints);
+    }
+
+    /**
+     * Get a string rule builder instance.
+     */
+    public static function string(): StringRule
+    {
+        return new StringRule;
     }
 
     /**

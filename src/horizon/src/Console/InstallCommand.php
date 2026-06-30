@@ -25,47 +25,80 @@ class InstallCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): void
+    public function handle(): int
     {
         $this->components->info('Installing Horizon resources.');
 
-        collect([
-            'Service Provider' => fn () => $this->callSilent('vendor:publish', ['--tag' => 'horizon-provider']) == 0,
-            'Configuration' => fn () => $this->callSilent('vendor:publish', ['--tag' => 'horizon-config']) == 0,
-        ])->each(fn ($task, $description) => $this->components->task($description, $task));
+        if (! $this->publishResource('Service Provider', 'horizon-provider')
+            || ! $this->publishResource('Configuration', 'horizon-config')) {
+            return self::FAILURE;
+        }
 
-        $this->registerHorizonServiceProvider();
+        if (! $this->registerHorizonServiceProvider()) {
+            return self::FAILURE;
+        }
 
         $this->components->info('Horizon scaffolding installed successfully.');
+
+        return self::SUCCESS;
     }
 
     /**
-     * Register the Horizon service provider in the application configuration file.
+     * Publish a Horizon resource.
      */
-    protected function registerHorizonServiceProvider(): void
+    protected function publishResource(string $description, string $tag): bool
     {
-        $namespace = Str::replaceLast('\\', '', $this->hypervel->getNamespace());
+        $published = false;
 
-        if (file_exists($this->hypervel->bootstrapPath('providers.php'))) {
-            ServiceProvider::addProviderToBootstrapFile("{$namespace}\\Providers\\HorizonServiceProvider");
-        } else {
-            $appConfig = file_get_contents(config_path('app.php'));
+        $this->components->task($description, function () use (&$published, $tag): bool {
+            return $published = $this->callSilent('vendor:publish', ['--tag' => $tag]) === 0;
+        });
 
-            if (Str::contains($appConfig, $namespace . '\Providers\HorizonServiceProvider::class')) {
-                return;
-            }
-
-            file_put_contents(config_path('app.php'), str_replace(
-                "{$namespace}\\Providers\\EventServiceProvider::class," . PHP_EOL,
-                "{$namespace}\\Providers\\EventServiceProvider::class," . PHP_EOL . "        {$namespace}\\Providers\\HorizonServiceProvider::class," . PHP_EOL,
-                $appConfig
-            ));
+        if (! $published) {
+            $this->components->error("Unable to publish Horizon {$description}.");
         }
 
-        file_put_contents(app_path('Providers/HorizonServiceProvider.php'), str_replace(
+        return $published;
+    }
+
+    /**
+     * Register the Horizon service provider in the application bootstrap file.
+     */
+    protected function registerHorizonServiceProvider(): bool
+    {
+        $namespace = Str::replaceLast('\\', '', $this->hypervel->getNamespace());
+        $providerPath = $this->hypervel->path('Providers/HorizonServiceProvider.php');
+
+        if (! is_file($providerPath) || ! is_readable($providerPath)) {
+            $this->components->error('HorizonServiceProvider file was not published.');
+
+            return false;
+        }
+
+        $contents = file_get_contents($providerPath);
+
+        if ($contents === false) {
+            $this->components->error('Unable to read the HorizonServiceProvider file.');
+
+            return false;
+        }
+
+        if (file_put_contents($providerPath, str_replace(
             'namespace App\Providers;',
             "namespace {$namespace}\\Providers;",
-            file_get_contents(app_path('Providers/HorizonServiceProvider.php'))
-        ));
+            $contents,
+        )) === false) {
+            $this->components->error('Unable to update the HorizonServiceProvider namespace.');
+
+            return false;
+        }
+
+        if (! ServiceProvider::addProviderToBootstrapFile("{$namespace}\\Providers\\HorizonServiceProvider")) {
+            $this->components->error('Unable to register HorizonServiceProvider in bootstrap/providers.php.');
+
+            return false;
+        }
+
+        return true;
     }
 }

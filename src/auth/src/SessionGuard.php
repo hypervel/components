@@ -99,7 +99,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
         $this->provider = $provider;
         $this->timebox = $timebox ?: new Timebox;
 
-        $classHash = sha1(static::class);
+        $classHash = hash('xxh128', static::class);
         $this->hashedName = 'login_' . $this->name . '_' . $classHash;
         $this->hashedRecallerName = 'remember_' . $this->name . '_' . $classHash;
     }
@@ -669,6 +669,9 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
 
     /**
      * Register an authentication attempt event listener.
+     *
+     * Boot-only. Listener registrations persist on the worker-lifetime dispatcher
+     * and affect every subsequent request.
      */
     public function attempting(callable $callback): void
     {
@@ -775,6 +778,9 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
 
     /**
      * Set the number of minutes the remember me cookie should be valid for.
+     *
+     * Boot-only. The duration is stored on the worker-lifetime guard and affects
+     * every subsequent request.
      */
     public function setRememberDuration(int $minutes): static
     {
@@ -799,6 +805,9 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
 
     /**
      * Set the cookie creator instance used by the guard.
+     *
+     * Boot or tests only. The cookie jar is stored on the worker-lifetime guard
+     * and affects every subsequent request.
      */
     public function setCookieJar(CookieJar $cookie): void
     {
@@ -815,6 +824,9 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
 
     /**
      * Set the event dispatcher instance.
+     *
+     * Boot or tests only. The dispatcher is stored on the worker-lifetime guard
+     * and affects every subsequent request.
      */
     public function setDispatcher(Dispatcher $events): void
     {

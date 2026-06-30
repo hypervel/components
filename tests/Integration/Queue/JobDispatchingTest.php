@@ -109,6 +109,9 @@ class JobDispatchingTest extends QueueTestCase
 
     public function testUniqueJobLockIsReleasedForJobDispatchedAfterResponse()
     {
+        // Use worker-array because unique locks must be visible across the after-response child coroutine.
+        Config::set('cache.default', 'worker-array');
+
         $lockHeldBeforeCoroutineExit = false;
 
         $this->dispatchAfterResponseInChildCoroutine(function () use (&$lockHeldBeforeCoroutineExit) {

@@ -39,6 +39,7 @@ class VitePreloadingTest extends TestCase
         $this->withPreloadedAssets([
             'https://hypervel.org/app.js' => [
                 'rel="modulepreload"',
+                'as="script"',
                 'foo="bar"',
             ],
         ]);
@@ -48,7 +49,7 @@ class VitePreloadingTest extends TestCase
         });
 
         $this->assertSame(
-            '<https://hypervel.org/app.js>; rel="modulepreload"; foo="bar"',
+            '<https://hypervel.org/app.js>; rel="modulepreload"; as="script"; foo="bar"',
             $response->headers->get('Link'),
         );
     }
@@ -58,6 +59,7 @@ class VitePreloadingTest extends TestCase
         $this->withPreloadedAssets([
             'https://hypervel.org/app.js' => [
                 'rel="modulepreload"',
+                'as="script"',
                 'foo="bar"',
             ],
         ]);
@@ -74,6 +76,7 @@ class VitePreloadingTest extends TestCase
         $this->withPreloadedAssets([
             'https://hypervel.org/app.js' => [
                 'rel="modulepreload"',
+                'as="script"',
                 'foo="bar"',
             ],
         ]);
@@ -85,7 +88,7 @@ class VitePreloadingTest extends TestCase
         $this->assertSame(
             [
                 '<https://hypervel.org/logo.png>; rel="preload"; as="image"',
-                '<https://hypervel.org/app.js>; rel="modulepreload"; foo="bar"',
+                '<https://hypervel.org/app.js>; rel="modulepreload"; as="script"; foo="bar"',
             ],
             $response->headers->all('Link'),
         );
@@ -96,18 +99,22 @@ class VitePreloadingTest extends TestCase
         $this->withPreloadedAssets([
             'https://hypervel.org/first.js' => [
                 'rel="modulepreload"',
+                'as="script"',
                 'foo="bar"',
             ],
             'https://hypervel.org/second.js' => [
                 'rel="modulepreload"',
+                'as="script"',
                 'foo="bar"',
             ],
             'https://hypervel.org/third.js' => [
                 'rel="modulepreload"',
+                'as="script"',
                 'foo="bar"',
             ],
             'https://hypervel.org/fourth.js' => [
                 'rel="modulepreload"',
+                'as="script"',
                 'foo="bar"',
             ],
         ]);
@@ -116,7 +123,7 @@ class VitePreloadingTest extends TestCase
 
         $this->assertSame(
             [
-                '<https://hypervel.org/first.js>; rel="modulepreload"; foo="bar", <https://hypervel.org/second.js>; rel="modulepreload"; foo="bar"',
+                '<https://hypervel.org/first.js>; rel="modulepreload"; as="script"; foo="bar", <https://hypervel.org/second.js>; rel="modulepreload"; as="script"; foo="bar"',
             ],
             $response->headers->all('Link'),
         );
@@ -148,6 +155,7 @@ class VitePreloadingTest extends TestCase
         $this->withPreloadedAssets([
             'https://example.com/build/assets/app.js' => [
                 'rel="modulepreload"',
+                'as="script"',
             ],
             'https://example.com/build/assets/inter-400.woff2' => [
                 'rel="preload"',
@@ -163,7 +171,7 @@ class VitePreloadingTest extends TestCase
 
         $this->assertSame(
             [
-                '<https://example.com/build/assets/app.js>; rel="modulepreload", <https://example.com/build/assets/inter-400.woff2>; rel="preload"; as="font"; type="font/woff2"; crossorigin="anonymous"',
+                '<https://example.com/build/assets/app.js>; rel="modulepreload"; as="script", <https://example.com/build/assets/inter-400.woff2>; rel="preload"; as="font"; type="font/woff2"; crossorigin="anonymous"',
             ],
             $response->headers->all('Link'),
         );
@@ -174,6 +182,7 @@ class VitePreloadingTest extends TestCase
         $this->withPreloadedAssets([
             'https://example.com/build/assets/app.js' => [
                 'rel="modulepreload"',
+                'as="script"',
             ],
             'https://example.com/build/assets/inter-400.woff2' => [
                 'rel="preload"',
@@ -189,7 +198,7 @@ class VitePreloadingTest extends TestCase
 
         $this->assertSame(
             [
-                '<https://example.com/build/assets/app.js>; rel="modulepreload", <https://example.com/build/assets/inter-400.woff2>; rel="preload"; as="font"',
+                '<https://example.com/build/assets/app.js>; rel="modulepreload"; as="script", <https://example.com/build/assets/inter-400.woff2>; rel="preload"; as="font"',
             ],
             $response->headers->all('Link'),
         );

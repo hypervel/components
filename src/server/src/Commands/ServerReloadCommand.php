@@ -29,7 +29,7 @@ class ServerReloadCommand extends Command
 
     public function handle()
     {
-        $file = $this->config->string('server.settings.pid_file');
+        $file = $this->config->string('server.settings.pid_file', '');
         if (empty($file)) {
             throw new FileNotFoundException('The config of pid_file is not found.');
         }

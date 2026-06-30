@@ -59,6 +59,7 @@
     - [Task Scheduling](/docs/{{version}}/scheduling)
 - ## Security
     - [Authentication](/docs/{{version}}/authentication)
+    - [JWT Authentication](/docs/{{version}}/jwt)
     - [Authorization](/docs/{{version}}/authorization)
     - [Permission](/docs/{{version}}/permission)
     - [Email Verification](/docs/{{version}}/verification)

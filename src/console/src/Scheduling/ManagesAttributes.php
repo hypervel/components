@@ -41,9 +41,19 @@ trait ManagesAttributes
     public bool $evenInMaintenanceMode = false;
 
     /**
+     * Indicates if the command should run when the scheduler is paused.
+     */
+    public bool $evenWhenPaused = false;
+
+    /**
      * Indicates if the command should not overlap itself.
      */
     public bool $withoutOverlapping = false;
+
+    /**
+     * Indicates if the event mutex should be released on termination signals.
+     */
+    public bool $releaseOnTerminationSignals = true;
 
     /**
      * Indicates if the command should only be allowed to run on one server for each cron expression.
@@ -74,6 +84,11 @@ trait ManagesAttributes
      * The human readable description of the event.
      */
     public ?string $description = null;
+
+    /**
+     * The arbitrary attributes assigned to the event.
+     */
+    public array $attributes = [];
 
     /**
      * Set which user the command should run as.
@@ -108,14 +123,26 @@ trait ManagesAttributes
     }
 
     /**
+     * State that the command should run even when the scheduler is paused.
+     */
+    public function evenWhenPaused(): static
+    {
+        $this->evenWhenPaused = true;
+
+        return $this;
+    }
+
+    /**
      * Do not allow the event to overlap each other.
      * The expiration time of the underlying cache lock may be specified in minutes.
      */
-    public function withoutOverlapping(int $expiresAt = 1440): static
+    public function withoutOverlapping(int $expiresAt = 1440, bool $releaseOnTerminationSignals = true): static
     {
         $this->withoutOverlapping = true;
 
         $this->expiresAt = $expiresAt;
+
+        $this->releaseOnTerminationSignals = $releaseOnTerminationSignals;
 
         return $this->skip(function () {
             return $this->mutex->exists($this);
@@ -180,6 +207,16 @@ trait ManagesAttributes
     public function description(string $description): static
     {
         $this->description = $description;
+
+        return $this;
+    }
+
+    /**
+     * Set arbitrary attributes to store with the event.
+     */
+    public function withAttributes(array $attributes): static
+    {
+        $this->attributes = array_merge_recursive($this->attributes, $attributes);
 
         return $this;
     }

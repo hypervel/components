@@ -341,6 +341,8 @@ class RedisQueueTest extends TestCase
     public function testPushJobQueueingAndJobQueuedEvents()
     {
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturn(true)->once();
+        $events->shouldReceive('hasListeners')->with(JobQueued::class)->andReturn(true)->once();
         $events->shouldReceive('dispatch')->withArgs(function (JobQueueing $jobQueueing) {
             $this->assertInstanceOf(RedisQueueIntegrationTestJob::class, $jobQueueing->job);
 
@@ -355,7 +357,7 @@ class RedisQueueTest extends TestCase
 
         $container = m::mock(Container::class);
         $container->shouldReceive('bound')->with('events')->andReturn(true)->twice();
-        $container->shouldReceive('offsetGet')->with('events')->andReturn($events)->twice();
+        $container->shouldReceive('make')->with('events')->andReturn($events)->twice();
 
         $queue = new RedisQueue($this->app->make(RedisFactory::class), $this->app['config']->get('queue.connections.redis.queue'));
         $queue->setContainer($container);
@@ -367,12 +369,14 @@ class RedisQueueTest extends TestCase
     public function testBulkJobQueuedEvent()
     {
         $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->with(JobQueueing::class)->andReturn(true)->times(3);
+        $events->shouldReceive('hasListeners')->with(JobQueued::class)->andReturn(true)->times(3);
         $events->shouldReceive('dispatch')->with(m::type(JobQueueing::class))->andReturnNull()->times(3);
         $events->shouldReceive('dispatch')->with(m::type(JobQueued::class))->andReturnNull()->times(3);
 
         $container = m::mock(Container::class);
         $container->shouldReceive('bound')->with('events')->andReturn(true)->times(6);
-        $container->shouldReceive('offsetGet')->with('events')->andReturn($events)->times(6);
+        $container->shouldReceive('make')->with('events')->andReturn($events)->times(6);
 
         $queue = new RedisQueue($this->app->make(RedisFactory::class), $this->app['config']->get('queue.connections.redis.queue'));
         $queue->setContainer($container);

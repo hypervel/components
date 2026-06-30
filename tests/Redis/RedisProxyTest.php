@@ -193,7 +193,7 @@ class RedisProxyTest extends TestCase
             $selectedConnection,
             $otherCoroutineConnection,
         );
-        $pool->shouldReceive('getOption')->andReturn(m::mock(PoolOption::class));
+        $pool->shouldReceive('getOption')->andReturn(new PoolOption);
 
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
@@ -228,7 +228,7 @@ class RedisProxyTest extends TestCase
 
         $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('get')->times(2)->andReturn($pinnedConnection, $otherCoroutineConnection);
-        $pool->shouldReceive('getOption')->andReturn(m::mock(PoolOption::class));
+        $pool->shouldReceive('getOption')->andReturn(new PoolOption);
 
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
@@ -863,7 +863,7 @@ class RedisProxyTest extends TestCase
     {
         $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('get')->andReturn($connection);
-        $pool->shouldReceive('getOption')->andReturn(m::mock(PoolOption::class));
+        $pool->shouldReceive('getOption')->andReturn(new PoolOption);
 
         $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);

@@ -527,8 +527,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function viewPath(string $path = ''): string
     {
+        $paths = $this->make('config')->array('view.paths', [$this->basePath('resources/views')]);
+
         $viewPath = rtrim(
-            $this['config']->get('view.paths')[0] ?? $this->basePath('resources/views'),
+            $paths[0] ?? $this->basePath('resources/views'),
             DIRECTORY_SEPARATOR
         );
 
@@ -802,7 +804,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function hasDebugModeEnabled(): bool
     {
-        return (bool) $this['config']->get('app.debug');
+        return $this->make('config')->boolean('app.debug', false);
     }
 
     /**
@@ -888,7 +890,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function registerConfiguredProviders(): void
     {
-        $providers = (new Collection($this->make('config')->get('app.providers', [])))
+        $providers = (new Collection($this->make('config')->array('app.providers', [])))
             ->partition(fn (string $provider) => str_starts_with($provider, 'Hypervel\\'));
 
         $discovered = static::sortByPriority($this->discoverProviders());
@@ -1322,7 +1324,6 @@ class Application extends Container implements ApplicationContract, CachesConfig
                 \Hypervel\Contracts\Filesystem\Factory::class,
             ],
             'filesystem.disk' => [\Hypervel\Contracts\Filesystem\Filesystem::class],
-            'filesystem.cloud' => [\Hypervel\Contracts\Filesystem\Cloud::class],
             'hash' => [\Hypervel\Hashing\HashManager::class],
             'hash.driver' => [\Hypervel\Contracts\Hashing\Hasher::class],
             'jwt' => [

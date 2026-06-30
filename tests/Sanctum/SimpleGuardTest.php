@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Support\Facades\Route;
@@ -19,18 +20,6 @@ class SimpleGuardTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->app->register(SanctumServiceProvider::class);
-
-        $this->app->make('config')
-            ->set([
-                'auth.guards.sanctum' => [
-                    'driver' => 'sanctum',
-                    'provider' => 'users',
-                ],
-                'auth.providers.users.model' => TestUser::class,
-                'auth.providers.users.driver' => 'eloquent',
-            ]);
 
         // Create users table
         $this->app->make('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
@@ -51,6 +40,25 @@ class SimpleGuardTest extends TestCase
                 'token_id' => $user?->currentAccessToken()?->id,
             ]);
         });
+    }
+
+    protected function getPackageProviders(ApplicationContract $app): array
+    {
+        return [
+            SanctumServiceProvider::class,
+        ];
+    }
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $app->make('config')->set([
+            'auth.guards.sanctum' => [
+                'driver' => 'sanctum',
+                'provider' => 'users',
+            ],
+            'auth.providers.users.model' => TestUser::class,
+            'auth.providers.users.driver' => 'eloquent',
+        ]);
     }
 
     /**

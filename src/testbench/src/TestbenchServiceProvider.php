@@ -36,23 +36,14 @@ class TestbenchServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->commands([
-            $this->isCollisionDependenciesInstalled()
-                ? Foundation\Console\TestCommand::class
-                : Foundation\Console\TestFallbackCommand::class,
+            Foundation\Console\TestCommand::class,
             Foundation\Console\CreateSqliteDbCommand::class,
             Foundation\Console\DropSqliteDbCommand::class,
+            Foundation\Console\InstallCommand::class,
             Foundation\Console\PurgeSkeletonCommand::class,
             Foundation\Console\ServeCommand::class,
             Foundation\Console\SyncSkeletonCommand::class,
             Foundation\Console\VendorPublishCommand::class,
         ]);
-    }
-
-    /**
-     * Determine whether the Collision test command dependencies are installed.
-     */
-    protected function isCollisionDependenciesInstalled(): bool
-    {
-        return InstalledVersions::isInstalled('nunomaduro/collision');
     }
 }

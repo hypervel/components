@@ -25,14 +25,6 @@ abstract class AlgoliaScoutIntegrationTestCase extends AlgoliaIntegrationTestCas
 
     protected AlgoliaEngine $engine;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        // Clear cached engines so they're recreated with our test config
-        $this->app->make(EngineManager::class)->forgetEngines();
-    }
-
     protected function setUpInCoroutine(): void
     {
         $this->initializeAlgolia();

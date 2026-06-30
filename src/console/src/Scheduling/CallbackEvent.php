@@ -29,7 +29,7 @@ class CallbackEvent extends Event
     /**
      * The result of the callback's execution.
      */
-    protected mixed $result;
+    protected mixed $result = null;
 
     /**
      * The exception that was thrown when calling the callback, if any.
@@ -117,7 +117,7 @@ class CallbackEvent extends Event
      *
      * @throws LogicException
      */
-    public function withoutOverlapping(int $expiresAt = 1440): static
+    public function withoutOverlapping(int $expiresAt = 1440, bool $releaseOnTerminationSignals = true): static
     {
         if (! isset($this->description)) {
             throw new LogicException(
@@ -125,7 +125,7 @@ class CallbackEvent extends Event
             );
         }
 
-        return parent::withoutOverlapping($expiresAt);
+        return parent::withoutOverlapping($expiresAt, $releaseOnTerminationSignals);
     }
 
     /**
@@ -161,7 +161,7 @@ class CallbackEvent extends Event
      */
     public function mutexName(): string
     {
-        return 'framework/schedule-' . sha1($this->description ?? '');
+        return 'framework/schedule-' . hash('xxh128', $this->description ?? '');
     }
 
     /**

@@ -4,6 +4,7 @@
 - [Environment Configuration](#environment-configuration)
     - [Environment Variable Types](#environment-variable-types)
     - [Retrieving Environment Configuration](#retrieving-environment-configuration)
+    - [Application ID](#application-id)
     - [Determining the Current Environment](#determining-the-current-environment)
     - [Encrypting Environment Files](#encrypting-environment-files)
 - [Accessing Configuration Values](#accessing-configuration-values)
@@ -107,6 +108,24 @@ All of the variables listed in the `.env` file will be loaded into the `$_ENV` P
 ```
 
 The second value passed to the `env` function is the "default value". This value will be returned if no environment variable exists for the given key.
+
+<a name="application-id"></a>
+### Application ID
+
+Hypervel uses the `APP_ID` environment variable as the stable, machine-readable identifier for your application. This value is used by default to isolate infrastructure names such as Redis prefixes, cache prefixes, session cookie names, Horizon prefixes, and Scout index prefixes.
+
+If `APP_ID` is not defined, Hypervel will derive the application ID from your `APP_NAME` value. When defining `APP_ID` directly, the value must contain only lowercase letters, numbers, and underscores:
+
+```ini
+APP_NAME="My Application"
+# APP_ID=my_application
+```
+
+At runtime, you should read this value from configuration using `config()->string('app.id')` instead of calling `app_id()` directly. The `app_id()` helper is intended for configuration defaults while configuration files are loading. Once configuration is loaded or cached, reading `app.id` avoids re-reading environment values and re-normalizing the identifier:
+
+```php
+$id = config()->string('app.id');
+```
 
 <a name="determining-the-current-environment"></a>
 ### Determining the Current Environment

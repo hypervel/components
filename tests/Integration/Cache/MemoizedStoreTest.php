@@ -22,7 +22,10 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use Swoole\Coroutine\Channel;
 use Throwable;
+
+use function Hypervel\Coroutine\parallel;
 
 #[WithConfig('cache.default', 'redis')]
 #[WithConfig('cache.prefix', 'hypervel-cache-')]
@@ -398,22 +401,51 @@ class MemoizedStoreTest extends TestCase
         $this->assertCount(15, $events);
     }
 
-    public function testItResetsCacheStoreWithScopedInstances()
+    public function testMemoizedCacheResetsAcrossCoroutineBoundary(): void
     {
         Cache::put('name', 'Tim', 60);
 
-        $live = Cache::get('name');
-        $memoized = Cache::memo()->get('name');
-        $this->assertSame('Tim', $live);
-        $this->assertSame('Tim', $memoized);
+        [$firstCoroutineMemoized] = parallel([
+            fn () => Cache::memo()->get('name'),
+        ]);
 
         Cache::put('name', 'Taylor', 60);
-        $this->app->forgetScopedInstances();
 
-        $live = Cache::get('name');
-        $memoized = Cache::memo()->get('name');
-        $this->assertSame('Taylor', $live);
-        $this->assertSame('Taylor', $memoized);
+        [$secondCoroutineMemoized] = parallel([
+            fn () => Cache::memo()->get('name'),
+        ]);
+
+        $this->assertSame('Tim', $firstCoroutineMemoized);
+        $this->assertSame('Taylor', $secondCoroutineMemoized);
+    }
+
+    public function testMemoizedCacheIsIsolatedBetweenConcurrentCoroutines(): void
+    {
+        $firstCoroutineMemoized = new Channel(1);
+
+        Cache::put('name', 'Tim', 60);
+
+        [$firstCoroutine, $secondCoroutine] = parallel([
+            function () use ($firstCoroutineMemoized) {
+                $first = Cache::memo()->get('name');
+                $firstCoroutineMemoized->push(true);
+
+                usleep(10000);
+
+                return [$first, Cache::memo()->get('name')];
+            },
+            function () use ($firstCoroutineMemoized) {
+                $firstCoroutineMemoized->pop();
+
+                Cache::put('name', 'Taylor', 60);
+
+                return Cache::memo()->get('name');
+            },
+        ]);
+
+        $this->assertSame(['Tim', 'Tim'], $firstCoroutine);
+        $this->assertSame('Taylor', $secondCoroutine);
+        $this->assertSame('Taylor', Cache::get('name'));
     }
 
     public function testItThrowsWhenUnderlyingStoreDoesNotSupportLocks()

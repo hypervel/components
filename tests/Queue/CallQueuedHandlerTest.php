@@ -21,6 +21,7 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
+use RuntimeException;
 
 class CallQueuedHandlerTest extends TestCase
 {
@@ -120,6 +121,29 @@ class CallQueuedHandlerTest extends TestCase
         $handler->call($job, ['command' => $serialized]);
     }
 
+    public function testUniqueUntilProcessingRetryDoesNotReleaseLockAgain(): void
+    {
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->with(Cache::class)->never();
+
+        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher->shouldReceive('dispatchNow')->once();
+        $dispatcher->shouldReceive('getCommandHandler')->andReturn(null);
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('isReleased')->andReturn(false);
+        $job->shouldReceive('attempts')->andReturn(2);
+        $job->shouldReceive('hasFailed')->andReturn(false);
+        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
+        $job->shouldReceive('delete')->once();
+
+        $command = new CallQueuedHandlerTestUniqueUntilProcessingJob;
+        $serialized = serialize($command);
+
+        $handler = new CallQueuedHandler($dispatcher, $container);
+        $handler->call($job, ['command' => $serialized]);
+    }
+
     public function testHandleModelNotFoundFailsJobWhenDeleteWhenMissingModelsIsFalse()
     {
         $container = m::mock(ContainerContract::class);
@@ -177,6 +201,82 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue(true);
     }
 
+    public function testRunningCommandIsAvailableWhileCommandIsProcessing(): void
+    {
+        $container = m::mock(ContainerContract::class);
+
+        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher->shouldReceive('getCommandHandler')->andReturn(null);
+        $dispatcher->shouldReceive('dispatchNow')->once()->andReturnUsing(function ($command) {
+            $command->handle();
+        });
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('isReleased')->andReturn(false);
+        $job->shouldReceive('hasFailed')->andReturn(false);
+        $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
+        $job->shouldReceive('delete')->once();
+
+        $handler = new CallQueuedHandler($dispatcher, $container);
+        CallQueuedHandlerTestRunningCommandJob::$handler = $handler;
+        CallQueuedHandlerTestRunningCommandJob::$runningCommandDuringMiddleware = null;
+
+        try {
+            $handler->call($job, ['command' => serialize(new CallQueuedHandlerTestRunningCommandJob)]);
+
+            $this->assertInstanceOf(
+                CallQueuedHandlerTestRunningCommandJob::class,
+                CallQueuedHandlerTestRunningCommandJob::$runningCommandDuringMiddleware
+            );
+            $this->assertNull($handler->getRunningCommand());
+        } finally {
+            CallQueuedHandlerTestRunningCommandJob::$handler = null;
+            CallQueuedHandlerTestRunningCommandJob::$runningCommandDuringMiddleware = null;
+        }
+    }
+
+    public function testRunningCommandIsResetWhenCommandThrows(): void
+    {
+        $container = m::mock(ContainerContract::class);
+
+        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher->shouldReceive('getCommandHandler')->andReturn(null);
+        $dispatcher->shouldReceive('dispatchNow')->once()->andThrow($exception = new RuntimeException('Command failed.'));
+
+        $job = m::mock(Job::class);
+
+        $handler = new CallQueuedHandler($dispatcher, $container);
+
+        try {
+            $handler->call($job, ['command' => serialize(new CallQueuedHandlerTestRegularJob)]);
+
+            $this->fail('Expected exception was not thrown.');
+        } catch (RuntimeException $e) {
+            $this->assertSame($exception, $e);
+        }
+
+        $this->assertNull($handler->getRunningCommand());
+    }
+
+    public function testRunningCommandStaysNullForDebouncedJobs(): void
+    {
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('get')->twice()->andReturn('new-owner');
+
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('make')->with(Cache::class)->andReturn($cache);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
+
+        $job = m::mock(Job::class);
+        $job->shouldReceive('delete')->once();
+
+        $handler = new CallQueuedHandler(m::mock(BusDispatcher::class), $container);
+
+        $handler->call($job, ['command' => serialize(new CallQueuedHandlerTestDebouncedJob)]);
+
+        $this->assertNull($handler->getRunningCommand());
+    }
+
     private function createHandler(): CallQueuedHandler
     {
         return new CallQueuedHandler(
@@ -217,6 +317,37 @@ class CallQueuedHandlerTestRegularJob implements ShouldQueue
 {
     use InteractsWithQueue;
     use Queueable;
+
+    public function handle(): void
+    {
+    }
+}
+
+class CallQueuedHandlerTestRunningCommandJob implements ShouldQueue
+{
+    public static ?CallQueuedHandler $handler = null;
+
+    public static mixed $runningCommandDuringMiddleware = null;
+
+    public function middleware(): array
+    {
+        return [
+            function (self $command, callable $next): mixed {
+                self::$runningCommandDuringMiddleware = self::$handler?->getRunningCommand();
+
+                return $next($command);
+            },
+        ];
+    }
+
+    public function handle(): void
+    {
+    }
+}
+
+class CallQueuedHandlerTestDebouncedJob implements ShouldQueue
+{
+    public string $debounceOwner = 'old-owner';
 
     public function handle(): void
     {

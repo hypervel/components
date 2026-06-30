@@ -1066,7 +1066,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      * "genuinely absent = miss".
      *
      * Applies itemKey() to each key so tag-namespacing works correctly on
-     * TaggedCache / AllTaggedCache (which prepend sha1($tagNamespace) . ':').
+     * TaggedCache / AllTaggedCache (which prepend hash('xxh128', $tagNamespace) . ':').
      * AnyTaggedCache overrides this method to throw, preserving the any-mode
      * invariant that reads through tags are rejected.
      *

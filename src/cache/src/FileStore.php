@@ -399,7 +399,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
      */
     public function path(string $key): string
     {
-        $parts = array_slice(str_split($hash = sha1($key), 2), 0, 2);
+        $parts = array_slice(str_split($hash = hash('xxh128', $key), 2), 0, 2);
 
         return $this->directory . '/' . implode('/', $parts) . '/' . $hash;
     }

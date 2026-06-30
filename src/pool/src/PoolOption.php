@@ -12,6 +12,16 @@ use Hypervel\Contracts\Pool\PoolOptionInterface;
 class PoolOption implements PoolOptionInterface
 {
     /**
+     * Lowest max_lifetime fraction assigned to a connection generation.
+     */
+    public const MIN_LIFETIME_JITTER_BASIS = 9000;
+
+    /**
+     * Scale used for jitter basis values.
+     */
+    public const LIFETIME_JITTER_SCALE = 10000;
+
+    /**
      * @param int $minConnections Minimum connections to maintain in the pool
      * @param int $maxConnections Maximum connections allowed in the pool
      * @param float $connectTimeout Timeout in seconds for establishing a connection
@@ -174,6 +184,20 @@ class PoolOption implements PoolOptionInterface
     public function getMaxLifetime(): float
     {
         return $this->maxLifetime;
+    }
+
+    /**
+     * Return a jittered lifetime deadline for a connection generation.
+     */
+    public static function jitteredLifetimeDeadline(float $createdAt, float $maxLifetime): float
+    {
+        if ($maxLifetime <= 0) {
+            return 0.0;
+        }
+
+        $factor = random_int(self::MIN_LIFETIME_JITTER_BASIS, self::LIFETIME_JITTER_SCALE) / self::LIFETIME_JITTER_SCALE;
+
+        return $createdAt + ($maxLifetime * $factor);
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Testing\Attributes\UnitTest;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
@@ -19,6 +20,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithViews;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use ReflectionMethod;
 use Throwable;
 
 abstract class TestCase extends \PHPUnit\Framework\TestCase
@@ -39,10 +41,19 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     use WithFaker;
 
     /**
+     * Memoized result of the withoutBootingFramework check.
+     */
+    protected ?bool $withoutBootingFramework = null;
+
+    /**
      * Set up the test environment.
      */
     protected function setUp(): void
     {
+        if ($this->withoutBootingFramework()) {
+            return;
+        }
+
         $this->setUpTheTestEnvironment();
     }
 
@@ -69,7 +80,35 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function tearDown(): void
     {
+        if ($this->withoutBootingFramework()) {
+            return;
+        }
+
         $this->tearDownTheTestEnvironment();
+    }
+
+    /**
+     * Determine if the test method should boot the framework.
+     */
+    protected function shouldBootFrameworkForTest(): bool
+    {
+        return ! $this->withoutBootingFramework();
+    }
+
+    /**
+     * Determine if the test method should run without booting the framework.
+     */
+    protected function withoutBootingFramework(): bool
+    {
+        if ($this->withoutBootingFramework !== null) {
+            return $this->withoutBootingFramework;
+        }
+
+        try {
+            return $this->withoutBootingFramework = (new ReflectionMethod(static::class, $this->name()))->getAttributes(UnitTest::class) !== [];
+        } catch (Throwable) {
+            return $this->withoutBootingFramework = false;
+        }
     }
 
     /**

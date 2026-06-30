@@ -159,8 +159,11 @@ class Filesystem
 
     /**
      * Get the hash of the file at the given path.
+     *
+     * Defaults to xxh128 for fast app-internal file hashing. Pass a specific
+     * algorithm explicitly when an external protocol requires one.
      */
-    public function hash(string $path, string $algorithm = 'md5'): string|false
+    public function hash(string $path, string $algorithm = 'xxh128'): string|false
     {
         return hash_file($algorithm, $path);
     }

@@ -74,7 +74,8 @@ class BladeComponentsTest extends AbstractBladeTestCase
 
         ob_start();
         eval(" ?> {$template} <?php endif; ");
-        ob_get_clean();
+
+        $this->assertSame('', trim((string) ob_get_clean()));
     }
 }
 

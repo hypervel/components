@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace {{ namespace }};
 
-use PHPUnit\Framework\TestCase;
+use Hypervel\Foundation\Testing\Attributes\UnitTest;
+use Tests\TestCase;
 
 class {{ class }} extends TestCase
 {
     /**
      * A basic unit test example.
      */
+    #[UnitTest]
     public function test_example(): void
     {
         $this->assertTrue(true);

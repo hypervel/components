@@ -10,7 +10,6 @@ use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Notifications\Messages\MailMessage;
-use Hypervel\Support\Facades\Storage;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
 
@@ -102,13 +101,8 @@ class Attachment
         });
     }
 
-    /**
-     * Create a mail attachment from a file on the cloud storage disk.
-     */
-    public static function fromCloudStorage(string $path): static
-    {
-        return self::fromStorageDisk(Storage::getDefaultCloudDriver(), $path);
-    }
+    // Laravel's fromCloudStorage() helper is intentionally not ported.
+    // Use fromStorageDisk('s3', $path) or another named disk instead.
 
     /**
      * Get a storage disk instance.

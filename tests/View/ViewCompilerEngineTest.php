@@ -8,11 +8,11 @@ use ErrorException;
 use Exception;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Tests\TestCase;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\ViewException;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ViewCompilerEngineTest extends TestCase

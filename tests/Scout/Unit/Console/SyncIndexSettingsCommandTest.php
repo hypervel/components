@@ -27,7 +27,7 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('scout.driver')
             ->andReturn('collection');
 
@@ -55,10 +55,10 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('scout.driver')
             ->andReturn('meilisearch');
-        $config->shouldReceive('get')
+        $config->shouldReceive('array')
             ->with('scout.meilisearch.index-settings', [])
             ->andReturn([]);
 
@@ -89,15 +89,15 @@ class SyncIndexSettingsCommandTest extends TestCase
             ->andReturn($engine);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('scout.driver')
             ->andReturn('meilisearch');
-        $config->shouldReceive('get')
+        $config->shouldReceive('array')
             ->with('scout.meilisearch.index-settings', [])
             ->andReturn([
                 'test_posts' => ['filterableAttributes' => ['status']],
             ]);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('scout.prefix', '')
             ->andReturn('');
 
@@ -126,7 +126,7 @@ class SyncIndexSettingsCommandTest extends TestCase
 
         $config = m::mock(Repository::class);
         // Note: scout.driver should NOT be called when driver option is provided
-        $config->shouldReceive('get')
+        $config->shouldReceive('array')
             ->with('scout.typesense.index-settings', [])
             ->andReturn([]);
 
@@ -151,7 +151,7 @@ class SyncIndexSettingsCommandTest extends TestCase
         $method->setAccessible(true);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('scout.prefix', '')
             ->andReturn('prod_');
 
@@ -168,7 +168,7 @@ class SyncIndexSettingsCommandTest extends TestCase
         $method->setAccessible(true);
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('get')
+        $config->shouldReceive('string')
             ->with('scout.prefix', '')
             ->andReturn('prod_');
 

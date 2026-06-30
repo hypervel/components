@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Signal;
 
 use function Hypervel\Coroutine\parallel;
@@ -51,14 +52,26 @@ class SignalRegistry
      */
     public function unregister(int|array|null $signo = null): void
     {
-        match (true) {
-            // Unregister all signals
-            is_null($signo) => $this->signalHandlers = [],
-            // Unregister multiple signals
-            is_array($signo) => array_map(fn ($s) => isset($this->signalHandlers[$s]) && $this->signalHandlers[$s] = [], $signo),
-            // Unregister single signal
-            default => $this->signalHandlers[$signo] = [],
-        };
+        if ($signo === null) {
+            foreach (array_keys($this->handling) as $signal) {
+                $this->cancelSignal($signal);
+            }
+
+            $this->signalHandlers = [];
+
+            return;
+        }
+
+        if (is_array($signo)) {
+            foreach ($signo as $signal) {
+                $this->unregister((int) $signal);
+            }
+
+            return;
+        }
+
+        $this->signalHandlers[$signo] = [];
+        $this->cancelSignal($signo);
     }
 
     /**
@@ -82,15 +95,33 @@ class SignalRegistry
         }
 
         $this->handling[$signo] = Coroutine::create(function () use ($signo) {
-            Coroutine::defer(fn () => posix_kill(posix_getpid(), $signo));
-
             while (true) {
                 if (Signal::wait($signo, $this->timeout)) {
+                    unset($this->handling[$signo]);
+
                     $callbacks = array_map(fn ($callback) => fn () => $callback($signo), $this->signalHandlers[$signo] ?? []);
 
-                    return parallel($callbacks, $this->concurrentLimit);
+                    try {
+                        return parallel($callbacks, $this->concurrentLimit);
+                    } finally {
+                        posix_kill(posix_getpid(), $signo);
+                    }
                 }
             }
         });
+    }
+
+    /**
+     * Cancel the coroutine waiting on the given signal.
+     */
+    protected function cancelSignal(int $signo): void
+    {
+        if (! isset($this->handling[$signo])) {
+            return;
+        }
+
+        EngineCoroutine::cancelById($this->handling[$signo]);
+
+        unset($this->handling[$signo]);
     }
 }

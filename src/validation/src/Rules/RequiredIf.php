@@ -4,28 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
-use InvalidArgumentException;
+use Closure;
 use Stringable;
 
 class RequiredIf implements Stringable
 {
     /**
      * The condition that validates the attribute.
-     *
-     * @var bool|callable
      */
-    public $condition;
+    public bool|Closure $condition;
 
     /**
      * Create a new required validation rule based on a condition.
      */
-    public function __construct(bool|callable $condition)
+    public function __construct(bool|Closure|null $condition)
     {
-        if (! is_string($condition)) {
-            $this->condition = $condition;
-        } else {
-            throw new InvalidArgumentException('The provided condition must be a callable or boolean.');
-        }
+        $this->condition = $condition ?? false;
     }
 
     /**

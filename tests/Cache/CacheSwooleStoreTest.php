@@ -9,9 +9,11 @@ use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use Swoole\Table;
 
@@ -45,6 +47,23 @@ class CacheSwooleStoreTest extends TestCase
         $store = $this->createStore($table);
 
         $this->assertNull($store->get('foo'));
+    }
+
+    public function testMissingSwooleTableConfigThrowsTableNotDefinedException(): void
+    {
+        $config = m::mock(ConfigRepository::class);
+        $config->shouldReceive('get')
+            ->once()
+            ->with('cache.swoole_tables.missing')
+            ->andReturn(null);
+
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->once()->with('config')->andReturn($config);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Swoole table [missing] is not defined.');
+
+        (new SwooleTableManager($container))->get('missing');
     }
 
     public function testExpiredItemsReturnNull()
@@ -247,11 +266,11 @@ class CacheSwooleStoreTest extends TestCase
         $store = $this->createStore($table);
 
         for ($i = 0; $i < 256; ++$i) {
-            $store->put(sha1("key:{$i}"), $i, 100);
+            $store->put(hash('xxh128', "key:{$i}"), $i, 100);
         }
 
-        $this->assertNull($store->get(sha1('key:0')));
-        $this->assertSame(255, $store->get(sha1('key:255')));
+        $this->assertNull($store->get(hash('xxh128', 'key:0')));
+        $this->assertSame(255, $store->get(hash('xxh128', 'key:255')));
         $this->assertLessThanOrEqual(128, $table->count());
     }
 

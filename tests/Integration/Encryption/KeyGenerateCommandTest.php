@@ -72,6 +72,22 @@ class KeyGenerateCommandTest extends TestCase
         $this->assertStringStartsWith('base64:', $this->app['config']['app.key']);
     }
 
+    public function testKeyIsWrittenToEnvFileWhenCurrentConfigKeyIsNull(): void
+    {
+        $this->app['config']->set('app.key', null);
+
+        file_put_contents($this->envDir . '/.env', 'APP_KEY=');
+        $this->app->useEnvironmentPath($this->envDir);
+
+        $this->artisan('key:generate')
+            ->expectsOutputToContain('Application key set successfully.')
+            ->assertSuccessful();
+
+        $envContents = file_get_contents($this->envDir . '/.env');
+        $this->assertStringStartsWith('APP_KEY=base64:', $envContents);
+        $this->assertStringStartsWith('base64:', $this->app['config']['app.key']);
+    }
+
     public function testForceOptionBypassesConfirmationInProduction()
     {
         $this->app['env'] = 'production';

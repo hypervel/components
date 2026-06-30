@@ -545,7 +545,8 @@ class EloquentUserProvider implements UserProvider
         $modelClass = $this->model;
 
         // Insert or replace the descriptor — duplicate configs collapse.
-        $descriptorKey = md5(
+        $descriptorKey = hash(
+            'xxh128',
             ($this->cacheStoreName ?? '') . '|' . $this->cachePrefix . '|' . $this->modelSegment
         );
 

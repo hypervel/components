@@ -29,7 +29,7 @@ return [
     |
     */
 
-    'prefix' => env('SCOUT_PREFIX', ''),
+    'prefix' => env('SCOUT_PREFIX', app_id() . '_'),
 
     /*
     |--------------------------------------------------------------------------
@@ -99,7 +99,7 @@ return [
     |
     */
 
-    'soft_delete' => env('SCOUT_SOFT_DELETE', false),
+    'soft_delete' => (bool) env('SCOUT_SOFT_DELETE', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -158,8 +158,8 @@ return [
 
         // HTTP retries on connection errors and 5xx/429 responses, with exponential
         // backoff starting at initial_retry_delay_ms. Set retries to 0 to disable.
-        'retries' => env('MEILISEARCH_RETRIES', 3),
-        'initial_retry_delay_ms' => env('MEILISEARCH_INITIAL_RETRY_DELAY_MS', 100),
+        'retries' => (int) env('MEILISEARCH_RETRIES', 3),
+        'initial_retry_delay_ms' => (int) env('MEILISEARCH_INITIAL_RETRY_DELAY_MS', 100),
 
         'index-settings' => [
             // Per-index settings can be defined here:

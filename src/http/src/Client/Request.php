@@ -8,6 +8,7 @@ use ArrayAccess;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Macroable;
+use Hypervel\Support\Uri;
 use LogicException;
 use Psr\Http\Message\RequestInterface;
 
@@ -46,6 +47,14 @@ class Request implements ArrayAccess
     public function url(): string
     {
         return (string) $this->request->getUri();
+    }
+
+    /**
+     * Get the request URI as a URI instance.
+     */
+    public function uri(): Uri
+    {
+        return Uri::of($this->url());
     }
 
     /**

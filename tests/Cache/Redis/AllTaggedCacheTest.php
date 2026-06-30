@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis;
 
 use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\NullSentinel;
+use Hypervel\Cache\Redis\AllTaggedCache;
+use Hypervel\Cache\Redis\AllTagSet;
 use Hypervel\Contracts\Events\Dispatcher;
 use Mockery as m;
 use RuntimeException;
@@ -28,7 +32,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $key = sha1('_all:tag:people:entries|_all:tag:author:entries') . ':name';
+        $key = hash('xxh128', '_all:tag:people:entries|_all:tag:author:entries') . ':name';
 
         // Combined operation: ZADD for both tags + SET (forever uses score -1)
         $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:people:entries', -1, $key)->andReturn($connection);
@@ -51,7 +55,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $key = sha1('_all:tag:people:entries|_all:tag:author:entries') . ':age';
+        $key = hash('xxh128', '_all:tag:people:entries|_all:tag:author:entries') . ':age';
 
         // Numeric values are NOT serialized (optimization)
         $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:people:entries', -1, $key)->andReturn($connection);
@@ -74,7 +78,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $key = sha1('_all:tag:votes:entries') . ':person-1';
+        $key = hash('xxh128', '_all:tag:votes:entries') . ':person-1';
 
         // Combined operation: ZADD NX + INCRBY in single pipeline
         $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:votes:entries', ['NX'], -1, $key)->andReturn($connection);
@@ -96,7 +100,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $key = sha1('_all:tag:votes:entries') . ':person-1';
+        $key = hash('xxh128', '_all:tag:votes:entries') . ':person-1';
 
         // Combined operation: ZADD NX + DECRBY in single pipeline
         $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:votes:entries', ['NX'], -1, $key)->andReturn($connection);
@@ -138,7 +142,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $key = sha1('_all:tag:people:entries|_all:tag:author:entries') . ':name';
+        $key = hash('xxh128', '_all:tag:people:entries|_all:tag:author:entries') . ':name';
         $expectedScore = now()->timestamp + 5;
 
         // Combined operation: ZADD for both tags + SETEX in single pipeline
@@ -162,7 +166,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $key = sha1('_all:tag:people:entries|_all:tag:author:entries') . ':age';
+        $key = hash('xxh128', '_all:tag:people:entries|_all:tag:author:entries') . ':age';
         $expectedScore = now()->timestamp + 5;
 
         // Numeric values are NOT serialized
@@ -186,7 +190,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $namespace = sha1('_all:tag:people:entries|_all:tag:author:entries') . ':';
+        $namespace = hash('xxh128', '_all:tag:people:entries|_all:tag:author:entries') . ':';
         $expectedScore = now()->timestamp + 5;
 
         // PutMany uses variadic ZADD: one command per tag with all keys as members
@@ -216,6 +220,83 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         ], 5);
 
         $this->assertTrue($result);
+    }
+
+    public function testManyUsesSingleMgetWithCachedTagPrefix(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+
+        $namespace = '_all:tag:people:entries|_all:tag:author:entries';
+        $prefix = hash('xxh128', $namespace) . ':';
+
+        $connection->shouldReceive('mget')
+            ->once()
+            ->with([
+                "prefix:{$prefix}name",
+                "prefix:{$prefix}age",
+                "prefix:{$prefix}missing",
+            ])
+            ->andReturn([
+                serialize('Sally'),
+                '30',
+                null,
+            ]);
+
+        $tags = m::mock(AllTagSet::class, [$store, ['people', 'author']])->makePartial();
+        $tags->shouldReceive('getNamespace')->once()->andReturn($namespace);
+
+        $result = (new AllTaggedCache($store, $tags))->many([
+            'name' => 'unused',
+            'age',
+            'missing' => 'fallback',
+        ]);
+
+        $this->assertSame([
+            'name' => 'Sally',
+            'age' => '30',
+            'missing' => 'fallback',
+        ], $result);
+    }
+
+    public function testManyFiresTaggedManyEvents(): void
+    {
+        $connection = $this->mockConnection();
+        $key = hash('xxh128', '_all:tag:users:entries') . ':';
+        $events = [];
+
+        $connection->shouldReceive('mget')
+            ->once()
+            ->with(["prefix:{$key}profile", "prefix:{$key}missing"])
+            ->andReturn([serialize('cached'), null]);
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('hasListeners')->withAnyArgs()->andReturnTrue();
+        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function (object $event) use (&$events): void {
+            $events[] = $event;
+        });
+
+        $tagged = $this->createStore($connection)->tags(['users']);
+        $tagged->setEventDispatcher($dispatcher);
+
+        $this->assertSame([
+            'profile' => 'cached',
+            'missing' => null,
+        ], $tagged->many(['profile', 'missing']));
+
+        $this->assertCount(3, $events);
+        $this->assertInstanceOf(RetrievingManyKeys::class, $events[0]);
+        $this->assertSame(['profile', 'missing'], $events[0]->keys);
+        $this->assertSame(['users'], $events[0]->tags);
+
+        $this->assertInstanceOf(CacheHit::class, $events[1]);
+        $this->assertSame('profile', $events[1]->key);
+        $this->assertSame('cached', $events[1]->value);
+        $this->assertSame(['users'], $events[1]->tags);
+
+        $this->assertInstanceOf(CacheMissed::class, $events[2]);
+        $this->assertSame('missing', $events[2]->key);
+        $this->assertSame(['users'], $events[2]->tags);
     }
 
     /**
@@ -266,7 +347,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $key = sha1('_all:tag:users:entries') . ':name';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
         // Null TTL should call forever (ZADD with -1 + SET)
         $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', -1, $key)->andReturn($connection);
@@ -286,7 +367,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = sha1('_all:tag:users:entries') . ':name';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
 
         // Zero TTL should delete the key (Forget operation uses connection)
         $connection->shouldReceive('del')
@@ -309,7 +390,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $key = sha1('_all:tag:counters:entries') . ':hits';
+        $key = hash('xxh128', '_all:tag:counters:entries') . ':hits';
 
         $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:counters:entries', ['NX'], -1, $key)->andReturn($connection);
         $connection->shouldReceive('incrby')->once()->with("prefix:{$key}", 5)->andReturn($connection);
@@ -330,7 +411,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $key = sha1('_all:tag:counters:entries') . ':stock';
+        $key = hash('xxh128', '_all:tag:counters:entries') . ':stock';
 
         $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:counters:entries', ['NX'], -1, $key)->andReturn($connection);
         $connection->shouldReceive('decrby')->once()->with("prefix:{$key}", 3)->andReturn($connection);
@@ -349,7 +430,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = sha1('_all:tag:users:entries') . ':profile';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
 
         // Remember operation uses connection->get() directly
         $connection->shouldReceive('get')
@@ -370,7 +451,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = sha1('_all:tag:users:entries') . ':profile';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
         $expectedScore = now()->timestamp + 60;
 
         // Cache miss
@@ -404,7 +485,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = sha1('_all:tag:users:entries') . ':data';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':data';
 
         $connection->shouldReceive('get')
             ->once()
@@ -426,7 +507,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testRememberNullableStoresAndReturnsNonNullValue(): void
     {
         $connection = $this->mockConnection();
-        $key = sha1('_all:tag:users:entries') . ':profile';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
         $expectedScore = now()->timestamp + 60;
 
         $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
@@ -444,7 +525,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testRememberNullableStoresSentinelWhenCallbackReturnsNull(): void
     {
         $connection = $this->mockConnection();
-        $key = sha1('_all:tag:users:entries') . ':profile';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
         $expectedScore = now()->timestamp + 60;
 
         $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
@@ -469,7 +550,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testRememberNullableReturnsNullOnSentinelHitWithoutInvokingCallback(): void
     {
         $connection = $this->mockConnection();
-        $key = sha1('_all:tag:users:entries') . ':profile';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
 
         $connection->shouldReceive('get')
             ->once()
@@ -490,7 +571,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testRememberNullableFiresCacheHitWithNullPayloadOnSentinelHit(): void
     {
         $connection = $this->mockConnection();
-        $key = sha1('_all:tag:users:entries') . ':profile';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
 
         $connection->shouldReceive('get')
             ->once()
@@ -520,7 +601,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testRememberNullableFiresKeyWrittenWithNullPayloadOnCacheMiss(): void
     {
         $connection = $this->mockConnection();
-        $key = sha1('_all:tag:users:entries') . ':profile';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
         $expectedScore = now()->timestamp + 60;
 
         $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
@@ -556,7 +637,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testPlainRememberUnwrapsSentinelOnCachedNullHit(): void
     {
         $connection = $this->mockConnection();
-        $key = sha1('_all:tag:users:entries') . ':profile';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
 
         $connection->shouldReceive('get')
             ->once()
@@ -581,7 +662,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = sha1('_all:tag:config:entries') . ':settings';
+        $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
 
         $connection->shouldReceive('get')
             ->once()
@@ -601,7 +682,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = sha1('_all:tag:config:entries') . ':settings';
+        $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
 
         // Cache miss
         $connection->shouldReceive('get')
@@ -624,7 +705,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testRememberForeverNullableStoresSentinelWhenCallbackReturnsNull(): void
     {
         $connection = $this->mockConnection();
-        $key = sha1('_all:tag:config:entries') . ':settings';
+        $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
 
         $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
@@ -647,7 +728,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testSearNullableDelegatesToRememberForeverNullable(): void
     {
         $connection = $this->mockConnection();
-        $key = sha1('_all:tag:config:entries') . ':settings';
+        $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
 
         $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
@@ -673,7 +754,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testPlainRememberForeverUnwrapsSentinelOnCachedNullHit(): void
     {
         $connection = $this->mockConnection();
-        $key = sha1('_all:tag:config:entries') . ':settings';
+        $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
 
         $connection->shouldReceive('get')
             ->once()
@@ -698,7 +779,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = sha1('_all:tag:users:entries') . ':data';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':data';
 
         $connection->shouldReceive('get')
             ->once()
@@ -721,7 +802,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = sha1('_all:tag:config:entries') . ':data';
+        $key = hash('xxh128', '_all:tag:config:entries') . ':data';
 
         $connection->shouldReceive('get')
             ->once()
@@ -744,7 +825,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = sha1('_all:tag:users:entries|_all:tag:posts:entries') . ':activity';
+        $key = hash('xxh128', '_all:tag:users:entries|_all:tag:posts:entries') . ':activity';
         $expectedScore = now()->timestamp + 120;
 
         // Cache miss
@@ -769,8 +850,8 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     public function testFlexibleNullableReturnsNullOnFreshSentinelHit(): void
     {
         $connection = $this->mockConnection();
-        $valueKey = sha1('_all:tag:posts:entries') . ':digest';
-        $markerKey = sha1('_all:tag:posts:entries') . ':hypervel:cache:flexible:created:digest';
+        $valueKey = hash('xxh128', '_all:tag:posts:entries') . ':digest';
+        $markerKey = hash('xxh128', '_all:tag:posts:entries') . ':hypervel:cache:flexible:created:digest';
         $now = now()->timestamp;
 
         // flexible() reads both keys via a single manyRaw() → store->many() → MGET.

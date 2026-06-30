@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Hypervel\Cache\SwooleStore;
-use Hypervel\Support\Str;
 
 return [
     /*
@@ -28,8 +27,8 @@ return [
     | well as their drivers. You may even define multiple stores for the
     | same cache driver to group types of items stored in your caches.
     |
-    | Supported drivers: "array", "database", "file", "redis",
-    |                    "swoole", "stack", "session",
+    | Supported drivers: "array", "worker-array", "database", "file",
+    |                    "redis", "swoole", "stack", "session",
     |                    "failover", "null"
     |
     */
@@ -37,6 +36,11 @@ return [
     'stores' => [
         'array' => [
             'driver' => 'array',
+            'serialize' => false,
+        ],
+
+        'worker-array' => [
+            'driver' => 'worker-array',
             'serialize' => false,
         ],
 
@@ -121,5 +125,5 @@ return [
     |
     */
 
-    'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'hypervel')) . '-cache-'),
+    'prefix' => env('CACHE_PREFIX', app_id() . '_cache:'),
 ];

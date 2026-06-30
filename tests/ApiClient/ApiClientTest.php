@@ -18,11 +18,11 @@ class ApiClientTest extends TestCase
         Http::preventStrayRequests();
 
         Http::fake([
-            'test-endpoint' => Http::response('{"success": true}'),
+            'https://example.test/test-endpoint' => Http::response('{"success": true}'),
         ]);
 
         $client = new ApiClient;
-        $response = $client->post('test-endpoint', ['foo' => 'bar']);
+        $response = $client->post('https://example.test/test-endpoint', ['foo' => 'bar']);
 
         $this->assertInstanceOf(ApiResource::class, $response);
         $this->assertInstanceOf(Response::class, $response->getResponse());
@@ -42,14 +42,14 @@ class ApiClientTest extends TestCase
         Http::preventStrayRequests();
 
         Http::fake([
-            'test-endpoint' => Http::response('{"success": true}'),
+            'https://example.test/test-endpoint' => Http::response('{"success": true}'),
         ]);
 
         $client = new ApiClient;
         $response = $client
             ->withToken('test-token')
             ->asForm()
-            ->post('test-endpoint', ['foo' => 'bar']);
+            ->post('https://example.test/test-endpoint', ['foo' => 'bar']);
 
         $this->assertInstanceOf(ApiResource::class, $response);
         $this->assertInstanceOf(Response::class, $response->getResponse());

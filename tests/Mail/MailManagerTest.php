@@ -7,11 +7,13 @@ namespace Hypervel\Tests\Mail;
 use Hypervel\Contracts\View\Factory as ViewFactory;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\TransportPoolProxy;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use Symfony\Component\Mailer\Bridge\Postmark\Transport\PostmarkApiTransport;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 
 class MailManagerTest extends TestCase
@@ -159,6 +161,22 @@ class MailManagerTest extends TestCase
         $this->assertSame(5876, $transport->getStream()->getPort());
     }
 
+    public function testSmtpTransportUsesSecureSchemeWhenPortIsConfiguredAsString(): void
+    {
+        $transport = (new MailManager($this->app))
+            ->createSymfonyTransport([
+                'transport' => 'smtp',
+                'host' => '127.0.0.2',
+                'port' => '465',
+                'username' => null,
+                'password' => null,
+            ]);
+
+        $this->assertInstanceOf(EsmtpTransport::class, $transport);
+        $this->assertSame(465, $transport->getStream()->getPort());
+        $this->assertTrue($transport->getStream()->isTLS());
+    }
+
     public function testPoolableMailUrlConfig()
     {
         $this->app->make('config')
@@ -171,6 +189,31 @@ class MailManagerTest extends TestCase
             ->getSymfonyTransport(); // @phpstan-ignore-line
 
         $this->assertInstanceOf(TransportPoolProxy::class, $transport);
+    }
+
+    public function testPostmarkTransportCanBeCreatedDirectly(): void
+    {
+        $transport = (new MailManager($this->app))
+            ->createSymfonyTransport([
+                'transport' => 'postmark',
+                'key' => 'postmark-key',
+            ]);
+
+        $this->assertInstanceOf(PostmarkApiTransport::class, $transport);
+        $this->assertSame('postmark-key', (new ClassInvoker($transport))->key);
+    }
+
+    public function testPostmarkTransportAcceptsTokenConfiguration(): void
+    {
+        $transport = (new MailManager($this->app))
+            ->createSymfonyTransport([
+                'transport' => 'postmark',
+                'token' => 'postmark-token',
+                'key' => 'postmark-key',
+            ]);
+
+        $this->assertInstanceOf(PostmarkApiTransport::class, $transport);
+        $this->assertSame('postmark-token', (new ClassInvoker($transport))->key);
     }
 
     #[DataProvider('poolableTransportDataProvider')]
@@ -203,6 +246,7 @@ class MailManagerTest extends TestCase
             ['ses-v2'],
             ['postmark'],
             ['resend'],
+            ['cloudflare'],
             ['failover'],
             ['roundrobin'],
         ];

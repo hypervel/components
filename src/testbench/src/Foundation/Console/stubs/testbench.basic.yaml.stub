@@ -1,0 +1,12 @@
+providers:
+  - {{ WorkbenchServiceProvider }}
+
+migrations:
+  - workbench/database/migrations
+
+seeders:
+  - {{ WorkbenchDatabaseSeeder }}
+
+workbench:
+  install: true
+  auth: true

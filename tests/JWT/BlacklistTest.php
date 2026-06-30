@@ -33,7 +33,7 @@ class BlacklistTest extends TestCase
         $this->blacklist = new Blacklist($this->storage);
     }
 
-    public function testAddAValidTokenToTheBlacklist()
+    public function testAddAValidTokenToTheBlacklist(): void
     {
         $payload = [
             'sub' => 1,
@@ -58,7 +58,7 @@ class BlacklistTest extends TestCase
         $this->blacklist->setRefreshTTL($refreshTTL)->add($payload);
     }
 
-    public function testAddATokenWithNoExpToTheBlacklistForever()
+    public function testAddATokenWithNoExpToTheBlacklistForever(): void
     {
         $payload = [
             'sub' => 1,
@@ -73,7 +73,7 @@ class BlacklistTest extends TestCase
         $this->blacklist->add($payload);
     }
 
-    public function testReturnTrueWhenAddingAnExpiredTokenToTheBlacklist()
+    public function testReturnTrueWhenAddingAnExpiredTokenToTheBlacklist(): void
     {
         $payload = [
             'sub' => 1,
@@ -98,7 +98,7 @@ class BlacklistTest extends TestCase
         $this->assertTrue($this->blacklist->setRefreshTTL($refreshTTL)->add($payload));
     }
 
-    public function testReturnTrueEarlyWhenAddingAnItemAndItAlreadyExists()
+    public function testReturnTrueEarlyWhenAddingAnItemAndItAlreadyExists(): void
     {
         $payload = [
             'sub' => 1,
@@ -123,7 +123,33 @@ class BlacklistTest extends TestCase
         $this->assertTrue($this->blacklist->setRefreshTTL($refreshTTL)->add($payload));
     }
 
-    public function testCheckWhetherATokenHasBeenBlacklisted()
+    public function testBlacklistTtlRoundsFractionalMinutesUp(): void
+    {
+        Carbon::setTestNow('2000-01-01T00:00:00.500000Z');
+
+        $nowTimestamp = Carbon::now()->timestamp;
+        $payload = [
+            'sub' => 1,
+            'iss' => 'http://example.com',
+            'exp' => $nowTimestamp + 60,
+            'nbf' => $nowTimestamp,
+            'iat' => $nowTimestamp,
+            'jti' => 'foo',
+        ];
+
+        $this->storage->shouldReceive('get')
+            ->with('foo')
+            ->once()
+            ->andReturn([]);
+
+        $this->storage->shouldReceive('add')
+            ->with('foo', ['valid_until' => $nowTimestamp], 2)
+            ->once();
+
+        $this->blacklist->setRefreshTTL(0)->add($payload);
+    }
+
+    public function testCheckWhetherATokenHasBeenBlacklisted(): void
     {
         $payload = [
             'sub' => 1,
@@ -140,7 +166,7 @@ class BlacklistTest extends TestCase
     }
 
     #[DataProvider('blacklistProvider')]
-    public function testCheckWhetherATokenHasNotBeenBlacklisted($result)
+    public function testCheckWhetherATokenHasNotBeenBlacklisted($result): void
     {
         $payload = [
             'sub' => 1,
@@ -167,7 +193,7 @@ class BlacklistTest extends TestCase
         ];
     }
 
-    public function testCheckWhetherATokenHasBeenBlacklistedForever()
+    public function testCheckWhetherATokenHasBeenBlacklistedForever(): void
     {
         $payload = [
             'sub' => 1,
@@ -183,7 +209,7 @@ class BlacklistTest extends TestCase
         $this->assertTrue($this->blacklist->has($payload));
     }
 
-    public function testCheckWhetherATokenHasBeenBlacklistedWhenTheTokenIsNotBlacklisted()
+    public function testCheckWhetherATokenHasBeenBlacklistedWhenTheTokenIsNotBlacklisted(): void
     {
         $payload = [
             'sub' => 1,
@@ -199,7 +225,7 @@ class BlacklistTest extends TestCase
         $this->assertFalse($this->blacklist->has($payload));
     }
 
-    public function testRemoveATokenFromTheBlacklist()
+    public function testRemoveATokenFromTheBlacklist(): void
     {
         $payload = [
             'sub' => 1,
@@ -215,7 +241,7 @@ class BlacklistTest extends TestCase
         $this->assertTrue($this->blacklist->remove($payload));
     }
 
-    public function testSetACustomUniqueKeyForTheBlacklist()
+    public function testSetACustomUniqueKeyForTheBlacklist(): void
     {
         $payload = [
             'sub' => '1',
@@ -232,28 +258,28 @@ class BlacklistTest extends TestCase
         $this->assertSame('1', $this->blacklist->getKey($payload));
     }
 
-    public function testEmptyTheBlacklist()
+    public function testEmptyTheBlacklist(): void
     {
         $this->storage->shouldReceive('flush');
 
         $this->assertTrue($this->blacklist->clear());
     }
 
-    public function testSetAndGetTheBlacklistGracePeriod()
+    public function testSetAndGetTheBlacklistGracePeriod(): void
     {
         $this->assertInstanceOf(Blacklist::class, $this->blacklist->setGracePeriod(15));
 
         $this->assertSame(15, $this->blacklist->getGracePeriod());
     }
 
-    public function testSetAndGetTheBlacklistRefreshTTL()
+    public function testSetAndGetTheBlacklistRefreshTTL(): void
     {
         $this->assertInstanceOf(Blacklist::class, $this->blacklist->setRefreshTTL(15));
 
         $this->assertSame(15, $this->blacklist->getRefreshTTL());
     }
 
-    public function testKeyNotExistsInPayload()
+    public function testKeyNotExistsInPayload(): void
     {
         $this->expectException(TokenInvalidException::class);
         $this->expectExceptionMessage('Claim `jti` is missing in payload for blacklist');

@@ -108,6 +108,20 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->push(new BackgroundQueueAfterCommitUniqueJob));
     }
 
+    public function testItAddsATransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
+    {
+        $background = new BackgroundQueue;
+        $background->setConnectionName('background');
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+
+        $background->setContainer($container);
+        run(fn () => $background->push(new BackgroundQueueAfterCommitDebouncedJob));
+    }
+
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
     {
         $background = new BackgroundQueue;
@@ -260,6 +274,29 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setContainer($container);
 
         run(fn () => $background->later(5, new BackgroundQueueAfterCommitUniqueJob));
+    }
+
+    public function testLaterAddsTransactionRollbackCallbackForAfterCommitDebouncedJobs(): void
+    {
+        $timer = m::mock(Timer::class);
+        $timer->shouldReceive('after')->once()->with(5.0, m::type('Closure'))->andReturn(1);
+
+        $background = new BackgroundQueue(timer: $timer);
+        $background->setConnectionName('background');
+
+        $container = $this->getContainer();
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
+        $transactionManager->shouldReceive('addCallback')
+            ->once()
+            ->andReturnUsing(function ($callback) {
+                $callback();
+                return null;
+            });
+        $transactionManager->shouldReceive('addCallbackForRollback')->once()->andReturn(null);
+        $container->instance('db.transactions', $transactionManager);
+        $background->setContainer($container);
+
+        run(fn () => $background->later(5, new BackgroundQueueAfterCommitDebouncedJob));
     }
 
     public function testLaterAddsTransactionCallbackForInterfaceBasedAfterCommitUniqueJobs()
@@ -438,6 +475,19 @@ class BackgroundQueueAfterCommitUniqueJob implements ShouldBeUnique
     use InteractsWithQueue;
 
     public $afterCommit = true;
+
+    public function handle(): void
+    {
+    }
+}
+
+class BackgroundQueueAfterCommitDebouncedJob
+{
+    use InteractsWithQueue;
+
+    public bool $afterCommit = true;
+
+    public string $debounceOwner = 'owner-token';
 
     public function handle(): void
     {

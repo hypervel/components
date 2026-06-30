@@ -38,7 +38,7 @@ trait TestViews
      */
     protected function parallelSafeCompiledViewPath(): ?string
     {
-        $path = $this->app['config']->get('view.compiled', '');
+        $path = $this->app->make('config')->string('view.compiled', '');
 
         if (! $path) {
             return null;

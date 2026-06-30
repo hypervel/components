@@ -49,8 +49,8 @@ class GuzzleHttpClientAspect extends AbstractAspect
     public function __construct(
         private readonly \Hypervel\Contracts\Config\Repository $config,
     ) {
-        $this->tracingEnabled = $this->config->get('sentry.tracing.http_client_requests', true) === true;
-        $this->breadcrumbsEnabled = $this->config->get('sentry.breadcrumbs.http_client_requests', true) === true;
+        $this->tracingEnabled = $this->config->boolean('sentry.tracing.http_client_requests', true);
+        $this->breadcrumbsEnabled = $this->config->boolean('sentry.breadcrumbs.http_client_requests', true);
     }
 
     /**

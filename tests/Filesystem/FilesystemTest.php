@@ -627,13 +627,14 @@ class FilesystemTest extends TestCase
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $filesystem = new Filesystem;
-        $this->assertSame('acbd18db4cc2f85cedef654fccc4a4d8', $filesystem->hash($this->tempDir . '/foo.txt'));
+        $this->assertSame('79aef92e83454121ab6e5f64077e7d8a', $filesystem->hash($this->tempDir . '/foo.txt'));
     }
 
     public function testHash()
     {
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $filesystem = new Filesystem;
+        $this->assertSame('acbd18db4cc2f85cedef654fccc4a4d8', $filesystem->hash($this->tempDir . '/foo.txt', 'md5'));
         $this->assertSame('0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33', $filesystem->hash($this->tempDir . '/foo.txt', 'sha1'));
         $this->assertSame('76d3bc41c9f588f7fcd0d5bf4718f8f84b1c41b20882703100b9eb9413807c01', $filesystem->hash($this->tempDir . '/foo.txt', 'sha3-256'));
     }

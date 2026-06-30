@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testing;
 
 use Hypervel\Support\AggregateServiceProvider;
+use Hypervel\Testing\Console\TestCommand;
 
 class TestingServiceProvider extends AggregateServiceProvider
 {
@@ -16,4 +17,16 @@ class TestingServiceProvider extends AggregateServiceProvider
     protected array $providers = [
         ParallelTestingServiceProvider::class,
     ];
+
+    /**
+     * Bootstrap testing services.
+     */
+    public function boot(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                TestCommand::class,
+            ]);
+        }
+    }
 }

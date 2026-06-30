@@ -34,7 +34,7 @@ class ServerProviderManager extends Manager
     {
         return new HypervelServerProvider(
             $this->container,
-            $this->config->get('reverb.servers.reverb', [])
+            $this->config->array('reverb.servers.reverb', [])
         );
     }
 
@@ -43,6 +43,6 @@ class ServerProviderManager extends Manager
      */
     public function getDefaultDriver(): string
     {
-        return $this->config->get('reverb.default', 'reverb');
+        return $this->config->string('reverb.default', 'reverb');
     }
 }

@@ -4,11 +4,27 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use BackedEnum;
+use DateInterval;
+use DateTimeInterface;
+use Hypervel\Contracts\Routing\UrlGenerator;
+use Hypervel\Support\Stringable as HypervelStringable;
 use Hypervel\Support\Uri;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class SupportUriTest extends TestCase
 {
+    public function testCanBuildSpecialUrls(): void
+    {
+        Uri::setUrlGeneratorResolver(fn () => new CustomUrlGeneratorResolver);
+
+        $this->assertSame('https://hypervel.org/to', Uri::to('')->value());
+        $this->assertSame('https://hypervel.org/route', Uri::route('')->value());
+        $this->assertSame('https://hypervel.org/signed-route', Uri::signedRoute('')->value());
+        $this->assertSame('https://hypervel.org/signed-route', Uri::temporarySignedRoute('', 60)->value());
+        $this->assertSame('https://hypervel.org/action', Uri::action('')->value());
+    }
+
     public function testBasicUriInteractions(): void
     {
         $uri = Uri::of($originalUri = 'https://hypervel.org/docs/installation');
@@ -32,6 +48,41 @@ class SupportUriTest extends TestCase
         $this->assertEquals('hello', $uri->fragment());
         $this->assertEquals(['version' => 1], $uri->query()->all());
         $this->assertEquals(1, $uri->query()->integer('version'));
+        $this->assertSame('taylor:password@hypervel.org', $uri->authority());
+    }
+
+    public function testIsEmptyAndIsNotEmpty(): void
+    {
+        $this->assertTrue(Uri::of('')->isEmpty());
+        $this->assertFalse(Uri::of('')->isNotEmpty());
+
+        $this->assertFalse(Uri::of('https://hypervel.org')->isEmpty());
+        $this->assertTrue(Uri::of('https://hypervel.org')->isNotEmpty());
+    }
+
+    public function testWithoutFragment(): void
+    {
+        $uri = Uri::of('https://hypervel.org/docs/installation#introduction');
+
+        $this->assertSame('introduction', $uri->fragment());
+
+        $withoutFragment = $uri->withoutFragment();
+
+        $this->assertNull($withoutFragment->fragment());
+        $this->assertSame('https://hypervel.org/docs/installation', $withoutFragment->value());
+
+        // Original URI should be unchanged (immutability).
+        $this->assertSame('introduction', $uri->fragment());
+    }
+
+    public function testWithoutFragmentOnUriWithoutFragment(): void
+    {
+        $uri = Uri::of('https://hypervel.org/docs');
+
+        $withoutFragment = $uri->withoutFragment();
+
+        $this->assertNull($withoutFragment->fragment());
+        $this->assertSame('https://hypervel.org/docs', $withoutFragment->value());
     }
 
     public function testComplicatedQueryStringParsing(): void
@@ -77,7 +128,13 @@ class SupportUriTest extends TestCase
             ->withQuery(['version' => 1])
             ->withFragment('hello');
 
-        $this->assertEquals('https://taylor:password@hypervel.org:80/docs/installation?version=1#hello', (string) $uri);
+        $expected = 'https://taylor:password@hypervel.org:80/docs/installation?version=1#hello';
+
+        $this->assertEquals($expected, (string) $uri);
+        $this->assertEquals($expected, $uri->value());
+        $this->assertEquals($expected, $uri->toString());
+        $this->assertInstanceOf(HypervelStringable::class, $uri->toStringable());
+        $this->assertSame($expected, $uri->toStringable()->toString());
     }
 
     public function testComplicatedQueryStringManipulation(): void
@@ -127,6 +184,13 @@ class SupportUriTest extends TestCase
         $uri = Uri::of('https://hypervel.org/docs/11.x/installation')->withQuery(['tags' => ['first', 'second']]);
 
         $this->assertEquals('https://hypervel.org/docs/11.x/installation?tags[0]=first&tags[1]=second', $uri->decode());
+    }
+
+    public function testDecodingTheEntireUriPreservesTheFragment(): void
+    {
+        $uri = Uri::of('https://hypervel.org/docs/11.x/routing?q=hypervel%20docs#route-model-binding');
+
+        $this->assertSame('https://hypervel.org/docs/11.x/routing?q=hypervel docs#route-model-binding', $uri->decode());
     }
 
     public function testWithQueryIfMissing(): void
@@ -232,5 +296,68 @@ class SupportUriTest extends TestCase
         $uri = new Uri('https://hypervel.org/');
 
         $this->assertSame('https://hypervel.org/foobar', (string) $uri->myMacro());
+    }
+}
+
+class CustomUrlGeneratorResolver implements UrlGenerator
+{
+    public function current(): string
+    {
+        return 'https://hypervel.org/current';
+    }
+
+    public function previous(bool|string $fallback = false): string
+    {
+        return 'https://hypervel.org/previous';
+    }
+
+    public function to(string $path, array|string $extra = [], ?bool $secure = null): string
+    {
+        return 'https://hypervel.org/to';
+    }
+
+    public function secure(string $path, array $parameters = []): string
+    {
+        return 'https://hypervel.org/secure';
+    }
+
+    public function asset(string $path, ?bool $secure = null): string
+    {
+        return 'https://hypervel.org/asset';
+    }
+
+    public function route(BackedEnum|string $name, mixed $parameters = [], bool $absolute = true): string
+    {
+        return 'https://hypervel.org/route';
+    }
+
+    public function signedRoute(BackedEnum|string $name, mixed $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, bool $absolute = true): string
+    {
+        return 'https://hypervel.org/signed-route';
+    }
+
+    public function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int $expiration, array $parameters = [], bool $absolute = true): string
+    {
+        return 'https://hypervel.org/temporary-signed-route';
+    }
+
+    public function query(string $path, array $query = [], array|string $extra = [], ?bool $secure = null): string
+    {
+        return 'https://hypervel.org/query';
+    }
+
+    public function action(array|string $action, array|string $parameters = [], bool $absolute = true): string
+    {
+        return 'https://hypervel.org/action';
+    }
+
+    public function getRootControllerNamespace(): ?string
+    {
+        return 'App\Http\Controllers';
+    }
+
+    public function setRootControllerNamespace(string $rootNamespace): static
+    {
+        return $this;
     }
 }

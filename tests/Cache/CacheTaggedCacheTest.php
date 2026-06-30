@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Cache;
 
 use DateInterval;
 use DateTime;
+use DateTimeImmutable;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Tests\TestCase;
@@ -47,6 +48,32 @@ class CacheTaggedCacheTest extends TestCase
         $duration->add(new DateInterval('PT10M'));
         $store->tags($tags)->put('foo', 'bar', $duration);
         $this->assertSame('bar', $store->tags($tags)->get('foo'));
+    }
+
+    public function testPutManyAcceptsDateIntervalTtl(): void
+    {
+        $store = new ArrayStore;
+
+        $store->tags(['bop', 'zap'])->putMany([
+            'foo' => 'bar',
+            'baz' => 'qux',
+        ], new DateInterval('PT10M'));
+
+        $this->assertSame('bar', $store->tags(['bop', 'zap'])->get('foo'));
+        $this->assertSame('qux', $store->tags(['bop', 'zap'])->get('baz'));
+    }
+
+    public function testPutManyAcceptsDateTimeInterfaceTtl(): void
+    {
+        $store = new ArrayStore;
+
+        $store->tags(['bop', 'zap'])->putMany([
+            'foo' => 'bar',
+            'baz' => 'qux',
+        ], (new DateTimeImmutable)->add(new DateInterval('PT10M')));
+
+        $this->assertSame('bar', $store->tags(['bop', 'zap'])->get('foo'));
+        $this->assertSame('qux', $store->tags(['bop', 'zap'])->get('baz'));
     }
 
     public function testCacheSavedWithMultipleTagsCanBeFlushed()

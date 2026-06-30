@@ -8,6 +8,7 @@ use __PHP_Incomplete_Class;
 use Exception;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
+use Hypervel\Bus\DebounceLock;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
@@ -21,11 +22,17 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Pipeline\Pipeline;
+use Hypervel\Queue\Events\JobDebounced;
 use RuntimeException;
 use Throwable;
 
 class CallQueuedHandler
 {
+    /**
+     * The command currently being processed.
+     */
+    protected mixed $runningCommand = null;
+
     /**
      * Create a new handler instance.
      */
@@ -50,7 +57,19 @@ class CallQueuedHandler
             return;
         }
 
-        $this->dispatchThroughMiddleware($job, $command);
+        if ($this->commandShouldBeDebounced($command)) {
+            $this->deleteDebouncedJob($job, $command);
+
+            return;
+        }
+
+        $this->runningCommand = $command;
+
+        try {
+            $this->dispatchThroughMiddleware($job, $command);
+        } finally {
+            $this->runningCommand = null;
+        }
 
         if (! $job->isReleased() && ! $this->commandShouldBeUniqueUntilProcessing($command)) {
             $this->ensureUniqueJobLockIsReleased($command);
@@ -101,12 +120,12 @@ class CallQueuedHandler
             ->send($command)
             ->through(array_merge(method_exists($command, 'middleware') ? $command->middleware() : [], $command->middleware ?? []))
             ->finally(function ($command) use (&$lockReleased) {
-                if (! $lockReleased && $this->commandShouldBeUniqueUntilProcessing($command) && ! $command->job->isReleased()) { /* @phpstan-ignore booleanNot.alwaysTrue ($lockReleased is set in then() which runs before finally()) */
+                if (! $lockReleased && $this->commandShouldBeUniqueUntilProcessing($command) && ! $command->job->isReleased() && $command->job->attempts() <= 1) { /* @phpstan-ignore booleanNot.alwaysTrue ($lockReleased is set in then() which runs before finally()) */
                     $this->ensureUniqueJobLockIsReleased($command);
                 }
             })
             ->then(function ($command) use ($job, &$lockReleased) {
-                if ($this->commandShouldBeUniqueUntilProcessing($command)) {
+                if ($this->commandShouldBeUniqueUntilProcessing($command) && $job->attempts() <= 1) {
                     $this->ensureUniqueJobLockIsReleased($command);
 
                     $lockReleased = true;
@@ -181,6 +200,40 @@ class CallQueuedHandler
         if ($this->commandShouldBeUnique($command)) {
             (new UniqueLock($this->container->make(Cache::class)))->release($command);
         }
+    }
+
+    /**
+     * Determine if the debounced command was superseded by a newer dispatch.
+     */
+    protected function commandShouldBeDebounced(mixed $command): bool
+    {
+        $owner = $command->debounceOwner ?? '';
+
+        if ($owner === '') {
+            return false;
+        }
+
+        $lock = new DebounceLock($this->container->make(Cache::class));
+
+        if (! $lock->lockExists($command)) {
+            return false;
+        }
+
+        return ! $lock->isCurrentOwner($command, $owner);
+    }
+
+    /**
+     * Handle a debounced job by firing an event and deleting it.
+     */
+    protected function deleteDebouncedJob(Job $job, mixed $command): void
+    {
+        if ($this->container->bound('events')) {
+            $this->container->make('events')->dispatch(
+                new JobDebounced($job->getConnectionName(), $job, $command)
+            );
+        }
+
+        $job->delete();
     }
 
     /**
@@ -325,5 +378,13 @@ class CallQueuedHandler
         if (method_exists($command, 'invokeChainCatchCallbacks')) {
             $command->invokeChainCatchCallbacks($e);
         }
+    }
+
+    /**
+     * Get the command currently being processed.
+     */
+    public function getRunningCommand(): mixed
+    {
+        return $this->runningCommand;
     }
 }

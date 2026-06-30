@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use Hypervel\Support\Str;
-
 return [
     /*
     |--------------------------------------------------------------------------
@@ -34,7 +32,7 @@ return [
 
     'lifetime' => (int) env('SESSION_LIFETIME', 120),
 
-    'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
+    'expire_on_close' => (bool) env('SESSION_EXPIRE_ON_CLOSE', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -47,7 +45,7 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    'encrypt' => (bool) env('SESSION_ENCRYPT', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -127,10 +125,7 @@ return [
     |
     */
 
-    'cookie' => env(
-        'SESSION_COOKIE',
-        Str::slug(env('APP_NAME', 'hypervel'), '_') . '_session'
-    ),
+    'cookie' => env('SESSION_COOKIE', app_id() . '_session'),
 
     /*
     |--------------------------------------------------------------------------

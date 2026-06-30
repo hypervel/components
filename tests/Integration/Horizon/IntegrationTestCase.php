@@ -32,8 +32,6 @@ abstract class IntegrationTestCase extends TestCase
     {
         parent::setUp();
 
-        $this->loadServiceProviders();
-
         $this->beforeApplicationDestroyed(function () {
             WorkerCommandString::flushState();
             SupervisorCommandString::flushState();
@@ -53,7 +51,7 @@ abstract class IntegrationTestCase extends TestCase
         parent::tearDown();
     }
 
-    public function setUpInCoroutine()
+    public function setUpInCoroutine(): void
     {
         $poolFactory = $this->app->make(PoolFactory::class);
 
@@ -66,11 +64,28 @@ abstract class IntegrationTestCase extends TestCase
         });
     }
 
-    protected function loadServiceProviders(): void
+    protected function getPackageProviders(ApplicationContract $app): array
     {
-        $config = $this->app->make('config');
-        $config->set('horizon.middleware', [Authenticate::class]);
+        return [
+            HorizonServiceProvider::class,
+        ];
+    }
+
+    protected function resolveApplicationConfiguration(ApplicationContract $app): void
+    {
+        parent::resolveApplicationConfiguration($app);
+
+        $this->configureHorizonEnvironment($app);
+    }
+
+    protected function configureHorizonEnvironment(ApplicationContract $app): void
+    {
+        $config = $app->make('config');
+
+        // Horizon snapshots these values in register(), before the Redis trait applies its normal worker DB.
+        $config->set('database.redis.default.database', $this->getParallelRedisDb());
         $config->set('horizon.prefix', static::HORIZON_PREFIX);
+        $config->set('horizon.middleware', [Authenticate::class]);
 
         $queueConfig = $this->originalQueueConfig = $config->get('queue', []);
         $queueConfig['default'] = 'redis';
@@ -83,10 +98,6 @@ abstract class IntegrationTestCase extends TestCase
             'after_commit' => false,
         ];
         $config->set('queue', $queueConfig);
-
-        $serviceProvider = new HorizonServiceProvider($this->app);
-        $serviceProvider->register();
-        $serviceProvider->boot();
     }
 
     /**
@@ -152,13 +163,5 @@ abstract class IntegrationTestCase extends TestCase
             $options->sleep = 0;
             $options->maxTries = 1;
         });
-    }
-
-    /**
-     * Configure the environment.
-     */
-    protected function getEnvironmentSetUp(ApplicationContract $app): void
-    {
-        $app['config']->set('queue.default', 'redis');
     }
 }

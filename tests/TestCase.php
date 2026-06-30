@@ -6,14 +6,18 @@ namespace Hypervel\Tests;
 
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Testbench\Concerns\InteractsWithMockery;
 use PHPUnit\Framework\TestCase as BaseTestCase;
 
 class TestCase extends BaseTestCase
 {
+    use InteractsWithMockery;
     use RunTestsInCoroutine;
 
     protected function tearDown(): void
     {
         HandleExceptions::flushState($this);
+
+        $this->tearDownTheTestEnvironmentUsingMockery();
     }
 }

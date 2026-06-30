@@ -14,6 +14,7 @@ use Hypervel\Queue\Middleware\WithoutOverlapping;
 use Hypervel\Queue\Worker;
 use Hypervel\Testbench\TestCase;
 use ReflectionProperty;
+use stdClass;
 
 /**
  * Verify that queue cache keys, payload values, and class aliases match Laravel's
@@ -71,6 +72,27 @@ class LaravelInteropTest extends TestCase
             CallQueuedHandler::class,
             $this->app->make(\Illuminate\Queue\CallQueuedHandler::class)
         );
+    }
+
+    public function testCallQueuedHandlerInteropBindingsResolveFreshInstances(): void
+    {
+        $hypervelHandler = $this->app->make(CallQueuedHandler::class);
+        $anotherHypervelHandler = $this->app->make(CallQueuedHandler::class);
+        $laravelHandler = $this->app->make(\Illuminate\Queue\CallQueuedHandler::class);
+        $anotherLaravelHandler = $this->app->make(\Illuminate\Queue\CallQueuedHandler::class);
+
+        $this->assertNotSame($hypervelHandler, $anotherHypervelHandler);
+        $this->assertNotSame($laravelHandler, $anotherLaravelHandler);
+        $this->assertInstanceOf(CallQueuedHandler::class, $laravelHandler);
+
+        $runningCommand = new stdClass;
+        $property = new ReflectionProperty(CallQueuedHandler::class, 'runningCommand');
+        $property->setValue($hypervelHandler, $runningCommand);
+
+        $this->assertSame($runningCommand, $hypervelHandler->getRunningCommand());
+        $this->assertNull($anotherHypervelHandler->getRunningCommand());
+        $this->assertNull($laravelHandler->getRunningCommand());
+        $this->assertNull($anotherLaravelHandler->getRunningCommand());
     }
 
     public function testModelIdentifierClassAliasIsRegistered()

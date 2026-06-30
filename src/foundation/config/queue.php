@@ -25,7 +25,7 @@ return [
     | by every worker.
     |
     */
-    'concurrency_number' => env('QUEUE_CONCURRENCY_NUMBER', 1),
+    'concurrency_number' => (int) env('QUEUE_CONCURRENCY_NUMBER', 1),
 
     /*
     |--------------------------------------------------------------------------

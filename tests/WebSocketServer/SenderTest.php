@@ -8,16 +8,16 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Tests\TestCase;
 use Hypervel\WebSocketServer\Sender;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 use Swoole\Server;
 
 class SenderTest extends TestCase
 {
-    public function testSenderCheck()
+    public function testSenderCheck(): void
     {
         $container = $this->getContainer();
-        $server = Mockery::mock(Server::class);
+        $server = m::mock(Server::class);
         $server->shouldReceive('connection_info')->once()->andReturn(false);
         $server->shouldReceive('connection_info')->once()->andReturn([]);
         $server->shouldReceive('connection_info')->once()->andReturn(['websocket_status' => WEBSOCKET_STATUS_CLOSING]);
@@ -33,16 +33,13 @@ class SenderTest extends TestCase
 
     // REMOVED: testSenderResult — Tests coroutine-server path (CoroutineServer::class config, setResponse(), direct push via $responses property). All of this code was removed in the Swoole-only simplification of Sender.php.
 
-    public function testSendPipeMessageDoesNotSendToSelfWhenWorkerIdIsNull()
+    public function testSendPipeMessageDoesNotSendToSelfWhenWorkerIdIsNull(): void
     {
         $container = $this->getContainer();
 
-        $server = Mockery::mock(Server::class);
+        $server = m::mock(Server::class);
         // check() returns false — fd not active, triggers sendPipeMessage path
         $server->shouldReceive('connection_info')->andReturn(false);
-        $server->setting = ['worker_num' => 1];
-        // sendMessage should NOT be called — with null workerId and 1 worker,
-        // the only target is worker 0 which would be "self"
         $server->shouldNotReceive('sendMessage');
 
         $container->shouldReceive('make')->with(Server::class)->andReturn($server);
@@ -51,15 +48,15 @@ class SenderTest extends TestCase
         // Do NOT call setWorkerId — simulating the case where InitSenderListener
         // hasn't run yet or missed this instance
 
-        $sender->disconnect(42);
+        $this->assertTrue($sender->disconnect(42));
     }
 
     protected function getContainer(): Container|MockInterface
     {
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
 
         $container->shouldReceive('make')->with(StdoutLoggerInterface::class)->andReturn(
-            Mockery::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing()
+            m::mock(StdoutLoggerInterface::class)->shouldIgnoreMissing()
         );
 
         return $container;

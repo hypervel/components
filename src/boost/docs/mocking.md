@@ -86,7 +86,7 @@ $spy->shouldHaveReceived('process');
 <a name="mocking-facades"></a>
 ## Mocking Facades
 
-Unlike traditional static method calls, [facades](/docs/{{version}}/facades) (including [real-time facades](/docs/{{version}}/facades#real-time-facades)) may be mocked. This provides a great advantage over traditional static methods and grants you the same testability that you would have if you were using traditional dependency injection. When testing, you may often want to mock a call to a Hypervel facade that occurs in one of your controllers. For example, consider the following controller action:
+Unlike traditional static method calls, explicit [facades](/docs/{{version}}/facades) may be mocked. This provides a great advantage over traditional static methods and grants you the same testability that you would have if you were using traditional dependency injection. When testing, you may often want to mock a call to a Hypervel facade that occurs in one of your controllers. For example, consider the following controller action:
 
 ```php
 <?php

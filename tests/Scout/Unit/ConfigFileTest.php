@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
+use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -46,5 +47,104 @@ class ConfigFileTest extends TestCase
 
         $this->assertArrayHasKey('initial_retry_delay_ms', $config['meilisearch']);
         $this->assertSame(100, $config['meilisearch']['initial_retry_delay_ms']);
+    }
+
+    public function testMeilisearchRetryEnvironmentValuesAreLoadedAsIntegers(): void
+    {
+        $retriesKey = 'MEILISEARCH_RETRIES';
+        $delayKey = 'MEILISEARCH_INITIAL_RETRY_DELAY_MS';
+        $originalRetriesPutenv = getenv($retriesKey);
+        $originalDelayPutenv = getenv($delayKey);
+        $originalRetriesServerExists = array_key_exists($retriesKey, $_SERVER);
+        $originalDelayServerExists = array_key_exists($delayKey, $_SERVER);
+        $originalRetriesServer = $_SERVER[$retriesKey] ?? null;
+        $originalDelayServer = $_SERVER[$delayKey] ?? null;
+        $originalRetriesEnvExists = array_key_exists($retriesKey, $_ENV);
+        $originalDelayEnvExists = array_key_exists($delayKey, $_ENV);
+        $originalRetriesEnv = $_ENV[$retriesKey] ?? null;
+        $originalDelayEnv = $_ENV[$delayKey] ?? null;
+
+        try {
+            unset($_SERVER[$retriesKey], $_SERVER[$delayKey], $_ENV[$retriesKey], $_ENV[$delayKey]);
+            putenv("{$retriesKey}=7");
+            putenv("{$delayKey}=250");
+            Env::flushRepository();
+
+            $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
+
+            $this->assertSame(7, $config['meilisearch']['retries']);
+            $this->assertSame(250, $config['meilisearch']['initial_retry_delay_ms']);
+        } finally {
+            $originalRetriesPutenv === false
+                ? putenv($retriesKey)
+                : putenv("{$retriesKey}={$originalRetriesPutenv}");
+            $originalDelayPutenv === false
+                ? putenv($delayKey)
+                : putenv("{$delayKey}={$originalDelayPutenv}");
+
+            if ($originalRetriesServerExists) {
+                $_SERVER[$retriesKey] = $originalRetriesServer;
+            } else {
+                unset($_SERVER[$retriesKey]);
+            }
+
+            if ($originalDelayServerExists) {
+                $_SERVER[$delayKey] = $originalDelayServer;
+            } else {
+                unset($_SERVER[$delayKey]);
+            }
+
+            if ($originalRetriesEnvExists) {
+                $_ENV[$retriesKey] = $originalRetriesEnv;
+            } else {
+                unset($_ENV[$retriesKey]);
+            }
+
+            if ($originalDelayEnvExists) {
+                $_ENV[$delayKey] = $originalDelayEnv;
+            } else {
+                unset($_ENV[$delayKey]);
+            }
+
+            Env::flushRepository();
+        }
+    }
+
+    public function testSoftDeleteEnvironmentValueIsLoadedAsBoolean(): void
+    {
+        $key = 'SCOUT_SOFT_DELETE';
+        $originalPutenv = getenv($key);
+        $originalServerExists = array_key_exists($key, $_SERVER);
+        $originalServer = $_SERVER[$key] ?? null;
+        $originalEnvExists = array_key_exists($key, $_ENV);
+        $originalEnv = $_ENV[$key] ?? null;
+
+        try {
+            unset($_SERVER[$key], $_ENV[$key]);
+            putenv("{$key}=1");
+            Env::flushRepository();
+
+            $config = require dirname(__DIR__, 3) . '/src/scout/config/scout.php';
+
+            $this->assertTrue($config['soft_delete']);
+        } finally {
+            $originalPutenv === false
+                ? putenv($key)
+                : putenv("{$key}={$originalPutenv}");
+
+            if ($originalServerExists) {
+                $_SERVER[$key] = $originalServer;
+            } else {
+                unset($_SERVER[$key]);
+            }
+
+            if ($originalEnvExists) {
+                $_ENV[$key] = $originalEnv;
+            } else {
+                unset($_ENV[$key]);
+            }
+
+            Env::flushRepository();
+        }
     }
 }

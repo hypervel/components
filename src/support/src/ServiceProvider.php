@@ -156,7 +156,7 @@ abstract class ServiceProvider
         $config = $this->app->make('config');
 
         $packageDefaults = require $path;
-        $appConfig = $config->get($key, []);
+        $appConfig = $config->array($key, []);
 
         $merged = array_merge($packageDefaults, $appConfig);
 
@@ -203,7 +203,7 @@ abstract class ServiceProvider
 
             $config->set($key, array_replace_recursive(
                 require $path,
-                $config->get($key, [])
+                $config->array($key, [])
             ));
         }
     }
@@ -304,7 +304,7 @@ abstract class ServiceProvider
     {
         $this->publishes($paths, $groups);
 
-        if ($this->app->make('config')->get('database.migrations.update_date_on_publish', false)) {
+        if ($this->app->make('config')->boolean('database.migrations.update_date_on_publish', false)) {
             static::$publishableMigrationPaths = array_unique(
                 array_merge(
                     static::$publishableMigrationPaths,

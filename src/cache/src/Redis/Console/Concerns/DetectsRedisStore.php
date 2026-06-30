@@ -15,7 +15,7 @@ trait DetectsRedisStore
     protected function detectRedisStore(): ?string
     {
         $config = $this->hypervel->make('config');
-        $stores = $config->get('cache.stores', []);
+        $stores = $config->array('cache.stores', []);
 
         foreach ($stores as $name => $storeConfig) {
             if (($storeConfig['driver'] ?? null) === 'redis') {

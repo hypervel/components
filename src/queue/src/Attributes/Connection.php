@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Attributes;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS)]
-class Connection
+readonly class Connection
 {
     /**
      * Create a new attribute instance.

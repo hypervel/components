@@ -30,7 +30,7 @@ class EncryptionServiceProvider extends ServiceProvider
     protected function registerEncrypter(): void
     {
         $this->app->singleton('encrypter', function ($app) {
-            $config = $app->make('config')->get('app');
+            $config = $app->make('config')->array('app');
 
             return (new Encrypter($this->parseKey($config), $config['cipher']))
                 ->previousKeys(array_map(
@@ -45,7 +45,7 @@ class EncryptionServiceProvider extends ServiceProvider
      */
     protected function registerSerializableClosureSecurityKey(): void
     {
-        $config = $this->app->make('config')->get('app');
+        $config = $this->app->make('config')->array('app');
 
         if (! class_exists(SerializableClosure::class) || empty($config['key'])) {
             return;

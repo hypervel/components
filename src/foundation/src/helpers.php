@@ -11,7 +11,6 @@ use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
-use Hypervel\Contracts\Cache\InvalidArgumentException;
 use Hypervel\Contracts\Cookie\Factory as CookieFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
@@ -39,6 +38,7 @@ use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\HtmlString;
+use Hypervel\Support\Str;
 use Hypervel\Support\Uri;
 use League\Uri\Contracts\UriInterface;
 use Psr\Log\LoggerInterface;
@@ -138,6 +138,34 @@ if (! function_exists('app')) {
         }
 
         return Container::getInstance()->make($abstract, $parameters);
+    }
+}
+
+if (! function_exists('app_id')) {
+    /**
+     * Get the configured application identifier for config defaults.
+     *
+     * Use this helper only in config files. Runtime code should read
+     * config('app.id') / $config->string('app.id') so the identifier is
+     * read from cached config instead of re-validating or re-normalizing env.
+     */
+    function app_id(): string
+    {
+        $id = env('APP_ID');
+
+        if ($id !== null && $id !== '') {
+            $id = (string) $id;
+
+            if (! preg_match('/^[a-z0-9_]+$/', $id)) {
+                throw new \InvalidArgumentException(
+                    'APP_ID must contain only lowercase letters, numbers, and underscores.'
+                );
+            }
+
+            return $id;
+        }
+
+        return Str::slug(Str::snake((string) env('APP_NAME', 'hypervel')), '_') ?: 'hypervel';
     }
 }
 
@@ -474,7 +502,7 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
     function fake(?string $locale = null): \Faker\Generator
     {
         if (app()->bound('config')) {
-            $locale ??= app('config')->get('app.faker_locale');
+            $locale ??= app('config')->string('app.faker_locale', 'en_US');
         }
 
         $locale ??= 'en_US';

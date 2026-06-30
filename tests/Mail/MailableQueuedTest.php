@@ -6,10 +6,14 @@ namespace Hypervel\Tests\Mail;
 
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\SendQueuedMailable;
+use Hypervel\Queue\Attributes\Connection;
+use Hypervel\Queue\Attributes\Delay;
+use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
 use Hypervel\View\Factory;
@@ -132,6 +136,64 @@ class MailableQueuedTest extends TestCase
         $this->assertEquals($mockedDeduplicator, $pushedJob->deduplicator->getClosure());
     }
 
+    public function testQueuedMailableRespectsDelayAttribute(): void
+    {
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+        $mailable = new MailableQueueableStubWithDelayAttribute;
+        $queueFake->assertNothingPushed();
+        $mailer->send($mailable);
+        $queueFake->assertPushedOn(null, SendQueuedMailable::class);
+
+        $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
+        $this->assertSame(30, $pushedJob->delay);
+    }
+
+    public function testQueuedMailableDelayPropertyOverridesAttribute(): void
+    {
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+        $mailable = new MailableQueueableStubWithDelayAttribute;
+        $mailable->delay = 60;
+        $queueFake->assertNothingPushed();
+        $mailer->send($mailable);
+        $queueFake->assertPushedOn(null, SendQueuedMailable::class);
+
+        $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
+        $this->assertSame(60, $pushedJob->delay);
+    }
+
+    public function testQueuedMailableRespectsQueueAndConnectionAttributes(): void
+    {
+        $queueFake = new MailableQueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+        $mailable = new MailableQueueableStubWithQueueAndConnectionAttributes;
+        $queueFake->assertNothingPushed();
+        $mailer->send($mailable);
+        $queueFake->assertPushedOn('mail-queue', SendQueuedMailable::class);
+
+        $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
+        $this->assertSame('redis', $queueFake->connectionName);
+        $this->assertSame('mail-queue', $pushedJob->queue);
+        $this->assertSame('redis', $pushedJob->connection);
+    }
+
+    public function testDelayedQueuedMailableRespectsQueueAndConnectionAttributes(): void
+    {
+        $queueFake = new MailableQueueFake($this->app);
+        $mailer = $this->createMailer($queueFake);
+        $mailable = new MailableQueueableStubWithDelayQueueAndConnectionAttributes;
+        $queueFake->assertNothingPushed();
+        $mailer->send($mailable);
+        $queueFake->assertPushedOn('delayed-mail-queue', SendQueuedMailable::class);
+
+        $pushedJob = $queueFake->pushed(SendQueuedMailable::class)->first();
+        $this->assertSame('sqs', $queueFake->connectionName);
+        $this->assertSame('delayed-mail-queue', $pushedJob->queue);
+        $this->assertSame('sqs', $pushedJob->connection);
+        $this->assertSame(30, $pushedJob->delay);
+    }
+
     public function testQueuedMailableForwardsDeduplicationIdMethodToQueueJob()
     {
         $queueFake = new QueueFake($this->app);
@@ -195,6 +257,21 @@ class MailableQueueableStubWithMessageGroup extends Mailable implements ShouldQu
     }
 }
 
+#[Delay(30)]
+class MailableQueueableStubWithDelayAttribute extends Mailable implements ShouldQueue
+{
+    use Queueable;
+
+    public function build(): static
+    {
+        $this->subject('lorem ipsum')
+            ->html('foo bar baz')
+            ->to('foo@example.tld');
+
+        return $this;
+    }
+}
+
 class MailableQueueableStubWithDeduplication extends Mailable implements ShouldQueue
 {
     use Queueable;
@@ -211,5 +288,30 @@ class MailableQueueableStubWithDeduplication extends Mailable implements ShouldQ
     public function deduplicationId($payload, $queue)
     {
         return hash('sha256', $payload);
+    }
+}
+
+#[Connection('redis')]
+#[QueueAttribute('mail-queue')]
+class MailableQueueableStubWithQueueAndConnectionAttributes extends MailableQueueableStub
+{
+}
+
+#[Connection('sqs')]
+#[Delay(30)]
+#[QueueAttribute('delayed-mail-queue')]
+class MailableQueueableStubWithDelayQueueAndConnectionAttributes extends MailableQueueableStub
+{
+}
+
+class MailableQueueFake extends QueueFake
+{
+    public ?string $connectionName = null;
+
+    public function connection(mixed $value = null): QueueContract
+    {
+        $this->connectionName = $value;
+
+        return parent::connection($value);
     }
 }

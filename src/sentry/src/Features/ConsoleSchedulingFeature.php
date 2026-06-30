@@ -276,7 +276,7 @@ class ConsoleSchedulingFeature extends Feature
     private function buildCacheKey(string $mutex, string $slug): string
     {
         // We use the mutex name as part of the cache key to avoid collisions between the same commands with the same schedule but with different slugs
-        return 'sentry:checkIn:' . sha1("{$mutex}:{$slug}");
+        return 'sentry:checkIn:' . hash('xxh128', "{$mutex}:{$slug}");
     }
 
     private function makeSlugForScheduled(SchedulingEvent $scheduled): string

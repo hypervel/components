@@ -66,7 +66,7 @@ class ViewServiceProvider extends ServiceProvider
     protected function registerViewFinder(): void
     {
         $this->app->bind('view.finder', function ($app) {
-            return new FileViewFinder($app['files'], $app['config']['view.paths']);
+            return new FileViewFinder($app['files'], $app->make('config')->array('view.paths'));
         });
     }
 
@@ -76,13 +76,15 @@ class ViewServiceProvider extends ServiceProvider
     protected function registerBladeCompiler(): void
     {
         $this->app->singleton('blade.compiler', function ($app) {
+            $config = $app->make('config');
+
             return tap(new BladeCompiler(
                 $app['files'],
-                $app['config']['view.compiled'],
-                $app['config']->get('view.relative_hash', false) ? $app->basePath() : '',
-                $app['config']->get('view.cache', true),
-                $app['config']->get('view.compiled_extension', 'php'),
-                $app['config']->get('view.check_cache_timestamps', true),
+                $config->string('view.compiled'),
+                $config->boolean('view.relative_hash', false) ? $app->basePath() : '',
+                $config->boolean('view.cache', true),
+                $config->string('view.compiled_extension', 'php'),
+                $config->boolean('view.check_cache_timestamps', true),
             ), function ($blade) {
                 $blade->component('dynamic-component', DynamicComponent::class);
             });

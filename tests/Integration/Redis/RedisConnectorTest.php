@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
+use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\RedisConnection;
@@ -32,10 +33,10 @@ class RedisConnectorTest extends TestCase
         $host = $this->app->make('config')->get('database.redis.default.host');
         $port = $this->app->make('config')->get('database.redis.default.port');
 
-        $client = $this->getClient('default');
-
-        $this->assertSame($host, $client->getHost());
-        $this->assertSame($port, $client->getPort());
+        $this->withClient('default', function (\Redis $client) use ($host, $port): void {
+            $this->assertSame($host, $client->getHost());
+            $this->assertSame($port, $client->getPort());
+        });
     }
 
     public function testUrl()
@@ -49,11 +50,11 @@ class RedisConnectorTest extends TestCase
             'database' => $this->getParallelRedisDb(),
         ]);
 
-        $client = $this->getClient($name);
-
-        // redis:// URL maps to tcp:// scheme via ConfigurationUrlParser driver aliases
-        $this->assertSame("tcp://{$host}", $client->getHost());
-        $this->assertEquals($port, $client->getPort());
+        $this->withClient($name, function (\Redis $client) use ($host, $port): void {
+            // redis:// URL maps to tcp:// scheme via ConfigurationUrlParser driver aliases
+            $this->assertSame("tcp://{$host}", $client->getHost());
+            $this->assertEquals($port, $client->getPort());
+        });
     }
 
     public function testUrlWithScheme()
@@ -67,10 +68,10 @@ class RedisConnectorTest extends TestCase
             'database' => $this->getParallelRedisDb(),
         ]);
 
-        $client = $this->getClient($name);
-
-        $this->assertSame("tcp://{$host}", $client->getHost());
-        $this->assertEquals($port, $client->getPort());
+        $this->withClient($name, function (\Redis $client) use ($host, $port): void {
+            $this->assertSame("tcp://{$host}", $client->getHost());
+            $this->assertEquals($port, $client->getPort());
+        });
     }
 
     public function testScheme()
@@ -86,10 +87,10 @@ class RedisConnectorTest extends TestCase
             'database' => $this->getParallelRedisDb(),
         ]);
 
-        $client = $this->getClient($name);
-
-        $this->assertSame("tcp://{$host}", $client->getHost());
-        $this->assertEquals($port, $client->getPort());
+        $this->withClient($name, function (\Redis $client) use ($host, $port): void {
+            $this->assertSame("tcp://{$host}", $client->getHost());
+            $this->assertEquals($port, $client->getPort());
+        });
     }
 
     public function testPerConnectionPrefixOverridesGlobalPrefix()
@@ -110,18 +111,25 @@ class RedisConnectorTest extends TestCase
         // Must purge + re-resolve since config changed after initial resolution
         $this->app->make('redis')->purge($name);
 
-        $client = $this->getClient($name);
-
-        $this->assertSame('per_connection_', $client->getOption(\Redis::OPT_PREFIX));
+        $this->withClient($name, function (\Redis $client): void {
+            $this->assertSame('per_connection_', $client->getOption(\Redis::OPT_PREFIX));
+        });
     }
 
     /**
-     * Get the underlying phpredis client for a named connection.
+     * Execute a callback with the underlying phpredis client for a named connection.
+     *
+     * @param Closure(\Redis): void $callback
      */
-    private function getClient(string $name): \Redis
+    private function withClient(string $name, Closure $callback): void
     {
-        return Redis::connection($name)->withConnection(
-            fn (RedisConnection $connection) => $connection->client(),
+        Redis::connection($name)->withConnection(
+            function (RedisConnection $connection) use ($callback): void {
+                $client = $connection->client();
+                $this->assertInstanceOf(\Redis::class, $client);
+
+                $callback($client);
+            },
             transform: false
         );
     }

@@ -108,6 +108,38 @@ class SignalRegistryTest extends TestCase
         $this->assertEmpty($invoker->signalHandlers);
     }
 
+    public function testUnregisterCancelsWaitingCoroutines()
+    {
+        $registry = new class extends SignalRegistry {
+            /**
+             * @var int[]
+             */
+            public array $cancelled = [];
+
+            protected function waitSignal(int $signo): void
+            {
+                $this->handling[$signo] = $signo + 1000;
+            }
+
+            protected function cancelSignal(int $signo): void
+            {
+                $this->cancelled[] = $signo;
+                unset($this->handling[$signo]);
+            }
+        };
+
+        $registry->register(SIGTERM, fn (int $signo) => null);
+        $registry->register(SIGINT, fn (int $signo) => null);
+
+        $registry->unregister(SIGTERM);
+        $registry->unregister();
+
+        $this->assertSame([SIGTERM, SIGINT], $registry->cancelled);
+
+        $invoker = new ClassInvoker($registry);
+        $this->assertSame([], $invoker->handling);
+    }
+
     public function testWaitSignalOnlySpawnsOneCoroutinePerSignal()
     {
         $registry = new class extends SignalRegistry {

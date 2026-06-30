@@ -10,7 +10,7 @@ use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
@@ -172,7 +172,12 @@ class ScheduleRunContextPropagationTest extends TestCase
 
         (new ReflectionProperty($command, 'schedule'))->setValue($command, m::mock(Schedule::class));
         (new ReflectionProperty($command, 'dispatcher'))->setValue($command, $this->dispatcher);
-        (new ReflectionProperty($command, 'cache'))->setValue($command, m::mock(CacheFactory::class));
+        $cache = m::mock(Cache::class);
+        $cache->shouldReceive('get')
+            ->byDefault()
+            ->with('hypervel:schedule:paused', false)
+            ->andReturnFalse();
+        (new ReflectionProperty($command, 'cache'))->setValue($command, $cache);
         (new ReflectionProperty($command, 'handler'))->setValue($command, $this->handler);
 
         return $command;

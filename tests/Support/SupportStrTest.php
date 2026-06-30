@@ -48,11 +48,11 @@ class SupportStrTest extends TestCase
         $this->assertSame('Jefferson Costella', Str::title('jefFErson coSTella'));
 
         $this->assertSame('', Str::title(''));
-        $this->assertSame('123 Laravel', Str::title('123 laravel'));
-        $this->assertSame('❤Laravel', Str::title('❤laravel'));
-        $this->assertSame('Laravel ❤', Str::title('laravel ❤'));
-        $this->assertSame('Laravel123', Str::title('laravel123'));
-        $this->assertSame('Laravel123', Str::title('Laravel123'));
+        $this->assertSame('123 Hypervel', Str::title('123 hypervel'));
+        $this->assertSame('❤Hypervel', Str::title('❤hypervel'));
+        $this->assertSame('Hypervel ❤', Str::title('hypervel ❤'));
+        $this->assertSame('Hypervel123', Str::title('hypervel123'));
+        $this->assertSame('Hypervel123', Str::title('Hypervel123'));
 
         $longString = 'lorem ipsum ' . str_repeat('dolor sit amet ', 1000);
         $expectedResult = 'Lorem Ipsum Dolor Sit Amet ' . str_repeat('Dolor Sit Amet ', 999);
@@ -63,14 +63,14 @@ class SupportStrTest extends TestCase
     {
         $this->assertSame('Jefferson Costella', Str::headline('jefferson costella'));
         $this->assertSame('Jefferson Costella', Str::headline('jefFErson coSTella'));
-        $this->assertSame('Jefferson Costella Uses Laravel', Str::headline('jefferson_costella uses-_Laravel'));
-        $this->assertSame('Jefferson Costella Uses Laravel', Str::headline('jefferson_costella uses__Laravel'));
+        $this->assertSame('Jefferson Costella Uses Hypervel', Str::headline('jefferson_costella uses-_Hypervel'));
+        $this->assertSame('Jefferson Costella Uses Hypervel', Str::headline('jefferson_costella uses__Hypervel'));
 
-        $this->assertSame('Laravel P H P Framework', Str::headline('laravel_p_h_p_framework'));
-        $this->assertSame('Laravel P H P Framework', Str::headline('laravel _p _h _p _framework'));
-        $this->assertSame('Laravel Php Framework', Str::headline('laravel_php_framework'));
-        $this->assertSame('Laravel Ph P Framework', Str::headline('laravel-phP-framework'));
-        $this->assertSame('Laravel Php Framework', Str::headline('laravel  -_-  php   -_-   framework   '));
+        $this->assertSame('Hypervel P H P Framework', Str::headline('hypervel_p_h_p_framework'));
+        $this->assertSame('Hypervel P H P Framework', Str::headline('hypervel _p _h _p _framework'));
+        $this->assertSame('Hypervel Php Framework', Str::headline('hypervel_php_framework'));
+        $this->assertSame('Hypervel Ph P Framework', Str::headline('hypervel-phP-framework'));
+        $this->assertSame('Hypervel Php Framework', Str::headline('hypervel  -_-  php   -_-   framework   '));
 
         $this->assertSame('Foo Bar', Str::headline('fooBar'));
         $this->assertSame('Foo Bar', Str::headline('foo_bar'));
@@ -87,6 +87,32 @@ class SupportStrTest extends TestCase
         $this->assertSame('Orwell 1984', Str::headline('orwell   1984'));
         $this->assertSame('Orwell 1984', Str::headline('-orwell-1984 -'));
         $this->assertSame('Orwell 1984', Str::headline(' orwell_- 1984 '));
+
+        $nbsp = chr(0xC2) . chr(0xA0);
+        $this->assertSame('Hypervel Rocks!', Str::headline('hypervel' . $nbsp . 'rocks!'));
+
+        $this->assertSame('Email Notification Sent', Str::headline(' EmailNotificationSent'));
+        $this->assertSame('Email Notification Sent', Str::headline('EmailNotificationSent '));
+        $this->assertSame('Email Notification Sent', Str::headline(' EmailNotificationSent '));
+    }
+
+    public function testStringInitials()
+    {
+        $this->assertSame('jb', Str::initials('james bond'));
+        $this->assertSame('jb', Str::initials(' james bond'));
+        $this->assertSame('jb', Str::initials('james  bond'));
+
+        $this->assertSame('JB', Str::initials('James Bond'));
+
+        $this->assertSame('JB', Str::initials('james bond', true));
+
+        $this->assertSame('JBLH', Str::initials('james bond loves hypervel', true));
+
+        $this->assertSame('❤M☆', Str::initials('❤ MULTIByte ☆'));
+
+        $nbsp = chr(0xC2) . chr(0xA0);
+        $this->assertSame('hr', Str::initials('hypervel' . $nbsp . 'rocks!'));
+        $this->assertSame('HR', Str::initials('hypervel' . $nbsp . 'rocks!', true));
     }
 
     public function testStringApa()
@@ -130,6 +156,17 @@ class SupportStrTest extends TestCase
         $this->assertSame('Устное Слово – Не Воробей. Как Только Он Вылетит, Его Не Поймаешь.', Str::apa('устное слово – не воробей. как только он вылетит, его не поймаешь.'));
         $this->assertSame('Устное Слово – Не Воробей. Как Только Он Вылетит, Его Не Поймаешь.', Str::apa('Устное Слово – Не Воробей. Как Только Он Вылетит, Его Не Поймаешь.'));
         $this->assertSame('Устное Слово – Не Воробей. Как Только Он Вылетит, Его Не Поймаешь.', Str::apa('УСТНОЕ СЛОВО – НЕ ВОРОБЕЙ. КАК ТОЛЬКО ОН ВЫЛЕТИТ, ЕГО НЕ ПОЙМАЕШЬ.'));
+
+        $this->assertSame('❤ Multibyte ☆', Str::apa('❤ MULTIByte ☆'));
+
+        $nbsp = chr(0xC2) . chr(0xA0);
+        $this->assertSame('Hypervel Rocks!', Str::apa('Hypervel' . $nbsp . 'Rocks!'));
+        $this->assertSame('Hypervel Rocks!', Str::apa('Hypervel' . $nbsp . 'rocks!'));
+        $this->assertSame('Hypervel Rocks!', Str::apa('HYPERVEL' . $nbsp . 'ROCKS!'));
+
+        $this->assertSame('The Lord of the Rings', Str::apa(' the lord of the rings'));
+        $this->assertSame('The Lord of the Rings', Str::apa('the lord of the rings '));
+        $this->assertSame('The Lord of the Rings', Str::apa(' the lord of the rings '));
 
         $this->assertSame('', Str::apa(''));
         $this->assertSame('   ', Str::apa('   '));
@@ -382,7 +419,7 @@ class SupportStrTest extends TestCase
         $this->assertSame('yv2et', Str::beforeLast('yv2et2te', 2));
         $this->assertSame('', Str::beforeLast('', 'test'));
         $this->assertSame('', Str::beforeLast('yvette', 'yvette'));
-        $this->assertSame('laravel', Str::beforeLast('laravel framework', ' '));
+        $this->assertSame('hypervel', Str::beforeLast('hypervel framework', ' '));
         $this->assertSame('yvette', Str::beforeLast("yvette\tyv0et0te", "\t"));
     }
 
@@ -529,11 +566,11 @@ class SupportStrTest extends TestCase
 
     public function testDedup()
     {
-        $this->assertSame(' laravel php framework ', Str::deduplicate(' laravel   php  framework '));
+        $this->assertSame(' hypervel php framework ', Str::deduplicate(' hypervel   php  framework '));
         $this->assertSame('what', Str::deduplicate('whaaat', 'a'));
         $this->assertSame('/some/odd/path/', Str::deduplicate('/some//odd//path/', '/'));
         $this->assertSame('ムだム', Str::deduplicate('ムだだム', 'だ'));
-        $this->assertSame(' laravel forever ', Str::deduplicate(' laravell    foreverrr  ', [' ', 'l', 'r']));
+        $this->assertSame(' hypervel forever ', Str::deduplicate(' hypervell    foreverrr  ', [' ', 'l', 'r']));
     }
 
     public function testParseCallback()
@@ -543,10 +580,10 @@ class SupportStrTest extends TestCase
         $this->assertEquals(['Class', 'foo'], Str::parseCallback('Class', 'foo'));
         $this->assertEquals(['Class', null], Str::parseCallback('Class'));
 
-        $this->assertEquals(["Class@anonymous\0/laravel/382.php:8$2ec", 'method'], Str::parseCallback("Class@anonymous\0/laravel/382.php:8$2ec@method"));
-        $this->assertEquals(["Class@anonymous\0/laravel/382.php:8$2ec", 'method'], Str::parseCallback("Class@anonymous\0/laravel/382.php:8$2ec@method", 'foo'));
-        $this->assertEquals(["Class@anonymous\0/laravel/382.php:8$2ec", 'foo'], Str::parseCallback("Class@anonymous\0/laravel/382.php:8$2ec", 'foo'));
-        $this->assertEquals(["Class@anonymous\0/laravel/382.php:8$2ec", null], Str::parseCallback("Class@anonymous\0/laravel/382.php:8$2ec"));
+        $this->assertEquals(["Class@anonymous\0/hypervel/382.php:8$2ec", 'method'], Str::parseCallback("Class@anonymous\0/hypervel/382.php:8$2ec@method"));
+        $this->assertEquals(["Class@anonymous\0/hypervel/382.php:8$2ec", 'method'], Str::parseCallback("Class@anonymous\0/hypervel/382.php:8$2ec@method", 'foo'));
+        $this->assertEquals(["Class@anonymous\0/hypervel/382.php:8$2ec", 'foo'], Str::parseCallback("Class@anonymous\0/hypervel/382.php:8$2ec", 'foo'));
+        $this->assertEquals(["Class@anonymous\0/hypervel/382.php:8$2ec", null], Str::parseCallback("Class@anonymous\0/hypervel/382.php:8$2ec"));
     }
 
     public function testSlug()
@@ -715,7 +752,7 @@ class SupportStrTest extends TestCase
 
     public function testIsUrl()
     {
-        $this->assertTrue(Str::isUrl('https://laravel.com'));
+        $this->assertTrue(Str::isUrl('https://hypervel.org'));
         $this->assertTrue(Str::isUrl('http://localhost'));
         $this->assertFalse(Str::isUrl('invalid url'));
     }
@@ -844,27 +881,27 @@ class SupportStrTest extends TestCase
 
     public function testIsMatch()
     {
-        $this->assertTrue(Str::isMatch('/.*,.*!/', 'Hello, Laravel!'));
-        $this->assertTrue(Str::isMatch('/^.*$(.*)/', 'Hello, Laravel!'));
-        $this->assertTrue(Str::isMatch('/laravel/i', 'Hello, Laravel!'));
-        $this->assertTrue(Str::isMatch('/^(.*(.*(.*)))/', 'Hello, Laravel!'));
+        $this->assertTrue(Str::isMatch('/.*,.*!/', 'Hello, Hypervel!'));
+        $this->assertTrue(Str::isMatch('/^.*$(.*)/', 'Hello, Hypervel!'));
+        $this->assertTrue(Str::isMatch('/hypervel/i', 'Hello, Hypervel!'));
+        $this->assertTrue(Str::isMatch('/^(.*(.*(.*)))/', 'Hello, Hypervel!'));
 
-        $this->assertFalse(Str::isMatch('/H.o/', 'Hello, Laravel!'));
-        $this->assertFalse(Str::isMatch('/^laravel!/i', 'Hello, Laravel!'));
-        $this->assertFalse(Str::isMatch('/laravel!(.*)/', 'Hello, Laravel!'));
-        $this->assertFalse(Str::isMatch('/^[a-zA-Z,!]+$/', 'Hello, Laravel!'));
+        $this->assertFalse(Str::isMatch('/H.o/', 'Hello, Hypervel!'));
+        $this->assertFalse(Str::isMatch('/^hypervel!/i', 'Hello, Hypervel!'));
+        $this->assertFalse(Str::isMatch('/hypervel!(.*)/', 'Hello, Hypervel!'));
+        $this->assertFalse(Str::isMatch('/^[a-zA-Z,!]+$/', 'Hello, Hypervel!'));
 
-        $this->assertTrue(Str::isMatch(['/.*,.*!/', '/H.o/'], 'Hello, Laravel!'));
-        $this->assertTrue(Str::isMatch(['/^laravel!/i', '/^.*$(.*)/'], 'Hello, Laravel!'));
-        $this->assertTrue(Str::isMatch(['/laravel/i', '/laravel!(.*)/'], 'Hello, Laravel!'));
-        $this->assertTrue(Str::isMatch(['/^[a-zA-Z,!]+$/', '/^(.*(.*(.*)))/'], 'Hello, Laravel!'));
+        $this->assertTrue(Str::isMatch(['/.*,.*!/', '/H.o/'], 'Hello, Hypervel!'));
+        $this->assertTrue(Str::isMatch(['/^hypervel!/i', '/^.*$(.*)/'], 'Hello, Hypervel!'));
+        $this->assertTrue(Str::isMatch(['/hypervel/i', '/hypervel!(.*)/'], 'Hello, Hypervel!'));
+        $this->assertTrue(Str::isMatch(['/^[a-zA-Z,!]+$/', '/^(.*(.*(.*)))/'], 'Hello, Hypervel!'));
     }
 
     public function testKebab()
     {
-        $this->assertSame('laravel-php-framework', Str::kebab('LaravelPhpFramework'));
-        $this->assertSame('laravel-php-framework', Str::kebab('Laravel Php Framework'));
-        $this->assertSame('laravel❤-php-framework', Str::kebab('Laravel ❤ Php Framework'));
+        $this->assertSame('hypervel-php-framework', Str::kebab('HypervelPhpFramework'));
+        $this->assertSame('hypervel-php-framework', Str::kebab('Hypervel Php Framework'));
+        $this->assertSame('hypervel❤-php-framework', Str::kebab('Hypervel ❤ Php Framework'));
         $this->assertSame('', Str::kebab(''));
     }
 
@@ -882,17 +919,17 @@ class SupportStrTest extends TestCase
 
     public function testLimit()
     {
-        $this->assertSame('Laravel is...', Str::limit('Laravel is a free, open source PHP web application framework.', 10));
+        $this->assertSame('Hypervel i...', Str::limit('Hypervel is a free, open source PHP web application framework.', 10));
         $this->assertSame('这是一...', Str::limit('这是一段中文', 6));
-        $this->assertSame('Laravel is a...', Str::limit('Laravel is a free, open source PHP web application framework.', 15, preserveWords: true));
+        $this->assertSame('Hypervel is a...', Str::limit('Hypervel is a free, open source PHP web application framework.', 15, preserveWords: true));
 
-        $string = 'The PHP framework for web artisans.';
+        $string = 'The PHP framework for high-performance apps.';
         $this->assertSame('The PHP...', Str::limit($string, 7));
         $this->assertSame('The PHP...', Str::limit($string, 10, preserveWords: true));
         $this->assertSame('The PHP', Str::limit($string, 7, ''));
         $this->assertSame('The PHP', Str::limit($string, 10, '', true));
-        $this->assertSame('The PHP framework for web artisans.', Str::limit($string, 100));
-        $this->assertSame('The PHP framework for web artisans.', Str::limit($string, 100, preserveWords: true));
+        $this->assertSame('The PHP framework for high-performance apps.', Str::limit($string, 100));
+        $this->assertSame('The PHP framework for high-performance apps.', Str::limit($string, 100, preserveWords: true));
         $this->assertSame('The PHP framework...', Str::limit($string, 20, preserveWords: true));
 
         $nonAsciiString = '这是一段中文';
@@ -911,11 +948,11 @@ class SupportStrTest extends TestCase
     public function testNumbers()
     {
         $this->assertSame('5551234567', Str::numbers('(555) 123-4567'));
-        $this->assertSame('443', Str::numbers('L4r4v3l!'));
-        $this->assertSame('', Str::numbers('Laravel!'));
+        $this->assertSame('833', Str::numbers('H8p3rv3l!'));
+        $this->assertSame('', Str::numbers('Hypervel!'));
 
-        $arrayValue = ['(555) 123-4567', 'L4r4v3l', 'Laravel!'];
-        $arrayExpected = ['5551234567', '443', ''];
+        $arrayValue = ['(555) 123-4567', 'H8p3rv3l', 'Hypervel!'];
+        $arrayExpected = ['5551234567', '833', ''];
         $this->assertSame($arrayExpected, Str::numbers($arrayValue));
     }
 
@@ -991,8 +1028,8 @@ class SupportStrTest extends TestCase
 
     public function testReplace()
     {
-        $this->assertSame('foo bar laravel', Str::replace('baz', 'laravel', 'foo bar baz'));
-        $this->assertSame('foo bar laravel', Str::replace('baz', 'laravel', 'foo bar Baz', false));
+        $this->assertSame('foo bar hypervel', Str::replace('baz', 'hypervel', 'foo bar baz'));
+        $this->assertSame('foo bar hypervel', Str::replace('baz', 'hypervel', 'foo bar Baz', false));
         $this->assertSame('foo bar baz 8.x', Str::replace('?', '8.x', 'foo bar baz ?'));
         $this->assertSame('foo bar baz 8.x', Str::replace('x', '8.x', 'foo bar baz X', false));
         $this->assertSame('foo/bar/baz', Str::replace(' ', '/', 'foo bar baz'));
@@ -1090,16 +1127,16 @@ class SupportStrTest extends TestCase
 
     public function testSnake()
     {
-        $this->assertSame('laravel_p_h_p_framework', Str::snake('LaravelPHPFramework'));
-        $this->assertSame('laravel_php_framework', Str::snake('LaravelPhpFramework'));
-        $this->assertSame('laravel php framework', Str::snake('LaravelPhpFramework', ' '));
-        $this->assertSame('laravel_php_framework', Str::snake('Laravel Php Framework'));
-        $this->assertSame('laravel_php_framework', Str::snake('Laravel    Php      Framework   '));
+        $this->assertSame('hypervel_p_h_p_framework', Str::snake('HypervelPHPFramework'));
+        $this->assertSame('hypervel_php_framework', Str::snake('HypervelPhpFramework'));
+        $this->assertSame('hypervel php framework', Str::snake('HypervelPhpFramework', ' '));
+        $this->assertSame('hypervel_php_framework', Str::snake('Hypervel Php Framework'));
+        $this->assertSame('hypervel_php_framework', Str::snake('Hypervel    Php      Framework   '));
         // ensure cache keys don't overlap
-        $this->assertSame('laravel__php__framework', Str::snake('LaravelPhpFramework', '__'));
-        $this->assertSame('laravel_php_framework_', Str::snake('LaravelPhpFramework_', '_'));
-        $this->assertSame('laravel_php_framework', Str::snake('laravel php Framework'));
-        $this->assertSame('laravel_php_frame_work', Str::snake('laravel php FrameWork'));
+        $this->assertSame('hypervel__php__framework', Str::snake('HypervelPhpFramework', '__'));
+        $this->assertSame('hypervel_php_framework_', Str::snake('HypervelPhpFramework_', '_'));
+        $this->assertSame('hypervel_php_framework', Str::snake('hypervel php Framework'));
+        $this->assertSame('hypervel_php_frame_work', Str::snake('hypervel php FrameWork'));
         // prevent breaking changes
         $this->assertSame('foo-bar', Str::snake('foo-bar'));
         $this->assertSame('foo-_bar', Str::snake('Foo-Bar'));
@@ -1216,52 +1253,63 @@ class SupportStrTest extends TestCase
 
     public function testSquish()
     {
-        $this->assertSame('laravel php framework', Str::squish(' laravel   php  framework '));
-        $this->assertSame('laravel php framework', Str::squish("laravel\t\tphp\n\nframework"));
-        $this->assertSame('laravel php framework', Str::squish('
-            laravel
+        $this->assertSame('hypervel php framework', Str::squish(' hypervel   php  framework '));
+        $this->assertSame('hypervel php framework', Str::squish("hypervel\t\tphp\n\nframework"));
+        $this->assertSame('hypervel php framework', Str::squish('
+            hypervel
             php
             framework
         '));
-        $this->assertSame('laravel php framework', Str::squish('   laravel   php   framework   '));
+        $this->assertSame('hypervel php framework', Str::squish('   hypervel   php   framework   '));
         $this->assertSame('123', Str::squish('   123    '));
         $this->assertSame('だ', Str::squish('だ'));
         $this->assertSame('ム', Str::squish('ム'));
         $this->assertSame('だ', Str::squish('   だ    '));
         $this->assertSame('ム', Str::squish('   ム    '));
-        $this->assertSame('laravel php framework', Str::squish('laravelㅤㅤㅤphpㅤframework'));
-        $this->assertSame('laravel php framework', Str::squish('laravelᅠᅠᅠᅠᅠᅠᅠᅠᅠᅠphpᅠᅠframework'));
+        $this->assertSame('hypervel php framework', Str::squish('hypervelㅤㅤㅤphpㅤframework'));
+        $this->assertSame('hypervel php framework', Str::squish('hypervelᅠᅠᅠᅠᅠᅠᅠᅠᅠᅠphpᅠᅠframework'));
     }
 
     public function testStudly()
     {
-        $this->assertSame('LaravelPHPFramework', Str::studly('laravel_p_h_p_framework'));
-        $this->assertSame('LaravelPhpFramework', Str::studly('laravel_php_framework'));
-        $this->assertSame('LaravelPhPFramework', Str::studly('laravel-phP-framework'));
-        $this->assertSame('LaravelPhpFramework', Str::studly('laravel  -_-  php   -_-   framework   '));
+        $this->assertSame('HypervelPHPFramework', Str::studly('hypervel_p_h_p_framework'));
+        $this->assertSame('HypervelPhpFramework', Str::studly('hypervel_php_framework'));
+        $this->assertSame('HypervelPhPFramework', Str::studly('hypervel-phP-framework'));
+        $this->assertSame('HypervelPhpFramework', Str::studly('hypervel  -_-  php   -_-   framework   '));
 
         $this->assertSame('FooBar', Str::studly('fooBar'));
         $this->assertSame('FooBar', Str::studly('foo_bar'));
-        $this->assertSame('FooBar', Str::studly('foo_bar')); // test cache
         $this->assertSame('FooBarBaz', Str::studly('foo-barBaz'));
         $this->assertSame('FooBarBaz', Str::studly('foo-bar_baz'));
 
         $this->assertSame('ÖffentlicheÜberraschungen', Str::studly('öffentliche-überraschungen'));
+
+        $nbsp = chr(0xC2) . chr(0xA0);
+        $this->assertSame('HypervelRocks!', Str::studly('hypervel' . $nbsp . 'rocks!'));
+
+        $this->assertSame('Cbor', Str::studly('CBOR', normalize: true));
+        $this->assertSame('Fmls', Str::studly('FMLS', normalize: true));
+        $this->assertSame('AllCaps', Str::studly('ALL_CAPS', normalize: true));
+        $this->assertSame('AllJersey', Str::studly('AllJersey', normalize: true));
+        $this->assertSame('AllJersey', Str::studly('all_jersey', normalize: true));
+        $this->assertSame('FooBar', Str::studly('foo_bar', normalize: true));
     }
 
     public function testPascal()
     {
-        $this->assertSame('LaravelPhpFramework', Str::pascal('laravel_php_framework'));
-        $this->assertSame('LaravelPhpFramework', Str::pascal('laravel-php-framework'));
-        $this->assertSame('LaravelPhpFramework', Str::pascal('laravel  -_-  php   -_-   framework   '));
+        $this->assertSame('HypervelPhpFramework', Str::pascal('hypervel_php_framework'));
+        $this->assertSame('HypervelPhpFramework', Str::pascal('hypervel-php-framework'));
+        $this->assertSame('HypervelPhpFramework', Str::pascal('hypervel  -_-  php   -_-   framework   '));
 
         $this->assertSame('FooBar', Str::pascal('fooBar'));
         $this->assertSame('FooBar', Str::pascal('foo_bar'));
-        $this->assertSame('FooBar', Str::pascal('foo_bar')); // test cache
         $this->assertSame('FooBarBaz', Str::pascal('foo-barBaz'));
         $this->assertSame('FooBarBaz', Str::pascal('foo-bar_baz'));
 
         $this->assertSame('ÖffentlicheÜberraschungen', Str::pascal('öffentliche-überraschungen'));
+
+        $this->assertSame('Cbor', Str::pascal('CBOR', normalize: true));
+        $this->assertSame('AllCaps', Str::pascal('ALL_CAPS', normalize: true));
     }
 
     public function testMask()
@@ -1316,20 +1364,19 @@ class SupportStrTest extends TestCase
 
     public function testCamel(): void
     {
-        $this->assertSame('laravelPHPFramework', Str::camel('Laravel_p_h_p_framework'));
-        $this->assertSame('laravelPhpFramework', Str::camel('Laravel_php_framework'));
-        $this->assertSame('laravelPhPFramework', Str::camel('Laravel-phP-framework'));
-        $this->assertSame('laravelPhpFramework', Str::camel('Laravel  -_-  php   -_-   framework   '));
+        $this->assertSame('hypervelPHPFramework', Str::camel('Hypervel_p_h_p_framework'));
+        $this->assertSame('hypervelPhpFramework', Str::camel('Hypervel_php_framework'));
+        $this->assertSame('hypervelPhPFramework', Str::camel('Hypervel-phP-framework'));
+        $this->assertSame('hypervelPhpFramework', Str::camel('Hypervel  -_-  php   -_-   framework   '));
 
         $this->assertSame('fooBar', Str::camel('FooBar'));
         $this->assertSame('fooBar', Str::camel('foo_bar'));
-        $this->assertSame('fooBar', Str::camel('foo_bar')); // test cache
         $this->assertSame('fooBarBaz', Str::camel('Foo-barBaz'));
         $this->assertSame('fooBarBaz', Str::camel('foo-bar_baz'));
 
         $this->assertSame('', Str::camel(''));
-        $this->assertSame('lARAVELPHPFRAMEWORK', Str::camel('LARAVEL_PHP_FRAMEWORK'));
-        $this->assertSame('laravelPhpFramework', Str::camel('   laravel   php   framework   '));
+        $this->assertSame('hYPERVELPHPFRAMEWORK', Str::camel('HYPERVEL_PHP_FRAMEWORK'));
+        $this->assertSame('hypervelPhpFramework', Str::camel('   hypervel   php   framework   '));
 
         $this->assertSame('foo1Bar', Str::camel('foo1_bar'));
         $this->assertSame('1FooBar', Str::camel('1 foo bar'));
@@ -1362,16 +1409,16 @@ class SupportStrTest extends TestCase
 
     public function testSubstrCount()
     {
-        $this->assertSame(3, Str::substrCount('laravelPHPFramework', 'a'));
-        $this->assertSame(0, Str::substrCount('laravelPHPFramework', 'z'));
-        $this->assertSame(1, Str::substrCount('laravelPHPFramework', 'l', 2));
-        $this->assertSame(0, Str::substrCount('laravelPHPFramework', 'z', 2));
-        $this->assertSame(1, Str::substrCount('laravelPHPFramework', 'k', -1));
-        $this->assertSame(1, Str::substrCount('laravelPHPFramework', 'k', -1));
-        $this->assertSame(1, Str::substrCount('laravelPHPFramework', 'a', 1, 2));
-        $this->assertSame(1, Str::substrCount('laravelPHPFramework', 'a', 1, 2));
-        $this->assertSame(3, Str::substrCount('laravelPHPFramework', 'a', 1, -2));
-        $this->assertSame(1, Str::substrCount('laravelPHPFramework', 'a', -10, -3));
+        $this->assertSame(1, Str::substrCount('hypervelPHPFramework', 'a'));
+        $this->assertSame(0, Str::substrCount('hypervelPHPFramework', 'z'));
+        $this->assertSame(1, Str::substrCount('hypervelPHPFramework', 'l', 2));
+        $this->assertSame(0, Str::substrCount('hypervelPHPFramework', 'z', 2));
+        $this->assertSame(1, Str::substrCount('hypervelPHPFramework', 'k', -1));
+        $this->assertSame(1, Str::substrCount('hypervelPHPFramework', 'k', -1));
+        $this->assertSame(0, Str::substrCount('hypervelPHPFramework', 'a', 1, 2));
+        $this->assertSame(0, Str::substrCount('hypervelPHPFramework', 'a', 1, 2));
+        $this->assertSame(1, Str::substrCount('hypervelPHPFramework', 'a', 1, -2));
+        $this->assertSame(1, Str::substrCount('hypervelPHPFramework', 'a', -10, -3));
     }
 
     public function testPosition()
@@ -1394,8 +1441,8 @@ class SupportStrTest extends TestCase
     public function testSubstrReplace()
     {
         $this->assertSame('12:00', Str::substrReplace('1200', ':', 2, 0));
-        $this->assertSame('The Laravel Framework', Str::substrReplace('The Framework', 'Laravel ', 4, 0));
-        $this->assertSame('Laravel – The PHP Framework for Web Artisans', Str::substrReplace('Laravel Framework', '– The PHP Framework for Web Artisans', 8));
+        $this->assertSame('The Hypervel Framework', Str::substrReplace('The Framework', 'Hypervel ', 4, 0));
+        $this->assertSame('Hypervel – The PHP Framework for High-Performance Apps', Str::substrReplace('Hypervel Framework', '– The PHP Framework for High-Performance Apps', 9));
     }
 
     public function testSubstrReplaceWithMultibyte()
@@ -1417,25 +1464,25 @@ class SupportStrTest extends TestCase
 
     public function testLcfirst()
     {
-        $this->assertSame('laravel', Str::lcfirst('Laravel'));
-        $this->assertSame('laravel framework', Str::lcfirst('Laravel framework'));
+        $this->assertSame('hypervel', Str::lcfirst('Hypervel'));
+        $this->assertSame('hypervel framework', Str::lcfirst('Hypervel framework'));
         $this->assertSame('мама', Str::lcfirst('Мама'));
         $this->assertSame('мама мыла раму', Str::lcfirst('Мама мыла раму'));
     }
 
     public function testUcfirst()
     {
-        $this->assertSame('Laravel', Str::ucfirst('laravel'));
-        $this->assertSame('Laravel framework', Str::ucfirst('laravel framework'));
+        $this->assertSame('Hypervel', Str::ucfirst('hypervel'));
+        $this->assertSame('Hypervel framework', Str::ucfirst('hypervel framework'));
         $this->assertSame('Мама', Str::ucfirst('мама'));
         $this->assertSame('Мама мыла раму', Str::ucfirst('мама мыла раму'));
     }
 
     public function testUcwords()
     {
-        $this->assertSame('Laravel', Str::ucwords('laravel'));
-        $this->assertSame('Laravel Framework', Str::ucwords('laravel framework'));
-        $this->assertSame('Laravel-Framework', Str::ucwords('laravel-framework', '-'));
+        $this->assertSame('Hypervel', Str::ucwords('hypervel'));
+        $this->assertSame('Hypervel Framework', Str::ucwords('hypervel framework'));
+        $this->assertSame('Hypervel-Framework', Str::ucwords('hypervel-framework', '-'));
         $this->assertSame('Мама', Str::ucwords('мама'));
         $this->assertSame('Мама Мыла Раму', Str::ucwords('мама мыла раму'));
         $this->assertSame('JJ Watt', Str::ucwords('JJ watt'));
@@ -1443,10 +1490,10 @@ class SupportStrTest extends TestCase
 
     public function testUcsplit()
     {
-        $this->assertSame(['Laravel_p_h_p_framework'], Str::ucsplit('Laravel_p_h_p_framework'));
-        $this->assertSame(['Laravel_', 'P_h_p_framework'], Str::ucsplit('Laravel_P_h_p_framework'));
-        $this->assertSame(['laravel', 'P', 'H', 'P', 'Framework'], Str::ucsplit('laravelPHPFramework'));
-        $this->assertSame(['Laravel-ph', 'P-framework'], Str::ucsplit('Laravel-phP-framework'));
+        $this->assertSame(['Hypervel_p_h_p_framework'], Str::ucsplit('Hypervel_p_h_p_framework'));
+        $this->assertSame(['Hypervel_', 'P_h_p_framework'], Str::ucsplit('Hypervel_P_h_p_framework'));
+        $this->assertSame(['hypervel', 'P', 'H', 'P', 'Framework'], Str::ucsplit('hypervelPHPFramework'));
+        $this->assertSame(['Hypervel-ph', 'P-framework'], Str::ucsplit('Hypervel-phP-framework'));
 
         $this->assertSame(['Żółta', 'Łódka'], Str::ucsplit('ŻółtaŁódka'));
         $this->assertSame(['sind', 'Öde', 'Und', 'So'], Str::ucsplit('sindÖdeUndSo'));
@@ -1541,7 +1588,7 @@ class SupportStrTest extends TestCase
     public function testWordCount()
     {
         $this->assertEquals(2, Str::wordCount('Hello, world!'));
-        $this->assertEquals(10, Str::wordCount('Hi, this is my first contribution to the Laravel framework.'));
+        $this->assertEquals(10, Str::wordCount('Hi, this is my first contribution to the Hypervel framework.'));
 
         $this->assertEquals(0, Str::wordCount('мама'));
         $this->assertEquals(0, Str::wordCount('мама мыла раму'));
@@ -1570,7 +1617,7 @@ class SupportStrTest extends TestCase
     public function testInlineMarkdown()
     {
         $this->assertSame("<em>hello world</em>\n", Str::inlineMarkdown('*hello world*'));
-        $this->assertSame("<a href=\"https://laravel.com\"><strong>Laravel</strong></a>\n", Str::inlineMarkdown('[**Laravel**](https://laravel.com)'));
+        $this->assertSame("<a href=\"https://hypervel.org\"><strong>Hypervel</strong></a>\n", Str::inlineMarkdown('[**Hypervel**](https://hypervel.org)'));
     }
 
     public function testRepeat()
@@ -1600,7 +1647,7 @@ class SupportStrTest extends TestCase
             ['⓪①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳', '01234567891011121314151617181920'],
             ['⓵⓶⓷⓸⓹⓺⓻⓼⓽⓾', '12345678910'],
             ['⓿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴', '011121314151617181920'],
-            ['ⓣⓔⓢⓣ@ⓛⓐⓡⓐⓥⓔⓛ.ⓒⓞⓜ', 'test@laravel.com'],
+            ['ⓣⓔⓢⓣ@ⓗⓨⓟⓔⓡⓥⓔⓛ.ⓞⓡⓖ', 'test@hypervel.org'],
             ['🎂', '?'],
             ['abcdefghijklmnopqrstuvwxyz', 'abcdefghijklmnopqrstuvwxyz'],
             ['0123456789', '0123456789'],
@@ -1857,35 +1904,33 @@ class SupportStrTest extends TestCase
     public function testChopStart()
     {
         foreach ([
-            '' => ['', ''],
-            'Laravel' => ['', 'Laravel'],
-            'Ship it' => [['', 'Ship '], 'it'],
-            'http://laravel.com' => ['http://', 'laravel.com'],
-            'http://-http://' => ['http://', '-http://'],
-            'http://laravel.com' => ['htp:/', 'http://laravel.com'],
-            'http://laravel.com' => ['http://www.', 'http://laravel.com'],
-            'http://laravel.com' => ['-http://', 'http://laravel.com'],
-            'http://laravel.com' => [['https://', 'http://'], 'laravel.com'],
-            'http://www.laravel.com' => [['http://', 'www.'], 'www.laravel.com'],
-            'http://http-is-fun.test' => ['http://', 'http-is-fun.test'],
+            ['', '', ''],
+            ['Hypervel', '', 'Hypervel'],
+            ['Ship it', ['', 'Ship '], 'it'],
+            ['http://hypervel.org', 'http://', 'hypervel.org'],
+            ['http://-http://', 'http://', '-http://'],
+            ['http://hypervel.org', 'htp:/', 'http://hypervel.org'],
+            ['http://hypervel.org', 'http://www.', 'http://hypervel.org'],
+            ['http://hypervel.org', '-http://', 'http://hypervel.org'],
+            ['http://hypervel.org', ['https://', 'http://'], 'hypervel.org'],
+            ['http://www.hypervel.org', ['http://', 'www.'], 'www.hypervel.org'],
+            ['http://http-is-fun.test', 'http://', 'http-is-fun.test'],
             // Multibyte emoji tests
-            '🌊✋' => ['🌊', '✋'],
-            '🌊✋' => ['✋', '🌊✋'],
-            '🚀🌟💫' => ['🚀', '🌟💫'],
-            '🚀🌟💫' => ['🚀🌟', '💫'],
+            ['🌊✋', '🌊', '✋'],
+            ['🌊✋', '✋', '🌊✋'],
+            ['🚀🌟💫', '🚀', '🌟💫'],
+            ['🚀🌟💫', '🚀🌟', '💫'],
             // Multibyte character tests (Japanese, Chinese, Arabic, etc.)
-            'こんにちは世界' => ['こんにちは', '世界'],
-            '你好世界' => ['你好', '世界'],
-            'مرحبا بك' => ['مرحبا ', 'بك'],
+            ['こんにちは世界', 'こんにちは', '世界'],
+            ['你好世界', '你好', '世界'],
+            ['مرحبا بك', 'مرحبا ', 'بك'],
             // Mixed multibyte and ASCII
-            '🎉Laravel' => ['🎉', 'Laravel'],
-            'Hello🌍World' => ['Hello🌍', 'World'],
+            ['🎉Hypervel', '🎉', 'Hypervel'],
+            ['Hello🌍World', 'Hello🌍', 'World'],
             // Multiple needle array with multibyte
-            '🌊✋🎉' => [['🚀', '🌊'], '✋🎉'],
-            'こんにちは世界' => [['Hello', 'こんにちは'], '世界'],
-        ] as $subject => $value) {
-            [$needle, $expected] = $value;
-
+            ['🌊✋🎉', ['🚀', '🌊'], '✋🎉'],
+            ['こんにちは世界', ['Hello', 'こんにちは'], '世界'],
+        ] as [$subject, $needle, $expected]) {
             $this->assertSame($expected, Str::chopStart($subject, $needle));
         }
     }
@@ -1893,35 +1938,33 @@ class SupportStrTest extends TestCase
     public function testChopEnd()
     {
         foreach ([
-            '' => ['', ''],
-            'Laravel' => ['', 'Laravel'],
-            'Ship it' => [['', ' it'], 'Ship'],
-            'path/to/file.php' => ['.php', 'path/to/file'],
-            '.php-.php' => ['.php', '.php-'],
-            'path/to/file.php' => ['.ph', 'path/to/file.php'],
-            'path/to/file.php' => ['foo.php', 'path/to/file.php'],
-            'path/to/file.php' => ['.php-', 'path/to/file.php'],
-            'path/to/file.php' => [['.html', '.php'], 'path/to/file'],
-            'path/to/file.php' => [['.php', 'file'], 'path/to/file'],
-            'path/to/php.php' => ['.php', 'path/to/php'],
+            ['', '', ''],
+            ['Hypervel', '', 'Hypervel'],
+            ['Ship it', ['', ' it'], 'Ship'],
+            ['path/to/file.php', '.php', 'path/to/file'],
+            ['.php-.php', '.php', '.php-'],
+            ['path/to/file.php', '.ph', 'path/to/file.php'],
+            ['path/to/file.php', 'foo.php', 'path/to/file.php'],
+            ['path/to/file.php', '.php-', 'path/to/file.php'],
+            ['path/to/file.php', ['.html', '.php'], 'path/to/file'],
+            ['path/to/file.php', ['.php', 'file'], 'path/to/file'],
+            ['path/to/php.php', '.php', 'path/to/php'],
             // Multibyte emoji tests
-            '✋🌊' => ['🌊', '✋'],
-            '✋🌊' => ['✋', '✋🌊'],
-            '🌟💫🚀' => ['🚀', '🌟💫'],
-            '🌟💫🚀' => ['💫🚀', '🌟'],
+            ['✋🌊', '🌊', '✋'],
+            ['✋🌊', '✋', '✋🌊'],
+            ['🌟💫🚀', '🚀', '🌟💫'],
+            ['🌟💫🚀', '💫🚀', '🌟'],
             // Multibyte character tests (Japanese, Chinese, Arabic, etc.)
-            '世界こんにちは' => ['こんにちは', '世界'],
-            '世界你好' => ['你好', '世界'],
-            'بك مرحبا' => [' مرحبا', 'بك'],
+            ['世界こんにちは', 'こんにちは', '世界'],
+            ['世界你好', '你好', '世界'],
+            ['بك مرحبا', ' مرحبا', 'بك'],
             // Mixed multibyte and ASCII
-            'Laravel🎉' => ['🎉', 'Laravel'],
-            'Hello🌍World' => ['World', 'Hello🌍'],
+            ['Hypervel🎉', '🎉', 'Hypervel'],
+            ['Hello🌍World', 'World', 'Hello🌍'],
             // Multiple needle array with multibyte
-            '🎉✋🌊' => [['🚀', '🌊'], '🎉✋'],
-            '世界こんにちは' => [['Hello', 'こんにちは'], '世界'],
-        ] as $subject => $value) {
-            [$needle, $expected] = $value;
-
+            ['🎉✋🌊', ['🚀', '🌊'], '🎉✋'],
+            ['世界こんにちは', ['Hello', 'こんにちは'], '世界'],
+        ] as [$subject, $needle, $expected]) {
             $this->assertSame($expected, Str::chopEnd($subject, $needle));
         }
     }

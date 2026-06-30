@@ -12,7 +12,9 @@ use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Transport\ArrayTransport;
+use Hypervel\Mail\Transport\CloudflareTransport;
 use Hypervel\Mail\Transport\LogTransport;
+use Hypervel\Mail\Transport\ResendTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Arr;
@@ -23,6 +25,7 @@ use Psr\Log\LoggerInterface;
 use Resend;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory;
+use Symfony\Component\Mailer\Bridge\Postmark\Transport\PostmarkApiTransport;
 use Symfony\Component\Mailer\Bridge\Postmark\Transport\PostmarkTransportFactory;
 use Symfony\Component\Mailer\Transport\Dsn;
 use Symfony\Component\Mailer\Transport\FailoverTransport;
@@ -64,8 +67,11 @@ class MailManager implements FactoryContract
     /**
      * The array of drivers which will be wrapped as pool proxies.
      */
+    // API transports use Symfony HTTP clients that keep mutable request state on
+    // the transport instance. Pooling ensures each concurrent coroutine borrows a
+    // separate transport/client pair instead of sharing one mailer-held instance.
     protected array $poolables = [
-        'smtp', 'sendmail', 'mailgun', 'ses-v2', 'postmark', 'resend', 'failover', 'roundrobin',
+        'smtp', 'sendmail', 'mailgun', 'ses-v2', 'postmark', 'resend', 'cloudflare', 'failover', 'roundrobin',
     ];
 
     /**
@@ -211,7 +217,7 @@ class MailManager implements FactoryContract
         $scheme = $config['scheme'] ?? null;
 
         if (! $scheme) {
-            $scheme = ($config['port'] == 465) ? 'smtps' : 'smtp';
+            $scheme = ((int) $config['port'] === 465) ? 'smtps' : 'smtp';
         }
 
         /** @var EsmtpTransport $transport */
@@ -263,7 +269,7 @@ class MailManager implements FactoryContract
     protected function createSesV2Transport(array $config): SesV2Transport
     {
         $config = array_merge(
-            $this->config->get('services.ses', []),
+            $this->config->array('services.ses', []),
             ['version' => 'latest'],
             $config
         );
@@ -295,10 +301,26 @@ class MailManager implements FactoryContract
     /**
      * Create an instance of the Resend Transport driver.
      */
-    protected function createResendTransport(array $config): Transport\ResendTransport
+    protected function createResendTransport(array $config): ResendTransport
     {
-        return new Transport\ResendTransport(
+        return new ResendTransport(
             Resend::client($config['key'] ?? $this->config->get('services.resend.key')),
+        );
+    }
+
+    /**
+     * Create an instance of the Cloudflare Transport driver.
+     */
+    protected function createCloudflareTransport(array $config): CloudflareTransport
+    {
+        return new CloudflareTransport(
+            $config['account_id']
+                ?? $this->config->get('services.cloudflare.account_id'),
+            $config['token']
+                ?? $config['key']
+                ?? $this->config->get('services.cloudflare.token')
+                ?? $this->config->get('services.cloudflare.key'),
+            $this->getHttpClient($config),
         );
     }
 
@@ -319,7 +341,7 @@ class MailManager implements FactoryContract
         $factory = new MailgunTransportFactory(null, $this->getHttpClient($config));
 
         if (! isset($config['secret'])) {
-            $config = $this->config->get('services.mailgun', []);
+            $config = $this->config->array('services.mailgun', []);
         }
 
         /* @phpstan-ignore-next-line */
@@ -333,23 +355,22 @@ class MailManager implements FactoryContract
 
     /**
      * Create an instance of the Symfony Postmark Transport driver.
-     *
-     * @phpstan-ignore-next-line
      */
     protected function createPostmarkTransport(array $config): PostmarkApiTransport
     {
-        /* @phpstan-ignore-next-line */
         $factory = new PostmarkTransportFactory(null, $this->getHttpClient($config));
 
         $options = isset($config['message_stream_id'])
             ? ['message_stream' => $config['message_stream_id']]
             : [];
 
-        /* @phpstan-ignore-next-line */
-        return $factory->create(new Dsn(
+        return $factory->create(new Dsn( // @phpstan-ignore return.type
             'postmark+api',
             'default',
-            $config['key'] ?? $this->config->get('services.postmark.key'),
+            $config['token']
+                ?? $config['key']
+                ?? $this->config->get('services.postmark.token')
+                ?? $this->config->get('services.postmark.key'),
             null,
             null,
             $options
@@ -430,6 +451,9 @@ class MailManager implements FactoryContract
      */
     protected function getHttpClient(array $config): ?HttpClientInterface
     {
+        // Symfony mail transports require Symfony's HttpClientInterface, not PSR-18.
+        // We can't use a simple Guzzle adapter here, so coroutine safety must come
+        // from pooling configured transports rather than swapping the HTTP client.
         if ($options = ($config['client'] ?? false)) {
             $maxHostConnections = Arr::pull($options, 'max_host_connections', 6);
             $maxPendingPushes = Arr::pull($options, 'max_pending_pushes', 50);
@@ -474,7 +498,7 @@ class MailManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->config->get('mail.default');
+        return $this->config->string('mail.default');
     }
 
     /**
