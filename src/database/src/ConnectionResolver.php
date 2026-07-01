@@ -57,8 +57,8 @@ class ConnectionResolver implements ConnectionResolverInterface
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        $name = enum_value($name) ?: $this->getDefaultConnection();
-        $contextKey = $this->getContextKey($name);
+        $connectionName = ConnectionName::parse(enum_value($name) ?: $this->getDefaultConnection());
+        $contextKey = $this->getContextKey($connectionName->requested);
 
         // Check if this coroutine already has a connection
         if (CoroutineContext::has($contextKey)) {
@@ -69,7 +69,7 @@ class ConnectionResolver implements ConnectionResolverInterface
         }
 
         // Get a pooled connection wrapper from the pool
-        $pool = $this->factory->getPool($name);
+        $pool = $this->factory->getPool($connectionName->requested);
 
         /** @var PooledConnection $pooledConnection */
         $pooledConnection = $pool->get();
@@ -77,6 +77,10 @@ class ConnectionResolver implements ConnectionResolverInterface
         try {
             // Get the actual database connection from the wrapper
             $connection = $pooledConnection->getConnection();
+
+            if ($connectionName->isWrite() && $connection instanceof Connection) {
+                $connection->useWriteConnectionWhenReading();
+            }
 
             // Store in context for this coroutine
             CoroutineContext::set($contextKey, $connection);

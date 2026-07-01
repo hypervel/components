@@ -8,6 +8,8 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Database\ConnectionName;
+use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Pool\Frequency;
 use Hypervel\Pool\Pool;
 use Hypervel\Support\Arr;
@@ -44,16 +46,27 @@ class DbPool extends Pool
 
     public function __construct(Container $container, string $name)
     {
+        $connectionName = ConnectionName::parse($name);
         $configService = $container->make('config');
-        $key = sprintf('database.connections.%s', $name);
+        $key = sprintf('database.connections.%s', $connectionName->base);
 
         if (! $configService->has($key)) {
-            throw new InvalidArgumentException(sprintf('Database connection [%s] not configured.', $name));
+            throw new InvalidArgumentException(sprintf('Database connection [%s] not configured.', $connectionName->base));
         }
 
-        // Include the connection name in the config
-        $this->config = $configService->get($key);
-        $this->config['name'] = $name;
+        /** @var array<string, mixed> $config */
+        $config = $configService->get($key);
+
+        /** @var ConnectionFactory $factory */
+        $factory = $container->make('db.factory');
+        $config = $factory->parseConfig($config, $connectionName->base);
+
+        if ($connectionName->isRead() && $factory->hasReadConfig($config)) {
+            $config = $factory->configForRead($config);
+            $this->ensureNotDerivedInMemorySqlitePool($connectionName, $config);
+        }
+
+        $this->config = $config;
 
         // Extract pool options
         $poolOptions = Arr::get($this->config, 'pool', []);
@@ -126,6 +139,24 @@ class DbPool extends Pool
         return $database === ':memory:'
             || str_contains($database, '?mode=memory')
             || str_contains($database, '&mode=memory');
+    }
+
+    /**
+     * Ensure a derived read pool does not point at an in-memory SQLite database.
+     */
+    protected function ensureNotDerivedInMemorySqlitePool(ConnectionName $name, array $config): void
+    {
+        if (($config['driver'] ?? null) !== 'sqlite') {
+            return;
+        }
+
+        $database = $config['database'] ?? '';
+
+        if ($database === ':memory:' || str_contains($database, '?mode=memory') || str_contains($database, '&mode=memory')) {
+            throw new InvalidArgumentException(
+                "Database connection [{$name->requested}] cannot use a derived read pool for in-memory SQLite."
+            );
+        }
     }
 
     /**

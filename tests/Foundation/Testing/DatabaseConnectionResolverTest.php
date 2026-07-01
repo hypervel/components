@@ -49,4 +49,32 @@ class DatabaseConnectionResolverTest extends TestCase
         // Restore original container
         \Hypervel\Container\Container::setInstance($this->app);
     }
+
+    public function testCachedWriteConnectionReappliesWriteReadRoutingAfterReset(): void
+    {
+        $this->app->make('config')->set('database.connections.testing_readwrite_suffix', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'read' => [
+                'database' => ':memory:',
+            ],
+            'write' => [
+                'database' => ':memory:',
+            ],
+        ]);
+
+        $resolver = $this->app->make(DatabaseConnectionResolver::class);
+        $connection = $resolver->connection('testing_readwrite_suffix::write');
+
+        $connection->statement('create table users (id integer primary key, name varchar)');
+        $connection->insert('insert into users (name) values (?)', ['Taylor']);
+        $this->assertSame('Taylor', $connection->selectOne('select name from users')->name);
+
+        DatabaseConnectionResolver::flushCachedConnections();
+
+        $cachedConnection = $resolver->connection('testing_readwrite_suffix::write');
+
+        $this->assertSame($connection, $cachedConnection);
+        $this->assertSame('Taylor', $cachedConnection->selectOne('select name from users')->name);
+    }
 }

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\FlushableConnectionResolver;
 use UnitEnum;
@@ -22,10 +24,10 @@ use function Hypervel\Support\enum_value;
  * pool infrastructure (same factory, config, and connection path as production)
  * but cached statically instead of using the pool's checkout/release cycle.
  *
- * This is intentional — tests don't run in coroutines with defer(), so the
- * normal pool lifecycle (checkout → defer release → coroutine ends) doesn't
- * apply. Instead, connections are cached per-name and reused across test
- * methods within the same worker process.
+ * This is intentional — Testbench needs stable bare connections across its
+ * setup, transaction, and assertion helpers, while production's defer-based
+ * pool lifecycle releases borrowed wrappers at coroutine end. Instead,
+ * connections are cached per-name and reset between tests.
  *
  * The PooledConnection wrapper is discarded after extracting the bare
  * Connection. This means pool release() never runs on the wrapper, but
@@ -148,25 +150,36 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        $name = enum_value($name) ?: $this->getDefaultConnection();
+        $connectionName = ConnectionName::parse(enum_value($name) ?: $this->getDefaultConnection());
 
         // If the pool is enabled, we should use the default connection resolver.
-        $poolEnabled = $this->container
-            ->get('config')
-            ->get("database.connections.{$name}.pool.testing_enabled", false);
+        /** @var ConfigRepository $config */
+        $config = $this->container->make('config');
+        $poolEnabled = $config->boolean("database.connections.{$connectionName->base}.pool.testing_enabled", false);
         if ($poolEnabled) {
-            return parent::connection($name);
+            return parent::connection($connectionName->requested);
         }
 
-        if ($connection = static::$connections[$name] ?? null) {
+        if ($connection = static::$connections[$connectionName->requested] ?? null) {
+            if ($connectionName->isWrite() && $connection instanceof Connection) {
+                // flushCachedConnections() runs resetForPool() between tests and clears this flag.
+                $connection->useWriteConnectionWhenReading();
+            }
+
             return $connection;
         }
 
         // Check out from pool, extract bare Connection, discard the wrapper.
         // The wrapper's release() is not needed — see class docblock.
-        return static::$connections[$name] = $this->factory
-            ->getPool($name)
+        $connection = $this->factory
+            ->getPool($connectionName->requested)
             ->get()
             ->getConnection();
+
+        if ($connectionName->isWrite()) {
+            $connection->useWriteConnectionWhenReading();
+        }
+
+        return static::$connections[$connectionName->requested] = $connection;
     }
 }
