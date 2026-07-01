@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys\Feature\PasskeyAuthenticatableTest;
 
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Foundation\Auth\User as Authenticatable;
 use Hypervel\Passkeys\Contracts\PasskeyUser;
+use Hypervel\Passkeys\Passkey;
 use Hypervel\Passkeys\PasskeyAuthenticatable;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Passkeys\Fixtures\User;
@@ -71,6 +73,11 @@ class PasskeyAuthenticatableTest extends TestCase
         ]);
         $handle = $user->getPasskeyUserHandle();
 
+        $this->assertSame(
+            hash_hmac('sha256', 'users|' . $user->getKey(), 'test-secret', binary: true),
+            $handle,
+        );
+        $this->assertNotSame((string) $user->getKey(), $handle);
         $this->assertSame($handle, User::find($user->id)->getPasskeyUserHandle());
         $this->assertSame(32, strlen($handle));
     }
@@ -133,6 +140,87 @@ class PasskeyAuthenticatableTest extends TestCase
 
         $this->assertNotSame($user->getPasskeyUserHandle(), $admin->getPasskeyUserHandle());
     }
+
+    public function testDeletingOwnerDeletesRelatedPasskeys(): void
+    {
+        $user = User::create([
+            'name' => 'Alex Müller',
+            'email' => 'alex@example.com',
+        ]);
+
+        $passkey = $this->createPasskeyForUser($user, 'credential-owner-delete');
+
+        $this->assertDatabaseHas('passkeys', [
+            'id' => $passkey->getKey(),
+            'user_type' => $user->getMorphClass(),
+            'user_id' => (string) $user->getKey(),
+        ]);
+
+        $user->delete();
+
+        $this->assertSame(0, Passkey::query()->count());
+    }
+
+    public function testSoftDeletingOwnerPreservesRelatedPasskeys(): void
+    {
+        $this->createSoftDeletingUsersTable();
+
+        $user = SoftDeletingPasskeyUser::create([
+            'name' => 'Soft Delete',
+            'email' => 'soft@example.com',
+        ]);
+
+        $passkey = $this->createPasskeyForUser($user, 'credential-soft-delete');
+
+        $user->delete();
+
+        $this->assertDatabaseHas('passkeys', [
+            'id' => $passkey->getKey(),
+        ]);
+    }
+
+    public function testForceDeletingOwnerDeletesRelatedPasskeys(): void
+    {
+        $this->createSoftDeletingUsersTable();
+
+        $user = SoftDeletingPasskeyUser::create([
+            'name' => 'Force Delete',
+            'email' => 'force@example.com',
+        ]);
+
+        $this->createPasskeyForUser($user, 'credential-force-delete');
+
+        $user->forceDelete();
+
+        $this->assertSame(0, Passkey::query()->count());
+    }
+
+    /**
+     * Create a passkey for the given user.
+     */
+    private function createPasskeyForUser(PasskeyUser $user, string $credentialId): Passkey
+    {
+        /** @var Passkey $passkey */
+        return $user->passkeys()->create([
+            'name' => 'Laptop',
+            'credential_id' => $credentialId,
+            'credential' => ['id' => $credentialId],
+        ]);
+    }
+
+    /**
+     * Create the soft-deleting users fixture table.
+     */
+    private function createSoftDeletingUsersTable(): void
+    {
+        Schema::create('soft_deleting_users', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->softDeletes();
+            $table->timestamps();
+        });
+    }
 }
 
 class MinimalUser extends Authenticatable implements PasskeyUser
@@ -158,6 +246,16 @@ class AdminUser extends Authenticatable implements PasskeyUser
     use PasskeyAuthenticatable;
 
     protected ?string $table = 'admin_users';
+
+    protected array $guarded = [];
+}
+
+class SoftDeletingPasskeyUser extends Authenticatable implements PasskeyUser
+{
+    use PasskeyAuthenticatable;
+    use SoftDeletes;
+
+    protected ?string $table = 'soft_deleting_users';
 
     protected array $guarded = [];
 }
