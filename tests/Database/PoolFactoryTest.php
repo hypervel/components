@@ -8,6 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Pool\Connection;
@@ -132,9 +133,133 @@ class PoolFactoryTest extends TestCase
         $this->assertNotSame($defaultPool, $freshDefaultPool);
     }
 
-    private function mockContainerWithPools(): m\MockInterface|ContainerContract
+    public function testWriteConnectionUsesBasePool(): void
     {
-        $connectionConfig = [
+        $container = $this->mockContainerWithPools();
+
+        $factory = new PoolFactory($container);
+        $pool = $factory->getPool('default::write');
+
+        $this->assertSame(
+            $factory->getPool('default'),
+            $pool
+        );
+        $this->assertTrue($factory->hasPool('default::write'));
+    }
+
+    public function testReadConnectionUsesSeparatePoolWhenReadConfigExists(): void
+    {
+        $container = $this->mockContainerWithPools([
+            'default' => $this->connectionConfig([
+                'read' => [
+                    'host' => '127.0.0.2',
+                ],
+            ]),
+        ]);
+
+        $factory = new PoolFactory($container);
+
+        $this->assertNotSame(
+            $factory->getPool('default'),
+            $factory->getPool('default::read')
+        );
+        $this->assertTrue($factory->hasPool('default'));
+        $this->assertTrue($factory->hasPool('default::read'));
+    }
+
+    public function testReadConnectionUsesBasePoolWhenReadConfigIsMissingOrNull(): void
+    {
+        $container = $this->mockContainerWithPools([
+            'default' => $this->connectionConfig([
+                'read' => null,
+            ]),
+        ]);
+
+        $factory = new PoolFactory($container);
+
+        $this->assertSame(
+            $factory->getPool('default'),
+            $factory->getPool('default::read')
+        );
+        $this->assertTrue($factory->hasPool('default::read'));
+    }
+
+    public function testFlushPoolResolvesWriteAliasToBasePool(): void
+    {
+        $container = $this->mockContainerWithPools();
+
+        $factory = new PoolFactory($container);
+
+        $pool = $factory->getPool('default::write');
+        $pool->release($pool->get());
+
+        $factory->flushPool('default::write');
+
+        $this->assertSame(0, $pool->getConnectionsInChannel());
+        $this->assertNotSame($pool, $factory->getPool('default'));
+    }
+
+    public function testFlushPoolsForConnectionFlushesBaseAndRolePools(): void
+    {
+        $container = $this->mockContainerWithPools([
+            'default' => $this->connectionConfig([
+                'read' => [
+                    'host' => '127.0.0.2',
+                ],
+            ]),
+            'cache' => $this->connectionConfig(),
+        ]);
+
+        $factory = new PoolFactory($container);
+
+        $defaultPool = $factory->getPool('default');
+        $readPool = $factory->getPool('default::read');
+        $cachePool = $factory->getPool('cache');
+
+        $defaultPool->release($defaultPool->get());
+        $readPool->release($readPool->get());
+        $cachePool->release($cachePool->get());
+
+        $factory->flushPoolsForConnection('default::read');
+
+        $this->assertSame(0, $defaultPool->getConnectionsInChannel());
+        $this->assertSame(0, $readPool->getConnectionsInChannel());
+        $this->assertSame(1, $cachePool->getConnectionsInChannel());
+        $this->assertNotSame($defaultPool, $factory->getPool('default'));
+        $this->assertNotSame($readPool, $factory->getPool('default::read'));
+        $this->assertSame($cachePool, $factory->getPool('cache'));
+    }
+
+    private function mockContainerWithPools(?array $connections = null): m\MockInterface|ContainerContract
+    {
+        $connections ??= [
+            'default' => $this->connectionConfig(),
+            'cache' => $this->connectionConfig(),
+        ];
+
+        $config = new Repository([
+            'database' => [
+                'connections' => $connections,
+            ],
+        ]);
+
+        $container = m::mock(ContainerContract::class);
+        $factory = new ConnectionFactory($container);
+
+        $container->shouldReceive('make')->with('config')->andReturn($config);
+        $container->shouldReceive('make')->with('db.factory')->andReturn($factory);
+        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);
+        $container->shouldReceive('bound')->with('events')->andReturn(false);
+        $container->shouldReceive('make')->with(DbPool::class, m::any())->andReturnUsing(
+            fn ($class, $args) => new PoolFactoryTestPool($container, $args['name'])
+        );
+
+        return $container;
+    }
+
+    private function connectionConfig(array $overrides = []): array
+    {
+        return array_merge([
             'driver' => 'mysql',
             'host' => '127.0.0.1',
             'port' => 3306,
@@ -147,26 +272,7 @@ class PoolFactoryTest extends TestCase
                 'heartbeat' => -1,
                 'max_idle_time' => 60.0,
             ],
-        ];
-
-        $config = new Repository([
-            'database' => [
-                'connections' => [
-                    'default' => $connectionConfig,
-                    'cache' => $connectionConfig,
-                ],
-            ],
-        ]);
-
-        $container = m::mock(ContainerContract::class);
-        $container->shouldReceive('make')->with('config')->andReturn($config);
-        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(false);
-        $container->shouldReceive('bound')->with('events')->andReturn(false);
-        $container->shouldReceive('make')->with(DbPool::class, m::any())->andReturnUsing(
-            fn ($class, $args) => new PoolFactoryTestPool($container, $args['name'])
-        );
-
-        return $container;
+        ], $overrides);
     }
 }
 

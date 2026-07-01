@@ -14,6 +14,7 @@ use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Pool\Events\ReleaseConnection;
 use Hypervel\Pool\PoolOption;
+use InvalidArgumentException;
 use PDO;
 use ReflectionProperty;
 
@@ -88,6 +89,99 @@ class PooledConnectionTest extends DatabaseTestCase
         $connection = $pooledConnection->getConnection();
 
         $this->assertInstanceOf(Connection::class, $connection);
+    }
+
+    public function testPoolParsesUrlConfigurationBeforeCreatingConnection(): void
+    {
+        $databasePath = sys_get_temp_dir() . '/hypervel_url_pool_test_' . uniqid() . '.sqlite';
+        touch($databasePath);
+
+        try {
+            $this->app->make('config')->set('database.connections.url_pool_test', [
+                'url' => 'sqlite:///' . $databasePath,
+                'pool' => [
+                    'min_connections' => 1,
+                    'max_connections' => 1,
+                    'heartbeat' => -1,
+                ],
+            ]);
+
+            $pool = new DbPool($this->app, 'url_pool_test');
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+
+            $this->assertSame('sqlite', $connection->getConfig('driver'));
+            $this->assertSame($databasePath, $connection->getConfig('database'));
+
+            $pooledConnection->release();
+        } finally {
+            @unlink($databasePath);
+        }
+    }
+
+    public function testDerivedReadPoolForInMemorySqliteIsRejected(): void
+    {
+        $this->app->make('config')->set('database.connections.memory_read_pool_test', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'read' => [
+                'database' => ':memory:',
+            ],
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Database connection [memory_read_pool_test::read] cannot use a derived read pool for in-memory SQLite.'
+        );
+
+        new DbPool($this->app, 'memory_read_pool_test::read');
+    }
+
+    public function testDerivedReadPoolForFileBackedSqliteUsesReadConfig(): void
+    {
+        $readPath = sys_get_temp_dir() . '/hypervel_read_pool_test_' . uniqid() . '.sqlite';
+        $writePath = sys_get_temp_dir() . '/hypervel_write_pool_test_' . uniqid() . '.sqlite';
+        touch($readPath);
+        touch($writePath);
+
+        try {
+            $this->app->make('config')->set('database.connections.file_read_pool_test', [
+                'driver' => 'sqlite',
+                'read' => [
+                    'database' => $readPath,
+                ],
+                'write' => [
+                    'database' => $writePath,
+                ],
+                'pool' => [
+                    'min_connections' => 1,
+                    'max_connections' => 1,
+                    'heartbeat' => -1,
+                ],
+            ]);
+
+            $pool = new DbPool($this->app, 'file_read_pool_test::read');
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+
+            $this->assertSame('file_read_pool_test', $connection->getName());
+            $this->assertSame($readPath, $connection->getConfig('database'));
+            $this->assertSame('read', $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
+
+            $pooledConnection->release();
+        } finally {
+            @unlink($readPath);
+            @unlink($writePath);
+        }
     }
 
     public function testGetConnectionReturnsSameInstanceWhileValid(): void
