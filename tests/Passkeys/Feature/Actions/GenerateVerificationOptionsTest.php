@@ -24,6 +24,7 @@ class GenerateVerificationOptionsTest extends TestCase
     {
         $options = app(GenerateVerificationOptions::class)();
 
+        $this->assertSame('localhost', $options->rpId);
         $this->assertSame([], $options->allowCredentials);
     }
 
@@ -52,6 +53,7 @@ class GenerateVerificationOptionsTest extends TestCase
         $options = app(GenerateVerificationOptions::class)($user);
 
         $this->assertCount(2, $options->allowCredentials);
+        $this->assertSame(PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY, $options->allowCredentials[0]->type);
         $this->assertSame(
             collect([
                 Base64UrlSafe::encodeUnpadded($credentialIdOne),
@@ -61,6 +63,12 @@ class GenerateVerificationOptionsTest extends TestCase
                 ->map(static fn (PublicKeyCredentialDescriptor $credential): string => Base64UrlSafe::encodeUnpadded($credential->id))
                 ->sort()
                 ->values()
+                ->all(),
+        );
+        $this->assertEqualsCanonicalizing(
+            [$credentialIdOne, $credentialIdTwo],
+            collect($options->allowCredentials)
+                ->map(static fn (PublicKeyCredentialDescriptor $credential): string => $credential->id)
                 ->all(),
         );
     }

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Passkeys\Feature\Actions;
 use Hypervel\Passkeys\Actions\GenerateRegistrationOptions;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\TestCase;
+use ParagonIE\ConstantTime\Base64UrlSafe;
 use Webauthn\AuthenticatorSelectionCriteria;
 use Webauthn\PublicKeyCredentialCreationOptions;
 
@@ -32,16 +33,20 @@ class GenerateRegistrationOptionsTest extends TestCase
             'name' => 'John Doe',
             'email' => 'john@example.com',
         ]);
+        $rawCredentialId = random_bytes(32);
 
         $user->passkeys()->create([
             'name' => 'Test Passkey',
-            'credential_id' => 'dGVzdC1jcmVkZW50aWFsLWlk',
+            'credential_id' => Base64UrlSafe::encodeUnpadded($rawCredentialId),
             'credential' => ['publicKey' => 'test'],
         ]);
 
         $options = app(GenerateRegistrationOptions::class)($user);
 
+        $this->assertSame('localhost', $options->rp->id);
+        $this->assertSame($user->getPasskeyUserHandle(), $options->user->id);
         $this->assertCount(1, $options->excludeCredentials);
+        $this->assertSame($rawCredentialId, $options->excludeCredentials[0]->id);
     }
 
     public function testItAllowsOverridingAuthenticatorSelectionWithACustomActionBinding(): void
