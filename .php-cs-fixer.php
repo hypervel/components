@@ -104,6 +104,8 @@ return (new Config())
     ])
     ->setFinder(
         PhpCsFixer\Finder::create()
+            ->exclude('_archive')
+            ->exclude('_tmp')
             ->exclude('bin')
             ->exclude('overrides')
             ->exclude('src/testbench/workbench/bootstrap/cache')
