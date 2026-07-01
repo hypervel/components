@@ -75,6 +75,10 @@ class ArgonHasher extends AbstractHasher implements HasherContract
      */
     public function check(string $value, ?string $hashedValue, array $options = []): bool
     {
+        if (! $this->hasHash($hashedValue)) {
+            return false;
+        }
+
         if ($this->verifyAlgorithm && $this->info($hashedValue)['algoName'] !== 'argon2i') {
             throw new RuntimeException('This password does not use the Argon2i algorithm.');
         }
@@ -85,8 +89,12 @@ class ArgonHasher extends AbstractHasher implements HasherContract
     /**
      * Check if the given hash has been hashed using the given options.
      */
-    public function needsRehash(string $hashedValue, array $options = []): bool
+    public function needsRehash(?string $hashedValue, array $options = []): bool
     {
+        if (! $this->hasHash($hashedValue)) {
+            return false;
+        }
+
         return password_needs_rehash($hashedValue, $this->algorithm(), [
             'memory_cost' => $this->memory($options),
             'time_cost' => $this->time($options),

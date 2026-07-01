@@ -24,5 +24,5 @@ interface Hasher
     /**
      * Check if the given hash has been hashed using the given options.
      */
-    public function needsRehash(string $hashedValue, array $options = []): bool;
+    public function needsRehash(?string $hashedValue, array $options = []): bool;
 }

@@ -511,6 +511,26 @@ class AuthGuardTest extends TestCase
         $guard->login($user, true);
     }
 
+    public function testLoginMethodQueuesCookieWhenRememberingPasswordlessUser()
+    {
+        [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();
+        $guard = new SessionGuard('default', $provider, $session, $app);
+        $guard->setCookieJar($cookie);
+        $foreverCookie = new Cookie($guard->getRecallerName(), 'foo');
+        $expectedHash = hash_hmac('sha256', '', 'base-key-for-password-hash-mac');
+        $cookie->shouldReceive('make')->once()->with($guard->getRecallerName(), 'foo|recaller|' . $expectedHash, 576000)->andReturn($foreverCookie);
+        $cookie->shouldReceive('queue')->once()->with($foreverCookie);
+        $guard->getSession()->shouldReceive('put')->once()->with($guard->getName(), 'foo');
+        $session->shouldReceive('regenerate')->once();
+        $user = m::mock(Authenticatable::class);
+        $user->shouldReceive('getAuthIdentifier')->andReturn('foo');
+        $user->shouldReceive('getAuthPassword')->andReturn(null);
+        $user->shouldReceive('getRememberToken')->andReturn('recaller');
+        $user->shouldReceive('setRememberToken')->never();
+        $provider->shouldReceive('updateRememberToken')->never();
+        $guard->login($user, true);
+    }
+
     public function testLoginMethodQueuesCookieWhenRememberingAndAllowsOverride()
     {
         [$session, $provider, $request, $cookie, $timebox, $app] = $this->getMocks();

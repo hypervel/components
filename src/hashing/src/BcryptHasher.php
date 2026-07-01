@@ -65,6 +65,10 @@ class BcryptHasher extends AbstractHasher implements HasherContract
      */
     public function check(string $value, ?string $hashedValue, array $options = []): bool
     {
+        if (! $this->hasHash($hashedValue)) {
+            return false;
+        }
+
         if ($this->verifyAlgorithm && $this->info($hashedValue)['algoName'] !== 'bcrypt') {
             throw new RuntimeException('This password does not use the Bcrypt algorithm.');
         }
@@ -75,8 +79,12 @@ class BcryptHasher extends AbstractHasher implements HasherContract
     /**
      * Check if the given hash has been hashed using the given options.
      */
-    public function needsRehash(string $hashedValue, array $options = []): bool
+    public function needsRehash(?string $hashedValue, array $options = []): bool
     {
+        if (! $this->hasHash($hashedValue)) {
+            return false;
+        }
+
         return password_needs_rehash($hashedValue, PASSWORD_BCRYPT, [
             'cost' => $this->cost($options),
         ]);

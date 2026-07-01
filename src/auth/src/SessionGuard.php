@@ -535,11 +535,11 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Create a HMAC of the password hash for storage in cookies.
      */
-    public function hashPasswordForCookie(string $passwordHash): string
+    public function hashPasswordForCookie(?string $passwordHash): string
     {
         return hash_hmac(
             'sha256',
-            $passwordHash,
+            $passwordHash ?? '',
             $this->hashKey ?? 'base-key-for-password-hash-mac'
         );
     }
