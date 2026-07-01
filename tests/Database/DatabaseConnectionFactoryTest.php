@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Container\Container;
 use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
@@ -82,6 +84,87 @@ class DatabaseConnectionFactoryTest extends TestCase
             'strict' => true,
             'engine' => null,
         ], $this->db->getConnection('url-config')->getConfig());
+    }
+
+    public function testParseConfigParsesUrlAndAddsDefaults(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+
+        $config = $factory->parseConfig([
+            'url' => 'mysql://root:pass@db/local?strict=true',
+            'prefix_indexes' => true,
+        ], 'url-config');
+
+        $this->assertSame('url-config', $config['name']);
+        $this->assertSame('mysql', $config['driver']);
+        $this->assertSame('local', $config['database']);
+        $this->assertSame('db', $config['host']);
+        $this->assertSame('root', $config['username']);
+        $this->assertSame('pass', $config['password']);
+        $this->assertSame('', $config['prefix']);
+        $this->assertTrue($config['strict']);
+        $this->assertTrue($config['prefix_indexes']);
+    }
+
+    public function testHasReadConfigRequiresNonNullReadConfig(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+
+        $this->assertTrue($factory->hasReadConfig(['read' => []]));
+        $this->assertFalse($factory->hasReadConfig(['read' => null]));
+        $this->assertFalse($factory->hasReadConfig([]));
+    }
+
+    public function testConfigForReadDerivesSingleRoleReadConfig(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+
+        $config = $factory->configForRead([
+            'driver' => 'mysql',
+            'name' => 'mysql',
+            'database' => 'app',
+            'host' => 'write-host',
+            'username' => 'root',
+            'password' => '',
+            'prefix' => 'app_',
+            'read' => [
+                'host' => ['read-one', 'read-two'],
+                'username' => 'reader',
+            ],
+            'write' => [
+                'host' => 'write-host',
+            ],
+        ]);
+
+        $this->assertSame('mysql', $config['name']);
+        $this->assertSame('mysql', $config['driver']);
+        $this->assertSame('app', $config['database']);
+        $this->assertSame('reader', $config['username']);
+        $this->assertSame(['read-one', 'read-two'], $config['host']);
+        $this->assertSame('app_', $config['prefix']);
+        $this->assertSame(ConnectionName::READ, $config[Connection::READ_WRITE_TYPE_CONFIG_KEY]);
+        $this->assertArrayNotHasKey('read', $config);
+        $this->assertArrayNotHasKey('write', $config);
+    }
+
+    public function testConfigForReadTreatsEmptyReadConfigAsBaseConfigWithReadRole(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+
+        $config = $factory->configForRead([
+            'driver' => 'sqlite',
+            'name' => 'default',
+            'database' => 'database.sqlite',
+            'read' => [],
+        ]);
+
+        $this->assertSame('default', $config['name']);
+        $this->assertSame('sqlite', $config['driver']);
+        $this->assertSame('database.sqlite', $config['database']);
+        $this->assertSame('', $config['prefix']);
+        $this->assertSame(ConnectionName::READ, $config[Connection::READ_WRITE_TYPE_CONFIG_KEY]);
+        $this->assertArrayNotHasKey('read', $config);
+        $this->assertArrayNotHasKey('write', $config);
     }
 
     public function testSingleConnectionNotCreatedUntilNeeded()

@@ -6,7 +6,9 @@ namespace Hypervel\Database\Connectors;
 
 use Closure;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\ConfigurationUrlParser;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\PostgresConnection;
@@ -118,9 +120,33 @@ class ConnectionFactory
     /**
      * Parse and prepare the database configuration.
      */
-    protected function parseConfig(array $config, ?string $name): array
+    public function parseConfig(array $config, ?string $name): array
     {
+        $config = (new ConfigurationUrlParser)->parseConfiguration($config);
+
         return Arr::add(Arr::add($config, 'prefix', ''), 'name', $name);
+    }
+
+    /**
+     * Determine if the configuration has a read side.
+     */
+    public function hasReadConfig(array $config): bool
+    {
+        return isset($config[ConnectionName::READ]);
+    }
+
+    /**
+     * Get the single-role read configuration for a read / write connection.
+     */
+    public function configForRead(array $config): array
+    {
+        $config = $this->parseConfig($config, $config['name'] ?? null);
+
+        return Arr::add(
+            $this->getReadConfig($config),
+            Connection::READ_WRITE_TYPE_CONFIG_KEY,
+            ConnectionName::READ
+        );
     }
 
     /**
