@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys\Feature\Actions;
 
+use Closure;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Passkeys\Actions\VerifyPasskey;
 use Hypervel\Passkeys\Events\PasskeyVerified;
 use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
 use Hypervel\Passkeys\Passkey;
+use Hypervel\Passkeys\Passkeys;
 use Hypervel\Passkeys\Support\WebAuthn;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Passkeys\Fixtures\User;
@@ -17,9 +20,16 @@ use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
 use Mockery as m;
 use ParagonIE\ConstantTime\Base64UrlSafe;
+use Symfony\Component\Uid\Uuid;
+use UnitEnum;
 use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\AuthenticatorAttestationResponse;
+use Webauthn\AuthenticatorResponse;
+use Webauthn\CredentialRecord;
 use Webauthn\PublicKeyCredential;
+use Webauthn\PublicKeyCredentialDescriptor;
+use Webauthn\PublicKeyCredentialRequestOptions;
+use Webauthn\TrustPath\EmptyTrustPath;
 
 class VerifyPasskeyTest extends TestCase
 {
@@ -187,5 +197,122 @@ class VerifyPasskeyTest extends TestCase
 
         $this->assertSame($passkey->id, $result->id);
         $this->assertSame($initialUserHandle, Base64UrlSafe::decodeNoPadding($result->refresh()->credential['userHandle']));
+    }
+
+    public function testItUsesTheConfiguredPasskeyModelConnectionForVerificationTransactions(): void
+    {
+        Passkeys::usePasskeyModel(CustomConnectionPasskey::class);
+
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+
+        $passkey = new CustomConnectionPasskey;
+        $passkey->forceFill([
+            'user_type' => $user->getMorphClass(),
+            'user_id' => $user->getKey(),
+            'name' => 'Laptop',
+            'credential_id' => 'credential-connection',
+            'credential' => ['id' => 'credential-connection'],
+        ]);
+
+        $database = m::mock(ConnectionResolverInterface::class);
+        $connection = m::mock(ConnectionInterface::class);
+        $database->shouldReceive('connection')->once()->with('passkeys')->andReturn($connection);
+        $connection->shouldReceive('transaction')
+            ->once()
+            ->with(m::type(Closure::class))
+            ->andReturnUsing(static fn (Closure $callback): Passkey => $callback());
+
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->andReturnFalse();
+        $events->shouldReceive('dispatch')->never();
+
+        $credential = PublicKeyCredential::create(
+            'public-key',
+            random_bytes(32),
+            $this->createStub(AuthenticatorResponse::class),
+        );
+
+        $options = PublicKeyCredentialRequestOptions::create(
+            challenge: random_bytes(32),
+            rpId: 'localhost',
+        );
+
+        $verifier = new ConnectionAwareVerifyPasskey(
+            $database,
+            $events,
+            $passkey,
+            $this->createStub(AuthenticatorAssertionResponse::class),
+        );
+
+        $this->assertSame($passkey, $verifier($credential, $options, $user));
+        $this->assertTrue($verifier->receivedLockedLookup);
+    }
+}
+
+class CustomConnectionPasskey extends Passkey
+{
+    protected UnitEnum|string|null $connection = 'passkeys';
+}
+
+class ConnectionAwareVerifyPasskey extends VerifyPasskey
+{
+    public bool $receivedLockedLookup = false;
+
+    public function __construct(
+        ConnectionResolverInterface $database,
+        Dispatcher $events,
+        private readonly Passkey $passkey,
+        private readonly AuthenticatorAssertionResponse $response,
+    ) {
+        parent::__construct($database, $events);
+    }
+
+    /**
+     * Get the authenticator assertion response from the credential.
+     */
+    protected function getResponse(PublicKeyCredential $credential): AuthenticatorAssertionResponse
+    {
+        return $this->response;
+    }
+
+    /**
+     * Get the passkey by credential ID.
+     */
+    public function getPasskey(PublicKeyCredential $credential, bool $lock = false, ?string $ownerType = null): Passkey
+    {
+        $this->receivedLockedLookup = $lock;
+
+        return $this->passkey;
+    }
+
+    /**
+     * Validate the credential against the stored passkey.
+     */
+    protected function validate(
+        AuthenticatorAssertionResponse $response,
+        Passkey $passkey,
+        PublicKeyCredentialRequestOptions $options
+    ): CredentialRecord {
+        return CredentialRecord::create(
+            publicKeyCredentialId: random_bytes(32),
+            type: PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
+            transports: [],
+            attestationType: 'none',
+            trustPath: EmptyTrustPath::create(),
+            aaguid: Uuid::v4(),
+            credentialPublicKey: random_bytes(77),
+            userHandle: 'test-user-handle',
+            counter: 0,
+        );
+    }
+
+    /**
+     * Update the passkey with the latest credential data.
+     */
+    public function updatePasskey(Passkey $passkey, CredentialRecord $source): void
+    {
     }
 }
