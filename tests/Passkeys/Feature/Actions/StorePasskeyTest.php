@@ -110,6 +110,23 @@ class StorePasskeyTest extends TestCase
         $action($user, 'Duplicate Passkey', $credential, $options);
     }
 
+    public function testItConvertsDuplicateCredentialInsertRaceIntoInvalidPasskeyException(): void
+    {
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+        $source = $this->createCredentialSource($user->getPasskeyUserHandle(), random_bytes(16));
+        $action = app(StorePasskey::class);
+
+        $action->createPasskey($user, 'Laptop', $source);
+
+        $this->expectException(InvalidPasskeyException::class);
+        $this->expectExceptionMessage('Unable to register this passkey.');
+
+        $action->createPasskey($user, 'Laptop again', $source);
+    }
+
     public function testItThrowsExceptionWhenResponseIsNotAnAttestationResponse(): void
     {
         $user = User::create([
