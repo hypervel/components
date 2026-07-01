@@ -11,6 +11,28 @@ use RuntimeException;
 
 class DatabaseTransactionsTest extends DatabaseTestCase
 {
+    protected static string $readPath;
+
+    protected static string $writePath;
+
+    public static function setUpBeforeClass(): void
+    {
+        parent::setUpBeforeClass();
+
+        static::$readPath = sys_get_temp_dir() . '/hypervel_transactions_read_' . uniqid() . '.sqlite';
+        static::$writePath = sys_get_temp_dir() . '/hypervel_transactions_write_' . uniqid() . '.sqlite';
+        touch(static::$readPath);
+        touch(static::$writePath);
+    }
+
+    public static function tearDownAfterClass(): void
+    {
+        @unlink(static::$readPath);
+        @unlink(static::$writePath);
+
+        parent::tearDownAfterClass();
+    }
+
     protected function defineEnvironment(Application $app): void
     {
         parent::defineEnvironment($app);
@@ -19,6 +41,15 @@ class DatabaseTransactionsTest extends DatabaseTestCase
             'database.connections.second_connection' => [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
+            ],
+            'database.connections.transaction_readwrite' => [
+                'driver' => 'sqlite',
+                'read' => [
+                    'database' => static::$readPath,
+                ],
+                'write' => [
+                    'database' => static::$writePath,
+                ],
             ],
         ]);
     }
@@ -110,6 +141,26 @@ class DatabaseTransactionsTest extends DatabaseTestCase
         $this->assertFalse($thirdObject->ran);
     }
 
+    public function testSuffixedConnectionsUseBaseNameForTransactionCallbacks(): void
+    {
+        $afterCommitRan = false;
+        $write = DB::connection('transaction_readwrite::write');
+        $read = DB::connection('transaction_readwrite::read');
+
+        $this->assertSame('transaction_readwrite', $write->getName());
+        $this->assertSame('transaction_readwrite', $read->getName());
+
+        $write->transaction(function () use ($write, &$afterCommitRan) {
+            DB::connection('transaction_readwrite::read')->select('select 1');
+
+            $write->afterCommit(function () use (&$afterCommitRan) {
+                $afterCommitRan = true;
+            });
+        });
+
+        $this->assertTrue($afterCommitRan);
+    }
+
     public function testAfterRollbackCallbacksAreExecuted()
     {
         $afterCommitRan = false;
@@ -122,6 +173,33 @@ class DatabaseTransactionsTest extends DatabaseTestCase
                 });
 
                 DB::afterRollBack(function () use (&$afterRollbackRan) {
+                    $afterRollbackRan = true;
+                });
+
+                throw new RuntimeException('rollback');
+            });
+        } catch (RuntimeException) {
+            // Ignore the expected rollback exception.
+        }
+
+        $this->assertFalse($afterCommitRan);
+        $this->assertTrue($afterRollbackRan);
+    }
+
+    public function testSuffixedConnectionsUseBaseNameForRollbackCallbacks(): void
+    {
+        $afterCommitRan = false;
+        $afterRollbackRan = false;
+        $write = DB::connection('transaction_readwrite::write');
+
+        try {
+            $write->transaction(function () use ($write, &$afterCommitRan, &$afterRollbackRan) {
+                DB::connection('transaction_readwrite::read')->select('select 1');
+
+                $write->afterCommit(function () use (&$afterCommitRan) {
+                    $afterCommitRan = true;
+                });
+                $write->afterRollBack(function () use (&$afterRollbackRan) {
                     $afterRollbackRan = true;
                 });
 

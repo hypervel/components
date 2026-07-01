@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Database\QueryException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
+use InvalidArgumentException;
 
 class DatabaseConnectionsTest extends DatabaseTestCase
 {
@@ -65,6 +66,8 @@ class DatabaseConnectionsTest extends DatabaseTestCase
 
     // REMOVED: testEstablishingAConnectionWillDispatchAnEvent - Uses connectUsing() which is incompatible with Swoole connection pooling
 
+    // REMOVED: testDirectDatabaseConnection - Laravel's ::direct suffix is replaced by Hypervel's migrations_connection setting.
+
     public function testTablePrefix(): void
     {
         DB::setTablePrefix('prefix_');
@@ -86,54 +89,57 @@ class DatabaseConnectionsTest extends DatabaseTestCase
 
     public function testReadWriteTypeIsProvidedInQueryExecutedEventAndQueryLog(): void
     {
-        $connection = DB::connection('sqlite_readwrite');
+        $this->assertQueryReadWriteTypes('sqlite_readwrite', ['write', 'read', 'write', 'read']);
+        $this->assertQueryReadWriteTypes('sqlite_readwrite::read', ['read', 'read', 'read', 'read']);
+        $this->assertQueryReadWriteTypes('sqlite_readwrite::write', ['write', 'write', 'write', 'write']);
+    }
+
+    public function testConnectionsWithoutReadWriteConfigurationAlwaysShowAsWrite(): void
+    {
+        $this->assertQueryReadWriteTypes('sqlite', ['write', 'write', 'write', 'write']);
+        $this->assertQueryReadWriteTypes('sqlite::read', ['write', 'write', 'write', 'write']);
+        $this->assertQueryReadWriteTypes('sqlite::write', ['write', 'write', 'write', 'write']);
+    }
+
+    public function testDirectConnectionSuffixIsRejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Database connection suffix [::direct] is not supported. Configure a direct connection and use migrations_connection instead.'
+        );
+
+        DB::connection('default::direct');
+    }
+
+    protected function assertQueryReadWriteTypes(string $connectionName, array $expected): void
+    {
+        $connection = DB::connection($connectionName);
 
         $events = collect();
         $connection->listen($events->push(...));
         $connection->enableQueryLog();
 
         $connection->statement('select 1');
-        $this->assertSame('write', $events->shift()->readWriteType);
+        $this->assertSame($expected[0], $events->shift()->readWriteType);
 
         $connection->select('select 1');
-        $this->assertSame('read', $events->shift()->readWriteType);
+        $this->assertSame($expected[1], $events->shift()->readWriteType);
 
         $connection->statement('select 1');
-        $this->assertSame('write', $events->shift()->readWriteType);
+        $this->assertSame($expected[2], $events->shift()->readWriteType);
 
         $connection->select('select 1');
-        $this->assertSame('read', $events->shift()->readWriteType);
+        $this->assertSame($expected[3], $events->shift()->readWriteType);
 
         $this->assertEmpty($events);
         $this->assertSame([
-            ['query' => 'select 1', 'readWriteType' => 'write'],
-            ['query' => 'select 1', 'readWriteType' => 'read'],
-            ['query' => 'select 1', 'readWriteType' => 'write'],
-            ['query' => 'select 1', 'readWriteType' => 'read'],
+            ['query' => 'select 1', 'readWriteType' => $expected[0]],
+            ['query' => 'select 1', 'readWriteType' => $expected[1]],
+            ['query' => 'select 1', 'readWriteType' => $expected[2]],
+            ['query' => 'select 1', 'readWriteType' => $expected[3]],
         ], Arr::select($connection->getQueryLog(), [
             'query', 'readWriteType',
         ]));
-    }
-
-    public function testConnectionsWithoutReadWriteConfigurationAlwaysShowAsWrite(): void
-    {
-        // Default sqlite connection has no read/write splitting
-        $connection = DB::connection('sqlite');
-
-        $events = collect();
-        $connection->listen($events->push(...));
-
-        $connection->statement('select 1');
-        $this->assertSame('write', $events->shift()->readWriteType);
-
-        $connection->select('select 1');
-        $this->assertSame('write', $events->shift()->readWriteType);
-
-        $connection->statement('select 1');
-        $this->assertSame('write', $events->shift()->readWriteType);
-
-        $connection->select('select 1');
-        $this->assertSame('write', $events->shift()->readWriteType);
     }
 
     public function testQueryExceptionsProvideReadWriteType(): void
@@ -147,6 +153,20 @@ class DatabaseConnectionsTest extends DatabaseTestCase
 
         try {
             DB::connection('sqlite_readwrite')->select('xxxx', useReadPdo: false);
+            $this->fail();
+        } catch (QueryException $exception) {
+            $this->assertSame('write', $exception->readWriteType);
+        }
+
+        try {
+            DB::connection('sqlite_readwrite::read')->select('xxxx', useReadPdo: false);
+            $this->fail();
+        } catch (QueryException $exception) {
+            $this->assertSame('read', $exception->readWriteType);
+        }
+
+        try {
+            DB::connection('sqlite_readwrite::write')->select('xxxx', useReadPdo: true);
             $this->fail();
         } catch (QueryException $exception) {
             $this->assertSame('write', $exception->readWriteType);
