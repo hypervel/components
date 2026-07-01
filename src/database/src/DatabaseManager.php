@@ -79,9 +79,15 @@ class DatabaseManager implements ConnectionResolverInterface
         protected ContainerContract $app,
         protected ConnectionFactory $factory
     ) {
-        $this->reconnector = function ($connection) {
+        $this->reconnector = function (Connection $connection) {
+            $name = $connection->getName();
+
+            if ($name !== null && $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY) === ConnectionName::READ) {
+                $name .= '::' . ConnectionName::READ;
+            }
+
             $connection->setPdo(
-                $this->reconnect($connection->getName())->getRawPdo()
+                $this->reconnect($name)->getRawPdo()
             );
         };
     }

@@ -12,8 +12,10 @@ use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\SQLiteConnection;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Pool\Events\ReleaseConnection;
 use Hypervel\Pool\PoolOption;
+use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 use PDO;
 use ReflectionProperty;
@@ -93,7 +95,11 @@ class PooledConnectionTest extends DatabaseTestCase
 
     public function testPoolParsesUrlConfigurationBeforeCreatingConnection(): void
     {
-        $databasePath = sys_get_temp_dir() . '/hypervel_url_pool_test_' . uniqid() . '.sqlite';
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('PooledConnectionTest-url');
+        $filesystem->ensureDirectoryExists($directory);
+
+        $databasePath = $directory . '/database.sqlite';
         touch($databasePath);
 
         try {
@@ -117,7 +123,7 @@ class PooledConnectionTest extends DatabaseTestCase
 
             $pooledConnection->release();
         } finally {
-            @unlink($databasePath);
+            $filesystem->deleteDirectory($directory);
         }
     }
 
@@ -144,10 +150,48 @@ class PooledConnectionTest extends DatabaseTestCase
         new DbPool($this->app, 'memory_read_pool_test::read');
     }
 
+    public function testDerivedReadPoolForInMemorySqliteReadUrlIsRejected(): void
+    {
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('PooledConnectionTest-read-url-memory');
+        $filesystem->ensureDirectoryExists($directory);
+
+        $writePath = $directory . '/write.sqlite';
+        touch($writePath);
+
+        try {
+            $this->app->make('config')->set('database.connections.memory_read_url_pool_test', [
+                'driver' => 'sqlite',
+                'database' => $writePath,
+                'read' => [
+                    'url' => 'sqlite:///:memory:',
+                ],
+                'pool' => [
+                    'min_connections' => 1,
+                    'max_connections' => 1,
+                    'heartbeat' => -1,
+                ],
+            ]);
+
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage(
+                'Database connection [memory_read_url_pool_test::read] cannot use a derived read pool for in-memory SQLite.'
+            );
+
+            new DbPool($this->app, 'memory_read_url_pool_test::read');
+        } finally {
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
     public function testDerivedReadPoolForFileBackedSqliteUsesReadConfig(): void
     {
-        $readPath = sys_get_temp_dir() . '/hypervel_read_pool_test_' . uniqid() . '.sqlite';
-        $writePath = sys_get_temp_dir() . '/hypervel_write_pool_test_' . uniqid() . '.sqlite';
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('PooledConnectionTest-file-read');
+        $filesystem->ensureDirectoryExists($directory);
+
+        $readPath = $directory . '/read.sqlite';
+        $writePath = $directory . '/write.sqlite';
         touch($readPath);
         touch($writePath);
 
@@ -179,8 +223,7 @@ class PooledConnectionTest extends DatabaseTestCase
 
             $pooledConnection->release();
         } finally {
-            @unlink($readPath);
-            @unlink($writePath);
+            $filesystem->deleteDirectory($directory);
         }
     }
 
@@ -608,7 +651,11 @@ class PooledConnectionTest extends DatabaseTestCase
         // Use a file-based SQLite connection so reconnect() takes the
         // factory->make() path (not the makeSqliteFromSharedPdo() path
         // that in-memory SQLite uses).
-        $databasePath = sys_get_temp_dir() . '/hypervel_extension_pool_test.db';
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('PooledConnectionTest-extension');
+        $filesystem->ensureDirectoryExists($directory);
+
+        $databasePath = $directory . '/extension.sqlite';
         touch($databasePath);
 
         try {
@@ -643,7 +690,7 @@ class PooledConnectionTest extends DatabaseTestCase
             // reconnect() calls factory->make() which should consult the extension
             $this->assertSame($custom, $pooledConnection->getConnection());
         } finally {
-            @unlink($databasePath);
+            $filesystem->deleteDirectory($directory);
         }
     }
 

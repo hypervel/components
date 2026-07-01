@@ -6,11 +6,15 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Exception;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testing\ParallelTesting;
 use RuntimeException;
 
 class DatabaseTransactionsTest extends DatabaseTestCase
 {
+    protected static string $databaseDirectory;
+
     protected static string $readPath;
 
     protected static string $writePath;
@@ -19,16 +23,19 @@ class DatabaseTransactionsTest extends DatabaseTestCase
     {
         parent::setUpBeforeClass();
 
-        static::$readPath = sys_get_temp_dir() . '/hypervel_transactions_read_' . uniqid() . '.sqlite';
-        static::$writePath = sys_get_temp_dir() . '/hypervel_transactions_write_' . uniqid() . '.sqlite';
+        $filesystem = new Filesystem;
+        static::$databaseDirectory = ParallelTesting::tempDir('DatabaseTransactionsTest');
+        $filesystem->ensureDirectoryExists(static::$databaseDirectory);
+
+        static::$readPath = static::$databaseDirectory . '/read.sqlite';
+        static::$writePath = static::$databaseDirectory . '/write.sqlite';
         touch(static::$readPath);
         touch(static::$writePath);
     }
 
     public static function tearDownAfterClass(): void
     {
-        @unlink(static::$readPath);
-        @unlink(static::$writePath);
+        (new Filesystem)->deleteDirectory(static::$databaseDirectory);
 
         parent::tearDownAfterClass();
     }
@@ -37,7 +44,7 @@ class DatabaseTransactionsTest extends DatabaseTestCase
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set([
+        $app->make('config')->set([
             'database.connections.second_connection' => [
                 'driver' => 'sqlite',
                 'database' => ':memory:',

@@ -147,6 +147,39 @@ class DatabaseConnectionFactoryTest extends TestCase
         $this->assertArrayNotHasKey('write', $config);
     }
 
+    public function testConfigForReadParsesNestedReadUrl(): void
+    {
+        $factory = new ConnectionFactory(new Container);
+
+        $config = $factory->configForRead([
+            'driver' => 'mysql',
+            'name' => 'mysql',
+            'database' => 'write_database',
+            'host' => 'write-host',
+            'username' => 'writer',
+            'password' => '',
+            'read' => [
+                'url' => 'mysql://reader:secret@read-host/read_database?strict=true',
+            ],
+            'write' => [
+                'host' => 'write-host',
+            ],
+        ]);
+
+        $this->assertSame('mysql', $config['name']);
+        $this->assertSame('mysql', $config['driver']);
+        $this->assertSame('read_database', $config['database']);
+        $this->assertSame('read-host', $config['host']);
+        $this->assertSame('reader', $config['username']);
+        $this->assertSame('secret', $config['password']);
+        $this->assertSame('', $config['prefix']);
+        $this->assertTrue($config['strict']);
+        $this->assertSame(ConnectionName::READ, $config[Connection::READ_WRITE_TYPE_CONFIG_KEY]);
+        $this->assertArrayNotHasKey('url', $config);
+        $this->assertArrayNotHasKey('read', $config);
+        $this->assertArrayNotHasKey('write', $config);
+    }
+
     public function testConfigForReadTreatsEmptyReadConfigAsBaseConfigWithReadRole(): void
     {
         $factory = new ConnectionFactory(new Container);

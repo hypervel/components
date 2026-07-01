@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\QueryException;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 
 class DatabaseConnectionsTest extends DatabaseTestCase
 {
+    protected static string $databaseDirectory;
+
     protected static string $readPath;
 
     protected static string $writePath;
@@ -19,33 +23,37 @@ class DatabaseConnectionsTest extends DatabaseTestCase
     {
         parent::setUpBeforeClass();
 
-        // Create temp SQLite files for read/write splitting tests
-        static::$readPath = sys_get_temp_dir() . '/hypervel_test_read_' . uniqid() . '.sqlite';
-        static::$writePath = sys_get_temp_dir() . '/hypervel_test_write_' . uniqid() . '.sqlite';
+        $filesystem = new Filesystem;
+        static::$databaseDirectory = ParallelTesting::tempDir('DatabaseConnectionsTest');
+        $filesystem->ensureDirectoryExists(static::$databaseDirectory);
+
+        static::$readPath = static::$databaseDirectory . '/read.sqlite';
+        static::$writePath = static::$databaseDirectory . '/write.sqlite';
         touch(static::$readPath);
         touch(static::$writePath);
     }
 
     public static function tearDownAfterClass(): void
     {
-        @unlink(static::$readPath);
-        @unlink(static::$writePath);
+        (new Filesystem)->deleteDirectory(static::$databaseDirectory);
 
         parent::tearDownAfterClass();
     }
 
     protected function defineEnvironment($app): void
     {
+        $config = $app->make('config');
+
         // Configure a basic sqlite connection for testConnectionsWithoutReadWriteConfigurationAlwaysShowAsWrite
         // (When running with Postgres, DB_DATABASE=testing would be used, causing SQLite to fail)
-        $app['config']->set('database.connections.sqlite', [
+        $config->set('database.connections.sqlite', [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',
         ]);
 
         // Configure a read/write split connection for tests
-        $app['config']->set('database.connections.sqlite_readwrite', [
+        $config->set('database.connections.sqlite_readwrite', [
             'driver' => 'sqlite',
             'read' => [
                 'database' => static::$readPath,

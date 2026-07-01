@@ -140,10 +140,12 @@ class ConnectionFactory
      */
     public function configForRead(array $config): array
     {
-        $config = $this->parseConfig($config, $config['name'] ?? null);
+        $name = $config['name'] ?? null;
+        $config = $this->parseConfig($config, $name);
+        $readConfig = $this->parseConfig($this->getReadConfig($config), $name);
 
         return Arr::add(
-            $this->getReadConfig($config),
+            $readConfig,
             Connection::READ_WRITE_TYPE_CONFIG_KEY,
             ConnectionName::READ
         );

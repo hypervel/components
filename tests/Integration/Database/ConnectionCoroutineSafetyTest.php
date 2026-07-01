@@ -11,8 +11,10 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Engine\Channel;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testing\ParallelTesting;
 use RuntimeException;
 use Throwable;
 
@@ -27,6 +29,8 @@ use function Hypervel\Coroutine\parallel;
  */
 class ConnectionCoroutineSafetyTest extends DatabaseTestCase
 {
+    protected static string $databaseDirectory;
+
     protected static string $readPath;
 
     protected static string $writePath;
@@ -35,16 +39,19 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     {
         parent::setUpBeforeClass();
 
-        static::$readPath = sys_get_temp_dir() . '/hypervel_coroutine_read_' . uniqid() . '.sqlite';
-        static::$writePath = sys_get_temp_dir() . '/hypervel_coroutine_write_' . uniqid() . '.sqlite';
+        $filesystem = new Filesystem;
+        static::$databaseDirectory = ParallelTesting::tempDir('ConnectionCoroutineSafetyTest');
+        $filesystem->ensureDirectoryExists(static::$databaseDirectory);
+
+        static::$readPath = static::$databaseDirectory . '/read.sqlite';
+        static::$writePath = static::$databaseDirectory . '/write.sqlite';
         touch(static::$readPath);
         touch(static::$writePath);
     }
 
     public static function tearDownAfterClass(): void
     {
-        @unlink(static::$readPath);
-        @unlink(static::$writePath);
+        (new Filesystem)->deleteDirectory(static::$databaseDirectory);
 
         parent::tearDownAfterClass();
     }
