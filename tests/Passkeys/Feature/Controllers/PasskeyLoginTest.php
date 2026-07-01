@@ -22,8 +22,10 @@ class PasskeyLoginTest extends TestCase
             ->assertJsonStructure([
                 'options' => [
                     'challenge',
-                    'timeout',
                     'rpId',
+                    'allowCredentials',
+                    'userVerification',
+                    'timeout',
                 ],
             ]);
     }

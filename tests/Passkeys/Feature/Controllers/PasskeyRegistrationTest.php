@@ -29,10 +29,14 @@ class PasskeyRegistrationTest extends TestCase
             ->assertOk()
             ->assertJsonStructure([
                 'options' => [
+                    'rp' => ['id'],
+                    'user' => ['id', 'name', 'displayName'],
                     'challenge',
+                    'pubKeyCredParams',
+                    'excludeCredentials',
+                    'authenticatorSelection',
+                    'attestation',
                     'timeout',
-                    'rp',
-                    'user',
                 ],
             ]);
     }
@@ -276,6 +280,10 @@ class PasskeyRegistrationTest extends TestCase
             ->withSession(['auth.password_confirmed_at' => time()])
             ->deleteJson("/user/passkeys/{$passkey->id}")
             ->assertForbidden();
+
+        $this->assertDatabaseHas('passkeys', [
+            'id' => $passkey->getKey(),
+        ]);
     }
 
     public function testItRequiresPasswordConfirmationToDeleteAPasskey(): void

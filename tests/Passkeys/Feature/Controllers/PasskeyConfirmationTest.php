@@ -32,6 +32,7 @@ class PasskeyConfirmationTest extends TestCase
                     'timeout',
                     'rpId',
                     'allowCredentials',
+                    'userVerification',
                 ],
             ]);
     }
