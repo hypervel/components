@@ -117,6 +117,8 @@ class Connection implements ConnectionInterface
      */
     protected ?DatabaseTransactionsManager $transactionsManager = null;
 
+    public const READ_WRITE_TYPE_CONFIG_KEY = 'read_write_type';
+
     /**
      * Indicates if changes have been made to the database.
      */
@@ -126,6 +128,20 @@ class Connection implements ConnectionInterface
      * Indicates if the connection should use the "write" PDO connection.
      */
     protected bool $readOnWriteConnection = false;
+
+    /**
+     * The configured read / write type for derived single-role connections.
+     *
+     * @var null|'read'|'write'
+     */
+    protected ?string $readWriteType = null;
+
+    /**
+     * The last retrieved PDO read / write type.
+     *
+     * @var null|'read'|'write'
+     */
+    protected ?string $latestPdoTypeRetrieved = null;
 
     /**
      * All of the queries run against the connection.
@@ -185,13 +201,6 @@ class Connection implements ConnectionInterface
     protected static array $resolvers = [];
 
     /**
-     * The last retrieved PDO read / write type.
-     *
-     * @var null|'read'|'write'
-     */
-    protected ?string $latestPdoTypeRetrieved = null;
-
-    /**
      * Create a new database connection instance.
      */
     public function __construct(PDO|Closure $pdo, string $database = '', string $tablePrefix = '', array $config = [])
@@ -206,6 +215,8 @@ class Connection implements ConnectionInterface
         $this->tablePrefix = $tablePrefix;
 
         $this->config = $config;
+
+        $this->readWriteType = $config[self::READ_WRITE_TYPE_CONFIG_KEY] ?? null;
 
         // We need to initialize a query grammar and the query post processors
         // which are both very important parts of the database abstractions
@@ -1270,7 +1281,7 @@ class Connection implements ConnectionInterface
      */
     protected function getConnectionDetails(): array
     {
-        $config = $this->latestReadWriteTypeUsed() === 'read'
+        $config = $this->latestReadWriteTypeUsed() === 'read' && $this->readPdoConfig !== []
             ? $this->readPdoConfig
             : $this->config;
 
@@ -1503,7 +1514,7 @@ class Connection implements ConnectionInterface
      */
     protected function latestReadWriteTypeUsed(): ?string
     {
-        return $this->latestPdoTypeRetrieved;
+        return $this->readWriteType ?? $this->latestPdoTypeRetrieved;
     }
 
     /**

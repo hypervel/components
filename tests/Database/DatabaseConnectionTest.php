@@ -577,6 +577,43 @@ class DatabaseConnectionTest extends TestCase
         $this->assertEquals(1.23, $log[0]['time']);
     }
 
+    public function testStickyReadConnectionsUseWritePdoAfterRecordsModified(): void
+    {
+        [$connection, $writePdo, $readPdo] = $this->getReadWriteConnection(sticky: true);
+
+        $this->assertSame($readPdo, $connection->getReadPdo());
+
+        $connection->recordsHaveBeenModified();
+
+        $this->assertSame($writePdo, $connection->getReadPdo());
+    }
+
+    public function testNonStickyReadConnectionsKeepUsingReadPdoAfterRecordsModified(): void
+    {
+        [$connection, $writePdo, $readPdo] = $this->getReadWriteConnection(sticky: false);
+
+        $this->assertSame($readPdo, $connection->getReadPdo());
+
+        $connection->recordsHaveBeenModified();
+
+        $actualReadPdo = $connection->getReadPdo();
+
+        $this->assertSame($readPdo, $actualReadPdo);
+        $this->assertNotSame($writePdo, $actualReadPdo);
+    }
+
+    public function testResetForPoolClearsStickyReadRoutingState(): void
+    {
+        [$connection, $writePdo, $readPdo] = $this->getReadWriteConnection(sticky: true);
+
+        $connection->recordsHaveBeenModified();
+        $this->assertSame($writePdo, $connection->getReadPdo());
+
+        $connection->resetForPool();
+
+        $this->assertSame($readPdo, $connection->getReadPdo());
+    }
+
     public function testQueryExceptionContainsReadConnectionDetailsWhenUsingReadPdo()
     {
         // Create write PDO mock that will NOT be used for this query
@@ -681,6 +718,39 @@ class DatabaseConnectionTest extends TestCase
         }
     }
 
+    public function testQueryExceptionContainsDerivedReadConnectionDetails(): void
+    {
+        $pdo = $this->getMockBuilder(PDOStub::class)
+            ->onlyMethods(['prepare'])
+            ->getMock();
+        $pdo->expects($this->once())
+            ->method('prepare')
+            ->willThrowException(new PDOException('Connection refused'));
+
+        $connection = new Connection($pdo, 'read_db', '', [
+            'driver' => 'mysql',
+            'name' => 'mysql',
+            'host' => '192.168.1.20',
+            'port' => '3307',
+            'database' => 'read_db',
+            Connection::READ_WRITE_TYPE_CONFIG_KEY => 'read',
+        ]);
+        $connection->useDefaultQueryGrammar();
+        $connection->useDefaultPostProcessor();
+
+        try {
+            $connection->select('SELECT * FROM users', useReadPdo: true);
+            $this->fail('Expected QueryException was not thrown');
+        } catch (QueryException $e) {
+            $this->assertSame('read', $e->readWriteType);
+
+            $connectionDetails = $e->getConnectionDetails();
+            $this->assertSame('192.168.1.20', $connectionDetails['host']);
+            $this->assertSame('3307', $connectionDetails['port']);
+            $this->assertSame('read_db', $connectionDetails['database']);
+        }
+    }
+
     public function testQueryExceptionContainsWriteConnectionDetailsWhenUsingWritePdo()
     {
         // Create write PDO mock that throws an exception
@@ -775,6 +845,26 @@ class DatabaseConnectionTest extends TestCase
             $this->assertSame('3306', $connectionDetails['port']);
             $this->assertSame('write_db', $connectionDetails['database']);
         }
+    }
+
+    /**
+     * Create a read / write connection for sticky routing assertions.
+     *
+     * @return array{0: Connection, 1: PDOStub, 2: PDOStub}
+     */
+    protected function getReadWriteConnection(bool $sticky): array
+    {
+        $writePdo = new PDOStub;
+        $readPdo = new PDOStub;
+
+        $connection = new Connection($writePdo, 'test_db', '', [
+            'name' => 'test',
+            'driver' => 'mysql',
+            'sticky' => $sticky,
+        ]);
+        $connection->setReadPdo($readPdo);
+
+        return [$connection, $writePdo, $readPdo];
     }
 
     protected function getMockConnection($methods = [], $pdo = null)
