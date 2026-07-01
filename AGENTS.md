@@ -95,6 +95,7 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **Preserve source constant/property/method order when merging** — when porting/merging methods into an existing Hypervel class, insert them at the same relative order as they appear in the upstream source. This keeps diffs against upstream meaningful and makes future merges easier.
 - **Import classes, don't use FQCNs** — always add a `use` statement and reference the short name. The only exceptions are places where FQCNs genuinely make more sense, such as middleware arrays and similar config-style identifier lists.
 - **No class docblocks unless warranted** — only add a class-level docblock if something unusual or complex needs explanation. Method docblocks (title only, Laravel-style) are always added. A body can accompany the title for complex methods that need further explanation.
+- **Don't make classes final by default** — keep classes open; add `final` ONLY for a specific reason — e.g. subclassing is inert (a fully-static facade), or would break an invariant (immutability, coroutine-safety, a security guarantee) — never as a blanket modernization.
 - **Preserve existing comments** - use the following rules for upstream code comments and docblocks:
   Do not remove or modify upstream code comments unless they are incorrect. 
   Only remove `@param` and `@return` annotations where the description adds nothing beyond what the native type hint and parameter/method name already convey.
