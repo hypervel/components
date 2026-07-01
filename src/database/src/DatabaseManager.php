@@ -110,15 +110,23 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function resolveConnectionDirectly(string $name): ConnectionInterface
     {
-        if (! isset($this->connections[$name])) {
-            $this->connections[$name] = $this->configure(
-                $this->makeConnection($name)
+        $connectionName = ConnectionName::parse($name);
+
+        if (! isset($this->connections[$connectionName->requested])) {
+            $connection = $this->configure(
+                $this->makeConnection($connectionName)
             );
 
-            $this->dispatchConnectionEstablishedEvent($this->connections[$name]);
+            if ($connectionName->isWrite()) {
+                $connection->useWriteConnectionWhenReading();
+            }
+
+            $this->connections[$connectionName->requested] = $connection;
+
+            $this->dispatchConnectionEstablishedEvent($connection);
         }
 
-        return $this->connections[$name];
+        return $this->connections[$connectionName->requested];
     }
 
     /**
@@ -150,11 +158,12 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Make the database connection instance.
      */
-    protected function makeConnection(string $name): Connection
+    protected function makeConnection(ConnectionName|string $name): Connection
     {
-        $config = $this->configuration($name);
+        $connectionName = is_string($name) ? ConnectionName::parse($name) : $name;
+        $config = $this->configuration($connectionName);
 
-        return $this->factory->make($config, $name);
+        return $this->factory->make($config, $connectionName->base);
     }
 
     /**
@@ -162,19 +171,26 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @throws InvalidArgumentException
      */
-    protected function configuration(string $name): array
+    protected function configuration(ConnectionName|string $name): array
     {
+        $connectionName = is_string($name) ? ConnectionName::parse($name) : $name;
+
         /** @var array<string, array> $connections */
         $connections = $this->configValue('database.connections', []);
 
-        $config = Arr::get($connections, $name);
+        $config = Arr::get($connections, $connectionName->base);
 
         if (is_null($config)) {
-            throw new InvalidArgumentException("Database connection [{$name}] not configured.");
+            throw new InvalidArgumentException("Database connection [{$connectionName->base}] not configured.");
         }
 
-        return (new ConfigurationUrlParser)
-            ->parseConfiguration($config);
+        $config = $this->factory->parseConfig($config, $connectionName->base);
+
+        if ($connectionName->isRead() && $this->factory->hasReadConfig($config)) {
+            return $this->factory->configForRead($config);
+        }
+
+        return $config;
     }
 
     /**
@@ -184,7 +200,7 @@ class DatabaseManager implements ConnectionResolverInterface
     {
         // Set the event dispatcher if available.
         if ($this->app->bound('events')) {
-            $connection->setEventDispatcher($this->app['events']);
+            $connection->setEventDispatcher($this->app->make('events'));
         }
 
         if ($this->app->bound('db.transactions')) {
@@ -207,7 +223,7 @@ class DatabaseManager implements ConnectionResolverInterface
             return;
         }
 
-        $this->app['events']->dispatch(
+        $this->app->make('events')->dispatch(
             new ConnectionEstablished($connection)
         );
     }
@@ -227,27 +243,34 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
-        $name = enum_value($name) ?: $this->getDefaultConnection();
+        $requestedName = enum_value($name) ?: $this->getDefaultConnection();
+        $connectionName = ConnectionName::parse($requestedName);
+        $variants = $this->connectionNameVariants($requestedName);
 
-        // Disconnect current connection if any
-        $this->disconnect($name);
+        foreach ($variants as $variant) {
+            // Disconnect current connection if any
+            $this->disconnect($variant);
+        }
 
-        // Clear context so next connection() gets a fresh pooled connection
-        $contextKey = $this->getConnectionContextKey($name);
-        CoroutineContext::forget($contextKey);
+        foreach ($variants as $variant) {
+            // Clear context so next connection() gets a fresh pooled connection
+            CoroutineContext::forget($this->getConnectionContextKey($variant));
 
-        // Clear cached connection for SimpleConnectionResolver (non-pooled mode)
-        unset($this->connections[$name]);
+            // Clear cached connection for SimpleConnectionResolver (non-pooled mode)
+            unset($this->connections[$variant]);
+        }
 
         // Clear resolver-level caching (e.g., DatabaseConnectionResolver's static cache)
         $resolver = $this->app->make('db.resolver');
         if ($resolver instanceof FlushableConnectionResolver) {
-            $resolver->flush($name);
+            foreach ($variants as $variant) {
+                $resolver->flush($variant);
+            }
         }
 
         // Flush the pool to honor config changes
         if ($this->app->has(PoolFactory::class)) {
-            $this->app->make(PoolFactory::class)->flushPool($name);
+            $this->app->make(PoolFactory::class)->flushPoolsForConnection($connectionName->base);
         }
     }
 
@@ -263,18 +286,18 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function disconnect(UnitEnum|string|null $name = null): void
     {
-        $name = enum_value($name) ?: $this->getDefaultConnection();
-        $contextKey = $this->getConnectionContextKey($name);
+        $requestedName = enum_value($name) ?: $this->getDefaultConnection();
+        $connectionName = ConnectionName::parse($requestedName);
 
         // Pooled mode: disconnect the current coroutine's connection
-        $connection = CoroutineContext::get($contextKey);
+        $connection = CoroutineContext::get($this->getConnectionContextKey($connectionName->requested));
         if ($connection instanceof Connection) {
             $connection->disconnect();
         }
 
         // Non-pooled mode (SimpleConnectionResolver): disconnect from $connections array
-        if (isset($this->connections[$name])) {
-            $this->connections[$name]->disconnect();
+        if (isset($this->connections[$connectionName->requested])) {
+            $this->connections[$connectionName->requested]->disconnect();
         }
     }
 
@@ -450,6 +473,18 @@ class DatabaseManager implements ConnectionResolverInterface
     protected function getConnectionContextKey(string $name): string
     {
         return sprintf('__database.connection.%s', $name);
+    }
+
+    /**
+     * Get all coroutine/cache variants for a connection name.
+     *
+     * @return string[]
+     */
+    protected function connectionNameVariants(UnitEnum|string|null $name): array
+    {
+        $base = ConnectionName::parse(enum_value($name) ?: $this->getDefaultConnection())->base;
+
+        return [$base, $base . '::read', $base . '::write'];
     }
 
     /**

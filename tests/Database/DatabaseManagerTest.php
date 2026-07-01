@@ -9,6 +9,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use PDO;
 
 class DatabaseManagerTest extends TestCase
@@ -155,5 +156,123 @@ class DatabaseManagerTest extends TestCase
         $result = $manager->connection('forget-test');
         $this->assertNotSame($custom, $result);
         $this->assertInstanceOf(Connection::class, $result);
+    }
+
+    public function testNonPooledReadConnectionCanBeResolvedFromSplitConfig(): void
+    {
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'read' => [
+                'database' => ':memory:',
+            ],
+        ], 'split');
+
+        $connection = $this->db->getDatabaseManager()->connection('split::read');
+
+        $this->assertInstanceOf(Connection::class, $connection);
+        $this->assertSame('split', $connection->getName());
+        $this->assertSame('read', $connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
+        $this->assertNotNull($connection->getPdo());
+    }
+
+    public function testNonPooledWriteConnectionForcesReadsThroughWritePdo(): void
+    {
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'read' => [
+                'database' => ':memory:',
+            ],
+            'write' => [
+                'database' => ':memory:',
+            ],
+        ], 'split');
+
+        $connection = $this->db->getDatabaseManager()->connection('split::write');
+        $connection->statement('create table users (id integer primary key, name varchar)');
+        $connection->insert('insert into users (name) values (?)', ['Taylor']);
+
+        $this->assertSame('split', $connection->getName());
+        $this->assertNull($connection->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
+        $this->assertSame('Taylor', $connection->selectOne('select name from users')->name);
+    }
+
+    public function testReadAndWriteSuffixesAreCompatibilityAliasesForUnsplitConnections(): void
+    {
+        $manager = $this->db->getDatabaseManager();
+
+        $read = $manager->connection('default::read');
+        $write = $manager->connection('default::write');
+
+        $this->assertInstanceOf(Connection::class, $read);
+        $this->assertInstanceOf(Connection::class, $write);
+        $this->assertSame('default', $read->getName());
+        $this->assertSame('default', $write->getName());
+        $this->assertNull($read->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
+        $this->assertNull($write->getConfig(Connection::READ_WRITE_TYPE_CONFIG_KEY));
+    }
+
+    public function testDirectConnectionSuffixIsRejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Database connection suffix [::direct] is not supported. Configure a direct connection and use migrations_connection instead.'
+        );
+
+        $this->db->getDatabaseManager()->connection('default::direct');
+    }
+
+    public function testDisconnectOnlyDisconnectsRequestedNonPooledConnectionVariant(): void
+    {
+        $manager = $this->db->getDatabaseManager();
+
+        $default = $manager->connection('default');
+        $read = $manager->connection('default::read');
+        $write = $manager->connection('default::write');
+
+        $this->assertNotNull($default->getPdo());
+        $this->assertNotNull($read->getPdo());
+        $this->assertNotNull($write->getPdo());
+
+        $manager->disconnect('default');
+
+        $this->assertNull($default->getRawPdo());
+        $this->assertNotNull($read->getRawPdo());
+        $this->assertNotNull($write->getRawPdo());
+    }
+
+    public function testDisconnectCanTargetSuffixedNonPooledConnectionVariant(): void
+    {
+        $manager = $this->db->getDatabaseManager();
+
+        $default = $manager->connection('default');
+        $read = $manager->connection('default::read');
+        $write = $manager->connection('default::write');
+
+        $this->assertNotNull($default->getPdo());
+        $this->assertNotNull($read->getPdo());
+        $this->assertNotNull($write->getPdo());
+
+        $manager->disconnect('default::read');
+
+        $this->assertNotNull($default->getRawPdo());
+        $this->assertNull($read->getRawPdo());
+        $this->assertNotNull($write->getRawPdo());
+    }
+
+    public function testPurgeClearsNonPooledConnectionVariants(): void
+    {
+        $manager = $this->db->getDatabaseManager();
+
+        $default = $manager->connection('default');
+        $read = $manager->connection('default::read');
+        $write = $manager->connection('default::write');
+
+        $manager->purge('default');
+
+        $this->assertNotSame($default, $manager->connection('default'));
+        $this->assertNotSame($read, $manager->connection('default::read'));
+        $this->assertNotSame($write, $manager->connection('default::write'));
     }
 }
