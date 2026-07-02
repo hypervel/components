@@ -52,6 +52,10 @@ Hypervel reference code:
 - Root `composer.json`.
 - Existing package manifests, especially `src/sanctum/composer.json` and `src/inertia/composer.json`.
 - Existing provider style, especially `src/sanctum/src/SanctumServiceProvider.php`.
+- `src/auth/src/AuthManager.php`, `SessionGuard`, `RequestGuard`, and `TokenGuard` context-key APIs.
+- `src/foundation/src/Testing/RequestContextSynchronizer.php`.
+- `src/foundation/src/Testing/Concerns/MakesHttpRequests.php`.
+- `src/foundation/src/Testing/Concerns/InteractsWithRouteMiddleware.php`.
 - `tests/AfterEachTestSubscriber.php`.
 - `src/config/src/Repository.php`.
 - `src/database/src/UniqueConstraintViolationException.php`.
@@ -72,6 +76,17 @@ Verified Hypervel API targets:
 - `Hypervel\Database\Eloquent\Model::bootTraits()` invokes conventional `boot{TraitName}` methods, so `bootPasskeyAuthenticatable()` is supported.
 - `Hypervel\Database\Eloquent\Model::delete()` fires the `deleting` model event for instance deletes, and `Hypervel\Database\Eloquent\SoftDeletes::isForceDeleting()` exists.
 - `Hypervel\Auth\GuardHelpers::getProvider()` and `Hypervel\Auth\EloquentUserProvider::getModel()` exist, so passkey login can derive the selected Eloquent guard provider model for owner-type checks.
+- Hypervel route controllers are cached on route instances, so listener-driven extension events must resolve the current dispatcher at dispatch time rather than storing a dispatcher on the controller/action.
+- Hypervel's test HTTP request harness runs requests in child coroutines and must copy durable session and auth context state back to the parent test coroutine after each request.
+- `Hypervel\Foundation\Testing\TestCase` includes `InteractsWithRouteMiddleware`, so package tests can assert resolved runtime middleware order after aliases and middleware priority have been applied.
+
+## Current Status
+
+As of 2026-07-02, the Fortify and Passkeys source audits are complete and signed off. Passkeys tests are fully ported through Phase A and Phase B, and Fortify tests are fully ported through Phase A and Phase B. The framework support found during the test ports is implemented: `auth.guard` / `UseGuard`, route middleware order assertions, request-context synchronization for session and auth state, and dispatch-time event dispatcher resolution for cached controllers.
+
+Boost Fortify documentation is complete, added to the docs index and `docs-ported.md`, linked from the authentication docs, and signed off by peer review.
+
+Latest recorded verification before the docs phase completed: `composer fix` passed php-cs-fixer, phpstan, and the full parallel test suite with 20992 tests, 59630 assertions, and 645 skipped. A later `composer fix` run hit suite flakiness; the owner explicitly paused investigation of that failure.
 
 Current third-party dependency metadata was checked with Composer on 2026-07-01 from the component repo:
 
@@ -211,7 +226,7 @@ Keep nullable `fortify.guard` and `passkeys.guard` config keys, but make them se
 Add a framework auth middleware alias named `auth.guard` that only selects the current request guard:
 
 ```php
-final class UseGuard
+class UseGuard
 {
     public function __construct(private readonly AuthFactory $auth)
     {
@@ -228,9 +243,25 @@ final class UseGuard
 
 Register `auth.guard` in the default middleware aliases and place `UseGuard` in middleware priority immediately before `AuthenticatesRequests`. Add regression tests for the default priority list and for Fortify and standalone Passkeys route sorting, so `auth.guard:{guard}` cannot accidentally run after `auth`, `guest`, or `password.confirm`.
 
+Add a foundation testing concern for resolved route middleware order. Package tests should assert runtime middleware class order after the kernel has synced middleware aliases and priority onto the router, not just raw route middleware strings. This lives in `Hypervel\Foundation\Testing\Concerns\InteractsWithRouteMiddleware` and is used by `Hypervel\Foundation\Testing\TestCase`.
+
 Password broker selection should derive from the selected guard's provider, not from a Fortify-specific config value. The password reset flow must reset passwords in the same user store the selected guard authenticates. Find exactly one `auth.passwords.*.provider` entry matching the selected guard provider. If none or multiple match, fail clearly and require the application's auth password broker config to be made unambiguous. Do not consult `auth.defaults.passwords` from Fortify request flows, because that global default can point at a different provider than the selected guard.
 
 Passkey ownership should not be tied to one configured user table. Laravel's migration uses one `user_id` foreign key derived from `Passkeys::userModel()`, which supports replacing `App\Models\User` but does not support one application using separate user models such as `User` and `Admin` in the same passkeys table. Hypervel should use a polymorphic owner relation by default so any model implementing `PasskeyUser` can own passkeys concurrently.
+
+### Test Request Context Synchronization
+
+The Fortify HTTP tests exposed an incomplete context copy-back in the foundation test harness. `MakesHttpRequests` runs the application request in a child coroutine, then continues assertions in the parent test coroutine. Session context was copied back, but durable authentication context was not, so logout/login changes made during a test request could be invisible to later assertions in the same test method.
+
+The clean fix is a generic `Hypervel\Foundation\Testing\RequestContextSynchronizer`. It syncs an explicit list of durable Context keys from a child request coroutine or a captured snapshot back to the parent coroutine, setting keys that exist and forgetting keys that disappeared. `MakesHttpRequests::syncRequestContextToParent()` uses it for both session state and auth state.
+
+Auth state declares its durable keys at the owning boundary:
+
+- `SessionGuard::getAuthContextKeys()` returns the current user key, the unstarted user key, and the durable `loggedOut` state key. Transient state such as remember-cookie attempts and last-attempted users is intentionally excluded.
+- `RequestGuard::getAuthContextKeys()` and `TokenGuard::getAuthContextKeys()` return their current-user keys.
+- `AuthManager::getAuthContextKeys()` aggregates keys from resolved guards that expose the method.
+
+This keeps the test harness generic. It does not know about guard internals; each guard owns the keys that are safe to round-trip.
 
 ### Static State Conventions
 
@@ -340,7 +371,9 @@ The `hypervel/queue` dependency is intentional for both packages if their ported
         "php": "^8.4",
         "ext-json": "*",
         "hypervel/auth": "^0.4",
+        "hypervel/collections": "^0.4",
         "hypervel/config": "^0.4",
+        "hypervel/console": "^0.4",
         "hypervel/container": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/database": "^0.4",
@@ -353,6 +386,7 @@ The `hypervel/queue` dependency is intentional for both packages if their ported
         "hypervel/support": "^0.4",
         "hypervel/validation": "^0.4",
         "paragonie/constant_time_encoding": "^3.1",
+        "symfony/console": "^8.0",
         "symfony/serializer": "^8.1",
         "web-auth/cose-lib": "^4.5",
         "web-auth/webauthn-lib": "^5.3"
@@ -402,7 +436,6 @@ The `hypervel/queue` dependency is intentional for both packages if their ported
         "hypervel/hashing": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/passkeys": "^0.4",
-        "hypervel/pipeline": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/routing": "^0.4",
         "hypervel/session": "^0.4",
@@ -471,7 +504,7 @@ use Hypervel\Container\Container;
 use Hypervel\Http\Request;
 use RuntimeException;
 
-final class Passkeys
+class Passkeys
 {
     private const DEFAULT_PASSKEY_MODEL = Passkey::class;
 
@@ -595,7 +628,7 @@ Adapt the container access to the actual Hypervel container contract if the conc
 Port `PasskeyLoginResponse` to use the request-aware redirect helper at both response sites. Do not keep Laravel's direct `config('passkeys.redirect', '/')` reads in this response; that would bypass `Passkeys::redirectUsing()` and Fortify's callback bridge.
 
 ```php
-final class PasskeyLoginResponse implements PasskeyLoginResponseContract
+class PasskeyLoginResponse implements PasskeyLoginResponseContract
 {
     public function toResponse(Request $request): Response
     {
@@ -659,7 +692,7 @@ trait PasskeyAuthenticatable
     }
 }
 
-final class Passkey extends Model
+class Passkey extends Model
 {
     public function user(): MorphTo
     {
@@ -692,7 +725,7 @@ $this->app->singleton(PasskeyDeletedResponseContract::class, PasskeyDeletedRespo
 Immutable response shape:
 
 ```php
-final class PasskeyRegistrationResponse implements PasskeyRegistrationResponseContract
+class PasskeyRegistrationResponse implements PasskeyRegistrationResponseContract
 {
     public function __construct(private ?Passkey $passkey = null)
     {
@@ -1165,7 +1198,7 @@ Default `config/fortify.php` should include a nullable `guard` key but should no
 Default `config/fortify.php` should include `fortify.limiters.two-factor` with a safe default such as `'5,1'`. Laravel's route file reads this limiter but Laravel's config omits it, leaving the two-factor challenge submit endpoint unthrottled unless the application publishes and customizes config. Hypervel should not preserve that brute-force surface. Keep `fortify.limiters.login` and `fortify.limiters.passkeys` nullable because login has the `LoginRateLimiter` pipeline fallback and passkey verification is cryptographic, but throttle TOTP/recovery-code challenge submissions by default.
 
 ```php
-final class Fortify
+class Fortify
 {
     private const DEFAULT_REGISTERS_ROUTES = true;
 
@@ -1490,7 +1523,7 @@ That can leak a custom window into later requests handled by the same worker.
 Best Hypervel design for `pragmarx/google2fa` `^9.0`: do not mutate the shared engine. Pass the configured window into `verifyKeyNewer()` and `getWindow()` per call. Those methods accept a `$window` argument in v9, so there is no extra object allocation and no shared mutation.
 
 ```php
-final class TwoFactorAuthenticationProvider implements TwoFactorAuthenticationProviderContract
+class TwoFactorAuthenticationProvider implements TwoFactorAuthenticationProviderContract
 {
     public function __construct(
         private readonly Google2FA $engine,
@@ -1543,6 +1576,25 @@ Also fix Laravel's contract mismatch: Laravel's `TwoFactorAuthenticationProvider
 interface TwoFactorAuthenticationProvider
 {
     public function generateSecretKey(int $secretLength = 32): string;
+}
+```
+
+Add a `Hypervel\Fortify\Contracts\TwoFactorAuthenticationUser` contract for models using `TwoFactorAuthenticatable`. The trait should require this contract via `@phpstan-require-implements`, and controllers/requests that need trait-provided two-factor methods should type users as `Authenticatable&Model&TwoFactorAuthenticationUser` where appropriate. This is a Hypervel addition: Laravel relies on loose model assumptions, while Hypervel's stricter typing needs a public contract for the model methods Fortify calls.
+
+The contract should describe the user-facing two-factor surface:
+
+```php
+interface TwoFactorAuthenticationUser
+{
+    public function hasEnabledTwoFactorAuthentication(): bool;
+
+    public function recoveryCodes(): array;
+
+    public function replaceRecoveryCode(string $code): void;
+
+    public function twoFactorQrCodeSvg(): string;
+
+    public function twoFactorQrCodeUrl(): string;
 }
 ```
 
@@ -1623,7 +1675,7 @@ Hypervel should fix these:
 ```php
 use Hypervel\Fortify\Contracts\TwoFactorEnabledResponse as TwoFactorEnabledResponseContract;
 
-final class TwoFactorEnabledResponse implements TwoFactorEnabledResponseContract
+class TwoFactorEnabledResponse implements TwoFactorEnabledResponseContract
 {
 }
 ```
@@ -1631,7 +1683,7 @@ final class TwoFactorEnabledResponse implements TwoFactorEnabledResponseContract
 ```php
 use Hypervel\Fortify\Contracts\TwoFactorDisabledResponse as TwoFactorDisabledResponseContract;
 
-final class TwoFactorDisabledResponse implements TwoFactorDisabledResponseContract
+class TwoFactorDisabledResponse implements TwoFactorDisabledResponseContract
 {
 }
 ```
@@ -1702,6 +1754,7 @@ Event dispatch convention:
 - Follow Hypervel's existing `hasListeners()` performance pattern from `SessionGuard`, HTTP server request events, routing events, cache events, and permission events.
 - Do not construct package event objects when the dispatcher has no normal listeners for that event class.
 - Use a tiny helper where it removes duplication, for example `dispatchIfListening(string $eventClass, Closure $event): void`.
+- The helper must resolve the current dispatcher from the container at dispatch time. Do not store the dispatcher on cached controllers or actions; tests can call `Event::fake()` after a controller instance has already been cached on a route.
 - Remember that passive event observers are intentionally not counted by `hasListeners()`; this optimization is for listener-driven extension events.
 
 Do not preserve Laravel return docblocks where real return types can be declared.
@@ -2043,7 +2096,7 @@ Source audit procedure:
 2. For every mapped source file, mechanically compare upstream class members against the Hypervel counterpart: constants, properties, methods, contracts, routes, config keys, migrations, events, and commands. Every missing member must be implemented or recorded as `removed` / `merged`.
 3. Read each upstream file and its Hypervel counterpart in full, compare behavior, and record every intentional behavioral difference as `ported-with-hypervel-change`.
 4. Fix source gaps in place. Do not replace reviewed Hypervel source by blindly copying upstream source over it.
-5. Verify framework support pieces outside the two packages are intact instead of recreating them: `auth.guard` middleware alias, `UseGuard`, middleware priority before auth-check middleware, and static cleanup calls in `AfterEachTestSubscriber`.
+5. Verify framework support pieces outside the two packages are intact instead of recreating them: `auth.guard` middleware alias, `UseGuard`, middleware priority before auth-check middleware, `InteractsWithRouteMiddleware`, request-context synchronization, dispatch-time event dispatcher resolution, and static cleanup calls in `AfterEachTestSubscriber`.
 
 Test port procedure:
 
@@ -2089,7 +2142,7 @@ Allowed statuses:
 7. Wire Fortify to Passkeys and ensure standalone Passkeys routes are ignored when Fortify owns the passkey feature.
 8. Verify Fortify static cleanup in `AfterEachTestSubscriber`.
 9. Move existing `tests/Fortify` aside, copy upstream Fortify tests into a clean `tests/Fortify`, port them one at a time, then reconcile non-duplicate Hypervel-specific leak/contract/recovery-code/guard tests from the moved-aside tests.
-10. Verify framework-level guard support remains intact: `UseGuard`, `auth.guard` alias, middleware priority before auth-check middleware, and route-sorting tests.
+10. Verify framework-level guard support remains intact: `UseGuard`, `auth.guard` alias, middleware priority before auth-check middleware, `InteractsWithRouteMiddleware`, request-context synchronization, dispatch-time event dispatcher resolution, and route-sorting tests.
 11. Copy `examples/laravel/docs/fortify.md` to `src/boost/docs/fortify.md` and rewrite for Hypervel.
 12. Add docs index entries if needed.
 13. Verify the parity ledger accounts for every upstream source and test file, including every removed or merged file.
@@ -2138,9 +2191,12 @@ Any `PublicKeyCredentialSource` reference or non-empty relying-party entity cons
 - `tests/AfterEachTestSubscriber.php` flushes all new static state.
 - No `Config::set()` or config repository `set()` occurs during request handling.
 - Package event dispatches use the `hasListeners()` guard pattern where events are listener-driven extension points.
+- Package event helpers resolve the current dispatcher at dispatch time so cached controllers and actions still honor `Event::fake()` and other dispatcher swaps.
 - Fortify and Passkeys use the current request default guard selected by `auth.guard:{guard}`, application `Auth::shouldUse()` middleware, or `auth.defaults.guard`; nullable package guard config drives `Auth::shouldUse()` through route middleware and is not read directly by controllers/actions.
 - Built-in route middleware uses bare `auth`, `guest`, and `password.confirm` inside route groups that may prepend `auth.guard:{guard}`, so guard selection remains the single source of truth for controllers/actions and framework middleware.
 - `auth.guard` is registered as a middleware alias, appears in middleware priority before auth-check middleware, and has regression tests proving pinned Fortify/Passkeys route groups sort correctly.
+- `InteractsWithRouteMiddleware` is available on the foundation test case and package tests use it for runtime middleware-order assertions.
+- The foundation HTTP test harness syncs durable session and auth context from request child coroutines back to the parent test coroutine.
 - Multi-guard route docs cover both fixed package guard config and dynamic early guard-selection middleware before `guest`, `auth`, `password.confirm`, and package controllers.
 - Fortify password reset broker resolution infers exactly one broker from the selected guard provider and has no Fortify-specific broker override.
 - Fortify's passkey integration bridges WebAuthn settings plus a request-aware login redirect callback, and does not bridge route-only guard/middleware/throttle settings.
@@ -2155,6 +2211,7 @@ Any `PublicKeyCredentialSource` reference or non-empty relying-party entity cons
 - `PasskeyRegistrationResponse` cannot leak a previous passkey.
 - `TwoFactorAuthenticationProvider` cannot leak custom window settings.
 - Two-factor secret generation defaults to length `32`, and the provider contract matches the implementation.
+- User models using `TwoFactorAuthenticatable` implement `TwoFactorAuthenticationUser`, and controllers/requests type against that contract when they call trait-provided two-factor methods.
 - Recovery code replacement works on decoded JSON array entries.
 - Duplicate passkey credential insert races become `InvalidPasskeyException`.
 - Passkey ownership comparisons are scalar-safe.
