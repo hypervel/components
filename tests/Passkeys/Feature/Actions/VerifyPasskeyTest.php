@@ -67,7 +67,6 @@ class VerifyPasskeyTest extends TestCase
 
         $action = m::mock(VerifyPasskey::class, [
             app(ConnectionResolverInterface::class),
-            app(Dispatcher::class),
         ])
             ->makePartial()
             ->shouldAllowMockingProtectedMethods()
@@ -150,7 +149,6 @@ class VerifyPasskeyTest extends TestCase
 
         $action = m::mock(VerifyPasskey::class, [
             app(ConnectionResolverInterface::class),
-            app(Dispatcher::class),
         ])
             ->makePartial()
             ->shouldAllowMockingProtectedMethods()
@@ -225,9 +223,13 @@ class VerifyPasskeyTest extends TestCase
             ->with(m::type(Closure::class))
             ->andReturnUsing(static fn (Closure $callback): Passkey => $callback());
 
-        $events = m::mock(Dispatcher::class);
-        $events->shouldReceive('hasListeners')->once()->andReturnFalse();
-        $events->shouldReceive('dispatch')->never();
+        $events = m::mock(Dispatcher::class)->shouldIgnoreMissing();
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse()->byDefault();
+        $events->shouldReceive('hasListeners')->once()->with(PasskeyVerified::class)->andReturnFalse();
+        $events->shouldReceive('dispatch')
+            ->withArgs(static fn (mixed $event): bool => $event instanceof PasskeyVerified)
+            ->never();
+        $this->instance('events', $events);
 
         $credential = PublicKeyCredential::create(
             'public-key',
@@ -242,7 +244,6 @@ class VerifyPasskeyTest extends TestCase
 
         $verifier = new ConnectionAwareVerifyPasskey(
             $database,
-            $events,
             $passkey,
             $this->createStub(AuthenticatorAssertionResponse::class),
         );
@@ -263,11 +264,10 @@ class ConnectionAwareVerifyPasskey extends VerifyPasskey
 
     public function __construct(
         ConnectionResolverInterface $database,
-        Dispatcher $events,
         private readonly Passkey $passkey,
         private readonly AuthenticatorAssertionResponse $response,
     ) {
-        parent::__construct($database, $events);
+        parent::__construct($database);
     }
 
     /**

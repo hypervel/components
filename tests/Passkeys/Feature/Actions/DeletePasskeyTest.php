@@ -122,11 +122,16 @@ class DeletePasskeyTest extends TestCase
         ]);
         $passkey = $this->createPasskeyForUser($user, 'credential-quiet-delete');
 
-        $events = m::mock(Dispatcher::class);
+        $events = m::mock(Dispatcher::class)->shouldIgnoreMissing();
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturnFalse()->byDefault();
         $events->shouldReceive('hasListeners')->once()->with(PasskeyDeleted::class)->andReturnFalse();
-        $events->shouldReceive('dispatch')->never();
+        $events->shouldReceive('dispatch')
+            ->withArgs(static fn (mixed $event): bool => $event instanceof PasskeyDeleted)
+            ->never();
 
-        (new DeletePasskey($events))($user, $passkey);
+        $this->instance('events', $events);
+
+        app(DeletePasskey::class)($user, $passkey);
 
         $this->assertDatabaseMissing('passkeys', [
             'id' => $passkey->getKey(),

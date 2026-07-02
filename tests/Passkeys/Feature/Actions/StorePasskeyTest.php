@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys\Feature\Actions;
 
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Passkeys\Actions\StorePasskey;
 use Hypervel\Passkeys\Events\PasskeyRegistered;
 use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
@@ -46,7 +45,7 @@ class StorePasskeyTest extends TestCase
         $options = $this->createRegistrationOptions($user);
         $source = $this->createCredentialSource($user->getPasskeyUserHandle());
 
-        $action = m::mock(StorePasskey::class, [app(Dispatcher::class)])
+        $action = m::mock(StorePasskey::class)
             ->makePartial()
             ->shouldAllowMockingProtectedMethods()
             ->shouldReceive('validate')
@@ -96,7 +95,7 @@ class StorePasskeyTest extends TestCase
         $options = $this->createRegistrationOptions($user);
         $source = $this->createCredentialSource($user->getPasskeyUserHandle(), $credentialId);
 
-        $action = m::mock(StorePasskey::class, [app(Dispatcher::class)])
+        $action = m::mock(StorePasskey::class)
             ->makePartial()
             ->shouldAllowMockingProtectedMethods()
             ->shouldReceive('validate')

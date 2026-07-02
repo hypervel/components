@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Passkeys;
 
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\StatefulGuard;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Passkeys\Actions\VerifyPasskey;
 use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
@@ -70,10 +69,7 @@ class PasskeysGuardTest extends TestCase
             $this->createStub(AuthenticatorResponse::class),
         );
 
-        $verifier = new VerifyPasskey(
-            $this->app->make('db'),
-            $this->app->make(Dispatcher::class),
-        );
+        $verifier = new VerifyPasskey($this->app->make('db'));
         $selectedOwnerMorphClass = $this->selectedOwnerMorphClass($verifier);
 
         $this->assertSame($admin->getMorphClass(), $selectedOwnerMorphClass);
