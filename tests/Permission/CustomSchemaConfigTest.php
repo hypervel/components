@@ -56,4 +56,16 @@ class CustomSchemaConfigTest extends TestCase
         $this->assertTrue($this->app->make(Role::class)::where('name', 'testRole')->exists());
         $this->assertTrue($this->app->make(Permission::class)::where('name', 'edit-articles')->exists());
     }
+
+    public function testForbiddenPermissionUpdatesExistingCustomTableAssignmentEdge(): void
+    {
+        $this->testUser->givePermissionTo('edit-articles');
+        $this->testUser->giveForbiddenTo('edit-articles');
+
+        $this->testUser->refresh();
+
+        $this->assertSame(1, $this->testUser->permissions()->count());
+        $this->assertTrue($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
+    }
 }
