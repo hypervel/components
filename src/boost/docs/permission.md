@@ -175,16 +175,19 @@ You may also customize the pivot and morph column names:
 The package caches role and permission data to reduce database queries during permission checks:
 
 ```php
-'cache' => [
-    'expiration_seconds' => 86400,
-    'keys' => [
-        'roles' => 'hypervel.permission.cache.roles',
-        'model_roles' => 'hypervel.permission.cache.model.roles',
-        'model_permissions' => 'hypervel.permission.cache.model.permissions',
-        'model_version' => 'hypervel.permission.cache.model.version',
+return [
+    'cache' => [
+        'expiration_seconds' => 86400,
+        'store' => env('PERMISSION_CACHE_STORE', 'default'),
+        'keys' => [
+            'roles' => 'hypervel.permission.cache.roles',
+            'model_roles' => 'hypervel.permission.cache.model.roles',
+            'model_permissions' => 'hypervel.permission.cache.model.permissions',
+            'model_token' => 'hypervel.permission.cache.model.token',
+        ],
+        'column_names_except' => ['created_at', 'updated_at', 'deleted_at'],
     ],
-    'store' => env('PERMISSION_CACHE_STORE', 'default'),
-],
+];
 ```
 
 When `store` is `default`, the application's default cache store is used.
@@ -508,6 +511,8 @@ $editors = User::permission('edit articles')->get();
 $usersWithoutEditPermission = User::withoutPermission('edit articles')->get();
 ```
 
+The `permission` and `withoutPermission` query scopes filter by effective stored permissions. Direct and role-granted denies override allows for the same permission. Wildcard permission strings are evaluated by runtime permission checks such as `hasPermissionTo`; query scopes match stored concrete permission records.
+
 <a name="gate-and-super-admins"></a>
 ### Gate and Super Admins
 
@@ -534,7 +539,9 @@ Direct package calls such as `hasPermissionTo` do not pass through Gate callback
 <a name="forbidden-permissions"></a>
 ### Forbidden Permissions
 
-Forbidden permissions explicitly deny access. A forbidden permission overrides an allowed permission, including permissions inherited through roles:
+Forbidden permissions explicitly deny access. The permission assignment tables store `is_forbidden` as the effect for the assignment edge, so a model or role has one row for a given permission in the current team context.
+
+Calling `giveForbiddenTo` for an allowed permission flips that assignment to a deny. Calling `givePermissionTo` for a forbidden permission flips it back to an allow. A forbidden permission overrides an allowed permission, including permissions inherited through roles:
 
 ```php
 $user->givePermissionTo('delete articles');
@@ -578,6 +585,8 @@ $user->revokePermissionTo('edit articles');
 $user->revokePermissionTo('edit articles', 'delete articles');
 ```
 
+This removes the assignment edge whether it is currently allowed or forbidden.
+
 <a name="retrieving-permissions"></a>
 ### Retrieving Permissions
 
@@ -593,7 +602,7 @@ To retrieve only permissions inherited through roles, use `getPermissionsViaRole
 $rolePermissions = $user->getPermissionsViaRoles();
 ```
 
-Forbidden permissions are excluded from these result sets.
+`getDirectPermissions`, `getPermissionsViaRoles`, `getAllPermissions`, and `getPermissionNames` return allowed permissions. Explicitly forbidden permissions are checked through `hasForbiddenPermission` and `hasForbiddenPermissionViaRoles`.
 
 <a name="using-enums"></a>
 ## Using Enums
@@ -1078,7 +1087,7 @@ public function boot(): void
 }
 ```
 
-The resolver adds a context segment to the global permission catalog, model assignment caches, assignment-cache version, and wildcard permission indexes. Since the resolver is called during each cache-key build, it can safely read request-specific coroutine context. Teams still scope inside this context, so a multi-tenant app can have independent teams for each tenant.
+The resolver adds a context segment to the global permission catalog, model assignment caches, assignment-cache token, and wildcard permission indexes. Since the resolver is called during each cache-key build, it can safely read request-specific coroutine context. Teams still scope inside this context, so a multi-tenant app can have independent teams for each tenant.
 
 **Why a static callback, not a config closure?** Config files are evaluated once at boot in Swoole. A closure calling `tenantId()` in config would capture the boot-time tenant (likely null), not the per-request tenant. The static resolver callback runs fresh when permission cache keys are built, reading the current coroutine's context.
 
@@ -1175,7 +1184,9 @@ Prefer policies and Gate checks when authorization depends on both the user and 
 <a name="performance"></a>
 ## Performance
 
-Permission checks use cached role and permission data after the first lookup. Model role assignments and direct permission assignments have their own cache keys, and those keys include the model type, model key, active team id when teams are enabled, assignment-cache version, and the custom cache-key scope when one is registered.
+Permission checks use cached role and permission data after the first lookup. Model role assignments and direct permission assignments have their own cache keys, and those keys include the model type, model key, active team id when teams are enabled, assignment-cache token, and the custom cache-key scope when one is registered.
+
+When roles, permissions, or assignment-wide state changes, the package writes a new assignment-cache token so older per-model cache keys are bypassed and expire naturally through the configured cache TTL.
 
 If you need to display a model's roles or permissions, eager load the relationships you will render:
 
@@ -1211,6 +1222,6 @@ $exception->getRequiredPermissions();
 <a name="differences-from-spatie-laravel-permission"></a>
 ## Differences From Spatie Laravel Permission
 
-- Hypervel adds forbidden permissions. A forbidden permission explicitly denies an ability and wins over direct or role-granted allows.
+- Hypervel adds forbidden permissions. A forbidden permission explicitly denies an ability and wins over direct or role-granted allows. The deny flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge.
 - Hypervel accepts pure unit enums anywhere enum names are valid role or permission inputs. Backed enums use their values; unit enums use their case names.
-- Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-version caches can be invalidated independently.
+- Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
