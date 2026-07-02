@@ -640,9 +640,9 @@ trait HasPermissions
             $registrar->forgetModelPermissionCache($model);
         }
 
-        $this->dispatchPermissionAttachedEvent($permissions);
-
+        // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
         $this->forgetWildcardPermissionIndex();
+        $this->dispatchPermissionAttachedEvent($permissions);
 
         return $this;
     }
@@ -736,6 +736,29 @@ trait HasPermissions
             'permissions' => $permissions,
             'pivot' => $pivot,
         ];
+    }
+
+    /**
+     * Replace queued permission assignments for the given scope.
+     *
+     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>}> $assignments
+     * @param array<string, mixed> $scopePivot
+     */
+    private function replaceQueuedPermissionAssignments(array $assignments, array $scopePivot): void
+    {
+        $teamKey = $this->queuedPermissionAssignmentTeamKey($scopePivot);
+        $this->queuedPermissionAssignments = array_values(array_filter(
+            $this->queuedPermissionAssignments,
+            fn (array $assignment): bool => $this->queuedPermissionAssignmentTeamKey($assignment['pivot']) !== $teamKey,
+        ));
+
+        foreach ($assignments as $assignment) {
+            if ($assignment['permissions'] === []) {
+                continue;
+            }
+
+            $this->queuePermissionAssignments($assignment['permissions'], $assignment['pivot']);
+        }
     }
 
     /**
@@ -859,33 +882,48 @@ trait HasPermissions
         $model = $this;
 
         if ($this->exists) {
+            $pivot = $this->permissionAssignmentPivot(false);
+
             $this->permissions()->detach();
             $this->attachPermissionAssignments(
                 $permissions,
-                $this->permissionAssignmentPivot(false),
+                $pivot,
             );
             $model->unsetRelation('permissions');
         } else {
-            $this->queuePermissionAssignments(
-                $permissions,
-                $this->permissionAssignmentPivot(false),
+            $pivot = $this->permissionAssignmentPivot(false);
+
+            $this->replaceQueuedPermissionAssignments(
+                [
+                    [
+                        'permissions' => $permissions,
+                        'pivot' => $pivot,
+                    ],
+                ],
+                $pivot,
             );
         }
 
-        if ($this instanceof Role) {
-            $this->forgetCachedPermissions();
-        } elseif ($model->exists) {
-            $this->permissionRegistrar()->forgetModelPermissionCache($model);
+        if ($model->exists) {
+            if ($this instanceof Role) {
+                $this->forgetCachedPermissions();
+            } else {
+                $this->permissionRegistrar()->forgetModelPermissionCache($model);
+            }
         }
 
-        $this->dispatchPermissionAttachedEvent($permissions);
+        // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
         $this->forgetWildcardPermissionIndex();
+        $this->dispatchPermissionAttachedEvent($permissions);
 
         return $this;
     }
 
     /**
      * Remove all current permissions and set allowed and forbidden permissions.
+     *
+     * For unsaved models, assignments are queued until the model is saved and
+     * the returned change set is empty because no database rows are changed yet.
      *
      * @param array<array-key, mixed>|Collection<array-key, mixed> $allowed
      * @param array<array-key, mixed>|Collection<array-key, mixed> $forbidden
@@ -895,28 +933,46 @@ trait HasPermissions
     {
         $model = $this;
 
-        if (! $model->exists) {
-            return ['attached' => [], 'detached' => [], 'updated' => []];
-        }
-
         $allowedIds = $this->collectPermissions($allowed);
         $forbiddenIds = $this->collectPermissions($forbidden);
         $allowedIds = array_values(array_filter(
             $allowedIds,
             fn (int|string $allowedId): bool => ! in_array($allowedId, $forbiddenIds, true),
         ));
-        $registrar = $this->permissionRegistrar();
-        $teamPivot = $registrar->teams && ! $this instanceof Role
-            ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
+        $permissions = array_merge($allowedIds, $forbiddenIds);
+        $allowedPivot = $this->permissionAssignmentPivot(false);
+        $forbiddenPivot = $this->permissionAssignmentPivot(true);
+
+        if (! $model->exists) {
+            $this->replaceQueuedPermissionAssignments(
+                [
+                    [
+                        'permissions' => $allowedIds,
+                        'pivot' => $allowedPivot,
+                    ],
+                    [
+                        'permissions' => $forbiddenIds,
+                        'pivot' => $forbiddenPivot,
+                    ],
+                ],
+                $allowedPivot,
+            );
+
+            // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
+            $this->forgetWildcardPermissionIndex();
+            $this->dispatchPermissionAttachedEvent($permissions);
+
+            return ['attached' => [], 'detached' => [], 'updated' => []];
+        }
 
         $syncData = [];
 
         foreach ($allowedIds as $permissionId) {
-            $syncData[$permissionId] = $teamPivot + ['is_forbidden' => false];
+            $syncData[$permissionId] = $allowedPivot;
         }
 
         foreach ($forbiddenIds as $permissionId) {
-            $syncData[$permissionId] = $teamPivot + ['is_forbidden' => true];
+            $syncData[$permissionId] = $forbiddenPivot;
         }
 
         /** @var array{attached: array<int, int|string>, detached: array<int, int|string>, updated: array<int, int|string>} $changes */
@@ -930,7 +986,9 @@ trait HasPermissions
             $this->permissionRegistrar()->forgetModelPermissionCache($model);
         }
 
+        // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
         $this->forgetWildcardPermissionIndex();
+        $this->dispatchPermissionAttachedEvent($permissions);
 
         return $changes;
     }

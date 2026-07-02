@@ -84,6 +84,27 @@ class EventTest extends TestCase
         });
     }
 
+    public function testPermissionAttachedEventListenerSeesFreshWildcardIndexAfterPermissionAttach(): void
+    {
+        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
+        $this->app->make('config')->set('permission.events_enabled', true);
+        $this->flushPermissionState();
+
+        $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
+
+        $listenerSawPermission = false;
+        Event::listen(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use (&$listenerSawPermission): void {
+            if ($event->model->is($this->testUser)) {
+                $listenerSawPermission = $event->model->hasPermissionTo('posts.create');
+            }
+        });
+
+        $this->app->make(PermissionContract::class)::create(['name' => 'posts.*']);
+        $this->testUser->givePermissionTo('posts.*');
+
+        $this->assertTrue($listenerSawPermission);
+    }
+
     public function testSyncPermissionsDispatchesPermissionAttachedEventOnce(): void
     {
         $this->app->make('config')->set('permission.events_enabled', true);
@@ -96,6 +117,47 @@ class EventTest extends TestCase
         Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event): bool {
             return $event->model->is($this->testUser)
                 && $event->permissionsOrIds === [$this->testUserPermission->getKey()];
+        });
+    }
+
+    public function testPermissionAttachedEventListenerSeesFreshWildcardIndexAfterPermissionSync(): void
+    {
+        $this->app->make('config')->set('permission.enable_wildcard_permission', true);
+        $this->app->make('config')->set('permission.events_enabled', true);
+        $this->flushPermissionState();
+
+        $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
+
+        $listenerSawPermission = false;
+        Event::listen(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use (&$listenerSawPermission): void {
+            if ($event->model->is($this->testUser)) {
+                $listenerSawPermission = $event->model->hasPermissionTo('posts.create');
+            }
+        });
+
+        $this->app->make(PermissionContract::class)::create(['name' => 'posts.*']);
+        $this->testUser->syncPermissions('posts.*');
+
+        $this->assertTrue($listenerSawPermission);
+    }
+
+    public function testSyncPermissionsWithForbiddenDispatchesPermissionAttachedEventOnce(): void
+    {
+        $this->app->make('config')->set('permission.events_enabled', true);
+
+        Event::fake([PermissionAttachedEvent::class]);
+
+        $this->testUser->syncPermissionsWithForbidden(
+            allowed: ['edit-articles'],
+            forbidden: ['edit-news'],
+        );
+
+        $editNewsPermission = $this->app->make(PermissionContract::class)::findByName('edit-news');
+
+        Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
+        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($editNewsPermission): bool {
+            return $event->model->is($this->testUser)
+                && $event->permissionsOrIds === [$this->testUserPermission->getKey(), $editNewsPermission->getKey()];
         });
     }
 
@@ -114,6 +176,29 @@ class EventTest extends TestCase
         Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($user): bool {
             return $event->model->is($user)
                 && $event->permissionsOrIds === [$this->testUserPermission->getKey()];
+        });
+    }
+
+    public function testQueuedForbiddenPermissionSyncDispatchesPermissionAttachedEventOnce(): void
+    {
+        $this->app->make('config')->set('permission.events_enabled', true);
+
+        Event::fake([PermissionAttachedEvent::class]);
+
+        $user = new User(['email' => 'queued-forbidden-event@example.com']);
+
+        $user->syncPermissionsWithForbidden(
+            allowed: ['edit-articles'],
+            forbidden: ['edit-news'],
+        );
+        $user->save();
+
+        $editNewsPermission = $this->app->make(PermissionContract::class)::findByName('edit-news');
+
+        Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
+        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($user, $editNewsPermission): bool {
+            return $event->model->is($user)
+                && $event->permissionsOrIds === [$this->testUserPermission->getKey(), $editNewsPermission->getKey()];
         });
     }
 

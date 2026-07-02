@@ -172,6 +172,63 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $this->assertSame(1, $user->permissions()->count());
     }
 
+    public function testQueuedSyncPermissionsReplacesOnlyCurrentTeamPermissionAssignments(): void
+    {
+        $user = new User(['email' => 'queued-team-sync@example.com']);
+
+        setPermissionsTeamId(1);
+        $user->givePermissionTo('edit-news');
+
+        setPermissionsTeamId(2);
+        $user->givePermissionTo('edit-articles');
+
+        setPermissionsTeamId(1);
+        $user->syncPermissions('edit-blog');
+
+        $user->save();
+
+        setPermissionsTeamId(1);
+        $user->unsetRelation('permissions');
+        $this->assertSame(['edit-blog'], $user->getPermissionNames()->all());
+        $this->assertFalse($user->hasPermissionTo('edit-news'));
+
+        setPermissionsTeamId(2);
+        $user->unsetRelation('permissions');
+        $this->assertSame(['edit-articles'], $user->getPermissionNames()->all());
+    }
+
+    public function testQueuedForbiddenSyncReplacesOnlyCurrentTeamPermissionAssignments(): void
+    {
+        $user = new User(['email' => 'queued-team-forbidden-sync@example.com']);
+
+        setPermissionsTeamId(1);
+        $user->givePermissionTo('edit-news');
+
+        setPermissionsTeamId(2);
+        $user->givePermissionTo('edit-articles');
+
+        setPermissionsTeamId(1);
+        $changes = $user->syncPermissionsWithForbidden(
+            allowed: ['edit-blog'],
+            forbidden: ['edit-articles'],
+        );
+
+        $this->assertSame(['attached' => [], 'detached' => [], 'updated' => []], $changes);
+
+        $user->save();
+
+        setPermissionsTeamId(1);
+        $user->unsetRelation('permissions');
+        $this->assertSame(['edit-blog'], $user->getPermissionNames()->all());
+        $this->assertTrue($user->hasForbiddenPermission('edit-articles'));
+        $this->assertFalse($user->hasPermissionTo('edit-news'));
+
+        setPermissionsTeamId(2);
+        $user->unsetRelation('permissions');
+        $this->assertSame(['edit-articles'], $user->getPermissionNames()->all());
+        $this->assertFalse($user->hasForbiddenPermission('edit-articles'));
+    }
+
     public function testItRevokesForbiddenPermissionsForCurrentTeamOnly(): void
     {
         setPermissionsTeamId(1);

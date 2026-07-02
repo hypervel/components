@@ -574,6 +574,10 @@ $user->syncPermissionsWithForbidden(
 );
 ```
 
+When this method is called before a model is saved, the assignments are queued
+until save and the returned change set is empty because no database rows changed
+yet.
+
 <a name="revoking-permissions"></a>
 ### Revoking Permissions
 

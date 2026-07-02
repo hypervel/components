@@ -40,7 +40,7 @@ class User extends Model
 
 ## Differences From Spatie Laravel Permission
 
-- Hypervel adds forbidden permissions. A forbidden permission explicitly denies an ability and wins over direct or role-granted allows. The deny flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge.
+- Hypervel adds forbidden permissions. A forbidden permission explicitly denies an ability and wins over direct or role-granted allows. The deny flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge. Use `syncPermissionsWithForbidden()` to replace allowed and forbidden assignments together.
 - Hypervel accepts pure unit enums anywhere enum names are valid role or permission inputs. Backed enums use their values; unit enums use their case names.
 - Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
 - Apps where permission data depends on request context, such as multi-tenant apps with tenant-scoped permission tables, may register a runtime cache key resolver with `PermissionRegistrar::resolveCacheKeyUsing(...)` so cached permission catalogs and assignments are isolated per context.

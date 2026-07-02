@@ -182,6 +182,28 @@ class ForbiddenPermissionTest extends TestCase
         $this->assertFalse($this->testUser->hasForbiddenPermission('edit-news'));
     }
 
+    public function testQueuedForbiddenSyncReplacesEarlierQueuedAssignmentsWhenModelIsSaved(): void
+    {
+        $user = new User(['email' => 'queued-forbidden-sync@example.com']);
+
+        $user->givePermissionTo('edit-articles');
+        $changes = $user->syncPermissionsWithForbidden(
+            allowed: ['edit-blog', 'edit-news'],
+            forbidden: ['edit-news'],
+        );
+
+        $this->assertSame(['attached' => [], 'detached' => [], 'updated' => []], $changes);
+
+        $user->save();
+        $user->refresh();
+
+        $this->assertSame(2, $user->permissions()->count());
+        $this->assertFalse($user->hasPermissionTo('edit-articles'));
+        $this->assertTrue($user->hasPermissionTo('edit-blog'));
+        $this->assertFalse($user->hasPermissionTo('edit-news'));
+        $this->assertTrue($user->hasForbiddenPermission('edit-news'));
+    }
+
     public function testQueuedDirectForbiddenPermissionFlipsExistingQueuedAllowedPermission(): void
     {
         $user = new User(['email' => 'queued@example.com']);

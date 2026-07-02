@@ -258,8 +258,8 @@ private function attachPermissions(array $permissions, bool $isForbidden): stati
         $registrar->forgetModelPermissionCache($model);
     }
 
-    $this->dispatchPermissionAttachedEvent($permissions);
     $this->forgetWildcardPermissionIndex();
+    $this->dispatchPermissionAttachedEvent($permissions);
 
     return $this;
 }
@@ -518,6 +518,13 @@ time, including unsaved-model queued calls. The queued flush must only persist
 rows and invalidate caches/wildcard indexes, or queued calls would double-fire
 events.
 
+Queued replace-style APIs must replace only the current assignment scope. For
+teams, that means the current team. For roles and non-team mode, that means the
+whole pending permission queue. Use `queuedPermissionAssignmentTeamKey()` as the
+scope discriminator so unsaved-model behavior matches the saved-model
+`permissions()->detach()` path, which is already scoped by the `permissions()`
+relation.
+
 ### Sync Behavior
 
 `syncPermissionsWithForbidden()` already builds one `$syncData[$permissionId]` entry per permission id:
@@ -556,15 +563,22 @@ public function syncPermissions(...$permissions): static
 
     if ($this->exists) {
         $this->permissions()->detach();
+        $pivot = $this->permissionAssignmentPivot(false);
         $this->attachPermissionAssignments(
             $permissions,
-            $this->permissionAssignmentPivot(false),
+            $pivot,
         );
         $model->unsetRelation('permissions');
     } else {
-        $this->queuePermissionAssignments(
-            $permissions,
-            $this->permissionAssignmentPivot(false),
+        $pivot = $this->permissionAssignmentPivot(false);
+        $this->replaceQueuedPermissionAssignments(
+            [
+                [
+                    'permissions' => $permissions,
+                    'pivot' => $pivot,
+                ],
+            ],
+            $pivot,
         );
     }
 
@@ -574,8 +588,8 @@ public function syncPermissions(...$permissions): static
         $this->permissionRegistrar()->forgetModelPermissionCache($model);
     }
 
-    $this->dispatchPermissionAttachedEvent($permissions);
     $this->forgetWildcardPermissionIndex();
+    $this->dispatchPermissionAttachedEvent($permissions);
 
     return $this;
 }
@@ -583,6 +597,21 @@ public function syncPermissions(...$permissions): static
 
 This preserves the existing public event timing: `syncPermissions()` dispatches
 the attach event once, while queued unsaved-model flushes do not dispatch again.
+Invalidate the wildcard permission index before dispatching so synchronous
+listeners rebuild from current assignment state instead of reading a stale
+wildcard index.
+
+`syncPermissionsWithForbidden()` must support unsaved models with the same
+scope-aware queued replacement. Its return value remains the database sync
+change set. For unsaved models, no rows are changed until the model is saved, so
+it returns an empty change set after queueing the future allowed and forbidden
+assignments. Apply the existing allowed-minus-forbidden filtering before
+queueing so a permission present in both arrays still ends forbidden.
+
+`syncPermissionsWithForbidden()` also dispatches `PermissionAttachedEvent` once
+with the desired allowed and forbidden ids, matching `syncPermissions()` event
+timing. For unsaved models, the event fires when the sync method is called; the
+queued flush on save must not dispatch it again.
 
 ### Revoke Behavior
 
@@ -1608,6 +1637,7 @@ After each changed test file:
 ./vendor/bin/phpunit --no-progress tests/Permission/CacheTest.php
 ./vendor/bin/phpunit --no-progress tests/Permission/SchemaConfigTest.php
 ./vendor/bin/phpunit --no-progress tests/Permission/CustomSchemaConfigTest.php
+./vendor/bin/phpunit --no-progress tests/Permission/Events/EventTest.php
 ```
 
 After implementation:
@@ -1626,18 +1656,20 @@ composer fix
 4. Update `attachQueuedPermissionAssignments()` to collapse queued assignments by permission and team, then attach with the known-empty helper after save.
 5. Remove same-flag dedup logic that only existed for dual-row schema.
 6. Update `syncPermissions()` to collect ids once and attach through the known-empty helper after detach.
-7. Preserve permission attach event timing: dispatch from give/sync methods, not from queued flushes.
-8. Harden `hasDirectPermission()` and `Role::hasPermissionTo()` to deny if any matching pivot is forbidden.
-9. Rework `scopePermission()` around the effective permission predicate, and keep `scopeWithoutPermission()` as a delegate to `scopePermission(..., true)`.
-10. Add `allowedDirectPermissions()` in `HasPermissions`, make `getPermissionNames()` use it, and make `HasRoles::getDirectPermissions()` delegate to it.
-11. Verify and keep global catalog serialization/hydration of `is_forbidden`.
-12. Rename numeric model assignment cache versions to ULID namespace tokens across source, config, tests, README, and Boost docs.
-13. Update tests for forbidden flips, queued flips, query-count preservation, revoke deny, effective scopes, teams, cache token, and accessors.
-14. Update README and Boost docs, including the concrete-grant query-scope boundary for wildcard permissions.
-15. Run focused tests after each changed test file.
-16. Run `composer fix`.
-17. Remove the dead `Pivot` import from `Role.php`.
-18. Self-review for stale imports, dead helpers, stale docs, stale comments, and old "version" names/wording where the concept is now a token.
+7. Update queued replace-style sync paths to replace only the current assignment scope.
+8. Update unsaved `syncPermissionsWithForbidden()` to queue allowed and forbidden assignments, return an empty change set, and preserve forbidden-wins filtering.
+9. Preserve permission attach event timing: dispatch from give/sync methods, including `syncPermissionsWithForbidden()`, not from queued flushes. Invalidate wildcard indexes before dispatch so synchronous listeners see fresh wildcard state.
+10. Harden `hasDirectPermission()` and `Role::hasPermissionTo()` to deny if any matching pivot is forbidden.
+11. Rework `scopePermission()` around the effective permission predicate, and keep `scopeWithoutPermission()` as a delegate to `scopePermission(..., true)`.
+12. Add `allowedDirectPermissions()` in `HasPermissions`, make `getPermissionNames()` use it, and make `HasRoles::getDirectPermissions()` delegate to it.
+13. Verify and keep global catalog serialization/hydration of `is_forbidden`.
+14. Rename numeric model assignment cache versions to ULID namespace tokens across source, config, tests, README, and Boost docs.
+15. Update tests for forbidden flips, queued flips, query-count preservation, revoke deny, effective scopes, teams, cache token, and accessors.
+16. Update README and Boost docs, including the concrete-grant query-scope boundary for wildcard permissions.
+17. Run focused tests after each changed test file.
+18. Run `composer fix`.
+19. Remove the dead `Pivot` import from `Role.php`.
+20. Self-review for stale imports, dead helpers, stale docs, stale comments, and old "version" names/wording where the concept is now a token.
 
 ## Self-Review Checklist After Implementation
 
@@ -1650,7 +1682,16 @@ Check all of these before asking for review:
 - queued unsaved model calls preserve call order and end with one row.
 - queued unsaved model calls for the same permission in different teams create
   separate team edges.
+- unsaved `syncPermissions()` replaces only the current assignment scope in the
+  pending queue.
+- unsaved `syncPermissionsWithForbidden()` replaces only the current assignment
+  scope, queues both effects, applies forbidden-wins filtering, and returns an
+  empty change set because no database rows changed yet.
 - queued unsaved model flushes do not dispatch a second attach event.
+- `syncPermissionsWithForbidden()` dispatches `PermissionAttachedEvent` once for
+  saved and unsaved models.
+- permission attach events fire after wildcard index invalidation, so
+  synchronous listeners see fresh wildcard permission state.
 - `syncPermissions()` collects ids once and does not read current pivots after
   detaching.
 - `syncPermissionsWithForbidden()` still reports `attached`, `detached`, and `updated` correctly.

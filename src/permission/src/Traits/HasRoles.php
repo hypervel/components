@@ -604,7 +604,7 @@ trait HasRoles
     }
 
     /**
-     * Return all permissions directly coupled to the model.
+     * Return allowed permissions directly assigned to the model.
      */
     public function getDirectPermissions(): Collection
     {
