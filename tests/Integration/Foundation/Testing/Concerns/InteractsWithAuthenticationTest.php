@@ -119,6 +119,121 @@ class InteractsWithAuthenticationTest extends TestCase
             ->assertSeeText('Hello taylorotwell');
     }
 
+    public function testRequestDrivenLogoutClearsParentSessionGuardAuthenticationContext(): void
+    {
+        Route::post('logout', function (Request $request) {
+            Auth::guard()->logout();
+
+            if ($request->hasSession()) {
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+
+            return response('', 204);
+        })->middleware(['web', 'auth']);
+
+        $user = User::where('username', '=', 'taylorotwell')->first();
+
+        $this->actingAs($user)
+            ->post('/logout')
+            ->assertStatus(204);
+
+        $this->assertGuest();
+    }
+
+    public function testJsonRequestDrivenLogoutClearsParentSessionGuardAuthenticationContext(): void
+    {
+        Route::post('logout', function (Request $request) {
+            Auth::guard()->logout();
+
+            if ($request->hasSession()) {
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+
+            return response('', 204);
+        })->middleware(['web', 'auth']);
+
+        $user = User::where('username', '=', 'taylorotwell')->first();
+
+        $this->actingAs($user)
+            ->postJson('/logout')
+            ->assertStatus(204);
+
+        $this->assertGuest();
+    }
+
+    public function testNonMutatingRequestKeepsParentSessionGuardAuthenticationContext(): void
+    {
+        Route::get('me', function (Request $request) {
+            return 'Hello ' . $request->user()->username;
+        })->middleware(['web', 'auth']);
+
+        $user = User::where('username', '=', 'taylorotwell')->first();
+
+        $this->actingAs($user)
+            ->get('/me')
+            ->assertSuccessful()
+            ->assertSeeText('Hello taylorotwell');
+
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function testRequestDrivenLoginSetsParentSessionGuardAuthenticationContext(): void
+    {
+        Route::post('login', function () {
+            Auth::guard()->login(User::where('username', '=', 'taylorotwell')->first());
+
+            return response('', 204);
+        })->middleware(['web']);
+
+        $user = User::where('username', '=', 'taylorotwell')->first();
+
+        $this->assertGuest();
+
+        $this->post('/login')
+            ->assertStatus(204);
+
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function testRequestDrivenLogoutOnlyClearsTheLoggedOutGuard(): void
+    {
+        $this->app->make('config')
+            ->set('auth.guards.secondary', [
+                'driver' => 'session',
+                'provider' => 'users',
+            ]);
+
+        Route::post('logout-web', function (Request $request) {
+            Auth::guard('web')->logout();
+
+            if ($request->hasSession()) {
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+
+            return response('', 204);
+        })->middleware(['web']);
+
+        $webUser = User::where('username', '=', 'taylorotwell')->first();
+        $secondaryUser = User::forceCreate([
+            'username' => 'secondary',
+            'email' => 'secondary@hypervel.org',
+            'password' => bcrypt('password'),
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($webUser, 'web');
+        $this->actingAs($secondaryUser, 'secondary');
+
+        $this->post('/logout-web')
+            ->assertStatus(204);
+
+        $this->assertGuest('web');
+        $this->assertAuthenticatedAs($secondaryUser, 'secondary');
+    }
+
     public function testActingAsIsProperlyHandledForAuthViaRequest()
     {
         Route::get('me', function (Request $request) {
