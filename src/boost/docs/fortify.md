@@ -452,7 +452,7 @@ public function boot(): void
 }
 ```
 
-These callbacks take priority over the static config values when a request is available. Without a current request, Passkeys falls back to `passkeys.relying_party_id` and `passkeys.allowed_origins`. Static config uses cached WebAuthn ceremony managers; request-aware origins are resolved for each ceremony so origin-specific state does not leak between requests.
+These callbacks take priority over the static config values when a request is available. Without a current request, Passkeys falls back to `passkeys.relying_party_id` and `passkeys.allowed_origins`. The relying party ID and allowed origins are separate WebAuthn settings, so register `allowedOriginsUsing()` whenever allowed origins vary by request. Static config uses cached WebAuthn ceremony managers; request-aware origins are resolved for each ceremony so origin-specific state does not leak between requests.
 
 The resolved relying party ID must be a registrable-domain suffix of the resolved origins. Otherwise, browsers will reject the WebAuthn ceremony before the server can verify it.
 
