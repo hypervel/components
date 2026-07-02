@@ -193,9 +193,21 @@ class VerifyPasskey
             credentialRecord: $source,
             authenticatorAssertionResponse: $response,
             publicKeyCredentialRequestOptions: $options,
-            host: Passkeys::relyingPartyId(),
+            host: $this->hostFromOptions($options),
             userHandle: $source->userHandle,
         );
+    }
+
+    /**
+     * Get the relying party ID stored in the verification options.
+     */
+    protected function hostFromOptions(PublicKeyCredentialRequestOptions $options): string
+    {
+        if (! is_string($options->rpId) || $options->rpId === '') {
+            throw new RuntimeException('Passkey verification options must contain a relying party ID.');
+        }
+
+        return $options->rpId;
     }
 
     /**

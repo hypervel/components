@@ -6,6 +6,7 @@ namespace Hypervel\Passkeys;
 
 use Closure;
 use Hypervel\Container\Container;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Config\Repository as Config;
@@ -27,6 +28,12 @@ class Passkeys
     /** @var null|Closure(Request, PasskeyUser, Passkey): bool */
     private static ?Closure $authorizeLoginUsing = null;
 
+    /** @var null|Closure(Request): string */
+    private static ?Closure $relyingPartyIdUsingCallback = null;
+
+    /** @var null|Closure(Request): list<string> */
+    private static ?Closure $allowedOriginsUsingCallback = null;
+
     /** @var null|Closure(Request): (null|string) */
     private static ?Closure $redirectUsingCallback = null;
 
@@ -35,10 +42,39 @@ class Passkeys
      */
     public static function relyingPartyId(): string
     {
-        return self::config()->string('passkeys.relying_party_id');
+        $callback = self::$relyingPartyIdUsingCallback;
+        $request = $callback instanceof Closure ? RequestContext::getOrNull() : null;
+
+        $relyingPartyId = $request instanceof Request
+            ? $callback($request)
+            : self::config()->string('passkeys.relying_party_id');
+
+        if (! is_string($relyingPartyId) || $relyingPartyId === '') {
+            if ($request instanceof Request) {
+                throw new RuntimeException("Passkey relying party ID resolver returned no value for host [{$request->getHost()}].");
+            }
+
+            throw new RuntimeException('Passkey relying party ID must not be empty.');
+        }
+
+        return $relyingPartyId;
     }
 
     // Intentionally omitted: web-auth/webauthn-lib 5.3 deprecates a non-empty RP name.
+
+    /**
+     * Register a callback to resolve the WebAuthn relying party ID for the current request.
+     *
+     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent WebAuthn ceremony.
+     *
+     * @param null|(callable(Request): string) $callback
+     */
+    public static function relyingPartyIdUsing(?callable $callback): void
+    {
+        self::$relyingPartyIdUsingCallback = $callback === null
+            ? null
+            : Closure::fromCallable($callback);
+    }
 
     /**
      * Get the origins allowed to complete WebAuthn ceremonies.
@@ -47,16 +83,50 @@ class Passkeys
      */
     public static function allowedOrigins(): array
     {
-        $origins = array_values(array_filter(
-            self::config()->array('passkeys.allowed_origins', []),
+        $callback = self::$allowedOriginsUsingCallback;
+        $request = $callback instanceof Closure ? RequestContext::getOrNull() : null;
+
+        $origins = $request instanceof Request
+            ? $callback($request)
+            : self::config()->array('passkeys.allowed_origins', []);
+
+        $origins = is_array($origins) ? array_values(array_filter(
+            $origins,
             static fn (mixed $origin): bool => is_string($origin) && $origin !== '',
-        ));
+        )) : [];
 
         if ($origins === []) {
+            if ($request instanceof Request) {
+                throw new RuntimeException("Passkey allowed origins resolver returned no values for host [{$request->getHost()}].");
+            }
+
             throw new RuntimeException('At least one passkey allowed origin must be configured.');
         }
 
         return $origins;
+    }
+
+    /**
+     * Register a callback to resolve WebAuthn allowed origins for the current request.
+     *
+     * Boot-only. The callback persists in static state for the worker lifetime and affects every subsequent WebAuthn ceremony.
+     *
+     * @param null|(callable(Request): list<string>) $callback
+     */
+    public static function allowedOriginsUsing(?callable $callback): void
+    {
+        self::$allowedOriginsUsingCallback = $callback === null
+            ? null
+            : Closure::fromCallable($callback);
+    }
+
+    /**
+     * Determine if allowed origins are currently resolved from request-aware state.
+     */
+    public static function hasRequestAwareAllowedOrigins(): bool
+    {
+        return self::$allowedOriginsUsingCallback instanceof Closure
+            && RequestContext::has();
     }
 
     /**
@@ -245,6 +315,8 @@ class Passkeys
         self::$passkeyModel = self::DEFAULT_PASSKEY_MODEL;
         self::$registersRoutes = self::DEFAULT_REGISTERS_ROUTES;
         self::$authorizeLoginUsing = null;
+        self::$relyingPartyIdUsingCallback = null;
+        self::$allowedOriginsUsingCallback = null;
         self::$redirectUsingCallback = null;
     }
 }

@@ -98,7 +98,9 @@ final class WebAuthn
     public static function attestationValidator(): AuthenticatorAttestationResponseValidator
     {
         return AuthenticatorAttestationResponseValidator::create(
-            ceremonyStepManager: self::$creationCeremony ??= self::ceremonyStepManagerFactory()->creationCeremony()
+            ceremonyStepManager: Passkeys::hasRequestAwareAllowedOrigins()
+                ? self::ceremonyStepManagerFactory()->creationCeremony()
+                : self::$creationCeremony ??= self::ceremonyStepManagerFactory()->creationCeremony()
         );
     }
 
@@ -108,7 +110,9 @@ final class WebAuthn
     public static function assertionValidator(): AuthenticatorAssertionResponseValidator
     {
         return AuthenticatorAssertionResponseValidator::create(
-            ceremonyStepManager: self::$requestCeremony ??= self::ceremonyStepManagerFactory()->requestCeremony()
+            ceremonyStepManager: Passkeys::hasRequestAwareAllowedOrigins()
+                ? self::ceremonyStepManagerFactory()->requestCeremony()
+                : self::$requestCeremony ??= self::ceremonyStepManagerFactory()->requestCeremony()
         );
     }
 

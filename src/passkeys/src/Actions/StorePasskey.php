@@ -11,7 +11,6 @@ use Hypervel\Passkeys\Contracts\PasskeyUser;
 use Hypervel\Passkeys\Events\PasskeyRegistered;
 use Hypervel\Passkeys\Exceptions\InvalidPasskeyException;
 use Hypervel\Passkeys\Passkey;
-use Hypervel\Passkeys\Passkeys;
 use Hypervel\Passkeys\Support\WebAuthn;
 use ParagonIE\ConstantTime\Base64UrlSafe;
 use RuntimeException;
@@ -77,8 +76,20 @@ class StorePasskey
         return WebAuthn::attestationValidator()->check(
             authenticatorAttestationResponse: $response,
             publicKeyCredentialCreationOptions: $options,
-            host: Passkeys::relyingPartyId(),
+            host: $this->hostFromOptions($options),
         );
+    }
+
+    /**
+     * Get the relying party ID stored in the registration options.
+     */
+    protected function hostFromOptions(PublicKeyCredentialCreationOptions $options): string
+    {
+        if (! is_string($options->rp->id) || $options->rp->id === '') {
+            throw new RuntimeException('Passkey registration options must contain a relying party ID.');
+        }
+
+        return $options->rp->id;
     }
 
     /**
