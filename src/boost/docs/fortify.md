@@ -426,11 +426,13 @@ Fortify bridges these settings into the standalone Passkeys package:
 ```php
 'passkeys' => [
     'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', parse_url(config('app.url'), PHP_URL_HOST)),
-    'allowed_origins' => [config('app.url')],
+    'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', [config('app.url')]),
     'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
     'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
 ],
 ```
+
+Set `PASSKEYS_ALLOWED_ORIGINS` to a comma-separated list when WebAuthn ceremonies should be accepted from more than one origin, such as `https://example.com,https://www.example.com`.
 
 `user_handle_secret` is a long-lived secret used to derive stable WebAuthn user handles. It defaults to the app key for convenience, but production applications should set a dedicated value before registering passkeys. Changing it changes generated user handles.
 

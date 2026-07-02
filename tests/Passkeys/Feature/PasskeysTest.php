@@ -38,6 +38,19 @@ class PasskeysTest extends TestCase
         $this->assertSame(['https://example.com', 'https://app.example.com'], Passkeys::allowedOrigins());
     }
 
+    public function testConfigReadsAllowedOriginsFromEnvironment(): void
+    {
+        $this->setEnvironmentValue('PASSKEYS_ALLOWED_ORIGINS', 'https://example.com, https://www.example.com');
+
+        try {
+            $config = require dirname(__DIR__, 3) . '/src/passkeys/config/passkeys.php';
+
+            $this->assertSame(['https://example.com', 'https://www.example.com'], $config['allowed_origins']);
+        } finally {
+            $this->unsetEnvironmentValue('PASSKEYS_ALLOWED_ORIGINS');
+        }
+    }
+
     public function testItFiltersOutEmptyAllowedOriginEntries(): void
     {
         config(['passkeys.allowed_origins' => ['https://example.com', '', null]]);

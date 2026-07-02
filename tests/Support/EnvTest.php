@@ -26,7 +26,11 @@ class EnvTest extends TestCase
     protected function tearDown(): void
     {
         DotenvManager::flushState();
-        $this->unsetEnvironmentKeys();
+
+        foreach ([self::ARRAY_KEY, self::REQUIRED_KEY] as $key) {
+            $this->unsetEnvironmentValue($key);
+        }
+
         Env::flushState();
 
         parent::tearDown();
@@ -245,21 +249,5 @@ class EnvTest extends TestCase
 
         $this->assertSame('2.0', Env::get('TEST_VERSION'));
         $this->assertNull(Env::get('OLD_FLAG'));
-    }
-
-    private function setEnvironmentValue(string $key, string $value): void
-    {
-        putenv($key . '=' . $value);
-        unset($_SERVER[$key], $_ENV[$key]);
-
-        Env::flushRepository();
-    }
-
-    private function unsetEnvironmentKeys(): void
-    {
-        foreach ([self::ARRAY_KEY, self::REQUIRED_KEY] as $key) {
-            putenv($key);
-            unset($_SERVER[$key], $_ENV[$key]);
-        }
     }
 }

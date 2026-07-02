@@ -148,9 +148,22 @@ class PasskeyTest extends TestCase
     {
         config(['fortify-options.passkeys' => ['confirmPassword' => false]]);
 
-        require __DIR__ . '/../../src/fortify/config/fortify.php';
+        require dirname(__DIR__, 2) . '/src/fortify/config/fortify.php';
 
         $this->assertSame(['confirmPassword' => false], config('fortify-options.passkeys'));
+    }
+
+    public function testPackageConfigReadsPasskeyAllowedOriginsFromEnvironment(): void
+    {
+        $this->setEnvironmentValue('PASSKEYS_ALLOWED_ORIGINS', 'https://example.com, https://www.example.com');
+
+        try {
+            $config = require dirname(__DIR__, 2) . '/src/fortify/config/fortify.php';
+
+            $this->assertSame(['https://example.com', 'https://www.example.com'], $config['passkeys']['allowed_origins']);
+        } finally {
+            $this->unsetEnvironmentValue('PASSKEYS_ALLOWED_ORIGINS');
+        }
     }
 
     #[DefineEnvironment('withPasskeysConfirmingPasswords')]

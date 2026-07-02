@@ -12,6 +12,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithDatabase;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithDeprecationHandling;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithEnvironment;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRouteMiddleware;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSession;
@@ -32,6 +33,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     use InteractsWithConsole;
     use InteractsWithDatabase;
     use InteractsWithDeprecationHandling;
+    use InteractsWithEnvironment;
     use InteractsWithExceptionHandling;
     use InteractsWithRouteMiddleware;
     use InteractsWithSession;

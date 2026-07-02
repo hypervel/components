@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests;
 
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithEnvironment;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Testbench\Concerns\InteractsWithMockery;
 use PHPUnit\Framework\TestCase as BaseTestCase;
 
 class TestCase extends BaseTestCase
 {
+    use InteractsWithEnvironment;
     use InteractsWithMockery;
     use RunTestsInCoroutine;
 

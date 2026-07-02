@@ -27,9 +27,7 @@ return [
     |
     */
 
-    'allowed_origins' => [
-        config('app.url'),
-    ],
+    'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', [config('app.url')]),
 
     /*
     |--------------------------------------------------------------------------
