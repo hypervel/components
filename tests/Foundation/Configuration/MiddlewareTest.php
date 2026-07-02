@@ -350,6 +350,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame([
             'auth' => \Hypervel\Auth\Middleware\Authenticate::class,
             'auth.basic' => \Hypervel\Auth\Middleware\AuthenticateWithBasicAuth::class,
+            'auth.guard' => \Hypervel\Auth\Middleware\UseGuard::class,
             'auth.session' => \Hypervel\Session\Middleware\AuthenticateSession::class,
             'cache.headers' => \Hypervel\Http\Middleware\SetCacheHeaders::class,
             'can' => \Hypervel\Auth\Middleware\Authorize::class,
@@ -418,6 +419,7 @@ class MiddlewareTest extends TestCase
             \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Hypervel\Session\Middleware\StartSession::class,
             \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+            \Hypervel\Auth\Middleware\UseGuard::class,
             \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
             \Hypervel\Routing\Middleware\ThrottleRequests::class,
             \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,

@@ -102,6 +102,7 @@ class Kernel implements KernelContract
         \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
         \Hypervel\Session\Middleware\StartSession::class,
         \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+        \Hypervel\Auth\Middleware\UseGuard::class,
         \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
         \Hypervel\Routing\Middleware\ThrottleRequests::class,
         \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,
