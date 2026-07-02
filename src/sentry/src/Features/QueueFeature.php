@@ -215,7 +215,7 @@ class QueueFeature extends Feature
         $context->setStartTimestamp(microtime(true));
 
         // When the parent span is null we start a new transaction otherwise we start a child of the current span
-        if ($parentSpan === null && $context instanceof TransactionContext) {
+        if ($parentSpan === null && $context instanceof TransactionContext) { // @phpstan-ignore-line
             $span = SentrySdk::getCurrentHub()->startTransaction($context);
         } else {
             $span = $parentSpan->startChild($context);
