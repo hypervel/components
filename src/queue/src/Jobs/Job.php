@@ -251,9 +251,9 @@ abstract class Job implements JobContract
     /**
      * The number of seconds to wait before retrying a job that encountered an uncaught exception.
      *
-     * @return null|int|int[]
+     * @return null|int|int[]|string
      */
-    public function backoff(): array|int|null
+    public function backoff(): array|int|string|null
     {
         return $this->payload()['backoff'] ?? $this->payload()['delay'] ?? null;
     }
