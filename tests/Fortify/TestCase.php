@@ -12,6 +12,7 @@ use Hypervel\Fortify\FortifyServiceProvider;
 use Hypervel\Passkeys\PasskeysServiceProvider;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase as TestbenchTestCase;
+use Hypervel\Tests\Fortify\Fixtures\Admin;
 use Workbench\App\Models\User;
 
 abstract class TestCase extends TestbenchTestCase
@@ -41,14 +42,13 @@ abstract class TestCase extends TestbenchTestCase
             'app.url' => 'https://example.test',
             'auth.defaults.guard' => 'web',
             'auth.guards.web' => ['driver' => 'session', 'provider' => 'users'],
+            'auth.guards.admin' => ['driver' => 'session', 'provider' => 'admins'],
             'auth.providers.users' => ['driver' => 'eloquent', 'model' => $userModel],
+            'auth.providers.admins' => ['driver' => 'eloquent', 'model' => Admin::class],
             'auth.passwords.users' => ['provider' => 'users', 'table' => 'password_reset_tokens'],
+            'auth.passwords.admins' => ['provider' => 'admins', 'table' => 'admin_password_reset_tokens'],
             'database.default' => 'testing',
             'fortify.home' => '/home',
-            'fortify.passkeys.allowed_origins' => ['https://example.test'],
-            'fortify.passkeys.relying_party_id' => 'example.test',
-            'fortify.passkeys.timeout' => 60000,
-            'fortify.passkeys.user_handle_secret' => 'fortify-passkey-secret',
         ]);
     }
 
