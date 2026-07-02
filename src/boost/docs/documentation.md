@@ -88,6 +88,7 @@
     - [Database](/docs/{{version}}/database-testing)
     - [Mocking](/docs/{{version}}/mocking)
 - ## Packages
+    - [Fortify](/docs/{{version}}/fortify)
     - [Horizon](/docs/{{version}}/horizon)
     - [Nested Set](/docs/{{version}}/nested-set)
     - [Precognition](/docs/{{version}}/precognition)

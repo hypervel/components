@@ -106,7 +106,7 @@ In summary, if your application will be accessed using a browser and you are bui
 
 Next, if your application offers an API that will be consumed by third parties, you will choose between [Sanctum](/docs/{{version}}/sanctum), [JWT authentication](/docs/{{version}}/jwt), or an OAuth2 server to provide API token authentication for your application. In general, Sanctum should be preferred when possible since it is a simple, complete solution for API authentication, SPA authentication, and mobile authentication, including support for "scopes" or "abilities".
 
-If you are building a single-page application (SPA) that will be powered by a Hypervel backend, you should use [Hypervel Sanctum](/docs/{{version}}/sanctum). When using Sanctum, you will need to [manually implement your own backend authentication routes](#authenticating-users) or use another headless authentication backend service that provides routes and controllers for features such as registration, password reset, email verification, and more.
+If you are building a single-page application (SPA) that will be powered by a Hypervel backend, you should use [Hypervel Sanctum](/docs/{{version}}/sanctum). When using Sanctum, you will need to [manually implement your own backend authentication routes](#authenticating-users) or use [Hypervel Fortify](/docs/{{version}}/fortify) as a headless authentication backend service that provides routes and controllers for features such as registration, password reset, email verification, and more.
 
 An OAuth2 server may be chosen when your application absolutely needs all of the features provided by the OAuth2 specification.
 
