@@ -535,11 +535,11 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     /**
      * Create a HMAC of the password hash for storage in cookies.
      */
-    public function hashPasswordForCookie(string $passwordHash): string
+    public function hashPasswordForCookie(?string $passwordHash): string
     {
         return hash_hmac(
             'sha256',
-            $passwordHash,
+            $passwordHash ?? '',
             $this->hashKey ?? 'base-key-for-password-hash-mac'
         );
     }
@@ -901,6 +901,23 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
     }
 
     /**
+     * Get durable authentication Context keys for the current guard.
+     *
+     * Transient request state such as remember-cookie attempts and
+     * last-attempted users is intentionally excluded.
+     *
+     * @return array<int, string>
+     */
+    public function getAuthContextKeys(): array
+    {
+        return [
+            $this->getContextKey(),
+            $this->getUnstartedContextKey(),
+            $this->getContextStateKey('loggedOut'),
+        ];
+    }
+
+    /**
      * Get the current request instance.
      *
      * Resolved lazily from the container because this guard is a
@@ -940,7 +957,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function getContextState(string $key, mixed $default = null): mixed
     {
-        return CoroutineContext::get("__auth.guards.{$this->name}.{$key}", $default);
+        return CoroutineContext::get($this->getContextStateKey($key), $default);
     }
 
     /**
@@ -948,7 +965,15 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     protected function setContextState(string $key, mixed $value): void
     {
-        CoroutineContext::set("__auth.guards.{$this->name}.{$key}", $value);
+        CoroutineContext::set($this->getContextStateKey($key), $value);
+    }
+
+    /**
+     * Get a per-request state Context key.
+     */
+    protected function getContextStateKey(string $key): string
+    {
+        return "__auth.guards.{$this->name}.{$key}";
     }
 
     /**

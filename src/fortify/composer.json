@@ -1,0 +1,58 @@
+{
+    "name": "hypervel/fortify",
+    "description": "Backend controllers and scaffolding for Hypervel authentication.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hypervel",
+        "fortify",
+        "auth",
+        "swoole"
+    ],
+    "require": {
+        "php": "^8.4",
+        "ext-json": "*",
+        "bacon/bacon-qr-code": "^3.1",
+        "hypervel/auth": "^0.4",
+        "hypervel/cache": "^0.4",
+        "hypervel/collections": "^0.4",
+        "hypervel/config": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/encryption": "^0.4",
+        "hypervel/events": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/hashing": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/passkeys": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/routing": "^0.4",
+        "hypervel/session": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/translation": "^0.4",
+        "hypervel/validation": "^0.4",
+        "hypervel/view": "^0.4",
+        "pragmarx/google2fa": "^9.0",
+        "symfony/console": "^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Fortify\\": "src/"
+        }
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Fortify\\FortifyServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

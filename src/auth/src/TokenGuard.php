@@ -149,6 +149,16 @@ class TokenGuard implements Guard
     }
 
     /**
+     * Get durable authentication Context keys for the current request.
+     *
+     * @return array<int, string>
+     */
+    public function getAuthContextKeys(): array
+    {
+        return [$this->getContextKeyForToken($this->getTokenForRequest())];
+    }
+
+    /**
      * Get the Context key for caching the authenticated user, keyed by token.
      */
     protected function getContextKeyForToken(?string $token): string

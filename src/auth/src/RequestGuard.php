@@ -124,6 +124,16 @@ class RequestGuard implements Guard
     }
 
     /**
+     * Get durable authentication Context keys for the current request.
+     *
+     * @return array<int, string>
+     */
+    public function getAuthContextKeys(): array
+    {
+        return [$this->getContextKey()];
+    }
+
+    /**
      * Get the Context key for caching the authenticated user.
      */
     protected function getContextKey(): string

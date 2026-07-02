@@ -629,6 +629,7 @@ class Middleware
         return [
             'auth' => \Hypervel\Auth\Middleware\Authenticate::class,
             'auth.basic' => \Hypervel\Auth\Middleware\AuthenticateWithBasicAuth::class,
+            'auth.guard' => \Hypervel\Auth\Middleware\UseGuard::class,
             'auth.session' => \Hypervel\Session\Middleware\AuthenticateSession::class,
             'cache.headers' => \Hypervel\Http\Middleware\SetCacheHeaders::class,
             'can' => \Hypervel\Auth\Middleware\Authorize::class,

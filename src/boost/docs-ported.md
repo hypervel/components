@@ -35,6 +35,7 @@ errors.md
 events.md
 facades.md
 filesystem.md
+fortify.md
 frontend.md
 hashing.md
 helpers.md

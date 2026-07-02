@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Hypervel\Auth\AuthManager;
+use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
+use Hypervel\Auth\RequestGuard;
+use Hypervel\Config\Repository;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Http\Request;
@@ -130,6 +136,22 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $this->assertSame($response, $result);
     }
 
+    public function testBareGuestMiddlewareUsesCurrentDefaultGuardSelectedByShouldUse()
+    {
+        $auth = $this->makeAuthManager(webAuthenticated: true, secondaryAuthenticated: false);
+        Auth::swap($auth);
+        $auth->shouldUse('secondary');
+
+        $request = Request::create('/login', 'GET');
+        $response = new Response('ok');
+
+        $middleware = new RedirectIfAuthenticated;
+        $result = $middleware->handle($request, fn () => $response);
+
+        $this->assertSame($response, $result);
+        $this->assertSame('secondary', $auth->getDefaultDriver());
+    }
+
     public function testFlushStateClearsRedirectCallback()
     {
         RedirectIfAuthenticated::redirectUsing(fn () => '/custom');
@@ -160,5 +182,40 @@ class RedirectIfAuthenticatedMiddlewareTest extends TestCase
         $factory = m::mock(AuthFactory::class);
         $factory->shouldReceive('guard')->andReturn($guard);
         Auth::swap($factory);
+    }
+
+    /**
+     * Create an auth manager with web and secondary guards.
+     */
+    protected function makeAuthManager(bool $webAuthenticated, bool $secondaryAuthenticated): AuthManager
+    {
+        $container = new Container;
+        $container->instance('config', new Repository([
+            'auth' => [
+                'defaults' => ['guard' => 'web'],
+                'guards' => [
+                    'web' => ['driver' => 'web'],
+                    'secondary' => ['driver' => 'secondary'],
+                ],
+            ],
+        ]));
+
+        $auth = new AuthManager($container);
+
+        $auth->extend('web', fn (): RequestGuard => new RequestGuard(
+            'web',
+            static fn (): ?Authenticatable => $webAuthenticated ? m::mock(Authenticatable::class) : null,
+            $container,
+            m::mock(EloquentUserProvider::class),
+        ));
+
+        $auth->extend('secondary', fn (): RequestGuard => new RequestGuard(
+            'secondary',
+            static fn (): ?Authenticatable => $secondaryAuthenticated ? m::mock(Authenticatable::class) : null,
+            $container,
+            m::mock(EloquentUserProvider::class),
+        ));
+
+        return $auth;
     }
 }

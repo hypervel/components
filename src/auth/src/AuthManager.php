@@ -320,6 +320,29 @@ class AuthManager implements FactoryContract
     }
 
     /**
+     * Get durable authentication Context keys for resolved guards.
+     *
+     * @return array<int, string>
+     */
+    public function getAuthContextKeys(): array
+    {
+        $keys = [];
+
+        foreach ($this->guards as $guard) {
+            if (! method_exists($guard, 'getAuthContextKeys')) {
+                continue;
+            }
+
+            $keys = [
+                ...$keys,
+                ...$guard->getAuthContextKeys(), /* @phpstan-ignore method.notFound */
+            ];
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    /**
      * Set the application instance used by the manager.
      *
      * Tests only. Swaps the singleton's container reference; per-request use
