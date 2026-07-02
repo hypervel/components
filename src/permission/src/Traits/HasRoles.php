@@ -63,7 +63,7 @@ trait HasRoles
                     ->delete();
             }
 
-            $registrar->bumpModelAssignmentCacheVersion();
+            $registrar->bumpModelAssignmentCacheToken();
         });
 
         static::saved(function (Model $model): void {
@@ -604,11 +604,11 @@ trait HasRoles
     }
 
     /**
-     * Return all permissions directly coupled to the model.
+     * Return allowed permissions directly assigned to the model.
      */
     public function getDirectPermissions(): Collection
     {
-        return $this->getCachedDirectPermissions();
+        return $this->allowedDirectPermissions();
     }
 
     /**

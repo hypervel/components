@@ -77,9 +77,9 @@ return new class extends Migration {
                 $table->unsignedBigInteger($teamForeignKey);
                 $table->index($teamForeignKey, 'model_has_permissions_team_foreign_key_index');
 
-                $table->primary([$teamForeignKey, $pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'], 'model_has_permissions_permission_model_type_primary');
+                $table->primary([$teamForeignKey, $pivotPermission, $modelMorphKey, 'model_type'], 'model_has_permissions_permission_model_type_primary');
             } else {
-                $table->primary([$pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'], 'model_has_permissions_permission_model_type_primary');
+                $table->primary([$pivotPermission, $modelMorphKey, 'model_type'], 'model_has_permissions_permission_model_type_primary');
             }
         });
 
@@ -119,7 +119,7 @@ return new class extends Migration {
                 ->on($tableNames['roles'])
                 ->cascadeOnDelete();
 
-            $table->primary([$pivotPermission, $pivotRole, 'is_forbidden'], 'role_has_permissions_permission_id_role_id_primary');
+            $table->primary([$pivotPermission, $pivotRole], 'role_has_permissions_permission_id_role_id_primary');
         });
 
         app('cache')

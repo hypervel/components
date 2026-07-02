@@ -87,7 +87,7 @@ trait HasPermissions
                     ->delete();
             }
 
-            Container::getInstance()->make(PermissionRegistrar::class)->bumpModelAssignmentCacheVersion();
+            Container::getInstance()->make(PermissionRegistrar::class)->bumpModelAssignmentCacheToken();
         });
 
         static::saved(function (Model $model): void {
@@ -221,6 +221,16 @@ trait HasPermissions
     }
 
     /**
+     * Return allowed direct permissions.
+     */
+    protected function allowedDirectPermissions(): Collection
+    {
+        return $this->getCachedDirectPermissions()
+            ->reject(fn (Model $permission): bool => $this->pivotIsForbidden($permission))
+            ->values();
+    }
+
+    /**
      * Scope the model query to certain permissions only.
      *
      * @param array|Collection|int|Permission|string|UnitEnum $permissions
@@ -228,40 +238,90 @@ trait HasPermissions
     public function scopePermission(Builder $query, $permissions, bool $without = false): Builder
     {
         $permissions = $this->convertToPermissionModels($permissions);
-
         $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
-        $roleKey = Guard::getModelKeyName($this instanceof Role ? static::class : $this->getRoleClass());
-        $roleIdsWithPermissions = $this instanceof Role ? [] : array_values(array_unique(
-            array_reduce(
-                $permissions,
-                fn (array $result, Model $permission): array => array_merge(
-                    $result,
-                    $this->relationCollection($permission, 'roles')
-                        ->map(fn (Model $role) => $role->getAttribute($roleKey))
-                        ->all(),
-                ),
-                [],
-            ),
-            SORT_REGULAR,
-        ));
-
-        return $query->where(
-            fn (Builder $query) => $query
-                ->{! $without ? 'whereHas' : 'whereDoesntHave'}(
-                    'permissions',
-                    fn (Builder $subQuery) => $subQuery
-                        ->whereIn(Config::permissionsTable() . ".{$permissionKey}", array_column($permissions, $permissionKey))
-                )
-                ->when(
-                    count($roleIdsWithPermissions),
-                    fn ($whenQuery) => $whenQuery
-                        ->{! $without ? 'orWhereHas' : 'whereDoesntHave'}(
-                            'roles',
-                            fn (Builder $subQuery) => $subQuery
-                                ->whereIn(Config::rolesTable() . ".{$roleKey}", $roleIdsWithPermissions)
-                        )
-                )
+        $permissionIds = array_column($permissions, $permissionKey);
+        $effectivePermission = fn (Builder $query): Builder => $this->whereEffectivePermission(
+            $query,
+            $permissionIds,
         );
+
+        return $without
+            ? $query->whereNot($effectivePermission)
+            : $query->where($effectivePermission);
+    }
+
+    /**
+     * Add an effective permission predicate for the given permission ids.
+     *
+     * @param array<int, int|string> $permissionIds
+     */
+    protected function whereEffectivePermission(Builder $query, array $permissionIds): Builder
+    {
+        if ($permissionIds === []) {
+            // No requested permissions means no effective grant; whereNot() turns this into the exact complement.
+            $query->whereRaw('1 = 0');
+
+            return $query;
+        }
+
+        foreach ($permissionIds as $index => $permissionId) {
+            $method = $index === 0 ? 'where' : 'orWhere';
+
+            $query->{$method}(
+                fn (Builder $query) => $query
+                    ->where(fn (Builder $query) => $this->wherePermissionEffect($query, $permissionId, false))
+                    ->whereNot(fn (Builder $query) => $this->wherePermissionEffect($query, $permissionId, true))
+            );
+        }
+
+        return $query;
+    }
+
+    /**
+     * Add a permission-effect predicate for direct and role-granted permissions.
+     */
+    protected function wherePermissionEffect(Builder $query, int|string $permissionId, bool $forbidden): Builder
+    {
+        $query->whereHas(
+            'permissions',
+            fn (Builder $query) => $this->whereDirectPermissionEffect($query, $permissionId, $forbidden),
+        );
+
+        if (! $this instanceof Role) {
+            $query->orWhereHas(
+                'roles.permissions',
+                fn (Builder $query) => $this->whereRolePermissionEffect($query, $permissionId, $forbidden),
+            );
+        }
+
+        return $query;
+    }
+
+    /**
+     * Add a direct permission-effect predicate.
+     */
+    protected function whereDirectPermissionEffect(Builder $query, int|string $permissionId, bool $forbidden): Builder
+    {
+        $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
+        $pivotTable = $this instanceof Role
+            ? Config::roleHasPermissionsTable()
+            : Config::modelHasPermissionsTable();
+
+        return $query
+            ->where(Config::permissionsTable() . ".{$permissionKey}", $permissionId)
+            ->where("{$pivotTable}.is_forbidden", $forbidden);
+    }
+
+    /**
+     * Add a role permission-effect predicate.
+     */
+    protected function whereRolePermissionEffect(Builder $query, int|string $permissionId, bool $forbidden): Builder
+    {
+        $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
+
+        return $query
+            ->where(Config::permissionsTable() . ".{$permissionKey}", $permissionId)
+            ->where(Config::roleHasPermissionsTable() . '.is_forbidden', $forbidden);
     }
 
     /**
@@ -468,11 +528,11 @@ trait HasPermissions
     {
         $permission = $this->filterPermission($permission);
 
-        $matchedPermission = $this->getCachedDirectPermissions()
-            ->first(fn (Model $directPermission): bool => $directPermission->getKey() === $permission->getKey());
+        $matches = $this->getCachedDirectPermissions()
+            ->filter(fn (Model $directPermission): bool => $directPermission->getKey() === $permission->getKey());
 
-        return $matchedPermission !== null
-            && ! $this->pivotIsForbidden($matchedPermission);
+        return $matches->isNotEmpty()
+            && ! $matches->contains(fn (Model $directPermission): bool => $this->pivotIsForbidden($directPermission));
     }
 
     /**
@@ -565,17 +625,10 @@ trait HasPermissions
         $permissions = $this->collectPermissions($permissions);
         $model = $this;
         $registrar = $this->permissionRegistrar();
-        $teamPivot = $registrar->teams && ! $this instanceof Role
-            ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
-        $pivot = $teamPivot + ['is_forbidden' => $isForbidden];
+        $pivot = $this->permissionAssignmentPivot($isForbidden);
 
         if ($model->exists) {
-            $currentPermissions = $this->relationCollection($this->loadMissing('permissions'), 'permissions')
-                ->filter(fn (Model $permission): bool => $this->pivotIsForbidden($permission) === $isForbidden)
-                ->map(fn (Model $permission) => $permission->getKey())
-                ->toArray();
-
-            $this->permissions()->attach(array_diff($permissions, $currentPermissions), $pivot);
+            $this->upsertPermissionAssignments($permissions, $pivot);
             $model->unsetRelation('permissions');
         } else {
             $this->queuePermissionAssignments($permissions, $pivot);
@@ -587,11 +640,88 @@ trait HasPermissions
             $registrar->forgetModelPermissionCache($model);
         }
 
+        // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
+        $this->forgetWildcardPermissionIndex();
         $this->dispatchPermissionAttachedEvent($permissions);
 
-        $this->forgetWildcardPermissionIndex();
-
         return $this;
+    }
+
+    /**
+     * Build permission assignment pivot attributes.
+     *
+     * @return array<string, mixed>
+     */
+    private function permissionAssignmentPivot(bool $isForbidden): array
+    {
+        $registrar = $this->permissionRegistrar();
+
+        $teamPivot = $registrar->teams && ! $this instanceof Role
+            ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
+
+        return $teamPivot + ['is_forbidden' => $isForbidden];
+    }
+
+    /**
+     * Insert missing permission assignments and update existing effects.
+     *
+     * @param array<int, int|string> $permissions
+     * @param array<string, mixed> $pivot
+     */
+    private function upsertPermissionAssignments(array $permissions, array $pivot): void
+    {
+        if ($permissions === []) {
+            return;
+        }
+
+        $relation = $this->permissions();
+        $currentPermissions = $relation->get()
+            ->keyBy(fn (Model $permission): string => (string) $permission->getKey());
+        $effect = ['is_forbidden' => (bool) $pivot['is_forbidden']];
+
+        $attach = [];
+        $updated = false;
+
+        foreach ($permissions as $permission) {
+            $key = (string) $permission;
+            $currentPermission = $currentPermissions->get($key);
+
+            if (! $currentPermission instanceof Model) {
+                $attach[] = $permission;
+                continue;
+            }
+
+            if ($this->pivotIsForbidden($currentPermission) !== $effect['is_forbidden']) {
+                $updated = $relation->updateExistingPivot($permission, $effect, false) > 0 || $updated;
+            }
+        }
+
+        if ($attach !== []) {
+            $relation->attach($attach, $pivot, false);
+            $updated = true;
+        }
+
+        if ($updated) {
+            $relation->touchIfTouching();
+        }
+    }
+
+    /**
+     * Insert permission assignments into an empty assignment set.
+     *
+     * @param array<int, int|string> $permissions
+     * @param array<string, mixed> $pivot
+     */
+    private function attachPermissionAssignments(array $permissions, array $pivot): void
+    {
+        if ($permissions === []) {
+            return;
+        }
+
+        $relation = $this->permissions();
+
+        $relation->attach($permissions, $pivot, false);
+        $relation->touchIfTouching();
     }
 
     /**
@@ -609,6 +739,29 @@ trait HasPermissions
     }
 
     /**
+     * Replace queued permission assignments for the given scope.
+     *
+     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>}> $assignments
+     * @param array<string, mixed> $scopePivot
+     */
+    private function replaceQueuedPermissionAssignments(array $assignments, array $scopePivot): void
+    {
+        $teamKey = $this->queuedPermissionAssignmentTeamKey($scopePivot);
+        $this->queuedPermissionAssignments = array_values(array_filter(
+            $this->queuedPermissionAssignments,
+            fn (array $assignment): bool => $this->queuedPermissionAssignmentTeamKey($assignment['pivot']) !== $teamKey,
+        ));
+
+        foreach ($assignments as $assignment) {
+            if ($assignment['permissions'] === []) {
+                continue;
+            }
+
+            $this->queuePermissionAssignments($assignment['permissions'], $assignment['pivot']);
+        }
+    }
+
+    /**
      * Attach permission assignments queued before the model was saved.
      */
     protected function attachQueuedPermissionAssignments(): void
@@ -619,8 +772,11 @@ trait HasPermissions
 
         $registrar = $this->permissionRegistrar();
 
-        foreach ($this->queuedPermissionAssignments as $assignment) {
-            $this->permissions()->attach($assignment['permissions'], $assignment['pivot']);
+        foreach ($this->collapseQueuedPermissionAssignments() as $assignment) {
+            $this->attachPermissionAssignments(
+                $assignment['permissions'],
+                $assignment['pivot'],
+            );
         }
 
         $this->queuedPermissionAssignments = [];
@@ -633,6 +789,61 @@ trait HasPermissions
         }
 
         $this->forgetWildcardPermissionIndex();
+    }
+
+    /**
+     * Collapse queued permission assignments to their final edge state.
+     *
+     * @return array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>}>
+     */
+    private function collapseQueuedPermissionAssignments(): array
+    {
+        $collapsed = [];
+
+        // Collapse by edge first so the last queued effect wins for each permission and team.
+        foreach ($this->queuedPermissionAssignments as $assignment) {
+            foreach ($assignment['permissions'] as $permission) {
+                $key = $permission . '|' . $this->queuedPermissionAssignmentTeamKey($assignment['pivot']);
+
+                $collapsed[$key] = [
+                    'permission' => $permission,
+                    'pivot' => $assignment['pivot'],
+                ];
+            }
+        }
+
+        $batches = [];
+
+        // Then batch by pivot so each distinct team and effect can be inserted together.
+        foreach ($collapsed as $assignment) {
+            $pivot = $assignment['pivot'];
+            $batchKey = $this->queuedPermissionAssignmentTeamKey($pivot) . '|'
+                . ((bool) $pivot['is_forbidden'] ? 'forbidden' : 'allowed');
+
+            $batches[$batchKey] ??= [
+                'permissions' => [],
+                'pivot' => $pivot,
+            ];
+            $batches[$batchKey]['permissions'][] = $assignment['permission'];
+        }
+
+        return array_values($batches);
+    }
+
+    /**
+     * Build the queued assignment team key.
+     *
+     * @param array<string, mixed> $pivot
+     */
+    private function queuedPermissionAssignmentTeamKey(array $pivot): string
+    {
+        $registrar = $this->permissionRegistrar();
+
+        if (! $registrar->teams || $this instanceof Role) {
+            return 'none';
+        }
+
+        return (string) ($pivot[$registrar->teamsKey] ?? 'global');
     }
 
     /**
@@ -667,19 +878,52 @@ trait HasPermissions
      */
     public function syncPermissions(...$permissions): static
     {
+        $permissions = $this->collectPermissions($permissions);
+        $model = $this;
+
         if ($this->exists) {
-            $this->collectPermissions($permissions);
+            $pivot = $this->permissionAssignmentPivot(false);
+
             $this->permissions()->detach();
-            $this->setRelation('permissions', collect());
+            $this->attachPermissionAssignments(
+                $permissions,
+                $pivot,
+            );
+            $model->unsetRelation('permissions');
+        } else {
+            $pivot = $this->permissionAssignmentPivot(false);
+
+            $this->replaceQueuedPermissionAssignments(
+                [
+                    [
+                        'permissions' => $permissions,
+                        'pivot' => $pivot,
+                    ],
+                ],
+                $pivot,
+            );
         }
 
-        $this->givePermissionTo($permissions);
+        if ($model->exists) {
+            if ($this instanceof Role) {
+                $this->forgetCachedPermissions();
+            } else {
+                $this->permissionRegistrar()->forgetModelPermissionCache($model);
+            }
+        }
+
+        // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
+        $this->forgetWildcardPermissionIndex();
+        $this->dispatchPermissionAttachedEvent($permissions);
 
         return $this;
     }
 
     /**
      * Remove all current permissions and set allowed and forbidden permissions.
+     *
+     * For unsaved models, assignments are queued until the model is saved and
+     * the returned change set is empty because no database rows are changed yet.
      *
      * @param array<array-key, mixed>|Collection<array-key, mixed> $allowed
      * @param array<array-key, mixed>|Collection<array-key, mixed> $forbidden
@@ -689,28 +933,46 @@ trait HasPermissions
     {
         $model = $this;
 
-        if (! $model->exists) {
-            return ['attached' => [], 'detached' => [], 'updated' => []];
-        }
-
         $allowedIds = $this->collectPermissions($allowed);
         $forbiddenIds = $this->collectPermissions($forbidden);
         $allowedIds = array_values(array_filter(
             $allowedIds,
             fn (int|string $allowedId): bool => ! in_array($allowedId, $forbiddenIds, true),
         ));
-        $registrar = $this->permissionRegistrar();
-        $teamPivot = $registrar->teams && ! $this instanceof Role
-            ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
+        $permissions = array_merge($allowedIds, $forbiddenIds);
+        $allowedPivot = $this->permissionAssignmentPivot(false);
+        $forbiddenPivot = $this->permissionAssignmentPivot(true);
+
+        if (! $model->exists) {
+            $this->replaceQueuedPermissionAssignments(
+                [
+                    [
+                        'permissions' => $allowedIds,
+                        'pivot' => $allowedPivot,
+                    ],
+                    [
+                        'permissions' => $forbiddenIds,
+                        'pivot' => $forbiddenPivot,
+                    ],
+                ],
+                $allowedPivot,
+            );
+
+            // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
+            $this->forgetWildcardPermissionIndex();
+            $this->dispatchPermissionAttachedEvent($permissions);
+
+            return ['attached' => [], 'detached' => [], 'updated' => []];
+        }
 
         $syncData = [];
 
         foreach ($allowedIds as $permissionId) {
-            $syncData[$permissionId] = $teamPivot + ['is_forbidden' => false];
+            $syncData[$permissionId] = $allowedPivot;
         }
 
         foreach ($forbiddenIds as $permissionId) {
-            $syncData[$permissionId] = $teamPivot + ['is_forbidden' => true];
+            $syncData[$permissionId] = $forbiddenPivot;
         }
 
         /** @var array{attached: array<int, int|string>, detached: array<int, int|string>, updated: array<int, int|string>} $changes */
@@ -724,7 +986,9 @@ trait HasPermissions
             $this->permissionRegistrar()->forgetModelPermissionCache($model);
         }
 
+        // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
         $this->forgetWildcardPermissionIndex();
+        $this->dispatchPermissionAttachedEvent($permissions);
 
         return $changes;
     }
@@ -923,7 +1187,7 @@ trait HasPermissions
      */
     public function getPermissionNames(): Collection
     {
-        return $this->getCachedDirectPermissions()->pluck('name');
+        return $this->allowedDirectPermissions()->pluck('name');
     }
 
     /**

@@ -38,7 +38,7 @@ trait HasAssignedModels
         }
 
         $this->unsetRelation('users');
-        $registrar->bumpModelAssignmentCacheVersion();
+        $registrar->bumpModelAssignmentCacheToken();
 
         return $this;
     }
@@ -58,7 +58,7 @@ trait HasAssignedModels
         }
 
         $this->unsetRelation('users');
-        $registrar->bumpModelAssignmentCacheVersion();
+        $registrar->bumpModelAssignmentCacheToken();
 
         return $this;
     }
@@ -84,7 +84,7 @@ trait HasAssignedModels
         }
 
         $this->unsetRelation('users');
-        $registrar->bumpModelAssignmentCacheVersion();
+        $registrar->bumpModelAssignmentCacheToken();
 
         return $this;
     }
