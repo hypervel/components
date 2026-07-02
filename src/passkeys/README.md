@@ -14,5 +14,5 @@ See `src/boost/docs/fortify.md` for the canonical Fortify and Passkeys documenta
 - Passkeys use current non-deprecated `web-auth/webauthn-lib` APIs, including `CredentialRecord`.
 - Passkeys omit Laravel's `relyingPartyName()` because `web-auth/webauthn-lib` deprecates non-empty relying party names.
 - Passkeys include explicit orphan cleanup for polymorphic owners.
-- Passkeys support boot-time request-aware redirect callbacks for multi-tenant and multi-guard post-login destinations.
+- Passkeys support boot-time request-aware callbacks for redirects and WebAuthn relying party / origin settings, such as for custom domains, multi-guard apps, or multi-tenant apps.
 - Passkey registration responses do not store request data on singleton response instances.

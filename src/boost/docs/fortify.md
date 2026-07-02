@@ -434,6 +434,28 @@ Fortify bridges these settings into the standalone Passkeys package:
 
 Set `PASSKEYS_ALLOWED_ORIGINS` to a comma-separated list when WebAuthn ceremonies should be accepted from more than one origin, such as `https://example.com,https://www.example.com`.
 
+If the relying party ID or allowed origins depend on the current request, such as for custom domains or multi-tenant applications, register request-aware callbacks during boot:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Passkeys\Passkeys;
+
+public function boot(): void
+{
+    Passkeys::relyingPartyIdUsing(
+        fn (Request $request): string => $request->getHost(),
+    );
+
+    Passkeys::allowedOriginsUsing(
+        fn (Request $request): array => ['https://' . $request->getHost()],
+    );
+}
+```
+
+These callbacks take priority over the static config values when a request is available. Without a current request, Passkeys falls back to `passkeys.relying_party_id` and `passkeys.allowed_origins`. Static config uses cached WebAuthn ceremony managers; request-aware origins are resolved for each ceremony so origin-specific state does not leak between requests.
+
+The resolved relying party ID must be a registrable-domain suffix of the resolved origins. Otherwise, browsers will reject the WebAuthn ceremony before the server can verify it.
+
 `user_handle_secret` is a long-lived secret used to derive stable WebAuthn user handles. It defaults to the app key for convenience, but production applications should set a dedicated value before registering passkeys. Changing it changes generated user handles.
 
 <a name="frontend-package"></a>
@@ -573,6 +595,8 @@ Call these only during application boot or tests:
 - `Features::passkeys($options)`
 - `Passkeys::usePasskeyModel()`
 - `Passkeys::authorizeLoginUsing()`
+- `Passkeys::relyingPartyIdUsing()`
+- `Passkeys::allowedOriginsUsing()`
 - `Passkeys::redirectUsing()`
 - `Passkeys::ignoreRoutes()`
 - `WebAuthn::configureCeremonyStepManagerFactoryUsing()`
