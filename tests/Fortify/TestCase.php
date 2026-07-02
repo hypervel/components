@@ -98,6 +98,16 @@ abstract class TestCase extends TestbenchTestCase
     }
 
     /**
+     * Enable two-factor authentication with password confirmation.
+     */
+    protected function withTwoFactorAuthenticationConfirmingPasswords(ApplicationContract $app): void
+    {
+        $app->make(Config::class)->set('fortify.features', [
+            Features::twoFactorAuthentication(['confirmPassword' => true]),
+        ]);
+    }
+
+    /**
      * Disable two-factor authentication.
      */
     protected function withoutTwoFactorAuthentication(ApplicationContract $app): void

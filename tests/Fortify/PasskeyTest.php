@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Hypervel\Auth\Middleware\Authenticate;
+use Hypervel\Auth\Middleware\RequirePassword;
+use Hypervel\Auth\Middleware\UseGuard;
 use Hypervel\Fortify\Features;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Http\Request;
@@ -112,6 +115,23 @@ class PasskeyTest extends TestCase
 
         $this->assertNotNull($route);
         $this->assertContains('password.confirm', $route->middleware());
+    }
+
+    #[DefineEnvironment('withPasskeysConfirmingPasswords')]
+    #[WithConfig('fortify.guard', 'admin')]
+    public function testGuardConfigRunsBeforePasskeyManagementMiddlewareAtRuntime(): void
+    {
+        $this->assertRouteMiddlewareRunsBefore(
+            'passkey.registration-options',
+            UseGuard::class . ':admin',
+            Authenticate::class,
+        );
+
+        $this->assertRouteMiddlewareRunsBefore(
+            'passkey.registration-options',
+            UseGuard::class . ':admin',
+            RequirePassword::class,
+        );
     }
 
     #[DefineEnvironment('withPasskeysWithoutPasswordConfirmation')]

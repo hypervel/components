@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Hypervel\Auth\Middleware\Authenticate;
+use Hypervel\Auth\Middleware\RequirePassword;
+use Hypervel\Auth\Middleware\UseGuard;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationConfirmed;
@@ -14,6 +17,7 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Fortify\Fixtures\UserWithTwoFactor;
 use PragmaRX\Google2FA\Google2FA;
@@ -22,6 +26,23 @@ use PragmaRX\Google2FA\Google2FA;
 class TwoFactorAuthenticationControllerTest extends TestCase
 {
     use RefreshDatabase;
+
+    #[DefineEnvironment('withTwoFactorAuthenticationConfirmingPasswords')]
+    #[WithConfig('fortify.guard', 'admin')]
+    public function testGuardConfigRunsBeforeTwoFactorManagementMiddlewareAtRuntime(): void
+    {
+        $this->assertRouteMiddlewareRunsBefore(
+            'two-factor.enable',
+            UseGuard::class . ':admin',
+            Authenticate::class,
+        );
+
+        $this->assertRouteMiddlewareRunsBefore(
+            'two-factor.enable',
+            UseGuard::class . ':admin',
+            RequirePassword::class,
+        );
+    }
 
     public function testTwoFactorAuthenticationCanBeEnabled(): void
     {

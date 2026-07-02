@@ -4,40 +4,42 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys;
 
+use Hypervel\Auth\Middleware\Authenticate;
+use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
+use Hypervel\Auth\Middleware\RequirePassword;
+use Hypervel\Auth\Middleware\UseGuard;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\Attributes\WithConfig;
 
 class PasskeysRouteTest extends TestCase
 {
     #[WithConfig('passkeys.guard', 'admin')]
-    public function testGuardConfigAddsGuardSelectionMiddlewareBeforeRouteMiddleware(): void
+    public function testGuardConfigAddsGuardSelectionMiddlewareBeforeGuestMiddlewareAtRuntime(): void
     {
-        $route = Route::getRoutes()->getByName('passkey.login');
-
-        $this->assertNotNull($route);
-
-        $middleware = $route->gatherMiddleware();
-
-        $this->assertContains('auth.guard:admin', $middleware);
-        $this->assertLessThan(
-            array_search('guest', $middleware, true),
-            array_search('auth.guard:admin', $middleware, true),
+        $this->assertRouteMiddlewareRunsBefore(
+            'passkey.login',
+            UseGuard::class . ':admin',
+            RedirectIfAuthenticated::class,
         );
     }
 
     #[WithConfig('passkeys.guard', 'admin')]
-    public function testGuardConfigRunsBeforeStandaloneAuthRoutes(): void
+    public function testGuardConfigRunsBeforeStandaloneAuthMiddlewareAtRuntime(): void
     {
-        $route = Route::getRoutes()->getByName('passkey.confirm-options');
+        $this->assertRouteMiddlewareRunsBefore(
+            'passkey.confirm-options',
+            UseGuard::class . ':admin',
+            Authenticate::class,
+        );
+    }
 
-        $this->assertNotNull($route);
-
-        $middleware = $route->gatherMiddleware();
-
-        $this->assertContains('auth.guard:admin', $middleware);
-        $this->assertLessThan(
-            array_search('auth', $middleware, true),
-            array_search('auth.guard:admin', $middleware, true),
+    #[WithConfig('passkeys.guard', 'admin')]
+    public function testGuardConfigRunsBeforePasswordConfirmationMiddlewareAtRuntime(): void
+    {
+        $this->assertRouteMiddlewareRunsBefore(
+            'passkey.registration-options',
+            UseGuard::class . ':admin',
+            RequirePassword::class,
         );
     }
 
