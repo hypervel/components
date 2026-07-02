@@ -9,7 +9,6 @@ use Hypervel\Auth\Events\Failed;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Config\Repository as Config;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
@@ -28,7 +27,6 @@ class RedirectIfTwoFactorAuthenticatable implements RedirectsIfTwoFactorAuthenti
 
     public function __construct(
         protected readonly LoginRateLimiter $limiter,
-        protected readonly Dispatcher $events,
         protected readonly Config $config,
     ) {
     }
@@ -138,7 +136,6 @@ class RedirectIfTwoFactorAuthenticatable implements RedirectsIfTwoFactorAuthenti
     protected function fireFailedEvent(Request $request, ?Authenticatable $user = null): void
     {
         $this->dispatchIfListening(
-            $this->events,
             Failed::class,
             static fn (): Failed => new Failed(Fortify::guardName(), $user, [
                 Fortify::username() => $request->{Fortify::username()},
@@ -159,7 +156,6 @@ class RedirectIfTwoFactorAuthenticatable implements RedirectsIfTwoFactorAuthenti
         ]);
 
         $this->dispatchIfListening(
-            $this->events,
             TwoFactorAuthenticationChallenged::class,
             static fn (): TwoFactorAuthenticationChallenged => new TwoFactorAuthenticationChallenged($user),
         );

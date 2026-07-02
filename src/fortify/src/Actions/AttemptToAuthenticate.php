@@ -7,7 +7,6 @@ namespace Hypervel\Fortify\Actions;
 use Closure;
 use Hypervel\Auth\Events\Failed;
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Fortify\LoginRateLimiter;
@@ -20,7 +19,6 @@ class AttemptToAuthenticate
 
     public function __construct(
         protected readonly LoginRateLimiter $limiter,
-        protected readonly Dispatcher $events,
     ) {
     }
 
@@ -86,7 +84,6 @@ class AttemptToAuthenticate
     protected function fireFailedEvent(Request $request): void
     {
         $this->dispatchIfListening(
-            $this->events,
             Failed::class,
             static fn (): Failed => new Failed(Fortify::guardName(), null, [
                 Fortify::username() => $request->{Fortify::username()},

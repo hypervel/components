@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Fortify\Actions;
 
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Events\RecoveryCodesGenerated;
@@ -17,11 +16,6 @@ class GenerateNewRecoveryCodes
 {
     use DispatchesEvents;
 
-    public function __construct(
-        protected readonly Dispatcher $events,
-    ) {
-    }
-
     /**
      * Generate new recovery codes for the user.
      */
@@ -32,7 +26,6 @@ class GenerateNewRecoveryCodes
         ])->save();
 
         $this->dispatchIfListening(
-            $this->events,
             RecoveryCodesGenerated::class,
             static fn (): RecoveryCodesGenerated => new RecoveryCodesGenerated($user),
         );

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Fortify\Actions;
 
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationDisabled;
@@ -14,11 +13,6 @@ use Hypervel\Fortify\Fortify;
 class DisableTwoFactorAuthentication
 {
     use DispatchesEvents;
-
-    public function __construct(
-        protected readonly Dispatcher $events,
-    ) {
-    }
 
     /**
      * Disable two factor authentication for the user.
@@ -40,7 +34,6 @@ class DisableTwoFactorAuthentication
             ] : []))->save();
 
             $this->dispatchIfListening(
-                $this->events,
                 TwoFactorAuthenticationDisabled::class,
                 static fn (): TwoFactorAuthenticationDisabled => new TwoFactorAuthenticationDisabled($user),
             );

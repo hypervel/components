@@ -7,7 +7,6 @@ namespace Hypervel\Fortify\Http\Controllers;
 use Hypervel\Auth\Events\Registered;
 use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\CreatesNewUsers;
 use Hypervel\Fortify\Contracts\RegisterResponse;
@@ -24,7 +23,6 @@ class RegisteredUserController extends Controller
     public function __construct(
         private readonly Container $container,
         private readonly Config $config,
-        private readonly Dispatcher $events,
     ) {
     }
 
@@ -50,7 +48,6 @@ class RegisteredUserController extends Controller
         $user = $creator->create($request->all());
 
         $this->dispatchIfListening(
-            $this->events,
             Registered::class,
             static fn (): Registered => new Registered($user),
         );

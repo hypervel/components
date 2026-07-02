@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Fortify\Actions;
 
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\TwoFactorAuthenticationProvider;
@@ -20,7 +19,6 @@ class ConfirmTwoFactorAuthentication
 
     public function __construct(
         protected readonly TwoFactorAuthenticationProvider $provider,
-        protected readonly Dispatcher $events,
     ) {
     }
 
@@ -47,7 +45,6 @@ class ConfirmTwoFactorAuthentication
         ])->save();
 
         $this->dispatchIfListening(
-            $this->events,
             TwoFactorAuthenticationConfirmed::class,
             static fn (): TwoFactorAuthenticationConfirmed => new TwoFactorAuthenticationConfirmed($user),
         );

@@ -6,7 +6,6 @@ namespace Hypervel\Fortify\Http\Controllers;
 
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\FailedTwoFactorLoginResponse;
@@ -26,7 +25,6 @@ class TwoFactorAuthenticatedSessionController extends Controller
 
     public function __construct(
         private readonly Container $container,
-        private readonly Dispatcher $events,
     ) {
     }
 
@@ -54,7 +52,6 @@ class TwoFactorAuthenticatedSessionController extends Controller
             $user->replaceRecoveryCode($code);
         } elseif (! $request->hasValidCode()) {
             $this->dispatchIfListening(
-                $this->events,
                 TwoFactorAuthenticationFailed::class,
                 static fn (): TwoFactorAuthenticationFailed => new TwoFactorAuthenticationFailed($user),
             );
@@ -63,7 +60,6 @@ class TwoFactorAuthenticatedSessionController extends Controller
         }
 
         $this->dispatchIfListening(
-            $this->events,
             ValidTwoFactorAuthenticationCodeProvided::class,
             static fn (): ValidTwoFactorAuthenticationCodeProvided => new ValidTwoFactorAuthenticationCodeProvided($user),
         );

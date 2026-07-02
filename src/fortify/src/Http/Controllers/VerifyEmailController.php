@@ -7,7 +7,6 @@ namespace Hypervel\Fortify\Http\Controllers;
 use Hypervel\Auth\Events\Verified;
 use Hypervel\Contracts\Auth\MustVerifyEmail;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\VerifyEmailResponse;
 use Hypervel\Fortify\Http\Requests\VerifyEmailRequest;
@@ -19,7 +18,6 @@ class VerifyEmailController extends Controller
 
     public function __construct(
         private readonly Container $container,
-        private readonly Dispatcher $events,
     ) {
     }
 
@@ -37,7 +35,6 @@ class VerifyEmailController extends Controller
 
         if ($user->markEmailAsVerified()) {
             $this->dispatchIfListening(
-                $this->events,
                 Verified::class,
                 fn (): Verified => new Verified($user),
             );

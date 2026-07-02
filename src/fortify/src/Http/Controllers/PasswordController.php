@@ -8,7 +8,6 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\CanResetPassword;
 use Hypervel\Contracts\Auth\PasswordBroker;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\PasswordUpdateResponse;
 use Hypervel\Fortify\Contracts\UpdatesUserPasswords;
@@ -24,7 +23,6 @@ class PasswordController extends Controller
 
     public function __construct(
         private readonly Container $container,
-        private readonly Dispatcher $events,
     ) {
     }
 
@@ -41,7 +39,6 @@ class PasswordController extends Controller
         $this->broker()->deleteToken($user);
 
         $this->dispatchIfListening(
-            $this->events,
             PasswordUpdatedViaController::class,
             fn (): PasswordUpdatedViaController => new PasswordUpdatedViaController($user),
         );
