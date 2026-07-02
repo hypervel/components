@@ -47,18 +47,19 @@ class CacheTest extends TestCase
         $this->assertTrue($this->testUser->hasForbiddenPermissionViaRoles('edit-articles'));
     }
 
-    public function testPermissionCacheResetBumpsModelAssignmentCacheVersion(): void
+    public function testPermissionCacheResetChangesModelAssignmentCacheToken(): void
     {
         $this->testUser->assignRole('testRole');
         $registrar = $this->app->make(PermissionRegistrar::class);
 
         $this->assertTrue($this->testUser->hasRole('testRole'));
 
-        $firstVersion = $registrar->modelAssignmentCacheVersion();
+        $firstToken = $registrar->modelAssignmentCacheToken();
 
         $registrar->forgetCachedPermissions();
 
-        $this->assertGreaterThan($firstVersion, $registrar->modelAssignmentCacheVersion());
+        $this->assertMatchesRegularExpression('/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/', $firstToken);
+        $this->assertNotSame($firstToken, $registrar->modelAssignmentCacheToken());
         $this->assertTrue($this->testUser->hasRole('testRole'));
     }
 
@@ -194,7 +195,7 @@ class CacheTest extends TestCase
         $this->assertArrayHasKey($registrar->cacheKey . ':tenant-b', $items);
     }
 
-    public function testCustomCacheKeyResolverScopesModelAssignmentAndVersionCaches(): void
+    public function testCustomCacheKeyResolverScopesModelAssignmentAndTokenCaches(): void
     {
         $tenant = 'tenant-a';
         PermissionRegistrar::resolveCacheKeyUsing(function () use (&$tenant): string {
@@ -212,8 +213,8 @@ class CacheTest extends TestCase
 
         $keys = array_keys($store->all());
 
-        $this->assertContains('hypervel.permission.cache.model.version:tenant-a', $keys);
-        $this->assertContains('hypervel.permission.cache.model.version:tenant-b', $keys);
+        $this->assertContains('hypervel.permission.cache.model.token:tenant-a', $keys);
+        $this->assertContains('hypervel.permission.cache.model.token:tenant-b', $keys);
         $this->assertNotEmpty(array_filter(
             $keys,
             fn (string $key): bool => str_starts_with($key, 'hypervel.permission.cache.model.roles:tenant-a:'),

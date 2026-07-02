@@ -83,7 +83,7 @@ class WildcardPermissionTest extends TestCase
         $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
     }
 
-    public function testWildcardIndexUsesCurrentAssignmentCacheVersion(): void
+    public function testWildcardIndexUsesCurrentAssignmentCacheToken(): void
     {
         $this->testUser->givePermissionTo(Permission::create(['name' => 'posts.*']));
         $registrar = $this->app->make(PermissionRegistrar::class);
@@ -95,7 +95,7 @@ class WildcardPermissionTest extends TestCase
             ->where(Config::morphKey(), $this->testUser->getKey())
             ->where('model_type', $this->testUser->getMorphClass())
             ->delete();
-        $registrar->bumpModelAssignmentCacheVersion();
+        $registrar->bumpModelAssignmentCacheToken();
 
         $this->assertFalse($this->testUser->hasPermissionTo('posts.create'));
     }

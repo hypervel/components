@@ -11,6 +11,7 @@ use Hypervel\Permission\Events\PermissionDetachedEvent;
 use Hypervel\Permission\Events\RoleAttachedEvent;
 use Hypervel\Permission\Events\RoleDetachedEvent;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
 use Mockery as m;
 
@@ -79,6 +80,39 @@ class EventTest extends TestCase
 
         Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event): bool {
             return $event->model->is($this->testUser)
+                && $event->permissionsOrIds === [$this->testUserPermission->getKey()];
+        });
+    }
+
+    public function testSyncPermissionsDispatchesPermissionAttachedEventOnce(): void
+    {
+        $this->app->make('config')->set('permission.events_enabled', true);
+
+        Event::fake([PermissionAttachedEvent::class]);
+
+        $this->testUser->syncPermissions('edit-articles');
+
+        Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
+        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event): bool {
+            return $event->model->is($this->testUser)
+                && $event->permissionsOrIds === [$this->testUserPermission->getKey()];
+        });
+    }
+
+    public function testQueuedPermissionAssignmentDispatchesPermissionAttachedEventOnce(): void
+    {
+        $this->app->make('config')->set('permission.events_enabled', true);
+
+        Event::fake([PermissionAttachedEvent::class]);
+
+        $user = new User(['email' => 'queued-event@example.com']);
+
+        $user->givePermissionTo('edit-articles');
+        $user->save();
+
+        Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
+        Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event) use ($user): bool {
+            return $event->model->is($user)
                 && $event->permissionsOrIds === [$this->testUserPermission->getKey()];
         });
     }
