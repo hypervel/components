@@ -24,7 +24,19 @@ if (! is_array($data)) {
     exit(1);
 }
 
-$aaguids = array_map(fn (array $entry) => $entry['name'], $data);
+$aaguids = [];
+
+foreach ($data as $aaguid => $entry) {
+    if (! is_string($aaguid) || $aaguid === ''
+        || ! is_array($entry)
+        || ! is_string($entry['name'] ?? null)
+        || $entry['name'] === '') {
+        fwrite(STDERR, "AAGUID list contains an invalid entry.\n");
+        exit(1);
+    }
+
+    $aaguids[$aaguid] = $entry['name'];
+}
 
 $exported = var_export($aaguids, true);
 $exported = str_replace("\n  ", "\n    ", $exported);

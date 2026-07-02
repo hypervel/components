@@ -198,10 +198,8 @@ trait HasAttributes
 
     /**
      * The encrypter instance that is used to encrypt attributes.
-     *
-     * @var null|\Hypervel\Contracts\Encryption\Encrypter
      */
-    public static mixed $encrypter = null;
+    public static ?EncrypterContract $encrypter = null;
 
     /**
      * Initialize the trait.
@@ -1337,10 +1335,8 @@ trait HasAttributes
      *
      * Boot-only. The encrypter persists in a static property for the worker
      * lifetime and is used by every encrypted attribute across all coroutines.
-     *
-     * @param null|\Hypervel\Contracts\Encryption\Encrypter $encrypter
      */
-    public static function encryptUsing(mixed $encrypter): void
+    public static function encryptUsing(?EncrypterContract $encrypter): void
     {
         static::$encrypter = $encrypter;
     }
