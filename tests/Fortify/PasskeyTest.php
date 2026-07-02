@@ -88,6 +88,7 @@ class PasskeyTest extends TestCase
 
         $request = Request::create('/');
 
+        $this->assertFalse(Passkeys::shouldRegisterRoutes());
         $this->assertSame(Fortify::redirects('login', request: $request), Passkeys::redirectTo($request));
     }
 

@@ -7,7 +7,11 @@ namespace Hypervel\Tests\Fortify;
 use Closure;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
+use Hypervel\Fortify\Contracts\TwoFactorDisabledResponse as TwoFactorDisabledResponseContract;
+use Hypervel\Fortify\Contracts\TwoFactorEnabledResponse as TwoFactorEnabledResponseContract;
 use Hypervel\Fortify\Fortify;
+use Hypervel\Fortify\Http\Responses\TwoFactorDisabledResponse;
+use Hypervel\Fortify\Http\Responses\TwoFactorEnabledResponse;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
@@ -43,6 +47,19 @@ class FortifyServiceProviderTest extends TestCase
 
         $response->assertOk();
         $response->assertExactJson(['foo' => 'bar']);
+    }
+
+    public function testTwoFactorResponseBindingsUseMatchingContracts(): void
+    {
+        $this->assertInstanceOf(
+            TwoFactorEnabledResponse::class,
+            $this->app->make(TwoFactorEnabledResponseContract::class)
+        );
+
+        $this->assertInstanceOf(
+            TwoFactorDisabledResponse::class,
+            $this->app->make(TwoFactorDisabledResponseContract::class)
+        );
     }
 
     #[DefineEnvironment('withTwoFactorAuthentication')]
