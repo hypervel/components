@@ -6,7 +6,6 @@ namespace Hypervel\Passkeys\Actions;
 
 use Hypervel\Auth\EloquentUserProvider;
 use Hypervel\Contracts\Auth\StatefulGuard;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Passkeys\Concerns\DispatchesEvents;
 use Hypervel\Passkeys\Contracts\PasskeyUser;
@@ -29,7 +28,6 @@ class VerifyPasskey
 
     public function __construct(
         private readonly ConnectionResolverInterface $database,
-        private readonly Dispatcher $events,
     ) {
     }
 
@@ -69,7 +67,6 @@ class VerifyPasskey
             $this->updatePasskey($passkey, $source);
 
             $this->dispatchIfListening(
-                $this->events,
                 PasskeyVerified::class,
                 static fn (): PasskeyVerified => new PasskeyVerified($verifiedUser, $passkey),
             );

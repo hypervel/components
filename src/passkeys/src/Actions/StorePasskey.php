@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Passkeys\Actions;
 
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Passkeys\Concerns\DispatchesEvents;
 use Hypervel\Passkeys\Contracts\PasskeyUser;
@@ -24,11 +23,6 @@ use Webauthn\PublicKeyCredentialCreationOptions;
 class StorePasskey
 {
     use DispatchesEvents;
-
-    public function __construct(
-        private readonly Dispatcher $events,
-    ) {
-    }
 
     /**
      * Validate and store a passkey for the user.
@@ -54,7 +48,6 @@ class StorePasskey
         $passkey = $this->createPasskey($user, $name, $source);
 
         $this->dispatchIfListening(
-            $this->events,
             PasskeyRegistered::class,
             static fn (): PasskeyRegistered => new PasskeyRegistered($user, $passkey),
         );

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Passkeys\Actions;
 
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Passkeys\Concerns\DispatchesEvents;
 use Hypervel\Passkeys\Contracts\PasskeyUser;
 use Hypervel\Passkeys\Events\PasskeyDeleted;
@@ -16,11 +15,6 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 class DeletePasskey
 {
     use DispatchesEvents;
-
-    public function __construct(
-        private readonly Dispatcher $events,
-    ) {
-    }
 
     /**
      * Delete the given passkey.
@@ -38,7 +32,6 @@ class DeletePasskey
         $passkey->delete();
 
         $this->dispatchIfListening(
-            $this->events,
             PasskeyDeleted::class,
             static fn (): PasskeyDeleted => new PasskeyDeleted($user, $passkey),
         );
