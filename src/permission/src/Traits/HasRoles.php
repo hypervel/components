@@ -63,7 +63,7 @@ trait HasRoles
                     ->delete();
             }
 
-            $registrar->bumpModelAssignmentCacheVersion();
+            $registrar->bumpModelAssignmentCacheToken();
         });
 
         static::saved(function (Model $model): void {
@@ -608,7 +608,7 @@ trait HasRoles
      */
     public function getDirectPermissions(): Collection
     {
-        return $this->getCachedDirectPermissions();
+        return $this->allowedDirectPermissions();
     }
 
     /**

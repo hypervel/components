@@ -23,6 +23,7 @@ use Hypervel\Permission\Contracts\Role as RoleContract;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 
 class PermissionRegistrar
@@ -31,7 +32,7 @@ class PermissionRegistrar
 
     public const MODEL_PERMISSIONS_CACHE_KEY_PREFIX = 'hypervel.permission.cache.model.permissions';
 
-    public const MODEL_CACHE_VERSION_KEY = 'hypervel.permission.cache.model.version';
+    public const MODEL_CACHE_TOKEN_KEY = 'hypervel.permission.cache.model.token';
 
     public const PERMISSION_CATALOG_CONTEXT_KEY = '__permission.catalog';
 
@@ -66,7 +67,7 @@ class PermissionRegistrar
 
     protected string $modelPermissionsCacheKeyPrefix;
 
-    protected string $modelCacheVersionKey;
+    protected string $modelCacheTokenKey;
 
     protected ?string $cacheStoreName = null;
 
@@ -110,7 +111,7 @@ class PermissionRegistrar
         $this->cacheKey = $this->config->string('permission.cache.keys.roles', 'hypervel.permission.cache.roles');
         $this->modelRolesCacheKeyPrefix = $this->config->string('permission.cache.keys.model_roles', self::MODEL_ROLES_CACHE_KEY_PREFIX);
         $this->modelPermissionsCacheKeyPrefix = $this->config->string('permission.cache.keys.model_permissions', self::MODEL_PERMISSIONS_CACHE_KEY_PREFIX);
-        $this->modelCacheVersionKey = $this->config->string('permission.cache.keys.model_version', self::MODEL_CACHE_VERSION_KEY);
+        $this->modelCacheTokenKey = $this->config->string('permission.cache.keys.model_token', self::MODEL_CACHE_TOKEN_KEY);
 
         $pivotRole = $this->config->get('permission.column_names.role_pivot_key');
         $pivotPermission = $this->config->get('permission.column_names.permission_pivot_key');
@@ -206,7 +207,7 @@ class PermissionRegistrar
     public function forgetCachedPermissions(): bool
     {
         $this->clearPermissionsCollection();
-        $this->bumpModelAssignmentCacheVersion();
+        $this->bumpModelAssignmentCacheToken();
 
         return $this->cacheRepository()->forget($this->getCacheKey());
     }
@@ -281,7 +282,7 @@ class PermissionRegistrar
 
         return implode(':', [
             $this->scopedCacheKey($prefix),
-            $this->modelAssignmentCacheVersion(),
+            $this->modelAssignmentCacheToken(),
             $model->getMorphClass(),
             $model->getKey(),
             $teamId,
@@ -289,32 +290,37 @@ class PermissionRegistrar
     }
 
     /**
-     * Get the current model assignment cache version.
+     * Get the current model assignment cache token.
      */
-    public function modelAssignmentCacheVersion(): int
+    public function modelAssignmentCacheToken(): string
     {
-        return $this->cacheRepository()->rememberForever($this->scopedCacheKey($this->modelCacheVersionKey), fn () => 1);
+        return $this->cacheRepository()->rememberForever(
+            $this->scopedCacheKey($this->modelCacheTokenKey),
+            fn (): string => $this->newModelAssignmentCacheToken(),
+        );
     }
 
     /**
-     * Bump the model assignment cache version.
+     * Bump the model assignment cache token.
      */
-    public function bumpModelAssignmentCacheVersion(): int
+    public function bumpModelAssignmentCacheToken(): string
     {
-        $cache = $this->cacheRepository();
-        $key = $this->scopedCacheKey($this->modelCacheVersionKey);
-        $cache->add($key, 1);
+        $token = $this->newModelAssignmentCacheToken();
 
-        $version = $cache->increment($key);
+        $this->cacheRepository()->forever(
+            $this->scopedCacheKey($this->modelCacheTokenKey),
+            $token,
+        );
 
-        if (is_int($version)) {
-            return $version;
-        }
+        return $token;
+    }
 
-        $version = ((int) $cache->get($key, 1)) + 1;
-        $cache->forever($key, $version);
-
-        return $version;
+    /**
+     * Create a new model assignment cache namespace token.
+     */
+    protected function newModelAssignmentCacheToken(): string
+    {
+        return (string) Str::ulid();
     }
 
     /**
@@ -366,7 +372,7 @@ class PermissionRegistrar
     {
         $teamId = $this->teams ? (string) ($this->getPermissionsTeamId() ?? 'global') : 'none';
         $segments = [
-            $this->modelAssignmentCacheVersion(),
+            $this->modelAssignmentCacheToken(),
             $record->getMorphClass(),
             $record->getKey(),
             $teamId,

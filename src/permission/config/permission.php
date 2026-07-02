@@ -103,7 +103,7 @@ return [
             'roles' => 'hypervel.permission.cache.roles',
             'model_roles' => 'hypervel.permission.cache.model.roles',
             'model_permissions' => 'hypervel.permission.cache.model.permissions',
-            'model_version' => 'hypervel.permission.cache.model.version',
+            'model_token' => 'hypervel.permission.cache.model.token',
         ],
         'column_names_except' => ['created_at', 'updated_at', 'deleted_at'],
     ],
