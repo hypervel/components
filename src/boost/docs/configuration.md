@@ -109,6 +109,20 @@ All of the variables listed in the `.env` file will be loaded into the `$_ENV` P
 
 The second value passed to the `env` function is the "default value". This value will be returned if no environment variable exists for the given key.
 
+For comma-separated environment values, you may use the `env_array` function. Values are trimmed, empty values are removed, and missing, `null`, or `empty` environment values return the default array:
+
+```php
+'allowed_origins' => env_array('APP_ALLOWED_ORIGINS', ['https://example.com']),
+```
+
+For values that must be present while configuration files are loading, you may use the `env_or_fail` function:
+
+```php
+'secret' => env_or_fail('STRIPE_SECRET'),
+```
+
+If the required environment variable is missing, application boot will fail.
+
 <a name="application-id"></a>
 ### Application ID
 

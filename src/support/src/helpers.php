@@ -145,6 +145,31 @@ if (! function_exists('env')) {
     }
 }
 
+if (! function_exists('env_array')) {
+    /**
+     * Get a comma-separated environment variable as an array.
+     *
+     * @param array<int, string> $default
+     * @return array<int, string>
+     */
+    function env_array(string $key, array $default = []): array
+    {
+        return Env::getArray($key, $default);
+    }
+}
+
+if (! function_exists('env_or_fail')) {
+    /**
+     * Get a required environment variable.
+     *
+     * Evaluated at config-load time; a missing value aborts boot.
+     */
+    function env_or_fail(string $key): mixed
+    {
+        return Env::getOrFail($key);
+    }
+}
+
 if (! function_exists('filled')) {
     /**
      * Determine if a value is "filled".
