@@ -3,7 +3,7 @@ Passkeys for Hypervel
 
 Passwordless authentication using WebAuthn passkeys for Hypervel.
 
-Ported from: https://github.com/laravel/passkeys
+Ported from: https://github.com/laravel/passkeys-server
 
 See `src/boost/docs/fortify.md` for the canonical Fortify and Passkeys documentation.
 
