@@ -59,7 +59,7 @@ return new class extends Migration {
 
                 $table->dropPrimary();
 
-                $table->primary([$teamForeignKey, $pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'], 'model_has_permissions_permission_model_type_primary');
+                $table->primary([$teamForeignKey, $pivotPermission, $modelMorphKey, 'model_type'], 'model_has_permissions_permission_model_type_primary');
 
                 if (DB::getDriverName() !== 'sqlite') {
                     $table->foreign($pivotPermission)
