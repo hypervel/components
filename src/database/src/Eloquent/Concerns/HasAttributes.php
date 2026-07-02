@@ -14,6 +14,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
+use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Attributes\Appends;
 use Hypervel\Database\Eloquent\Attributes\DateFormat;
@@ -1346,10 +1347,8 @@ trait HasAttributes
 
     /**
      * Get the current encrypter being used by the model.
-     *
-     * @return \Hypervel\Contracts\Encryption\Encrypter
      */
-    public static function currentEncrypter(): mixed
+    public static function currentEncrypter(): EncrypterContract
     {
         return static::$encrypter ?? Crypt::getFacadeRoot();
     }
