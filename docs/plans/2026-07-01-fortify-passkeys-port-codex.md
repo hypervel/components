@@ -200,12 +200,33 @@ Hypervel route controllers can be cached on the route instance for worker-lifeti
 
 WebAuthn ceremony state is a deliberate exception to "use CoroutineContext" because it must persist across requests. Registration, login, and confirmation options belong in the session.
 
-Guard selection must use Hypervel's framework-level primitive, not package-local guard pins or resolvers. Hypervel's `AuthManager::getDefaultDriver()` reads the `CoroutineContext` default guard set by `Auth::shouldUse()` before falling back to `auth.defaults.guard`; `Auth::guard(null)` therefore follows the current request's default guard without leaking across coroutines. Fortify and Passkeys should always resolve the current framework guard with this precedence:
+Guard selection must use Hypervel's framework-level primitive, not package-local guard resolvers. Hypervel's `AuthManager::getDefaultDriver()` reads the `CoroutineContext` default guard set by `Auth::shouldUse()` before falling back to `auth.defaults.guard`; `Auth::guard(null)` therefore follows the current request's default guard without leaking across coroutines. Fortify and Passkeys should always resolve the current framework guard with this precedence:
 
-1. A request default set by early middleware through `Auth::shouldUse($guard)`.
-2. `auth.defaults.guard` when the request did not select a guard.
+1. A route-level package guard selected by the `auth.guard:{guard}` middleware, when `fortify.guard` or `passkeys.guard` is a non-empty string.
+2. A request default set by application middleware through `Auth::shouldUse($guard)`.
+3. `auth.defaults.guard` when the request did not select a guard.
 
-Do not add `fortify.guard`, `passkeys.guard`, `Fortify::guardUsing()`, or `Passkeys::guardUsing()`. Package-local guard configuration can diverge from `request()->user()`, Gate, policies, password confirmation, Sanctum-like integrations, and other packages. What is not safe is changing `auth.defaults.guard` or password broker defaults during a request; multi-guard and multi-tenant applications should select the guard in early middleware before `guest`, `auth`, `password.confirm`, Fortify controllers, and Passkeys controllers run.
+Keep nullable `fortify.guard` and `passkeys.guard` config keys, but make them select the framework current guard instead of becoming a second guard source. When a package guard config is `null`, routes use the request default already selected by application middleware or `auth.defaults.guard`. When it is a string, the package route group prepends `auth.guard:{guard}`, which calls `Auth::shouldUse($guard)` before bare `guest`, `auth`, and `password.confirm` route middleware run. Do not add `Fortify::guardUsing()` or `Passkeys::guardUsing()`; those would create another precedence layer and could diverge from `request()->user()`, Gate, policies, password confirmation, and other packages. What is not safe is changing `auth.defaults.guard` or password broker defaults during a request; multi-guard and multi-tenant applications should select the guard in middleware, either through package config for fixed package route groups or through application middleware for dynamic domain/path tenancy.
+
+Add a framework auth middleware alias named `auth.guard` that only selects the current request guard:
+
+```php
+final class UseGuard
+{
+    public function __construct(private readonly AuthFactory $auth)
+    {
+    }
+
+    public function handle(Request $request, Closure $next, string $guard): Response
+    {
+        $this->auth->shouldUse($guard);
+
+        return $next($request);
+    }
+}
+```
+
+Register `auth.guard` in the default middleware aliases and place `UseGuard` in middleware priority immediately before `AuthenticatesRequests`. Add regression tests for the default priority list and for Fortify and standalone Passkeys route sorting, so `auth.guard:{guard}` cannot accidentally run after `auth`, `guest`, or `password.confirm`.
 
 Password broker selection should derive from the selected guard's provider, not from a Fortify-specific config value. The password reset flow must reset passwords in the same user store the selected guard authenticates. Find exactly one `auth.passwords.*.provider` entry matching the selected guard provider. If none or multiple match, fail clearly and require the application's auth password broker config to be made unambiguous. Do not consult `auth.defaults.passwords` from Fortify request flows, because that global default can point at a different provider than the selected guard.
 
@@ -429,9 +450,9 @@ Required behavior:
 - `redirectTo()`.
 - `ignoreRoutes()`.
 - `flushState()`.
-- Config readers for relying party ID, allowed origins, timeout, middleware, redirect, and user handle secret.
+- Config readers for relying party ID, allowed origins, timeout, middleware, redirect, guard, and user handle secret.
 
-Default `config/passkeys.php` should not contain a `guard` key. A standard application resolves to `auth.defaults.guard`, while multi-guard applications select the current guard per request with early middleware calling `Auth::shouldUse()`.
+Default `config/passkeys.php` should contain a nullable `guard` key. When `passkeys.guard` is `null`, standalone Passkeys routes resolve the guard from the current request default selected by application middleware or `auth.defaults.guard`. When it is a non-empty string, the standalone Passkeys route group prepends `auth.guard:{guard}` so the selected guard becomes the framework current guard before bare `guest`, `auth`, and `password.confirm` middleware and controller code run.
 
 Use `Closure::fromCallable()` for callbacks so static properties can be strictly typed.
 
@@ -1137,9 +1158,11 @@ Port `Fortify` with strict typed static state and `flushState()`.
 
 Use `Closure` properties instead of untyped `callable` properties. PHP does not allow `callable` as a property type.
 
-Fortify should support multiple named guards by using Hypervel's auth default guard mechanism. It should not define its own `fortify.guard` setting. Fortify resolves the current request default guard through `AuthFactory::guard(null)`, which follows `Auth::shouldUse()` in `CoroutineContext`.
+Fortify should support multiple named guards by using Hypervel's auth default guard mechanism. Its nullable `fortify.guard` setting should drive `Auth::shouldUse()` through route middleware, not be read directly by controllers or actions. Fortify resolves the current request default guard through `AuthFactory::guard(null)`, which follows `Auth::shouldUse()` in `CoroutineContext`.
 
-Default `config/fortify.php` should not include Laravel's `guard` or `passwords` keys. A standard application still resolves to `auth.defaults.guard` and the single password broker matching that guard's provider, while multi-guard applications can select both from the current request guard.
+Default `config/fortify.php` should include a nullable `guard` key but should not include Laravel's `passwords` key. When `fortify.guard` is `null`, Fortify routes resolve the guard from the current request default selected by application middleware or `auth.defaults.guard`. When it is a non-empty string, the Fortify route group prepends `auth.guard:{guard}` so the selected guard becomes the framework current guard before bare `guest`, `auth`, and `password.confirm` middleware and controller code run. Password broker selection still derives from the selected guard's provider.
+
+Default `config/fortify.php` should include `fortify.limiters.two-factor` with a safe default such as `'5,1'`. Laravel's route file reads this limiter but Laravel's config omits it, leaving the two-factor challenge submit endpoint unthrottled unless the application publishes and customizes config. Hypervel should not preserve that brute-force surface. Keep `fortify.limiters.login` and `fortify.limiters.passkeys` nullable because login has the `LoginRateLimiter` pipeline fallback and passkey verification is cryptographic, but throttle TOTP/recovery-code challenge submissions by default.
 
 ```php
 final class Fortify
@@ -1411,7 +1434,7 @@ protected function configurePasskeys(): void
 
 This is safe because provider registration is boot-time process setup, not request-time mutation.
 
-Do not bridge guard, route middleware, throttle, or a static redirect value into `passkeys.*`. Fortify disables standalone Passkeys routes and builds its own route middleware from Fortify config, while both packages resolve the current framework guard through `Auth::guard(null)`. Passkey login redirect is intentionally bridged as a callback because `PasskeyLoginResponse` needs the same post-login destination as Fortify password login, but multi-tenant and multi-guard applications may compute that destination from the current request, current guard, or tenancy context.
+Do not bridge guard, route middleware, throttle, or a static redirect value into `passkeys.*`. Laravel copies `fortify.guard` into `passkeys.guard` because Laravel Passkeys controllers read Passkeys config directly. Hypervel controllers instead resolve `Auth::guard(null)`, so copying the guard would be misleading. Fortify disables standalone Passkeys routes and builds integrated passkey route middleware from Fortify config. Standalone Passkeys routes are controlled by `passkeys.guard` only when those standalone routes are enabled. Passkey login redirect is intentionally bridged as a callback because `PasskeyLoginResponse` needs the same post-login destination as Fortify password login, but multi-tenant and multi-guard applications may compute that destination from the current request, current guard, or tenancy context.
 
 Do not port Laravel's `passkeyUserModel()` helper. It exists because Laravel Passkeys stores a single `user_id` foreign key against one configured model. Hypervel's polymorphic `user` owner relation makes that helper unnecessary and avoids a stale global user-model setting.
 
@@ -1439,9 +1462,20 @@ Preserve route names and default paths from Laravel's Fortify docs so frontend p
 
 Use `RoutePath::for()` for configurable paths, as Laravel does.
 
-Built-in routes should use bare `guest`, `auth`, and `password.confirm` middleware so they follow the current request default guard selected by earlier middleware or `auth.defaults.guard`.
+Built-in route-level auth checks should use bare `guest`, `auth`, and `password.confirm` middleware so they follow the current request default guard selected by `auth.guard:{guard}`, application middleware, or `auth.defaults.guard`.
 
-For simultaneous multi-guard applications with separate paths or domains, document the supported pattern: call `Fortify::ignoreRoutes()` / `Passkeys::ignoreRoutes()`, register route groups per area, and put guard-selection middleware that calls `Auth::shouldUse($guard)` before `guest`, `auth`, `password.confirm`, and the package controllers. Named `guest:admin` alone checks the admin guard but does not set the default guard for controller code, so early guard-selection middleware is required. Do not change config values inside route handlers.
+Fortify and standalone Passkeys route files should build their outer middleware arrays this way:
+
+```php
+$middleware = (array) config('fortify.middleware', ['web']);
+$guard = config('fortify.guard');
+
+if (is_string($guard) && $guard !== '') {
+    $middleware[] = 'auth.guard:' . $guard;
+}
+```
+
+Use the same shape for `passkeys.middleware` / `passkeys.guard` in standalone Passkeys routes. For simultaneous multi-guard applications with dynamic separate paths or domains, document the supported pattern: leave the package guard config as `null`, or call `Fortify::ignoreRoutes()` / `Passkeys::ignoreRoutes()` for fully custom route registration, and put guard-selection middleware that calls `Auth::shouldUse($guard)` before `guest`, `auth`, `password.confirm`, and the package controllers. Named `guest:admin` alone checks the admin guard but does not set the default guard for controller code, so guard-selection middleware is required. Do not change config values inside route handlers.
 
 ### TwoFactorAuthenticationProvider Window Mutation
 
@@ -1661,7 +1695,7 @@ Guard access convention:
 - Passkeys controllers should resolve the guard through `Passkeys::guard()` at method-call time.
 - Do not constructor-inject a concrete guard into cached package controllers.
 - Do not call the default auth guard implicitly in package code except through the package `guard()` helpers, where `Auth::guard(null)` intentionally means "use the framework current default guard."
-- `AttemptToAuthenticate::fireFailedEvent()` and `RedirectIfTwoFactorAuthenticatable::fireFailedEvent()` must pass `Fortify::guardName()` to `Hypervel\Auth\Events\Failed`. Do not port Laravel's `$this->guard?->name ?? config('fortify.guard')` fallback; `fortify.guard` does not exist, guards are resolved per request, and `name` is not on the `StatefulGuard` contract.
+- `AttemptToAuthenticate::fireFailedEvent()` and `RedirectIfTwoFactorAuthenticatable::fireFailedEvent()` must pass `Fortify::guardName()` to `Hypervel\Auth\Events\Failed`. Do not port Laravel's `$this->guard?->name ?? config('fortify.guard')` fallback; controllers/actions resolve the selected current guard per request, and `name` is not on the `StatefulGuard` contract.
 
 Event dispatch convention:
 
@@ -1739,7 +1773,7 @@ Then rewrite it for Hypervel before committing:
 - Include passkey config keys from `fortify.passkeys`.
 - Include `@laravel/passkeys` frontend package usage; it was verified framework-agnostic and compatible with Hypervel routes when the backend preserves the JSON contracts in this plan.
 - Add Swoole-specific guidance: do not call `Features::*($options)`, Fortify static callback registration methods, Passkeys static callback registration methods, or `config()->set()` from request handlers; configure them during boot/provider setup.
-- Document multi-guard setup: Fortify and Passkeys always use the current request default guard; applications select it with early `Auth::shouldUse()` middleware before `guest`, `auth`, `password.confirm`, and package controllers.
+- Document multi-guard setup: Fortify and Passkeys always use the current request default guard. `fortify.guard` and `passkeys.guard` are nullable convenience settings that select the guard through `auth.guard:{guard}` on package routes. When they are `null`, applications can select the guard dynamically with early `Auth::shouldUse()` middleware before `guest`, `auth`, `password.confirm`, and package controllers.
 - Document that registration remains app-controlled: multi-guard apps should make their `CreateNewUser` action guard-aware because Fortify cannot infer which user model to create from the selected guard.
 - Document request-aware redirects: configure `Fortify::redirectUsing('login', fn (Request $request) => ...)` and `Passkeys::redirectUsing(fn (Request $request) => ...)` during boot, and read current guard / tenancy / domain state inside the callback. The callback is worker-lifetime configuration, but its return value is computed per request and must not be cached globally.
 - Document password reset broker setup: Fortify derives the broker from the selected guard provider; exactly one `auth.passwords` broker must match that provider; apps with multiple providers that may share email addresses should use separate reset token tables or cache stores.
@@ -1768,7 +1802,7 @@ The "Differences vs Laravel" section should stay short and mention only user-vis
 
 - Passkeys registration response is not a mutable singleton.
 - Passkeys use a polymorphic `user` owner relation so multiple authenticatable model classes can share the same passkeys table.
-- Fortify and Passkeys always follow Hypervel's current default guard selected by `Auth::shouldUse()` or `auth.defaults.guard`; they do not have package-local guard pins.
+- Fortify and Passkeys always follow Hypervel's current default guard selected by `auth.guard:{guard}`, application `Auth::shouldUse()` middleware, or `auth.defaults.guard`; their nullable guard config selects the framework guard instead of being read directly by controllers/actions.
 - Passkeys use current non-deprecated `web-auth/webauthn-lib` APIs, including `CredentialRecord` instead of deprecated credential-source APIs.
 - Passkeys include explicit orphan cleanup for polymorphic owners.
 - Fortify and Passkeys support boot-time request-aware redirect callbacks for multi-tenant and multi-guard post-login destinations.
@@ -1786,6 +1820,8 @@ Keep each note to one concise bullet. Avoid moving implementation details from t
 ### General Test Rules
 
 Laravel Passkeys uses Pest; Hypervel components use PHPUnit. Convert Pest tests into PHPUnit test classes.
+
+Port every applicable upstream Laravel test file for both packages. Do not replace upstream controller/action coverage with only smaller Hypervel-specific smoke tests. If an upstream test is not ported, record the exact Laravel test name, what behavior it covers, why that behavior is unsupported or intentionally different in Hypervel, and the replacement Hypervel test that covers the final behavior. Otherwise, the test is still missing.
 
 Run relevant tests immediately after creating or modifying test files. Use focused package commands while building the port, then run the repo-standard parallel suite before final handoff.
 
@@ -1872,7 +1908,7 @@ Additional Hypervel tests:
 11. Two different `PasskeyUser` model classes can own passkeys in the same `passkeys` table.
 12. `PasskeyAuthenticatable` deletes related passkeys when an owner model is really deleted or force deleted, and preserves them on reversible soft delete.
 13. Ownership checks honor Eloquent morph maps.
-14. Passkeys follows the current default guard selected by `Auth::shouldUse()` and has no package-local guard pin.
+14. Passkeys follows the current default guard selected by `auth.guard:{guard}`, application `Auth::shouldUse()` middleware, or `auth.defaults.guard`; tests cover both `passkeys.guard = null` and a pinned standalone `passkeys.guard` string.
 15. The migration works with Hypervel's default numeric morph key type and has a focused test or schema assertion for UUID/ULID morph key configuration.
 16. Passwordless login scopes or rejects credentials whose `user_type` does not match the selected guard provider model's morph class.
 17. Passwordless login fails with `InvalidPasskeyException` when a credential's polymorphic owner is missing or does not implement `PasskeyUser`.
@@ -1941,14 +1977,15 @@ Additional Hypervel tests:
 12. Loose Laravel comparisons were tightened without changing success/failure behavior.
 13. Fortify event user parameters are auth-contract typed, not app-model typed.
 14. `AuthenticatedSessionController` builds the login pipeline from a single config snapshot per call.
-15. Fortify authentication and password reset flows follow the current default guard selected by `Auth::shouldUse()`.
-16. Built-in Fortify routes use bare `guest`, `auth`, and `password.confirm` middleware so early guard-selection middleware controls the active guard.
+15. Fortify authentication and password reset flows follow the current default guard selected by `auth.guard:{guard}`, application `Auth::shouldUse()` middleware, or `auth.defaults.guard`; tests cover both `fortify.guard = null` and a pinned `fortify.guard` string.
+16. Built-in Fortify routes use bare `guest`, `auth`, and `password.confirm` middleware inside a route group that may prepend `auth.guard:{guard}`; tests assert `auth.guard` sorts before those auth-check middleware entries.
 17. Fortify derives the password broker from the selected guard provider, and ambiguous or missing matches fail with a clear configuration exception.
 18. Fortify's passkey bridge copies WebAuthn settings into `passkeys.*`, installs the request-aware login redirect callback, and does not set route-only settings or a global passkey user model.
 19. Fortify passkey login responses honor `Fortify::redirects('login', request: $request)` for both JSON redirect payloads and normal redirects.
-20. Failed login events from password and two-factor authentication contain `Fortify::guardName()`, not a removed Fortify guard config or non-contract guard property.
+20. Failed login events from password and two-factor authentication contain `Fortify::guardName()`, not a direct Fortify config read or non-contract guard property.
 21. Representative Fortify events are not constructed or dispatched when the event dispatcher reports no listeners through `hasListeners()`, and are dispatched when listeners exist.
 22. `Fortify::redirectUsing()` callbacks are evaluated per request for relevant response classes, can read current guard/tenant context, fall back to `fortify.redirects.*` / `fortify.home` when absent or null, and are reset by `Fortify::flushState()`.
+23. The two-factor challenge submit route has the default `throttle:5,1` middleware, and an explicit `fortify.limiters.two-factor` override changes that middleware.
 
 ### Coroutine Safety Tests
 
@@ -1998,19 +2035,64 @@ These are acceptable and either neutral or positive for long-lived worker correc
 
 ## Implementation Order
 
+Audit existing source in place and port tests from a fresh upstream baseline.
+
+Source audit procedure:
+
+1. For each Laravel source/config/route/migration/stub directory, mechanically compare the upstream file list against the existing Hypervel package file list. Every upstream file must map to a Hypervel file or a `removed` / `merged` ledger row.
+2. For every mapped source file, mechanically compare upstream class members against the Hypervel counterpart: constants, properties, methods, contracts, routes, config keys, migrations, events, and commands. Every missing member must be implemented or recorded as `removed` / `merged`.
+3. Read each upstream file and its Hypervel counterpart in full, compare behavior, and record every intentional behavioral difference as `ported-with-hypervel-change`.
+4. Fix source gaps in place. Do not replace reviewed Hypervel source by blindly copying upstream source over it.
+5. Verify framework support pieces outside the two packages are intact instead of recreating them: `auth.guard` middleware alias, `UseGuard`, middleware priority before auth-check middleware, and static cleanup calls in `AfterEachTestSubscriber`.
+
+Test port procedure:
+
+Move the current package test directories aside, then copy the upstream Laravel test suites into clean test locations:
+
+```bash
+test ! -e tests/Passkeys
+test ! -e tests/Fortify
+mkdir -p tests/Passkeys tests/Fortify
+cp -R /home/binaryfire/workspace/monorepo/examples/laravel/passkeys-server/tests/. tests/Passkeys
+cp -R /home/binaryfire/workspace/monorepo/examples/laravel/fortify/tests/. tests/Fortify
+```
+
+The test target paths must be empty before copying. If either test target already exists, move it aside before running the copy commands. Do not copy an upstream test directory into an existing test directory, because `cp -R source existing-dir` nests the source under the target and corrupts the layout.
+
+After copying tests, remove upstream scaffolding that is not part of Hypervel's test layout and account for it in the parity ledger. This includes Pest bootstrap files such as `Pest.php`, upstream PHPUnit configuration files, and copied Laravel/Pest test case files that are replaced by the planned Hypervel `PasskeysTestCase` and `FortifyTestCase` fixtures.
+
+Port tests one at a time from the copied upstream test baseline. After the upstream tests are ported, reconcile the moved-aside Hypervel-specific tests back in by merging methods into the most logical upstream-ported test class, or by restoring a separate test class only when the coverage is genuinely Hypervel-specific and standalone.
+
+For both source and tests, immediately record each file's status in a source/test parity ledger. Do not create a synthesized replacement while leaving the upstream file unaccounted for.
+
+The parity ledger can live in the working notes during implementation, but it must be complete before code review:
+
+```text
+Upstream file | Hypervel file | Status | Notes
+```
+
+Allowed statuses:
+
+- `ported` — same behavior, adapted to Hypervel.
+- `ported-with-hypervel-change` — behavior intentionally differs for Swoole safety, current dependency APIs, or a documented Hypervel design decision.
+- `removed` — the upstream file is intentionally omitted; notes must name the unsupported/deprecated behavior and the replacement.
+- `merged` — the upstream file's behavior was merged into another Hypervel file; notes must name the target.
+
+### Ordered Work
+
 1. Add dependency constraints with latest stable compatible versions and update `composer.lock`.
 2. Add root autoload, replace entries, and provider discovery entries.
-3. Create `src/passkeys` package skeleton.
-4. Port Passkeys config, model, migration, contracts, events, exceptions, support classes, actions, requests, controllers, responses, routes, provider, prune-orphans command, README, and `scripts/sync-aaguids.php`.
-5. Add Passkeys static cleanup to `AfterEachTestSubscriber`.
-6. Port Passkeys tests and new Hypervel-specific leak/race tests.
-7. Create `src/fortify` package skeleton.
-8. Port Fortify config, contracts, responses, actions, controllers, requests, two-factor support, routes, provider, console command, stubs, migrations, README.
-9. Wire Fortify to Passkeys and ensure standalone Passkeys routes are ignored when Fortify owns the passkey feature.
-10. Add Fortify static cleanup to `AfterEachTestSubscriber`.
-11. Port Fortify tests and new Hypervel-specific leak/contract/recovery-code tests.
-12. Copy `examples/laravel/docs/fortify.md` to `src/boost/docs/fortify.md` and rewrite for Hypervel.
-13. Add docs index entries if needed.
+3. Audit Passkeys source in place against upstream: file lists, member lists, full behavior reads, gap fixes, and parity ledger rows.
+4. Verify Passkeys static cleanup in `AfterEachTestSubscriber`.
+5. Move existing `tests/Passkeys` aside, copy upstream Passkeys tests into a clean `tests/Passkeys`, port them one at a time, then reconcile non-duplicate Hypervel-specific leak/race/guard/polymorphic/WebAuthn tests from the moved-aside tests.
+6. Audit Fortify source in place against upstream: file lists, member lists, full behavior reads, gap fixes, and parity ledger rows.
+7. Wire Fortify to Passkeys and ensure standalone Passkeys routes are ignored when Fortify owns the passkey feature.
+8. Verify Fortify static cleanup in `AfterEachTestSubscriber`.
+9. Move existing `tests/Fortify` aside, copy upstream Fortify tests into a clean `tests/Fortify`, port them one at a time, then reconcile non-duplicate Hypervel-specific leak/contract/recovery-code/guard tests from the moved-aside tests.
+10. Verify framework-level guard support remains intact: `UseGuard`, `auth.guard` alias, middleware priority before auth-check middleware, and route-sorting tests.
+11. Copy `examples/laravel/docs/fortify.md` to `src/boost/docs/fortify.md` and rewrite for Hypervel.
+12. Add docs index entries if needed.
+13. Verify the parity ledger accounts for every upstream source and test file, including every removed or merged file.
 14. Run package tests, static analysis, style checks, and full relevant test suite.
 15. Final dead-code pass: remove unused imports, unused classes, stale docs, commented-out code, and transitional notes.
 
@@ -2056,9 +2138,10 @@ Any `PublicKeyCredentialSource` reference or non-empty relying-party entity cons
 - `tests/AfterEachTestSubscriber.php` flushes all new static state.
 - No `Config::set()` or config repository `set()` occurs during request handling.
 - Package event dispatches use the `hasListeners()` guard pattern where events are listener-driven extension points.
-- Fortify and Passkeys use the current request default guard selected by `Auth::shouldUse()` or `auth.defaults.guard`; there is no package-local guard config.
-- Built-in route middleware uses bare `auth`, `guest`, and `password.confirm` so earlier guard-selection middleware remains authoritative.
-- Multi-guard route docs require early guard-selection middleware before `guest`, `auth`, `password.confirm`, and package controllers.
+- Fortify and Passkeys use the current request default guard selected by `auth.guard:{guard}`, application `Auth::shouldUse()` middleware, or `auth.defaults.guard`; nullable package guard config drives `Auth::shouldUse()` through route middleware and is not read directly by controllers/actions.
+- Built-in route middleware uses bare `auth`, `guest`, and `password.confirm` inside route groups that may prepend `auth.guard:{guard}`, so guard selection remains the single source of truth for controllers/actions and framework middleware.
+- `auth.guard` is registered as a middleware alias, appears in middleware priority before auth-check middleware, and has regression tests proving pinned Fortify/Passkeys route groups sort correctly.
+- Multi-guard route docs cover both fixed package guard config and dynamic early guard-selection middleware before `guest`, `auth`, `password.confirm`, and package controllers.
 - Fortify password reset broker resolution infers exactly one broker from the selected guard provider and has no Fortify-specific broker override.
 - Fortify's passkey integration bridges WebAuthn settings plus a request-aware login redirect callback, and does not bridge route-only guard/middleware/throttle settings.
 - Fortify and Passkeys redirect callbacks are boot-only registrations whose return values are computed per request and are reset by `flushState()`.
@@ -2077,6 +2160,7 @@ Any `PublicKeyCredentialSource` reference or non-empty relying-party entity cons
 - Passkey ownership comparisons are scalar-safe.
 - Passkey login fails cleanly if the stored owner relation is missing or invalid.
 - Fortify two-factor response contracts are correct.
+- Fortify's two-factor challenge submit route is throttled by default and honors `fortify.limiters.two-factor` overrides.
 - Fortify event user types use auth contracts, not `App\Models\User`.
 - Laravel loose comparisons identified in the source plan are strict.
 - `AuthenticatedSessionController` uses `Hypervel\Routing\Pipeline` and avoids repeated config reads in a single request.
