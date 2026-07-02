@@ -183,7 +183,7 @@ abstract class Queue
     /**
      * Get the backoff for an object-based queue handler.
      */
-    public function getJobBackoff(mixed $job): mixed
+    public function getJobBackoff(mixed $job): ?string
     {
         if (! method_exists($job, 'backoff') && ! isset($job->backoff)) {
             return null;
