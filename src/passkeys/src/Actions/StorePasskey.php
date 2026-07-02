@@ -43,8 +43,6 @@ class StorePasskey
 
         $source = $this->validate($response, $options);
 
-        $this->ensureCredentialIsUnique($source);
-
         $passkey = $this->createPasskey($user, $name, $source);
 
         $this->dispatchIfListening(
@@ -81,26 +79,6 @@ class StorePasskey
             publicKeyCredentialCreationOptions: $options,
             host: Passkeys::relyingPartyId(),
         );
-    }
-
-    /**
-     * Ensure the credential is not already registered.
-     *
-     * @throws InvalidPasskeyException
-     */
-    protected function ensureCredentialIsUnique(CredentialRecord $source): void
-    {
-        $credentialId = Base64UrlSafe::encodeUnpadded($source->publicKeyCredentialId);
-
-        $passkeyModel = Passkeys::passkeyModel();
-
-        $exists = $passkeyModel::query()
-            ->where('credential_id', $credentialId)
-            ->exists();
-
-        if ($exists) {
-            throw InvalidPasskeyException::make('Unable to register this passkey.');
-        }
     }
 
     /**

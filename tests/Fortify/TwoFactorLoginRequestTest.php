@@ -103,6 +103,33 @@ class TwoFactorLoginRequestTest extends TestCase
         $this->assertTrue($challengeRequest->challengedUser()->is($user));
     }
 
+    public function testValidRecoveryCodeIsAReadOnlyCheck(): void
+    {
+        config(['auth.providers.users.model' => UserWithTwoFactor::class]);
+
+        $user = UserWithTwoFactor::forceCreate([
+            'id' => 1,
+            'email' => 'user@example.test',
+            'two_factor_recovery_codes' => encrypt(json_encode(['valid-code'], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $request = TwoFactorLoginRequest::create('/two-factor-challenge', 'POST', [
+            'recovery_code' => 'valid-code',
+        ]);
+        $request->setHypervelSession($session = new Store('fortify', new NullSessionHandler));
+
+        $session->put([
+            'login.id' => $user->id,
+            'login.guard' => 'web',
+            'login.remember' => true,
+        ]);
+
+        $this->assertSame('valid-code', $request->validRecoveryCode());
+        $this->assertSame($user->id, $session->get('login.id'));
+        $this->assertSame('web', $session->get('login.guard'));
+        $this->assertContains('valid-code', $user->fresh()->recoveryCodes());
+    }
+
     /**
      * Create a minimal authenticatable fixture table.
      */

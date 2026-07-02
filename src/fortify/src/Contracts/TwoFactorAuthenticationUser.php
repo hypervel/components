@@ -19,6 +19,11 @@ interface TwoFactorAuthenticationUser
     public function recoveryCodes(): array;
 
     /**
+     * Consume the given recovery code if it is still valid.
+     */
+    public function consumeRecoveryCode(string $code): bool;
+
+    /**
      * Replace the given recovery code with a new one.
      */
     public function replaceRecoveryCode(string $code): void;

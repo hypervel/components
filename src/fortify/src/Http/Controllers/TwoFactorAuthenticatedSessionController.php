@@ -48,9 +48,8 @@ class TwoFactorAuthenticatedSessionController extends Controller
         /** @var Authenticatable&Model&TwoFactorAuthenticationUser $user */
         $user = $request->challengedUser();
 
-        if ($code = $request->validRecoveryCode()) {
-            $user->replaceRecoveryCode($code);
-        } elseif (! $request->hasValidCode()) {
+        if (! $this->hasValidRecoveryCode($request, $user)
+            && ! $request->hasValidCode()) {
             $this->dispatchIfListening(
                 TwoFactorAuthenticationFailed::class,
                 static fn (): TwoFactorAuthenticationFailed => new TwoFactorAuthenticationFailed($user),
@@ -69,5 +68,23 @@ class TwoFactorAuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         return $this->container->make(TwoFactorLoginResponse::class);
+    }
+
+    /**
+     * Determine if the request has a valid recovery code.
+     */
+    protected function hasValidRecoveryCode(TwoFactorLoginRequest $request, Authenticatable&Model&TwoFactorAuthenticationUser $user): bool
+    {
+        $code = $request->input('recovery_code');
+
+        $valid = is_string($code)
+            && $code !== ''
+            && $user->consumeRecoveryCode($code);
+
+        if ($valid) {
+            $request->session()->forget(['login.id', 'login.guard']);
+        }
+
+        return $valid;
     }
 }

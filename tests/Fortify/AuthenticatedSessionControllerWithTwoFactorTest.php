@@ -291,6 +291,46 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
         $this->assertNotContains('valid-code', json_decode(decrypt($user->fresh()->two_factor_recovery_codes), true));
     }
 
+    public function testTwoFactorChallengeFailsWhenRecoveryCodeWasAlreadyConsumed(): void
+    {
+        Event::fake();
+
+        $user = UserWithTwoFactor::forceCreate([
+            'name' => 'Taylor Otwell',
+            'email' => 'taylor@laravel.com',
+            'password' => bcrypt('secret'),
+            'two_factor_recovery_codes' => encrypt(json_encode(['valid-code'])),
+        ]);
+
+        $response = $this->withSession([
+            'login.id' => $user->id,
+            'login.guard' => 'web',
+            'login.remember' => false,
+        ])->withoutExceptionHandling()->post('/two-factor-challenge', [
+            'recovery_code' => 'valid-code',
+        ]);
+
+        $response->assertRedirect('/home')
+            ->assertSessionMissing('login.id');
+
+        Auth::guard()->logout();
+
+        $response = $this->withSession([
+            'login.id' => $user->id,
+            'login.guard' => 'web',
+            'login.remember' => false,
+        ])->withoutExceptionHandling()->post('/two-factor-challenge', [
+            'recovery_code' => 'valid-code',
+        ]);
+
+        $response->assertRedirect('/two-factor-challenge')
+            ->assertSessionHas('login.id')
+            ->assertSessionHasErrors(['recovery_code']);
+        $this->assertNull(Auth::getUser());
+        Event::assertDispatchedTimes(ValidTwoFactorAuthenticationCodeProvided::class, 1);
+        Event::assertDispatchedTimes(TwoFactorAuthenticationFailed::class, 1);
+    }
+
     public function testTwoFactorChallengeCanFailViaRecoveryCode(): void
     {
         $user = UserWithTwoFactor::forceCreate([

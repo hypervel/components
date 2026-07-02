@@ -91,10 +91,6 @@ class TwoFactorLoginRequest extends FormRequest
             fn (string $code): bool => hash_equals($code, $recoveryCode),
         );
 
-        if (is_string($code)) {
-            $this->session()->forget(['login.id', 'login.guard']);
-        }
-
         return is_string($code) ? $code : null;
     }
 

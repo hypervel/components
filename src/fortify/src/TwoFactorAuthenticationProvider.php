@@ -42,7 +42,7 @@ class TwoFactorAuthenticationProvider implements TwoFactorAuthenticationProvider
     {
         $window = Features::option(Features::twoFactorAuthentication(), 'window');
         $window = is_int($window) ? $window : null;
-        $key = 'fortify.2fa_codes.' . md5($code);
+        $key = 'fortify.2fa_codes.' . hash('xxh128', $secret . '|' . $code);
 
         $timestamp = $this->engine->verifyKeyNewer(
             $secret,
