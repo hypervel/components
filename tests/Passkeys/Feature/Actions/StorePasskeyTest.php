@@ -14,6 +14,7 @@ use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
 use Mockery as m;
 use ParagonIE\ConstantTime\Base64UrlSafe;
+use RuntimeException;
 use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\AuthenticatorAttestationResponse;
 use Webauthn\PublicKeyCredential;
@@ -151,5 +152,49 @@ class StorePasskeyTest extends TestCase
         $this->expectExceptionMessage('Unable to register passkey');
 
         app(StorePasskey::class)($user, 'Test Passkey', $credential, $options);
+    }
+
+    public function testItUsesTheRelyingPartyIdStoredInRegistrationOptions(): void
+    {
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+        $options = PublicKeyCredentialCreationOptions::create(
+            rp: PublicKeyCredentialRpEntity::create(id: 'registered.example.com'),
+            user: PublicKeyCredentialUserEntity::create('test', $user->getPasskeyUserHandle(), 'Test'),
+            challenge: random_bytes(32),
+        );
+
+        $this->assertSame('registered.example.com', (new ExposesStorePasskeyHost)->host($options));
+    }
+
+    public function testItThrowsWhenRegistrationOptionsHaveNoRelyingPartyId(): void
+    {
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+        $options = PublicKeyCredentialCreationOptions::create(
+            rp: PublicKeyCredentialRpEntity::create(),
+            user: PublicKeyCredentialUserEntity::create('test', $user->getPasskeyUserHandle(), 'Test'),
+            challenge: random_bytes(32),
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Passkey registration options must contain a relying party ID.');
+
+        (new ExposesStorePasskeyHost)->host($options);
+    }
+}
+
+class ExposesStorePasskeyHost extends StorePasskey
+{
+    /**
+     * Get the relying party ID stored in the registration options.
+     */
+    public function host(PublicKeyCredentialCreationOptions $options): string
+    {
+        return $this->hostFromOptions($options);
     }
 }

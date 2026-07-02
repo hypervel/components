@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys\Feature;
 
+use Hypervel\Context\RequestContext;
+use Hypervel\Http\Request;
+use Hypervel\Passkeys\Passkeys;
 use Hypervel\Passkeys\Support\WebAuthn;
+use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
 use ParagonIE\ConstantTime\Base64UrlSafe;
 use RecursiveDirectoryIterator;
@@ -22,6 +26,8 @@ use Webauthn\TrustPath\EmptyTrustPath;
 
 class WebAuthnTest extends TestCase
 {
+    use WebAuthnFixtures;
+
     public function testItSerializesAndDeserializesRegistrationOptions(): void
     {
         $options = PublicKeyCredentialCreationOptions::create(
@@ -137,6 +143,98 @@ class WebAuthnTest extends TestCase
         WebAuthn::assertionValidator();
 
         $this->assertFalse($called);
+    }
+
+    public function testStaticAllowedOriginsUseCachedCeremonyManagers(): void
+    {
+        $calls = 0;
+
+        WebAuthn::configureCeremonyStepManagerFactoryUsing(
+            static function (CeremonyStepManagerFactory $factory) use (&$calls): CeremonyStepManagerFactory {
+                ++$calls;
+
+                return $factory;
+            }
+        );
+
+        WebAuthn::assertionValidator();
+        WebAuthn::assertionValidator();
+
+        $this->assertSame(1, $calls);
+    }
+
+    public function testRequestAwareAllowedOriginsUseFreshCeremonyManagers(): void
+    {
+        $calls = 0;
+        $source = $this->createCredentialSource('user-handle');
+
+        Passkeys::allowedOriginsUsing(
+            static fn (Request $request): array => ['https://' . $request->getHost()],
+        );
+        WebAuthn::configureCeremonyStepManagerFactoryUsing(
+            static function (CeremonyStepManagerFactory $factory) use (&$calls): CeremonyStepManagerFactory {
+                ++$calls;
+
+                return $factory;
+            }
+        );
+
+        RequestContext::set(Request::create('https://first.example.com/passkeys/login/options'));
+        WebAuthn::assertionValidator()->check(
+            credentialRecord: $source,
+            authenticatorAssertionResponse: $this->createSignedAssertionResponse(
+                challenge: $firstChallenge = random_bytes(32),
+                origin: 'https://first.example.com',
+                signCount: 1,
+                rpId: 'first.example.com',
+            ),
+            publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions::create(
+                challenge: $firstChallenge,
+                rpId: 'first.example.com',
+            ),
+            host: 'first.example.com',
+            userHandle: $source->userHandle,
+        );
+
+        RequestContext::set(Request::create('https://second.example.com/passkeys/login/options'));
+        WebAuthn::assertionValidator()->check(
+            credentialRecord: $source,
+            authenticatorAssertionResponse: $this->createSignedAssertionResponse(
+                challenge: $secondChallenge = random_bytes(32),
+                origin: 'https://second.example.com',
+                signCount: 2,
+                rpId: 'second.example.com',
+            ),
+            publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions::create(
+                challenge: $secondChallenge,
+                rpId: 'second.example.com',
+            ),
+            host: 'second.example.com',
+            userHandle: $source->userHandle,
+        );
+
+        $this->assertSame(2, $calls);
+    }
+
+    public function testAllowedOriginsResolverWithoutRequestUsesCachedConfigCeremonyManagers(): void
+    {
+        $calls = 0;
+
+        Passkeys::allowedOriginsUsing(
+            static fn (): array => ['https://dynamic.example.com'],
+        );
+        WebAuthn::configureCeremonyStepManagerFactoryUsing(
+            static function (CeremonyStepManagerFactory $factory) use (&$calls): CeremonyStepManagerFactory {
+                ++$calls;
+
+                return $factory;
+            }
+        );
+
+        WebAuthn::assertionValidator();
+        WebAuthn::assertionValidator();
+
+        $this->assertSame(1, $calls);
     }
 
     public function testPasskeysSourceDoesNotUseDeprecatedPublicKeyCredentialSource(): void

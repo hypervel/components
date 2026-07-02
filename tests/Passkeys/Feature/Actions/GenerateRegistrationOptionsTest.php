@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys\Feature\Actions;
 
+use Hypervel\Context\RequestContext;
+use Hypervel\Http\Request;
 use Hypervel\Passkeys\Actions\GenerateRegistrationOptions;
+use Hypervel\Passkeys\Passkeys;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\TestCase;
 use ParagonIE\ConstantTime\Base64UrlSafe;
@@ -47,6 +50,23 @@ class GenerateRegistrationOptionsTest extends TestCase
         $this->assertSame($user->getPasskeyUserHandle(), $options->user->id);
         $this->assertCount(1, $options->excludeCredentials);
         $this->assertSame($rawCredentialId, $options->excludeCredentials[0]->id);
+    }
+
+    public function testItUsesRequestAwareRelyingPartyIdForRegistrationOptions(): void
+    {
+        RequestContext::set(Request::create('https://dynamic.example.com/user/passkeys/options'));
+        Passkeys::relyingPartyIdUsing(
+            static fn (Request $request): string => $request->getHost(),
+        );
+
+        $user = User::create([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ]);
+
+        $options = app(GenerateRegistrationOptions::class)($user);
+
+        $this->assertSame('dynamic.example.com', $options->rp->id);
     }
 
     public function testItAllowsOverridingAuthenticatorSelectionWithACustomActionBinding(): void

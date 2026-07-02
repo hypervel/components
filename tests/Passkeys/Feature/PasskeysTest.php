@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys\Feature\PasskeysTest;
 
+use Hypervel\Context\RequestContext;
+use Hypervel\Http\Request;
 use Hypervel\Passkeys\Passkey;
 use Hypervel\Passkeys\Passkeys;
 use Hypervel\Tests\Passkeys\Fixtures\User;
@@ -31,11 +33,89 @@ class PasskeysTest extends TestCase
         $this->assertSame(30000, Passkeys::timeout());
     }
 
+    public function testItReturnsTheConfiguredRelyingPartyId(): void
+    {
+        config(['passkeys.relying_party_id' => 'configured.example.com']);
+
+        $this->assertSame('configured.example.com', Passkeys::relyingPartyId());
+    }
+
+    public function testRequestAwareRelyingPartyIdOverridesConfigWhenRequestExists(): void
+    {
+        config(['passkeys.relying_party_id' => 'configured.example.com']);
+        RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
+
+        Passkeys::relyingPartyIdUsing(
+            static fn (Request $request): string => $request->getHost(),
+        );
+
+        $this->assertSame('dynamic.example.com', Passkeys::relyingPartyId());
+    }
+
+    public function testRequestAwareRelyingPartyIdFallsBackToConfigWithoutRequest(): void
+    {
+        config(['passkeys.relying_party_id' => 'configured.example.com']);
+
+        Passkeys::relyingPartyIdUsing(
+            static fn (): string => 'dynamic.example.com',
+        );
+
+        $this->assertSame('configured.example.com', Passkeys::relyingPartyId());
+    }
+
+    public function testItThrowsWhenRelyingPartyIdIsEmpty(): void
+    {
+        config(['passkeys.relying_party_id' => '']);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Passkey relying party ID must not be empty.');
+
+        Passkeys::relyingPartyId();
+    }
+
+    public function testItThrowsWhenRequestAwareRelyingPartyIdIsEmpty(): void
+    {
+        config(['passkeys.relying_party_id' => 'configured.example.com']);
+        RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
+
+        Passkeys::relyingPartyIdUsing(
+            static fn (): string => '',
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Passkey relying party ID resolver returned no value for host [dynamic.example.com].');
+
+        Passkeys::relyingPartyId();
+    }
+
     public function testItReturnsTheConfiguredAllowedOrigins(): void
     {
         config(['passkeys.allowed_origins' => ['https://example.com', 'https://app.example.com']]);
 
         $this->assertSame(['https://example.com', 'https://app.example.com'], Passkeys::allowedOrigins());
+    }
+
+    public function testRequestAwareAllowedOriginsOverrideConfigWhenRequestExists(): void
+    {
+        config(['passkeys.allowed_origins' => ['https://configured.example.com']]);
+        RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
+
+        Passkeys::allowedOriginsUsing(
+            static fn (Request $request): array => ['https://' . $request->getHost()],
+        );
+
+        $this->assertSame(['https://dynamic.example.com'], Passkeys::allowedOrigins());
+    }
+
+    public function testRequestAwareAllowedOriginsFallBackToConfigWithoutRequest(): void
+    {
+        config(['passkeys.allowed_origins' => ['https://configured.example.com']]);
+
+        Passkeys::allowedOriginsUsing(
+            static fn (): array => ['https://dynamic.example.com'],
+        );
+
+        $this->assertSame(['https://configured.example.com'], Passkeys::allowedOrigins());
     }
 
     public function testConfigReadsAllowedOriginsFromEnvironment(): void
@@ -64,6 +144,21 @@ class PasskeysTest extends TestCase
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('At least one passkey allowed origin must be configured.');
+
+        Passkeys::allowedOrigins();
+    }
+
+    public function testItThrowsWhenRequestAwareAllowedOriginsAreEmpty(): void
+    {
+        config(['passkeys.allowed_origins' => ['https://configured.example.com']]);
+        RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
+
+        Passkeys::allowedOriginsUsing(
+            static fn (): array => ['', null],
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Passkey allowed origins resolver returned no values for host [dynamic.example.com].');
 
         Passkeys::allowedOrigins();
     }

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Fortify;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RequirePassword;
 use Hypervel\Auth\Middleware\UseGuard;
+use Hypervel\Context\RequestContext;
 use Hypervel\Fortify\Features;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Http\Request;
@@ -90,6 +91,26 @@ class PasskeyTest extends TestCase
 
         $this->assertFalse(Passkeys::shouldRegisterRoutes());
         $this->assertSame(Fortify::redirects('login', request: $request), Passkeys::redirectTo($request));
+    }
+
+    #[DefineEnvironment('withPasskeys')]
+    #[WithConfig('fortify.passkeys.allowed_origins', ['https://configured.example.test'])]
+    #[WithConfig('fortify.passkeys.relying_party_id', 'configured.example.test')]
+    public function testRequestAwarePasskeyConfigurationOverridesFortifyBridgeConfig(): void
+    {
+        RequestContext::set(Request::create('https://dynamic.example.test/passkeys/login/options'));
+
+        Passkeys::relyingPartyIdUsing(
+            static fn (Request $request): string => $request->getHost(),
+        );
+        Passkeys::allowedOriginsUsing(
+            static fn (Request $request): array => ['https://' . $request->getHost()],
+        );
+
+        $this->assertSame('configured.example.test', config('passkeys.relying_party_id'));
+        $this->assertSame(['https://configured.example.test'], config('passkeys.allowed_origins'));
+        $this->assertSame('dynamic.example.test', Passkeys::relyingPartyId());
+        $this->assertSame(['https://dynamic.example.test'], Passkeys::allowedOrigins());
     }
 
     #[DefineEnvironment('withPasskeysLimiter')]

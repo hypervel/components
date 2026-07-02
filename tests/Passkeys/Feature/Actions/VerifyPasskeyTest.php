@@ -20,6 +20,7 @@ use Hypervel\Tests\Passkeys\Fixtures\WebAuthnFixtures;
 use Hypervel\Tests\Passkeys\TestCase;
 use Mockery as m;
 use ParagonIE\ConstantTime\Base64UrlSafe;
+use RuntimeException;
 use Symfony\Component\Uid\Uuid;
 use UnitEnum;
 use Webauthn\AuthenticatorAssertionResponse;
@@ -197,6 +198,32 @@ class VerifyPasskeyTest extends TestCase
         $this->assertSame($initialUserHandle, Base64UrlSafe::decodeNoPadding($result->refresh()->credential['userHandle']));
     }
 
+    public function testItUsesTheRelyingPartyIdStoredInVerificationOptions(): void
+    {
+        $options = PublicKeyCredentialRequestOptions::create(
+            challenge: random_bytes(32),
+            rpId: 'registered.example.com',
+        );
+
+        $action = new ExposesVerifyPasskeyHost(app(ConnectionResolverInterface::class));
+
+        $this->assertSame('registered.example.com', $action->host($options));
+    }
+
+    public function testItThrowsWhenVerificationOptionsHaveNoRelyingPartyId(): void
+    {
+        $options = PublicKeyCredentialRequestOptions::create(
+            challenge: random_bytes(32),
+        );
+
+        $action = new ExposesVerifyPasskeyHost(app(ConnectionResolverInterface::class));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Passkey verification options must contain a relying party ID.');
+
+        $action->host($options);
+    }
+
     public function testItUsesTheConfiguredPasskeyModelConnectionForVerificationTransactions(): void
     {
         Passkeys::usePasskeyModel(CustomConnectionPasskey::class);
@@ -256,6 +283,17 @@ class VerifyPasskeyTest extends TestCase
 class CustomConnectionPasskey extends Passkey
 {
     protected UnitEnum|string|null $connection = 'passkeys';
+}
+
+class ExposesVerifyPasskeyHost extends VerifyPasskey
+{
+    /**
+     * Get the relying party ID stored in the verification options.
+     */
+    public function host(PublicKeyCredentialRequestOptions $options): string
+    {
+        return $this->hostFromOptions($options);
+    }
 }
 
 class ConnectionAwareVerifyPasskey extends VerifyPasskey

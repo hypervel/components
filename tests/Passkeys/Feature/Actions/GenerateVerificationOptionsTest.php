@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Passkeys\Feature\Actions;
 
+use Hypervel\Context\RequestContext;
+use Hypervel\Http\Request;
 use Hypervel\Passkeys\Actions\GenerateVerificationOptions;
+use Hypervel\Passkeys\Passkeys;
 use Hypervel\Tests\Passkeys\Fixtures\User;
 use Hypervel\Tests\Passkeys\TestCase;
 use ParagonIE\ConstantTime\Base64UrlSafe;
@@ -26,6 +29,18 @@ class GenerateVerificationOptionsTest extends TestCase
 
         $this->assertSame('localhost', $options->rpId);
         $this->assertSame([], $options->allowCredentials);
+    }
+
+    public function testItUsesRequestAwareRelyingPartyIdForVerificationOptions(): void
+    {
+        RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
+        Passkeys::relyingPartyIdUsing(
+            static fn (Request $request): string => $request->getHost(),
+        );
+
+        $options = app(GenerateVerificationOptions::class)();
+
+        $this->assertSame('dynamic.example.com', $options->rpId);
     }
 
     public function testItUsesOnlyTheAuthenticatedUserPasskeysForAllowCredentials(): void
