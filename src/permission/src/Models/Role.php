@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
 use Hypervel\Permission\Exceptions\GuardDoesNotMatch;
@@ -80,7 +81,16 @@ class Role extends Model implements RoleContract
             throw RoleAlreadyExists::create($attributes['name'], $attributes['guard_name']);
         }
 
-        return static::query()->create($attributes);
+        $query = static::query();
+
+        try {
+            /** @var RoleContract $role */
+            $role = $query->withSavepointIfNeeded(fn () => $query->create($attributes));
+
+            return $role;
+        } catch (UniqueConstraintViolationException) {
+            throw RoleAlreadyExists::create($attributes['name'], $attributes['guard_name']);
+        }
     }
 
     /**

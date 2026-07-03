@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Exceptions\PermissionAlreadyExists;
 use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
@@ -64,7 +65,16 @@ class Permission extends Model implements PermissionContract
             throw PermissionAlreadyExists::create($attributes['name'], $attributes['guard_name']);
         }
 
-        return static::query()->create($attributes);
+        $query = static::query();
+
+        try {
+            /** @var PermissionContract $permission */
+            $permission = $query->withSavepointIfNeeded(fn () => $query->create($attributes));
+
+            return $permission;
+        } catch (UniqueConstraintViolationException) {
+            throw PermissionAlreadyExists::create($attributes['name'], $attributes['guard_name']);
+        }
     }
 
     /**
