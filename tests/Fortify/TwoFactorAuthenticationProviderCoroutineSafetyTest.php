@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Cache\Repository as CacheRepositoryContract;
 use Hypervel\Fortify\Features;
 use Hypervel\Fortify\TwoFactorAuthenticationProvider;
 use Hypervel\Tests\Fortify\Fixtures\FixedClock;
@@ -19,7 +22,7 @@ class TwoFactorAuthenticationProviderCoroutineSafetyTest extends TestCase
     {
         Features::twoFactorAuthentication(['window' => 1]);
 
-        $provider = new TwoFactorAuthenticationProvider($this->clock(self::TIMESTAMP));
+        $provider = new TwoFactorAuthenticationProvider($this->clock(self::TIMESTAMP), $this->cache());
         $firstSecret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
         $secondSecret = 'GBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
         $firstCode = $this->codeAt($firstSecret, self::TIMESTAMP);
@@ -44,7 +47,7 @@ class TwoFactorAuthenticationProviderCoroutineSafetyTest extends TestCase
 
     public function testWindowIsResolvedForEachVerificationCall(): void
     {
-        $provider = new TwoFactorAuthenticationProvider($this->clock(self::TIMESTAMP));
+        $provider = new TwoFactorAuthenticationProvider($this->clock(self::TIMESTAMP), $this->cache());
         $secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
         $previousStepCode = $this->codeAt($secret, self::TIMESTAMP - 30);
 
@@ -61,6 +64,14 @@ class TwoFactorAuthenticationProviderCoroutineSafetyTest extends TestCase
     private function clock(int $timestamp): FixedClock
     {
         return new FixedClock($timestamp);
+    }
+
+    /**
+     * Create an in-memory cache repository.
+     */
+    private function cache(): CacheRepositoryContract
+    {
+        return new CacheRepository(new ArrayStore);
     }
 
     /**

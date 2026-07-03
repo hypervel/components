@@ -66,11 +66,11 @@ class TwoFactorAuthenticationProviderTest extends TestCase
         );
     }
 
-    public function testQrCodeUrlEncodesReservedIssuerAndEmailCharacters(): void
+    public function testQrCodeUrlEncodesReservedCharacters(): void
     {
         $this->assertSame(
-            'otpauth://totp/A%20%26%20B%20%2F%20C:x%2By%40example.com?secret=ABC123&issuer=A%20%26%20B%20%2F%20C&algorithm=SHA1&digits=6&period=30',
-            $this->provider()->qrCodeUrl('A & B / C', 'x+y@example.com', 'ABC123'),
+            'otpauth://totp/A%20%26%20B%20%2F%20C:x%2By%40example.com?secret=ABC%3D123&issuer=A%20%26%20B%20%2F%20C&algorithm=SHA1&digits=6&period=30',
+            $this->provider()->qrCodeUrl('A & B / C', 'x+y@example.com', 'ABC=123'),
         );
     }
 
@@ -118,14 +118,22 @@ class TwoFactorAuthenticationProviderTest extends TestCase
 
     public function testReplayCacheKeyIncludesSecretAndCode(): void
     {
-        $provider = $this->provider(cache: $this->cache());
-        $code = '095740';
         $firstSecret = 'GBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
         $secondSecret = 'QVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+        $code = $this->codeAt($firstSecret, self::TIMESTAMP);
         $firstKey = 'fortify.2fa_codes.' . hash('xxh128', $firstSecret . '|' . $code);
         $secondKey = 'fortify.2fa_codes.' . hash('xxh128', $secondSecret . '|' . $code);
+        $timecode = intdiv(self::TIMESTAMP, TOTPInterface::DEFAULT_PERIOD);
+        $ttl = 90;
+        $cache = m::mock(CacheRepositoryContract::class);
 
+        $this->assertSame($code, $this->codeAt($secondSecret, self::TIMESTAMP));
         $this->assertNotSame($firstKey, $secondKey);
+        $cache->shouldReceive('add')->once()->with($firstKey, $timecode, $ttl)->andReturnTrue();
+        $cache->shouldReceive('add')->once()->with($secondKey, $timecode, $ttl)->andReturnTrue();
+
+        $provider = $this->provider(cache: $cache);
+
         $this->assertTrue($provider->verify($firstSecret, $code));
         $this->assertTrue($provider->verify($secondSecret, $code));
     }
@@ -142,11 +150,10 @@ class TwoFactorAuthenticationProviderTest extends TestCase
     public function testAllowsSameCodeForDifferentSecrets(): void
     {
         $provider = $this->provider(cache: $this->cache());
-        $code = '095740';
         $firstSecret = 'GBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
         $secondSecret = 'QVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+        $code = $this->codeAt($firstSecret, self::TIMESTAMP);
 
-        $this->assertSame($code, $this->codeAt($firstSecret, self::TIMESTAMP));
         $this->assertSame($code, $this->codeAt($secondSecret, self::TIMESTAMP));
         $this->assertTrue($provider->verify($firstSecret, $code));
         $this->assertTrue($provider->verify($secondSecret, $code));
@@ -161,16 +168,10 @@ class TwoFactorAuthenticationProviderTest extends TestCase
             $key = 'fortify.2fa_codes.' . hash('xxh128', self::SECRET . '|' . $this->codeAt(self::SECRET, self::TIMESTAMP));
             $timecode = intdiv(self::TIMESTAMP, TOTPInterface::DEFAULT_PERIOD);
 
-            $cache->shouldReceive('get')->once()->with($key)->andReturn(null);
-            $cache->shouldReceive('put')->once()->with($key, $timecode, $ttl)->andReturnTrue();
+            $cache->shouldReceive('add')->once()->with($key, $timecode, $ttl)->andReturnTrue();
 
             $this->assertTrue($this->provider(cache: $cache)->verify(self::SECRET, $this->codeAt(self::SECRET, self::TIMESTAMP)));
         }
-    }
-
-    public function testVerifyWorksWithoutCache(): void
-    {
-        $this->assertTrue($this->provider()->verify(self::SECRET, $this->codeAt(self::SECRET, self::TIMESTAMP)));
     }
 
     public function testGeneratedSecretCanBeVerified(): void
@@ -206,7 +207,7 @@ class TwoFactorAuthenticationProviderTest extends TestCase
      */
     private function provider(?CacheRepositoryContract $cache = null, int $timestamp = self::TIMESTAMP): TwoFactorAuthenticationProvider
     {
-        return new TwoFactorAuthenticationProvider($this->clock($timestamp), $cache);
+        return new TwoFactorAuthenticationProvider($this->clock($timestamp), $cache ?? $this->cache());
     }
 
     /**

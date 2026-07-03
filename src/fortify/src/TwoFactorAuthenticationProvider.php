@@ -26,7 +26,7 @@ class TwoFactorAuthenticationProvider implements TwoFactorAuthenticationProvider
      */
     public function __construct(
         private readonly ClockInterface $clock,
-        private readonly ?Repository $cache = null,
+        private readonly Repository $cache,
     ) {
     }
 
@@ -54,7 +54,7 @@ class TwoFactorAuthenticationProvider implements TwoFactorAuthenticationProvider
             . ':'
             . rawurlencode($companyEmail)
             . '?secret='
-            . $secret
+            . rawurlencode($secret)
             . '&issuer='
             . rawurlencode($companyName)
             . '&algorithm='
@@ -72,8 +72,6 @@ class TwoFactorAuthenticationProvider implements TwoFactorAuthenticationProvider
     {
         $window = $this->window();
         $totp = TOTP::createFromSecret($secret, $this->clock);
-        $key = $this->replayCacheKey($secret, $code);
-        $lastAcceptedTimecode = $this->cache?->get($key);
 
         $matchedTimecode = $this->matchingTimecode($totp, $code, $window);
 
@@ -81,13 +79,11 @@ class TwoFactorAuthenticationProvider implements TwoFactorAuthenticationProvider
             return false;
         }
 
-        if (is_int($lastAcceptedTimecode) && $matchedTimecode <= $lastAcceptedTimecode) {
-            return false;
-        }
-
-        $this->cache?->put($key, $matchedTimecode, $this->replayTtl($window));
-
-        return true;
+        return $this->cache->add(
+            $this->replayCacheKey($secret, $code),
+            $matchedTimecode,
+            $this->replayTtl($window)
+        );
     }
 
     /**
