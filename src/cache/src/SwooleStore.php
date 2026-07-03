@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
+use Hypervel\Contracts\Cache\CanFlushLocks;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Support\Carbon;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
-use Swoole\Table;
+use RuntimeException;
 
-class SwooleStore implements Store
+class SwooleStore implements CanFlushLocks, LockProvider, Store
 {
     public const EVICTION_POLICY_LRU = 'lru';
 
@@ -23,8 +25,18 @@ class SwooleStore implements Store
 
     protected const ONE_YEAR = 31536000;
 
+    protected const USER_PREFIX = 'u:';
+
+    protected const INTERVAL_PREFIX = 'i:';
+
+    protected const LOCK_PREFIX = 'l:';
+
+    protected SwooleTable $table;
+
     /**
      * All of the registered interval caches.
+     *
+     * @var array<string, true>
      */
     protected array $intervals = [];
 
@@ -32,11 +44,12 @@ class SwooleStore implements Store
      * Create a new Swoole store.
      */
     public function __construct(
-        protected Table $table,
+        protected SwooleTableState $state,
         protected float $memoryLimitBuffer,
         protected string $evictionPolicy,
         protected float $evictionProportion
     ) {
+        $this->table = $this->state->table();
     }
 
     /**
@@ -44,18 +57,22 @@ class SwooleStore implements Store
      */
     public function get(string $key): mixed
     {
-        $record = $this->getRecord($key);
+        $tableKey = $this->userKey($key);
+        $record = $this->rawGet($tableKey);
 
         if (! $this->recordIsFalseOrExpired($record)) {
+            $this->recordHit($tableKey);
+
             return unserialize($record['value']);
         }
 
-        if (in_array($key, $this->intervals)
-            && ! is_null($interval = $this->getInterval($key))) {
+        if ($this->hasLocalInterval($key) && ! is_null($interval = $this->getInterval($key))) {
             return $interval['resolver']();
         }
 
-        $this->forget($key);
+        if ($record !== false) {
+            $this->forgetExpiredRecord($tableKey);
+        }
 
         return null;
     }
@@ -65,9 +82,19 @@ class SwooleStore implements Store
      */
     protected function getInterval(string $key): ?array
     {
-        $interval = $this->get('interval-' . $key);
+        $record = $this->rawGet($this->intervalKey($key));
 
-        return $interval ? unserialize($interval) : null;
+        return $this->recordIsFalseOrExpired($record)
+            ? null
+            : unserialize($record['value']);
+    }
+
+    /**
+     * Determine if the key is a local interval.
+     */
+    protected function hasLocalInterval(string $key): bool
+    {
+        return isset($this->intervals[$key]);
     }
 
     /**
@@ -84,14 +111,16 @@ class SwooleStore implements Store
      */
     public function put(string $key, mixed $value, int $seconds): bool
     {
-        $now = $this->getCurrentTimestamp();
+        $tableKey = $this->userKey($key);
+        $serialized = serialize($value);
+        $expiration = $this->expiration($seconds);
 
-        $result = $this->table->set($key, [
-            'value' => serialize($value),
-            'expiration' => $now + $seconds,
-        ]);
+        $result = $this->state->withRowLock(
+            $tableKey,
+            fn (): bool => $this->rawPutSerialized($tableKey, $serialized, $expiration),
+        );
 
-        $this->evictRecords();
+        $this->evictRecordsIfNeeded();
 
         return $result;
     }
@@ -113,11 +142,25 @@ class SwooleStore implements Store
      */
     public function add(string $key, mixed $value, int $seconds): bool
     {
-        if ($this->table->exists($key)) {
-            return false;
+        $tableKey = $this->userKey($key);
+        $serialized = serialize($value);
+        $expiration = $this->expiration($seconds);
+
+        $result = $this->state->withRowLock($tableKey, function () use ($tableKey, $serialized, $expiration): bool {
+            $record = $this->rawGet($tableKey);
+
+            if (! $this->recordIsFalseOrExpired($record)) {
+                return false;
+            }
+
+            return $this->rawPutSerialized($tableKey, $serialized, $expiration);
+        });
+
+        if ($result) {
+            $this->evictRecordsIfNeeded();
         }
 
-        return $this->put($key, $value, $seconds);
+        return $result;
     }
 
     /**
@@ -125,18 +168,31 @@ class SwooleStore implements Store
      */
     public function increment(string $key, int $value = 1): int
     {
-        $record = $this->getRecord($key);
+        $tableKey = $this->userKey($key);
+        $wroteNewRecord = false;
 
-        if ($this->recordIsFalseOrExpired($record)) {
-            return tap($value, fn ($value) => $this->forever($key, $value));
+        $result = $this->state->withRowLock($tableKey, function () use ($tableKey, $value, &$wroteNewRecord): int {
+            $record = $this->rawGet($tableKey);
+
+            if ($this->recordIsFalseOrExpired($record)) {
+                $wroteNewRecord = true;
+                $this->rawPutSerialized($tableKey, serialize($value), $this->expiration(static::ONE_YEAR));
+
+                return $value;
+            }
+
+            $incremented = (int) (unserialize($record['value']) + $value);
+
+            $this->rawPutSerialized($tableKey, serialize($incremented), $record['expiration']);
+
+            return $incremented;
+        });
+
+        if ($wroteNewRecord) {
+            $this->evictRecordsIfNeeded();
         }
 
-        return tap((int) (unserialize($record['value']) + $value), function ($value) use ($key, $record) {
-            $this->table->set($key, [
-                'value' => serialize($value),
-                'expiration' => $record['expiration'],
-            ]);
-        });
+        return $result;
     }
 
     /**
@@ -160,35 +216,50 @@ class SwooleStore implements Store
      */
     public function touch(string $key, int $seconds): bool
     {
-        $record = $this->getRecord($key);
+        $tableKey = $this->userKey($key);
 
-        if ($this->recordIsFalseOrExpired($record)) {
-            return false;
-        }
+        return $this->state->withRowLock($tableKey, function () use ($tableKey, $seconds): bool {
+            $record = $this->rawGet($tableKey);
 
-        $record['expiration'] = $this->getCurrentTimestamp() + $seconds;
+            if ($this->recordIsFalseOrExpired($record)) {
+                if ($record !== false) {
+                    $this->rawForget($tableKey);
+                }
 
-        return $this->table->set($key, $record);
+                return false;
+            }
+
+            return $this->table->set($tableKey, [
+                'expiration' => $this->expiration($seconds),
+            ]);
+        });
     }
 
     /**
-     * Register a cache key that should be refreshed at a given interval (in minutes).
+     * Register a cache key that should be refreshed at a given interval in seconds.
      */
     public function interval(string $key, Closure $resolver, int $seconds): void
     {
-        if (! is_null($this->getInterval($key))) {
-            $this->intervals[] = $key;
-
-            return;
-        }
-
-        $this->forever('interval-' . $key, serialize([
+        $intervalKey = $this->intervalKey($key);
+        $serialized = serialize([
             'resolver' => new SerializableClosure($resolver),
             'lastRefreshedAt' => null,
             'refreshInterval' => $seconds,
-        ]));
+        ]);
 
-        $this->intervals[] = $key;
+        $this->state->withRowLock($intervalKey, function () use ($intervalKey, $serialized): void {
+            if (! $this->recordIsFalseOrExpired($this->rawGet($intervalKey))) {
+                return;
+            }
+
+            $result = $this->rawPutSerialized($intervalKey, $serialized, $this->expiration(static::ONE_YEAR));
+
+            if (! $result) {
+                throw new RuntimeException('Unable to register Swoole interval cache.');
+            }
+        });
+
+        $this->intervals[$key] = true;
     }
 
     /**
@@ -196,15 +267,27 @@ class SwooleStore implements Store
      */
     public function refreshIntervalCaches(): void
     {
-        foreach ($this->intervals as $key) {
-            if (! $this->intervalShouldBeRefreshed($interval = $this->getInterval($key))) {
+        foreach (array_keys($this->intervals) as $key) {
+            $interval = $this->getInterval($key);
+
+            if ($interval === null || ! $this->intervalShouldBeRefreshed($interval)) {
                 continue;
             }
 
-            $this->forever('interval-' . $key, serialize(array_merge(
+            $intervalKey = $this->intervalKey($key);
+
+            $serialized = serialize(array_merge(
                 $interval,
                 ['lastRefreshedAt' => Carbon::now()->getTimestamp()],
-            )));
+            ));
+
+            $this->state->withRowLock($intervalKey, function () use ($intervalKey, $serialized): void {
+                $result = $this->rawPutSerialized($intervalKey, $serialized, $this->expiration(static::ONE_YEAR));
+
+                if (! $result) {
+                    throw new RuntimeException('Unable to refresh Swoole interval metadata.');
+                }
+            });
 
             $this->forever($key, $interval['resolver']());
         }
@@ -224,7 +307,12 @@ class SwooleStore implements Store
      */
     public function forget(string $key): bool
     {
-        return $this->table->del($key);
+        $tableKey = $this->userKey($key);
+
+        return $this->state->withRowLock(
+            $tableKey,
+            fn (): bool => $this->rawForget($tableKey),
+        );
     }
 
     /**
@@ -232,15 +320,167 @@ class SwooleStore implements Store
      */
     public function flush(): bool
     {
-        foreach ($this->table as $key => $record) {
-            if (str_starts_with($key, 'interval-')) {
-                continue;
+        return $this->state->withAllRowLocks(function (): bool {
+            foreach ($this->table as $tableKey => $record) {
+                if ($this->isControlKey($tableKey)) {
+                    continue;
+                }
+
+                $this->rawForget($tableKey);
             }
 
-            $this->forget($key);
+            return true;
+        });
+    }
+
+    /**
+     * Remove all locks from the store.
+     *
+     * @throws RuntimeException
+     */
+    public function flushLocks(): bool
+    {
+        if (! $this->hasSeparateLockStore()) {
+            throw new RuntimeException('Flushing locks is only supported when the lock store is separate from the cache store.');
         }
 
+        return $this->state->withAllRowLocks(function (): bool {
+            foreach ($this->table as $key => $record) {
+                if ($this->isLockKey($key)) {
+                    $this->rawForget($key);
+                }
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Get a lock instance.
+     */
+    public function lock(string $name, int $seconds = 0, ?string $owner = null): SwooleLock
+    {
+        return new SwooleLock($this, $name, $seconds, $owner);
+    }
+
+    /**
+     * Restore a lock instance using the owner identifier.
+     */
+    public function restoreLock(string $name, string $owner): SwooleLock
+    {
+        return $this->lock($name, 0, $owner);
+    }
+
+    /**
+     * Determine if the lock store is separate from the cache store.
+     */
+    public function hasSeparateLockStore(): bool
+    {
         return true;
+    }
+
+    /**
+     * Attempt to acquire a lock.
+     */
+    public function acquireLock(string $name, string $owner, int $seconds): bool
+    {
+        $key = $this->lockKey($name);
+        $expiresAt = $seconds > 0 ? $this->expiration($seconds) : null;
+
+        return $this->state->withRowLock($key, function () use ($key, $owner, $expiresAt): bool {
+            $lock = $this->rawLockRecord($key);
+
+            if ($lock !== null && ! $this->lockIsExpired($lock)) {
+                return false;
+            }
+
+            return $this->rawPutSerialized($key, serialize([
+                'owner' => $owner,
+                'expiresAt' => $expiresAt,
+            ]), $this->expiration(static::ONE_YEAR));
+        });
+    }
+
+    /**
+     * Release a lock if it is owned by the given owner.
+     */
+    public function releaseLock(string $name, string $owner): bool
+    {
+        $key = $this->lockKey($name);
+
+        return $this->state->withRowLock($key, function () use ($key, $owner): bool {
+            $lock = $this->rawLockRecord($key);
+
+            if ($lock === null || $this->lockIsExpired($lock)) {
+                if ($lock !== null) {
+                    $this->rawForget($key);
+                }
+
+                return false;
+            }
+
+            if ($lock['owner'] !== $owner) {
+                return false;
+            }
+
+            return $this->rawForget($key);
+        });
+    }
+
+    /**
+     * Get the current lock owner.
+     */
+    public function getLockOwner(string $name): ?string
+    {
+        $lock = $this->rawLockRecord($this->lockKey($name));
+
+        return $lock !== null && ! $this->lockIsExpired($lock)
+            ? $lock['owner']
+            : null;
+    }
+
+    /**
+     * Refresh a lock's TTL.
+     */
+    public function refreshLock(string $name, string $owner, int $seconds): bool
+    {
+        $key = $this->lockKey($name);
+
+        return $this->state->withRowLock($key, function () use ($key, $owner, $seconds): bool {
+            $lock = $this->rawLockRecord($key);
+
+            if ($lock === null || $this->lockIsExpired($lock) || $lock['owner'] !== $owner) {
+                return false;
+            }
+
+            $lock['expiresAt'] = $this->expiration($seconds);
+
+            return $this->rawPutSerialized($key, serialize($lock), $this->expiration(static::ONE_YEAR));
+        });
+    }
+
+    /**
+     * Get the remaining lock lifetime in seconds.
+     */
+    public function getLockRemainingLifetime(string $name): ?float
+    {
+        $lock = $this->rawLockRecord($this->lockKey($name));
+
+        if ($lock === null || $lock['expiresAt'] === null || $this->lockIsExpired($lock)) {
+            return null;
+        }
+
+        return max(0.0, $lock['expiresAt'] - $this->getCurrentTimestamp());
+    }
+
+    /**
+     * Force a lock to release.
+     */
+    public function forceReleaseLock(string $name): void
+    {
+        $key = $this->lockKey($name);
+
+        $this->state->withRowLock($key, fn () => $this->rawForget($key));
     }
 
     /**
@@ -266,28 +506,27 @@ class SwooleStore implements Store
     {
         $this->flushStaleRecords();
 
+        if ($this->evictionPolicy === static::EVICTION_POLICY_NOEVICTION) {
+            return;
+        }
+
         while ($this->memoryLimitIsReached()) {
-            $this->removeRecordsByEvictionPolicy();
+            if ($this->removeRecordsByEvictionPolicy() === 0) {
+                return;
+            }
         }
     }
 
     /**
-     * Retrieve an record from the table and write used info by key.
+     * Evict records if the table is near its memory limit.
      */
-    protected function getRecord(string $key): array|false
+    protected function evictRecordsIfNeeded(): void
     {
-        $record = $this->table->get($key);
-
-        if (! $record) {
-            return false;
+        if (! $this->memoryLimitIsReached()) {
+            return;
         }
 
-        $record['last_used_at'] = $this->getCurrentTimestamp();
-        $record['used_count'] = ($record['used_count'] ?? 0) + 1;
-
-        $this->table->set($key, $record);
-
-        return $record;
+        $this->evictRecords();
     }
 
     /**
@@ -311,45 +550,64 @@ class SwooleStore implements Store
         return $conflictRate > $allowedMemoryUsage || $memoryUsage > $allowedMemoryUsage;
     }
 
-    protected function removeRecordsByEvictionPolicy()
+    /**
+     * Remove records by the configured eviction policy.
+     */
+    protected function removeRecordsByEvictionPolicy(): int
     {
         if ($this->evictionPolicy === static::EVICTION_POLICY_NOEVICTION) {
-            return;
+            return 0;
         }
 
         if ($this->evictionPolicy === static::EVICTION_POLICY_LRU) {
-            return $this->removeRecordsByLRU(); // @phpstan-ignore method.void
+            return $this->removeRecordsByLRU();
         }
 
         if ($this->evictionPolicy === static::EVICTION_POLICY_LFU) {
-            return $this->removeRecordsByLFU(); // @phpstan-ignore method.void
+            return $this->removeRecordsByLFU();
         }
 
         if ($this->evictionPolicy === static::EVICTION_POLICY_TTL) {
-            return $this->removeRecordsByTTL(); // @phpstan-ignore method.void
+            return $this->removeRecordsByTTL();
         }
 
         throw new InvalidArgumentException("Eviction policy [{$this->evictionPolicy}] is not supported.");
     }
 
-    protected function removeRecordsByLRU(): void
+    /**
+     * Remove records by least recently used.
+     */
+    protected function removeRecordsByLRU(): int
     {
-        $this->handleRecordsEviction('last_used_at');
+        return $this->handleRecordsEviction('last_used_at');
     }
 
-    protected function removeRecordsByLFU(): void
+    /**
+     * Remove records by least frequently used.
+     */
+    protected function removeRecordsByLFU(): int
     {
-        $this->handleRecordsEviction('used_count');
+        return $this->handleRecordsEviction('used_count');
     }
 
-    protected function removeRecordsByTTL(): void
+    /**
+     * Remove records by TTL.
+     */
+    protected function removeRecordsByTTL(): int
     {
-        $this->handleRecordsEviction('expiration');
+        return $this->handleRecordsEviction('expiration');
     }
 
-    protected function handleRecordsEviction(string $column): void
+    /**
+     * Handle records eviction.
+     */
+    protected function handleRecordsEviction(string $column): int
     {
         $quantity = (int) round($this->table->getSize() * $this->evictionProportion);
+
+        if ($quantity <= 0) {
+            return 0;
+        }
 
         $heap = new class($quantity) extends LimitedMaxHeap {
             protected function compare($left, $right): int
@@ -359,30 +617,244 @@ class SwooleStore implements Store
         };
 
         foreach ($this->table as $key => $record) {
+            if ($this->isControlKey($key)) {
+                continue;
+            }
+
             $value = $record[$column];
 
-            $heap->insert(compact('key', 'value'));
+            $heap->insert(compact('key', 'record', 'value'));
         }
+
+        $deleted = 0;
 
         while (! $heap->isEmpty()) {
-            $this->forget($heap->extract()['key']);
-        }
-    }
+            $candidate = $heap->extract();
 
-    protected function flushStaleRecords(): void
-    {
-        $now = $this->getCurrentTimestamp();
-
-        $keys = [];
-
-        foreach ($this->table as $key => $row) {
-            if ($row['expiration'] < $now) {
-                $keys[] = $key;
+            if ($this->forgetEvictionCandidate($candidate['key'], $candidate['record'])) {
+                ++$deleted;
             }
         }
 
-        foreach ($keys as $key) {
-            $this->forget($key);
+        return $deleted;
+    }
+
+    /**
+     * Flush stale records.
+     */
+    protected function flushStaleRecords(): void
+    {
+        $now = $this->getCurrentTimestamp();
+        $tableKeys = [];
+        $lockKeys = [];
+
+        foreach ($this->table as $key => $row) {
+            if ($this->isLockKey($key)) {
+                if ($this->rawLockPayloadIsExpired($row)) {
+                    $lockKeys[] = $key;
+                }
+
+                continue;
+            }
+
+            if ($this->isControlKey($key)) {
+                continue;
+            }
+
+            if ($row['expiration'] <= $now) {
+                $tableKeys[] = $key;
+            }
         }
+
+        foreach ($tableKeys as $key) {
+            $this->forgetExpiredRecord($key);
+        }
+
+        foreach ($lockKeys as $key) {
+            $this->forgetExpiredLockRecord($key);
+        }
+    }
+
+    /**
+     * Record a cache hit.
+     */
+    protected function recordHit(string $key): void
+    {
+        if ($this->evictionPolicy === static::EVICTION_POLICY_LRU) {
+            $this->table->set($key, ['last_used_at' => $this->getCurrentTimestamp()]);
+
+            return;
+        }
+
+        if ($this->evictionPolicy === static::EVICTION_POLICY_LFU) {
+            $this->table->incr($key, 'used_count', 1);
+        }
+    }
+
+    /**
+     * Forget an expired record by table key.
+     */
+    protected function forgetExpiredRecord(string $key): void
+    {
+        $this->state->withRowLock($key, function () use ($key): void {
+            $record = $this->rawGet($key);
+
+            if ($this->recordIsFalseOrExpired($record)) {
+                $this->rawForget($key);
+            }
+        });
+    }
+
+    /**
+     * Forget an eviction candidate by table key.
+     */
+    protected function forgetEvictionCandidate(string $key, array $candidate): bool
+    {
+        return $this->state->withRowLock($key, function () use ($key, $candidate): bool {
+            if ($this->isControlKey($key) || $this->rawGet($key) !== $candidate) {
+                return false;
+            }
+
+            return $this->rawForget($key);
+        });
+    }
+
+    /**
+     * Forget an expired lock record.
+     */
+    protected function forgetExpiredLockRecord(string $key): void
+    {
+        $this->state->withRowLock($key, function () use ($key): void {
+            $record = $this->rawGet($key);
+
+            if ($record !== false && $this->rawLockPayloadIsExpired($record)) {
+                $this->rawForget($key);
+            }
+        });
+    }
+
+    /**
+     * Get a raw table record.
+     */
+    protected function rawGet(string $key): array|false
+    {
+        return $this->table->get($key);
+    }
+
+    /**
+     * Store a serialized raw table record.
+     */
+    protected function rawPutSerialized(string $key, string $serialized, float $expiration): bool
+    {
+        return $this->table->set($key, [
+            'value' => $serialized,
+            'expiration' => $expiration,
+        ]);
+    }
+
+    /**
+     * Forget a raw table record.
+     */
+    protected function rawForget(string $key): bool
+    {
+        return $this->table->del($key);
+    }
+
+    /**
+     * Get the expiration timestamp for a TTL.
+     */
+    protected function expiration(int $seconds): float
+    {
+        return $this->getCurrentTimestamp() + $seconds;
+    }
+
+    /**
+     * Get a raw lock record.
+     *
+     * @return null|array{owner: string, expiresAt: ?float}
+     */
+    protected function rawLockRecord(string $key): ?array
+    {
+        $record = $this->rawGet($key);
+
+        return $record === false ? null : unserialize($record['value']);
+    }
+
+    /**
+     * Determine if a lock is expired.
+     *
+     * @param array{expiresAt: ?float} $lock
+     */
+    protected function lockIsExpired(array $lock): bool
+    {
+        return $lock['expiresAt'] !== null && $lock['expiresAt'] <= $this->getCurrentTimestamp();
+    }
+
+    /**
+     * Determine if a raw lock payload is expired.
+     */
+    protected function rawLockPayloadIsExpired(array $row): bool
+    {
+        $lock = unserialize($row['value']);
+
+        return $this->lockIsExpired($lock);
+    }
+
+    /**
+     * Get the table key for a user cache key.
+     */
+    protected function userKey(string $key): string
+    {
+        return $this->hashedTableKey(static::USER_PREFIX, $key);
+    }
+
+    /**
+     * Get the table key for an interval cache key.
+     */
+    protected function intervalKey(string $key): string
+    {
+        return $this->hashedTableKey(static::INTERVAL_PREFIX, $key);
+    }
+
+    /**
+     * Get the table key for a lock name.
+     */
+    protected function lockKey(string $name): string
+    {
+        return $this->hashedTableKey(static::LOCK_PREFIX, $name);
+    }
+
+    /**
+     * Get a hashed table key.
+     */
+    protected function hashedTableKey(string $prefix, string $key): string
+    {
+        return $prefix . hash('xxh128', $key, false, [
+            'seed' => $this->state->hashSeed(),
+        ]);
+    }
+
+    /**
+     * Determine if the table key is a user key.
+     */
+    protected function isUserKey(string $key): bool
+    {
+        return str_starts_with($key, static::USER_PREFIX);
+    }
+
+    /**
+     * Determine if the table key is a control key.
+     */
+    protected function isControlKey(string $key): bool
+    {
+        return ! $this->isUserKey($key);
+    }
+
+    /**
+     * Determine if the table key is a lock key.
+     */
+    protected function isLockKey(string $key): bool
+    {
+        return str_starts_with($key, static::LOCK_PREFIX);
     }
 }
