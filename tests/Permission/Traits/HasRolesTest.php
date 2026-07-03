@@ -174,6 +174,15 @@ class HasRolesTest extends TestCase
         $this->assertFalse($this->testUser->hasRole($this->testUserRole));
     }
 
+    public function testMalformedQuotedPipeRoleStringDoesNotTrimLeadingQuote(): void
+    {
+        app(Role::class)->create(['name' => 'admin']);
+
+        $this->testUser->assignRole('admin');
+
+        $this->assertFalse($this->testUser->hasRole('"admin|editor'));
+    }
+
     public function testItCanAssignAndRemoveMultipleRolesAtOnce(): void
     {
         $this->testUser->assignRole($this->testUserRole->getKey(), 'testRole2');
