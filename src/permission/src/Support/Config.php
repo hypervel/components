@@ -105,14 +105,6 @@ class Config
     }
 
     /**
-     * Get the configured storage connection.
-     */
-    public static function storageConnection(): ?string
-    {
-        return self::repository()->get('permission.storage.database.connection');
-    }
-
-    /**
      * Get the model morph key column.
      */
     public static function morphKey(): string

@@ -70,7 +70,6 @@ abstract class TestCase extends TestbenchTestCase
 
         $app->make('config')->set([
             'database.default' => 'testing',
-            'permission.storage.database.connection' => 'testing',
             'permission.register_permission_check_method' => true,
             'permission.teams' => false,
             'permission.column_names.model_morph_key' => 'model_test_id',
