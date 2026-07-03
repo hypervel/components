@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Carbon\FactoryImmutable;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationChallenged;
 use Hypervel\Fortify\Events\TwoFactorAuthenticationFailed;
 use Hypervel\Fortify\Events\ValidTwoFactorAuthenticationCodeProvided;
@@ -16,7 +17,7 @@ use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Fortify\Fixtures\UserWithTwoFactor;
-use PragmaRX\Google2FA\Google2FA;
+use OTPHP\TOTP;
 
 #[WithMigration]
 #[DefineEnvironment('withTwoFactorAuthentication')]
@@ -152,9 +153,8 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
     {
         Event::fake();
 
-        $tfaEngine = app(Google2FA::class);
-        $userSecret = $tfaEngine->generateSecretKey();
-        $validOtp = $tfaEngine->getCurrentOtp($userSecret);
+        $userSecret = TOTP::generate(new FactoryImmutable)->getSecret();
+        $validOtp = TOTP::createFromSecret($userSecret, new FactoryImmutable)->now();
 
         $user = UserWithTwoFactor::forceCreate([
             'name' => 'Taylor Otwell',
@@ -179,9 +179,8 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
 
     public function testTwoFactorChallengeEventsReachFakeAfterControllerWasCached(): void
     {
-        $tfaEngine = app(Google2FA::class);
-        $userSecret = $tfaEngine->generateSecretKey();
-        $validOtp = $tfaEngine->getCurrentOtp($userSecret);
+        $userSecret = TOTP::generate(new FactoryImmutable)->getSecret();
+        $validOtp = TOTP::createFromSecret($userSecret, new FactoryImmutable)->now();
 
         $user = UserWithTwoFactor::forceCreate([
             'name' => 'Taylor Otwell',
@@ -237,10 +236,10 @@ class AuthenticatedSessionControllerWithTwoFactorTest extends TestCase
         // Setting window to 0 should mean any old OTP is instantly invalid
         Features::twoFactorAuthentication(['window' => 0]);
 
-        $tfaEngine = app(Google2FA::class);
-        $userSecret = $tfaEngine->generateSecretKey();
-        $currentTs = $tfaEngine->getTimestamp();
-        $previousOtp = $tfaEngine->oathTotp($userSecret, $currentTs - 1);
+        $clock = new FactoryImmutable;
+        $userSecret = TOTP::generate($clock)->getSecret();
+        $previousTimestamp = $clock->now()->getTimestamp() - TOTP::DEFAULT_PERIOD;
+        $previousOtp = TOTP::createFromSecret($userSecret, $clock)->at($previousTimestamp);
 
         $user = UserWithTwoFactor::forceCreate([
             'name' => 'Taylor Otwell',

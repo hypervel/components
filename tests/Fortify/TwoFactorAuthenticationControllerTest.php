@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Fortify;
 
+use Carbon\FactoryImmutable;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RequirePassword;
 use Hypervel\Auth\Middleware\UseGuard;
@@ -20,7 +21,7 @@ use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Fortify\Fixtures\UserWithTwoFactor;
-use PragmaRX\Google2FA\Google2FA;
+use OTPHP\TOTP;
 
 #[WithMigration]
 class TwoFactorAuthenticationControllerTest extends TestCase
@@ -179,9 +180,8 @@ class TwoFactorAuthenticationControllerTest extends TestCase
     {
         Event::fake();
 
-        $tfaEngine = $this->app->make(Google2FA::class);
-        $userSecret = $tfaEngine->generateSecretKey();
-        $validOtp = $tfaEngine->getCurrentOtp($userSecret);
+        $userSecret = TOTP::generate(new FactoryImmutable)->getSecret();
+        $validOtp = TOTP::createFromSecret($userSecret, new FactoryImmutable)->now();
 
         $user = UserWithTwoFactor::forceCreate([
             'name' => 'Taylor Otwell',
@@ -217,8 +217,7 @@ class TwoFactorAuthenticationControllerTest extends TestCase
     {
         Event::fake();
 
-        $tfaEngine = $this->app->make(Google2FA::class);
-        $userSecret = $tfaEngine->generateSecretKey();
+        $userSecret = TOTP::generate(new FactoryImmutable)->getSecret();
 
         $user = UserWithTwoFactor::forceCreate([
             'name' => 'Taylor Otwell',
