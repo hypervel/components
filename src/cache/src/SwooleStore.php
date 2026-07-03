@@ -527,7 +527,9 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     protected function getCurrentTimestamp(): float
     {
-        return Carbon::now()->getPreciseTimestamp(6) / 1000000;
+        return Carbon::hasTestNow()
+            ? Carbon::now()->getPreciseTimestamp(6) / 1000000
+            : microtime(true);
     }
 
     /**
