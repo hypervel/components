@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Permission;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
+use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission;
@@ -65,6 +66,21 @@ class ForbiddenPermissionTest extends TestCase
         $this->assertFalse($this->testUser->getAllPermissions()->contains('name', 'edit-articles'));
     }
 
+    public function testDirectForbiddenPermissionIsGuardExact(): void
+    {
+        $permissionClass = $this->app->make(PermissionContract::class);
+        $webPermission = $permissionClass::findByName('edit-articles', 'web');
+        $apiPermission = $permissionClass::create(['name' => 'edit-articles', 'guard_name' => 'api']);
+
+        $this->testUser->givePermissionTo($webPermission);
+        $this->testUser->giveForbiddenTo($apiPermission);
+
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles', 'api'));
+        $this->assertFalse($this->testUser->hasPermissionTo($apiPermission));
+        $this->assertTrue($this->testUser->hasPermissionTo($webPermission));
+    }
+
     public function testRoleForbiddenPermissionOverridesDirectPermission(): void
     {
         $role = $this->app->make(RoleContract::class)::create(['name' => 'restricted']);
@@ -116,6 +132,67 @@ class ForbiddenPermissionTest extends TestCase
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
         $this->assertFalse($this->testUser->getPermissionsViaRoles()->contains('name', 'edit-articles'));
         $this->assertFalse($this->testUser->getAllPermissions()->contains('name', 'edit-articles'));
+    }
+
+    public function testRoleForbiddenPermissionIsGuardExact(): void
+    {
+        $permissionClass = $this->app->make(PermissionContract::class);
+        $roleClass = $this->app->make(RoleContract::class);
+        $webPermission = $permissionClass::findByName('edit-articles', 'web');
+        $apiPermission = $permissionClass::create(['name' => 'edit-articles', 'guard_name' => 'api']);
+        $webRole = $roleClass::create(['name' => 'web-editor']);
+        $apiRole = $roleClass::create(['name' => 'api-blocked', 'guard_name' => 'api']);
+
+        $webRole->givePermissionTo($webPermission);
+        $apiRole->giveForbiddenTo($apiPermission);
+        $this->testUser->assignRole($webRole, $apiRole);
+        $webPermission = $permissionClass::findByName('edit-articles', 'web');
+
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-articles', 'api'));
+        $this->assertFalse($this->testUser->hasPermissionTo($apiPermission));
+        $this->assertTrue($this->testUser->hasPermissionTo($webPermission));
+    }
+
+    public function testRoleForbiddenPermissionForDifferentPermissionDoesNotDenyRequestedPermission(): void
+    {
+        $allowedRole = $this->app->make(RoleContract::class)::create(['name' => 'allowed-editor']);
+        $forbiddenRole = $this->app->make(RoleContract::class)::create(['name' => 'blocked-news']);
+
+        $allowedRole->givePermissionTo('edit-articles');
+        $forbiddenRole->giveForbiddenTo('edit-news');
+        $this->testUser->assignRole($allowedRole, $forbiddenRole);
+
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+        $this->assertFalse($this->testUser->hasPermissionTo('edit-news'));
+    }
+
+    public function testMissingPermissionStillThrowsOrChecksFalseWithRoleForbiddenEdges(): void
+    {
+        $this->testUserRole->giveForbiddenTo('edit-articles');
+        $this->testUser->assignRole($this->testUserRole);
+
+        $this->assertFalse($this->testUser->checkPermissionTo('missing-permission'));
+
+        $this->expectException(PermissionDoesNotExist::class);
+
+        $this->testUser->hasPermissionTo('missing-permission');
+    }
+
+    public function testRoleModelForbiddenPermissionIsMatchedByConcretePermissionGuard(): void
+    {
+        $permission = $this->app->make(PermissionContract::class)::create([
+            'name' => 'api-edit-articles',
+            'guard_name' => 'api',
+        ]);
+        $role = $this->app->make(RoleContract::class)::create([
+            'name' => 'api-editor',
+            'guard_name' => 'api',
+        ]);
+
+        $role->giveForbiddenTo($permission);
+
+        $this->assertFalse($role->hasPermissionTo($permission));
     }
 
     public function testForbiddenPermissionWinsWhenAllowedAndForbiddenAreSyncedTogether(): void
@@ -299,6 +376,33 @@ class ForbiddenPermissionTest extends TestCase
         $this->assertNotContains('delete-articles', $permissionNames);
         $this->assertTrue($this->testUser->hasForbiddenPermissionViaRoles('delete-articles'));
         $this->assertFalse($this->testUser->hasPermissionTo('delete-articles'));
+    }
+
+    public function testDuplicateRoleGrantedPermissionsAreReturnedOnce(): void
+    {
+        $firstRole = $this->app->make(RoleContract::class)::create(['name' => 'first-editor']);
+        $secondRole = $this->app->make(RoleContract::class)::create(['name' => 'second-editor']);
+
+        $firstRole->givePermissionTo('edit-articles');
+        $secondRole->givePermissionTo('edit-articles');
+        $this->testUser->assignRole($firstRole, $secondRole);
+
+        $this->assertSame(
+            ['edit-articles'],
+            $this->testUser->getPermissionsViaRoles()->pluck('name')->values()->all(),
+        );
+    }
+
+    public function testForbiddenDuplicateRolePermissionIsExcluded(): void
+    {
+        $allowedRole = $this->app->make(RoleContract::class)::create(['name' => 'duplicate-allowed']);
+        $forbiddenRole = $this->app->make(RoleContract::class)::create(['name' => 'duplicate-forbidden']);
+
+        $allowedRole->givePermissionTo('edit-articles');
+        $forbiddenRole->giveForbiddenTo('edit-articles');
+        $this->testUser->assignRole($allowedRole, $forbiddenRole);
+
+        $this->assertSame([], $this->testUser->getPermissionsViaRoles()->pluck('name')->values()->all());
     }
 
     public function testRoleForbiddenSyncAffectsAllUsersWithRoleAfterCachesAreWarm(): void

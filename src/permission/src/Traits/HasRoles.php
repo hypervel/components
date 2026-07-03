@@ -61,9 +61,9 @@ trait HasRoles
                     ->where(Config::morphKey(), $model->getKey())
                     ->where('model_type', $model->getMorphClass())
                     ->delete();
-            }
 
-            $registrar->bumpModelAssignmentCacheToken();
+                $registrar->forgetModelAssignmentCache($model);
+            }
         });
 
         static::saved(function (Model $model): void {
@@ -297,6 +297,7 @@ trait HasRoles
         $registrar = $this->permissionRegistrar();
         $teamPivot = $registrar->teams && ! $this instanceof Permission
             ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
+        $cacheCleared = false;
 
         if ($model->exists) {
             if ($registrar->teams) {
@@ -314,11 +315,15 @@ trait HasRoles
 
         if ($this instanceof Permission) {
             $this->forgetCachedPermissions();
+            $cacheCleared = true;
         } elseif ($model->exists) {
             $registrar->forgetModelRoleCache($model);
+            $cacheCleared = true;
         }
 
-        $this->forgetWildcardPermissionIndex();
+        if (! $cacheCleared) {
+            $this->forgetWildcardPermissionIndex();
+        }
 
         $this->dispatchRoleAttachedEvent($roles);
 
@@ -362,8 +367,6 @@ trait HasRoles
         } else {
             $registrar->forgetModelRoleCache($this);
         }
-
-        $this->forgetWildcardPermissionIndex();
     }
 
     /**
@@ -403,8 +406,6 @@ trait HasRoles
         } else {
             $this->permissionRegistrar()->forgetModelRoleCache($this);
         }
-
-        $this->forgetWildcardPermissionIndex();
 
         $this->dispatchRoleDetachedEvent($roles);
 
@@ -469,7 +470,6 @@ trait HasRoles
             $registrar->forgetModelRoleCache($this);
         }
 
-        $this->forgetWildcardPermissionIndex();
         $this->dispatchRoleAttachedEvent($roles);
 
         return $this;
@@ -650,7 +650,7 @@ trait HasRoles
         }
 
         $quoteCharacter = substr($pipeString, 0, 1);
-        $endCharacter = substr($quoteCharacter, -1, 1);
+        $endCharacter = substr($pipeString, -1, 1);
 
         if ($quoteCharacter !== $endCharacter) {
             return explode('|', $pipeString);

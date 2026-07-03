@@ -23,8 +23,11 @@ use Hypervel\Permission\Contracts\Role as RoleContract;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+
+use function Hypervel\Support\enum_value;
 
 class PermissionRegistrar
 {
@@ -37,6 +40,8 @@ class PermissionRegistrar
     public const PERMISSION_CATALOG_CONTEXT_KEY = '__permission.catalog';
 
     public const WILDCARD_PERMISSION_INDEX_CONTEXT_KEY = '__permission.wildcard_index';
+
+    public const MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY = '__permission.model_via_role_permissions';
 
     /**
      * The callback used to scope permission cache keys.
@@ -221,6 +226,9 @@ class PermissionRegistrar
 
         $cache->forget($this->modelCacheKey($this->modelRolesCacheKeyPrefix, $model));
         $cache->forget($this->modelCacheKey($this->modelPermissionsCacheKeyPrefix, $model));
+
+        $this->forgetModelViaRolePermissions($model);
+        $this->forgetWildcardPermissionIndex($model);
     }
 
     /**
@@ -231,6 +239,9 @@ class PermissionRegistrar
         $this->cacheRepository()->forget(
             $this->modelCacheKey($this->modelRolesCacheKeyPrefix, $model)
         );
+
+        $this->forgetModelViaRolePermissions($model);
+        $this->forgetWildcardPermissionIndex($model);
     }
 
     /**
@@ -241,6 +252,38 @@ class PermissionRegistrar
         $this->cacheRepository()->forget(
             $this->modelCacheKey($this->modelPermissionsCacheKeyPrefix, $model)
         );
+
+        $this->forgetWildcardPermissionIndex($model);
+    }
+
+    /**
+     * Remember a model's permissions granted through roles.
+     *
+     * @param Closure(): BaseCollection $callback
+     */
+    public function rememberModelViaRolePermissions(Model $model, Closure $callback): BaseCollection
+    {
+        $key = $this->modelRuntimeCacheKey($model);
+        $items = CoroutineContext::get(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, []);
+
+        if (isset($items[$key]) && $items[$key] instanceof BaseCollection) {
+            return $items[$key];
+        }
+
+        $items[$key] = $callback();
+        CoroutineContext::set(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $items);
+
+        return $items[$key];
+    }
+
+    /**
+     * Forget a model's permissions granted through roles.
+     */
+    public function forgetModelViaRolePermissions(Model $model): void
+    {
+        $items = CoroutineContext::get(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, []);
+        unset($items[$this->modelRuntimeCacheKey($model)]);
+        CoroutineContext::set(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $items);
     }
 
     /**
@@ -287,6 +330,28 @@ class PermissionRegistrar
             $model->getKey(),
             $teamId,
         ]);
+    }
+
+    /**
+     * Build the runtime cache key segment for coroutine-local model state.
+     */
+    protected function modelRuntimeCacheKey(Model $model): string
+    {
+        $teamId = $this->teams ? (string) ($this->getPermissionsTeamId() ?? 'global') : 'none';
+        $segments = [
+            $this->modelAssignmentCacheToken(),
+            $model->getMorphClass(),
+            $model->getKey(),
+            $teamId,
+        ];
+
+        $scope = $this->cacheKeyScopeSegment();
+
+        if ($scope !== '') {
+            array_unshift($segments, $scope);
+        }
+
+        return implode(':', $segments);
     }
 
     /**
@@ -370,21 +435,7 @@ class PermissionRegistrar
      */
     protected function wildcardPermissionIndexKey(Model $record): string
     {
-        $teamId = $this->teams ? (string) ($this->getPermissionsTeamId() ?? 'global') : 'none';
-        $segments = [
-            $this->modelAssignmentCacheToken(),
-            $record->getMorphClass(),
-            $record->getKey(),
-            $teamId,
-        ];
-
-        $scope = $this->cacheKeyScopeSegment();
-
-        if ($scope !== '') {
-            array_unshift($segments, $scope);
-        }
-
-        return implode(':', $segments);
+        return $this->modelRuntimeCacheKey($record);
     }
 
     /**
@@ -394,12 +445,23 @@ class PermissionRegistrar
     {
         CoroutineContext::forget(self::PERMISSION_CATALOG_CONTEXT_KEY);
         CoroutineContext::forget(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY);
+        CoroutineContext::forget(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY);
     }
 
     /**
      * Get the hydrated permission catalog.
      *
-     * @return array{permissions: Collection, roles: Collection}
+     * @return array{
+     *     permissions: Collection,
+     *     roles: Collection,
+     *     permissionByKey: array<string, Model>,
+     *     permissionByNameAndGuard: array<string, list<Model>>,
+     *     permissionOrderByKey: array<string, int>,
+     *     roleByKey: array<string, Model>,
+     *     roleByNameAndGuard: array<string, list<Model>>,
+     *     roleOrderByKey: array<string, int>,
+     *     hasForbiddenRolePermissions: bool
+     * }
      */
     private function permissionCatalog(): array
     {
@@ -407,11 +469,11 @@ class PermissionRegistrar
         $catalogs = CoroutineContext::get(self::PERMISSION_CATALOG_CONTEXT_KEY, []);
 
         if (isset($catalogs[$contextKey]) && is_array($catalogs[$contextKey])) {
-            /** @var array{permissions: Collection, roles: Collection} */
+            /** @var array{permissions: Collection, roles: Collection, permissionByKey: array<string, Model>, permissionByNameAndGuard: array<string, list<Model>>, permissionOrderByKey: array<string, int>, roleByKey: array<string, Model>, roleByNameAndGuard: array<string, list<Model>>, roleOrderByKey: array<string, int>, hasForbiddenRolePermissions: bool} */
             return $catalogs[$contextKey];
         }
 
-        /** @var array{permissions: array<int, array<string, mixed>>, roles: array<int, array<string, mixed>>} $payload */
+        /** @var array{permissions: array<int, array<string, mixed>>, roles: array<int, array<string, mixed>>, hasForbiddenRolePermissions?: bool} $payload */
         $payload = $this->cacheRepository()->remember(
             $contextKey,
             $this->cacheExpirationTime,
@@ -419,10 +481,18 @@ class PermissionRegistrar
         );
 
         $roles = $this->getHydratedRoleCollection($payload['roles']);
+        $permissions = $this->getHydratedPermissionCollection($payload['permissions'], $roles);
 
         $catalog = [
             'roles' => $roles,
-            'permissions' => $this->getHydratedPermissionCollection($payload['permissions'], $roles),
+            'permissions' => $permissions,
+            'permissionByKey' => $this->indexModelsByKey($permissions),
+            'permissionByNameAndGuard' => $this->indexModelsByNameAndGuard($permissions),
+            'permissionOrderByKey' => $this->indexModelOrderByKey($permissions),
+            'roleByKey' => $this->indexModelsByKey($roles),
+            'roleByNameAndGuard' => $this->indexModelsByNameAndGuard($roles),
+            'roleOrderByKey' => $this->indexModelOrderByKey($roles),
+            'hasForbiddenRolePermissions' => (bool) ($payload['hasForbiddenRolePermissions'] ?? false),
         ];
 
         $catalogs[$contextKey] = $catalog;
@@ -446,9 +516,13 @@ class PermissionRegistrar
             );
         }
 
-        $permissions = $this->permissionCatalog()['permissions'];
+        $indexed = $this->indexedModels($params, $onlyOne, 'permission');
 
-        return $this->filterModels($permissions, $params, $onlyOne);
+        if ($indexed !== null) {
+            return $indexed;
+        }
+
+        return $this->filterModels($this->permissionCatalog()['permissions'], $params, $onlyOne);
     }
 
     /**
@@ -466,9 +540,116 @@ class PermissionRegistrar
             );
         }
 
-        $roles = $this->permissionCatalog()['roles'];
+        $indexed = $this->indexedModels($params, $onlyOne, 'role');
 
-        return $this->filterModels($roles, $params, $onlyOne);
+        if ($indexed !== null) {
+            return $indexed;
+        }
+
+        return $this->filterModels($this->permissionCatalog()['roles'], $params, $onlyOne);
+    }
+
+    /**
+     * Get indexed models for supported exact lookup shapes.
+     *
+     * @param array<string, mixed> $params
+     */
+    protected function indexedModels(array $params, bool $onlyOne, string $modelType): ?Collection
+    {
+        if ($params === []) {
+            return null;
+        }
+
+        $catalog = $this->permissionCatalog();
+        $keyName = $modelType === 'permission'
+            ? Guard::getModelKeyName($this->permissionClass)
+            : Guard::getModelKeyName($this->roleClass);
+
+        /** @var array<string, Model> $byKey */
+        $byKey = $catalog[$modelType === 'permission' ? 'permissionByKey' : 'roleByKey'];
+        /** @var array<string, list<Model>> $byNameAndGuard */
+        $byNameAndGuard = $catalog[$modelType === 'permission' ? 'permissionByNameAndGuard' : 'roleByNameAndGuard'];
+        /** @var array<string, int> $orderByKey */
+        $orderByKey = $catalog[$modelType === 'permission' ? 'permissionOrderByKey' : 'roleOrderByKey'];
+
+        if (array_key_exists($keyName, $params) && count(array_diff_key($params, [$keyName => true, 'guard_name' => true])) === 0) {
+            $ids = Arr::wrap($params[$keyName]);
+            $guardNames = array_key_exists('guard_name', $params) ? Arr::wrap($params['guard_name']) : null;
+            $matches = [];
+
+            foreach ($ids as $id) {
+                $model = $byKey[(string) $id] ?? null;
+
+                if (! $model instanceof Model) {
+                    continue;
+                }
+
+                if ($guardNames !== null && ! self::attributeMatches($model->getAttribute('guard_name'), $guardNames)) {
+                    continue;
+                }
+
+                if ($modelType === 'role' && ! $this->roleMatchesCurrentTeam($model)) {
+                    continue;
+                }
+
+                $matches[(string) $model->getKey()] = $model;
+            }
+
+            return $this->collectionFromIndexedModels($matches, $orderByKey, $onlyOne);
+        }
+
+        if (array_key_exists('name', $params) && array_key_exists('guard_name', $params) && count($params) === 2) {
+            $names = Arr::wrap($params['name']);
+            $guards = Arr::wrap($params['guard_name']);
+            $matches = [];
+
+            foreach ($guards as $guardName) {
+                foreach ($names as $name) {
+                    foreach ($byNameAndGuard[$this->nameGuardIndexKey($name, $guardName)] ?? [] as $model) {
+                        if ($modelType === 'role' && ! $this->roleMatchesCurrentTeam($model)) {
+                            continue;
+                        }
+
+                        $matches[(string) $model->getKey()] = $model;
+                    }
+                }
+            }
+
+            return $this->collectionFromIndexedModels($matches, $orderByKey, $onlyOne);
+        }
+
+        return null;
+    }
+
+    /**
+     * Determine if a cached role matches the current team scope.
+     */
+    private function roleMatchesCurrentTeam(Model $role): bool
+    {
+        if (! $this->teams) {
+            return true;
+        }
+
+        $teamId = $this->getPermissionsTeamId();
+        $roleTeamId = $role->getAttribute($this->teamsKey);
+
+        return $roleTeamId === null || self::attributeMatches($roleTeamId, $teamId);
+    }
+
+    /**
+     * Build a collection from indexed models in catalog order.
+     *
+     * @param array<string, Model> $models
+     * @param array<string, int> $orderByKey
+     */
+    private function collectionFromIndexedModels(array $models, array $orderByKey, bool $onlyOne): Collection
+    {
+        uasort($models, fn (Model $a, Model $b): int => ($orderByKey[(string) $a->getKey()] ?? PHP_INT_MAX)
+            <=> ($orderByKey[(string) $b->getKey()] ?? PHP_INT_MAX));
+
+        $collection = new Collection(array_values($models));
+
+        return $onlyOne ? $collection->take(1)->values() : $collection->values();
     }
 
     /**
@@ -674,27 +855,37 @@ class PermissionRegistrar
     /**
      * Serialize permissions for cache.
      *
-     * @return array{permissions: array<int, array<string, mixed>>, roles: array<int, array<string, mixed>>}
+     * @return array{permissions: array<int, array<string, mixed>>, roles: array<int, array<string, mixed>>, hasForbiddenRolePermissions: bool}
      */
     private function getSerializedPermissionsForCache(): array
     {
         $except = $this->config->array('permission.cache.column_names_except', ['created_at', 'updated_at', 'deleted_at']);
+        $hasForbiddenRolePermissions = false;
 
         return [
             'permissions' => $this->getPermissionsWithRoles()
-                ->map(fn (Model $permission): array => [
-                    'attributes' => Arr::except($permission->getAttributes(), $except),
-                    'roles' => $this->relationCollection($permission, 'roles')
-                        ->map(fn (Model $role): array => [
-                            'pivot' => [
-                                $this->pivotPermission => $permission->getKey(),
-                                $this->pivotRole => $role->getKey(),
-                                'is_forbidden' => $this->pivotIsForbidden($role),
-                            ],
-                        ])
+                ->map(function (Model $permission) use ($except, &$hasForbiddenRolePermissions): array {
+                    $roles = $this->relationCollection($permission, 'roles')
+                        ->map(function (Model $role) use ($permission, &$hasForbiddenRolePermissions): array {
+                            $isForbidden = $this->pivotIsForbidden($role);
+                            $hasForbiddenRolePermissions = $hasForbiddenRolePermissions || $isForbidden;
+
+                            return [
+                                'pivot' => [
+                                    $this->pivotPermission => $permission->getKey(),
+                                    $this->pivotRole => $role->getKey(),
+                                    'is_forbidden' => $isForbidden,
+                                ],
+                            ];
+                        })
                         ->values()
-                        ->all(),
-                ])
+                        ->all();
+
+                    return [
+                        'attributes' => Arr::except($permission->getAttributes(), $except),
+                        'roles' => $roles,
+                    ];
+                })
                 ->values()
                 ->all(),
             'roles' => $this->getRolesForCache()
@@ -703,7 +894,16 @@ class PermissionRegistrar
                 ])
                 ->values()
                 ->all(),
+            'hasForbiddenRolePermissions' => $hasForbiddenRolePermissions,
         ];
+    }
+
+    /**
+     * Determine if any cached role-permission edge is forbidden.
+     */
+    public function hasForbiddenRolePermissions(): bool
+    {
+        return (bool) $this->permissionCatalog()['hasForbiddenRolePermissions'];
     }
 
     /**
@@ -766,6 +966,59 @@ class PermissionRegistrar
             fn (array $item): Model => (clone $roleInstance)->setRawAttributes((array) $item['attributes'], true),
             $roles,
         ));
+    }
+
+    /**
+     * Index models by primary key.
+     *
+     * @return array<string, Model>
+     */
+    private function indexModelsByKey(Collection $models): array
+    {
+        return $models
+            ->mapWithKeys(fn (Model $model): array => [(string) $model->getKey() => $model])
+            ->all();
+    }
+
+    /**
+     * Index models by name and guard.
+     *
+     * @return array<string, list<Model>>
+     */
+    private function indexModelsByNameAndGuard(Collection $models): array
+    {
+        $indexed = [];
+
+        foreach ($models as $model) {
+            $indexed[$this->nameGuardIndexKey($model->getAttribute('name'), $model->getAttribute('guard_name'))][] = $model;
+        }
+
+        return $indexed;
+    }
+
+    /**
+     * Build the name and guard index key.
+     */
+    private function nameGuardIndexKey(mixed $name, mixed $guardName): string
+    {
+        // Null byte avoids collisions with names or guards containing ordinary separators.
+        return (string) enum_value($guardName) . "\0" . (string) enum_value($name);
+    }
+
+    /**
+     * Index model catalog order by primary key.
+     *
+     * @return array<string, int>
+     */
+    private function indexModelOrderByKey(Collection $models): array
+    {
+        $order = [];
+
+        foreach ($models->values() as $index => $model) {
+            $order[(string) $model->getKey()] = $index;
+        }
+
+        return $order;
     }
 
     /**

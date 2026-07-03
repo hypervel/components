@@ -71,6 +71,8 @@ trait HasPermissions
                     ->where(Config::morphKey(), $model->getKey())
                     ->where('model_type', $model->getMorphClass())
                     ->delete();
+
+                Container::getInstance()->make(PermissionRegistrar::class)->forgetModelAssignmentCache($model);
             }
 
             if ($model instanceof Role) {
@@ -86,8 +88,6 @@ trait HasPermissions
                     ->where($registrar->pivotRole, $model->getKey())
                     ->delete();
             }
-
-            Container::getInstance()->make(PermissionRegistrar::class)->bumpModelAssignmentCacheToken();
         });
 
         static::saved(function (Model $model): void {
@@ -149,7 +149,7 @@ trait HasPermissions
         }
 
         $teamsKey = Config::teamForeignKey();
-        $relation->withPivot($teamsKey, 'is_forbidden');
+        $relation->withPivot($teamsKey);
 
         return $relation->wherePivot($teamsKey, getPermissionsTeamId());
     }
@@ -400,6 +400,20 @@ trait HasPermissions
      */
     public function hasPermissionTo($permission, ?string $guardName = null): bool
     {
+        if ($this->getWildcardClass()) {
+            if ($this->hasForbiddenPermission($permission, $guardName)) {
+                return false;
+            }
+
+            if ($this->hasForbiddenPermissionViaRoles($permission, $guardName)) {
+                return false;
+            }
+
+            return $this->hasWildcardPermission($permission, $guardName);
+        }
+
+        $permission = $this->filterPermission($permission, $guardName);
+
         if ($this->hasForbiddenPermission($permission, $guardName)) {
             return false;
         }
@@ -407,12 +421,6 @@ trait HasPermissions
         if ($this->hasForbiddenPermissionViaRoles($permission, $guardName)) {
             return false;
         }
-
-        if ($this->getWildcardClass()) {
-            return $this->hasWildcardPermission($permission, $guardName);
-        }
-
-        $permission = $this->filterPermission($permission, $guardName);
 
         return $this->hasDirectPermission($permission) || $this->hasPermissionViaRole($permission);
     }
@@ -545,7 +553,9 @@ trait HasPermissions
 
         return $permissions
             ->reject(fn (Model $permission): bool => isset($forbiddenPermissionKeys[$this->permissionComparisonKey($permission)]))
-            ->sort()->values();
+            ->unique(fn (Model $permission): string => $this->permissionComparisonKey($permission))
+            ->sort()
+            ->values();
     }
 
     /**
@@ -562,7 +572,7 @@ trait HasPermissions
         return $directPermissions
             ->merge($viaRolePermissions)
             ->reject(fn (Model $permission): bool => isset($forbiddenPermissionKeys[$this->permissionComparisonKey($permission)]))
-            ->unique(fn (Model $permission): string => (string) $permission->getKey())
+            ->unique(fn (Model $permission): string => $this->permissionComparisonKey($permission))
             ->sort()
             ->values();
     }
@@ -626,6 +636,7 @@ trait HasPermissions
         $model = $this;
         $registrar = $this->permissionRegistrar();
         $pivot = $this->permissionAssignmentPivot($isForbidden);
+        $cacheCleared = false;
 
         if ($model->exists) {
             $this->upsertPermissionAssignments($permissions, $pivot);
@@ -636,12 +647,16 @@ trait HasPermissions
 
         if ($this instanceof Role) {
             $this->forgetCachedPermissions();
+            $cacheCleared = true;
         } elseif ($model->exists) {
             $registrar->forgetModelPermissionCache($model);
+            $cacheCleared = true;
         }
 
-        // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
-        $this->forgetWildcardPermissionIndex();
+        if (! $cacheCleared) {
+            $this->forgetWildcardPermissionIndex();
+        }
+
         $this->dispatchPermissionAttachedEvent($permissions);
 
         return $this;
@@ -787,8 +802,6 @@ trait HasPermissions
         } else {
             $registrar->forgetModelPermissionCache($this);
         }
-
-        $this->forgetWildcardPermissionIndex();
     }
 
     /**
@@ -880,6 +893,7 @@ trait HasPermissions
     {
         $permissions = $this->collectPermissions($permissions);
         $model = $this;
+        $cacheCleared = false;
 
         if ($this->exists) {
             $pivot = $this->permissionAssignmentPivot(false);
@@ -907,13 +921,17 @@ trait HasPermissions
         if ($model->exists) {
             if ($this instanceof Role) {
                 $this->forgetCachedPermissions();
+                $cacheCleared = true;
             } else {
                 $this->permissionRegistrar()->forgetModelPermissionCache($model);
+                $cacheCleared = true;
             }
         }
 
-        // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
-        $this->forgetWildcardPermissionIndex();
+        if (! $cacheCleared) {
+            $this->forgetWildcardPermissionIndex();
+        }
+
         $this->dispatchPermissionAttachedEvent($permissions);
 
         return $this;
@@ -958,7 +976,6 @@ trait HasPermissions
                 $allowedPivot,
             );
 
-            // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
             $this->forgetWildcardPermissionIndex();
             $this->dispatchPermissionAttachedEvent($permissions);
 
@@ -986,8 +1003,6 @@ trait HasPermissions
             $this->permissionRegistrar()->forgetModelPermissionCache($model);
         }
 
-        // Clear wildcard state before dispatch so synchronous listeners rebuild from current assignments.
-        $this->forgetWildcardPermissionIndex();
         $this->dispatchPermissionAttachedEvent($permissions);
 
         return $changes;
@@ -1011,8 +1026,6 @@ trait HasPermissions
         }
 
         $this->dispatchPermissionDetachedEvent($storedPermission);
-
-        $this->forgetWildcardPermissionIndex();
 
         $this->unsetRelation('permissions');
 
@@ -1042,6 +1055,8 @@ trait HasPermissions
      */
     public function hasForbiddenPermission($permission, ?string $guardName = null): bool
     {
+        $guardName = $this->guardNameForPermissionMatch($permission, $guardName);
+
         return $this->getCachedDirectPermissions()
             ->contains(
                 fn (Model $storedPermission): bool => $this->pivotIsForbidden($storedPermission)
@@ -1060,10 +1075,31 @@ trait HasPermissions
             return false;
         }
 
-        return $this->getPermissionsViaRolesWithPivots()
+        $roles = $this->getCachedRoles();
+
+        if ($roles->isEmpty()) {
+            return false;
+        }
+
+        $registrar = $this->permissionRegistrar();
+
+        if (! $registrar->hasForbiddenRolePermissions()) {
+            return false;
+        }
+
+        $guardName = $this->guardNameForPermissionMatch($permission, $guardName);
+        $storedPermission = $this->permissionForMatch($permission, $guardName);
+
+        if (! $storedPermission instanceof Model) {
+            return false;
+        }
+
+        $roleIds = array_flip($roles->map(fn (Model $role): string => (string) $role->getKey())->all());
+
+        return $this->relationCollection($storedPermission, 'roles')
             ->contains(
-                fn (Model $storedPermission): bool => $this->pivotIsForbidden($storedPermission)
-                && $this->storedPermissionMatches($storedPermission, $permission, $guardName)
+                fn (Model $role): bool => isset($roleIds[(string) $role->getKey()])
+                    && $this->pivotIsForbidden($role)
             );
     }
 
@@ -1076,22 +1112,72 @@ trait HasPermissions
             return collect();
         }
 
+        if (! $this->exists) {
+            return $this->loadPermissionsViaRolesWithPivots();
+        }
+
+        return $this->permissionRegistrar()->rememberModelViaRolePermissions(
+            $this,
+            fn (): Collection => $this->loadPermissionsViaRolesWithPivots(),
+        );
+    }
+
+    /**
+     * Load permissions granted through the model's roles with role-permission pivot data.
+     */
+    protected function loadPermissionsViaRolesWithPivots(): Collection
+    {
+        if ($this instanceof Role || $this instanceof Permission) {
+            return collect();
+        }
+
         $roles = $this->getCachedRoles();
 
         if ($roles->isEmpty()) {
             return collect();
         }
 
-        $roleKey = Guard::getModelKeyName($this->getRoleClass());
         $roleIds = array_flip($roles->map(fn (Model $role): string => (string) $role->getKey())->all());
 
         return $this->permissionRegistrar()
             ->getPermissions([], false, $this->getPermissionClass())
             ->flatMap(
                 fn (Model $permission): Collection => $this->relationCollection($permission, 'roles')
-                    ->filter(fn (Model $role): bool => isset($roleIds[(string) $role->getAttribute($roleKey)]))
+                    ->filter(fn (Model $role): bool => isset($roleIds[(string) $role->getKey()]))
                     ->map(fn (Model $role): Model => $this->permissionWithRolePivot($permission, $role))
             );
+    }
+
+    /**
+     * Resolve a permission for matching without throwing.
+     */
+    protected function permissionForMatch(mixed $permission, string $guardName): ?Model
+    {
+        $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
+
+        if ($permission instanceof Permission) {
+            if (! $permission instanceof Model || $permission->guard_name !== $guardName) {
+                return null;
+            }
+
+            return $this->permissionRegistrar()
+                ->getPermissions([$permissionKey => $permission->getKey(), 'guard_name' => $guardName], true, $this->getPermissionClass())
+                ->first();
+        }
+
+        $permission = enum_value($permission);
+
+        if (! is_string($permission) && ! is_int($permission)) {
+            return null;
+        }
+
+        $params = is_int($permission) || PermissionRegistrar::isUid($permission)
+            ? [$permissionKey => $permission, 'guard_name' => $guardName]
+            : ['name' => $permission, 'guard_name' => $guardName];
+
+        return $this->permissionRegistrar()
+            ->getPermissions($params, true, $this->getPermissionClass())
+            ->first();
     }
 
     /**
@@ -1180,6 +1266,26 @@ trait HasPermissions
 
         return is_string($permission)
             && $storedPermission->getAttribute('name') === $permission;
+    }
+
+    /**
+     * Resolve the guard to use when matching stored permissions.
+     */
+    protected function guardNameForPermissionMatch(mixed $permission, ?string $guardName = null): string
+    {
+        if ($guardName !== null) {
+            return $guardName;
+        }
+
+        if ($permission instanceof Permission) {
+            $permissionGuard = $permission->guard_name ?? null;
+
+            if (is_string($permissionGuard) && $permissionGuard !== '') {
+                return $permissionGuard;
+            }
+        }
+
+        return $this->getDefaultGuardName();
     }
 
     /**

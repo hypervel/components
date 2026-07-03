@@ -30,12 +30,6 @@ return [
         'default_model' => null,
     ],
 
-    'storage' => [
-        'database' => [
-            'connection' => env('DB_CONNECTION', 'mysql'),
-        ],
-    ],
-
     'table_names' => [
         'roles' => 'roles',
         'permissions' => 'permissions',
