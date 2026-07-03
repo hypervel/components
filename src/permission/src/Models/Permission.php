@@ -58,7 +58,7 @@ class Permission extends Model implements PermissionContract
 
         $attributes['name'] = enum_value($attributes['name']);
 
-        $permission = static::getPermission(['name' => $attributes['name'], 'guard_name' => $attributes['guard_name']]);
+        $permission = static::findByParam(['name' => $attributes['name'], 'guard_name' => $attributes['guard_name']]);
 
         if ($permission) {
             throw PermissionAlreadyExists::create($attributes['name'], $attributes['guard_name']);
@@ -143,13 +143,29 @@ class Permission extends Model implements PermissionContract
     {
         $name = enum_value($name);
         $guardName ??= Guard::getDefaultName(static::class);
-        $permission = static::getPermission(['name' => $name, 'guard_name' => $guardName]);
+        $permission = static::findByParam(['name' => $name, 'guard_name' => $guardName]);
 
         if (! $permission) {
-            return static::query()->create(['name' => $name, 'guard_name' => $guardName]);
+            return static::query()->createOrFirst(['name' => $name, 'guard_name' => $guardName]);
         }
 
         return $permission;
+    }
+
+    /**
+     * Find a permission based on an array of parameters.
+     *
+     * @return null|Permission|PermissionContract
+     */
+    protected static function findByParam(array $params = []): ?PermissionContract
+    {
+        $query = static::query();
+
+        foreach ($params as $key => $value) {
+            $query->where($key, $value);
+        }
+
+        return $query->first();
     }
 
     /**

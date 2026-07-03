@@ -124,7 +124,7 @@ class Role extends Model implements RoleContract
         $name = enum_value($name);
         $guardName ??= Guard::getDefaultName(static::class);
 
-        $role = static::findByParam(['name' => $name, 'guard_name' => $guardName]);
+        $role = static::getRole(['name' => $name, 'guard_name' => $guardName]);
 
         if (! $role) {
             throw RoleDoesNotExist::named($name, $guardName);
@@ -142,7 +142,7 @@ class Role extends Model implements RoleContract
     {
         $guardName ??= Guard::getDefaultName(static::class);
 
-        $role = static::findByParam([Guard::getModelKeyName(static::class) => $id, 'guard_name' => $guardName]);
+        $role = static::getRole([Guard::getModelKeyName(static::class) => $id, 'guard_name' => $guardName]);
 
         if (! $role) {
             throw RoleDoesNotExist::withId($id, $guardName);
@@ -172,7 +172,7 @@ class Role extends Model implements RoleContract
                 $attributes[$teamsKey] = getPermissionsTeamId();
             }
 
-            return static::query()->create($attributes);
+            return static::query()->createOrFirst($attributes);
         }
 
         return $role;
@@ -207,21 +207,45 @@ class Role extends Model implements RoleContract
     }
 
     /**
+     * Get the current cached roles.
+     */
+    protected static function getRoles(array $params = [], bool $onlyOne = false): Collection
+    {
+        return Container::getInstance()->make(PermissionRegistrar::class)
+            ->getRoles($params, $onlyOne, static::class);
+    }
+
+    /**
+     * Get the current cached first role.
+     *
+     * @return null|Role|RoleContract
+     */
+    protected static function getRole(array $params = []): ?RoleContract
+    {
+        /** @var null|RoleContract */
+        return static::getRoles($params, true)->first();
+    }
+
+    /**
      * Determine if the role may perform the given permission.
      *
      * @throws GuardDoesNotMatch|PermissionDoesNotExist
      */
     public function hasPermissionTo(UnitEnum|int|string|PermissionContract $permission, ?string $guardName = null): bool
     {
-        if ($this->hasForbiddenPermission($permission, $guardName)) {
-            return false;
-        }
-
         if ($this->getWildcardClass()) {
+            if ($this->hasForbiddenPermission($permission, $guardName)) {
+                return false;
+            }
+
             return $this->hasWildcardPermission($permission, $guardName);
         }
 
         $permission = $this->filterPermission($permission, $guardName);
+
+        if ($this->hasForbiddenPermission($permission, $guardName)) {
+            return false;
+        }
 
         if (! $this->getGuardNames()->contains($permission->guard_name)) {
             throw GuardDoesNotMatch::create($permission->guard_name, $guardName ? collect([$guardName]) : $this->getGuardNames());

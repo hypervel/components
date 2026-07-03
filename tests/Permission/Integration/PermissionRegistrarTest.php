@@ -7,6 +7,9 @@ namespace Hypervel\Tests\Permission\Integration;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\Role as RoleContract;
+use Hypervel\Permission\Exceptions\PermissionAlreadyExists;
+use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
+use Hypervel\Permission\Exceptions\RoleDoesNotExist;
 use Hypervel\Permission\Models\Permission as HypervelPermission;
 use Hypervel\Permission\Models\Role as HypervelRole;
 use Hypervel\Permission\PermissionRegistrar;
@@ -116,5 +119,126 @@ class PermissionRegistrarTest extends TestCase
         $this->app->make(PermissionRegistrar::class)->setPermissionsTeamId($teamId);
 
         $this->assertSame($teamId, $this->app->make(PermissionRegistrar::class)->getPermissionsTeamId());
+    }
+
+    public function testPermissionLookupUsesGuardExactCatalogIndex(): void
+    {
+        $permissionClass = $this->app->make(PermissionContract::class);
+        $webPermission = $permissionClass::findByName('edit-articles', 'web');
+        $apiPermission = $permissionClass::create(['name' => 'edit-articles', 'guard_name' => 'api']);
+        $foundApiPermission = $permissionClass::findByName('edit-articles', 'api');
+        $foundApiPermissionById = $permissionClass::findById($apiPermission->getKey(), 'api');
+
+        $this->assertSame($webPermission->getKey(), $permissionClass::findByName('edit-articles', 'web')->getKey());
+        $this->assertSame($apiPermission->getKey(), $foundApiPermission->getKey());
+        $this->assertSame('api', $foundApiPermission->guard_name);
+        $this->assertSame($apiPermission->getKey(), $foundApiPermissionById->getKey());
+        $this->assertSame('api', $foundApiPermissionById->guard_name);
+    }
+
+    public function testPermissionCatalogIdLookupPreservesCatalogOrder(): void
+    {
+        $permissionClass = $this->app->make(PermissionContract::class);
+        $second = $permissionClass::findByName('edit-news');
+        $third = $permissionClass::findByName('edit-blog');
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $permissions = $registrar->getPermissions([
+            $second->getKeyName() => [$third->getKey(), $second->getKey()],
+            'guard_name' => 'web',
+        ]);
+
+        $this->assertSame(
+            [$second->getKey(), $third->getKey()],
+            $permissions->pluck($second->getKeyName())->all(),
+        );
+    }
+
+    public function testMissingCatalogLookupReturnsEmptyCollectionAndModelsStillThrow(): void
+    {
+        $permissionClass = $this->app->make(PermissionContract::class);
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $this->assertTrue($registrar->getPermissions(['name' => 'missing-permission', 'guard_name' => 'web'])->isEmpty());
+
+        try {
+            $permissionClass::findByName('missing-permission');
+            $this->fail('Expected missing permission exception was not thrown.');
+        } catch (PermissionDoesNotExist) {
+            $this->assertTrue(true);
+        }
+    }
+
+    public function testRoleLookupUsesCatalogIndexAndStillThrowsWhenMissing(): void
+    {
+        $roleClass = $this->app->make(RoleContract::class);
+        $role = $roleClass::findByName('testRole');
+
+        $this->assertTrue($role->is($roleClass::findById($role->getKey())));
+
+        try {
+            $roleClass::findByName('missing-role');
+            $this->fail('Expected missing role exception was not thrown.');
+        } catch (RoleDoesNotExist) {
+            $this->assertTrue(true);
+        }
+    }
+
+    public function testPermissionCreateUsesDatabaseForDuplicateCheckWhenCatalogIsStale(): void
+    {
+        $permissionClass = $this->app->make(PermissionContract::class);
+
+        $this->app->make(PermissionRegistrar::class)->getPermissions();
+
+        $permissionClass::query()->insert([
+            'name' => 'stale-catalog-permission',
+            'guard_name' => 'web',
+        ]);
+
+        $this->expectException(PermissionAlreadyExists::class);
+
+        $permissionClass::create(['name' => 'stale-catalog-permission']);
+    }
+
+    public function testPermissionFindOrCreateUsesDatabaseWhenCatalogIsStale(): void
+    {
+        $permissionClass = $this->app->make(PermissionContract::class);
+
+        $this->app->make(PermissionRegistrar::class)->getPermissions();
+
+        $id = $permissionClass::query()->insertGetId([
+            'name' => 'stale-catalog-find-or-create',
+            'guard_name' => 'web',
+        ]);
+
+        $permission = $permissionClass::findOrCreate('stale-catalog-find-or-create');
+
+        $this->assertSame($id, $permission->getKey());
+        $this->assertSame('stale-catalog-find-or-create', $permission->name);
+        $this->assertSame('web', $permission->guard_name);
+    }
+
+    public function testOldCachePayloadWithoutForbiddenRolePermissionFlagIsSafe(): void
+    {
+        $registrar = $this->app->make(PermissionRegistrar::class);
+
+        $registrar->getCacheRepository()->put($registrar->getCacheKey(), [
+            'permissions' => [],
+            'roles' => [],
+        ], 3600);
+
+        $registrar->clearPermissionsCollection();
+
+        $this->assertFalse($registrar->hasForbiddenRolePermissions());
+    }
+
+    public function testCatalogResolvedRolesExposeExpectedAttributes(): void
+    {
+        $role = $this->app->make(RoleContract::class)::findByName('testRole');
+
+        $this->assertSame($this->testUserRole->getKey(), $role->getKey());
+        $this->assertSame('testRole', $role->name);
+        $this->assertSame('web', $role->guard_name);
+        $this->assertFalse(array_key_exists('created_at', $role->getAttributes()));
     }
 }

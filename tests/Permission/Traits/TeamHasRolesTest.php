@@ -6,6 +6,9 @@ namespace Hypervel\Tests\Permission\Traits;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Permission\Contracts\Role;
+use Hypervel\Permission\Exceptions\RoleDoesNotExist;
+use Hypervel\Permission\PermissionRegistrar;
+use Hypervel\Permission\Support\Config;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 
@@ -104,6 +107,46 @@ class TeamHasRolesTest extends HasRolesTest
         $this->testUser->assignRole('testRole4');
         $this->assertTrue($this->testUser->hasExactRoles(['testRole', 'testRole3', 'testRole4']));
         $this->assertTrue($this->testUser->hasRole($testRole4NoTeam));
+    }
+
+    public function testRoleLookupFindsGlobalAndCurrentTeamRolesOnly(): void
+    {
+        app(Role::class)->create(['name' => 'global-role', 'team_test_id' => null]);
+        app(Role::class)->create(['name' => 'team-one-role', 'team_test_id' => 1]);
+        app(Role::class)->create(['name' => 'team-two-role', 'team_test_id' => 2]);
+
+        setPermissionsTeamId(1);
+
+        $this->assertSame('global-role', app(Role::class)::findByName('global-role')->name);
+        $this->assertSame('team-one-role', app(Role::class)::findByName('team-one-role')->name);
+
+        try {
+            app(Role::class)::findByName('team-two-role');
+            $this->fail('Expected missing team role exception was not thrown.');
+        } catch (RoleDoesNotExist) {
+            $this->assertTrue(true);
+        }
+
+        setPermissionsTeamId(2);
+
+        $this->assertSame('team-two-role', app(Role::class)::findByName('team-two-role')->name);
+    }
+
+    public function testRoleLookupUsesFirstCatalogMatchForGlobalAndCurrentTeamRoleWithSameName(): void
+    {
+        app(Role::class)->create(['name' => 'shared-role', 'team_test_id' => null]);
+        DB::table(Config::rolesTable())->insert([
+            'name' => 'shared-role',
+            'guard_name' => 'web',
+            'team_test_id' => 1,
+        ]);
+
+        setPermissionsTeamId(1);
+
+        $matches = app(PermissionRegistrar::class)->getRoles(['name' => 'shared-role', 'guard_name' => 'web']);
+
+        $this->assertCount(2, $matches);
+        $this->assertTrue($matches->first()->is(app(Role::class)::findByName('shared-role')));
     }
 
     public function testItCanSyncOrRemoveRolesWithoutDetachingDifferentTeams(): void
