@@ -11,6 +11,7 @@ use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middleware\PermissionMiddleware;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Gate;
+use Hypervel\Tests\Permission\Fixtures\Models\PlainAuthenticatableUser;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
 use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
 use Hypervel\Tests\Permission\TestCase;
@@ -104,6 +105,13 @@ class PermissionMiddlewareTest extends TestCase
     public function testUserWithoutHasRolesTraitCannotAccessRoute(): void
     {
         Auth::login(UserWithoutHasRoles::create(['email' => 'test_not_has_roles@user.com']));
+
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-news'));
+    }
+
+    public function testPlainAuthenticatableUserWithoutAuthorizableCannotAccessRoute(): void
+    {
+        Auth::login(PlainAuthenticatableUser::create(['email' => 'plain_authenticatable@user.com']));
 
         $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-news'));
     }
