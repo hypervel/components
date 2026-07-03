@@ -12,7 +12,7 @@
     "require": {
         "php": "^8.4",
         "ext-json": "*",
-        "bacon/bacon-qr-code": "^3.1",
+        "chillerlan/php-qrcode": "^6.0",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",
         "hypervel/collections": "^0.4",
@@ -34,7 +34,9 @@
         "hypervel/translation": "^0.4",
         "hypervel/validation": "^0.4",
         "hypervel/view": "^0.4",
-        "pragmarx/google2fa": "^9.0",
+        "nesbot/carbon": "^3.8.4",
+        "psr/clock": "^1.0",
+        "spomky-labs/otphp": "^11.0",
         "symfony/console": "^8.0"
     },
     "autoload": {
