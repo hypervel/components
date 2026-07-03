@@ -26,6 +26,7 @@
         "php": "^8.4",
         "laravel/serializable-closure": "^2.0.10",
         "nesbot/carbon": "^3.8.4",
+        "psr/clock": "^1.0",
         "symfony/console": "^8.0",
         "symfony/error-handler": "^8.0",
         "symfony/finder": "^8.0",

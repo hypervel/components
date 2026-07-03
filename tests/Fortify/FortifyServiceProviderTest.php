@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Fortify;
 use Closure;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Fortify\Contracts\RedirectsIfTwoFactorAuthenticatable;
+use Hypervel\Fortify\Contracts\TwoFactorAuthenticationProvider as TwoFactorAuthenticationProviderContract;
 use Hypervel\Fortify\Contracts\TwoFactorDisabledResponse as TwoFactorDisabledResponseContract;
 use Hypervel\Fortify\Contracts\TwoFactorEnabledResponse as TwoFactorEnabledResponseContract;
 use Hypervel\Fortify\Fortify;
@@ -15,6 +16,9 @@ use Hypervel\Fortify\Http\Responses\TwoFactorEnabledResponse;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
+use Hypervel\Tests\Fortify\Fixtures\FixedClock;
+use OTPHP\TOTP;
+use Psr\Clock\ClockInterface;
 use ReflectionClass;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -60,6 +64,21 @@ class FortifyServiceProviderTest extends TestCase
             TwoFactorDisabledResponse::class,
             $this->app->make(TwoFactorDisabledResponseContract::class)
         );
+    }
+
+    public function testTwoFactorAuthenticationProviderUsesFrameworkClock(): void
+    {
+        $timestamp = 946684800;
+        $clock = new FixedClock($timestamp);
+        $secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+        $code = TOTP::createFromSecret($secret, $clock)->at($timestamp);
+
+        $this->app->instance(ClockInterface::class, $clock);
+        $this->app->forgetInstance(TwoFactorAuthenticationProviderContract::class);
+
+        $provider = $this->app->make(TwoFactorAuthenticationProviderContract::class);
+
+        $this->assertTrue($provider->verify($secret, $code));
     }
 
     #[DefineEnvironment('withTwoFactorAuthentication')]

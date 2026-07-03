@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Fortify;
 
-use Carbon\FactoryImmutable;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Config\Repository as Config;
 use Hypervel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
@@ -55,6 +54,7 @@ use Hypervel\Http\Request;
 use Hypervel\Passkeys\Passkeys;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
+use Psr\Clock\ClockInterface;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -70,7 +70,7 @@ class FortifyServiceProvider extends ServiceProvider
 
         $this->app->singleton(TwoFactorAuthenticationProviderContract::class, function ($app): TwoFactorAuthenticationProvider {
             return new TwoFactorAuthenticationProvider(
-                new FactoryImmutable,
+                $app->make(ClockInterface::class),
                 $app->make(Repository::class),
             );
         });

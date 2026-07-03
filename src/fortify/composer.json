@@ -34,7 +34,6 @@
         "hypervel/translation": "^0.4",
         "hypervel/validation": "^0.4",
         "hypervel/view": "^0.4",
-        "nesbot/carbon": "^3.8.4",
         "psr/clock": "^1.0",
         "spomky-labs/otphp": "^11.0",
         "symfony/console": "^8.0"

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Providers;
 
+use Carbon\FactoryImmutable;
 use Hypervel\Config\Repository;
 use Hypervel\Console\Events\CommandFinished;
 use Hypervel\Console\Scheduling\Schedule;
@@ -95,6 +96,7 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
 use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Validation\ValidationException;
+use Psr\Clock\ClockInterface;
 use Symfony\Component\ErrorHandler\ErrorRenderer\HtmlErrorRenderer;
 use Symfony\Component\VarDumper\Caster\StubCaster;
 use Symfony\Component\VarDumper\Cloner\AbstractCloner;
@@ -143,6 +145,7 @@ class FoundationServiceProvider extends ServiceProvider
         ));
 
         $this->registerDeferHandler();
+        $this->registerClock();
         $this->registerConsoleSchedule();
         $this->registerMaintenanceModeManager();
         $this->registerRequestValidation();
@@ -214,6 +217,14 @@ class FoundationServiceProvider extends ServiceProvider
             ViewClearCommand::class,
             ViewMakeCommand::class,
         ]);
+    }
+
+    /**
+     * Register the framework clock implementation.
+     */
+    protected function registerClock(): void
+    {
+        $this->app->singleton(ClockInterface::class, fn () => new FactoryImmutable);
     }
 
     /**
