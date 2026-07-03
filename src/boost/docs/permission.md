@@ -6,7 +6,6 @@
     - [Running Migrations](#running-migrations)
 - [Configuration](#configuration)
     - [Models](#models)
-    - [Database Connection](#database-connection)
     - [Table and Column Names](#table-and-column-names)
     - [Cache](#cache)
 - [Model Setup](#model-setup)
@@ -127,21 +126,6 @@ You may customize the models used for roles and permissions:
 ```
 
 Custom role models must implement the `Hypervel\Permission\Contracts\Role` contract. Custom permission models must implement the `Hypervel\Permission\Contracts\Permission` contract. The easiest way to satisfy these contracts is to extend the package's base models.
-
-<a name="database-connection"></a>
-### Database Connection
-
-You may store the permission tables on a specific database connection:
-
-```php
-'storage' => [
-    'database' => [
-        'connection' => env('DB_CONNECTION', 'mysql'),
-    ],
-],
-```
-
-The published migration reads this value when choosing its migration connection.
 
 <a name="table-and-column-names"></a>
 ### Table and Column Names
@@ -1091,7 +1075,7 @@ public function boot(): void
 }
 ```
 
-The resolver adds a context segment to the global permission catalog, model assignment caches, assignment-cache token, and wildcard permission indexes. Since the resolver is called during each cache-key build, it can safely read request-specific coroutine context. Teams still scope inside this context, so a multi-tenant app can have independent teams for each tenant.
+The resolver adds a context segment to the global permission catalog, model assignment caches, assignment-cache token, via-role permission memo, and wildcard permission indexes. Since the resolver is called during each cache-key build, it can safely read request-specific coroutine context. Teams still scope inside this context, so a multi-tenant app can have independent teams for each tenant.
 
 **Why a static callback, not a config closure?** Config files are evaluated once at boot in Swoole. A closure calling `tenantId()` in config would capture the boot-time tenant (likely null), not the per-request tenant. The static resolver callback runs fresh when permission cache keys are built, reading the current coroutine's context.
 
@@ -1227,5 +1211,7 @@ $exception->getRequiredPermissions();
 ## Differences From Spatie Laravel Permission
 
 - Hypervel adds forbidden permissions. A forbidden permission explicitly denies an ability and wins over direct or role-granted allows. The deny flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge.
+- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. Explicit denies are exposed through `hasForbiddenPermission()` and `hasForbiddenPermissionViaRoles()`.
 - Hypervel accepts pure unit enums anywhere enum names are valid role or permission inputs. Backed enums use their values; unit enums use their case names.
 - Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
+- Undefined `permission.cache.store` values fail fast through Hypervel's cache manager instead of silently falling back to an array store.
