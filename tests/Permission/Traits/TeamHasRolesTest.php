@@ -149,6 +149,40 @@ class TeamHasRolesTest extends HasRolesTest
         $this->assertTrue($matches->first()->is(app(Role::class)::findByName('shared-role')));
     }
 
+    public function testRoleFindOrCreateCreatesCurrentTeamRoleWhenOnlyAnotherTeamHasSameName(): void
+    {
+        app(Role::class)->create(['name' => 'team-find-or-create', 'team_test_id' => 2]);
+
+        setPermissionsTeamId(1);
+
+        $role = app(Role::class)::findOrCreate('team-find-or-create');
+
+        $this->assertSame(1, $role->team_test_id);
+        $this->assertDatabaseHas(Config::rolesTable(), [
+            'name' => 'team-find-or-create',
+            'guard_name' => 'web',
+            'team_test_id' => 1,
+        ]);
+        $this->assertSame(2, app(Role::class)->where('name', 'team-find-or-create')->count());
+    }
+
+    public function testRoleFindOrCreateReturnsGlobalRoleInCurrentTeamScope(): void
+    {
+        $globalRoleId = DB::table(Config::rolesTable())->insertGetId([
+            'name' => 'global-find-or-create',
+            'guard_name' => 'web',
+            'team_test_id' => null,
+        ]);
+
+        setPermissionsTeamId(1);
+
+        $role = app(Role::class)::findOrCreate('global-find-or-create');
+
+        $this->assertSame($globalRoleId, $role->getKey());
+        $this->assertNull($role->team_test_id);
+        $this->assertSame(1, app(Role::class)->where('name', 'global-find-or-create')->count());
+    }
+
     public function testItCanSyncOrRemoveRolesWithoutDetachingDifferentTeams(): void
     {
         app(Role::class)->create(['name' => 'testRole3', 'team_test_id' => 2]);
