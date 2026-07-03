@@ -118,6 +118,8 @@ class TwoFactorAuthenticationProviderTest extends TestCase
 
     public function testReplayCacheKeyIncludesSecretAndCode(): void
     {
+        Features::twoFactorAuthentication(['window' => 1]);
+
         $firstSecret = 'GBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
         $secondSecret = 'QVAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
         $code = $this->codeAt($firstSecret, self::TIMESTAMP);
