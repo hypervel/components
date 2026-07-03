@@ -35,7 +35,7 @@ Files checked:
 - `src/foundation/src/Bootstrap/HandleExceptions.php`
 - `tests/Cache/CacheSwooleStoreTest.php`
 
-Current interval behavior:
+Previous interval behavior at the start of this work:
 
 ```php
 protected array $intervals = [];
@@ -157,7 +157,7 @@ Metadata shape:
 [
     'key' => $key,
     'metadataKey' => $this->intervalKey($key),
-    'resolver' => new SerializableClosure($resolver),
+    'resolver' => serialize(new SerializableClosure($resolver)),
     'lastRefreshedAt' => null,
     'refreshingAt' => null,
     'refreshInterval' => $seconds,
@@ -180,6 +180,7 @@ Why:
 
 - The metadata key is bounded, seeded, and does not collide with ordinary `interval-*` user keys.
 - Storing the original key inside metadata lets refresh code write the public cache value without depending on index row keys.
+- Storing the resolver as serialized bytes keeps metadata serialization inside the row lock to scalar/string data only. Any captured-object `__sleep()` or `__wakeup()` work happens outside the lock when the resolver is registered or invoked.
 - `lastRefreshedAt` records the last successful refresh. `refreshingAt` is a short-lived claim that prevents overlapping refresh work.
 - Keeping the metadata row live for `ONE_YEAR` matches existing SwooleStore forever semantics.
 
@@ -193,7 +194,7 @@ public function interval(string $key, Closure $resolver, int $seconds): void
     $metadata = [
         'key' => $key,
         'metadataKey' => $this->intervalKey($key),
-        'resolver' => new SerializableClosure($resolver),
+        'resolver' => serialize(new SerializableClosure($resolver)),
         'lastRefreshedAt' => null,
         'refreshingAt' => null,
         'refreshInterval' => $seconds,
@@ -201,8 +202,15 @@ public function interval(string $key, Closure $resolver, int $seconds): void
 
     $metadataKey = $this->intervalKey($key);
 
-    $metadataWritten = $this->state->withRowLock($metadataKey, function () use ($key, $metadata) {
-        return $this->putIntervalMetadata($key, $metadata);
+    $metadataWritten = $this->state->withRowLock($metadataKey, function () use ($metadataKey, $metadata) {
+        $existing = $this->getIntervalMetadataByInternalKey($metadataKey);
+
+        if ($existing !== null) {
+            $metadata['lastRefreshedAt'] = $existing['lastRefreshedAt'];
+            $metadata['refreshingAt'] = $existing['refreshingAt'];
+        }
+
+        return $this->putIntervalMetadataByInternalKey($metadataKey, $metadata);
     });
 
     if (! $metadataWritten) {
@@ -440,7 +448,9 @@ protected function refreshIntervalCache(string $metadataKey, bool $force = false
     [$metadata, $claimedAt] = $claim;
 
     try {
-        $value = $metadata['resolver']();
+        /** @var SerializableClosure $resolver */
+        $resolver = unserialize($metadata['resolver']);
+        $value = $resolver();
 
         if (! $this->forever($metadata['key'], $value)) {
             throw new RuntimeException("Unable to refresh Swoole interval cache [{$metadata['key']}].");
@@ -598,7 +608,7 @@ Why:
 
    Why: avoid public `get()` recursion, double serialization, and duplicated plan-1 helpers.
 
-   How: replace plan 1's `getInterval()` with one metadata accessor vocabulary centered on `getIntervalMetadataByInternalKey()` and `putIntervalMetadataByInternalKey()`. Add logical-key wrappers only if they have real call sites; do not keep an unused `getIntervalMetadata()` helper.
+   How: replace plan 1's `getInterval()` with one metadata accessor vocabulary centered on `getIntervalMetadataByInternalKey()` and `putIntervalMetadataByInternalKey()`. Store the resolver as serialized bytes so these accessors only serialize scalar/string metadata inside row locks. Add logical-key wrappers only if they have real call sites; do not keep an unused `getIntervalMetadata()` helper.
 
 5. Implement shared index registration.
 
@@ -610,7 +620,7 @@ Why:
 
    Why: registration should be shared and cheap.
 
-   How: write metadata under the metadata row lock, register the index shard, register the local set, do not run the resolver.
+   How: serialize the `SerializableClosure` before acquiring the metadata row lock, write metadata under the metadata row lock, preserve an existing `lastRefreshedAt` / `refreshingAt` if the same key is re-registered, register the index shard, register the local set, do not run the resolver.
 
 7. Rewrite `refreshIntervalCaches()`.
 
@@ -622,7 +632,7 @@ Why:
 
    Why: prevent overlapping refreshes and avoid poisoning successful-refresh timestamps after exceptions.
 
-   How: claim with `refreshingAt` under metadata row lock, run resolver outside locks, write public value through `forever()`, complete by setting `lastRefreshedAt` and clearing `refreshingAt`, and clear/report or clear/rethrow on failure.
+   How: claim with `refreshingAt` under metadata row lock, unserialize and run the resolver outside locks, write public value through `forever()`, complete by setting `lastRefreshedAt` and clearing `refreshingAt`, and clear/report or clear/rethrow on failure.
 
 9. Replace plan 1's local interval fallback in `get()`.
 

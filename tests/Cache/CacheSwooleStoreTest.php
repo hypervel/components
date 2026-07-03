@@ -20,6 +20,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use ReflectionMethod;
+use TypeError;
 
 class CacheSwooleStoreTest extends TestCase
 {
@@ -301,6 +302,23 @@ class CacheSwooleStoreTest extends TestCase
         $this->assertSame(1, $store->get('counter'));
     }
 
+    public function testIncrementDoesNotWakeObjectPayloadUnderRowLock(): void
+    {
+        $state = $this->createState();
+        $store = $this->createStore($state);
+        SwooleStoreWakeupProbe::$wakeups = 0;
+
+        $this->setLogicalRow($state, $store, 'counter', new SwooleStoreWakeupProbe, time() + 100);
+
+        $this->expectException(TypeError::class);
+
+        try {
+            $store->increment('counter');
+        } finally {
+            $this->assertSame(0, SwooleStoreWakeupProbe::$wakeups);
+        }
+    }
+
     public function testForeverStoresValueInTable(): void
     {
         $store = $this->createStore();
@@ -344,10 +362,15 @@ class CacheSwooleStoreTest extends TestCase
         $store->put('foo', 'bar', 5);
         $store->interval('interval', fn () => 'value', 1);
         $this->assertTrue($store->lock('lock', 60)->acquire());
+        $state->table()->set('legacy-row', [
+            'value' => serialize('legacy'),
+            'expiration' => time() + 100,
+        ]);
 
         $this->assertTrue($store->flush());
 
         $this->assertNull($store->get('foo'));
+        $this->assertFalse($state->table()->get('legacy-row'));
         $this->assertNotFalse($state->table()->get($this->tableKey($store, 'intervalKey', 'interval')));
         $this->assertNotFalse($state->table()->get($this->tableKey($store, 'lockKey', 'lock')));
         $this->assertSame('value', $store->get('interval'));
@@ -447,9 +470,14 @@ class CacheSwooleStoreTest extends TestCase
         $store->interval('interval', fn () => 'value', 1);
         $this->assertTrue($store->lock('lock', 60)->acquire());
         $store->put('foo', 'bar', 60);
+        $state->table()->set('legacy-row', [
+            'value' => serialize('legacy'),
+            'expiration' => time() + 100,
+        ]);
 
         $store->evictRecords();
 
+        $this->assertFalse($state->table()->get('legacy-row'));
         $this->assertNotFalse($state->table()->get($this->tableKey($store, 'intervalKey', 'interval')));
         $this->assertNotFalse($state->table()->get($this->tableKey($store, 'lockKey', 'lock')));
     }
@@ -747,5 +775,15 @@ class SwooleStoreEvictionSpy extends SwooleStore
     protected function memoryLimitIsReached(): bool
     {
         return $this->memoryLimitReached;
+    }
+}
+
+class SwooleStoreWakeupProbe
+{
+    public static int $wakeups = 0;
+
+    public function __wakeup(): void
+    {
+        ++self::$wakeups;
     }
 }

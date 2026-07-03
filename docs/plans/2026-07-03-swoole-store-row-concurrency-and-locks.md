@@ -326,7 +326,9 @@ protected function isUserKey(string $tableKey): bool
 
 protected function isControlKey(string $tableKey): bool
 {
-    return ! $this->isUserKey($tableKey);
+    return str_starts_with($tableKey, self::INTERVAL_PREFIX)
+        || str_starts_with($tableKey, self::INTERVAL_INDEX_PREFIX)
+        || $this->isLockKey($tableKey);
 }
 
 protected function isLockKey(string $key): bool
@@ -340,6 +342,7 @@ Why:
 - Swoole Table truncates long physical keys, so raw user keys are not safe.
 - `flush()` currently skips every user key beginning with `interval-`; that is accidental control-key leakage.
 - Lock rows must survive normal `flush()` just like other stores with separate lock stores.
+- Control-key detection is explicit. Unknown raw rows are treated as user/cache data so stale legacy rows cannot be preserved forever.
 - Hashed user and control keys keep every physical key comfortably below Swoole's observed 63-byte storage width.
 - Seeded xxh128 keeps per-operation hashing fast while preventing an attacker who controls logical cache keys from precomputing chosen collisions offline. The seed lives on `SwooleTableState`, is generated before fork, and is inherited consistently by workers that share the table state.
 
@@ -660,7 +663,7 @@ public function interval(string $key, Closure $resolver, int $seconds): void
         }
 
         $this->rawPutSerialized($intervalKey, serialize([
-            'resolver' => new SerializableClosure($resolver),
+            'resolver' => serialize(new SerializableClosure($resolver)),
             'lastRefreshedAt' => null,
             'refreshInterval' => $seconds,
         ]), $this->expiration(static::ONE_YEAR));
@@ -687,7 +690,10 @@ public function refreshIntervalCaches(): void
             )), $this->expiration(static::ONE_YEAR));
         });
 
-        $this->forever($key, $interval['resolver']());
+        /** @var SerializableClosure $resolver */
+        $resolver = unserialize($interval['resolver']);
+
+        $this->forever($key, $resolver());
     }
 }
 ```

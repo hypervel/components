@@ -11,6 +11,7 @@ use Hypervel\Cache\SwooleTableState;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Tests\TestCase;
+use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -34,10 +35,39 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $this->assertFalse($state->table()->get('interval-foo'));
         $this->assertSame('foo', $metadata['key']);
         $this->assertSame($metadataKey, $metadata['metadataKey']);
+        $this->assertIsString($metadata['resolver']);
+        $this->assertInstanceOf(SerializableClosure::class, unserialize($metadata['resolver']));
         $this->assertNull($metadata['lastRefreshedAt']);
         $this->assertNull($metadata['refreshingAt']);
         $this->assertSame(5, $metadata['refreshInterval']);
         $this->assertSame([$metadataKey => true], $index);
+    }
+
+    public function testIntervalMetadataSerializationDoesNotRunCapturedObjectMagicInsideRowLock(): void
+    {
+        $state = $this->createState();
+        $store = new InstrumentedIntervalSwooleStore($state);
+        IntervalMetadataSerializationProbe::reset();
+        $probe = new IntervalMetadataSerializationProbe;
+
+        $store->interval('foo', function () use ($probe) {
+            return $probe->value();
+        }, 5);
+
+        $metadata = $this->metadata($state, $this->metadataKey($store, 'foo'));
+
+        $this->assertIsString($metadata['resolver']);
+        $this->assertSame(0, IntervalMetadataSerializationProbe::$insideSleeps);
+        $this->assertSame(0, IntervalMetadataSerializationProbe::$insideWakeups);
+        $this->assertSame(1, IntervalMetadataSerializationProbe::$outsideSleeps);
+        $this->assertSame(0, IntervalMetadataSerializationProbe::$outsideWakeups);
+
+        $store->refreshIntervalCaches();
+
+        $this->assertSame('bar', $store->get('foo'));
+        $this->assertSame(0, IntervalMetadataSerializationProbe::$insideSleeps);
+        $this->assertSame(0, IntervalMetadataSerializationProbe::$insideWakeups);
+        $this->assertSame(1, IntervalMetadataSerializationProbe::$outsideWakeups);
     }
 
     public function testIntervalRegistrationIsIdempotentForLocalAndSharedIndexes(): void
@@ -54,6 +84,90 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $this->assertSame([$metadataKey => true], $index);
         $this->assertSame(['foo' => true], $this->localIntervals($store));
         $this->assertSame(10, $this->metadata($state, $metadataKey)['refreshInterval']);
+    }
+
+    public function testIntervalReregistrationPreservesLastRefreshTimestamp(): void
+    {
+        Carbon::setTestNow('2000-01-01 00:00:00');
+
+        $state = $this->createState();
+        $store = $this->createStore($state);
+        IntervalResolverState::$attempts = 0;
+
+        $store->interval('foo', function () {
+            return ++IntervalResolverState::$attempts;
+        }, 5);
+        $store->refreshIntervalCaches();
+        $this->assertSame(1, $store->get('foo'));
+
+        $metadataKey = $this->metadataKey($store, 'foo');
+        $lastRefreshedAt = $this->metadata($state, $metadataKey)['lastRefreshedAt'];
+
+        Carbon::setTestNow('2000-01-01 00:00:01');
+
+        $store->interval('foo', fn () => 999, 5);
+
+        $this->assertSame($lastRefreshedAt, $this->metadata($state, $metadataKey)['lastRefreshedAt']);
+
+        $store->refreshIntervalCaches();
+
+        $this->assertSame(1, $store->get('foo'));
+        $this->assertSame(1, IntervalResolverState::$attempts);
+    }
+
+    public function testIntervalReregistrationPreservesFreshRefreshClaim(): void
+    {
+        Carbon::setTestNow('2000-01-01 00:00:00');
+
+        $state = $this->createState();
+        $store = $this->createStore($state);
+        $count = 0;
+
+        $store->interval('foo', function () use (&$count) {
+            return ++$count;
+        }, 5);
+
+        $metadataKey = $this->metadataKey($store, 'foo');
+        $metadata = $this->metadata($state, $metadataKey);
+        $metadata['refreshingAt'] = $this->currentTimestamp();
+        $this->putMetadata($state, $metadataKey, $metadata);
+
+        $store->interval('foo', function () use (&$count) {
+            return ++$count;
+        }, 1);
+
+        $this->assertSame($this->currentTimestamp(), $this->metadata($state, $metadataKey)['refreshingAt']);
+
+        $store->refreshIntervalCaches();
+
+        $this->assertSame(0, $count);
+    }
+
+    public function testIntervalReregistrationUpdatesResolverAndRefreshIntervalForFutureRefreshes(): void
+    {
+        Carbon::setTestNow('2000-01-01 00:00:00');
+
+        $state = $this->createState();
+        $store = $this->createStore($state);
+
+        $store->interval('foo', fn () => 'first', 10);
+        $store->refreshIntervalCaches();
+        $this->assertSame('first', $store->get('foo'));
+
+        Carbon::setTestNow('2000-01-01 00:00:01');
+
+        $store->interval('foo', fn () => 'second', 2);
+        $store->refreshIntervalCaches();
+        $this->assertSame('first', $store->get('foo'));
+
+        Carbon::setTestNow('2000-01-01 00:00:02');
+
+        $store->refreshIntervalCaches();
+
+        $metadata = $this->metadata($state, $this->metadataKey($store, 'foo'));
+
+        $this->assertSame('second', $store->get('foo'));
+        $this->assertSame(2, $metadata['refreshInterval']);
     }
 
     public function testSameInstanceFallbackResolvesBeforeFirstTimerTick(): void
@@ -558,6 +672,86 @@ class FailingIntervalValueSwooleStore extends SwooleStore
     public function forever(string $key, mixed $value): bool
     {
         return false;
+    }
+}
+
+class InstrumentedIntervalSwooleStore extends SwooleStore
+{
+    public function __construct(SwooleTableState $state)
+    {
+        parent::__construct($state, 0.05, SwooleStore::EVICTION_POLICY_TTL, 0.05);
+    }
+
+    protected function getIntervalMetadataByInternalKey(string $metadataKey): ?array
+    {
+        IntervalMetadataSerializationProbe::$insideMetadataSerialization = true;
+
+        try {
+            return parent::getIntervalMetadataByInternalKey($metadataKey);
+        } finally {
+            IntervalMetadataSerializationProbe::$insideMetadataSerialization = false;
+        }
+    }
+
+    protected function putIntervalMetadataByInternalKey(string $metadataKey, array $metadata): bool
+    {
+        IntervalMetadataSerializationProbe::$insideMetadataSerialization = true;
+
+        try {
+            return parent::putIntervalMetadataByInternalKey($metadataKey, $metadata);
+        } finally {
+            IntervalMetadataSerializationProbe::$insideMetadataSerialization = false;
+        }
+    }
+}
+
+class IntervalMetadataSerializationProbe
+{
+    public static bool $insideMetadataSerialization = false;
+
+    public static int $insideSleeps = 0;
+
+    public static int $insideWakeups = 0;
+
+    public static int $outsideSleeps = 0;
+
+    public static int $outsideWakeups = 0;
+
+    public static function reset(): void
+    {
+        self::$insideMetadataSerialization = false;
+        self::$insideSleeps = 0;
+        self::$insideWakeups = 0;
+        self::$outsideSleeps = 0;
+        self::$outsideWakeups = 0;
+    }
+
+    public function value(): string
+    {
+        return 'bar';
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function __sleep(): array
+    {
+        if (self::$insideMetadataSerialization) {
+            ++self::$insideSleeps;
+        } else {
+            ++self::$outsideSleeps;
+        }
+
+        return [];
+    }
+
+    public function __wakeup(): void
+    {
+        if (self::$insideMetadataSerialization) {
+            ++self::$insideWakeups;
+        } else {
+            ++self::$outsideWakeups;
+        }
     }
 }
 

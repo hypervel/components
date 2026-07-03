@@ -86,6 +86,8 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             if ($value !== null) {
                 return $value;
             }
+
+            // A resolver may have stored a live null value; the locked stale-row recheck below decides whether to delete.
         }
 
         if ($record !== false) {
@@ -187,7 +189,7 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
                 return $value;
             }
 
-            $incremented = (int) (unserialize($record['value']) + $value);
+            $incremented = (int) (unserialize($record['value'], ['allowed_classes' => false]) + $value);
 
             $this->rawPutSerialized($tableKey, serialize($incremented), $record['expiration']);
 
@@ -250,7 +252,7 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         $metadata = [
             'key' => $key,
             'metadataKey' => $metadataKey,
-            'resolver' => new SerializableClosure($resolver),
+            'resolver' => serialize(new SerializableClosure($resolver)),
             'lastRefreshedAt' => null,
             'refreshingAt' => null,
             'refreshInterval' => $seconds,
@@ -258,7 +260,16 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
         $metadataWritten = $this->state->withRowLock(
             $metadataKey,
-            fn (): bool => $this->putIntervalMetadataByInternalKey($metadataKey, $metadata),
+            function () use ($metadataKey, $metadata): bool {
+                $existing = $this->getIntervalMetadataByInternalKey($metadataKey);
+
+                if ($existing !== null) {
+                    $metadata['lastRefreshedAt'] = $existing['lastRefreshedAt'];
+                    $metadata['refreshingAt'] = $existing['refreshingAt'];
+                }
+
+                return $this->putIntervalMetadataByInternalKey($metadataKey, $metadata);
+            },
         );
 
         if (! $metadataWritten) {
@@ -850,7 +861,9 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
             [$metadata, $claimedAt] = $claim;
 
-            $value = $metadata['resolver']();
+            /** @var SerializableClosure $resolver */
+            $resolver = unserialize($metadata['resolver']);
+            $value = $resolver();
 
             if (! $this->forever($metadata['key'], $value)) {
                 throw new RuntimeException("Unable to refresh Swoole interval cache [{$metadata['key']}].");
@@ -1066,7 +1079,9 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     protected function isControlKey(string $key): bool
     {
-        return ! $this->isUserKey($key);
+        return str_starts_with($key, static::INTERVAL_PREFIX)
+            || str_starts_with($key, static::INTERVAL_INDEX_PREFIX)
+            || $this->isLockKey($key);
     }
 
     /**

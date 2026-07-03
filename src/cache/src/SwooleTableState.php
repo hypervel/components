@@ -6,6 +6,18 @@ namespace Hypervel\Cache;
 
 use Swoole\Atomic;
 
+/**
+ * Coordinates multi-step Swoole table row mutations across workers.
+ *
+ * Swoole Table does not currently provide full-row compare-and-swap,
+ * set-if-absent, or delete-if-current primitives, so cache operations that need
+ * atomic read-check-write behavior use striped shared Atomics around tiny
+ * critical sections.
+ *
+ * @TODO Revisit this if Swoole Table adds full-row CAS / set-if-absent /
+ * delete-if-current primitives so these operations can use native table atomics
+ * instead of external stripe locks.
+ */
 class SwooleTableState
 {
     protected const STRIPE_COUNT = 64;
@@ -107,6 +119,7 @@ class SwooleTableState
     {
         while (! $lock->cmpset(0, 1)) {
             // Critical sections must stay short, non-yielding, and fatal-free so finally can release the stripe.
+            // A hard process death while holding a stripe leaves it locked until the Swoole table state is recreated.
         }
     }
 
