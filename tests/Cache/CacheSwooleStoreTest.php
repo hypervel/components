@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
+use Hypervel\Cache\Exceptions\ValueTooLargeForColumnException;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\SwooleStore;
@@ -54,6 +55,16 @@ class CacheSwooleStoreTest extends TestCase
         $this->expectExceptionMessage('Swoole table [missing] is not defined.');
 
         (new SwooleTableManager($container))->get('missing');
+    }
+
+    public function testSwooleTableRejectsStringValuesLargerThanColumnSize(): void
+    {
+        $table = $this->createState(bytes: 8)->table();
+
+        $this->expectException(ValueTooLargeForColumnException::class);
+        $this->expectExceptionMessage('Should be less than 8 characters but got 9 characters.');
+
+        $table->set('foo', ['value' => '123456789']);
     }
 
     public function testExpiredItemsReturnNull(): void
