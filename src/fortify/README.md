@@ -15,7 +15,9 @@ See `src/boost/docs/fortify.md` for the canonical Fortify and Passkeys documenta
 - Fortify supports boot-time request-aware redirect callbacks for dynamic post-login destinations, such as for custom domains, multi-guard apps, or multi-tenant apps.
 - Fortify throttles two-factor challenge submissions by default.
 - Fortify fixes Laravel's two-factor response contract mismatch.
-- Fortify's two-factor provider contract accepts the configured secret length, and the default is `32` for `pragmarx/google2fa` v9.
+- Fortify's two-factor provider uses OTPHP with mandatory PSR clock injection, fresh per-secret TOTP objects, and a default secret length of `32` characters.
+- Fortify renders two-factor QR SVGs through a concrete internal chillerlan renderer.
+- Fortify caches accepted TOTP codes for the full configured verification window to prevent replay for as long as the code remains acceptable.
 - Recovery code replacement operates on decoded JSON entries.
 - Fortify omits Laravel's deprecated `Rules\Password`.
 - Fortify tightens loose upstream comparisons and application-model event docs where Hypervel can express the real contract.
