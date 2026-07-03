@@ -14,6 +14,8 @@ The final code should read as if the store was designed around Swoole Table's ac
 - Every Swoole Table row key is a short deterministic table key, so Swoole's key-size limit cannot truncate or collide long user keys.
 - Physical table keys use seeded `xxh128`, with the seed created in pre-fork shared state, to keep hashing fast while preventing offline collision crafting against untrusted logical keys.
 - Control rows for locks and interval metadata are clearly separated from user cache entries.
+- Production timestamp reads avoid Carbon object construction while preserving `Carbon::setTestNow()` behavior for tests.
+- `SwooleTable::set()` keeps its string-size guard without per-write Collection or closure allocation.
 - No method calls a public locking method while it already holds a row lock.
 
 ## Research
@@ -407,6 +409,70 @@ Why:
 - LRU/LFU metadata is intentionally approximate under races; cache eviction metadata does not need to be as strong as cache value correctness.
 - If a metadata write races with a delete, Swoole may leave a shell row with default `value` / `expiration` columns. That shell row is expired and self-cleaning on the next read or stale cleanup. It is acceptable because the alternative is locking every read, which is the performance cost this design avoids.
 - Local interval fallback is checked before deleting an expired public value, preserving today's same-instance interval behavior. The interval-cache plan will replace direct fallback resolution with the shared claim/write path.
+
+### Use `microtime()` for production timestamps
+
+`getCurrentTimestamp()` is on the hot path for reads, writes, expiration checks, locks, and interval claims. Building a Carbon object for every production timestamp adds more work than the store needs.
+
+Keep Carbon only when tests have frozen time:
+
+```php
+protected function getCurrentTimestamp(): float
+{
+    return Carbon::hasTestNow()
+        ? Carbon::now()->getPreciseTimestamp(6) / 1000000
+        : microtime(true);
+}
+```
+
+Why:
+
+- `microtime(true)` returns the same float seconds shape the store already stores in Swoole Table rows.
+- Production cache operations avoid constructing a Carbon object on every timestamp read.
+- `Carbon::setTestNow()` continues to control expiration, LRU metadata, lock lifetime, and interval timing tests.
+
+### Keep the Swoole table write guard allocation-free
+
+`SwooleTable::set()` must keep checking string column sizes before writing, but it should not allocate a Collection and closure for every table write.
+
+Use a direct loop:
+
+```php
+public function set(string $key, array $values): bool
+{
+    foreach ($values as $column => $value) {
+        if (! isset($this->columns[$column])) {
+            continue;
+        }
+
+        [$type, $size] = $this->columns[$column];
+
+        if ($type !== Table::TYPE_STRING) {
+            continue;
+        }
+
+        $length = strlen($value);
+
+        if ($length > $size) {
+            throw new ValueTooLargeForColumnException(sprintf(
+                'Value [%s...] is too large for [%s] column. Should be less than %d characters but got %d characters.',
+                substr($value, 0, 20),
+                $column,
+                $size,
+                $length
+            ));
+        }
+    }
+
+    return parent::set($key, $values);
+}
+```
+
+Why:
+
+- Every cache write goes through this guard.
+- The guard behavior and exception stay the same.
+- Removing the Collection and closure cuts avoidable allocation from `put()`, `add()`, `increment()`, `touch()`, lock writes, interval writes, and LRU metadata writes.
 
 ### Public mutating methods lock; raw helpers do not
 
@@ -1052,43 +1118,55 @@ These invariants are more important than minimizing line churn. If a helper's na
 
    How: raw read, return live value, best-effort metadata update for LRU/LFU only, locked recheck-delete for expired rows, then local interval fallback.
 
-7. Rewrite single-key mutators around row locks.
+7. Change `getCurrentTimestamp()` to use `microtime(true)` unless Carbon has frozen test time.
+
+   Why: timestamp reads are on the store hot path, and production code does not need Carbon object construction.
+
+   How: branch on `Carbon::hasTestNow()`, keep the existing precise Carbon path for tests, and use `microtime(true)` otherwise.
+
+8. Change `SwooleTable::set()` to check string column sizes with a plain loop.
+
+   Why: every write goes through this wrapper, so the old Collection and closure allocation added avoidable write-path cost.
+
+   How: remove `collect($values)->each($this->ensureColumnsSize())`, inline the guard as a `foreach`, preserve the `ValueTooLargeForColumnException`, and delete the now-unused helper/import.
+
+9. Rewrite single-key mutators around row locks.
 
    Why: fixes check-then-write and read-modify-write races.
 
    How: update `put()`, `add()`, `increment()`, `decrement()`, `touch()`, and `forget()` so public mutators lock their physical user table key and internal work uses raw helpers. Keep `forever()` as a thin delegate to public `put()`.
 
-8. Rewrite cleanup and eviction deletes.
+10. Rewrite cleanup and eviction deletes.
 
    Why: scans can be lock-free, deletes cannot.
 
    How: scans collect candidate user keys, collect expired lock keys separately, skip non-lock internal keys, then recheck/delete under each candidate row lock.
 
-9. Migrate current local interval methods enough for plan 1 to stand alone.
+11. Migrate current local interval methods enough for plan 1 to stand alone.
 
    Why: `flush()` and all-key hashing change the physical key namespace in this plan, so today's interval rows cannot keep using `interval-{$key}` until plan 2.
 
    How: convert `$intervals` to an associative set, update `getInterval()` / `interval()` / `refreshIntervalCaches()` to use `intervalKey($key)`, iterate local intervals with `array_keys($this->intervals)`, and use logical expiration checks for interval metadata dedupe.
 
-10. Gate write-path eviction.
+12. Gate write-path eviction.
 
    Why: adding locks to candidate deletes makes the inherited full-table scan after every write too expensive at scale.
 
    How: replace `put()`'s unconditional `evictRecords()` call with `evictRecordsIfNeeded()`, which checks `memoryLimitIsReached()` first. Keep `evictRecords()` as the full stale-cleanup plus eviction operation for the timer and pressure path.
 
-11. Rewrite `flush()` as an all-stripes user-row delete.
+13. Rewrite `flush()` as an all-stripes user-row delete.
 
    Why: `flush()` must not interleave with writers and must not delete internal lock/interval rows.
 
    How: call `withAllRowLocks()`, iterate table, delete only `isUserKey()` rows with raw deletes.
 
-12. Add `SwooleLock` and `LockProvider` support.
+14. Add `SwooleLock` and `LockProvider` support.
 
     Why: Swoole is a shared cache store and should support the framework's shared lock API.
 
     How: add lock helpers on `SwooleStore`, implement `SwooleLock`, implement `CanFlushLocks`, add `flushLocks()`.
 
-13. Update docs where Swoole store capabilities are listed.
+15. Update docs where Swoole store capabilities are listed.
 
     Why: docs should not lag the final codebase.
 
@@ -1166,6 +1244,8 @@ Required coverage:
 - `get()` under `noeviction` does not update `last_used_at` or `used_count`.
 - `get()` under `lru` updates only `last_used_at` and preserves `value`, `expiration`, and `used_count`.
 - `get()` under `lfu` increments only `used_count` and preserves `value`, `expiration`, and `last_used_at`.
+- Expiration behavior remains controllable with `Carbon::setTestNow()` after the production timestamp path switches to `microtime(true)`.
+- `SwooleTable::set()` still throws `ValueTooLargeForColumnException` when a string column value exceeds its configured size.
 - Expired `get()` deletes the row after a locked recheck.
 - `touch()` preserves the cached value while changing only expiration.
 - `touch()` deletes an expired physical row and returns `false`.
