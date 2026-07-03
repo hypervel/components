@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Support\Carbon;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
 use RuntimeException;
+use Throwable;
 
 class SwooleStore implements CanFlushLocks, LockProvider, Store
 {
@@ -29,12 +32,23 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
     protected const INTERVAL_PREFIX = 'i:';
 
+    protected const INTERVAL_INDEX_PREFIX = 'x:';
+
+    protected const INTERVAL_INDEX_SHARDS = 64;
+
+    /*
+     * This timeout must stay comfortably above normal resolver runtimes. If a
+     * worker crashes after claiming an interval, another process can reclaim it
+     * after this window instead of freezing refreshes until restart.
+     */
+    protected const INTERVAL_REFRESH_CLAIM_TIMEOUT = 300.0;
+
     protected const LOCK_PREFIX = 'l:';
 
     protected SwooleTable $table;
 
     /**
-     * All of the registered interval caches.
+     * Locally registered interval cache keys.
      *
      * @var array<string, true>
      */
@@ -66,8 +80,12 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             return unserialize($record['value']);
         }
 
-        if ($this->hasLocalInterval($key) && ! is_null($interval = $this->getInterval($key))) {
-            return $interval['resolver']();
+        if ($this->hasLocalInterval($key)) {
+            $value = $this->refreshIntervalCache($this->intervalKey($key), force: true, rethrow: true);
+
+            if ($value !== null) {
+                return $value;
+            }
         }
 
         if ($record !== false) {
@@ -75,18 +93,6 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         }
 
         return null;
-    }
-
-    /**
-     * Retrieve an interval item from the cache.
-     */
-    protected function getInterval(string $key): ?array
-    {
-        $record = $this->rawGet($this->intervalKey($key));
-
-        return $this->recordIsFalseOrExpired($record)
-            ? null
-            : unserialize($record['value']);
     }
 
     /**
@@ -240,26 +246,34 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     public function interval(string $key, Closure $resolver, int $seconds): void
     {
-        $intervalKey = $this->intervalKey($key);
-        $serialized = serialize([
+        $metadataKey = $this->intervalKey($key);
+        $metadata = [
+            'key' => $key,
+            'metadataKey' => $metadataKey,
             'resolver' => new SerializableClosure($resolver),
             'lastRefreshedAt' => null,
+            'refreshingAt' => null,
             'refreshInterval' => $seconds,
-        ]);
+        ];
 
-        $this->state->withRowLock($intervalKey, function () use ($intervalKey, $serialized): void {
-            if (! $this->recordIsFalseOrExpired($this->rawGet($intervalKey))) {
-                return;
-            }
+        $metadataWritten = $this->state->withRowLock(
+            $metadataKey,
+            fn (): bool => $this->putIntervalMetadataByInternalKey($metadataKey, $metadata),
+        );
 
-            $result = $this->rawPutSerialized($intervalKey, $serialized, $this->expiration(static::ONE_YEAR));
+        if (! $metadataWritten) {
+            throw new RuntimeException("Unable to register Swoole interval cache [{$key}].");
+        }
 
-            if (! $result) {
-                throw new RuntimeException('Unable to register Swoole interval cache.');
-            }
-        });
+        try {
+            $this->registerIntervalIndex($metadataKey);
+        } catch (Throwable $e) {
+            $this->state->withRowLock($metadataKey, fn (): bool => $this->rawForget($metadataKey));
 
-        $this->intervals[$key] = true;
+            throw $e;
+        }
+
+        $this->registerLocalInterval($key);
     }
 
     /**
@@ -267,39 +281,18 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     public function refreshIntervalCaches(): void
     {
-        foreach (array_keys($this->intervals) as $key) {
-            $interval = $this->getInterval($key);
-
-            if ($interval === null || ! $this->intervalShouldBeRefreshed($interval)) {
-                continue;
-            }
-
-            $intervalKey = $this->intervalKey($key);
-
-            $serialized = serialize(array_merge(
-                $interval,
-                ['lastRefreshedAt' => Carbon::now()->getTimestamp()],
-            ));
-
-            $this->state->withRowLock($intervalKey, function () use ($intervalKey, $serialized): void {
-                $result = $this->rawPutSerialized($intervalKey, $serialized, $this->expiration(static::ONE_YEAR));
-
-                if (! $result) {
-                    throw new RuntimeException('Unable to refresh Swoole interval metadata.');
-                }
-            });
-
-            $this->forever($key, $interval['resolver']());
+        foreach ($this->registeredIntervalMetadataKeys() as $metadataKey) {
+            $this->refreshIntervalCache($metadataKey);
         }
     }
 
     /**
      * Determine if the given interval record should be refreshed.
      */
-    protected function intervalShouldBeRefreshed(array $interval): bool
+    protected function intervalShouldBeRefreshed(array $metadata, float $now): bool
     {
-        return is_null($interval['lastRefreshedAt'])
-               || (Carbon::now()->getTimestamp() - $interval['lastRefreshedAt']) >= $interval['refreshInterval'];
+        return is_null($metadata['lastRefreshedAt'])
+               || ($now - $metadata['lastRefreshedAt']) >= $metadata['refreshInterval'];
     }
 
     /**
@@ -761,6 +754,222 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
     }
 
     /**
+     * Register a local interval key.
+     */
+    protected function registerLocalInterval(string $key): void
+    {
+        $this->intervals[$key] = true;
+    }
+
+    /**
+     * Register an interval metadata key in the shared index.
+     */
+    protected function registerIntervalIndex(string $metadataKey): void
+    {
+        $indexKey = $this->intervalIndexKey($metadataKey);
+
+        $result = $this->state->withRowLock($indexKey, function () use ($indexKey, $metadataKey): bool {
+            $record = $this->rawGet($indexKey);
+            $index = $this->recordIsFalseOrExpired($record) ? [] : unserialize($record['value']);
+
+            $index[$metadataKey] = true;
+
+            return $this->rawPutSerialized($indexKey, serialize($index), $this->expiration(static::ONE_YEAR));
+        });
+
+        if (! $result) {
+            throw new RuntimeException("Unable to register Swoole interval index row [{$indexKey}].");
+        }
+    }
+
+    /**
+     * Get registered interval metadata keys.
+     */
+    protected function registeredIntervalMetadataKeys(): array
+    {
+        $metadataKeys = [];
+
+        for ($i = 0; $i < static::INTERVAL_INDEX_SHARDS; ++$i) {
+            $indexKey = static::INTERVAL_INDEX_PREFIX . $i;
+            $record = $this->rawGet($indexKey);
+
+            if ($this->recordIsFalseOrExpired($record)) {
+                continue;
+            }
+
+            foreach (array_keys(unserialize($record['value'])) as $metadataKey) {
+                $metadataKeys[$metadataKey] = true;
+            }
+
+            $this->touchInternalRow($indexKey);
+        }
+
+        return array_keys($metadataKeys);
+    }
+
+    /**
+     * Refresh a single interval cache.
+     */
+    protected function refreshIntervalCache(string $metadataKey, bool $force = false, bool $rethrow = false): mixed
+    {
+        $claimedAt = null;
+
+        try {
+            $now = $this->getCurrentTimestamp();
+
+            $claim = $this->state->withRowLock($metadataKey, function () use ($metadataKey, $now, $force): ?array {
+                $metadata = $this->getIntervalMetadataByInternalKey($metadataKey);
+
+                if ($metadata === null) {
+                    return null;
+                }
+
+                if (! $force && ! $this->intervalShouldBeRefreshed($metadata, $now)) {
+                    return null;
+                }
+
+                if ($metadata['refreshingAt'] !== null
+                    && ! $this->intervalClaimIsStale($metadata['refreshingAt'], $now, $metadata['refreshInterval'])) {
+                    return null;
+                }
+
+                $metadata['refreshingAt'] = $now;
+
+                if (! $this->putIntervalMetadataByInternalKey($metadataKey, $metadata)) {
+                    throw new RuntimeException("Unable to claim Swoole interval cache [{$metadata['key']}].");
+                }
+
+                return [$metadata, $now];
+            });
+
+            if ($claim === null) {
+                return null;
+            }
+
+            [$metadata, $claimedAt] = $claim;
+
+            $value = $metadata['resolver']();
+
+            if (! $this->forever($metadata['key'], $value)) {
+                throw new RuntimeException("Unable to refresh Swoole interval cache [{$metadata['key']}].");
+            }
+
+            $this->completeIntervalRefresh($metadataKey, $claimedAt);
+
+            return $value;
+        } catch (Throwable $e) {
+            if ($claimedAt !== null) {
+                $this->clearIntervalClaim($metadataKey, $claimedAt);
+            }
+
+            if ($rethrow) {
+                throw $e;
+            }
+
+            $this->reportIntervalException($e);
+
+            return null;
+        }
+    }
+
+    /**
+     * Complete an interval refresh.
+     */
+    protected function completeIntervalRefresh(string $metadataKey, float $claimedAt): void
+    {
+        $this->state->withRowLock($metadataKey, function () use ($metadataKey, $claimedAt): void {
+            $metadata = $this->getIntervalMetadataByInternalKey($metadataKey);
+
+            if ($metadata === null || $metadata['refreshingAt'] !== $claimedAt) {
+                return;
+            }
+
+            $metadata['lastRefreshedAt'] = $claimedAt;
+            $metadata['refreshingAt'] = null;
+
+            if (! $this->putIntervalMetadataByInternalKey($metadataKey, $metadata)) {
+                throw new RuntimeException("Unable to complete Swoole interval cache refresh [{$metadata['key']}].");
+            }
+        });
+    }
+
+    /**
+     * Clear an interval refresh claim.
+     */
+    protected function clearIntervalClaim(string $metadataKey, float $claimedAt): void
+    {
+        $this->state->withRowLock($metadataKey, function () use ($metadataKey, $claimedAt): void {
+            $metadata = $this->getIntervalMetadataByInternalKey($metadataKey);
+
+            if ($metadata === null || $metadata['refreshingAt'] !== $claimedAt) {
+                return;
+            }
+
+            $metadata['refreshingAt'] = null;
+
+            $this->putIntervalMetadataByInternalKey($metadataKey, $metadata);
+        });
+    }
+
+    /**
+     * Determine if an interval refresh claim is stale.
+     */
+    protected function intervalClaimIsStale(float $refreshingAt, float $now, int $refreshInterval): bool
+    {
+        $timeout = max(static::INTERVAL_REFRESH_CLAIM_TIMEOUT, $refreshInterval * 2);
+
+        return ($now - $refreshingAt) >= $timeout;
+    }
+
+    /**
+     * Get interval metadata by internal key.
+     */
+    protected function getIntervalMetadataByInternalKey(string $metadataKey): ?array
+    {
+        $record = $this->rawGet($metadataKey);
+
+        return $this->recordIsFalseOrExpired($record)
+            ? null
+            : unserialize($record['value']);
+    }
+
+    /**
+     * Store interval metadata by internal key.
+     */
+    protected function putIntervalMetadataByInternalKey(string $metadataKey, array $metadata): bool
+    {
+        return $this->rawPutSerialized($metadataKey, serialize($metadata), $this->expiration(static::ONE_YEAR));
+    }
+
+    /**
+     * Touch an internal row.
+     */
+    protected function touchInternalRow(string $key): void
+    {
+        $this->state->withRowLock($key, function () use ($key): void {
+            if ($this->rawGet($key) !== false) {
+                $this->table->set($key, ['expiration' => $this->expiration(static::ONE_YEAR)]);
+            }
+        });
+    }
+
+    /**
+     * Report an interval refresh exception.
+     */
+    protected function reportIntervalException(Throwable $e): void
+    {
+        $container = Container::getInstance();
+
+        if ($container->bound(ExceptionHandler::class)) {
+            $container->make(ExceptionHandler::class)->report($e);
+
+            return;
+        }
+
+        file_put_contents('php://stderr', (string) $e . PHP_EOL);
+    }
+
+    /**
      * Get the expiration timestamp for a TTL.
      */
     protected function expiration(int $seconds): float
@@ -814,6 +1023,14 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
     protected function intervalKey(string $key): string
     {
         return $this->hashedTableKey(static::INTERVAL_PREFIX, $key);
+    }
+
+    /**
+     * Get the interval index shard key.
+     */
+    protected function intervalIndexKey(string $metadataKey): string
+    {
+        return static::INTERVAL_INDEX_PREFIX . (crc32($metadataKey) % static::INTERVAL_INDEX_SHARDS);
     }
 
     /**
