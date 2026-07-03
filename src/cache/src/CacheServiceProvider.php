@@ -10,7 +10,7 @@ use Hypervel\Cache\Console\ForgetCommand;
 use Hypervel\Cache\Console\PruneDbExpiredCommand;
 use Hypervel\Cache\Console\PruneStaleTagsCommand;
 use Hypervel\Cache\Listeners\CreateSwooleTable;
-use Hypervel\Cache\Listeners\CreateTimer;
+use Hypervel\Cache\Listeners\CreateSwooleTimers;
 use Hypervel\Cache\Redis\Console\BenchmarkCommand;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Core\Events\BeforeServerStart;
@@ -57,7 +57,7 @@ class CacheServiceProvider extends ServiceProvider
         });
 
         $events->listen(OnManagerStart::class, function (OnManagerStart $event) {
-            $this->app->make(CreateTimer::class)->handle($event);
+            $this->app->make(CreateSwooleTimers::class)->handle($event);
         });
     }
 }
