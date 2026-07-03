@@ -410,7 +410,7 @@ The built-in two-factor routes include:
 
 Fortify stores recovery codes as one encrypted JSON value. When a recovery code is used, Hypervel Fortify replaces the exact decoded JSON array entry and re-encrypts the whole JSON value.
 
-The two-factor provider defaults to 32-character secrets, matching `pragmarx/google2fa` v9. The optional `window` feature option is passed to Google2FA per verification call; Fortify does not mutate shared Google2FA state in a Swoole worker.
+The two-factor provider defaults to 32-character TOTP secrets. The optional `window` feature option is step-based: a value of `1` accepts the previous, current, and next 30-second periods. Accepted TOTP codes are cached for the full accepted window to prevent replay for as long as Fortify still accepts the code. Hypervel Fortify uses fresh OTPHP TOTP objects with an injected clock, so verification does not mutate shared TOTP engine state in a Swoole worker.
 
 During login, users with enabled two-factor authentication are redirected to the two-factor challenge route. JSON login requests receive a response containing a `two_factor` boolean. The challenge form should submit either a `code` field containing a TOTP code or a `recovery_code` field containing one of the user's recovery codes to `POST /two-factor-challenge`.
 
