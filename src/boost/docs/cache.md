@@ -765,7 +765,7 @@ You may clear all atomic locks in the cache using the `flushLocks` method:
 Cache::flushLocks();
 ```
 
-The `flushLocks` method is supported by the `redis`, `database`, `file`, and `array` cache drivers. Redis, database, and file stores only support flushing locks when lock storage is configured separately from regular cache storage. If lock storage is shared with regular cache storage, Hypervel will throw a `RuntimeException`. If a store does not support flushing locks, Hypervel will throw a `BadMethodCallException`.
+The `flushLocks` method is supported by the `redis`, `database`, `file`, `swoole`, and `array` cache drivers. Redis, database, and file stores only support flushing locks when lock storage is configured separately from regular cache storage. If lock storage is shared with regular cache storage, Hypervel will throw a `RuntimeException`. If a store does not support flushing locks, Hypervel will throw a `BadMethodCallException`.
 
 > [!WARNING]
 > The `flushLocks` method removes every lock in the lock store, regardless of which application or process owns the lock. Use it carefully in shared environments.

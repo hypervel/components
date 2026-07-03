@@ -307,7 +307,7 @@ For more information on Hypervel's cache methods, consult the [cache documentati
 ## Session Blocking
 
 > [!WARNING]
-> To utilize session blocking, your application must be using a cache driver that supports [atomic locks](/docs/{{version}}/cache#atomic-locks). Currently, those cache drivers include the `redis`, `database`, `file`, and `array` drivers. In addition, you may not use the `cookie` session driver.
+> To utilize session blocking, your application must be using a cache driver that supports [atomic locks](/docs/{{version}}/cache#atomic-locks). Currently, those cache drivers include the `redis`, `database`, `file`, `swoole`, and `array` drivers. In addition, you may not use the `cookie` session driver.
 
 By default, Hypervel allows requests using the same session to execute concurrently. So, for example, if you use a JavaScript HTTP library to make two HTTP requests to your application, they will both execute at the same time. For many applications, this is not a problem; however, session data loss can occur in a small subset of applications that make concurrent requests to two different application endpoints which both write data to the session.
 
