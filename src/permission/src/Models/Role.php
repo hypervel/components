@@ -182,7 +182,14 @@ class Role extends Model implements RoleContract
                 $attributes[$teamsKey] = getPermissionsTeamId();
             }
 
-            return static::query()->createOrFirst($attributes);
+            $query = static::query();
+
+            if (static::isSoftDeletable()) {
+                // @phpstan-ignore method.notFound (SoftDeletingScope adds this method)
+                return $query->createOrRestore($attributes);
+            }
+
+            return $query->createOrFirst($attributes);
         }
 
         return $role;

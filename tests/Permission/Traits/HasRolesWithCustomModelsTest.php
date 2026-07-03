@@ -23,6 +23,25 @@ class HasRolesWithCustomModelsTest extends HasRolesTest
         $this->assertSame(Role::class, $this->testUserRole::class);
     }
 
+    public function testFindOrCreateRestoresSoftDeletedRole(): void
+    {
+        $role = Role::create(['name' => 'restorable-role']);
+        $roleId = $role->getKey();
+        $role->givePermissionTo($this->testUserPermission);
+        $this->testUser->assignRole($role);
+
+        $role->delete();
+
+        $restoredRole = Role::findOrCreate('restorable-role');
+
+        $this->assertSame($roleId, $restoredRole->getKey());
+        $this->assertFalse($restoredRole->trashed());
+        $this->assertNull($restoredRole->deleted_at);
+        $this->assertSame(1, Role::withTrashed()->where('name', 'restorable-role')->count());
+        $this->assertTrue($restoredRole->hasPermissionTo($this->testUserPermission));
+        $this->assertTrue($this->testUser->fresh()->hasRole($restoredRole));
+    }
+
     public function testItDoesNotDetachPermissionsWhenSoftDeleting(): void
     {
         $this->testUserRole->givePermissionTo($this->testUserPermission);

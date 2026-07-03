@@ -1026,6 +1026,12 @@ After creating custom models, update the permission configuration:
 
 If you replace the package models instead of extending them, your role model must implement `Hypervel\Permission\Contracts\Role` and your permission model must implement `Hypervel\Permission\Contracts\Permission`.
 
+The package's default role and permission models do not use soft deletes, and soft deletes are not recommended for permission models. Roles and permissions are access-control records; deleting one should normally remove its assignments, not leave them waiting to become active again later.
+
+If you use a custom role or permission model that uses `SoftDeletes`, soft-deleting a role or permission hides it from normal permission checks, but its assignment rows remain in the database. If the role or permission is restored, those assignments become active again. For roles, previous user-role and role-permission assignments become active again. For permissions, previous direct model-permission and role-permission assignments become active again.
+
+Use hard deletes for roles and permissions when assignments should be removed permanently.
+
 <a name="uuid-and-ulid-keys"></a>
 ## UUID and ULID Keys
 

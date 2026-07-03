@@ -156,7 +156,15 @@ class Permission extends Model implements PermissionContract
         $permission = static::findByParam(['name' => $name, 'guard_name' => $guardName]);
 
         if (! $permission) {
-            return static::query()->createOrFirst(['name' => $name, 'guard_name' => $guardName]);
+            $attributes = ['name' => $name, 'guard_name' => $guardName];
+            $query = static::query();
+
+            if (static::isSoftDeletable()) {
+                // @phpstan-ignore method.notFound (SoftDeletingScope adds this method)
+                return $query->createOrRestore($attributes);
+            }
+
+            return $query->createOrFirst($attributes);
         }
 
         return $permission;

@@ -46,5 +46,6 @@ class User extends Model
 - Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
 - Apps where permission data depends on request context, such as multi-tenant apps with tenant-scoped permission tables, may register a runtime cache key resolver with `PermissionRegistrar::resolveCacheKeyUsing(...)` so cached permission catalogs and assignments are isolated per context.
 - Undefined `permission.cache.store` values fail fast through Hypervel's cache manager instead of silently falling back to an array store.
+- The default role and permission models do not use soft deletes. Soft deletes are not recommended for permission models; restoring a custom soft-deletable role or permission reactivates its existing assignments.
 
 Full usage docs are available in `src/boost/docs/permission.md`.
