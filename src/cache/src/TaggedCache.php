@@ -40,15 +40,13 @@ class TaggedCache extends Repository
             return $this->putManyForever($values);
         }
 
-        $manyResult = null;
+        $result = true;
 
         foreach ($values as $key => $value) {
-            $result = $this->put((string) $key, $value, $ttl);
-
-            $manyResult = is_null($manyResult) ? $result : $result && $manyResult;
+            $result = $this->put((string) $key, $value, $ttl) && $result;
         }
 
-        return $manyResult ?: false;
+        return $result;
     }
 
     /**

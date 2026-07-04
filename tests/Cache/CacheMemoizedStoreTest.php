@@ -88,6 +88,28 @@ class CacheMemoizedStoreTest extends TestCase
         $this->assertFalse($invoked);
     }
 
+    public function testPutManyWithEmptyInputReturnsDelegatedRepositoryResult(): void
+    {
+        $repository = m::mock(Repository::class);
+        $repository->shouldReceive('putMany')->once()->with([], 60)->andReturn(false);
+
+        $store = new MemoizedStore('memoized', $repository);
+
+        $this->assertFalse($store->putMany([], 60));
+    }
+
+    public function testPutManyInvalidatesMemoizedValues(): void
+    {
+        $repository = new Repository(new ArrayStore);
+        $store = new MemoizedStore('memoized', $repository);
+
+        $store->put('foo', 'old', 60);
+
+        $this->assertSame('old', $store->get('foo'));
+        $this->assertTrue($store->putMany(['foo' => 'new'], 60));
+        $this->assertSame('new', $store->get('foo'));
+    }
+
     public function testMemoizedStoreCanWrapStackStore(): void
     {
         $stackRepo = $this->createStackRepository();

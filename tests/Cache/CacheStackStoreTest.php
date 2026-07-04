@@ -191,7 +191,35 @@ class CacheStackStoreTest extends TestCase
         $this->swoole->shouldReceive('put')->once()->with('bar', ['value' => 'baz', 'expiration' => $expiration], $ttl)->andReturn(true);
         $this->redis->shouldReceive('put')->once()->with('bar', ['value' => 'baz', 'expiration' => $expiration], $ttl)->andReturn(true);
 
-        $this->store->putMany(['foo' => 'bar', 'bar' => 'baz'], $ttl);
+        $this->assertTrue($this->store->putMany(['foo' => 'bar', 'bar' => 'baz'], $ttl));
+    }
+
+    public function testPutManyReturnsTrueForEmptyInput()
+    {
+        $this->createStores();
+
+        $this->assertTrue($this->store->putMany([], 100));
+    }
+
+    public function testPutManyReturnsFalseForFailedKeyAndAttemptsLaterKeys()
+    {
+        $this->createStores();
+
+        $ttl = 100;
+        $expiration = Carbon::now()->getTimestamp() + $ttl;
+
+        $this->swoole->shouldReceive('put')->once()->with('first', ['value' => 'one', 'expiration' => $expiration], $ttl)->andReturn(true);
+        $this->redis->shouldReceive('put')->once()->with('first', ['value' => 'one', 'expiration' => $expiration], $ttl)->andReturn(true);
+        $this->swoole->shouldReceive('put')->once()->with('fail', ['value' => 'two', 'expiration' => $expiration], $ttl)->andReturn(false);
+        $this->redis->shouldNotReceive('put')->with('fail', m::any(), m::any());
+        $this->swoole->shouldReceive('put')->once()->with('after', ['value' => 'three', 'expiration' => $expiration], $ttl)->andReturn(true);
+        $this->redis->shouldReceive('put')->once()->with('after', ['value' => 'three', 'expiration' => $expiration], $ttl)->andReturn(true);
+
+        $this->assertFalse($this->store->putMany([
+            'first' => 'one',
+            'fail' => 'two',
+            'after' => 'three',
+        ], $ttl));
     }
 
     public function testIncrement()

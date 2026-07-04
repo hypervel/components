@@ -76,6 +76,13 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertSame('qux', $store->tags(['bop', 'zap'])->get('baz'));
     }
 
+    public function testPutManyReturnsTrueForEmptyInput(): void
+    {
+        $store = new ArrayStore;
+
+        $this->assertTrue($store->tags(['bop', 'zap'])->putMany([], 60));
+    }
+
     public function testCacheSavedWithMultipleTagsCanBeFlushed()
     {
         $store = new ArrayStore;
