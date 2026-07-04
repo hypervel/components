@@ -10,13 +10,14 @@ use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTimer;
 use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Core\Events\OnManagerStart;
+use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Swoole\Server as SwooleServer;
 
 class CreateSwooleTimersTest extends TestCase
 {
-    public function testRegistersEvictionAndIntervalRefreshTimersForEachSwooleStore(): void
+    public function testRegistersEvictionAndIntervalRefreshTimersForEachSwooleStoreOnWorkerZero(): void
     {
         $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('array')->once()->with('cache.stores', [])->andReturn([
@@ -38,9 +39,29 @@ class CreateSwooleTimersTest extends TestCase
 
         $timer = new FakeSwooleTimer;
 
-        (new CreateSwooleTimers($container, $timer))->handle(m::mock(OnManagerStart::class));
+        (new CreateSwooleTimers($container, $timer))->handle($this->workerEvent(workerId: 0));
 
         $this->assertSame([25000, 3000, 10000, 1000], array_column($timer->ticks, 'milliseconds'));
+    }
+
+    public function testDoesNotRegisterTimersOnOtherWorkers(): void
+    {
+        $container = m::mock(Container::class);
+        $timer = new FakeSwooleTimer;
+
+        (new CreateSwooleTimers($container, $timer))->handle($this->workerEvent(workerId: 1));
+
+        $this->assertSame([], $timer->ticks);
+    }
+
+    public function testDoesNotRegisterTimersOnTaskWorkers(): void
+    {
+        $container = m::mock(Container::class);
+        $timer = new FakeSwooleTimer;
+
+        (new CreateSwooleTimers($container, $timer))->handle($this->workerEvent(workerId: 0, taskworker: true));
+
+        $this->assertSame([], $timer->ticks);
     }
 
     public function testTimerCallbacksCallTheConfiguredStore(): void
@@ -68,10 +89,18 @@ class CreateSwooleTimersTest extends TestCase
 
         $timer = new FakeSwooleTimer;
 
-        (new CreateSwooleTimers($container, $timer))->handle(m::mock(OnManagerStart::class));
+        (new CreateSwooleTimers($container, $timer))->handle($this->workerEvent(workerId: 0));
 
         $timer->ticks[0]['callback']();
         $timer->ticks[1]['callback']();
+    }
+
+    private function workerEvent(int $workerId, bool $taskworker = false): AfterWorkerStart
+    {
+        $server = m::mock(SwooleServer::class);
+        $server->taskworker = $taskworker;
+
+        return new AfterWorkerStart($server, $workerId);
     }
 }
 

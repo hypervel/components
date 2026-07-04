@@ -7,7 +7,7 @@ namespace Hypervel\Cache\Listeners;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTimer;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Core\Events\OnManagerStart;
+use Hypervel\Core\Events\AfterWorkerStart;
 
 class CreateSwooleTimers extends BaseListener
 {
@@ -19,8 +19,12 @@ class CreateSwooleTimers extends BaseListener
     /**
      * Create timers for all configured Swoole cache stores.
      */
-    public function handle(OnManagerStart $event): void
+    public function handle(AfterWorkerStart $event): void
     {
+        if (! $this->shouldRegisterTimers($event)) {
+            return;
+        }
+
         $this->swooleStores()->each(function (array $config, string $name) {
             $this->timer->tick(
                 $config['eviction_interval'] ?? 10000,
@@ -32,6 +36,14 @@ class CreateSwooleTimers extends BaseListener
                 fn () => $this->store($name)->refreshIntervalCaches(),
             );
         });
+    }
+
+    /**
+     * Determine if this worker should own Swoole cache timers.
+     */
+    protected function shouldRegisterTimers(AfterWorkerStart $event): bool
+    {
+        return $event->workerId === 0 && ! $event->server->taskworker;
     }
 
     /**

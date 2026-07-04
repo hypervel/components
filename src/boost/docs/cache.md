@@ -136,7 +136,7 @@ use Hypervel\Cache\SwooleStore;
 
 The available eviction policy constants are `EVICTION_POLICY_LRU`, `EVICTION_POLICY_LFU`, `EVICTION_POLICY_TTL`, and `EVICTION_POLICY_NOEVICTION`.
 
-The `eviction_interval` option controls how often stale records are pruned and memory-pressure eviction runs. The `interval_refresh_interval` option controls how often registered interval caches are checked and refreshed by the Swoole manager process.
+The `eviction_interval` option controls how often stale records are pruned and memory-pressure eviction runs. The `interval_refresh_interval` option controls how often registered interval caches are checked and refreshed by the elected Swoole worker.
 
 The table itself is configured in the `swoole_tables` section of your `config/cache.php` file:
 
