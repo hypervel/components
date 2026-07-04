@@ -50,6 +50,9 @@
         "hypervel/support": "^0.4",
         "hypervel/view": "^0.4"
     },
+    "suggest": {
+        "phpunit/phpunit": "Required to use Hypervel\\Testing\\PHPUnit\\AfterEachTestExtension (^13.0)."
+    },
     "config": {
         "sort-packages": true
     },

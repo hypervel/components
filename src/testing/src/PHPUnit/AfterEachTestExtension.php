@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests;
+namespace Hypervel\Testing\PHPUnit;
 
 use PHPUnit\Runner\Extension\Extension;
 use PHPUnit\Runner\Extension\Facade;
@@ -15,8 +15,11 @@ use PHPUnit\TextUI\Configuration\Configuration;
  * This ensures Mockery cleanup runs after every test method, eliminating
  * the need for explicit m::close() calls in individual test tearDown methods.
  */
-final class AfterEachTestExtension implements Extension
+class AfterEachTestExtension implements Extension
 {
+    /**
+     * Bootstrap the extension.
+     */
     public function bootstrap(Configuration $configuration, Facade $facade, ParameterCollection $parameters): void
     {
         $facade->registerSubscriber(new AfterEachTestSubscriber);
