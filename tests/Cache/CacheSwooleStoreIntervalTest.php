@@ -10,16 +10,42 @@ use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\SwooleTableState;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 class CacheSwooleStoreIntervalTest extends TestCase
 {
+    protected string $tempDir;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        IntervalLostClaimProbe::reset();
+        IntervalReentryProbe::reset();
+
+        $this->tempDir = ParallelTesting::tempDir('CacheSwooleStoreIntervalTest');
+        mkdir($this->tempDir, 0777, true);
+    }
+
+    protected function tearDown(): void
+    {
+        IntervalLostClaimProbe::reset();
+        IntervalReentryProbe::reset();
+
+        (new Filesystem)->deleteDirectory($this->tempDir);
+
+        parent::tearDown();
+    }
+
     public function testIntervalRegistersMetadataAndSharedIndex(): void
     {
         $state = $this->createState();
@@ -184,32 +210,32 @@ class CacheSwooleStoreIntervalTest extends TestCase
     {
         $state = $this->createState();
         $workerStore = $this->createStore($state);
-        $managerStore = $this->createStore($state);
+        $readerStore = $this->createStore($state);
 
         $workerStore->interval('foo', fn () => 'bar', 5);
 
-        $this->assertNull($managerStore->get('foo'));
+        $this->assertNull($readerStore->get('foo'));
     }
 
-    public function testManagerStoreRefreshesIntervalsFromSharedIndex(): void
+    public function testRefresherStoreRefreshesIntervalsFromSharedIndex(): void
     {
         $state = $this->createState();
         $workerStore = $this->createStore($state);
-        $managerStore = $this->createStore($state);
+        $refresherStore = $this->createStore($state);
 
         $workerStore->interval('foo', fn () => 'bar', 5);
 
-        $managerStore->refreshIntervalCaches();
+        $refresherStore->refreshIntervalCaches();
 
         $this->assertSame('bar', $workerStore->get('foo'));
-        $this->assertSame('bar', $managerStore->get('foo'));
+        $this->assertSame('bar', $refresherStore->get('foo'));
     }
 
-    public function testManagerStoreRefreshesMultipleIntervalsFromSharedIndex(): void
+    public function testRefresherStoreRefreshesMultipleIntervalsFromSharedIndex(): void
     {
         $state = $this->createState();
         $workerStore = $this->createStore($state);
-        $managerStore = $this->createStore($state);
+        $refresherStore = $this->createStore($state);
         $keys = $this->keysWithSharedIndexShard($workerStore);
 
         foreach ($keys as $key) {
@@ -224,11 +250,11 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $this->assertArrayHasKey($metadataKeys[0], $sharedShard);
         $this->assertArrayHasKey($metadataKeys[1], $sharedShard);
 
-        $managerStore->refreshIntervalCaches();
+        $refresherStore->refreshIntervalCaches();
 
         foreach ($keys as $key) {
             $this->assertSame("value-{$key}", $workerStore->get($key));
-            $this->assertSame("value-{$key}", $managerStore->get($key));
+            $this->assertSame("value-{$key}", $refresherStore->get($key));
         }
     }
 
@@ -257,20 +283,20 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
         $state = $this->createState();
         $workerStore = $this->createStore($state);
-        $managerStore = $this->createStore($state);
+        $refresherStore = $this->createStore($state);
 
         $workerStore->interval('foo', fn () => Carbon::now()->getTimestamp(), 5);
 
-        $managerStore->refreshIntervalCaches();
-        $this->assertSame(Carbon::now()->getTimestamp(), $managerStore->get('foo'));
+        $refresherStore->refreshIntervalCaches();
+        $this->assertSame(Carbon::now()->getTimestamp(), $refresherStore->get('foo'));
 
         Carbon::setTestNow('2000-01-01 00:00:04');
-        $managerStore->refreshIntervalCaches();
-        $this->assertSame(Carbon::parse('2000-01-01 00:00:00')->getTimestamp(), $managerStore->get('foo'));
+        $refresherStore->refreshIntervalCaches();
+        $this->assertSame(Carbon::parse('2000-01-01 00:00:00')->getTimestamp(), $refresherStore->get('foo'));
 
         Carbon::setTestNow('2000-01-01 00:00:06');
-        $managerStore->refreshIntervalCaches();
-        $this->assertSame(Carbon::now()->getTimestamp(), $managerStore->get('foo'));
+        $refresherStore->refreshIntervalCaches();
+        $this->assertSame(Carbon::now()->getTimestamp(), $refresherStore->get('foo'));
     }
 
     public function testSuccessfulRefreshUpdatesMetadata(): void
@@ -288,6 +314,29 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
         $this->assertSame($this->currentTimestamp(), $metadata['lastRefreshedAt']);
         $this->assertNull($metadata['refreshingAt']);
+    }
+
+    public function testSlowSuccessfulRefreshUsesCommitTimestampForCadence(): void
+    {
+        Carbon::setTestNow('2000-01-01 00:00:00');
+
+        $state = $this->createState();
+        $store = $this->createStore($state);
+        $store->interval('foo', function () {
+            Carbon::setTestNow('2000-01-01 00:00:03.123456');
+
+            return 'bar';
+        }, 5);
+
+        $metadataKey = $this->metadataKey($store, 'foo');
+
+        $store->refreshIntervalCaches();
+
+        $this->assertSame(
+            Carbon::parse('2000-01-01 00:00:03.123456')->getPreciseTimestamp(6) / 1000000,
+            $this->metadata($state, $metadataKey)['lastRefreshedAt']
+        );
+        $this->assertSame('bar', $store->get('foo'));
     }
 
     public function testFreshRefreshClaimPreventsOverlappingRefresh(): void
@@ -319,7 +368,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
         $state = $this->createState();
         $workerStore = $this->createStore($state);
-        $managerStore = $this->createStore($state);
+        $refresherStore = $this->createStore($state);
 
         $workerStore->interval('foo', fn () => 'bar', 5);
 
@@ -328,10 +377,75 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $metadata['refreshingAt'] = $this->currentTimestamp() - 301.0;
         $this->putMetadata($state, $metadataKey, $metadata);
 
-        $managerStore->refreshIntervalCaches();
+        $refresherStore->refreshIntervalCaches();
 
-        $this->assertSame('bar', $managerStore->get('foo'));
+        $this->assertSame('bar', $refresherStore->get('foo'));
         $this->assertNull($this->metadata($state, $metadataKey)['refreshingAt']);
+    }
+
+    public function testRefreshIntervalUsesDoubledIntervalWhenItExceedsClaimTimeout(): void
+    {
+        $store = $this->createStore();
+
+        $this->assertFalse($this->invoke($store, 'intervalClaimIsStale', 0.0, 399.999999, 200));
+        $this->assertTrue($this->invoke($store, 'intervalClaimIsStale', 0.0, 400.0, 200));
+    }
+
+    public function testStaleRefresherCannotOverwriteNewerCommittedValue(): void
+    {
+        Carbon::setTestNow('2000-01-01 00:00:00');
+
+        $state = $this->createState();
+        $workerStore = $this->createStore($state);
+        $refresherStore = $this->createStore($state);
+        IntervalReentryProbe::$refresherStore = $refresherStore;
+
+        $workerStore->interval('foo', function () {
+            ++IntervalReentryProbe::$attempts;
+
+            if (IntervalReentryProbe::$attempts === 1) {
+                Carbon::setTestNow('2000-01-01 00:05:01');
+                IntervalReentryProbe::$refresherStore->refreshIntervalCaches();
+
+                return 'A';
+            }
+
+            return 'B';
+        }, 5);
+
+        $metadataKey = $this->metadataKey($workerStore, 'foo');
+
+        $workerStore->refreshIntervalCaches();
+
+        $metadata = $this->metadata($state, $metadataKey);
+
+        $this->assertSame(2, IntervalReentryProbe::$attempts);
+        $this->assertSame('B', $workerStore->get('foo'));
+        $this->assertNull($metadata['refreshingAt']);
+        $this->assertSame(
+            Carbon::parse('2000-01-01 00:05:01')->getPreciseTimestamp(6) / 1000000,
+            $metadata['lastRefreshedAt']
+        );
+    }
+
+    public function testLostClaimBeforeCommitDoesNotWriteResolverResult(): void
+    {
+        Carbon::setTestNow('2000-01-01 00:00:00');
+
+        $state = $this->createState();
+        $store = $this->createStore($state);
+        IntervalLostClaimProbe::$state = $state;
+        $metadataKey = $this->metadataKey($store, 'foo');
+
+        $store->interval('foo', fn () => IntervalLostClaimProbe::loseClaim($metadataKey), 5);
+
+        $store->refreshIntervalCaches();
+
+        $metadata = $this->metadata($state, $metadataKey);
+
+        $this->assertFalse($this->userRow($state, $store, 'foo'));
+        $this->assertNull($metadata['lastRefreshedAt']);
+        $this->assertSame(123.456789, $metadata['refreshingAt']);
     }
 
     public function testCompletionAndClaimClearingDoNotOverwriteNewerClaim(): void
@@ -381,22 +495,22 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
         $state = $this->createState();
         $workerStore = $this->createStore($state);
-        $managerStore = $this->createStore($state);
+        $refresherStore = $this->createStore($state);
 
         $workerStore->interval('foo', fn () => 'bar', 5);
-        $managerStore->refreshIntervalCaches();
-        $this->assertSame('bar', $managerStore->get('foo'));
+        $refresherStore->refreshIntervalCaches();
+        $this->assertSame('bar', $refresherStore->get('foo'));
 
-        $this->assertTrue($managerStore->flush());
-        $this->assertNull($managerStore->get('foo'));
+        $this->assertTrue($refresherStore->flush());
+        $this->assertNull($refresherStore->get('foo'));
         $this->assertNotFalse($state->table()->get($this->metadataKey($workerStore, 'foo')));
         $this->assertNotFalse($state->table()->get($this->indexKey($workerStore, $this->metadataKey($workerStore, 'foo'))));
 
         Carbon::setTestNow('2000-01-01 00:00:05');
 
-        $managerStore->refreshIntervalCaches();
+        $refresherStore->refreshIntervalCaches();
 
-        $this->assertSame('bar', $managerStore->get('foo'));
+        $this->assertSame('bar', $refresherStore->get('foo'));
     }
 
     public function testGenericMissDoesNotConsultSharedIntervalIndex(): void
@@ -519,6 +633,45 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $this->assertNull($this->metadata($state, $metadataKey)['lastRefreshedAt']);
     }
 
+    public function testIntervalExceptionFallsBackToStderrWhenNoExceptionHandlerIsBound(): void
+    {
+        $scriptPath = $this->tempDir . '/interval-stderr.php';
+        $autoloadPath = dirname(__DIR__, 2) . '/vendor/autoload.php';
+
+        file_put_contents($scriptPath, <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+require $argv[1];
+
+use Hypervel\Cache\SwooleStore;
+use Hypervel\Cache\SwooleTableManager;
+use Hypervel\Container\Container;
+use RuntimeException;
+use Throwable;
+
+class ReportIntervalExceptionProbeStore extends SwooleStore
+{
+    public function report(Throwable $e): void
+    {
+        $this->reportIntervalException($e);
+    }
+}
+
+Container::setInstance(new Container);
+
+$state = (new SwooleTableManager(new Container))->createState(8, 1024, 0.2, 12345);
+$store = new ReportIntervalExceptionProbeStore($state, 0.05, SwooleStore::EVICTION_POLICY_TTL, 0.05);
+$store->report(new RuntimeException('refresh failed'));
+PHP);
+
+        $process = new Process([PHP_BINARY, $scriptPath, $autoloadPath]);
+        $process->mustRun();
+
+        $this->assertStringContainsString('refresh failed', $process->getErrorOutput());
+    }
+
     public function testFailedPublicValueWriteClearsClaimAndReportsFailure(): void
     {
         $container = new Container;
@@ -528,11 +681,11 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
         $state = $this->createState();
         $workerStore = $this->createStore($state);
-        $managerStore = new FailingIntervalValueSwooleStore($state);
+        $refresherStore = new FailingIntervalValueSwooleStore($state);
 
         $workerStore->interval('foo', fn () => 'bar', 5);
 
-        $managerStore->refreshIntervalCaches();
+        $refresherStore->refreshIntervalCaches();
 
         $handler->shouldHaveReceived('report')->with(m::on(
             fn (RuntimeException $e): bool => $e->getMessage() === 'Unable to refresh Swoole interval cache [foo].'
@@ -758,4 +911,45 @@ class IntervalMetadataSerializationProbe
 class IntervalResolverState
 {
     public static int $attempts = 0;
+}
+
+class IntervalLostClaimProbe
+{
+    public static ?SwooleTableState $state = null;
+
+    public static function reset(): void
+    {
+        self::$state = null;
+    }
+
+    public static function loseClaim(string $metadataKey): string
+    {
+        if (self::$state === null) {
+            throw new RuntimeException('Interval lost-claim probe state was not configured.');
+        }
+
+        $row = self::$state->table()->get($metadataKey);
+        $metadata = unserialize($row['value']);
+        $metadata['refreshingAt'] = 123.456789;
+
+        self::$state->table()->set($metadataKey, [
+            'value' => serialize($metadata),
+            'expiration' => $row['expiration'],
+        ]);
+
+        return 'stale';
+    }
+}
+
+class IntervalReentryProbe
+{
+    public static int $attempts = 0;
+
+    public static ?SwooleStore $refresherStore = null;
+
+    public static function reset(): void
+    {
+        self::$attempts = 0;
+        self::$refresherStore = null;
+    }
 }

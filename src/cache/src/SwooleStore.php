@@ -138,11 +138,13 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     public function putMany(array $values, int $seconds): bool
     {
+        $result = true;
+
         foreach ($values as $key => $value) {
-            $this->put($key, $value, $seconds);
+            $result = $this->put((string) $key, $value, $seconds) && $result;
         }
 
-        return true;
+        return $result;
     }
 
     /**
@@ -627,9 +629,11 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
                 continue;
             }
 
-            $value = $record[$column];
-
-            $heap->insert(compact('key', 'record', 'value'));
+            $heap->insert([
+                'key' => $key,
+                'value' => $record[$column],
+                'fingerprint' => $this->evictionFingerprint($record),
+            ]);
         }
 
         $deleted = 0;
@@ -637,12 +641,27 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         while (! $heap->isEmpty()) {
             $candidate = $heap->extract();
 
-            if ($this->forgetEvictionCandidate($candidate['key'], $candidate['record'])) {
+            if ($this->forgetEvictionCandidate($candidate['key'], $candidate['fingerprint'])) {
                 ++$deleted;
             }
         }
 
         return $deleted;
+    }
+
+    /**
+     * Get the compact eviction fingerprint for a raw table record.
+     *
+     * @return array{value_hash: string, expiration: float, last_used_at: float, used_count: int}
+     */
+    protected function evictionFingerprint(array $record): array
+    {
+        return [
+            'value_hash' => hash('xxh128', $record['value']),
+            'expiration' => $record['expiration'],
+            'last_used_at' => $record['last_used_at'],
+            'used_count' => $record['used_count'],
+        ];
     }
 
     /**
@@ -686,6 +705,8 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
      */
     protected function recordHit(string $key): void
     {
+        // Hit metadata stays lock-free for the read hot path. If a concurrent delete wins,
+        // Swoole can create an expired shell row that stale cleanup later prunes.
         if ($this->evictionPolicy === static::EVICTION_POLICY_LRU) {
             $this->table->set($key, ['last_used_at' => $this->getCurrentTimestamp()]);
 
@@ -714,10 +735,12 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
     /**
      * Forget an eviction candidate by table key.
      */
-    protected function forgetEvictionCandidate(string $key, array $candidate): bool
+    protected function forgetEvictionCandidate(string $key, array $fingerprint): bool
     {
-        return $this->state->withRowLock($key, function () use ($key, $candidate): bool {
-            if ($this->isControlKey($key) || $this->rawGet($key) !== $candidate) {
+        return $this->state->withRowLock($key, function () use ($key, $fingerprint): bool {
+            $record = $this->rawGet($key);
+
+            if ($record === false || $this->evictionFingerprint($record) !== $fingerprint) {
                 return false;
             }
 
@@ -865,6 +888,17 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
             $resolver = unserialize($metadata['resolver']);
             $value = $resolver();
 
+            $commit = $this->prepareIntervalRefreshCommit($metadataKey, $claimedAt);
+
+            if ($commit === null) {
+                // Another refresher owns this interval now; do not write or clear its claim.
+                return null;
+            }
+
+            [$metadata, $claimedAt] = $commit;
+
+            // Keep the public write outside the metadata lock: it can serialize user values,
+            // lock the user row, and trigger eviction, while the claim timeout floor remains much larger.
             if (! $this->forever($metadata['key'], $value)) {
                 throw new RuntimeException("Unable to refresh Swoole interval cache [{$metadata['key']}].");
             }
@@ -885,6 +919,32 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
 
             return null;
         }
+    }
+
+    /**
+     * Prepare a claimed interval refresh for public value commit.
+     *
+     * @return null|array{0: array, 1: float}
+     */
+    protected function prepareIntervalRefreshCommit(string $metadataKey, float $claimedAt): ?array
+    {
+        return $this->state->withRowLock($metadataKey, function () use ($metadataKey, $claimedAt): ?array {
+            $metadata = $this->getIntervalMetadataByInternalKey($metadataKey);
+
+            if ($metadata === null || $metadata['refreshingAt'] !== $claimedAt) {
+                return null;
+            }
+
+            $commitClaimedAt = $this->getCurrentTimestamp();
+            // Restamp ownership so failed public writes clear only this refresher's current claim.
+            $metadata['refreshingAt'] = $commitClaimedAt;
+
+            if (! $this->putIntervalMetadataByInternalKey($metadataKey, $metadata)) {
+                throw new RuntimeException("Unable to prepare Swoole interval cache refresh [{$metadata['key']}].");
+            }
+
+            return [$metadata, $commitClaimedAt];
+        });
     }
 
     /**
@@ -1064,14 +1124,6 @@ class SwooleStore implements CanFlushLocks, LockProvider, Store
         return $prefix . hash('xxh128', $key, false, [
             'seed' => $this->state->hashSeed(),
         ]);
-    }
-
-    /**
-     * Determine if the table key is a user key.
-     */
-    protected function isUserKey(string $key): bool
-    {
-        return str_starts_with($key, static::USER_PREFIX);
     }
 
     /**

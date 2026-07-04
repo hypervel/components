@@ -132,10 +132,29 @@ class CacheSwooleStoreTest extends TestCase
     {
         $store = $this->createStore();
 
-        $store->putMany(['foo' => 'bar', 'bar' => 'baz'], 5);
+        $this->assertTrue($store->putMany(['foo' => 'bar', 'bar' => 'baz'], 5));
 
         $this->assertEquals('bar', $store->get('foo'));
         $this->assertEquals('baz', $store->get('bar'));
+    }
+
+    public function testPutManyReturnsTrueForEmptyInput(): void
+    {
+        $store = $this->createStore();
+
+        $this->assertTrue($store->putMany([], 5));
+    }
+
+    public function testPutManyReturnsFalseForPartialFailureAndAttemptsEveryValue(): void
+    {
+        $store = new SwooleStorePutManyProbe($this->createState(), ['fail']);
+
+        $this->assertFalse($store->putMany([
+            1 => 'one',
+            'fail' => 'two',
+            'after' => 'three',
+        ], 5));
+        $this->assertSame(['1', 'fail', 'after'], $store->attempts);
     }
 
     public function testAddOverwritesExpiredPhysicalRow(): void
@@ -264,6 +283,45 @@ class CacheSwooleStoreTest extends TestCase
         $this->assertSame((float) $expiration, $row['expiration']);
         $this->assertSame(123.0, $row['last_used_at']);
         $this->assertSame(8, $row['used_count']);
+    }
+
+    public function testLruHitMetadataCanCreateExpiredShellRowAfterConcurrentDelete(): void
+    {
+        $state = $this->createState();
+        $store = new SwooleStoreEvictionProbe($state, 0.05, SwooleStore::EVICTION_POLICY_LRU, 0.05);
+        $tableKey = $store->userTableKey('foo');
+
+        $this->assertFalse($state->table()->get($tableKey));
+
+        $store->recordHitForTableKey($tableKey);
+
+        $row = $state->table()->get($tableKey);
+
+        $this->assertNotFalse($row);
+        $this->assertSame('', $row['value']);
+        $this->assertSame(0.0, $row['expiration']);
+        $this->assertNull($store->get('foo'));
+        $this->assertFalse($state->table()->get($tableKey));
+    }
+
+    public function testLfuHitMetadataCanCreateExpiredShellRowAfterConcurrentDelete(): void
+    {
+        $state = $this->createState();
+        $store = new SwooleStoreEvictionProbe($state, 0.05, SwooleStore::EVICTION_POLICY_LFU, 0.05);
+        $tableKey = $store->userTableKey('foo');
+
+        $this->assertFalse($state->table()->get($tableKey));
+
+        $store->recordHitForTableKey($tableKey);
+
+        $row = $state->table()->get($tableKey);
+
+        $this->assertNotFalse($row);
+        $this->assertSame('', $row['value']);
+        $this->assertSame(0.0, $row['expiration']);
+        $this->assertSame(1, $row['used_count']);
+        $this->assertNull($store->get('foo'));
+        $this->assertFalse($state->table()->get($tableKey));
     }
 
     public function testExpiredGetDeletesPhysicalRowAfterLockedRecheck(): void
@@ -480,6 +538,146 @@ class CacheSwooleStoreTest extends TestCase
         $this->assertFalse($state->table()->get('legacy-row'));
         $this->assertNotFalse($state->table()->get($this->tableKey($store, 'intervalKey', 'interval')));
         $this->assertNotFalse($state->table()->get($this->tableKey($store, 'lockKey', 'lock')));
+    }
+
+    public function testSingleLruEvictionPassHonorsEvictionProportion(): void
+    {
+        $state = $this->createState(rows: 8);
+        $store = new SwooleStoreEvictionProbe(
+            $state,
+            0.05,
+            SwooleStore::EVICTION_POLICY_LRU,
+            2 / $state->table()->getSize()
+        );
+
+        $this->setLogicalRow($state, $store, 'oldest', 'value', time() + 100, ['last_used_at' => 10.0]);
+        $this->setLogicalRow($state, $store, 'older', 'value', time() + 100, ['last_used_at' => 20.0]);
+        $this->setLogicalRow($state, $store, 'newer', 'value', time() + 100, ['last_used_at' => 30.0]);
+        $this->setLogicalRow($state, $store, 'newest', 'value', time() + 100, ['last_used_at' => 40.0]);
+
+        $this->assertSame(2, $store->removeOnePolicyBatch());
+        $this->assertFalse($this->getLogicalRow($state, $store, 'oldest'));
+        $this->assertFalse($this->getLogicalRow($state, $store, 'older'));
+        $this->assertNotFalse($this->getLogicalRow($state, $store, 'newer'));
+        $this->assertNotFalse($this->getLogicalRow($state, $store, 'newest'));
+    }
+
+    public function testSingleLfuEvictionPassHonorsEvictionProportion(): void
+    {
+        $state = $this->createState(rows: 8);
+        $store = new SwooleStoreEvictionProbe(
+            $state,
+            0.05,
+            SwooleStore::EVICTION_POLICY_LFU,
+            2 / $state->table()->getSize()
+        );
+
+        $this->setLogicalRow($state, $store, 'least', 'value', time() + 100, ['used_count' => 1]);
+        $this->setLogicalRow($state, $store, 'less', 'value', time() + 100, ['used_count' => 2]);
+        $this->setLogicalRow($state, $store, 'more', 'value', time() + 100, ['used_count' => 3]);
+        $this->setLogicalRow($state, $store, 'most', 'value', time() + 100, ['used_count' => 4]);
+
+        $this->assertSame(2, $store->removeOnePolicyBatch());
+        $this->assertFalse($this->getLogicalRow($state, $store, 'least'));
+        $this->assertFalse($this->getLogicalRow($state, $store, 'less'));
+        $this->assertNotFalse($this->getLogicalRow($state, $store, 'more'));
+        $this->assertNotFalse($this->getLogicalRow($state, $store, 'most'));
+    }
+
+    public function testSingleTtlEvictionPassHonorsEvictionProportion(): void
+    {
+        $state = $this->createState(rows: 8);
+        $store = new SwooleStoreEvictionProbe(
+            $state,
+            0.05,
+            SwooleStore::EVICTION_POLICY_TTL,
+            2 / $state->table()->getSize()
+        );
+        $now = time();
+
+        $this->setLogicalRow($state, $store, 'soonest', 'value', $now + 10);
+        $this->setLogicalRow($state, $store, 'sooner', 'value', $now + 20);
+        $this->setLogicalRow($state, $store, 'later', 'value', $now + 30);
+        $this->setLogicalRow($state, $store, 'latest', 'value', $now + 40);
+
+        $this->assertSame(2, $store->removeOnePolicyBatch());
+        $this->assertFalse($this->getLogicalRow($state, $store, 'soonest'));
+        $this->assertFalse($this->getLogicalRow($state, $store, 'sooner'));
+        $this->assertNotFalse($this->getLogicalRow($state, $store, 'later'));
+        $this->assertNotFalse($this->getLogicalRow($state, $store, 'latest'));
+    }
+
+    public function testEvictionCandidateDoesNotDeleteRowMutatedByPut(): void
+    {
+        $state = $this->createState();
+        $store = new SwooleStoreEvictionProbe($state, 0.05, SwooleStore::EVICTION_POLICY_TTL, 0.05);
+        $tableKey = $store->userTableKey('foo');
+
+        $this->setLogicalRow($state, $store, 'foo', 'old', time() + 100);
+        $fingerprint = $store->fingerprintFor($state->table()->get($tableKey));
+
+        $this->assertTrue($store->put('foo', 'new', 60));
+
+        $this->assertFalse($store->forgetCandidate($tableKey, $fingerprint));
+        $this->assertSame('new', $store->get('foo'));
+    }
+
+    public function testEvictionCandidateDoesNotDeleteRowMutatedByIncrement(): void
+    {
+        $state = $this->createState();
+        $store = new SwooleStoreEvictionProbe($state, 0.05, SwooleStore::EVICTION_POLICY_TTL, 0.05);
+        $tableKey = $store->userTableKey('counter');
+
+        $this->setLogicalRow($state, $store, 'counter', 1, time() + 100, [
+            'last_used_at' => 123.0,
+            'used_count' => 7,
+        ]);
+        $fingerprint = $store->fingerprintFor($state->table()->get($tableKey));
+
+        $this->assertSame(2, $store->increment('counter'));
+
+        $this->assertFalse($store->forgetCandidate($tableKey, $fingerprint));
+        $this->assertSame(2, $store->get('counter'));
+    }
+
+    public function testEvictionCandidateDoesNotDeleteRowMutatedByLruHit(): void
+    {
+        Carbon::setTestNow('2000-01-01 00:00:00');
+
+        $state = $this->createState();
+        $store = new SwooleStoreEvictionProbe($state, 0.05, SwooleStore::EVICTION_POLICY_LRU, 0.05);
+        $tableKey = $store->userTableKey('foo');
+
+        $this->setLogicalRow($state, $store, 'foo', 'bar', time() + 100, [
+            'last_used_at' => 123.0,
+            'used_count' => 7,
+        ]);
+        $fingerprint = $store->fingerprintFor($state->table()->get($tableKey));
+
+        Carbon::setTestNow('2000-01-01 00:01:00');
+
+        $this->assertSame('bar', $store->get('foo'));
+
+        $this->assertFalse($store->forgetCandidate($tableKey, $fingerprint));
+        $this->assertSame('bar', $store->get('foo'));
+    }
+
+    public function testEvictionCandidateDoesNotDeleteRowMutatedByLfuHit(): void
+    {
+        $state = $this->createState();
+        $store = new SwooleStoreEvictionProbe($state, 0.05, SwooleStore::EVICTION_POLICY_LFU, 0.05);
+        $tableKey = $store->userTableKey('foo');
+
+        $this->setLogicalRow($state, $store, 'foo', 'bar', time() + 100, [
+            'last_used_at' => 123.0,
+            'used_count' => 7,
+        ]);
+        $fingerprint = $store->fingerprintFor($state->table()->get($tableKey));
+
+        $this->assertSame('bar', $store->get('foo'));
+
+        $this->assertFalse($store->forgetCandidate($tableKey, $fingerprint));
+        $this->assertSame('bar', $store->get('foo'));
     }
 
     public function testEvictRecordsPrunesExpiredLockRows(): void
@@ -755,6 +953,54 @@ class CacheSwooleStoreTest extends TestCase
     private function getCurrentTimestamp(): float
     {
         return Carbon::now()->getPreciseTimestamp(6) / 1000000;
+    }
+}
+
+class SwooleStoreEvictionProbe extends SwooleStore
+{
+    public function removeOnePolicyBatch(): int
+    {
+        return $this->removeRecordsByEvictionPolicy();
+    }
+
+    public function userTableKey(string $key): string
+    {
+        return $this->userKey($key);
+    }
+
+    public function fingerprintFor(array $record): array
+    {
+        return $this->evictionFingerprint($record);
+    }
+
+    public function forgetCandidate(string $tableKey, array $fingerprint): bool
+    {
+        return $this->forgetEvictionCandidate($tableKey, $fingerprint);
+    }
+
+    public function recordHitForTableKey(string $tableKey): void
+    {
+        $this->recordHit($tableKey);
+    }
+}
+
+class SwooleStorePutManyProbe extends SwooleStore
+{
+    /**
+     * @var list<string>
+     */
+    public array $attempts = [];
+
+    public function __construct(SwooleTableState $state, protected array $failures)
+    {
+        parent::__construct($state, 0.05, SwooleStore::EVICTION_POLICY_TTL, 0.05);
+    }
+
+    public function put(string $key, mixed $value, int $seconds): bool
+    {
+        $this->attempts[] = $key;
+
+        return ! in_array($key, $this->failures, true);
     }
 }
 

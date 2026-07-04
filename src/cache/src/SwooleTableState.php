@@ -22,6 +22,8 @@ class SwooleTableState
 {
     protected const STRIPE_COUNT = 64;
 
+    protected const SPINS_BEFORE_BACKOFF = 64;
+
     /**
      * Striped locks for row lifecycle operations.
      *
@@ -117,9 +119,16 @@ class SwooleTableState
      */
     protected function acquire(Atomic $lock): void
     {
+        $spins = 0;
+
         while (! $lock->cmpset(0, 1)) {
             // Critical sections must stay short, non-yielding, and fatal-free so finally can release the stripe.
             // A hard process death while holding a stripe leaves it locked until the Swoole table state is recreated.
+            if (++$spins >= self::SPINS_BEFORE_BACKOFF) {
+                // Stay hot for short waits, then yield with raw usleep; lock internals must not use fakeable sleep.
+                $spins = 0;
+                usleep(1);
+            }
         }
     }
 
