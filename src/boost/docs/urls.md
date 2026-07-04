@@ -133,6 +133,8 @@ You may force all generated URLs to use a given scheme using the `forceScheme` m
 URL::forceScheme('https');
 ```
 
+To force HTTPS for all generated URLs, you may also set the `FORCE_HTTPS` environment variable to `true`.
+
 If you need to generate asset URLs from a separate origin, such as a CDN, you may use the `useAssetOrigin` method:
 
 ```php

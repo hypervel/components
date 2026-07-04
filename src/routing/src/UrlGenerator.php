@@ -631,9 +631,7 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function forceHttps(bool $force = true): void
     {
-        if ($force) {
-            $this->forceScheme('https');
-        }
+        $this->forceScheme($force ? 'https' : null);
     }
 
     /**
