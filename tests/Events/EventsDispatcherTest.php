@@ -9,6 +9,14 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Tests\Events\Fixtures\CacheInvalidationEvent;
+use Hypervel\Tests\Events\Fixtures\ChildListenerEvent;
+use Hypervel\Tests\Events\Fixtures\InterfaceListenerEvent;
+use Hypervel\Tests\Events\Fixtures\ListenerContract;
+use Hypervel\Tests\Events\Fixtures\ParentListenerEvent;
+use Hypervel\Tests\Events\Fixtures\StringDispatchedInterfaceEvent;
+use Hypervel\Tests\Events\Fixtures\UnlistenedEvent;
+use Hypervel\Tests\Events\Fixtures\UnlistenedStringEvent;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionProperty;
@@ -499,6 +507,84 @@ class EventsDispatcherTest extends TestCase
         });
         $this->assertTrue($d->hasListeners('foo.*'));
         $this->assertTrue($d->hasListeners('foo.bar'));
+    }
+
+    public function testInterfaceListenersCanBeFoundForConcreteEventClasses(): void
+    {
+        $d = new Dispatcher;
+        $d->listen(SomeEventInterface::class, function () {});
+
+        $this->assertTrue($d->hasListeners(AnotherEvent::class));
+        $this->assertNotEmpty($d->getListeners(AnotherEvent::class));
+    }
+
+    public function testInterfaceListenerLookupAutoloadsEventClasses(): void
+    {
+        $d = new Dispatcher;
+        $d->listen(ListenerContract::class, function () {});
+
+        $this->assertFalse(class_exists(InterfaceListenerEvent::class, false));
+        $this->assertTrue($d->hasListeners(InterfaceListenerEvent::class));
+        $this->assertTrue(class_exists(InterfaceListenerEvent::class, false));
+    }
+
+    public function testStringDispatchedEventClassesResolveInterfaceListenersWhenUnloaded(): void
+    {
+        $d = new Dispatcher;
+        $handled = false;
+
+        $d->listen(ListenerContract::class, function () use (&$handled) {
+            $handled = true;
+        });
+
+        $this->assertFalse(class_exists(StringDispatchedInterfaceEvent::class, false));
+
+        $d->dispatch(StringDispatchedInterfaceEvent::class);
+
+        $this->assertTrue($handled);
+        $this->assertTrue(class_exists(StringDispatchedInterfaceEvent::class, false));
+    }
+
+    public function testHasListenersDoesNotAutoloadEventClassesWithoutInterfaceListeners(): void
+    {
+        $d = new Dispatcher;
+
+        $this->assertFalse(class_exists(UnlistenedEvent::class, false));
+        $this->assertFalse($d->hasListeners(UnlistenedEvent::class));
+        $this->assertFalse(class_exists(UnlistenedEvent::class, false));
+    }
+
+    public function testStringDispatchedEventClassesDoNotAutoloadWithoutInterfaceListeners(): void
+    {
+        $d = new Dispatcher;
+
+        $this->assertFalse(class_exists(UnlistenedStringEvent::class, false));
+
+        $d->dispatch(UnlistenedStringEvent::class);
+
+        $this->assertFalse(class_exists(UnlistenedStringEvent::class, false));
+    }
+
+    public function testHasListenersCacheIsClearedWhenInterfaceListenerIsAddedOrForgotten(): void
+    {
+        $d = new Dispatcher;
+
+        $this->assertFalse($d->hasListeners(CacheInvalidationEvent::class));
+
+        $d->listen(ListenerContract::class, function () {});
+        $this->assertTrue($d->hasListeners(CacheInvalidationEvent::class));
+
+        $d->forget(ListenerContract::class);
+        $this->assertFalse($d->hasListeners(CacheInvalidationEvent::class));
+    }
+
+    public function testParentClassListenersAreNotCountedForChildEventClasses(): void
+    {
+        $d = new Dispatcher;
+        $d->listen(ParentListenerEvent::class, function () {});
+
+        $this->assertFalse($d->hasListeners(ChildListenerEvent::class));
+        $this->assertEmpty($d->getListeners(ChildListenerEvent::class));
     }
 
     public function testCatchAllWildcardIsRoutedThroughObserverPipeline()
