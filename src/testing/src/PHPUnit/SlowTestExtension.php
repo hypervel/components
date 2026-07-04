@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests;
+namespace Hypervel\Testing\PHPUnit;
 
 use PHPUnit\Runner\Extension\Extension;
 use PHPUnit\Runner\Extension\Facade;
@@ -11,6 +11,9 @@ use PHPUnit\TextUI\Configuration\Configuration;
 
 class SlowTestExtension implements Extension
 {
+    /**
+     * Register the slow test subscribers.
+     */
     public function bootstrap(
         Configuration $configuration,
         Facade $facade,

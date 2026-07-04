@@ -2,20 +2,24 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests;
+namespace Hypervel\Testing\PHPUnit;
 
 use PHPUnit\Event\TestRunner\ExecutionFinished;
 use PHPUnit\Event\TestRunner\ExecutionFinishedSubscriber as ExecutionFinishedSubscriberContract;
 
 class ExecutionFinishedSubscriber implements ExecutionFinishedSubscriberContract
 {
-    private SlowTestTracker $tracker;
-
-    public function __construct(SlowTestTracker $tracker)
-    {
-        $this->tracker = $tracker;
+    /**
+     * Create a new execution finished subscriber.
+     */
+    public function __construct(
+        private SlowTestTracker $tracker,
+    ) {
     }
 
+    /**
+     * Handle the event.
+     */
     public function notify(ExecutionFinished $event): void
     {
         $slowTests = $this->tracker->getSlowTests();

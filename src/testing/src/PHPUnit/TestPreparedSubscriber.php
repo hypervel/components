@@ -2,20 +2,24 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests;
+namespace Hypervel\Testing\PHPUnit;
 
 use PHPUnit\Event\Test\Prepared;
 use PHPUnit\Event\Test\PreparedSubscriber;
 
 class TestPreparedSubscriber implements PreparedSubscriber
 {
-    private SlowTestTracker $tracker;
-
-    public function __construct(SlowTestTracker $tracker)
-    {
-        $this->tracker = $tracker;
+    /**
+     * Create a new test prepared subscriber.
+     */
+    public function __construct(
+        private SlowTestTracker $tracker,
+    ) {
     }
 
+    /**
+     * Handle the event.
+     */
     public function notify(Prepared $event): void
     {
         $time = $event->telemetryInfo()->time()->seconds()

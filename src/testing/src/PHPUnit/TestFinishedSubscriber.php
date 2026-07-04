@@ -2,20 +2,24 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests;
+namespace Hypervel\Testing\PHPUnit;
 
 use PHPUnit\Event\Test\Finished;
 use PHPUnit\Event\Test\FinishedSubscriber;
 
 class TestFinishedSubscriber implements FinishedSubscriber
 {
-    private SlowTestTracker $tracker;
-
-    public function __construct(SlowTestTracker $tracker)
-    {
-        $this->tracker = $tracker;
+    /**
+     * Create a new test finished subscriber.
+     */
+    public function __construct(
+        private SlowTestTracker $tracker,
+    ) {
     }
 
+    /**
+     * Handle the event.
+     */
     public function notify(Finished $event): void
     {
         $time = $event->telemetryInfo()->time()->seconds()
