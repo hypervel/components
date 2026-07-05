@@ -6,11 +6,17 @@ namespace Hypervel\Tests\Testing;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Application;
+use Hypervel\Support\Facades\ParallelTesting;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelRunner;
+use ParaTest\Options;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
 use ReflectionMethod;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Input\InputDefinition;
+use Symfony\Component\Console\Output\BufferedOutput;
 
 class ParallelRunnerTest extends TestCase
 {
@@ -52,6 +58,28 @@ class ParallelRunnerTest extends TestCase
         }
     }
 
+    #[Test]
+    public function itResolvesProcessTokensAsStrings(): void
+    {
+        $tokens = [];
+
+        ParallelRunner::resolveApplicationUsing(fn () => new Application($this->app->basePath()));
+
+        $runner = new ParallelRunner($this->optionsWithProcesses(2), new BufferedOutput);
+        $method = new ReflectionMethod(ParallelRunner::class, 'forEachProcess');
+
+        try {
+            $method->invoke($runner, function () use (&$tokens): void {
+                $tokens[] = ParallelTesting::token();
+            });
+        } finally {
+            ParallelRunner::resolveApplicationUsing(null);
+            ParallelTesting::resolveTokenUsing(null);
+        }
+
+        $this->assertSame(['1', '2'], $tokens);
+    }
+
     /**
      * Restore the APP_BASE_PATH values.
      */
@@ -68,5 +96,24 @@ class ParallelRunnerTest extends TestCase
         } else {
             $_SERVER['APP_BASE_PATH'] = $this->originalAppBasePathServer;
         }
+    }
+
+    /**
+     * Get ParaTest options with the given process count.
+     */
+    protected function optionsWithProcesses(int $processes): Options
+    {
+        $inputDefinition = new InputDefinition;
+        Options::setInputDefinition($inputDefinition);
+
+        return Options::fromConsoleInput(
+            new ArgvInput([
+                'paratest',
+                '--configuration=' . dirname(__DIR__, 2) . '/phpunit.xml.dist',
+                '--runner=' . ParallelRunner::class,
+                '--processes=' . $processes,
+            ], $inputDefinition),
+            dirname(__DIR__, 2),
+        );
     }
 }

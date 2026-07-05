@@ -36,7 +36,7 @@ use Throwable;
  * Environment Variables:
  * - REDIS_HOST: Redis host (default: 127.0.0.1)
  * - REDIS_PORT: Redis port (default: 6379)
- * - REDIS_DB: Base Redis database number (default: 1)
+ * - REDIS_DB: Base Redis database number (default: 0)
  * - REDIS_PASSWORD: Redis password (optional)
  */
 trait InteractsWithRedis
@@ -153,7 +153,7 @@ trait InteractsWithRedis
     /**
      * Get the primary Redis DB number for the current parallel test worker.
      *
-     * Sequential (no TEST_TOKEN): returns REDIS_DB (default 1).
+     * Sequential (no TEST_TOKEN): returns REDIS_DB (default 0).
      * Parallel (TEST_TOKEN=N): returns REDIS_DB + N.
      */
     protected function getParallelRedisDb(): int
