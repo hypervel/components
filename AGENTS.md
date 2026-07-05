@@ -576,7 +576,11 @@ Examples: `tests/Inertia/CoroutineIsolationTest.php`, `tests/Container/Coroutine
 
 When porting source classes that use static properties for caching (e.g., `$booted`, `$globalScopes`, resolved config values, compiled formats):
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
-2. Check whether the subscriber (`tests/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
+2. Check whether the subscriber (`src/testing/src/PHPUnit/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
+
+Framework-owned classes go in `AfterEachTestSubscriber`. First-party optional framework packages may stay in grouped optional methods at the bottom of that subscriber. Third-party packages, private packages, and applications should register their cleanup through `extra.hypervel.test-state` and a `TestState` registrar instead of hardcoding their classes into the framework subscriber.
+
+Do not add `Hypervel\Testing\PHPUnit\AfterEachTestCleanup` itself to `AfterEachTestSubscriber`. Its callbacks are suite-level registrations that must persist for the PHPUnit worker lifetime.
 
 Place `flushState()` at the end of the class. The only exception is when the class has trailing magic dispatch/lifecycle methods (`__call`, `__callStatic`, `__get`, `__set`, `__isset`, `__unset`, `__destruct`) at the end; in that case, place `flushState()` immediately before that trailing magic-method block. `__invoke()` is not a placement anchor.
 

@@ -128,6 +128,21 @@ class PackageManifestTest extends TestCase
     }
 
     #[Test]
+    public function itDoesNotApplyRootComposerDontDiscoverDuringBuild(): void
+    {
+        $manifest = $this->makeManifest(
+            testbench: $this->makeTestbench([]),
+            rootPackage: $this->rootPackageFixture()
+        );
+
+        $manifest->build();
+
+        $cached = require $this->manifestPath;
+
+        $this->assertArrayHasKey('vendor-a/package-a', $cached);
+    }
+
+    #[Test]
     public function itCanBuildManifestWithoutRootComposerMetadata(): void
     {
         $manifest = $this->makeManifest(

@@ -31,6 +31,7 @@
     "require": {
         "php": "^8.4",
         "ext-dom": "*",
+        "composer-runtime-api": "^2.2",
         "mockery/mockery": "1.6.x-dev",
         "symfony/console": "^8.0",
         "symfony/http-foundation": "^8.0",
@@ -43,6 +44,7 @@
         "hypervel/contracts": "^0.4",
         "hypervel/cookie": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",

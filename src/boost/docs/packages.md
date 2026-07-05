@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
     - [A Note on Facades](#a-note-on-facades)
 - [Package Discovery](#package-discovery)
+    - [Test State Cleanup](#test-state-cleanup)
 - [Inspecting Installed Packages](#inspecting-installed-packages)
 - [Service Providers](#service-providers)
     - [Provider Priority](#provider-priority)
@@ -85,6 +86,48 @@ You may disable package discovery for all packages using the `*` character insid
     }
 },
 ```
+
+<a name="test-state-cleanup"></a>
+### Test State Cleanup
+
+Packages that keep worker-lifetime state for tests may declare a test-state registrar:
+
+```json
+"extra": {
+    "hypervel": {
+        "test-state": [
+            "Vendor\\Package\\Testing\\TestState"
+        ]
+    }
+}
+```
+
+The registrar must be autoloadable from the package's normal `autoload` section and must define `register()`. Use the registrar as one package-level entry point that aggregates the cleanup for any stateful classes your package owns:
+
+```php
+<?php
+
+namespace Vendor\Package\Testing;
+
+use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
+
+class TestState
+{
+    public static function register(): void
+    {
+        AfterEachTestCleanup::flushUsing('vendor/package', fn () => static::flushState());
+    }
+
+    public static function flushState(): void
+    {
+        InvoiceNumbers::flushState();
+        TaxRates::flushState();
+        ReceiptMacros::flushState();
+    }
+}
+```
+
+Use your Composer package name as the callback name. Registrar classes are discovered during PHPUnit extension bootstrap, so package cleanup runs even in workers that only execute unit tests and never boot a Hypervel application.
 
 <a name="inspecting-installed-packages"></a>
 ## Inspecting Installed Packages

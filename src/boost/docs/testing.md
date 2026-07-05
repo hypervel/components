@@ -4,6 +4,7 @@
 - [Environment](#environment)
 - [Creating Tests](#creating-tests)
     - [Running Tests in Coroutines](#running-tests-in-coroutines)
+    - [Test State Cleanup](#test-state-cleanup)
     - [Macro State](#macro-state)
     - [Using Pest](#using-pest)
 - [Running Tests](#running-tests)
@@ -167,40 +168,48 @@ By default, Hypervel copies coroutine context values prepared outside the test m
 protected bool $copyNonCoroutineContext = false;
 ```
 
+<a name="test-state-cleanup"></a>
+### Test State Cleanup
+
+Hypervel applications keep framework objects, static caches, macros, and manager state in memory for the life of the PHP process. During tests, Hypervel's PHPUnit extension flushes framework-owned state after every test method.
+
+If your application has its own worker-lifetime state, add its cleanup to `tests/Support/TestState.php`. Use this class as one application-level entry point that aggregates the cleanup for any stateful classes your app owns:
+
+```php
+<?php
+
+namespace Tests\Support;
+
+use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
+
+class TestState
+{
+    public static function register(): void
+    {
+        AfterEachTestCleanup::flushUsing('app', fn () => static::flushState());
+    }
+
+    public static function flushState(): void
+    {
+        InvoiceNumbers::flushState();
+        TaxRates::flushState();
+        ReceiptMacros::flushState();
+    }
+}
+```
+
+Callbacks registered by your application run after package cleanup callbacks and before Hypervel flushes framework state. This means framework services are still available while your callback runs, then Hypervel tears them down immediately after.
+
+Do not call `AfterEachTestCleanup::forgetCallbacks()` from ordinary application tests. That method clears all registered callbacks for the current PHPUnit worker, including callbacks discovered from application and package metadata.
+
 <a name="macro-state"></a>
 ### Macro State
 
 Macroable classes store registered macros in static state for the life of the PHP process. Typically, macros should be registered during application boot from a [service provider](/docs/{{version}}/providers).
 
-If you register a temporary macro from inside a test, flush that class's macro state before the test finishes so the macro does not affect later tests in the same process:
+Hypervel already flushes framework macroable classes such as `Collection`, `ResponseFactory`, `View\Factory`, and testing helpers after every test. Do not add teardown cleanup for framework classes already handled by Hypervel.
 
-```php
-<?php
-
-namespace Tests\Feature;
-
-use Hypervel\Support\Collection;
-use Tests\TestCase;
-
-class CollectionMacroTest extends TestCase
-{
-    protected function tearDown(): void
-    {
-        Collection::flushMacros();
-
-        parent::tearDown();
-    }
-
-    public function test_collection_macro(): void
-    {
-        Collection::macro('summary', function () {
-            return $this->implode(', ');
-        });
-
-        $this->assertSame('first, second', collect(['first', 'second'])->summary());
-    }
-}
-```
+If your application or package defines its own macroable class and registers temporary macros inside a test, add that class to your test-state cleanup.
 
 <a name="using-pest"></a>
 ### Using Pest
