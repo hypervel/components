@@ -9,12 +9,6 @@ use PHPUnit\Runner\Extension\Facade;
 use PHPUnit\Runner\Extension\ParameterCollection;
 use PHPUnit\TextUI\Configuration\Configuration;
 
-/**
- * PHPUnit extension that registers the AfterEachTestSubscriber.
- *
- * This ensures Mockery cleanup runs after every test method, eliminating
- * the need for explicit m::close() calls in individual test tearDown methods.
- */
 class AfterEachTestExtension implements Extension
 {
     /**
@@ -22,6 +16,8 @@ class AfterEachTestExtension implements Extension
      */
     public function bootstrap(Configuration $configuration, Facade $facade, ParameterCollection $parameters): void
     {
+        TestStateRegistrars::forRootInstall()->register();
+
         $facade->registerSubscriber(new AfterEachTestSubscriber);
     }
 }
