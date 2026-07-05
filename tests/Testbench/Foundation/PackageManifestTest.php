@@ -172,6 +172,25 @@ class PackageManifestTest extends TestCase
     }
 
     #[Test]
+    public function itCanFilterManifestUsingSpecificPackageNames(): void
+    {
+        $manifest = $this->makeManifest(
+            testbench: $this->makeTestbench(['testbench/example']),
+            rootPackage: $this->rootPackageFixture()
+        );
+
+        $manifest->build();
+
+        $cached = require $this->manifestPath;
+
+        $this->assertArrayHasKey('testbench/example', $cached);
+        $this->assertFalse($manifest->hasPackage('testbench/example'));
+        $this->assertTrue($manifest->hasPackage('vendor-a/package-a'));
+        $this->assertContains('Hypervel\Tests\Testbench\Fixtures\Providers\ChildServiceProvider', $manifest->providers());
+        $this->assertArrayNotHasKey('RootAlias', $manifest->aliases());
+    }
+
+    #[Test]
     public function itCanRetainRequiredPackagesWhenDiscoveryIsDisabled(): void
     {
         $manifest = $this->makeManifest(

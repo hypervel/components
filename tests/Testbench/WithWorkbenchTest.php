@@ -32,7 +32,7 @@ class WithWorkbenchTest extends TestCase
             'env' => ["APP_NAME='Testbench'"],
             'bootstrappers' => [],
             'providers' => ['Workbench\App\Providers\WorkbenchServiceProvider'],
-            'dont-discover' => [],
+            'dont-discover' => ['hypervel/components'],
         ], $cachedConfig->getExtraAttributes());
     }
 
