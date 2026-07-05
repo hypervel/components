@@ -11,6 +11,7 @@ use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\TestStateRegistrars;
 use Hypervel\Tests\TestCase;
 use Override;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class TestStateRegistrarsTest extends TestCase
@@ -208,20 +209,22 @@ class TestStateRegistrarsTest extends TestCase
         }
     }
 
-    public function testResolveInstalledRootPathThrowsForInvalidComposerRootInstallPath(): void
+    #[DataProvider('invalidComposerRootInstallPaths')]
+    public function testResolveInstalledRootPathThrowsForInvalidComposerRootInstallPath(mixed $installPath): void
     {
-        foreach ([null, '', 123] as $installPath) {
-            try {
-                TestStateRegistrarsProbe::resolveInstalledRootPath($installPath);
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Composer runtime metadata is missing the root package install path.');
 
-                $this->fail('Expected a runtime exception for invalid Composer root install path.');
-            } catch (RuntimeException $exception) {
-                $this->assertSame(
-                    'Composer runtime metadata is missing the root package install path.',
-                    $exception->getMessage()
-                );
-            }
-        }
+        TestStateRegistrarsProbe::resolveInstalledRootPath($installPath);
+    }
+
+    public static function invalidComposerRootInstallPaths(): array
+    {
+        return [
+            'null' => [null],
+            'empty string' => [''],
+            'non-string' => [123],
+        ];
     }
 
     public function testResolveInstalledRootPathReturnsRealPathWhenAvailable(): void
