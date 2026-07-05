@@ -287,7 +287,13 @@ class PackageManifest
             return null;
         }
 
-        return $composer['extra']['hypervel'][$key] ?? null;
+        $hypervel = $composer['extra']['hypervel'] ?? null;
+
+        if (! is_array($hypervel)) {
+            return null;
+        }
+
+        return $hypervel[$key] ?? null;
     }
 
     /**

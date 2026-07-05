@@ -267,6 +267,20 @@ class FoundationPackageManifestTest extends TestCase
         );
     }
 
+    public function testRootHypervelExtraReturnsNullForMalformedHypervelMetadata(): void
+    {
+        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('malformed-root-hypervel-metadata');
+        $filesystem->put($basePath . '/composer.json', json_encode([
+            'extra' => [
+                'hypervel' => 'invalid',
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertNull(PackageManifest::rootHypervelExtra($filesystem, $basePath, 'test-state'));
+        $this->assertSame([], PackageManifest::packagesToIgnoreFromComposer($filesystem, $basePath));
+    }
+
     public function testVersionReturnsPackageVersion()
     {
         $manifest = $this->makeManifest();
