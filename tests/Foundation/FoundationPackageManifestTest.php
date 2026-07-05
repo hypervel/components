@@ -204,6 +204,57 @@ class FoundationPackageManifestTest extends TestCase
         );
     }
 
+    public function testDiscoverInstalledPackagesReturnsEmptyArrayForMalformedPackagesShape(): void
+    {
+        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('malformed-packages-shape');
+        $filesystem->put($basePath . '/vendor/composer/installed.json', json_encode([
+            'packages' => 'invalid',
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame(
+            [],
+            PackageManifest::discoverInstalledPackages($filesystem, $basePath . '/vendor', [])
+        );
+    }
+
+    public function testDiscoverInstalledPackagesSkipsMalformedPackageEntries(): void
+    {
+        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('malformed-package-entries');
+        $filesystem->put($basePath . '/vendor/composer/installed.json', json_encode([
+            'packages' => [
+                'invalid',
+                [
+                    'version' => 'v1.0.0',
+                ],
+                [
+                    'name' => 'vendor-a/package-a',
+                    'version' => 'v1.0.0',
+                ],
+                [
+                    'name' => 'vendor-a/package-b',
+                    'version' => 'v2.0.0',
+                    'extra' => [
+                        'hypervel' => 'invalid',
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame(
+            [
+                'vendor-a/package-a' => [
+                    'version' => 'v1.0.0',
+                ],
+                'vendor-a/package-b' => [
+                    'version' => 'v2.0.0',
+                ],
+            ],
+            PackageManifest::discoverInstalledPackages($filesystem, $basePath . '/vendor', [])
+        );
+    }
+
     public function testPackagesToIgnoreFromComposerReturnsEmptyArrayForMalformedComposerJson(): void
     {
         $filesystem = new Filesystem;

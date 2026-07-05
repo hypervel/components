@@ -208,6 +208,30 @@ class TestStateRegistrarsTest extends TestCase
         }
     }
 
+    public function testResolveInstalledRootPathThrowsForInvalidComposerRootInstallPath(): void
+    {
+        foreach ([null, '', 123] as $installPath) {
+            try {
+                TestStateRegistrarsProbe::resolveInstalledRootPath($installPath);
+
+                $this->fail('Expected a runtime exception for invalid Composer root install path.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame(
+                    'Composer runtime metadata is missing the root package install path.',
+                    $exception->getMessage()
+                );
+            }
+        }
+    }
+
+    public function testResolveInstalledRootPathReturnsRealPathWhenAvailable(): void
+    {
+        $this->assertSame(
+            realpath($this->basePath),
+            TestStateRegistrarsProbe::resolveInstalledRootPath($this->basePath)
+        );
+    }
+
     private function makeRegistrars(): TestStateRegistrars
     {
         return new TestStateRegistrars(
@@ -328,6 +352,14 @@ class RegistrarWithoutRegisterMethod
 
 class TestStateRegistrarsProbe extends TestStateRegistrars
 {
+    /**
+     * Resolve and validate the Composer root install path.
+     */
+    public static function resolveInstalledRootPath(mixed $installPath): string
+    {
+        return parent::resolveInstalledRootPath($installPath);
+    }
+
     /**
      * Get the configured vendor path.
      */

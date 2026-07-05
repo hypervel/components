@@ -48,6 +48,7 @@ class AfterEachTestCleanup
             try {
                 $callback();
             } catch (Throwable $throwable) {
+                // Keep running cleanup, then surface the first failure as the root cause.
                 $exception ??= $throwable;
             }
         }

@@ -195,15 +195,27 @@ class PackageManifest
             $installed = json_decode($files->get($path), true);
 
             if (is_array($installed)) {
-                $packages = $installed['packages'] ?? $installed;
+                $installedPackages = $installed['packages'] ?? $installed;
+
+                if (is_array($installedPackages)) {
+                    $packages = $installedPackages;
+                }
             }
         }
 
         $ignore = $baseIgnore;
 
-        return (new Collection($packages))->mapWithKeys(function (array $package) use ($vendorPath) {
+        return (new Collection($packages))->filter(function (mixed $package): bool {
+            return is_array($package) && is_string($package['name'] ?? null);
+        })->mapWithKeys(function (array $package) use ($vendorPath) {
+            $configuration = $package['extra']['hypervel'] ?? [];
+
+            if (! is_array($configuration)) {
+                $configuration = [];
+            }
+
             return [static::formatPackageName($package['name'], $vendorPath) => [
-                ...($package['extra']['hypervel'] ?? []),
+                ...$configuration,
                 'version' => $package['version'] ?? null,
             ]];
         })->each(function (array $configuration) use (&$ignore) {
@@ -253,8 +265,18 @@ class PackageManifest
      */
     public static function packagesToIgnoreFromComposer(Filesystem $files, string $basePath): array
     {
+        $ignore = static::rootHypervelExtra($files, $basePath, 'dont-discover');
+
+        return is_array($ignore) ? $ignore : [];
+    }
+
+    /**
+     * Get a root Composer extra.hypervel value.
+     */
+    public static function rootHypervelExtra(Filesystem $files, string $basePath, string $key): mixed
+    {
         if (! $files->isFile($basePath . '/composer.json')) {
-            return [];
+            return null;
         }
 
         $composer = json_decode($files->get(
@@ -262,12 +284,10 @@ class PackageManifest
         ), true);
 
         if (! is_array($composer)) {
-            return [];
+            return null;
         }
 
-        $ignore = $composer['extra']['hypervel']['dont-discover'] ?? [];
-
-        return is_array($ignore) ? $ignore : [];
+        return $composer['extra']['hypervel'][$key] ?? null;
     }
 
     /**

@@ -60,16 +60,22 @@ class TestStateRegistrars
     protected static function installedRootPath(): string
     {
         $rootPackage = InstalledVersions::getRootPackage();
-        $basePath = $rootPackage['install_path'] ?? getcwd();
 
-        if (! is_string($basePath) || $basePath === '') {
-            $currentPath = getcwd();
-            $basePath = $currentPath === false ? '.' : $currentPath;
+        return static::resolveInstalledRootPath($rootPackage['install_path'] ?? null);
+    }
+
+    /**
+     * Resolve and validate the Composer root install path.
+     */
+    protected static function resolveInstalledRootPath(mixed $installPath): string
+    {
+        if (! is_string($installPath) || $installPath === '') {
+            throw new RuntimeException('Composer runtime metadata is missing the root package install path.');
         }
 
-        $realPath = realpath($basePath);
+        $realPath = realpath($installPath);
 
-        return $realPath === false ? $basePath : $realPath;
+        return $realPath === false ? $installPath : $realPath;
     }
 
     /**
@@ -79,19 +85,7 @@ class TestStateRegistrars
      */
     protected function rootRegistrars(): array
     {
-        $path = $this->basePath . '/composer.json';
-
-        if (! $this->files->isFile($path)) {
-            return [];
-        }
-
-        $composer = json_decode($this->files->get($path), true);
-
-        if (! is_array($composer)) {
-            return [];
-        }
-
-        return (array) ($composer['extra']['hypervel']['test-state'] ?? []);
+        return (array) PackageManifest::rootHypervelExtra($this->files, $this->basePath, 'test-state');
     }
 
     /**
