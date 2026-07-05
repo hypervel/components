@@ -45,7 +45,11 @@ jobs:
         run: |
             COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
-      - name: Execute tests
-        run: |
-            PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix --dry-run --diff
-            vendor/bin/phpunit -c phpunit.xml.dist
+      - name: Check code style
+        run: PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix --dry-run --diff
+
+      - name: Run framework test suite
+        run: vendor/bin/phpunit -c phpunit.xml.dist
+
+      - name: Run Testbench package-mode suite
+        run: php src/testbench/bin/testbench package:test --parallel tests/Testbench
