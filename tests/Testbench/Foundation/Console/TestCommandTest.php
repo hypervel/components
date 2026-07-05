@@ -83,7 +83,7 @@ class TestCommandTest extends TestCase
         $this->assertIsString($variables[TestCommand::PROFILE_DIRECTORY_ENV]);
         $this->assertSame('(true)', $variables['TESTBENCH_PACKAGE_TESTER']);
         $this->assertSame(package_path(), $variables['TESTBENCH_WORKING_PATH']);
-        $this->assertSame($this->app->basePath(), $variables['TESTBENCH_APP_BASE_PATH']);
+        $this->assertArrayNotHasKey('TESTBENCH_APP_BASE_PATH', $variables);
     }
 
     #[Test]
@@ -147,7 +147,6 @@ class TestCommandTest extends TestCase
                 'APP_ENV' => 'local',
                 'TESTBENCH_PACKAGE_TESTER' => false,
                 'TESTBENCH_WORKING_PATH' => '/tmp/wrong',
-                'TESTBENCH_APP_BASE_PATH' => '/tmp/wrong',
             ]),
         ], function (): void {
             $command = new TestCommandHarness;
@@ -157,7 +156,7 @@ class TestCommandTest extends TestCase
             $this->assertSame('testing', $variables['APP_ENV']);
             $this->assertSame('(true)', $variables['TESTBENCH_PACKAGE_TESTER']);
             $this->assertSame(package_path(), $variables['TESTBENCH_WORKING_PATH']);
-            $this->assertSame($this->app->basePath(), $variables['TESTBENCH_APP_BASE_PATH']);
+            $this->assertArrayNotHasKey('TESTBENCH_APP_BASE_PATH', $variables);
         });
     }
 
@@ -192,7 +191,7 @@ class TestCommandTest extends TestCase
         $this->assertTrue($variables['HYPERVEL_PARALLEL_TESTING_WITHOUT_CACHE']);
         $this->assertSame('(true)', $variables['TESTBENCH_PACKAGE_TESTER']);
         $this->assertSame(package_path(), $variables['TESTBENCH_WORKING_PATH']);
-        $this->assertSame($this->app->basePath(), $variables['TESTBENCH_APP_BASE_PATH']);
+        $this->assertArrayNotHasKey('TESTBENCH_APP_BASE_PATH', $variables);
     }
 
     /**

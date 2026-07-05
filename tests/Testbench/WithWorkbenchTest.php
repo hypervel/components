@@ -76,6 +76,38 @@ class WithWorkbenchTest extends TestCase
     }
 
     #[Test]
+    public function itIgnoresStrayTestbenchAppBasePathEnvironmentValues()
+    {
+        $previousAppBasePathExists = array_key_exists('APP_BASE_PATH', $_ENV);
+        $previousAppBasePath = $_ENV['APP_BASE_PATH'] ?? null;
+        $previousTestbenchAppBasePathExists = array_key_exists('TESTBENCH_APP_BASE_PATH', $_ENV);
+        $previousTestbenchAppBasePath = $_ENV['TESTBENCH_APP_BASE_PATH'] ?? null;
+
+        try {
+            unset($_ENV['APP_BASE_PATH']);
+            $_ENV['TESTBENCH_APP_BASE_PATH'] = '/tmp/parent-runtime-clone';
+
+            $this->assertNull(static::applicationBasePathUsingWorkbench());
+
+            $_ENV['APP_BASE_PATH'] = '/tmp/user-override';
+
+            $this->assertSame('/tmp/user-override', static::applicationBasePathUsingWorkbench());
+        } finally {
+            if ($previousAppBasePathExists) {
+                $_ENV['APP_BASE_PATH'] = $previousAppBasePath;
+            } else {
+                unset($_ENV['APP_BASE_PATH']);
+            }
+
+            if ($previousTestbenchAppBasePathExists) {
+                $_ENV['TESTBENCH_APP_BASE_PATH'] = $previousTestbenchAppBasePath;
+            } else {
+                unset($_ENV['TESTBENCH_APP_BASE_PATH']);
+            }
+        }
+    }
+
+    #[Test]
     public function itCanResolveUserModelFromWorkbench()
     {
         $this->assertFalse(Env::has('AUTH_MODEL'));

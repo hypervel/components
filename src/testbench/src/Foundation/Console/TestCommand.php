@@ -62,7 +62,6 @@ class TestCommand extends TestCommandBase
         return (new Collection($this->configurationEnvironmentVariables()))->merge(parent::baseEnvironmentVariables())->merge([
             'TESTBENCH_PACKAGE_TESTER' => '(true)',
             'TESTBENCH_WORKING_PATH' => package_path(),
-            'TESTBENCH_APP_BASE_PATH' => $this->hypervel->basePath(),
         ]);
     }
 

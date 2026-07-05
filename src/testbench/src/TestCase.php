@@ -138,7 +138,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
         }
 
         static::setUpBeforeClassUsingTestCase();
-        static::setUpBeforeClassUsingWorkbench();
     }
 
     /**
@@ -146,7 +145,6 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
      */
     public static function tearDownAfterClass(): void
     {
-        static::tearDownAfterClassUsingWorkbench();
         static::tearDownAfterClassUsingTestCase();
 
         /* @phpstan-ignore class.notFound */

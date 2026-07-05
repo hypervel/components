@@ -90,7 +90,7 @@ protected function basePath(string ...$paths): string
 
 So `vendor/bin/testbench package:test --parallel` is the correct shared command path for package-style suites. It should not be used as the full components framework-suite gate because it intentionally activates package-tester semantics, including Testbench skeleton env/config defaults.
 
-The command path still passes the Testbench CLI application's runtime environment to workers through `defined_environment_variables()` and then adds `HYPERVEL_PARALLEL_TESTING`, `TESTBENCH_PACKAGE_TESTER`, `TESTBENCH_WORKING_PATH`, and `TESTBENCH_APP_BASE_PATH`. That broad forwarding is the wrong ownership boundary. The command should forward declared package-test channels, not every value the temporary CLI app happened to load. Package and app env loading belongs in PHPUnit, Testbench application bootstrap, and the per-worker runtime clone.
+The command path still passes the Testbench CLI application's runtime environment to workers through `defined_environment_variables()` and then adds `HYPERVEL_PARALLEL_TESTING`, `TESTBENCH_PACKAGE_TESTER`, and `TESTBENCH_WORKING_PATH`. That broad forwarding is the wrong ownership boundary. The command should forward declared package-test channels, not every value the temporary CLI app happened to load. Package and app env loading belongs in PHPUnit, Testbench application bootstrap, and the per-worker runtime clone.
 
 The shared test command already tries to prevent parent app env leakage before spawning child processes:
 
@@ -298,7 +298,6 @@ The Testbench package command should not forward the temporary CLI application's
 return (new Collection($this->configurationEnvironmentVariables()))->merge(parent::baseEnvironmentVariables())->merge([
     'TESTBENCH_PACKAGE_TESTER' => '(true)',
     'TESTBENCH_WORKING_PATH' => package_path(),
-    'TESTBENCH_APP_BASE_PATH' => $this->hypervel->basePath(),
 ]);
 ```
 
@@ -672,16 +671,15 @@ Add a concise source comment above the `Env::getRepository()` / `Env::deleteMany
 Update `src/testbench/src/Foundation/Console/TestCommand.php` so `baseEnvironmentVariables()` no longer merges `defined_environment_variables()`:
 
 ```php
-return parent::baseEnvironmentVariables()->merge($this->configurationEnvironmentVariables())->merge([
+return (new Collection($this->configurationEnvironmentVariables()))->merge(parent::baseEnvironmentVariables())->merge([
     'TESTBENCH_PACKAGE_TESTER' => '(true)',
     'TESTBENCH_WORKING_PATH' => package_path(),
-    'TESTBENCH_APP_BASE_PATH' => $this->hypervel->basePath(),
 ]);
 ```
 
 The command should not import `defined_environment_variables()` after this change.
 
-Add an internal helper that forwards only declared Testbench YAML `env:` values. Use the same dotenv `Parser` and `StringStore` semantics as `LoadEnvironmentVariablesFromArray`, and merge these values before command-owned package-test vars so `APP_ENV`, `TESTBENCH_PACKAGE_TESTER`, `TESTBENCH_WORKING_PATH`, and `TESTBENCH_APP_BASE_PATH` keep winning.
+Add an internal helper that forwards only declared Testbench YAML `env:` values. Use the same dotenv `Parser` and `StringStore` semantics as `LoadEnvironmentVariablesFromArray`, and merge these values before parent command vars and command-owned package-test vars so `APP_ENV`, `TESTBENCH_PACKAGE_TESTER`, and `TESTBENCH_WORKING_PATH` keep winning.
 
 Suggested shape:
 
@@ -949,7 +947,8 @@ Add focused coverage for the Testbench binary marker if there is an appropriate 
 Add package command env ownership coverage:
 
 - parent runtime env keys such as `APP_NAME` and `REDIS_PASSWORD` are not included in package command env variables
-- `TESTBENCH_PACKAGE_TESTER`, `TESTBENCH_WORKING_PATH`, and `TESTBENCH_APP_BASE_PATH` are still included
+- `TESTBENCH_PACKAGE_TESTER` and `TESTBENCH_WORKING_PATH` are still included
+- `TESTBENCH_APP_BASE_PATH` is not included; `APP_BASE_PATH` remains the explicit user override
 - declared Testbench YAML `env:` values are included in package command env variables
 - command-owned package-test vars override colliding YAML env values
 
