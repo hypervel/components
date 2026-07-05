@@ -1021,6 +1021,8 @@ To run tests in parallel, pass the `--parallel` option:
 vendor/bin/testbench package:test --parallel
 ```
 
+Package tests use the same parallel database, cache, and Redis isolation behavior as application tests.
+
 The command supports the following options:
 
 | Option | Description |
