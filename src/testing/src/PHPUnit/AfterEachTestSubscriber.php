@@ -22,6 +22,26 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     public function notify(Finished $event): void
     {
+        $this->flushStateAfterTest();
+    }
+
+    /**
+     * Flush all test state after a test finishes.
+     */
+    public function flushStateAfterTest(): void
+    {
+        try {
+            AfterEachTestCleanup::runCallbacks();
+        } finally {
+            $this->flushFrameworkState();
+        }
+    }
+
+    /**
+     * Flush framework-owned static state.
+     */
+    protected function flushFrameworkState(): void
+    {
         Mockery::close();
 
         \Carbon\Carbon::resetMacros();
