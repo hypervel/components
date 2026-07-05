@@ -9,6 +9,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
 use Hypervel\Testbench\TestbenchServiceProvider;
+use Hypervel\Tests\Testbench\Concerns\PreservesSkeletonFiles;
 use Hypervel\Tests\Testbench\Fixtures\Providers\Phase2ConsoleServiceProvider;
 use Hypervel\Tests\Testbench\TestCase;
 use Override;
@@ -21,6 +22,8 @@ use function Hypervel\Testbench\package_path;
 #[RequiresOperatingSystem('Linux|Darwin')]
 class PurgeSkeletonCommandTest extends TestCase
 {
+    use PreservesSkeletonFiles;
+
     private Filesystem $filesystem;
 
     #[Override]
@@ -29,6 +32,11 @@ class PurgeSkeletonCommandTest extends TestCase
         parent::setUp();
 
         $this->filesystem = new Filesystem;
+
+        $this->preserveFiles([
+            $this->app->basePath('.env'),
+            $this->app->basePath('.env.backup'),
+        ]);
     }
 
     #[Override]
@@ -36,6 +44,7 @@ class PurgeSkeletonCommandTest extends TestCase
     {
         TerminatingConsole::flush();
         $this->cleanUpPurgeSkeletonArtifacts();
+        $this->restorePreservedFiles();
 
         parent::tearDown();
     }
@@ -177,27 +186,5 @@ class PurgeSkeletonCommandTest extends TestCase
             $this->app->basePath('purge-dir-temp'),
             $this->app->basePath('vendor'),
         ];
-    }
-
-    /**
-     * Delete a file, directory, or symlink if it exists.
-     */
-    private function deletePath(string $path): void
-    {
-        if (is_link($path)) {
-            unlink($path);
-
-            return;
-        }
-
-        if ($this->filesystem->isDirectory($path)) {
-            $this->filesystem->deleteDirectory($path);
-
-            return;
-        }
-
-        if ($this->filesystem->exists($path)) {
-            $this->filesystem->delete($path);
-        }
     }
 }
