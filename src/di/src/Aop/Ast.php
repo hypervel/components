@@ -39,9 +39,9 @@ class Ast
      * Reads the class source file, applies all registered AST visitors
      * (via AstVisitorRegistry), and returns the modified PHP code.
      */
-    public function proxy(string $className): string
+    public function proxy(string $className, ?string $sourceFilePath = null): string
     {
-        $code = $this->getCodeByClassName($className);
+        $code = $this->getCodeByClassName($className, $sourceFilePath);
         $stmts = $this->astParser->parse($code);
         $traverser = new NodeTraverser;
         $visitorMetadata = new VisitorMetadata($className);
@@ -78,9 +78,9 @@ class Ast
     /**
      * Read the source code for a class from its file.
      */
-    private function getCodeByClassName(string $className): string
+    private function getCodeByClassName(string $className, ?string $sourceFilePath = null): string
     {
-        $file = Composer::getLoader()->findFile($className);
+        $file = $sourceFilePath ?? Composer::getLoader()->findFile($className);
         if (! $file) {
             return '';
         }
