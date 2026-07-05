@@ -296,7 +296,7 @@ class CommanderServeTest extends TestCase
 
         do {
             if (! $process->isRunning()) {
-                $this->fail("Serve process exited before accepting connections.\n{$this->combinedOutput($process)}");
+                $this->fail("Serve process exited before accepting connections on port {$serverPort}.\n{$this->combinedOutput($process)}");
             }
 
             if ($this->canConnectToServePort($serverPort)) {
@@ -306,7 +306,7 @@ class CommanderServeTest extends TestCase
             usleep(100_000);
         } while (microtime(true) < $deadline);
 
-        $this->fail("Serve process did not accept connections.\n{$this->combinedOutput($process)}");
+        $this->fail("Serve process did not accept connections on port {$serverPort}.\n{$this->combinedOutput($process)}");
     }
 
     /**
@@ -341,6 +341,22 @@ class CommanderServeTest extends TestCase
      * Reserve a free local port for the serve smoke test.
      */
     private function servePort(): int
+    {
+        for ($attempt = 0; $attempt < 20; ++$attempt) {
+            $port = $this->reserveServePort();
+
+            if ($port > 10_000) {
+                return $port;
+            }
+        }
+
+        $this->fail('Unable to reserve a high TCP port for the serve smoke test.');
+    }
+
+    /**
+     * Reserve a free local TCP port.
+     */
+    private function reserveServePort(): int
     {
         $socket = stream_socket_server('tcp://127.0.0.1:0', $errorNumber, $errorMessage);
 

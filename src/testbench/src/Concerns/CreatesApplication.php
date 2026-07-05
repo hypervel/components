@@ -573,12 +573,26 @@ trait CreatesApplication
      */
     protected function configureParallelCachePaths(): void
     {
-        $token = env('TEST_TOKEN');
+        $token = $this->paraTestWorkerToken();
 
         if ($token === null) {
             return;
         }
 
         $_SERVER['APP_ROUTES_CACHE'] = "cache/routes-v7-test-{$token}.php";
+    }
+
+    /**
+     * Get the current ParaTest worker token before the application exists.
+     *
+     * This reads the raw runtime arrays because cached route setup may run
+     * before parent::setUp(), when no application or ParallelTesting service
+     * has been created yet.
+     */
+    protected function paraTestWorkerToken(): ?string
+    {
+        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? null;
+
+        return is_string($token) && $token !== '' ? $token : null;
     }
 }
