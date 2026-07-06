@@ -49,7 +49,7 @@
         "hypervel/pagination": "^0.4",
         "hypervel/queue": "^0.4",
         "hypervel/support": "^0.4",
-        "symfony/console": "^8.0"
+        "symfony/console": "^8.1"
     },
     "suggest": {
         "algolia/algoliasearch-client-php": "Required for Algolia driver (^4.0)",
