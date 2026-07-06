@@ -53,3 +53,6 @@ jobs:
 
       - name: Run Testbench package-mode suite
         run: php src/testbench/bin/testbench package:test --parallel tests/Testbench
+
+      - name: Run Testbench dogfood package suite
+        run: composer test:dogfood

@@ -26,9 +26,6 @@
     },
     "autoload": {
         "psr-4": {
-            "Workbench\\App\\": "src/testbench/workbench/app/",
-            "Workbench\\Database\\Factories\\": "src/testbench/workbench/database/factories/",
-            "Workbench\\Database\\Seeders\\": "src/testbench/workbench/database/seeders/",
             "Hypervel\\ApiClient\\": "src/api-client/src/",
             "Hypervel\\Contracts\\": "src/contracts/src/",
             "Hypervel\\Auth\\": "src/auth/src/",
@@ -121,12 +118,19 @@
             "tests/Database/Fixtures/MigrationCreatorFakeMigration.php"
         ],
         "psr-4": {
+            "Workbench\\App\\": "src/testbench/workbench/app/",
+            "Workbench\\Database\\Factories\\": "src/testbench/workbench/database/factories/",
+            "Workbench\\Database\\Seeders\\": "src/testbench/workbench/database/seeders/",
             "Hypervel\\Tests\\": "tests/"
         },
         "classmap": [
             "tests/Validation/Enums.php"
         ]
     },
+    "bin": [
+        "src/facade-documenter/facade.php",
+        "src/testbench/bin/testbench"
+    ],
     "require": {
         "php": ">=8.4",
         "ext-dom": "*",
@@ -365,6 +369,11 @@
         "test": "phpunit",
         "test:parallel": "paratest",
         "test:testbench": "php src/testbench/bin/testbench package:test --parallel tests/Testbench",
+        "test:dogfood": [
+            "Composer\\Config::disableProcessTimeout",
+            "composer --working-dir=dogfood/testbench-package install --prefer-dist -n -o",
+            "composer --working-dir=dogfood/testbench-package test"
+        ],
         "analyse": [
             "phpstan analyse",
             "phpstan analyse -c phpstan.types.neon.dist"
@@ -375,6 +384,7 @@
         "check": [
             "@test",
             "@test:testbench",
+            "@test:dogfood",
             "@analyse",
             "@lint"
         ],
@@ -382,7 +392,8 @@
             "@lint:fix",
             "@analyse",
             "@test:parallel",
-            "@test:testbench"
+            "@test:testbench",
+            "@test:dogfood"
         ]
     },
     "minimum-stability": "dev",
