@@ -17,8 +17,8 @@ use Redis as PhpRedis;
 /**
  * Base test case for Redis Cache integration tests.
  *
- * Uses InteractsWithRedis trait which auto-handles:
- * - Auto-skip if Redis unavailable
+ * Uses InteractsWithRedis trait which handles:
+ * - Opt-in skip unless REDIS_HOST is set
  * - Database flushing in setUp/tearDown
  *
  * Provides helper methods for:

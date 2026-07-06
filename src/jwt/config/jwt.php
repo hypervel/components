@@ -325,6 +325,9 @@ return [
         |--------------------------------------------------------------------------
         |
         | Specify the provider that is used to store tokens in the blacklist.
+        | The default tagged-cache storage requires a taggable default cache
+        | store; with node-local stack tiers, blacklist visibility is bounded
+        | by the upper tier's TTL.
         |
         */
 

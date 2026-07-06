@@ -34,6 +34,13 @@ trait HandlesRoutes
     protected bool $requireApplicationCachedRoutesHasRun = false;
 
     /**
+     * Route files written by this test instance.
+     *
+     * @var array<int, string>
+     */
+    protected array $testbenchRouteFiles = [];
+
+    /**
      * Setup application routes.
      */
     protected function setUpApplicationRoutes(ApplicationContract $app): void
@@ -94,6 +101,8 @@ trait HandlesRoutes
      */
     protected function defineCacheRoutes(Closure|string $route, bool $cached = true): void
     {
+        $this->configureParallelCachePaths();
+
         static::usesTestingFeature($attribute = new UsesVendor, Attribute::TARGET_METHOD);
 
         if (
@@ -106,8 +115,6 @@ trait HandlesRoutes
 
         $files = new Filesystem;
 
-        $time = time();
-
         $basePath = static::applicationBasePath();
         if ($route instanceof Closure) {
             $cached = false;
@@ -117,10 +124,10 @@ trait HandlesRoutes
             $route = str_replace('{{routes}}', var_export($serializeRoute, true), $stub);
         }
 
-        $files->put(
-            join_paths($basePath, 'routes', "testbench-{$time}.php"),
-            $route
-        );
+        $routeFile = $this->testbenchRouteFilePath($basePath);
+        $this->testbenchRouteFiles[] = $routeFile;
+
+        $files->put($routeFile, $route);
 
         if ($cached === true) {
             remote('route:cache')->mustRun();
@@ -178,11 +185,25 @@ trait HandlesRoutes
                 // so hardcoding routes-v7.php would miss the actual file and leak stale caches.
                 $files->delete(
                     $this->app->getCachedRoutesPath(),
-                    ...$files->glob($this->app->basePath(join_paths('routes', 'testbench-*.php')))
+                    ...$this->testbenchRouteFiles
                 );
             }
         });
 
         $this->requireApplicationCachedRoutesHasRun = true;
+    }
+
+    /**
+     * Get a route file path owned by this test instance.
+     */
+    protected function testbenchRouteFilePath(string $basePath): string
+    {
+        $token = $this->paraTestWorkerToken() ?? 'default';
+
+        return join_paths(
+            $basePath,
+            'routes',
+            sprintf('testbench-%s-%s-%s.php', $token, getmypid(), hrtime(true))
+        );
     }
 }

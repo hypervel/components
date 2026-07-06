@@ -24,7 +24,7 @@ trait InteractsWithWorkbench
      */
     public static function applicationBasePathUsingWorkbench(): ?string
     {
-        return $_ENV['APP_BASE_PATH'] ?? $_ENV['TESTBENCH_APP_BASE_PATH'] ?? null;
+        return $_ENV['APP_BASE_PATH'] ?? null;
     }
 
     /**
@@ -142,35 +142,8 @@ trait InteractsWithWorkbench
         return Workbench::configuration();
     }
 
-    /**
-     * Prepare the testing environment before the running the test case.
-     *
-     * @internal
-     *
-     * @codeCoverageIgnore
-     */
-    public static function setUpBeforeClassUsingWorkbench(): void
-    {
-        $config = static::cachedConfigurationForWorkbench();
-
-        if (
-            $config instanceof ConfigContract
-            && is_string($config['hypervel'] ?? null)
-            && static::usesTestingConcern(WithWorkbench::class)
-        ) {
-            $_ENV['TESTBENCH_APP_BASE_PATH'] = $config['hypervel'];
-        }
-    }
-
-    /**
-     * Clean up the testing environment before the next test case.
-     *
-     * @internal
-     *
-     * @codeCoverageIgnore
-     */
-    public static function tearDownAfterClassUsingWorkbench(): void
-    {
-        unset($_ENV['TESTBENCH_APP_BASE_PATH']);
-    }
+    // Orchestra sets a per-class app-base env pointer for YAML custom skeletons.
+    // Hypervel's Bootstrapper already clones the yaml skeleton as each process's
+    // runtime identity, and per-class skeleton switching cannot work with
+    // process-owned disposable clones.
 }

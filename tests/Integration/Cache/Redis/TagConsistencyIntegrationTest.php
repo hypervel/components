@@ -221,7 +221,7 @@ class TagConsistencyIntegrationTest extends RedisCacheIntegrationTestCase
     // FORGET CLEANUP - ANY MODE WITH REVERSE INDEX
     // =========================================================================
 
-    public function testAnyModeForgetLeavesOrphanedTagEntries(): void
+    public function testAnyModePlainForgetCleansTagMembership(): void
     {
         $this->setTagMode(TagMode::Any);
 
@@ -239,16 +239,45 @@ class TagConsistencyIntegrationTest extends RedisCacheIntegrationTestCase
         // Verify item is gone from cache
         $this->assertNull(Cache::get('forget-me'));
 
-        // Orphaned entries remain in tag hashes (cleaned up by prune command)
-        $this->assertTrue(
-            $this->anyModeTagHasEntry('tag-x', 'forget-me'),
-            'Orphaned entry should remain in tag hash until prune'
-        );
-        $this->assertTrue($this->anyModeTagHasEntry('tag-y', 'forget-me'));
-        $this->assertTrue($this->anyModeTagHasEntry('tag-z', 'forget-me'));
+        // Tag membership is removed immediately, so a future tag flush cannot
+        // delete an unrelated value written later at the same plain key.
+        $this->assertFalse($this->anyModeTagHasEntry('tag-x', 'forget-me'));
+        $this->assertFalse($this->anyModeTagHasEntry('tag-y', 'forget-me'));
+        $this->assertFalse($this->anyModeTagHasEntry('tag-z', 'forget-me'));
 
-        // Reverse index also remains (orphaned)
-        $this->assertNotEmpty($this->getAnyModeReverseIndex('forget-me'));
+        // Reverse index is removed with the key.
+        $this->assertSame([], $this->getAnyModeReverseIndex('forget-me'));
+    }
+
+    public function testAnyModePlainForgetPreventsTagFlushFromDeletingReusedKey(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        Cache::tags(['tag-x'])->put('reused-key', 'tagged', 60);
+
+        $this->assertTrue(Cache::forget('reused-key'));
+
+        Cache::put('reused-key', 'plain', 60);
+        Cache::tags(['tag-x'])->flush();
+
+        $this->assertSame('plain', Cache::get('reused-key'));
+    }
+
+    public function testAnyModePlainForgetOfUntaggedKeyDeletesValue(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        Cache::put('plain-key', 'plain', 60);
+
+        $this->assertTrue(Cache::forget('plain-key'));
+        $this->assertNull(Cache::get('plain-key'));
+    }
+
+    public function testAnyModePlainForgetOfMissingKeyReturnsFalse(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        $this->assertFalse(Cache::forget('missing-key'));
     }
 
     public function testAllModeForgetLeavesOrphanedTagEntries(): void

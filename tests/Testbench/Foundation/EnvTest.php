@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\Test;
 class EnvTest extends TestCase
 {
     #[Test]
-    public function itCanDeterminedHasEnvValues()
+    public function itCanDeterminedHasEnvValues(): void
     {
         $_ENV['TESTING_TRUE_EXAMPLE'] = true;
         $_ENV['TESTING_FALSE_EXAMPLE'] = false;
@@ -34,7 +34,7 @@ class EnvTest extends TestCase
 
     #[Test]
     #[WithEnv('TESTING_USING_ATTRIBUTE', '(true)')]
-    public function itCanCorrectlyForwardEnvValues()
+    public function itCanCorrectlyForwardEnvValues(): void
     {
         $_ENV['TESTING_TRUE_EXAMPLE'] = true;
         $_ENV['TESTING_FALSE_EXAMPLE'] = false;

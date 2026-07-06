@@ -7,6 +7,9 @@ namespace Hypervel\Testbench;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
+use Hypervel\Testbench\Foundation\Env;
+use Hypervel\Testbench\Foundation\EnvironmentFile;
+use UnexpectedValueException;
 
 class Bootstrapper
 {
@@ -39,7 +42,7 @@ class Bootstrapper
             $sourcePath = static::$configuration['hypervel'];
         }
 
-        $basePath = static::resolveRuntimeBasePath($sourcePath);
+        $basePath = static::resolveRuntimeBasePath($sourcePath, $workingPath);
 
         ! defined('BASE_PATH') && define('BASE_PATH', $basePath);
         ! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
@@ -116,7 +119,7 @@ class Bootstrapper
      * to a temp directory and using that as BASE_PATH, the committed skeleton
      * stays clean. The copy is deleted on shutdown.
      */
-    protected static function createRuntimeCopy(string $sourcePath): string
+    protected static function createRuntimeCopy(string $sourcePath, string $workingPath): string
     {
         $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
         $pid = getmypid();
@@ -150,10 +153,14 @@ class Bootstrapper
                 }
             }
 
-            $filesystem->deleteDirectory($staleDir);
+            static::deleteRuntimeDirectory($staleDir);
         }
 
         $filesystem->copyDirectory($sourcePath, $runtimePath);
+
+        if (Env::has('TESTBENCH_PACKAGE_TESTER')) {
+            static::copyPackageEnvironmentFile($filesystem, $runtimePath, $workingPath);
+        }
 
         static::$runtimePath = $runtimePath;
 
@@ -165,9 +172,37 @@ class Bootstrapper
     }
 
     /**
+     * Copy the package or workbench environment file into the runtime copy.
+     */
+    protected static function copyPackageEnvironmentFile(Filesystem $filesystem, string $runtimePath, string $workingPath): void
+    {
+        $environmentFile = (new EnvironmentFile($filesystem))->packageOrSkeletonFallback(
+            workingPath: $workingPath,
+            appBasePath: $runtimePath,
+            filename: static::testbenchEnvironmentFile(),
+        );
+
+        if ($environmentFile !== null) {
+            $filesystem->copy($environmentFile, join_paths($runtimePath, '.env'));
+        }
+    }
+
+    /**
+     * Determine the active Testbench environment file name.
+     */
+    protected static function testbenchEnvironmentFile(): string
+    {
+        $environmentFile = Env::get('TESTBENCH_ENVIRONMENT_FILENAME', '.env');
+
+        return is_string($environmentFile) && $environmentFile !== ''
+            ? $environmentFile
+            : '.env';
+    }
+
+    /**
      * Resolve the runtime base path for the current process.
      */
-    protected static function resolveRuntimeBasePath(string $sourcePath): string
+    protected static function resolveRuntimeBasePath(string $sourcePath, string $workingPath): string
     {
         $existingRuntimePath = $_SERVER['TESTBENCH_BASE_PATH'] ?? $_ENV['TESTBENCH_BASE_PATH'] ?? null;
         $isRemoteProcess = ($_SERVER['TESTBENCH_PACKAGE_REMOTE'] ?? $_ENV['TESTBENCH_PACKAGE_REMOTE'] ?? null) === '(true)';
@@ -176,7 +211,7 @@ class Bootstrapper
             return $existingRuntimePath;
         }
 
-        return static::createRuntimeCopy($sourcePath);
+        return static::createRuntimeCopy($sourcePath, $workingPath);
     }
 
     /**
@@ -188,13 +223,58 @@ class Bootstrapper
             return;
         }
 
-        $filesystem = static::getFilesystem();
-
-        if ($filesystem->isDirectory(static::$runtimePath)) {
-            $filesystem->deleteDirectory(static::$runtimePath);
-        }
+        static::deleteRuntimeDirectory(static::$runtimePath);
 
         static::$runtimePath = null;
+    }
+
+    /**
+     * Delete a runtime copy while tolerating sibling cleanup races.
+     *
+     * Multiple same-token Testbench children can bootstrap at once and purge
+     * the same stale runtime copy. If another child wins the race, the missing
+     * directory is the desired postcondition; if the directory remains, the
+     * original filesystem failure is still surfaced.
+     */
+    protected static function deleteRuntimeDirectory(string $directory): void
+    {
+        $filesystem = static::getFilesystem();
+
+        if (! static::runtimeDirectoryExists($filesystem, $directory)) {
+            return;
+        }
+
+        try {
+            $filesystem->deleteDirectory($directory);
+
+            return;
+        } catch (UnexpectedValueException) {
+            clearstatcache(true, $directory);
+
+            if (! static::runtimeDirectoryExists($filesystem, $directory)) {
+                return;
+            }
+        }
+
+        try {
+            $filesystem->deleteDirectory($directory);
+        } catch (UnexpectedValueException $retryException) {
+            clearstatcache(true, $directory);
+
+            if (static::runtimeDirectoryExists($filesystem, $directory)) {
+                throw $retryException;
+            }
+        }
+    }
+
+    /**
+     * Determine if a runtime directory exists.
+     *
+     * @phpstan-impure
+     */
+    protected static function runtimeDirectoryExists(Filesystem $filesystem, string $directory): bool
+    {
+        return $filesystem->isDirectory($directory);
     }
 
     /**

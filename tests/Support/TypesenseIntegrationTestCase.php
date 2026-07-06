@@ -14,7 +14,7 @@ use Throwable;
  * Base test case for Typesense integration tests.
  *
  * Uses InteractsWithTypesense trait for:
- * - Auto-skip: Skips tests if Typesense is unavailable (no env var needed)
+ * - Opt-in skip: Skips unless TYPESENSE_HOST is set
  * - Parallel-safe: Uses TEST_TOKEN for unique collection prefixes
  * - Auto-cleanup: Removes test collections in teardown
  *
@@ -68,7 +68,7 @@ abstract class TypesenseIntegrationTestCase extends TestCase
      * Subclasses using RunTestsInCoroutine should call this in setUpInCoroutine().
      * Subclasses NOT using the trait should call this at the end of setUp().
      *
-     * Uses the trait's auto-skip logic - skips if Typesense is unavailable.
+     * Uses the trait's opt-in skip logic - skips unless TYPESENSE_HOST is set.
      */
     protected function initializeTypesense(): void
     {

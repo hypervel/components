@@ -9,7 +9,7 @@ namespace Hypervel\Tests\Integration\Reverb;
  *
  * Requires a running Redis-enabled test server:
  *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
- * Tests auto-skip when Redis or the server is unavailable.
+ * Tests skip unless TEST_SERVER_HOST is set.
  */
 class RedisServerTest extends ReverbRedisIntegrationTestCase
 {

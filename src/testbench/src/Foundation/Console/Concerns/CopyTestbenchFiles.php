@@ -9,9 +9,9 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Testbench\Foundation\Console\TerminatingConsole;
 use Hypervel\Testbench\Foundation\Env;
+use Hypervel\Testbench\Foundation\EnvironmentFile;
 
 use function Hypervel\Testbench\join_paths;
-use function Hypervel\Testbench\testbench_path;
 
 trait CopyTestbenchFiles
 {
@@ -27,7 +27,7 @@ trait CopyTestbenchFiles
         bool $backupExistingFile = true,
         bool $resetOnTerminating = true
     ): void {
-        $sourcePath = $this->resolveTestbenchSourcePath($filesystem, $workingPath);
+        $sourcePath = (new EnvironmentFile($filesystem))->sourcePath($workingPath);
 
         $configurationFile = (new LazyCollection(static function () {
             yield 'testbench.yaml';
@@ -72,31 +72,11 @@ trait CopyTestbenchFiles
         bool $backupExistingFile = true,
         bool $resetOnTerminating = true
     ): void {
-        $sourcePath = $this->resolveTestbenchSourcePath($filesystem, $workingPath);
-        $workingPath = $filesystem->isDirectory(join_paths($sourcePath, 'workbench'))
-            ? join_paths($sourcePath, 'workbench')
-            : $sourcePath;
-
-        $testbenchEnvFilename = $this->testbenchEnvironmentFile();
-
-        $configurationFile = (new LazyCollection(static function () use ($testbenchEnvFilename) {
-            $defaultTestbenchEnvFilename = '.env';
-
-            yield $testbenchEnvFilename;
-            yield "{$testbenchEnvFilename}.example";
-            yield "{$testbenchEnvFilename}.dist";
-
-            yield $defaultTestbenchEnvFilename;
-            yield "{$defaultTestbenchEnvFilename}.example";
-            yield "{$defaultTestbenchEnvFilename}.dist";
-        }))->unique()
-            ->map(static fn ($file) => join_paths($workingPath, $file))
-            ->filter(static fn ($file) => $filesystem->isFile($file))
-            ->first();
-
-        if ($configurationFile === null && $filesystem->isFile($app->basePath('.env.example'))) {
-            $configurationFile = $app->basePath('.env.example');
-        }
+        $configurationFile = (new EnvironmentFile($filesystem))->packageOrSkeletonFallback(
+            workingPath: $workingPath,
+            appBasePath: $app->basePath(),
+            filename: $this->testbenchEnvironmentFile(),
+        );
 
         $environmentFile = $app->basePath('.env');
 
@@ -129,23 +109,5 @@ trait CopyTestbenchFiles
             Env::has('TESTBENCH_ENVIRONMENT_FILENAME') => Env::get('TESTBENCH_ENVIRONMENT_FILENAME'),
             default => '.env',
         };
-    }
-
-    /**
-     * Resolve the source path for testbench config and workbench fixtures.
-     */
-    protected function resolveTestbenchSourcePath(Filesystem $filesystem, string $workingPath): string
-    {
-        foreach (['testbench.yaml', 'testbench.yaml.example', 'testbench.yaml.dist'] as $configurationFile) {
-            if ($filesystem->isFile(join_paths($workingPath, $configurationFile))) {
-                return $workingPath;
-            }
-        }
-
-        if ($filesystem->isDirectory(join_paths($workingPath, 'workbench'))) {
-            return $workingPath;
-        }
-
-        return testbench_path();
     }
 }

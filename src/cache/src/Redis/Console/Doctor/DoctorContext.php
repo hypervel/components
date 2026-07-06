@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Doctor;
 
+use Hypervel\Cache\NamespacedTaggedCache;
 use Hypervel\Cache\Redis\Support\TagKeyBuilder;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\TagMode;
 use Hypervel\Redis\RedisConnection;
+use LogicException;
 
 /**
  * Context object holding shared state for Doctor checks.
@@ -67,9 +69,13 @@ final class DoctorContext
      */
     public function namespacedKey(array $tags, string $key): string
     {
-        $namespace = hash('xxh128', $this->cache->tags($tags)->getTags()->getNamespace());
+        $taggedCache = $this->cache->tags($tags);
 
-        return $namespace . ':' . $key;
+        if (! $taggedCache instanceof NamespacedTaggedCache) {
+            throw new LogicException('Namespaced keys are only available for namespaced tagged caches.');
+        }
+
+        return $taggedCache->taggedItemKey($key);
     }
 
     /**

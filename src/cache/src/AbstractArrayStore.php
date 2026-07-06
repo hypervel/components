@@ -166,6 +166,14 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
     }
 
     /**
+     * Determine if the store can currently flush locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
+        return true;
+    }
+
+    /**
      * Remove all locks from the store.
      *
      * @throws RuntimeException

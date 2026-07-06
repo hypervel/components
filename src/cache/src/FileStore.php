@@ -32,7 +32,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     /**
      * The file cache lock directory.
      */
-    protected ?string $lockDirectory;
+    protected ?string $lockDirectory = null;
 
     /**
      * Octal representation of the cache file permissions.
@@ -222,6 +222,14 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         }
 
         return true;
+    }
+
+    /**
+     * Determine if the store can currently flush locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
+        return $this->hasSeparateLockStore();
     }
 
     /**
