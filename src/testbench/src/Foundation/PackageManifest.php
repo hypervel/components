@@ -150,7 +150,11 @@ class PackageManifest extends FoundationPackageManifest
      */
     protected function providersFromTestbench(): ?array
     {
-        if (is_testbench_cli() && is_file($composerFile = package_path('composer.json'))) {
+        // PHPUnit workers are not Testbench CLI processes, but package:test
+        // workers still need the package root metadata when they build a fresh
+        // clone manifest.
+        if ((is_testbench_cli() || Env::has('TESTBENCH_PACKAGE_TESTER'))
+            && is_file($composerFile = package_path('composer.json'))) {
             return $this->files->json($composerFile);
         }
 
