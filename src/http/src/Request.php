@@ -773,7 +773,11 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         $newRequest->content = $request->content;
 
         if ($newRequest->isJson()) {
-            $newRequest->request = $newRequest->json();
+            // Fill the request bag with the JSON payload and share the same bag
+            // as the JSON cache, mirroring the aliasing of a direct assignment
+            // without hitting Symfony 8.1's deprecated property setter.
+            $newRequest->request->replace($newRequest->json()->all());
+            $newRequest->setJson($newRequest->request);
         }
 
         if ($request instanceof self) {

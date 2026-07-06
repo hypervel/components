@@ -8,6 +8,7 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Route;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class HttpRequestTest extends TestCase
 {
@@ -63,5 +64,25 @@ class HttpRequestTest extends TestCase
         $this->expectExceptionMessage('Unable to generate fingerprint. Route unavailable.');
 
         $request->fingerprint();
+    }
+
+    public function testCreateFromBaseFillsRequestBagFromJsonContent(): void
+    {
+        $base = SymfonyRequest::create(
+            '/users',
+            'POST',
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            '{"name": "Taylor"}'
+        );
+
+        $request = Request::createFromBase($base);
+
+        $this->assertSame('Taylor', $request->request->get('name'));
+        // The request bag and the JSON cache stay aliased: a write through
+        // one is visible through the other.
+        $this->assertSame($request->json(), $request->request);
     }
 }
