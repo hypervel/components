@@ -62,7 +62,7 @@ class ProxyManager
     public function getAspectClasses(): array
     {
         $aspectClasses = [];
-        $classesAspects = AspectCollector::get('classes', []);
+        $classesAspects = AspectCollector::getClassRules();
         foreach ($classesAspects as $aspect => $rules) {
             foreach ($rules as $rule) {
                 if (isset($this->proxies[$rule])) {
@@ -172,7 +172,7 @@ class ProxyManager
         if (! $reflectionClassMap) {
             return $proxies;
         }
-        $classesAspects = AspectCollector::get('classes', []);
+        $classesAspects = AspectCollector::getClassRules();
         foreach ($classesAspects as $aspect => $rules) {
             foreach ($rules as $rule) {
                 foreach ($reflectionClassMap as $class => $path) {
