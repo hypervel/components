@@ -19,10 +19,6 @@
 
 - Re-run the introduction benchmarks against Hypervel 0.4 before publishing externally. The benchmark tables currently preserve the 0.3 results so the comparison is not lost during the docs port, but Hypervel 0.4's decoupled runtime should have fresh measurements before those numbers are treated as current.
 
-## Testbench
-
-- Make package-test runtime clone package discovery deterministic for real package authors. Orchestra's persistent skeleton can be seeded by the parent `package:test` CLI, so WithWorkbench tests consistently discover the root package providers. Hypervel's disposable per-worker clones can currently build a clean manifest in the first PHPUnit test app, then rebuild with root package metadata only after a remote Testbench CLI child creates the clone vendor symlink and refreshes discovery. Correct fix: seed each runtime clone's package manifest with root package metadata through a deterministic package-test path while preserving Testbench's normal `dont-discover` filtering.
-
 ## Collections
 
 ## Horizon
