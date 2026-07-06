@@ -87,6 +87,54 @@ PHP);
         $this->assertTrue($this->requireApplicationCachedRoutesHasRun);
     }
 
+    public function testDefineCacheRoutesTracksOwnedRouteFile()
+    {
+        $this->defineCacheRoutes(<<<'PHP'
+<?php
+use Hypervel\Support\Facades\Route;
+Route::get('/first-file', fn () => 'first');
+PHP, false);
+
+        $this->assertCount(1, $this->testbenchRouteFiles);
+        $this->assertFileExists($this->testbenchRouteFiles[0]);
+    }
+
+    public function testDefineCacheRoutesDeletesOnlyOwnedRouteFiles()
+    {
+        $this->defineCacheRoutes(<<<'PHP'
+<?php
+use Hypervel\Support\Facades\Route;
+Route::get('/owned-file', fn () => 'owned');
+PHP, false);
+
+        $ownedRouteFile = $this->testbenchRouteFiles[0];
+        $siblingRouteFile = $this->app->basePath('routes/testbench-sibling.php');
+
+        file_put_contents($siblingRouteFile, '<?php');
+
+        try {
+            $this->assertFileExists($ownedRouteFile);
+            $this->assertFileExists($siblingRouteFile);
+
+            $this->callBeforeApplicationDestroyedCallbacks();
+
+            $this->assertFileDoesNotExist($ownedRouteFile);
+            $this->assertFileExists($siblingRouteFile);
+        } finally {
+            @unlink($siblingRouteFile);
+        }
+    }
+
+    public function testTestbenchRouteFilePathIsUniquePerCall()
+    {
+        $firstRouteFile = $this->testbenchRouteFilePath($this->app->basePath());
+        $secondRouteFile = $this->testbenchRouteFilePath($this->app->basePath());
+
+        $this->assertNotSame($firstRouteFile, $secondRouteFile);
+        $this->assertStringStartsWith($this->app->basePath('routes/testbench-'), $firstRouteFile);
+        $this->assertStringEndsWith('.php', $firstRouteFile);
+    }
+
     public function testCacheFileExistsAfterDefineCacheRoutes()
     {
         $this->defineCacheRoutes(<<<'PHP'

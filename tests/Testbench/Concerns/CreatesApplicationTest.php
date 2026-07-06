@@ -79,6 +79,40 @@ class CreatesApplicationTest extends TestCase
 
         $this->assertCount(count($listeners) + 1, $updatedListeners);
     }
+
+    public function testParallelCachePathSanitizesParaTestWorkerToken(): void
+    {
+        $previousServerToken = $_SERVER['TEST_TOKEN'] ?? null;
+        $previousEnvironmentToken = $_ENV['TEST_TOKEN'] ?? null;
+        $previousRoutesCache = $_SERVER['APP_ROUTES_CACHE'] ?? null;
+
+        try {
+            $_SERVER['TEST_TOKEN'] = 'worker/token:one';
+            $_ENV['TEST_TOKEN'] = 'worker/token:one';
+
+            $this->configureParallelCachePaths();
+
+            $this->assertSame('cache/routes-v7-test-worker_token_one.php', $_SERVER['APP_ROUTES_CACHE']);
+        } finally {
+            if ($previousServerToken === null) {
+                unset($_SERVER['TEST_TOKEN']);
+            } else {
+                $_SERVER['TEST_TOKEN'] = $previousServerToken;
+            }
+
+            if ($previousEnvironmentToken === null) {
+                unset($_ENV['TEST_TOKEN']);
+            } else {
+                $_ENV['TEST_TOKEN'] = $previousEnvironmentToken;
+            }
+
+            if ($previousRoutesCache === null) {
+                unset($_SERVER['APP_ROUTES_CACHE']);
+            } else {
+                $_SERVER['APP_ROUTES_CACHE'] = $previousRoutesCache;
+            }
+        }
+    }
 }
 
 /**

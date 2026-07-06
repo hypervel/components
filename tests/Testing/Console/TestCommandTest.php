@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testing\Console;
 
 use FilesystemIterator;
+use Hypervel\Support\Env;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\Console\TestCommand;
 use Hypervel\Testing\ParallelRunner;
@@ -186,6 +187,65 @@ class TestCommandTest extends TestCase
         $this->assertContains('--filter=Example', $paratestArguments);
         $this->assertNotContains('--env=ci', $phpunitArguments);
         $this->assertNotContains('--env=ci', $paratestArguments);
+    }
+
+    #[Test]
+    public function itClearsConfiguredEnvironmentVariablesFromEveryEnvironmentStore(): void
+    {
+        $basePath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'hypervel-test-command-env-'
+            . getmypid() . '-' . bin2hex(random_bytes(6));
+        $environmentFile = '.env.command-clear';
+        $keys = [
+            'HYPERVEL_TEST_COMMAND_CLEAR_ONE',
+            'HYPERVEL_TEST_COMMAND_CLEAR_TWO',
+        ];
+
+        mkdir($basePath, 0777, true);
+        file_put_contents($basePath . DIRECTORY_SEPARATOR . $environmentFile, implode("\n", [
+            'HYPERVEL_TEST_COMMAND_CLEAR_ONE=one',
+            'HYPERVEL_TEST_COMMAND_CLEAR_TWO=two',
+        ]));
+
+        $originalEnvironmentPath = $this->app->environmentPath();
+        $originalEnvironmentFile = $this->app->environmentFile();
+
+        foreach ($keys as $key) {
+            $_SERVER[$key] = 'server';
+            $_ENV[$key] = 'env';
+            putenv("{$key}=process");
+        }
+
+        Env::enablePutenv();
+
+        $command = new TestCommandHarness;
+        $command->setHypervel($this->app);
+
+        try {
+            $this->app->useEnvironmentPath($basePath);
+            $this->app->loadEnvironmentFrom($environmentFile);
+
+            $command->clearEnvPublic();
+
+            foreach ($keys as $key) {
+                $this->assertArrayNotHasKey($key, $_SERVER);
+                $this->assertArrayNotHasKey($key, $_ENV);
+                $this->assertFalse(getenv($key));
+            }
+        } finally {
+            if (is_string($originalEnvironmentPath)) {
+                $this->app->useEnvironmentPath($originalEnvironmentPath);
+            }
+
+            $this->app->loadEnvironmentFrom($originalEnvironmentFile);
+
+            foreach ($keys as $key) {
+                unset($_SERVER[$key], $_ENV[$key]);
+                putenv($key);
+            }
+
+            Env::flushRepository();
+            $this->removeDirectory($basePath);
+        }
     }
 
     #[Test]
@@ -465,5 +525,13 @@ final class TestCommandHarness extends TestCommand
     public function cleanupTemporaryConfigurationFilePublic(): void
     {
         $this->cleanupTemporaryConfigurationFile();
+    }
+
+    /**
+     * Expose environment cleanup.
+     */
+    public function clearEnvPublic(): void
+    {
+        $this->clearEnv();
     }
 }

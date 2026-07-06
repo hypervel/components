@@ -19,8 +19,8 @@ use Hypervel\Cache\Redis\Console\Doctor\Checks\EnvironmentCheckInterface;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\ExpirationCheck;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\FlushBehaviorCheck;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\ForeverStorageCheck;
+use Hypervel\Cache\Redis\Console\Doctor\Checks\HashFieldExpirationCheck;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\HashStructuresCheck;
-use Hypervel\Cache\Redis\Console\Doctor\Checks\HexpireCheck;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\IncrementDecrementCheck;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\LargeDatasetCheck;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\MemoryLeakPreventionCheck;
@@ -155,7 +155,7 @@ class DoctorCommand extends Command
         return [
             new PhpRedisCheck,
             new RedisVersionCheck($redis, $tagMode),
-            new HexpireCheck($redis, $tagMode),
+            new HashFieldExpirationCheck($redis, $tagMode),
             new CacheStoreCheck($storeName, 'redis', $tagMode),
         ];
     }

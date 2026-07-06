@@ -191,6 +191,70 @@ class RedisStoreTest extends RedisCacheTestCase
     /**
      * @test
      */
+    public function testTouchUsesPlainExpireInAllMode(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('expire')
+            ->once()
+            ->with('prefix:key', 60)
+            ->andReturn(1);
+
+        $redis = $this->createStore($connection);
+
+        $this->assertTrue($redis->touch('key', 60));
+    }
+
+    /**
+     * @test
+     */
+    public function testTouchUsesAnyTagMetadataOperationInAnyMode(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->andReturn(true);
+
+        $redis = $this->createStore($connection);
+        $redis->setTagMode('any');
+
+        $this->assertTrue($redis->touch('key', 60));
+    }
+
+    /**
+     * @test
+     */
+    public function testForgetUsesPlainDeleteInAllMode(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:key')
+            ->andReturn(1);
+
+        $redis = $this->createStore($connection);
+
+        $this->assertTrue($redis->forget('key'));
+    }
+
+    /**
+     * @test
+     */
+    public function testForgetUsesAnyTagMetadataOperationInAnyMode(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->andReturn(1);
+
+        $redis = $this->createStore($connection);
+        $redis->setTagMode('any');
+
+        $this->assertTrue($redis->forget('key'));
+    }
+
+    /**
+     * @test
+     */
     public function testLockReturnsRedisLockInstance(): void
     {
         $connection = $this->mockConnection();

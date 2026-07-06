@@ -13,7 +13,7 @@ use Hypervel\Testbench\TestCase;
  * Base test case for Algolia integration tests.
  *
  * Uses InteractsWithAlgolia trait for:
- * - Auto-skip: Skips tests when ALGOLIA_APP_ID/ALGOLIA_SECRET are unset
+ * - Opt-in skip: Skips unless ALGOLIA_APP_ID and ALGOLIA_SECRET are set
  * - Explicit-fail: Credentials set but probe fails → exception propagates
  * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
  * - Auto-cleanup: Removes test indexes in teardown
@@ -58,7 +58,7 @@ abstract class AlgoliaIntegrationTestCase extends TestCase
      * Subclasses using RunTestsInCoroutine should call this in setUpInCoroutine().
      * Subclasses NOT using the trait should call this at the end of setUp().
      *
-     * Uses the trait's skip logic — skips if credentials are absent.
+     * Uses the trait's opt-in skip logic — skips unless credentials are set.
      */
     protected function initializeAlgolia(): void
     {

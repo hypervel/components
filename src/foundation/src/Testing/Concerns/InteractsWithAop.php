@@ -136,7 +136,7 @@ trait InteractsWithAop
      */
     private function resolveMatchingAspects(string $className, string $method): array
     {
-        $allAspects = AspectCollector::get('classes', []);
+        $allAspects = AspectCollector::getClassRules();
         $matched = [];
 
         foreach ($allAspects as $aspect => $rules) {

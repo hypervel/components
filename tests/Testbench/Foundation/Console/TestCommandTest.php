@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Console;
 
+use Hypervel\Testbench\Bootstrapper;
+use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Console\TestCommand;
 use Hypervel\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
+use ReflectionClass;
 
 use function Hypervel\Testbench\package_path;
+use function Hypervel\Testbench\parse_environment_variables;
 
 class TestCommandTest extends TestCase
 {
@@ -79,7 +83,81 @@ class TestCommandTest extends TestCase
         $this->assertIsString($variables[TestCommand::PROFILE_DIRECTORY_ENV]);
         $this->assertSame('(true)', $variables['TESTBENCH_PACKAGE_TESTER']);
         $this->assertSame(package_path(), $variables['TESTBENCH_WORKING_PATH']);
-        $this->assertSame($this->app->basePath(), $variables['TESTBENCH_APP_BASE_PATH']);
+        $this->assertArrayNotHasKey('TESTBENCH_APP_BASE_PATH', $variables);
+    }
+
+    #[Test]
+    public function itDoesNotForwardParentRuntimeEnvironmentVariablesForPackageTests(): void
+    {
+        $previousParentRuntimeServerExists = array_key_exists('HYPERVEL_TEST_PARENT_RUNTIME_ENV', $_SERVER);
+        $previousParentRuntimeServer = $_SERVER['HYPERVEL_TEST_PARENT_RUNTIME_ENV'] ?? null;
+        $previousParentRuntimeEnvironmentExists = array_key_exists('HYPERVEL_TEST_PARENT_RUNTIME_ENV', $_ENV);
+        $previousParentRuntimeEnvironment = $_ENV['HYPERVEL_TEST_PARENT_RUNTIME_ENV'] ?? null;
+        $previousRedisPasswordServerExists = array_key_exists('REDIS_PASSWORD', $_SERVER);
+        $previousRedisPasswordServer = $_SERVER['REDIS_PASSWORD'] ?? null;
+        $previousRedisPasswordEnvironmentExists = array_key_exists('REDIS_PASSWORD', $_ENV);
+        $previousRedisPasswordEnvironment = $_ENV['REDIS_PASSWORD'] ?? null;
+
+        try {
+            $_SERVER['HYPERVEL_TEST_PARENT_RUNTIME_ENV'] = 'parent';
+            $_ENV['HYPERVEL_TEST_PARENT_RUNTIME_ENV'] = 'parent';
+            $_SERVER['REDIS_PASSWORD'] = 'null';
+            $_ENV['REDIS_PASSWORD'] = 'null';
+
+            $command = new TestCommandHarness;
+            $command->setHypervel($this->app);
+            $variables = $command->phpunitEnvironmentVariablesPublic();
+
+            $this->assertArrayNotHasKey('HYPERVEL_TEST_PARENT_RUNTIME_ENV', $variables);
+            $this->assertArrayNotHasKey('REDIS_PASSWORD', $variables);
+            $this->assertSame('(true)', $variables['TESTBENCH_PACKAGE_TESTER']);
+        } finally {
+            $this->restoreSuperglobalValue($_SERVER, 'HYPERVEL_TEST_PARENT_RUNTIME_ENV', $previousParentRuntimeServerExists, $previousParentRuntimeServer);
+            $this->restoreSuperglobalValue($_ENV, 'HYPERVEL_TEST_PARENT_RUNTIME_ENV', $previousParentRuntimeEnvironmentExists, $previousParentRuntimeEnvironment);
+            $this->restoreSuperglobalValue($_SERVER, 'REDIS_PASSWORD', $previousRedisPasswordServerExists, $previousRedisPasswordServer);
+            $this->restoreSuperglobalValue($_ENV, 'REDIS_PASSWORD', $previousRedisPasswordEnvironmentExists, $previousRedisPasswordEnvironment);
+        }
+    }
+
+    #[Test]
+    public function itForwardsConfiguredEnvironmentVariablesForPackageTests(): void
+    {
+        $this->withTestbenchConfiguration([
+            'env' => parse_environment_variables([
+                'HYPERVEL_TEST_PACKAGE_ENV' => 'configured',
+                'HYPERVEL_TEST_EMPTY_ENV' => '',
+                'HYPERVEL_TEST_FALSE_ENV' => false,
+            ]),
+        ], function (): void {
+            $command = new TestCommandHarness;
+            $command->setHypervel($this->app);
+            $variables = $command->phpunitEnvironmentVariablesPublic();
+
+            $this->assertSame('configured', $variables['HYPERVEL_TEST_PACKAGE_ENV']);
+            $this->assertSame('', $variables['HYPERVEL_TEST_EMPTY_ENV']);
+            $this->assertSame('(false)', $variables['HYPERVEL_TEST_FALSE_ENV']);
+        });
+    }
+
+    #[Test]
+    public function packageCommandVariablesOverrideConfiguredEnvironmentVariables(): void
+    {
+        $this->withTestbenchConfiguration([
+            'env' => parse_environment_variables([
+                'APP_ENV' => 'local',
+                'TESTBENCH_PACKAGE_TESTER' => false,
+                'TESTBENCH_WORKING_PATH' => '/tmp/wrong',
+            ]),
+        ], function (): void {
+            $command = new TestCommandHarness;
+            $command->setHypervel($this->app);
+            $variables = $command->phpunitEnvironmentVariablesPublic();
+
+            $this->assertSame('testing', $variables['APP_ENV']);
+            $this->assertSame('(true)', $variables['TESTBENCH_PACKAGE_TESTER']);
+            $this->assertSame(package_path(), $variables['TESTBENCH_WORKING_PATH']);
+            $this->assertArrayNotHasKey('TESTBENCH_APP_BASE_PATH', $variables);
+        });
     }
 
     #[Test]
@@ -113,7 +191,42 @@ class TestCommandTest extends TestCase
         $this->assertTrue($variables['HYPERVEL_PARALLEL_TESTING_WITHOUT_CACHE']);
         $this->assertSame('(true)', $variables['TESTBENCH_PACKAGE_TESTER']);
         $this->assertSame(package_path(), $variables['TESTBENCH_WORKING_PATH']);
-        $this->assertSame($this->app->basePath(), $variables['TESTBENCH_APP_BASE_PATH']);
+        $this->assertArrayNotHasKey('TESTBENCH_APP_BASE_PATH', $variables);
+    }
+
+    /**
+     * Run a callback with temporary Testbench configuration.
+     *
+     * @param array<string, mixed> $attributes
+     */
+    private function withTestbenchConfiguration(array $attributes, callable $callback): void
+    {
+        $reflection = new ReflectionClass(Bootstrapper::class);
+        $previousConfiguration = $reflection->getStaticPropertyValue('configuration');
+
+        try {
+            $reflection->setStaticPropertyValue('configuration', new Config($attributes));
+
+            $callback();
+        } finally {
+            $reflection->setStaticPropertyValue('configuration', $previousConfiguration);
+        }
+    }
+
+    /**
+     * Restore a superglobal value.
+     *
+     * @param array<string, mixed> $values
+     */
+    private function restoreSuperglobalValue(array &$values, string $key, bool $exists, mixed $value): void
+    {
+        if (! $exists) {
+            unset($values[$key]);
+
+            return;
+        }
+
+        $values[$key] = $value;
     }
 }
 

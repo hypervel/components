@@ -1,6 +1,9 @@
 providers:
   - Workbench\App\Providers\WorkbenchServiceProvider
 
+dont-discover:
+  - hypervel/components
+
 env:
   APP_NAME: "Testbench"
 

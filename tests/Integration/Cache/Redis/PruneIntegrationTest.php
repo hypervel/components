@@ -15,6 +15,7 @@ use Hypervel\Support\Facades\Cache;
  * - Prune command removes orphaned entries
  * - Prune preserves valid entries
  * - Prune deletes empty tag structures
+ * - Plain any-mode forget removes tag membership immediately
  */
 class PruneIntegrationTest extends RedisCacheIntegrationTestCase
 {
@@ -54,26 +55,24 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
         );
     }
 
-    public function testAnyModeForgetLeavesOrphanedFields(): void
+    public function testAnyModeForgetRemovesTagMembership(): void
     {
         $this->setTagMode(TagMode::Any);
 
         Cache::tags(['posts', 'user:1'])->put('post:1', 'data', 60);
 
-        // Forget the item directly
+        // Forget the item directly.
         Cache::forget('post:1');
 
-        // Cache key should be gone
+        // Cache key and tag membership should be gone.
         $this->assertNull(Cache::get('post:1'));
-
-        // But tag hash fields remain (orphaned)
-        $this->assertTrue(
+        $this->assertFalse(
             $this->anyModeTagHasEntry('posts', 'post:1'),
-            'posts hash should have orphaned field'
+            'posts hash should not retain membership for forgotten key'
         );
-        $this->assertTrue(
+        $this->assertFalse(
             $this->anyModeTagHasEntry('user:1', 'post:1'),
-            'user:1 hash should have orphaned field'
+            'user:1 hash should not retain membership for forgotten key'
         );
     }
 
@@ -118,8 +117,9 @@ class PruneIntegrationTest extends RedisCacheIntegrationTestCase
         // Verify hash exists
         $this->assertRedisKeyExists($this->anyModeTagKey('user:1'));
 
-        // Forget item (leaves orphaned field)
-        Cache::forget('post:1');
+        // Delete the cache key outside the metadata-aware forget path to
+        // simulate an orphaned field left by another invalidation path.
+        $this->redis()->del($this->getCachePrefix() . 'post:1');
 
         // Orphan exists
         $this->assertTrue($this->anyModeTagHasEntry('user:1', 'post:1'));

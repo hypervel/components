@@ -48,7 +48,11 @@
             "src/functions.php"
         ],
         "psr-4": {
-            "Hypervel\\Testbench\\": "src/",
+            "Hypervel\\Testbench\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
             "Workbench\\App\\": "workbench/app/",
             "Workbench\\Database\\Factories\\": "workbench/database/factories/",
             "Workbench\\Database\\Seeders\\": "workbench/database/seeders/"

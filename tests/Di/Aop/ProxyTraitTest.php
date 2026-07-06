@@ -15,7 +15,7 @@ use Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
 
 class ProxyTraitTest extends TestCase
 {
-    public function testGetParamsMap()
+    public function testGetParamsMap(): void
     {
         $obj = new ProxyTraitObject;
 
@@ -46,7 +46,7 @@ class ProxyTraitTest extends TestCase
         $this->assertEquals(['id' => null, 'variadic' => ['b', 'a' => 'a']], $obj->get4(null, 'b', a: 'a')['keys']);
     }
 
-    public function testGetParamsMapOnTraitAlias()
+    public function testGetParamsMapOnTraitAlias(): void
     {
         $obj = new ProxyTraitObject;
 
@@ -74,45 +74,39 @@ class ProxyTraitTest extends TestCase
         $this->assertEquals(['id' => null, 'variadic' => ['b', 'a' => 'a']], $obj->get4OnTrait(null, 'b', a: 'a')['keys']);
     }
 
-    public function testProceedingJoinPointGetInstance()
+    public function testProceedingJoinPointGetInstance(): void
     {
         $obj = new ProxyTraitObject;
         $this->assertSame('HypervelCloud', $obj->getName2());
 
-        AspectCollector::set('classes', [
-            GetNameAspect::class => [ProxyTraitObject::class],
-        ]);
+        AspectCollector::setAround(GetNameAspect::class, [ProxyTraitObject::class]);
 
         $obj = new ProxyTraitObject;
         $this->assertSame('Hypervel', $obj->getName());
     }
 
-    public function testProceedingJoinPointGetArguments()
+    public function testProceedingJoinPointGetArguments(): void
     {
         AspectCollector::flushState();
 
         $obj = new ProxyTraitObject;
         $this->assertEquals(['id' => 1, 'variadic' => ['2', 'foo' => '3'], 'func_get_args' => [1, '2']], $obj->getParams(1, '2', foo: '3'));
 
-        AspectCollector::set('classes', [
-            GetParamsAspect::class => [ProxyTraitObject::class],
-        ]);
+        AspectCollector::setAround(GetParamsAspect::class, [ProxyTraitObject::class]);
 
         $obj = new ProxyTraitObject;
         $this->assertEquals([1, '2', 'foo' => '3'], $obj->getParams2(1, '2', foo: '3'));
     }
 
-    public function testHandleAroundWithClassAspect()
+    public function testHandleAroundWithClassAspect(): void
     {
-        AspectCollector::set('classes', [
-            IncrAspect::class => [ProxyTraitObject::class],
-        ]);
+        AspectCollector::setAround(IncrAspect::class, [ProxyTraitObject::class]);
 
         $obj = new ProxyTraitObject;
         $this->assertSame(2, $obj->incr());
     }
 
-    public function testMakePipelineReturnsFreshInstances()
+    public function testMakePipelineReturnsFreshInstances(): void
     {
         $stub = new class {
             use ProxyTrait;

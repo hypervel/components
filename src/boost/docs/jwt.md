@@ -336,6 +336,10 @@ The blacklist uses the configured storage provider:
 ],
 ```
 
+The default tagged-cache storage requires your default cache store to support tags. Both all-mode and any-mode tagged stores are supported. When using any-mode tags, blacklist entries are written through tags but read and removed by a private plain-key prefix.
+
+If the blacklist store uses a cache stack or any node-local tier, a revoked token may still validate on another node until that node's local cache entry expires. Keep the upper-tier TTL short, or use a fully shared store such as Redis when revocation must be visible immediately across all nodes.
+
 You may configure a grace period for concurrent requests that are using the same token while a refresh is in progress:
 
 ```php
