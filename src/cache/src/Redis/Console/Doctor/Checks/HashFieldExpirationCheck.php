@@ -44,11 +44,11 @@ final class HashFieldExpirationCheck implements EnvironmentCheckInterface
         $testKey = 'erc:doctor:hash-field-expiration-test:' . bin2hex(random_bytes(4));
 
         try {
-            $this->redis->hsetex($testKey, ['field' => '1'], ['EX' => 60]);
-            $this->redis->hexpire($testKey, 60, ['field']);
+            $hsetexResult = $this->redis->hsetex($testKey, ['field' => '1'], ['EX' => 60]);
+            $hexpireResult = $this->redis->hexpire($testKey, 60, ['field']);
 
-            $this->available = true;
-            $result->assert(true, 'HSETEX and HEXPIRE commands are available');
+            $this->available = $hsetexResult !== false && $hexpireResult !== false;
+            $result->assert($this->available, 'HSETEX and HEXPIRE commands are available');
         } catch (Throwable) {
             $this->available = false;
             $result->assert(false, 'HSETEX and HEXPIRE commands are available');

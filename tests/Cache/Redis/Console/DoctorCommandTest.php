@@ -108,6 +108,38 @@ class DoctorCommandTest extends TestCase
         );
     }
 
+    public function testHashFieldExpirationCheckReportsFailureWhenProbeReturnsFalse(): void
+    {
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('hsetex')
+            ->once()
+            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'), ['field' => '1'], ['EX' => 60])
+            ->andReturn(false);
+        $connection->shouldReceive('hexpire')
+            ->once()
+            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'), 60, ['field'])
+            ->andReturn(false);
+        $connection->shouldReceive('del')
+            ->once()
+            ->with(m::pattern('/^erc:doctor:hash-field-expiration-test:/'))
+            ->andReturn(0);
+
+        $check = new HashFieldExpirationCheck($connection, 'any');
+        $result = $check->run();
+
+        $this->assertFalse($result->passed());
+        $this->assertSame([
+            [
+                'passed' => false,
+                'description' => 'HSETEX and HEXPIRE commands are available',
+            ],
+        ], $result->assertions);
+        $this->assertSame(
+            'Any tagging mode requires Redis 8.0+ or Valkey 9.0+ for hash-field expiration commands such as HSETEX and HEXPIRE. Upgrade your Redis/Valkey server, or switch to all tagging mode.',
+            $check->getFixInstructions()
+        );
+    }
+
     public function testDoctorFailsForNonRedisStore(): void
     {
         $nonRedisStore = m::mock(Store::class);
