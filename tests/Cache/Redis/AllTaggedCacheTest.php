@@ -475,6 +475,36 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     /**
      * @test
      */
+    public function testTouchUpdatesCachedNullKeyAndTagScores(): void
+    {
+        $connection = $this->mockConnection();
+
+        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with("prefix:{$key}")
+            ->andReturn(serialize(NullSentinel::VALUE));
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->withArgs(function (string $script, array $keys, array $args) use ($key): bool {
+                $this->assertSame(["prefix:{$key}", 'prefix:_all:tag:users:entries'], $keys);
+                $this->assertSame(60, $args[0]);
+                $this->assertSame($key, $args[2]);
+
+                return true;
+            })
+            ->andReturn(true);
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['users'])->touch('name', 60);
+
+        $this->assertTrue($result);
+    }
+
+    /**
+     * @test
+     */
     public function testTouchWithNullTtlStoresItemForeverWithTags(): void
     {
         $connection = $this->mockConnection();
@@ -488,6 +518,36 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $connection->shouldReceive('pipeline')->once()->andReturn($connection);
         $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', -1, $key)->andReturn($connection);
         $connection->shouldReceive('set')->once()->with("prefix:{$key}", serialize('John'))->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, true]);
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['users'])->touch('name', null);
+
+        $this->assertTrue($result);
+    }
+
+    /**
+     * @test
+     */
+    public function testTouchWithNullTtlPreservesCachedNullSentinel(): void
+    {
+        $connection = $this->mockConnection();
+
+        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with("prefix:{$key}")
+            ->andReturn(serialize(NullSentinel::VALUE));
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', -1, $key)->andReturn($connection);
+        $connection->shouldReceive('set')
+            ->once()
+            ->with(
+                "prefix:{$key}",
+                m::on(fn (string $serialized): bool => unserialize($serialized) === NullSentinel::VALUE)
+            )
+            ->andReturn($connection);
         $connection->shouldReceive('exec')->once()->andReturn([1, true]);
 
         $store = $this->createStore($connection);

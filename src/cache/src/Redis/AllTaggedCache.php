@@ -157,7 +157,7 @@ class AllTaggedCache extends NamespacedTaggedCache
     public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         $key = enum_value($key);
-        $value = $this->get($key);
+        $value = $this->getRaw($key);
 
         if (is_null($value)) {
             return false;

@@ -879,12 +879,39 @@ class CacheRepositoryTest extends TestCase
         $this->assertTrue($repo->touch('key', null));
     }
 
+    public function testTouchWithNullTtlPreservesCachedNullSentinel()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->with('key')->andReturn(NullSentinel::VALUE);
+        $repo->getStore()->shouldReceive('forever')->once()->with('key', NullSentinel::VALUE)->andReturn(true);
+
+        $this->assertTrue($repo->touch('key', null));
+    }
+
     public function testTouchWithSecondsTtlCorrectlyProxiesToStore()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
         $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
         $this->assertTrue($repo->touch('key', 60));
+    }
+
+    public function testTouchWithSecondsTtlTreatsCachedNullSentinelAsHit()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->with('key')->andReturn(NullSentinel::VALUE);
+        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
+
+        $this->assertTrue($repo->touch('key', 60));
+    }
+
+    public function testTouchWithEnumKeyProxiesResolvedKeyToStore()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->with('foo')->andReturn('bar');
+        $repo->getStore()->shouldReceive('touch')->once()->with('foo', 60)->andReturn(true);
+
+        $this->assertTrue($repo->touch(TestCacheKey::Foo, 60));
     }
 
     public function testTouchWithDatetimeTtlCorrectlyProxiesToStore()

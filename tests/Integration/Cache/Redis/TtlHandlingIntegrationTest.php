@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Carbon\Carbon;
 use DateInterval;
+use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\TagMode;
 use Hypervel\Support\Facades\Cache;
 
@@ -332,6 +333,53 @@ class TtlHandlingIntegrationTest extends RedisCacheIntegrationTestCase
 
         $this->assertFalse(Cache::tags(['touch_missing'])->touch('missing_key', 60));
         $this->assertSame([], $this->getAllModeTagEntries('touch_missing'));
+    }
+
+    public function testAllModeTaggedTouchPreservesCachedNullSentinel(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        $invocations = 0;
+        $tagged = Cache::tags(['touch_nullable']);
+
+        $this->assertNull($tagged->rememberNullable('nullable_key', 1, function () use (&$invocations): null {
+            ++$invocations;
+
+            return null;
+        }));
+
+        $namespacedKey = $tagged->taggedItemKey('nullable_key');
+
+        $this->assertTrue($tagged->touch('nullable_key', 120));
+
+        $score = (int) $this->redis()->zScore($this->allModeTagKey('touch_nullable'), $namespacedKey);
+        $this->assertGreaterThan(time() + 100, $score);
+        $this->assertLessThanOrEqual(time() + 121, $score);
+
+        sleep(2);
+
+        $tagged->flushStale();
+
+        $this->assertNull($tagged->rememberNullable('nullable_key', 60, function () use (&$invocations): string {
+            ++$invocations;
+
+            return 'fresh';
+        }));
+        $this->assertSame(1, $invocations);
+
+        $this->assertTrue($tagged->touch('nullable_key', null));
+        $this->assertSame(-1.0, $this->redis()->zScore($this->allModeTagKey('touch_nullable'), $namespacedKey));
+
+        $rawValue = $this->redis()->get($this->getCachePrefix() . $namespacedKey);
+        $this->assertIsString($rawValue);
+        $this->assertSame(NullSentinel::VALUE, unserialize($rawValue));
+
+        $this->assertNull($tagged->rememberNullable('nullable_key', 60, function () use (&$invocations): string {
+            ++$invocations;
+
+            return 'fresh';
+        }));
+        $this->assertSame(1, $invocations);
     }
 
     public function testAnyModePlainTouchExtendsKeyAndTagMetadata(): void
