@@ -341,6 +341,40 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     /**
      * @test
      */
+    public function testClearFlushesTaggedItems(): void
+    {
+        $connection = $this->mockConnection();
+
+        $connection->shouldReceive('zScan')
+            ->once()
+            ->with('prefix:_all:tag:people:entries', null, '*', 1000)
+            ->andReturnUsing(function ($key, &$cursor) {
+                $cursor = 0;
+
+                return ['key1' => 0, 'key2' => 0];
+            });
+        $connection->shouldReceive('zScan')
+            ->once()
+            ->with('prefix:_all:tag:people:entries', 0, '*', 1000)
+            ->andReturnNull();
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:key1', 'prefix:key2')
+            ->andReturn(2);
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:people:entries')
+            ->andReturn(1);
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['people'])->clear();
+
+        $this->assertTrue($result);
+    }
+
+    /**
+     * @test
+     */
     public function testPutNullTtlCallsForever(): void
     {
         $connection = $this->mockConnection();
@@ -379,6 +413,109 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $result = $store->tags(['users'])->put('name', 'John', 0);
 
         $this->assertTrue($result);
+    }
+
+    /**
+     * @test
+     */
+    public function testPutManyZeroTtlDeletesNamespacedKeys(): void
+    {
+        $connection = $this->mockConnection();
+
+        $namespace = hash('xxh128', '_all:tag:users:entries') . ':';
+
+        $connection->shouldReceive('del')
+            ->once()
+            ->with("prefix:{$namespace}name")
+            ->andReturn(1);
+        $connection->shouldReceive('del')
+            ->once()
+            ->with("prefix:{$namespace}age")
+            ->andReturn(1);
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['users'])->putMany([
+            'name' => 'John',
+            'age' => 30,
+        ], 0);
+
+        $this->assertTrue($result);
+    }
+
+    /**
+     * @test
+     */
+    public function testTouchUpdatesKeyAndTagScores(): void
+    {
+        $connection = $this->mockConnection();
+
+        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with("prefix:{$key}")
+            ->andReturn(serialize('John'));
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->withArgs(function (string $script, array $keys, array $args) use ($key): bool {
+                $this->assertSame(["prefix:{$key}", 'prefix:_all:tag:users:entries'], $keys);
+                $this->assertSame(60, $args[0]);
+                $this->assertSame($key, $args[2]);
+
+                return true;
+            })
+            ->andReturn(true);
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['users'])->touch('name', 60);
+
+        $this->assertTrue($result);
+    }
+
+    /**
+     * @test
+     */
+    public function testTouchWithNullTtlStoresItemForeverWithTags(): void
+    {
+        $connection = $this->mockConnection();
+
+        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with("prefix:{$key}")
+            ->andReturn(serialize('John'));
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', -1, $key)->andReturn($connection);
+        $connection->shouldReceive('set')->once()->with("prefix:{$key}", serialize('John'))->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, true]);
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['users'])->touch('name', null);
+
+        $this->assertTrue($result);
+    }
+
+    /**
+     * @test
+     */
+    public function testTouchReturnsFalseForMissingKey(): void
+    {
+        $connection = $this->mockConnection();
+
+        $key = hash('xxh128', '_all:tag:users:entries') . ':name';
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with("prefix:{$key}")
+            ->andReturnNull();
+        $connection->shouldNotReceive('evalWithShaCache');
+        $connection->shouldNotReceive('pipeline');
+
+        $store = $this->createStore($connection);
+        $result = $store->tags(['users'])->touch('name', 60);
+
+        $this->assertFalse($result);
     }
 
     /**
@@ -476,6 +613,43 @@ class AllTaggedCacheTest extends RedisCacheTestCase
 
         $this->assertSame('computed_value', $result);
         $this->assertSame(1, $callCount);
+    }
+
+    public function testRememberNormalizesEnumKeyForRedisAndEvents(): void
+    {
+        $connection = $this->mockConnection();
+
+        $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
+        $expectedScore = now()->timestamp + 60;
+
+        $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('zadd')->once()->with('prefix:_all:tag:users:entries', $expectedScore, $key)->andReturn($connection);
+        $connection->shouldReceive('setex')->once()->with("prefix:{$key}", 60, serialize('computed_value'))->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, true]);
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function (object $event) use (&$captured): void {
+                $captured[] = $event;
+            });
+
+        $tagged = $this->createStore($connection)->tags(['users']);
+        $tagged->setEventDispatcher($events);
+
+        $result = $tagged->remember(AllTaggedCacheTestKey::Profile, 60, fn () => 'computed_value');
+
+        $this->assertSame('computed_value', $result);
+
+        $cacheMissed = array_values(array_filter($captured, fn (object $event) => $event instanceof CacheMissed))[0] ?? null;
+        $keyWritten = array_values(array_filter($captured, fn (object $event) => $event instanceof KeyWritten))[0] ?? null;
+
+        $this->assertNotNull($cacheMissed);
+        $this->assertSame('profile', $cacheMissed->key);
+        $this->assertNotNull($keyWritten);
+        $this->assertSame('profile', $keyWritten->key);
     }
 
     /**
@@ -675,6 +849,38 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertSame('cached_settings', $result);
     }
 
+    public function testRememberForeverNormalizesEnumKeyForRedisAndEvents(): void
+    {
+        $connection = $this->mockConnection();
+
+        $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with("prefix:{$key}")
+            ->andReturn(serialize('cached_settings'));
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function (object $event) use (&$captured): void {
+                $captured[] = $event;
+            });
+
+        $tagged = $this->createStore($connection)->tags(['config']);
+        $tagged->setEventDispatcher($events);
+
+        $result = $tagged->rememberForever(AllTaggedCacheTestKey::Settings, fn () => 'new_settings');
+
+        $this->assertSame('cached_settings', $result);
+
+        $cacheHit = array_values(array_filter($captured, fn (object $event) => $event instanceof CacheHit))[0] ?? null;
+
+        $this->assertNotNull($cacheHit);
+        $this->assertSame('settings', $cacheHit->key);
+    }
+
     /**
      * @test
      */
@@ -871,4 +1077,10 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $this->assertNull($result);
         $this->assertFalse($invoked);
     }
+}
+
+enum AllTaggedCacheTestKey: string
+{
+    case Profile = 'profile';
+    case Settings = 'settings';
 }

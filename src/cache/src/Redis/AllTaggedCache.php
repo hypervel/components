@@ -12,15 +12,16 @@ use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\NamespacedTaggedCache;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Cache\TaggedCache;
+use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class AllTaggedCache extends TaggedCache
+class AllTaggedCache extends NamespacedTaggedCache
 {
     /**
      * The cache store implementation.
@@ -34,7 +35,7 @@ class AllTaggedCache extends TaggedCache
      *
      * @var AllTagSet
      */
-    protected \Hypervel\Cache\TagSet $tags;
+    protected TagSet $tags;
 
     /**
      * The all-mode tagged item key prefix.
@@ -131,7 +132,7 @@ class AllTaggedCache extends TaggedCache
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
-            return false;
+            return $this->deleteMultiple(array_map(static fn ($key) => (string) $key, array_keys($values)));
         }
 
         $result = $this->store->allTagOps()->putMany()->execute(
@@ -148,6 +149,29 @@ class AllTaggedCache extends TaggedCache
         }
 
         return $result;
+    }
+
+    /**
+     * Set the expiration of a cached item; null TTL will retain the item forever.
+     */
+    public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    {
+        $key = enum_value($key);
+        $value = $this->get($key);
+
+        if (is_null($value)) {
+            return false;
+        }
+
+        if (is_null($ttl)) {
+            return $this->forever($key, $value);
+        }
+
+        return $this->store->allTagOps()->touch()->execute(
+            $this->itemKey($key),
+            $this->getSeconds($ttl),
+            $this->tags->tagIds()
+        );
     }
 
     /**
@@ -236,6 +260,7 @@ class AllTaggedCache extends TaggedCache
             return $this->rememberForever($key, $callback);
         }
 
+        $key = enum_value($key);
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
@@ -273,6 +298,8 @@ class AllTaggedCache extends TaggedCache
      */
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
+        $key = enum_value($key);
+
         [$value, $wasHit] = $this->store->allTagOps()->rememberForever()->execute(
             $this->itemKey($key),
             $callback,

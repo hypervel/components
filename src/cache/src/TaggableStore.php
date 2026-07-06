@@ -13,7 +13,19 @@ abstract class TaggableStore implements Store
      */
     public function tags(mixed $names): TaggedCache
     {
-        return new TaggedCache($this, new TagSet($this, is_array($names) ? $names : func_get_args()));
+        return new NamespacedTaggedCache($this, new VersionedTagSet($this, is_array($names) ? $names : func_get_args()));
+    }
+
+    /**
+     * Determine if this store currently supports tags.
+     *
+     * Stores whose tag support depends on configuration or composition
+     * override this; for everything else extending TaggableStore, tag
+     * support is unconditional.
+     */
+    public function supportsTags(): bool
+    {
+        return true;
     }
 
     /**

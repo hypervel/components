@@ -288,6 +288,101 @@ class TtlHandlingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertGreaterThan(20, $ttl);
     }
 
+    public function testAllModeTaggedTouchExtendsKeyAndTagScore(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        Cache::tags(['touch_ttl'])->put('touch_key', 'value', 30);
+
+        $namespacedKey = Cache::tags(['touch_ttl'])->taggedItemKey('touch_key');
+
+        $this->assertTrue(Cache::tags(['touch_ttl'])->touch('touch_key', 120));
+
+        $score = (int) $this->redis()->zScore($this->allModeTagKey('touch_ttl'), $namespacedKey);
+        $this->assertGreaterThan(time() + 100, $score);
+        $this->assertLessThanOrEqual(time() + 121, $score);
+
+        Cache::tags(['touch_ttl'])->flushStale();
+        $this->assertSame('value', Cache::tags(['touch_ttl'])->get('touch_key'));
+
+        Cache::tags(['touch_ttl'])->flush();
+        $this->assertNull(Cache::tags(['touch_ttl'])->get('touch_key'));
+    }
+
+    public function testAllModeTaggedTouchShortensTagScore(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        Cache::tags(['touch_shorter'])->put('touch_key', 'value', 120);
+
+        $namespacedKey = Cache::tags(['touch_shorter'])->taggedItemKey('touch_key');
+        $scoreBefore = (int) $this->redis()->zScore($this->allModeTagKey('touch_shorter'), $namespacedKey);
+
+        $this->assertTrue(Cache::tags(['touch_shorter'])->touch('touch_key', 30));
+
+        $scoreAfter = (int) $this->redis()->zScore($this->allModeTagKey('touch_shorter'), $namespacedKey);
+        $this->assertLessThan($scoreBefore, $scoreAfter);
+        $this->assertGreaterThan(time() + 20, $scoreAfter);
+        $this->assertLessThanOrEqual(time() + 31, $scoreAfter);
+    }
+
+    public function testAllModeTaggedTouchMissingKeyReturnsFalseWithoutTagEntries(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        $this->assertFalse(Cache::tags(['touch_missing'])->touch('missing_key', 60));
+        $this->assertSame([], $this->getAllModeTagEntries('touch_missing'));
+    }
+
+    public function testAnyModePlainTouchExtendsKeyAndTagMetadata(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        Cache::tags(['touch_ttl'])->put('touch_key', 'value', 30);
+
+        $this->assertTrue(Cache::touch('touch_key', 120));
+
+        $keyTtl = $this->redis()->ttl($this->getCachePrefix() . 'touch_key');
+        $this->assertGreaterThan(100, $keyTtl);
+        $this->assertLessThanOrEqual(120, $keyTtl);
+
+        $reverseIndexTtl = $this->redis()->ttl($this->anyModeReverseIndexKey('touch_key'));
+        $this->assertGreaterThan(100, $reverseIndexTtl);
+        $this->assertLessThanOrEqual(120, $reverseIndexTtl);
+
+        $fieldTtlResult = $this->redis()->httl($this->anyModeTagKey('touch_ttl'), ['touch_key']);
+        $fieldTtl = $fieldTtlResult[0] ?? $fieldTtlResult;
+        $this->assertGreaterThan(100, $fieldTtl);
+        $this->assertLessThanOrEqual(120, $fieldTtl);
+
+        $registryScore = (int) $this->redis()->zScore($this->anyModeRegistryKey(), 'touch_ttl');
+        $this->assertGreaterThan(time() + 100, $registryScore);
+
+        Cache::tags(['touch_ttl'])->flush();
+        $this->assertNull(Cache::get('touch_key'));
+    }
+
+    public function testAnyModePlainTouchOfUntaggedKeyOnlyTouchesValue(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        Cache::put('plain_touch_key', 'value', 30);
+
+        $this->assertTrue(Cache::touch('plain_touch_key', 120));
+
+        $ttl = $this->redis()->ttl($this->getCachePrefix() . 'plain_touch_key');
+        $this->assertGreaterThan(100, $ttl);
+        $this->assertSame([], $this->getAnyModeReverseIndex('plain_touch_key'));
+    }
+
+    public function testAnyModePlainTouchMissingKeyReturnsFalseWithoutMetadata(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        $this->assertFalse(Cache::touch('missing_touch_key', 60));
+        $this->assertSame([], $this->getAnyModeReverseIndex('missing_touch_key'));
+    }
+
     // =========================================================================
     // NON-TAGGED TTL - BOTH MODES
     // =========================================================================
