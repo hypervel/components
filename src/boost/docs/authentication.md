@@ -221,7 +221,7 @@ AUTH_USERS_CACHE_ENABLED=true
 AUTH_USERS_CACHE_STORE=stack
 ```
 
-Supported stores are `redis`, `database`, `file`, `swoole`, and `stack`. The `array`, `null`, `session`, and `failover` stores are rejected when the guard is resolved because they are either request-local, user-local, discard writes, or have fallback behavior that is not appropriate for authentication data. If you use `stack`, Hypervel only validates the outer stack store; unsupported inner stores such as `array`, `null`, `session`, or `failover` can still cause stale, missing, or unsafe auth cache behavior. Choose supported inner stores such as `swoole` and `redis`.
+Supported stores are `redis`, `database`, `file`, `swoole`, and `stack`. The `array`, `null`, `session`, and `failover` stores are rejected when the guard is resolved because they are either request-local, user-local, discard writes, or have fallback behavior that is not appropriate for authentication data. For untagged auth caching, Hypervel validates the outer stack store; unsupported inner stores such as `array`, `null`, `session`, or `failover` can still cause stale, missing, or unsafe auth cache behavior. Choose supported inner stores such as `swoole` and `redis`. When auth cache tags are configured, the stack's tag composition is also validated.
 
 When using a node-local store such as `swoole` or `file`, invalidation is local to that node. In a multi-node deployment using `stack` with a Swoole L1, a user update clears the current node's L1 and the shared backing store, while other nodes may serve their L1 entry until its short TTL expires. Use plain `redis` or `database` if you need strict cross-node consistency.
 
@@ -297,7 +297,7 @@ Then flush the tagged entries:
 Cache::store('auth')->tags(['auth_users'])->flush();
 ```
 
-Auth cache tags require a taggable store configured in `any` mode. Redis is the stock store that supports configurable tag modes. The default Redis tag mode is `all`, so use a separate Redis store with `tag_mode` set to `any` when enabling auth cache tags.
+Auth cache tags require a store that supports tags in `any` mode. Use a Redis store with `tag_mode` set to `any`, or a valid cache stack whose taggable layers are all any-mode stores. The default Redis tag mode is `all`, so use a separate Redis store or stack when enabling auth cache tags.
 
 You may also add per-request dynamic tags. This is useful when every cached user should keep a broad static tag, such as `auth_users`, plus a narrower request-specific tag, such as the current tenant:
 

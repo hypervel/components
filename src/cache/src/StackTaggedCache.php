@@ -2,53 +2,47 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Cache\Redis;
+namespace Hypervel\Cache;
 
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Generator;
-use Hypervel\Cache\AnyModeTaggedCache;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
-use Hypervel\Cache\NullSentinel;
-use Hypervel\Cache\RedisStore;
-use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 /**
- * Any-mode tagged cache for Redis 8.0+ enhanced tagging.
+ * Any-mode tagged cache for the stack store.
  *
- * Uses Redis hashes with field expiration and single-connection operations
- * for tagged writes and remember-style cache misses.
+ * Writes push stack records through every layer: tagged writes on taggable
+ * layers so indexes are recorded, plain writes above. Reads are not tag
+ * operations; use the plain stack repository for L1 hits and L2 backfill.
  */
-class AnyTaggedCache extends AnyModeTaggedCache
+class StackTaggedCache extends AnyModeTaggedCache
 {
     /**
      * The cache store implementation.
      *
-     * @var RedisStore
+     * @var StackStore
      */
     protected Store $store;
 
     /**
      * The tag set instance.
      *
-     * @var AnyTagSet
+     * @var StackTagSet
      */
     protected TagSet $tags;
 
     /**
      * Create a new tagged cache instance.
      */
-    public function __construct(
-        RedisStore $store,
-        AnyTagSet $tags,
-    ) {
+    public function __construct(StackStore $store, StackTagSet $tags)
+    {
         parent::__construct($store, $tags);
     }
 
@@ -73,44 +67,13 @@ class AnyTaggedCache extends AnyModeTaggedCache
             return $this->store->forget($key);
         }
 
-        $result = $this->store->anyTagOps()->put()->execute($key, $value, $seconds, $this->tags->getNames());
+        $result = $this->store->putRecordTagged($this->tags->getNames(), $key, [
+            'value' => $value,
+            'ttl' => $seconds,
+        ]);
 
         if ($result) {
             $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value), $seconds));
-        }
-
-        return $result;
-    }
-
-    /**
-     * Store multiple items in the cache for a given number of seconds.
-     */
-    public function putMany(array $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
-    {
-        if ($ttl === null) {
-            return $this->putManyForever($values);
-        }
-
-        $seconds = $this->getSeconds($ttl);
-
-        if ($seconds <= 0) {
-            $result = true;
-
-            foreach (array_keys($values) as $key) {
-                if (! $this->store->forget((string) $key)) {
-                    $result = false;
-                }
-            }
-
-            return $result;
-        }
-
-        $result = $this->store->anyTagOps()->putMany()->execute($values, $seconds, $this->tags->getNames());
-
-        if ($result) {
-            foreach ($values as $key => $value) {
-                $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, (string) $key, NullSentinel::unwrap($value), $seconds));
-            }
         }
 
         return $result;
@@ -123,18 +86,11 @@ class AnyTaggedCache extends AnyModeTaggedCache
     {
         $key = enum_value($key);
 
-        if ($ttl === null) {
-            // Default to 1 year for "null" TTL on add
-            $seconds = 31536000;
-        } else {
-            $seconds = $this->getSeconds($ttl);
-
-            if ($seconds <= 0) {
-                return false;
-            }
+        if (! is_null($this->store->get($key))) {
+            return false;
         }
 
-        return $this->store->anyTagOps()->add()->execute($key, $value, $seconds, $this->tags->getNames());
+        return $this->put($key, $value, $ttl);
     }
 
     /**
@@ -144,7 +100,7 @@ class AnyTaggedCache extends AnyModeTaggedCache
     {
         $key = enum_value($key);
 
-        $result = $this->store->anyTagOps()->forever()->execute($key, $value, $this->tags->getNames());
+        $result = $this->store->putRecordTagged($this->tags->getNames(), $key, ['value' => $value]);
 
         if ($result) {
             $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
@@ -158,7 +114,7 @@ class AnyTaggedCache extends AnyModeTaggedCache
      */
     public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->anyTagOps()->increment()->execute(enum_value($key), $value, $this->tags->getNames());
+        return $this->store->incrementTagged($this->tags->getNames(), enum_value($key), $value);
     }
 
     /**
@@ -166,26 +122,13 @@ class AnyTaggedCache extends AnyModeTaggedCache
      */
     public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->anyTagOps()->decrement()->execute(enum_value($key), $value, $this->tags->getNames());
-    }
-
-    /**
-     * Get all items (keys and values) tagged with the current tags.
-     *
-     * This is useful for debugging or bulk operations on tagged items.
-     *
-     * @return Generator<string, mixed>
-     */
-    public function items(): Generator
-    {
-        return $this->store->anyTagOps()->getTagItems()->execute($this->tags->getNames());
+        return $this->increment($key, $value * -1);
     }
 
     /**
      * Get an item from the cache, or execute the given Closure and store the result.
      *
-     * Optimized to use a single connection for both GET and PUT operations,
-     * avoiding double pool overhead for cache misses.
+     * Reads plain through the stack and writes through the tagged path on a miss.
      *
      * @template TCacheValue
      *
@@ -202,32 +145,28 @@ class AnyTaggedCache extends AnyModeTaggedCache
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
-            // Invalid TTL, just execute callback without caching
             return $callback();
         }
 
-        [$value, $wasHit] = $this->store->anyTagOps()->remember()->execute(
-            $key,
-            $seconds,
-            $callback,
-            $this->tags->getNames()
-        );
+        $value = $this->store->get($key);
 
-        if ($wasHit) {
+        if (! is_null($value)) {
             $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, NullSentinel::unwrap($value)));
-        } else {
-            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value), $seconds));
+
+            return NullSentinel::unwrap($value);
         }
+
+        $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
+
+        $value = $callback();
+
+        $this->put($key, $value, $seconds);
 
         return NullSentinel::unwrap($value);
     }
 
     /**
      * Get an item from the cache, or execute the given Closure and store the result forever.
-     *
-     * Optimized to use a single connection for both GET and SET operations,
-     * avoiding double pool overhead for cache misses.
      *
      * @template TCacheValue
      *
@@ -237,19 +176,19 @@ class AnyTaggedCache extends AnyModeTaggedCache
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
         $key = enum_value($key);
+        $value = $this->store->get($key);
 
-        [$value, $wasHit] = $this->store->anyTagOps()->rememberForever()->execute(
-            $key,
-            $callback,
-            $this->tags->getNames()
-        );
-
-        if ($wasHit) {
+        if (! is_null($value)) {
             $this->event(CacheHit::class, fn (): CacheHit => new CacheHit(null, $key, NullSentinel::unwrap($value)));
-        } else {
-            $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
-            $this->event(KeyWritten::class, fn (): KeyWritten => new KeyWritten(null, $key, NullSentinel::unwrap($value)));
+
+            return NullSentinel::unwrap($value);
         }
+
+        $this->event(CacheMissed::class, fn (): CacheMissed => new CacheMissed(null, $key));
+
+        $value = $callback();
+
+        $this->forever($key, $value);
 
         return NullSentinel::unwrap($value);
     }
@@ -257,7 +196,7 @@ class AnyTaggedCache extends AnyModeTaggedCache
     /**
      * Get the tag set instance (covariant return type).
      */
-    public function getTags(): AnyTagSet
+    public function getTags(): StackTagSet
     {
         return $this->tags;
     }

@@ -101,7 +101,7 @@ class HashLifecycleIntegrationTest extends RedisCacheIntegrationTestCase
     // ORPHANED FIELDS BEHAVIOR (LAZY CLEANUP MODE)
     // =========================================================================
 
-    public function testCreatesOrphanedFieldsWhenCacheKeyDeletedButFieldRemains(): void
+    public function testCreatesOrphanedFieldsWhenCacheKeyDeletedOutsideCacheForget(): void
     {
         // Create forever item (no field expiration)
         Cache::tags(['orphan-test'])->forever('lifecycle:orphan', 'value');
@@ -111,15 +111,15 @@ class HashLifecycleIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertRedisKeyExists($tagHash);
         $this->assertEquals(1, $this->redis()->hlen($tagHash));
 
-        // Manually delete the cache key (simulates flush of another tag)
-        Cache::forget('lifecycle:orphan');
+        // Delete the cache key outside the metadata-aware forget path.
+        $prefix = $this->getCachePrefix();
+        $this->redis()->del($prefix . 'lifecycle:orphan');
 
         // Hash field still exists even though cache key is gone
         $this->assertRedisKeyExists($tagHash);
         $this->assertEquals(1, $this->redis()->hlen($tagHash));
 
         // The field is now "orphaned" - points to non-existent cache key
-        $prefix = $this->getCachePrefix();
         $this->assertFalse($this->redis()->exists($prefix . 'lifecycle:orphan') > 0);
 
         // This is what prune command is designed to clean up
@@ -135,8 +135,8 @@ class HashLifecycleIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertRedisKeyExists($tagHash);
         $this->assertEquals(1, $this->redis()->hlen($tagHash));
 
-        // Simulate flush by deleting cache key but leaving field
-        Cache::forget('lifecycle:temp');
+        // Delete the cache key outside the metadata-aware forget path.
+        $this->redis()->del($this->getCachePrefix() . 'lifecycle:temp');
 
         // Orphaned field still exists
         $this->assertRedisKeyExists($tagHash);

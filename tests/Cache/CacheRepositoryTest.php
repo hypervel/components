@@ -16,12 +16,14 @@ use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Cache\Exceptions\NotSupportedException;
 use Hypervel\Cache\FileStore;
 use Hypervel\Cache\Lock;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\StackStore;
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Contracts\Cache\LockProvider;
@@ -729,8 +731,30 @@ class CacheRepositoryTest extends TestCase
         $this->expectException(BadMethodCallException::class);
 
         $store = new FileStore(new Filesystem, '/usr');
-        $this->assertFalse(method_exists($store, 'tags'), 'Store should not support tagging.');
+        $this->assertFalse((new Repository($store))->supportsTags());
         (new Repository($store))->tags('foo');
+    }
+
+    public function testItThrowsExceptionWhenTaggableStoreReportsUnsupportedTags()
+    {
+        $this->expectException(NotSupportedException::class);
+        $this->expectExceptionMessage('Detailed tag support failure.');
+
+        $store = m::mock(TaggableStore::class);
+        $store->shouldReceive('supportsTags')->never();
+        $store->shouldReceive('tags')->once()->with(['foo'])->andThrow(
+            new NotSupportedException('Detailed tag support failure.')
+        );
+
+        (new Repository($store))->tags('foo');
+    }
+
+    public function testTaggableStoreCompositionExceptionIsPreserved()
+    {
+        $this->expectException(NotSupportedException::class);
+        $this->expectExceptionMessage('must be a taggable store in any mode');
+
+        (new Repository(new StackStore([new ArrayStore])))->tags('foo');
     }
 
     public function testTagMethodReturnsTaggedCache()
@@ -777,6 +801,7 @@ class CacheRepositoryTest extends TestCase
     public function testFlushLocksDelegatesToStore()
     {
         $flushable = m::mock(RedisStore::class);
+        $flushable->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
         $flushable->shouldReceive('flushLocks')->once()->andReturn(true);
 
         $repo = new Repository($flushable);
@@ -787,9 +812,19 @@ class CacheRepositoryTest extends TestCase
     public function testTaggableRepositoriesSupportTags()
     {
         $taggable = m::mock(TaggableStore::class);
+        $taggable->shouldReceive('supportsTags')->once()->andReturnTrue();
         $taggableRepo = new Repository($taggable);
 
         $this->assertTrue($taggableRepo->supportsTags());
+    }
+
+    public function testTaggableRepositoriesCanReportUnsupportedTags()
+    {
+        $taggable = m::mock(TaggableStore::class);
+        $taggable->shouldReceive('supportsTags')->once()->andReturnFalse();
+        $taggableRepo = new Repository($taggable);
+
+        $this->assertFalse($taggableRepo->supportsTags());
     }
 
     public function testNonTaggableRepositoryDoesNotSupportTags()
@@ -803,9 +838,19 @@ class CacheRepositoryTest extends TestCase
     public function testFlushableLockRepositorySupportsFlushingLocks()
     {
         $flushable = m::mock(RedisStore::class);
+        $flushable->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
         $flushableRepo = new Repository($flushable);
 
         $this->assertTrue($flushableRepo->supportsFlushingLocks());
+    }
+
+    public function testFlushableLockRepositoryCanReportUnsupportedFlushingLocks()
+    {
+        $flushable = m::mock(RedisStore::class);
+        $flushable->shouldReceive('supportsFlushingLocks')->once()->andReturnFalse();
+        $flushableRepo = new Repository($flushable);
+
+        $this->assertFalse($flushableRepo->supportsFlushingLocks());
     }
 
     public function testNonFlushableLockRepositoryDoesNotSupportFlushingLocks()
@@ -834,12 +879,39 @@ class CacheRepositoryTest extends TestCase
         $this->assertTrue($repo->touch('key', null));
     }
 
+    public function testTouchWithNullTtlPreservesCachedNullSentinel()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->with('key')->andReturn(NullSentinel::VALUE);
+        $repo->getStore()->shouldReceive('forever')->once()->with('key', NullSentinel::VALUE)->andReturn(true);
+
+        $this->assertTrue($repo->touch('key', null));
+    }
+
     public function testTouchWithSecondsTtlCorrectlyProxiesToStore()
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');
         $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
         $this->assertTrue($repo->touch('key', 60));
+    }
+
+    public function testTouchWithSecondsTtlTreatsCachedNullSentinelAsHit()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->with('key')->andReturn(NullSentinel::VALUE);
+        $repo->getStore()->shouldReceive('touch')->once()->with('key', 60)->andReturn(true);
+
+        $this->assertTrue($repo->touch('key', 60));
+    }
+
+    public function testTouchWithEnumKeyProxiesResolvedKeyToStore()
+    {
+        $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->with('foo')->andReturn('bar');
+        $repo->getStore()->shouldReceive('touch')->once()->with('foo', 60)->andReturn(true);
+
+        $this->assertTrue($repo->touch(TestCacheKey::Foo, 60));
     }
 
     public function testTouchWithDatetimeTtlCorrectlyProxiesToStore()

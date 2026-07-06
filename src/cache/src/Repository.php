@@ -26,6 +26,7 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Cache\Exceptions\NotSupportedException;
 use Hypervel\Cache\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
@@ -668,7 +669,8 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function touch(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
-        $value = $this->get($key);
+        $key = enum_value($key);
+        $value = $this->getRaw($key);
 
         if (is_null($value)) {
             return false;
@@ -772,13 +774,13 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     {
         $store = $this->getStore();
 
-        if (! $this->supportsFlushingLocks()) {
+        if (! $store instanceof CanFlushLocks || ! $store->supportsFlushingLocks()) {
             throw new BadMethodCallException('This cache store does not support flushing locks.');
         }
 
         $this->event(CacheLocksFlushing::class, fn (): CacheLocksFlushing => new CacheLocksFlushing($this->getName()));
 
-        $result = $store->flushLocks(); // @phpstan-ignore method.notFound (flushLocks() is on CanFlushLocks, verified by supportsFlushingLocks() above)
+        $result = $store->flushLocks();
 
         if ($result) {
             $this->event(
@@ -799,18 +801,20 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      * Begin executing a new tags operation if the store supports it.
      *
      * @throws BadMethodCallException
+     * @throws NotSupportedException
      */
     public function tags(mixed $names): TaggedCache
     {
-        if (! $this->supportsTags()) {
+        $store = $this->store;
+
+        if (! $store instanceof TaggableStore) {
             throw new BadMethodCallException('This cache store does not support tagging.');
         }
 
         $names = is_array($names) ? $names : func_get_args();
         $names = array_map(fn ($name) => enum_value($name), $names);
 
-        /* @phpstan-ignore-next-line */
-        $cache = $this->store->tags($names);
+        $cache = $store->tags($names);
 
         $cache->config = $this->config;
 
@@ -826,7 +830,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function supportsTags(): bool
     {
-        return method_exists($this->store, 'tags');
+        return $this->store instanceof TaggableStore && $this->store->supportsTags();
     }
 
     /**
@@ -834,7 +838,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function supportsFlushingLocks(): bool
     {
-        return $this->store instanceof CanFlushLocks;
+        return $this->store instanceof CanFlushLocks && $this->store->supportsFlushingLocks();
     }
 
     /**

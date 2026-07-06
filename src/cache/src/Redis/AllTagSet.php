@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis;
 
+use Hypervel\Cache\NamespacedTagSet;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Support\LazyCollection;
 
-class AllTagSet extends TagSet
+class AllTagSet extends NamespacedTagSet
 {
     /**
      * The cache store implementation.
@@ -39,11 +39,11 @@ class AllTagSet extends TagSet
     }
 
     /**
-     * Flush the tag from the cache.
+     * Reset all tags in the set.
      */
-    public function flushTag(string $name): string
+    public function reset(): void
     {
-        return $this->resetTag($name);
+        array_walk($this->names, [$this, 'resetTag']);
     }
 
     /**
@@ -54,6 +54,22 @@ class AllTagSet extends TagSet
         $this->store->forget($this->tagKey($name));
 
         return $this->tagId($name);
+    }
+
+    /**
+     * Flush all the tags in the set.
+     */
+    public function flush(): void
+    {
+        array_walk($this->names, [$this, 'flushTag']);
+    }
+
+    /**
+     * Flush the tag from the cache.
+     */
+    public function flushTag(string $name): string
+    {
+        return $this->resetTag($name);
     }
 
     /**

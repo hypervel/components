@@ -12,14 +12,9 @@ use Hypervel\Contracts\Cache\Store;
 /**
  * Any-mode tag set for Redis 8.0+ enhanced tagging.
  *
- * Key differences from AllTagSet:
- * - Tag IDs are just the tag names (no random UUID versioning)
- * - Uses hashes with HSETEX for automatic field expiration
- * - Tags track which keys belong to them (for any flush semantics)
- * - Flush affects items with ANY of the specified tags (any), not ALL (all)
- *
- * This class is intentionally simple - it delegates most work to RedisStore
- * and the tagged operation classes in Redis/Operations/.
+ * Tags are identified by their names, and hashes track membership with
+ * HSETEX field expiration. Flush deletes the actual cache keys written
+ * with any of the specified tags.
  */
 class AnyTagSet extends TagSet
 {
@@ -36,26 +31,6 @@ class AnyTagSet extends TagSet
     public function __construct(RedisStore $store, array $names = [])
     {
         parent::__construct($store, $names);
-    }
-
-    /**
-     * Get the unique tag identifier for a given tag.
-     *
-     * Unlike AllTagSet which uses random UUIDs, any mode
-     * uses the tag name directly. This means tags don't get "versioned"
-     * on flush - actual cache keys are deleted instead.
-     */
-    public function tagId(string $name): string
-    {
-        return $name;
-    }
-
-    /**
-     * Get an array of tag identifiers for all of the tags in the set.
-     */
-    public function tagIds(): array
-    {
-        return $this->names;
     }
 
     /**
@@ -92,8 +67,8 @@ class AnyTagSet extends TagSet
     /**
      * Reset the tag set.
      *
-     * In any mode, this actually deletes the cached items,
-     * unlike all mode which just changes the tag version.
+     * In any mode, this deletes the cached items themselves, unlike
+     * namespaced tag sets where reset only invalidates tag tracking.
      */
     public function reset(): void
     {
@@ -118,40 +93,6 @@ class AnyTagSet extends TagSet
     {
         $this->getRedisStore()->anyTagOps()->flush()->execute([$name]);
 
-        return $this->tagKey($name);
-    }
-
-    /**
-     * Get a unique namespace that changes when any of the tags are flushed.
-     *
-     * Not used in any mode since we don't namespace keys by tags.
-     * Returns empty string for compatibility with TaggedCache.
-     */
-    public function getNamespace(): string
-    {
-        return '';
-    }
-
-    /**
-     * Reset the tag and return the new tag identifier.
-     *
-     * In any mode, this flushes the tag and returns the tag name.
-     * The tag name never changes (unlike all mode's UUIDs).
-     */
-    public function resetTag(string $name): string
-    {
-        $this->flushTag($name);
-
-        return $name;
-    }
-
-    /**
-     * Get the tag key for a given tag name.
-     *
-     * Returns the hash key for the tag (same as tagHashKey).
-     */
-    public function tagKey(string $name): string
-    {
         return $this->tagHashKey($name);
     }
 
