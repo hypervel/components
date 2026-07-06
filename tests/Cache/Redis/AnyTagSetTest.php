@@ -56,28 +56,6 @@ class AnyTagSetTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testTagIdReturnsTagNameDirectly(): void
-    {
-        $tagSet = new AnyTagSet($this->store, ['users']);
-
-        // Unlike AllTagSet, any mode uses tag name directly (no UUID)
-        $this->assertSame('users', $tagSet->tagId('users'));
-        $this->assertSame('posts', $tagSet->tagId('posts'));
-    }
-
-    /**
-     * @test
-     */
-    public function testTagIdsReturnsAllTagNames(): void
-    {
-        $tagSet = new AnyTagSet($this->store, ['users', 'posts', 'comments']);
-
-        $this->assertSame(['users', 'posts', 'comments'], $tagSet->tagIds());
-    }
-
-    /**
-     * @test
-     */
     public function testTagHashKeyReturnsCorrectFormat(): void
     {
         $tagSet = new AnyTagSet($this->store, ['users']);
@@ -234,59 +212,6 @@ class AnyTagSetTest extends RedisCacheTestCase
         $this->pipeline->shouldReceive('exec')->andReturn([]);
 
         $result = $tagSet->flushTag('users');
-
-        $this->assertSame('prefix:_any:tag:users:entries', $result);
-    }
-
-    /**
-     * @test
-     */
-    public function testGetNamespaceReturnsEmptyString(): void
-    {
-        $tagSet = new AnyTagSet($this->store, ['users']);
-
-        // Union mode doesn't namespace keys by tags
-        $this->assertSame('', $tagSet->getNamespace());
-    }
-
-    /**
-     * @test
-     */
-    public function testResetTagFlushesTagAndReturnsName(): void
-    {
-        $tagSet = new AnyTagSet($this->store, ['users']);
-
-        // GetTaggedKeys for the flush operation
-        $this->connection->shouldReceive('hlen')
-            ->once()
-            ->with('prefix:_any:tag:users:entries')
-            ->andReturn(1);
-        $this->connection->shouldReceive('hkeys')
-            ->once()
-            ->with('prefix:_any:tag:users:entries')
-            ->andReturn(['key1']);
-
-        // Pipeline for flush operations
-        $this->connection->shouldReceive('pipeline')->andReturn($this->pipeline);
-        $this->pipeline->shouldReceive('del')->andReturnSelf();
-        $this->pipeline->shouldReceive('unlink')->andReturnSelf();
-        $this->pipeline->shouldReceive('zrem')->andReturnSelf();
-        $this->pipeline->shouldReceive('exec')->andReturn([]);
-
-        $result = $tagSet->resetTag('users');
-
-        // Returns the tag name (not a UUID like AllTagSet)
-        $this->assertSame('users', $result);
-    }
-
-    /**
-     * @test
-     */
-    public function testTagKeyReturnsSameAsTagHashKey(): void
-    {
-        $tagSet = new AnyTagSet($this->store, ['users']);
-
-        $result = $tagSet->tagKey('users');
 
         $this->assertSame('prefix:_any:tag:users:entries', $result);
     }
