@@ -41,13 +41,16 @@ class AspectCollector
     {
         $priority ??= 0;
 
+        // Merge idempotently: providers re-register their aspects on every
+        // application boot (tests, Octane-style reboots), and duplicate class
+        // rules make proxy generation cost grow with each boot.
         $existing = static::get('classes.' . $aspect, []);
-        static::set('classes.' . $aspect, array_merge($existing, $classes));
+        static::set('classes.' . $aspect, array_values(array_unique(array_merge($existing, $classes))));
 
         if (isset(static::$aspectRules[$aspect])) {
             static::$aspectRules[$aspect] = [
                 'priority' => $priority,
-                'classes' => array_merge(static::$aspectRules[$aspect]['classes'], $classes),
+                'classes' => array_values(array_unique(array_merge(static::$aspectRules[$aspect]['classes'], $classes))),
             ];
         } else {
             static::$aspectRules[$aspect] = [

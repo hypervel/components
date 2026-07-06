@@ -43,6 +43,21 @@ class AspectCollectorTest extends TestCase
         );
     }
 
+    public function testSetAroundDeduplicatesClassesOnRepeatedRegistration()
+    {
+        AspectCollector::setAround('App\Aspect\FooAspect', ['App\Foo::bar'], 5);
+        AspectCollector::setAround('App\Aspect\FooAspect', ['App\Foo::bar'], 5);
+
+        $this->assertSame(
+            ['App\Foo::bar'],
+            AspectCollector::getRule('App\Aspect\FooAspect')['classes']
+        );
+        $this->assertSame(
+            ['App\Foo::bar'],
+            AspectCollector::get('classes.App\Aspect\FooAspect')
+        );
+    }
+
     public function testGetPriorityReturnsZeroForUnregisteredAspect()
     {
         $this->assertSame(0, AspectCollector::getPriority('NonExistent'));
