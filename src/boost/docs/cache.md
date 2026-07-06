@@ -20,6 +20,7 @@
     - [Redis Tag Modes](#redis-tag-modes)
     - [All Tag Mode](#all-tag-mode)
     - [Any Tag Mode](#any-tag-mode)
+    - [Tagged Cache Stacks](#tagged-cache-stacks)
     - [Pruning Stale Tag Entries](#pruning-stale-tag-entries)
 - [Atomic Locks](#atomic-locks)
     - [Managing Locks](#managing-locks)
@@ -167,6 +168,8 @@ Hypervel provides a multi-tier caching architecture. The `stack` driver allows y
 This configuration aggregates two other cache stores: `swoole` and `redis`. When caching data, both stores are written sequentially. The `ttl` option may be used to override the time to live for a specific layer.
 
 When retrieving data, if there is a cache hit in the `swoole` layer, the data will be returned immediately and the Redis cache will not be queried. If there is a cache miss in the `swoole` layer, the stack driver will check the Redis layer. If Redis contains the value, the value will be returned and backfilled into the Swoole layer for future requests.
+
+Locks and lock-backed helpers, such as `Cache::lock`, `Cache::funnel`, and `Cache::withoutOverlapping`, are delegated to the bottom layer of the stack. Use a lock-capable bottom store, such as Redis, when a stack is your default cache store.
 
 <a name="session-cache"></a>
 ### Session Cache
@@ -528,7 +531,7 @@ cache()->remember('users', $seconds, function () {
 ## Cache Tags
 
 > [!WARNING]
-> Cache tags are supported by the `redis`, `array`, `failover`, and `null` cache drivers. They are not supported by the `file`, `database`, `swoole`, `stack`, `session`, or `memo` drivers.
+> Cache tags are supported by the `redis`, `array`, `failover`, `null`, and `stack` cache drivers. Stack tags require an any-mode composition; see [Tagged Cache Stacks](#tagged-cache-stacks). Cache tags are not supported by the `file`, `database`, `swoole`, `session`, or `memo` drivers.
 
 <a name="redis-tag-modes"></a>
 ### Redis Tag Modes
@@ -598,8 +601,10 @@ Because tags are invalidation indexes in `any` mode, flushing any one tag remove
 Cache::tags(['user:42'])->flush();
 ```
 
+Tag membership is synchronized by tagged writes. Plain `Cache::forget($key)` removes any-mode tag membership for that key, and a finite `Cache::touch($key, $ttl)` keeps the key and tag metadata TTLs in sync. Plain `put`, plain `forever`, and `touch($key, null)` are plain rewrites; they do not add tags or refresh tag metadata for an already-tagged value. To change a tagged value's TTL or tags, write it again through `tags()`.
+
 > [!WARNING]
-> In `any` mode, attempting to retrieve, check, pull, forget, or retrieve many cache items through a tagged cache will throw a `BadMethodCallException`. Use the direct `Cache::get`, `Cache::has`, `Cache::pull`, `Cache::forget`, and `Cache::many` methods with the full cache key instead.
+> In `any` mode, attempting to retrieve, check, pull, forget, touch, or retrieve many cache items through a tagged cache will throw a `BadMethodCallException`. Use the direct `Cache::get`, `Cache::has`, `Cache::pull`, `Cache::forget`, `Cache::touch`, and `Cache::many` methods with the full cache key instead.
 
 The `items` method returns a generator yielding all key / value pairs indexed by the given tags. This can be useful for debugging or bulk operations:
 
@@ -608,6 +613,43 @@ foreach (Cache::tags(['user:42'])->items() as $key => $value) {
     // ...
 }
 ```
+
+<a name="tagged-cache-stacks"></a>
+### Tagged Cache Stacks
+
+The `stack` driver supports cache tags when its taggable layers are all configured in `any` mode. Tagged stack writes record tag indexes in the taggable layers, while reads continue to use the stack's plain-key path: an L1 hit returns immediately, and an L2 hit backfills upper layers. Flush tagged entries through `tags()`, then read them through the plain cache key:
+
+```php
+Cache::store('stack')->tags(['user:42'])->put('profile:42', $profile, 3600);
+
+$profile = Cache::store('stack')->get('profile:42');
+
+Cache::store('stack')->tags(['user:42'])->flush();
+```
+
+A stack supports tags when it has at least one taggable layer, and every layer from the first taggable layer down to the bottom is an any-mode taggable store. Non-taggable microcache layers may sit above that region:
+
+```php
+'auth-stack' => [
+    'driver' => 'stack',
+    'stores' => [
+        'swoole' => ['ttl' => 3],
+        'redis-any',
+    ],
+],
+
+'redis-any' => [
+    'driver' => 'redis',
+    'connection' => 'cache',
+    'tag_mode' => 'any',
+],
+```
+
+Putting a non-taggable layer below the taggable region is rejected because it can resurrect flushed values. For example, a `[redis-any, file]` stack could flush Redis, then miss Redis, read the old value from `file`, and backfill the flushed value into Redis again.
+
+After a tag flush, non-taggable upper layers may still serve their cached value until that layer's TTL expires. This bounded staleness is the normal microcache tradeoff. Configure node-local upper layers with a short `ttl` override; without one, staleness is bounded by the cached item's own TTL. Use `Cache::store(...)->supportsTags()` to test whether a configured stack currently supports tags.
+
+Direct stack writes and `Cache::touch()` use plain layer writes. For tagged stack items, write the value through `tags()` again when tag metadata must remain authoritative for a TTL or tag change.
 
 <a name="pruning-stale-tag-entries"></a>
 ### Pruning Stale Tag Entries
@@ -626,7 +668,7 @@ You may schedule this command to run periodically based on how often tagged cach
 ## Atomic Locks
 
 > [!WARNING]
-> To utilize this feature, your application must be using the `redis`, `database`, `file`, or `array` cache driver as your application's default cache driver. For distributed locks, all servers must be communicating with the same central cache server.
+> To utilize this feature, your application must be using the `redis`, `database`, `file`, `array`, or `stack` cache driver as your application's default cache driver. Stack locks are delegated to the bottom layer, so the bottom store must support locks. For distributed locks, all servers must be communicating with the same central cache server.
 
 <a name="managing-locks"></a>
 ### Managing Locks
@@ -765,7 +807,7 @@ You may clear all atomic locks in the cache using the `flushLocks` method:
 Cache::flushLocks();
 ```
 
-The `flushLocks` method is supported by the `redis`, `database`, `file`, and `array` cache drivers. Redis, database, and file stores only support flushing locks when lock storage is configured separately from regular cache storage. If lock storage is shared with regular cache storage, Hypervel will throw a `RuntimeException`. If a store does not support flushing locks, Hypervel will throw a `BadMethodCallException`.
+The `flushLocks` method is supported by the `redis`, `database`, `file`, `array`, and `stack` cache drivers. Stack stores delegate lock flushing to the bottom layer and support it only when that bottom layer supports flushing locks. Redis, database, and file stores only support flushing locks when lock storage is configured separately from regular cache storage. If lock storage is shared with regular cache storage, Hypervel will throw a `RuntimeException`. If a store does not support flushing locks, Hypervel will throw a `BadMethodCallException`.
 
 > [!WARNING]
 > The `flushLocks` method removes every lock in the lock store, regardless of which application or process owns the lock. Use it carefully in shared environments.
