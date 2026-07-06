@@ -75,7 +75,7 @@ trait ProxyTrait
      */
     protected static function getClassesAspects(string $className, string $method): array
     {
-        $aspects = AspectCollector::get('classes', []);
+        $aspects = AspectCollector::getClassRules();
         $matchedAspects = [];
         foreach ($aspects as $aspect => $rules) {
             foreach ($rules as $rule) {

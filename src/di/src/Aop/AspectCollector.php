@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Di\Aop;
 
-use Hypervel\Support\Arr;
-
 /**
  * Static registry of aspect class rules and priorities.
  *
@@ -16,13 +14,6 @@ use Hypervel\Support\Arr;
  */
 class AspectCollector
 {
-    /**
-     * Container indexed by type ('classes') and aspect class name.
-     *
-     * @var array<string, array<string, array<int, string>>>
-     */
-    protected static array $container = [];
-
     /**
      * Aspect rules indexed by aspect class name.
      *
@@ -41,23 +32,17 @@ class AspectCollector
     {
         $priority ??= 0;
 
-        // Merge idempotently: providers re-register their aspects on every
-        // application boot (tests, Octane-style reboots), and duplicate class
-        // rules make proxy generation cost grow with each boot.
-        $existing = static::get('classes.' . $aspect, []);
-        static::set('classes.' . $aspect, array_values(array_unique(array_merge($existing, $classes))));
+        // Merge idempotently: a provider re-registering the same aspect on a repeated
+        // boot in the same worker must not append duplicate class rules; the proxy
+        // generator scans every rule against the whole class map, so duplicates make
+        // each boot slower than the last.
+        $existing = static::$aspectRules[$aspect]['classes'] ?? [];
+        $classes = array_values(array_unique(array_merge($existing, $classes)));
 
-        if (isset(static::$aspectRules[$aspect])) {
-            static::$aspectRules[$aspect] = [
-                'priority' => $priority,
-                'classes' => array_values(array_unique(array_merge(static::$aspectRules[$aspect]['classes'], $classes))),
-            ];
-        } else {
-            static::$aspectRules[$aspect] = [
-                'priority' => $priority,
-                'classes' => $classes,
-            ];
-        }
+        static::$aspectRules[$aspect] = [
+            'priority' => $priority,
+            'classes' => $classes,
+        ];
     }
 
     /**
@@ -69,25 +54,6 @@ class AspectCollector
     }
 
     /**
-     * Retrieve metadata by dot-notated key.
-     */
-    public static function get(string $key, mixed $default = null): mixed
-    {
-        return Arr::get(static::$container, $key) ?? $default;
-    }
-
-    /**
-     * Set metadata by dot-notated key.
-     *
-     * Boot-only. Aspect metadata persists in static properties used by the
-     * proxy generator and runtime aspect resolver.
-     */
-    public static function set(string $key, mixed $value): void
-    {
-        Arr::set(static::$container, $key, $value);
-    }
-
-    /**
      * Remove a specific aspect from the registry.
      *
      * Tests only. Mutates the worker-wide aspect registry; runtime use cannot
@@ -95,11 +61,29 @@ class AspectCollector
      */
     public static function forgetAspect(string $aspect): void
     {
-        unset(static::$container['classes'][$aspect], static::$aspectRules[$aspect]);
+        unset(static::$aspectRules[$aspect]);
+    }
+
+    /**
+     * Get the class-targeting rules for every registered aspect.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public static function getClassRules(): array
+    {
+        $classRules = [];
+
+        foreach (static::$aspectRules as $aspect => $rule) {
+            $classRules[$aspect] = $rule['classes'];
+        }
+
+        return $classRules;
     }
 
     /**
      * Get the rules for a specific aspect.
+     *
+     * @return array{priority: int, classes: array<int, string>}|array{}
      */
     public static function getRule(string $aspect): array
     {
@@ -116,6 +100,8 @@ class AspectCollector
 
     /**
      * Get all aspect rules.
+     *
+     * @return array<string, array{priority: int, classes: array<int, string>}>
      */
     public static function getRules(): array
     {
@@ -123,19 +109,10 @@ class AspectCollector
     }
 
     /**
-     * Return all metadata.
-     */
-    public static function list(): array
-    {
-        return static::$container;
-    }
-
-    /**
      * Flush all static state.
      */
     public static function flushState(): void
     {
-        static::$container = [];
         static::$aspectRules = [];
     }
 }

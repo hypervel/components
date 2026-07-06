@@ -12,10 +12,10 @@ class Aspect
     public static function parse(string $class): RewriteCollection
     {
         $rewriteCollection = new RewriteCollection($class);
-        $classesCollection = AspectCollector::get('classes', []);
+        $classRules = AspectCollector::getClassRules();
 
-        if ($classesCollection) {
-            self::parseClasses($classesCollection, $class, $rewriteCollection);
+        if ($classRules) {
+            self::parseClasses($classRules, $class, $rewriteCollection);
         }
 
         return $rewriteCollection;
@@ -126,10 +126,8 @@ class Aspect
      */
     private static function parseClasses(array $collection, string $class, RewriteCollection $rewriteCollection): void
     {
-        $aspects = array_keys($collection);
-        foreach ($aspects as $aspect) {
-            $rules = AspectCollector::getRule($aspect);
-            foreach ($rules['classes'] ?? [] as $rule) {
+        foreach ($collection as $rules) {
+            foreach ($rules as $rule) {
                 [$isMatch, $method] = static::isMatchClassRule($class, $rule);
                 if ($isMatch) {
                     if ($method === null) {
