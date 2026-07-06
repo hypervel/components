@@ -367,6 +367,14 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
     }
 
     /**
+     * Determine if the store can currently flush locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
+        return true;
+    }
+
+    /**
      * Remove all locks from the store.
      *
      * @throws RuntimeException

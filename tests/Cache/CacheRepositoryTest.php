@@ -718,6 +718,7 @@ class CacheRepositoryTest extends TestCase
 
         $taggedCache = m::mock(TaggedCache::class);
         $taggedCache->shouldReceive('setDefaultCacheTime');
+        $store->shouldReceive('supportsTags')->once()->andReturnTrue();
         $store->shouldReceive('tags')->once()->with(['foo', 'bar', 'baz'])->andReturn($taggedCache);
         $repo->tags('foo', 'bar', 'baz');
 
@@ -729,7 +730,18 @@ class CacheRepositoryTest extends TestCase
         $this->expectException(BadMethodCallException::class);
 
         $store = new FileStore(new Filesystem, '/usr');
-        $this->assertFalse(method_exists($store, 'tags'), 'Store should not support tagging.');
+        $this->assertFalse((new Repository($store))->supportsTags());
+        (new Repository($store))->tags('foo');
+    }
+
+    public function testItThrowsExceptionWhenTaggableStoreReportsUnsupportedTags()
+    {
+        $this->expectException(BadMethodCallException::class);
+
+        $store = m::mock(TaggableStore::class);
+        $store->shouldReceive('supportsTags')->once()->andReturnFalse();
+        $store->shouldNotReceive('tags');
+
         (new Repository($store))->tags('foo');
     }
 
@@ -777,6 +789,7 @@ class CacheRepositoryTest extends TestCase
     public function testFlushLocksDelegatesToStore()
     {
         $flushable = m::mock(RedisStore::class);
+        $flushable->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
         $flushable->shouldReceive('flushLocks')->once()->andReturn(true);
 
         $repo = new Repository($flushable);
@@ -787,9 +800,19 @@ class CacheRepositoryTest extends TestCase
     public function testTaggableRepositoriesSupportTags()
     {
         $taggable = m::mock(TaggableStore::class);
+        $taggable->shouldReceive('supportsTags')->once()->andReturnTrue();
         $taggableRepo = new Repository($taggable);
 
         $this->assertTrue($taggableRepo->supportsTags());
+    }
+
+    public function testTaggableRepositoriesCanReportUnsupportedTags()
+    {
+        $taggable = m::mock(TaggableStore::class);
+        $taggable->shouldReceive('supportsTags')->once()->andReturnFalse();
+        $taggableRepo = new Repository($taggable);
+
+        $this->assertFalse($taggableRepo->supportsTags());
     }
 
     public function testNonTaggableRepositoryDoesNotSupportTags()
@@ -803,9 +826,19 @@ class CacheRepositoryTest extends TestCase
     public function testFlushableLockRepositorySupportsFlushingLocks()
     {
         $flushable = m::mock(RedisStore::class);
+        $flushable->shouldReceive('supportsFlushingLocks')->once()->andReturnTrue();
         $flushableRepo = new Repository($flushable);
 
         $this->assertTrue($flushableRepo->supportsFlushingLocks());
+    }
+
+    public function testFlushableLockRepositoryCanReportUnsupportedFlushingLocks()
+    {
+        $flushable = m::mock(RedisStore::class);
+        $flushable->shouldReceive('supportsFlushingLocks')->once()->andReturnFalse();
+        $flushableRepo = new Repository($flushable);
+
+        $this->assertFalse($flushableRepo->supportsFlushingLocks());
     }
 
     public function testNonFlushableLockRepositoryDoesNotSupportFlushingLocks()

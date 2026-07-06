@@ -772,13 +772,13 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
     {
         $store = $this->getStore();
 
-        if (! $this->supportsFlushingLocks()) {
+        if (! $store instanceof CanFlushLocks || ! $store->supportsFlushingLocks()) {
             throw new BadMethodCallException('This cache store does not support flushing locks.');
         }
 
         $this->event(CacheLocksFlushing::class, fn (): CacheLocksFlushing => new CacheLocksFlushing($this->getName()));
 
-        $result = $store->flushLocks(); // @phpstan-ignore method.notFound (flushLocks() is on CanFlushLocks, verified by supportsFlushingLocks() above)
+        $result = $store->flushLocks();
 
         if ($result) {
             $this->event(
@@ -802,15 +802,16 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function tags(mixed $names): TaggedCache
     {
-        if (! $this->supportsTags()) {
+        $store = $this->store;
+
+        if (! $store instanceof TaggableStore || ! $store->supportsTags()) {
             throw new BadMethodCallException('This cache store does not support tagging.');
         }
 
         $names = is_array($names) ? $names : func_get_args();
         $names = array_map(fn ($name) => enum_value($name), $names);
 
-        /* @phpstan-ignore-next-line */
-        $cache = $this->store->tags($names);
+        $cache = $store->tags($names);
 
         $cache->config = $this->config;
 
@@ -826,7 +827,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function supportsTags(): bool
     {
-        return method_exists($this->store, 'tags');
+        return $this->store instanceof TaggableStore && $this->store->supportsTags();
     }
 
     /**
@@ -834,7 +835,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      */
     public function supportsFlushingLocks(): bool
     {
-        return $this->store instanceof CanFlushLocks;
+        return $this->store instanceof CanFlushLocks && $this->store->supportsFlushingLocks();
     }
 
     /**
