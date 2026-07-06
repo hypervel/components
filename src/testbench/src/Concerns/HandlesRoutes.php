@@ -198,9 +198,7 @@ trait HandlesRoutes
      */
     protected function testbenchRouteFilePath(string $basePath): string
     {
-        $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
-        $token = is_string($token) && $token !== '' ? $token : 'default';
-        $token = preg_replace('/[^A-Za-z0-9_.-]/', '_', $token) ?? 'default';
+        $token = $this->paraTestWorkerToken() ?? 'default';
 
         return join_paths(
             $basePath,

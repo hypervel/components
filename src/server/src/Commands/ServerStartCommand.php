@@ -82,8 +82,10 @@ class ServerStartCommand extends SymfonyCommand
         $port = $input->getOption('port');
 
         if ($host !== null || $port !== null) {
-            if ($port !== null && filter_var($port, FILTER_VALIDATE_INT) === false) {
-                throw new InvalidArgumentException('The serve port must be an integer.');
+            if ($port !== null && filter_var($port, FILTER_VALIDATE_INT, [
+                'options' => ['min_range' => 1, 'max_range' => 65535],
+            ]) === false) {
+                throw new InvalidArgumentException('The serve port must be an integer between 1 and 65535.');
             }
 
             $servers = $serverConfig['servers'] ?? [];

@@ -15,6 +15,7 @@ use Hypervel\Server\ServerInterface;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -152,7 +153,8 @@ class ServerStartCommandTest extends TestCase
         $this->assertSame(0, $result);
     }
 
-    public function testServeCommandRejectsNonIntegerPortOption(): void
+    #[DataProvider('invalidServePorts')]
+    public function testServeCommandRejectsInvalidPortOption(string $port): void
     {
         $serverFactory = m::mock(ServerFactory::class);
         $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
@@ -183,9 +185,24 @@ class ServerStartCommandTest extends TestCase
         Application::getInstance()->setRunningInConsole(false);
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The serve port must be an integer.');
+        $this->expectExceptionMessage('The serve port must be an integer between 1 and 65535.');
 
-        $command->run(new ArrayInput(['--port' => 'not-a-port']), new NullOutput);
+        $command->run(new ArrayInput(['--port' => $port]), new NullOutput);
+    }
+
+    /**
+     * Get invalid serve ports.
+     *
+     * @return array<int, array{string}>
+     */
+    public static function invalidServePorts(): array
+    {
+        return [
+            ['not-a-port'],
+            ['0'],
+            ['-1'],
+            ['65536'],
+        ];
     }
 
     public function testServeCommandRejectsAddressOptionsWithoutHttpServer(): void

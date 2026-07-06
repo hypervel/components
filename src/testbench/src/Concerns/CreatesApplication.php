@@ -593,6 +593,10 @@ trait CreatesApplication
     {
         $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? null;
 
-        return is_string($token) && $token !== '' ? $token : null;
+        if (! is_string($token) || $token === '') {
+            return null;
+        }
+
+        return preg_replace('/[^A-Za-z0-9_.-]/', '_', $token);
     }
 }

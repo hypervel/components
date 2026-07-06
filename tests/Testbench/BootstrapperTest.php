@@ -68,13 +68,7 @@ class BootstrapperTest extends TestCase
     {
         $packagePath = $this->temporaryDirectory('package-env');
         $sourcePath = $this->temporaryDirectory('skeleton-env');
-        $reflection = new ReflectionClass(Bootstrapper::class);
-        $previousServerToken = $_SERVER['TEST_TOKEN'] ?? null;
-        $previousEnvironmentToken = $_ENV['TEST_TOKEN'] ?? null;
-        $previousServerPackageTester = $_SERVER['TESTBENCH_PACKAGE_TESTER'] ?? null;
-        $previousEnvironmentPackageTester = $_ENV['TESTBENCH_PACKAGE_TESTER'] ?? null;
-        $previousProcessPackageTester = getenv('TESTBENCH_PACKAGE_TESTER');
-        $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+        $runtimePath = null;
 
         mkdir($packagePath . DIRECTORY_SEPARATOR . 'workbench', 0777, true);
         mkdir($sourcePath, 0777, true);
@@ -82,20 +76,16 @@ class BootstrapperTest extends TestCase
         file_put_contents($sourcePath . DIRECTORY_SEPARATOR . '.env.example', 'APP_NAME=Skeleton');
 
         try {
-            $this->setTestToken('bootstrapper-package-env');
-            $this->setPackageTester();
+            $this->withRuntimeCopyEnvironment('bootstrapper-package-env', true, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
 
-            $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
-
-            $this->assertFileExists($runtimePath . DIRECTORY_SEPARATOR . '.env');
-            $this->assertSame('APP_NAME=Workbench', file_get_contents($runtimePath . DIRECTORY_SEPARATOR . '.env'));
+                $this->assertFileExists($runtimePath . DIRECTORY_SEPARATOR . '.env');
+                $this->assertSame('APP_NAME=Workbench', file_get_contents($runtimePath . DIRECTORY_SEPARATOR . '.env'));
+            });
         } finally {
-            $this->restoreTestToken($previousServerToken, $previousEnvironmentToken);
-            $this->restorePackageTester($previousServerPackageTester, $previousEnvironmentPackageTester, $previousProcessPackageTester);
             $this->deleteDirectory($packagePath);
             $this->deleteDirectory($sourcePath);
-            $this->deleteDirectory($runtimePath ?? null);
-            $reflection->setStaticPropertyValue('runtimePath', $previousRuntimePath);
+            $this->deleteDirectory($runtimePath);
         }
     }
 
@@ -104,34 +94,24 @@ class BootstrapperTest extends TestCase
     {
         $packagePath = $this->temporaryDirectory('package-no-env');
         $sourcePath = $this->temporaryDirectory('skeleton-no-env');
-        $reflection = new ReflectionClass(Bootstrapper::class);
-        $previousServerToken = $_SERVER['TEST_TOKEN'] ?? null;
-        $previousEnvironmentToken = $_ENV['TEST_TOKEN'] ?? null;
-        $previousServerPackageTester = $_SERVER['TESTBENCH_PACKAGE_TESTER'] ?? null;
-        $previousEnvironmentPackageTester = $_ENV['TESTBENCH_PACKAGE_TESTER'] ?? null;
-        $previousProcessPackageTester = getenv('TESTBENCH_PACKAGE_TESTER');
-        $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+        $runtimePath = null;
 
         mkdir($packagePath, 0777, true);
         mkdir($sourcePath, 0777, true);
         file_put_contents($sourcePath . DIRECTORY_SEPARATOR . '.env.example', 'REDIS_PASSWORD=null');
 
         try {
-            $this->setTestToken('bootstrapper-skeleton-env');
-            $this->setPackageTester();
+            $this->withRuntimeCopyEnvironment('bootstrapper-skeleton-env', true, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
 
-            $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
-
-            $this->assertFileExists($runtimePath . DIRECTORY_SEPARATOR . '.env');
-            $this->assertFileExists($runtimePath . DIRECTORY_SEPARATOR . '.env.example');
-            $this->assertSame('REDIS_PASSWORD=null', file_get_contents($runtimePath . DIRECTORY_SEPARATOR . '.env'));
+                $this->assertFileExists($runtimePath . DIRECTORY_SEPARATOR . '.env');
+                $this->assertFileExists($runtimePath . DIRECTORY_SEPARATOR . '.env.example');
+                $this->assertSame('REDIS_PASSWORD=null', file_get_contents($runtimePath . DIRECTORY_SEPARATOR . '.env'));
+            });
         } finally {
-            $this->restoreTestToken($previousServerToken, $previousEnvironmentToken);
-            $this->restorePackageTester($previousServerPackageTester, $previousEnvironmentPackageTester, $previousProcessPackageTester);
             $this->deleteDirectory($packagePath);
             $this->deleteDirectory($sourcePath);
-            $this->deleteDirectory($runtimePath ?? null);
-            $reflection->setStaticPropertyValue('runtimePath', $previousRuntimePath);
+            $this->deleteDirectory($runtimePath);
         }
     }
 
@@ -140,13 +120,7 @@ class BootstrapperTest extends TestCase
     {
         $packagePath = $this->temporaryDirectory('package-raw-env');
         $sourcePath = $this->temporaryDirectory('skeleton-raw-env');
-        $reflection = new ReflectionClass(Bootstrapper::class);
-        $previousServerToken = $_SERVER['TEST_TOKEN'] ?? null;
-        $previousEnvironmentToken = $_ENV['TEST_TOKEN'] ?? null;
-        $previousServerPackageTester = $_SERVER['TESTBENCH_PACKAGE_TESTER'] ?? null;
-        $previousEnvironmentPackageTester = $_ENV['TESTBENCH_PACKAGE_TESTER'] ?? null;
-        $previousProcessPackageTester = getenv('TESTBENCH_PACKAGE_TESTER');
-        $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+        $runtimePath = null;
 
         mkdir($packagePath . DIRECTORY_SEPARATOR . 'workbench', 0777, true);
         mkdir($sourcePath, 0777, true);
@@ -154,21 +128,17 @@ class BootstrapperTest extends TestCase
         file_put_contents($sourcePath . DIRECTORY_SEPARATOR . '.env.example', 'APP_NAME=Skeleton');
 
         try {
-            $this->setTestToken('bootstrapper-raw-env');
-            $this->restorePackageTester(null, null, false);
+            $this->withRuntimeCopyEnvironment('bootstrapper-raw-env', false, function () use ($sourcePath, $packagePath, &$runtimePath): void {
+                $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
 
-            $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
-
-            $this->assertFileDoesNotExist($runtimePath . DIRECTORY_SEPARATOR . '.env');
-            $this->assertFileExists($runtimePath . DIRECTORY_SEPARATOR . '.env.example');
-            $this->assertSame('APP_NAME=Skeleton', file_get_contents($runtimePath . DIRECTORY_SEPARATOR . '.env.example'));
+                $this->assertFileDoesNotExist($runtimePath . DIRECTORY_SEPARATOR . '.env');
+                $this->assertFileExists($runtimePath . DIRECTORY_SEPARATOR . '.env.example');
+                $this->assertSame('APP_NAME=Skeleton', file_get_contents($runtimePath . DIRECTORY_SEPARATOR . '.env.example'));
+            });
         } finally {
-            $this->restoreTestToken($previousServerToken, $previousEnvironmentToken);
-            $this->restorePackageTester($previousServerPackageTester, $previousEnvironmentPackageTester, $previousProcessPackageTester);
             $this->deleteDirectory($packagePath);
             $this->deleteDirectory($sourcePath);
-            $this->deleteDirectory($runtimePath ?? null);
-            $reflection->setStaticPropertyValue('runtimePath', $previousRuntimePath);
+            $this->deleteDirectory($runtimePath);
         }
     }
 
@@ -208,6 +178,36 @@ class BootstrapperTest extends TestCase
             $method->invoke(null, '/tmp/hypervel-runtime-copy');
         } finally {
             $reflection->setStaticPropertyValue('filesystem', $previousFilesystem);
+        }
+    }
+
+    /**
+     * Run a callback with isolated runtime-copy environment state.
+     */
+    private function withRuntimeCopyEnvironment(string $token, bool $packageTester, callable $callback): void
+    {
+        $reflection = new ReflectionClass(Bootstrapper::class);
+        $previousServerToken = $_SERVER['TEST_TOKEN'] ?? null;
+        $previousEnvironmentToken = $_ENV['TEST_TOKEN'] ?? null;
+        $previousServerPackageTester = $_SERVER['TESTBENCH_PACKAGE_TESTER'] ?? null;
+        $previousEnvironmentPackageTester = $_ENV['TESTBENCH_PACKAGE_TESTER'] ?? null;
+        $previousProcessPackageTester = getenv('TESTBENCH_PACKAGE_TESTER');
+        $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+
+        try {
+            $this->setTestToken($token);
+
+            if ($packageTester) {
+                $this->setPackageTester();
+            } else {
+                $this->restorePackageTester(null, null, false);
+            }
+
+            $callback();
+        } finally {
+            $this->restoreTestToken($previousServerToken, $previousEnvironmentToken);
+            $this->restorePackageTester($previousServerPackageTester, $previousEnvironmentPackageTester, $previousProcessPackageTester);
+            $reflection->setStaticPropertyValue('runtimePath', $previousRuntimePath);
         }
     }
 

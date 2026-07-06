@@ -110,12 +110,17 @@ trait RunsInParallel
      */
     protected function forEachProcess(callable $callback): void
     {
-        Collection::range(1, $this->options->processes)->each(function ($token) use ($callback) {
-            tap($this->createApplication(), function ($app) use ($callback, $token) {
+        Collection::range(1, $this->options->processes)->each(function ($token) use ($callback): void {
+            $application = $this->createApplication();
+
+            try {
                 ParallelTesting::resolveTokenUsing(fn () => (string) $token);
 
-                $callback($app);
-            })->flush();
+                $callback($application);
+            } finally {
+                ParallelTesting::resolveTokenUsing(null);
+                $application->flush();
+            }
         });
     }
 
