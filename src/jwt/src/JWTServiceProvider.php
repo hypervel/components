@@ -134,7 +134,8 @@ class JWTServiceProvider extends ServiceProvider
 
         if ($blacklistEnabled && ! $repository->supportsTags()) {
             throw new RuntimeException(
-                'The JWT blacklist requires a taggable cache store. Use a taggable store or set a custom jwt.providers.storage.'
+                'The JWT blacklist requires a taggable cache store (all-mode or any-mode). '
+                . 'Use a taggable store or set a custom jwt.providers.storage.'
             );
         }
 
