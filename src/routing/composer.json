@@ -46,11 +46,11 @@
         "hypervel/session": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/view": "^0.4",
-        "symfony/console": "^8.0",
-        "symfony/http-foundation": "^8.0",
-        "symfony/http-kernel": "^8.0.12",
-        "symfony/psr-http-message-bridge": "^8.0",
-        "symfony/routing": "^8.0.12"
+        "symfony/console": "^8.1",
+        "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1",
+        "symfony/psr-http-message-bridge": "^8.1",
+        "symfony/routing": "^8.1"
     },
     "config": {
         "sort-packages": true

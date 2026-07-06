@@ -32,7 +32,7 @@
         "php": "^8.4",
         "league/commonmark": "^2.7",
         "psr/log": "^3.0",
-        "symfony/mailer": "^8.0.12",
+        "symfony/mailer": "^8.1",
         "tijsverkoyen/css-to-inline-styles": "^2.2.5",
         "hypervel/bus": "^0.4",
         "hypervel/collections": "^0.4",
@@ -64,9 +64,9 @@
     },
     "suggest": {
         "aws/aws-sdk-php": "Required to use the SES mail driver (^3.235.5).",
-        "symfony/http-client": "Required to use the Symfony API mail transports (^8.0).",
-        "symfony/mailgun-mailer": "Required to enable support for the Mailgun mail transport (^8.0).",
-        "symfony/postmark-mailer": "Required to enable support for the Postmark mail transport (^8.0).",
+        "symfony/http-client": "Required to use the Symfony API mail transports (^8.1).",
+        "symfony/mailgun-mailer": "Required to enable support for the Mailgun mail transport (^8.1).",
+        "symfony/postmark-mailer": "Required to enable support for the Postmark mail transport (^8.1).",
         "resend/resend-php": "Required to enable support for the Resend mail transport (^1.0)."
     }
 }
