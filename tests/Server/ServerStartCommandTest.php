@@ -11,7 +11,9 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Foundation\Application;
 use Hypervel\Server\Commands\ServerStartCommand;
 use Hypervel\Server\ServerFactory;
+use Hypervel\Server\ServerInterface;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
@@ -27,7 +29,7 @@ class ServerStartCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function testServeCommandFailsFastWhenRunningInConsoleIsTrue()
+    public function testServeCommandFailsFastWhenRunningInConsoleIsTrue(): void
     {
         $command = new ServerStartCommand($this->app);
 
@@ -39,7 +41,7 @@ class ServerStartCommandTest extends TestCase
         $command->run(new ArrayInput([]), new NullOutput);
     }
 
-    public function testServeCommandUsesThePlainSymfonyRuntimeBoundary()
+    public function testServeCommandUsesThePlainSymfonyRuntimeBoundary(): void
     {
         $command = new ServerStartCommand($this->app);
 
@@ -47,16 +49,27 @@ class ServerStartCommandTest extends TestCase
         $this->assertNotInstanceOf(ConsoleCommand::class, $command);
     }
 
-    public function testServeCommandStartsServerWhenRunningInConsoleIsFalse()
+    public function testServeCommandStartsServerWhenRunningInConsoleIsFalse(): void
     {
+        $serverConfig = [
+            'servers' => [
+                [
+                    'name' => 'http',
+                    'type' => ServerInterface::SERVER_HTTP,
+                    'host' => '0.0.0.0',
+                    'port' => 9501,
+                ],
+            ],
+        ];
+
         $serverFactory = m::mock(ServerFactory::class);
         $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
         $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once()->with(['http' => ['port' => 9501]]);
+        $serverFactory->shouldReceive('configure')->once()->with($serverConfig);
         $serverFactory->shouldReceive('start')->once();
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server', [])->andReturn(['http' => ['port' => 9501]]);
+        $config->shouldReceive('array')->once()->with('server', [])->andReturn($serverConfig);
 
         $dispatcher = m::mock(DispatcherContract::class);
         $logger = m::mock(StdoutLoggerInterface::class);
@@ -73,5 +86,141 @@ class ServerStartCommandTest extends TestCase
         $result = $command->run(new ArrayInput([]), new NullOutput);
 
         $this->assertSame(0, $result);
+    }
+
+    public function testServeCommandOverridesHttpServerHostAndPort(): void
+    {
+        $serverConfig = [
+            'servers' => [
+                [
+                    'name' => 'reverb',
+                    'type' => ServerInterface::SERVER_WEBSOCKET,
+                    'host' => '0.0.0.0',
+                    'port' => 8080,
+                ],
+                [
+                    'name' => 'http',
+                    'type' => ServerInterface::SERVER_HTTP,
+                    'host' => '0.0.0.0',
+                    'port' => 9501,
+                ],
+            ],
+        ];
+
+        $expectedServers = [
+            [
+                'name' => 'reverb',
+                'type' => ServerInterface::SERVER_WEBSOCKET,
+                'host' => '0.0.0.0',
+                'port' => 8080,
+            ],
+            [
+                'name' => 'http',
+                'type' => ServerInterface::SERVER_HTTP,
+                'host' => '127.0.0.1',
+                'port' => 9502,
+            ],
+        ];
+
+        $serverFactory = m::mock(ServerFactory::class);
+        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('configure')->once()->with(['servers' => $expectedServers]);
+        $serverFactory->shouldReceive('start')->once();
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->once()->with('server', [])->andReturn($serverConfig);
+        $config->shouldReceive('set')->once()->with('server.servers', $expectedServers);
+
+        $dispatcher = m::mock(DispatcherContract::class);
+        $logger = m::mock(StdoutLoggerInterface::class);
+
+        $this->app->instance(ServerFactory::class, $serverFactory);
+        $this->app->instance('events', $dispatcher);
+        $this->app->instance(StdoutLoggerInterface::class, $logger);
+        $this->app->instance('config', $config);
+
+        $command = new ServerStartCommand($this->app);
+
+        Application::getInstance()->setRunningInConsole(false);
+
+        $result = $command->run(new ArrayInput([
+            '--host' => '127.0.0.1',
+            '--port' => '9502',
+        ]), new NullOutput);
+
+        $this->assertSame(0, $result);
+    }
+
+    public function testServeCommandRejectsNonIntegerPortOption(): void
+    {
+        $serverFactory = m::mock(ServerFactory::class);
+        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->once()->with('server', [])->andReturn([
+            'servers' => [
+                [
+                    'name' => 'http',
+                    'type' => ServerInterface::SERVER_HTTP,
+                    'host' => '0.0.0.0',
+                    'port' => 9501,
+                ],
+            ],
+        ]);
+
+        $dispatcher = m::mock(DispatcherContract::class);
+        $logger = m::mock(StdoutLoggerInterface::class);
+
+        $this->app->instance(ServerFactory::class, $serverFactory);
+        $this->app->instance('events', $dispatcher);
+        $this->app->instance(StdoutLoggerInterface::class, $logger);
+        $this->app->instance('config', $config);
+
+        $command = new ServerStartCommand($this->app);
+
+        Application::getInstance()->setRunningInConsole(false);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The serve port must be an integer.');
+
+        $command->run(new ArrayInput(['--port' => 'not-a-port']), new NullOutput);
+    }
+
+    public function testServeCommandRejectsAddressOptionsWithoutHttpServer(): void
+    {
+        $serverFactory = m::mock(ServerFactory::class);
+        $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
+        $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
+
+        $config = m::mock(Repository::class);
+        $config->shouldReceive('array')->once()->with('server', [])->andReturn([
+            'servers' => [
+                [
+                    'name' => 'reverb',
+                    'type' => ServerInterface::SERVER_WEBSOCKET,
+                    'host' => '0.0.0.0',
+                    'port' => 8080,
+                ],
+            ],
+        ]);
+
+        $dispatcher = m::mock(DispatcherContract::class);
+        $logger = m::mock(StdoutLoggerInterface::class);
+
+        $this->app->instance(ServerFactory::class, $serverFactory);
+        $this->app->instance('events', $dispatcher);
+        $this->app->instance(StdoutLoggerInterface::class, $logger);
+        $this->app->instance('config', $config);
+
+        $command = new ServerStartCommand($this->app);
+
+        Application::getInstance()->setRunningInConsole(false);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cannot override server host or port because no HTTP server is configured.');
+
+        $command->run(new ArrayInput(['--host' => '127.0.0.1']), new NullOutput);
     }
 }

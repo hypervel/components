@@ -74,11 +74,9 @@ class CommanderServeTest extends TestCase
         $this->registerShutdownSafetyNet();
 
         $serverPort = $this->servePort();
-        $process = remote('serve --no-ansi', [
+        $process = remote("serve --host=127.0.0.1 --port={$serverPort} --no-ansi", [
             'APP_DEBUG' => 'true',
             'APP_ENV' => 'workbench',
-            'HTTP_SERVER_HOST' => '127.0.0.1',
-            'HTTP_SERVER_PORT' => (string) $serverPort,
         ]);
 
         $process->setTimeout(20);
