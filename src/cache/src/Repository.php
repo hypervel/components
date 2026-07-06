@@ -26,6 +26,7 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Cache\Exceptions\NotSupportedException;
 use Hypervel\Cache\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
@@ -799,12 +800,13 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
      * Begin executing a new tags operation if the store supports it.
      *
      * @throws BadMethodCallException
+     * @throws NotSupportedException
      */
     public function tags(mixed $names): TaggedCache
     {
         $store = $this->store;
 
-        if (! $store instanceof TaggableStore || ! $store->supportsTags()) {
+        if (! $store instanceof TaggableStore) {
             throw new BadMethodCallException('This cache store does not support tagging.');
         }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache;
 
+use BadMethodCallException;
 use DateTime;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
@@ -314,10 +315,23 @@ class RedisStoreTest extends TestCase
         $this->assertFalse($store->hasSeparateLockStore());
     }
 
-    public function testFlushLocksThrowsExceptionWhenLockConnectionIsSame()
+    public function testRepositoryFlushLocksThrowsExceptionWhenLockConnectionIsSame()
     {
-        /** @var \Hypervel\Cache\RedisStore $store */
-        $store = Cache::store('redis');
+        $repository = Cache::store('redis');
+        /** @var RedisStore $store */
+        $store = $repository->getStore();
+        $store->setConnection('default');
+        $store->setLockConnection('default');
+
+        $this->expectException(BadMethodCallException::class);
+
+        $repository->flushLocks();
+    }
+
+    public function testStoreFlushLocksThrowsExceptionWhenLockConnectionIsSame()
+    {
+        /** @var RedisStore $store */
+        $store = Cache::store('redis')->getStore();
         $store->setConnection('default');
         $store->setLockConnection('default');
 

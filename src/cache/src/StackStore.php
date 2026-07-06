@@ -212,9 +212,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function tags(mixed $names): TaggedCache
     {
-        if (! is_null($error = $this->tagCompositionError())) {
-            throw new NotSupportedException($error);
-        }
+        $this->ensureTagCompositionIsValid();
 
         return new StackTaggedCache($this, new StackTagSet($this, is_array($names) ? $names : func_get_args()));
     }
@@ -234,9 +232,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function getTagMode(): TagMode
     {
-        if (! is_null($error = $this->tagCompositionError())) {
-            throw new NotSupportedException($error);
-        }
+        $this->ensureTagCompositionIsValid();
 
         return TagMode::Any;
     }
@@ -255,9 +251,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function taggableLayers(): array
     {
-        if (! is_null($error = $this->tagCompositionError())) {
-            throw new NotSupportedException($error);
-        }
+        $this->ensureTagCompositionIsValid();
 
         $layers = [];
 
@@ -394,6 +388,18 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
         }
 
         return false;
+    }
+
+    /**
+     * Ensure the layer composition can support stack tags.
+     *
+     * @throws NotSupportedException when the layer composition cannot support tags
+     */
+    protected function ensureTagCompositionIsValid(): void
+    {
+        if (! is_null($error = $this->tagCompositionError())) {
+            throw new NotSupportedException($error);
+        }
     }
 
     protected function tagCompositionError(): ?string

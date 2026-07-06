@@ -422,6 +422,17 @@ class CacheFileStoreTest extends TestCase
         $this->assertFalse($store->hasSeparateLockStore());
     }
 
+    public function testSupportsFlushingLocksRequiresSeparateLockDirectory()
+    {
+        $store = new FileStore(new Filesystem, __DIR__);
+
+        $this->assertFalse($store->supportsFlushingLocks());
+
+        $store->setLockDirectory('/locks');
+
+        $this->assertTrue($store->supportsFlushingLocks());
+    }
+
     public function testFlushLocksThrowsExceptionWhenLockDirectoryIsSame()
     {
         $store = new FileStore(new Filesystem, __DIR__);

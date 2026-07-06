@@ -371,7 +371,7 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
      */
     public function supportsFlushingLocks(): bool
     {
-        return true;
+        return $this->hasSeparateLockStore();
     }
 
     /**

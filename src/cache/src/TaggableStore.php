@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use Hypervel\Cache\Exceptions\NotSupportedException;
 use Hypervel\Contracts\Cache\Store;
 
 abstract class TaggableStore implements Store
 {
     /**
      * Begin executing a new tags operation.
+     *
+     * @throws NotSupportedException when conditional tag support is unavailable
      */
     public function tags(mixed $names): TaggedCache
     {
@@ -21,7 +24,9 @@ abstract class TaggableStore implements Store
      *
      * Stores whose tag support depends on configuration or composition
      * override this; for everything else extending TaggableStore, tag
-     * support is unconditional.
+     * support is unconditional. A store that can return false here must
+     * also throw a NotSupportedException from tags() because Repository
+     * relies on the store to enforce its own conditional support.
      */
     public function supportsTags(): bool
     {

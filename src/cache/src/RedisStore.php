@@ -250,7 +250,7 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function supportsFlushingLocks(): bool
     {
-        return true;
+        return $this->hasSeparateLockStore();
     }
 
     /**

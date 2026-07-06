@@ -16,12 +16,14 @@ use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Cache\Exceptions\NotSupportedException;
 use Hypervel\Cache\FileStore;
 use Hypervel\Cache\Lock;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\StackStore;
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Contracts\Cache\LockProvider;
@@ -718,7 +720,6 @@ class CacheRepositoryTest extends TestCase
 
         $taggedCache = m::mock(TaggedCache::class);
         $taggedCache->shouldReceive('setDefaultCacheTime');
-        $store->shouldReceive('supportsTags')->once()->andReturnTrue();
         $store->shouldReceive('tags')->once()->with(['foo', 'bar', 'baz'])->andReturn($taggedCache);
         $repo->tags('foo', 'bar', 'baz');
 
@@ -736,13 +737,24 @@ class CacheRepositoryTest extends TestCase
 
     public function testItThrowsExceptionWhenTaggableStoreReportsUnsupportedTags()
     {
-        $this->expectException(BadMethodCallException::class);
+        $this->expectException(NotSupportedException::class);
+        $this->expectExceptionMessage('Detailed tag support failure.');
 
         $store = m::mock(TaggableStore::class);
-        $store->shouldReceive('supportsTags')->once()->andReturnFalse();
-        $store->shouldNotReceive('tags');
+        $store->shouldReceive('supportsTags')->never();
+        $store->shouldReceive('tags')->once()->with(['foo'])->andThrow(
+            new NotSupportedException('Detailed tag support failure.')
+        );
 
         (new Repository($store))->tags('foo');
+    }
+
+    public function testTaggableStoreCompositionExceptionIsPreserved()
+    {
+        $this->expectException(NotSupportedException::class);
+        $this->expectExceptionMessage('must be a taggable store in any mode');
+
+        (new Repository(new StackStore([new ArrayStore])))->tags('foo');
     }
 
     public function testTagMethodReturnsTaggedCache()

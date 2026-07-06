@@ -382,6 +382,17 @@ class CacheDatabaseStoreTest extends TestCase
         $this->assertTrue($result);
     }
 
+    public function testSupportsFlushingLocksRequiresSeparateLockTable()
+    {
+        [$store] = $this->getStore();
+
+        $this->assertTrue($store->supportsFlushingLocks());
+
+        $store = new DatabaseStore(m::mock(ConnectionResolverInterface::class), 'default', 'cache', '', 'cache');
+
+        $this->assertFalse($store->supportsFlushingLocks());
+    }
+
     public function testPruneExpiredRemovesExpiredEntries()
     {
         Carbon::setTestNow($now = Carbon::now());

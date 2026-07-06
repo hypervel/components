@@ -341,7 +341,6 @@ class CacheRepositoryEnumTest extends TestCase
 
         $taggedCache = m::mock(TaggedCache::class);
         $taggedCache->shouldReceive('setDefaultCacheTime')->andReturnSelf();
-        $store->shouldReceive('supportsTags')->once()->andReturnTrue();
         $store->shouldReceive('tags')->once()->with(['users', 'posts'])->andReturn($taggedCache);
 
         $repo->tags(CacheRepositoryEnumTestTagBackedEnum::Users, CacheRepositoryEnumTestTagBackedEnum::Posts);
@@ -354,7 +353,6 @@ class CacheRepositoryEnumTest extends TestCase
 
         $taggedCache = m::mock(TaggedCache::class);
         $taggedCache->shouldReceive('setDefaultCacheTime')->andReturnSelf();
-        $store->shouldReceive('supportsTags')->once()->andReturnTrue();
         $store->shouldReceive('tags')->once()->with(['Reports', 'Exports'])->andReturn($taggedCache);
 
         $repo->tags(CacheRepositoryEnumTestTagUnitEnum::Reports, CacheRepositoryEnumTestTagUnitEnum::Exports);

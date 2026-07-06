@@ -11,8 +11,8 @@ use Throwable;
 /**
  * Checks that the HEXPIRE command is available.
  *
- * HEXPIRE is required for hash field expiration, which is essential
- * for the any tagging mode implementation.
+ * Any tag mode depends on Redis/Valkey hash-field expiration commands,
+ * including HSETEX and HEXPIRE.
  *
  * For all mode, this check is skipped (HEXPIRE not needed).
  */
@@ -67,7 +67,7 @@ final class HexpireCheck implements EnvironmentCheckInterface
         }
 
         if (! $this->available) {
-            return 'HEXPIRE requires Redis 8.0+ or Valkey 9.0+. Upgrade your Redis/Valkey server, or switch to all tagging mode.';
+            return 'Any tagging mode requires Redis 8.0+ or Valkey 9.0+ for hash-field expiration commands such as HSETEX and HEXPIRE. Upgrade your Redis/Valkey server, or switch to all tagging mode.';
         }
 
         return null;
