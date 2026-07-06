@@ -33,7 +33,7 @@ use Throwable;
  * Use unique keys and clean them up with del().
  *
  * Environment Variables:
- * - REDIS_HOST: Redis host (default: 127.0.0.1)
+ * - REDIS_HOST: Redis host; must be set to enable Redis integration tests
  * - REDIS_PORT: Redis port (default: 6379)
  * - REDIS_DB: Base Redis database number (default: 0)
  * - REDIS_TEST_DB_MIN: First Redis database available for parallel workers (default: REDIS_DB)
@@ -44,46 +44,26 @@ use Throwable;
 trait InteractsWithRedis
 {
     /**
-     * Indicates if connection failed once with defaults, skip all subsequent tests.
-     */
-    private static bool $connectionFailedOnceWithDefaultsSkip = false;
-
-    /**
      * Set up Redis for testing (auto-called by setUpTraits).
      *
-     * Follows Laravel's InteractsWithRedis pattern:
-     * - Only skips if using default host/port AND no explicit REDIS_HOST env var
-     * - If explicit config exists and fails, the exception propagates (misconfiguration)
+     * Redis integration tests are opt-in via REDIS_HOST. Port, password, and
+     * database settings are only read after REDIS_HOST is present.
      *
      * When running under ParaTest, assigns a configured per-worker Redis DB
      * number to prevent cross-process interference.
      */
     protected function setUpInteractsWithRedis(): void
     {
-        if (static::$connectionFailedOnceWithDefaultsSkip) {
+        if (! $this->hasExplicitRedisConfig()) {
             $this->markTestSkipped(
-                'Redis connection failed with defaults. Set REDIS_HOST & REDIS_PORT to enable ' . static::class
+                'Set REDIS_HOST to run Redis integration tests for ' . static::class
             );
         }
 
         // Apply per-worker DB number for parallel isolation (no-op in sequential mode)
         $this->configureParallelRedisDb();
 
-        $host = env('REDIS_HOST', '127.0.0.1');
-        $port = (int) env('REDIS_PORT', 6379);
-
-        try {
-            $this->flushRedis();
-        } catch (Throwable $e) {
-            if ($host === '127.0.0.1' && $port === 6379 && env('REDIS_HOST') === null) {
-                static::$connectionFailedOnceWithDefaultsSkip = true;
-                $this->markTestSkipped(
-                    'Redis connection failed with defaults. Set REDIS_HOST & REDIS_PORT to enable ' . static::class
-                );
-            }
-            // Explicit config exists but failed - rethrow so test fails (misconfiguration)
-            throw $e;
-        }
+        $this->flushRedis();
     }
 
     /**
@@ -91,10 +71,6 @@ trait InteractsWithRedis
      */
     protected function tearDownInteractsWithRedis(): void
     {
-        if (static::$connectionFailedOnceWithDefaultsSkip) {
-            return;
-        }
-
         try {
             $this->flushRedis();
         } catch (Throwable) {
@@ -322,25 +298,17 @@ trait InteractsWithRedis
     /**
      * Clean up keys matching multiple patterns using the trait's standard Redis test semantics.
      *
-     * If Redis is unavailable on the default fallback configuration, cleanup is skipped just like
-     * setUpInteractsWithRedis()/tearDownInteractsWithRedis(). If Redis was explicitly configured,
-     * connection failures still propagate as real test environment errors.
+     * If Redis was not explicitly enabled, cleanup is skipped just like
+     * setUpInteractsWithRedis(). If REDIS_HOST is set, connection failures
+     * still propagate as real test environment errors.
      */
     protected function cleanupRedisKeysWithPatterns(string ...$patterns): void
     {
-        if (static::$connectionFailedOnceWithDefaultsSkip) {
+        if (! $this->hasExplicitRedisConfig()) {
             return;
         }
 
-        try {
-            $client = $this->rawRedisClientWithoutPrefix();
-        } catch (Throwable $e) {
-            if (! $this->hasExplicitRedisConfig()) {
-                return;
-            }
-
-            throw $e;
-        }
+        $client = $this->rawRedisClientWithoutPrefix();
 
         try {
             foreach ($patterns as $pattern) {

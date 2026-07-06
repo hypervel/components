@@ -280,10 +280,17 @@ If you need to run tests in parallel without automatically configuring parallel 
 php artisan test --parallel --without-databases --without-cache
 ```
 
+<a name="external-service-tests"></a>
+#### External Service Tests
+
+Tests that use external services skip unless the service is explicitly configured for the test run. Set the service host or credential environment variable to opt into those tests. For example, Redis tests require `REDIS_HOST`, Meilisearch tests require `MEILISEARCH_HOST`, Typesense tests require `TYPESENSE_HOST`, Algolia tests require `ALGOLIA_APP_ID` and `ALGOLIA_SECRET`, and server integration tests require `TEST_SERVER_HOST`.
+
+When a service is explicitly configured but cannot be reached, Hypervel treats that as a test environment error and the test fails.
+
 <a name="parallel-testing-and-redis"></a>
 #### Parallel Testing and Redis
 
-When your tests use Hypervel's `InteractsWithRedis` testing trait, Hypervel will use your normal configured Redis database when the tests are not running in parallel. When tests are running in parallel, the trait may assign each parallel worker its own Redis database so calls such as `flushdb` remain isolated from the other workers.
+When your tests use Hypervel's `InteractsWithRedis` testing trait, set `REDIS_HOST` to opt into Redis integration tests. Hypervel will use your normal configured Redis database when the tests are not running in parallel. When tests are running in parallel, the trait may assign each parallel worker its own Redis database so calls such as `flushdb` remain isolated from the other workers.
 
 Parallel Redis databases are selected from the `REDIS_TEST_DB_MIN` and `REDIS_TEST_DB_MAX` environment variables. By default, `REDIS_TEST_DB_MIN` uses your configured `REDIS_DB` value and `REDIS_TEST_DB_MAX` is `15`:
 

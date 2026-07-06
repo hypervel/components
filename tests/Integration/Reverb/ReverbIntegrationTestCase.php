@@ -15,7 +15,7 @@ use Swoole\WebSocket\Frame;
  * Requires a running Reverb test server on port 19510.
  * Start it with: php tests/Integration/Reverb/server.php
  *
- * Tests auto-skip when the server is not available.
+ * Tests skip unless TEST_SERVER_HOST is set.
  */
 abstract class ReverbIntegrationTestCase extends TestCase
 {

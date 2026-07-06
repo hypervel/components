@@ -924,18 +924,21 @@ Tests that require external services (databases, Redis, HTTP servers, search eng
 
 #### Skip Traits
 
-Each external service has a corresponding trait that auto-skips tests when the service isn't reachable:
+Each external service has a corresponding trait that skips unless the opt-in environment variable is present:
 
 | Trait | Service | Key Env Vars |
 |-------|---------|-------------|
 | `InteractsWithRedis` | Redis/Valkey | `REDIS_HOST`, `REDIS_PORT` |
-| `InteractsWithServer` | Engine test servers (HTTP, TCP, WebSocket, HTTP/2) | `ENGINE_TEST_SERVER_HOST` |
+| `InteractsWithMeilisearch` | Meilisearch | `MEILISEARCH_HOST`, `MEILISEARCH_PORT`, `MEILISEARCH_KEY` |
+| `InteractsWithTypesense` | Typesense | `TYPESENSE_HOST`, `TYPESENSE_PORT`, `TYPESENSE_API_KEY`, `TYPESENSE_PROTOCOL` |
+| `InteractsWithAlgolia` | Algolia | `ALGOLIA_APP_ID`, `ALGOLIA_SECRET` |
+| `InteractsWithServer` | Engine test servers (HTTP, TCP, WebSocket, HTTP/2) | `TEST_SERVER_HOST` |
 
-These traits follow a consistent pattern: try to connect, skip with defaults if unavailable, fail if explicit config is set but unreachable (misconfiguration). When porting integration tests for a new service type, create a new trait following this same pattern.
+These traits follow a consistent pattern: skip before connecting unless the service's opt-in host or credential env var is present; fail if the service is explicitly enabled but unreachable or misconfigured. When porting integration tests for a new service type, create a new trait following this same pattern.
 
 #### phpunit.xml.dist
 
-`tests/Integration/` is **not** excluded from `phpunit.xml.dist`. The skip traits handle graceful skipping when services aren't available. When services are available (CI or local with `.env`), the tests run normally.
+`tests/Integration/` is **not** excluded from `phpunit.xml.dist`. The skip traits handle graceful skipping when service env vars are not configured. When services are explicitly enabled (CI or local with `.env`), the tests run normally.
 
 #### GH Workflows
 

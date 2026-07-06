@@ -15,25 +15,20 @@ use Throwable;
  * - tearDownInteractsWithMeilisearch() runs via beforeApplicationDestroyed()
  *
  * Features:
- * - Auto-skip: Skips tests if Meilisearch unavailable
+ * - Opt-in skip: Skips unless MEILISEARCH_HOST is set
  * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
  * - Auto-cleanup: Removes test indexes in teardown
  *
  * Usage: Add `use InteractsWithMeilisearch;` to your test case.
  *
  * Environment Variables:
- * - MEILISEARCH_HOST: Host (default: 127.0.0.1)
+ * - MEILISEARCH_HOST: Host; must be set to enable Meilisearch integration tests
  * - MEILISEARCH_PORT: Port (default: 7700)
  * - MEILISEARCH_KEY: API key (optional)
  * - TEST_TOKEN: Parallel test token from paratest (auto-set)
  */
 trait InteractsWithMeilisearch
 {
-    /**
-     * Indicates if connection failed once, skip all subsequent tests.
-     */
-    private static bool $meilisearchConnectionFailed = false;
-
     /**
      * The test prefix for index isolation.
      */
@@ -47,38 +42,22 @@ trait InteractsWithMeilisearch
     /**
      * Set up Meilisearch for testing (auto-called by setUpTraits).
      *
-     * Follows Laravel's InteractsWithRedis pattern:
-     * - Only skips if using default host/port AND no explicit MEILISEARCH_HOST env var
-     * - If explicit config exists and fails, the exception propagates (misconfiguration)
+     * Meilisearch integration tests are opt-in via MEILISEARCH_HOST. Port and
+     * key settings are only read after MEILISEARCH_HOST is present.
      */
     protected function setUpInteractsWithMeilisearch(): void
     {
-        if (static::$meilisearchConnectionFailed) {
+        if (env('MEILISEARCH_HOST') === null) {
             $this->markTestSkipped(
-                'Meilisearch connection failed with defaults. Set MEILISEARCH_HOST & MEILISEARCH_PORT to enable ' . static::class
+                'Set MEILISEARCH_HOST to run Meilisearch integration tests for ' . static::class
             );
         }
 
-        $host = env('MEILISEARCH_HOST', '127.0.0.1');
-        $port = env('MEILISEARCH_PORT', '7700');
-
         $this->initializeMeilisearchClient();
-
-        try {
-            $this->meilisearch->health();
-            // getIndexes() requires auth - use it to verify credentials
-            $this->meilisearch->getIndexes();
-            $this->cleanupMeilisearchIndexes();
-        } catch (Throwable $e) {
-            if ($host === '127.0.0.1' && $port === '7700' && env('MEILISEARCH_HOST') === null) {
-                static::$meilisearchConnectionFailed = true;
-                $this->markTestSkipped(
-                    'Meilisearch connection failed with defaults. Set MEILISEARCH_HOST & MEILISEARCH_PORT to enable ' . static::class
-                );
-            }
-            // Explicit config exists but failed - rethrow so test fails (misconfiguration)
-            throw $e;
-        }
+        $this->meilisearch->health();
+        // getIndexes() requires auth - use it to verify credentials
+        $this->meilisearch->getIndexes();
+        $this->cleanupMeilisearchIndexes();
     }
 
     /**
@@ -86,7 +65,7 @@ trait InteractsWithMeilisearch
      */
     protected function tearDownInteractsWithMeilisearch(): void
     {
-        if (static::$meilisearchConnectionFailed || $this->meilisearch === null) {
+        if ($this->meilisearch === null) {
             return;
         }
 

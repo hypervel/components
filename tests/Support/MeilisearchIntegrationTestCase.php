@@ -14,7 +14,7 @@ use Throwable;
  * Base test case for Meilisearch integration tests.
  *
  * Uses InteractsWithMeilisearch trait for:
- * - Auto-skip: Skips tests if Meilisearch is unavailable (no env var needed)
+ * - Opt-in skip: Skips unless MEILISEARCH_HOST is set
  * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
  * - Auto-cleanup: Removes test indexes in teardown
  *
@@ -68,7 +68,7 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
      * Subclasses using RunTestsInCoroutine should call this in setUpInCoroutine().
      * Subclasses NOT using the trait should call this at the end of setUp().
      *
-     * Uses the trait's auto-skip logic - skips if Meilisearch is unavailable.
+     * Uses the trait's opt-in skip logic - skips unless MEILISEARCH_HOST is set.
      */
     protected function initializeMeilisearch(): void
     {
