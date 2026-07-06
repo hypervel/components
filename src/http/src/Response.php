@@ -50,7 +50,7 @@ class Response extends SymfonyResponse
     {
         // The parent constructor accepts the headers since Symfony 8.1; assigning
         // the property directly would hit the deprecated property setter.
-        parent::__construct(null, $status, $headers);
+        parent::__construct('', $status, $headers);
 
         $this->setContent($content);
     }
