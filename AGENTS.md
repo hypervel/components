@@ -80,7 +80,11 @@ After porting is complete, run phpstan on the newly ported package and fix error
 
 #### 5. Run the full test suite
 
-**Always use `composer test:parallel`** to run the test suite. This invokes `bin/paratest` via a custom wrapper that configures per-worker isolation. Running `vendor/bin/paratest` directly bypasses this setup and will cause failures.
+**Always use `composer test:parallel`** to run the full components test suite. This runs raw ParaTest with Hypervel's parallel testing flag supplied by `phpunit.xml.dist`.
+
+**Always use `composer test:testbench`** after Testbench changes. This runs the scoped Testbench package-mode contract suite through the real `package:test` command.
+
+ParaTest defaults to the machine CPU count when no process count is specified. Redis integration runs need `REDIS_TEST_DB_MIN` / `REDIS_TEST_DB_MAX` to cover the chosen worker count, or an explicit `--processes` / `-p` value that fits the configured range.
 
 Investigate all failures thoroughly — don't assume a failure is caused by the porting work without confirming it. For straightforward fixes (e.g. a missed namespace update), fix and continue. For anything more complex (behavioral changes, test logic issues, unclear root causes), STOP and explain the cause along with your recommended fix for approval.
 

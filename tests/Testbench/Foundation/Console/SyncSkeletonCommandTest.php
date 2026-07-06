@@ -8,6 +8,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\TestbenchServiceProvider;
+use Hypervel\Tests\Testbench\Concerns\PreservesSkeletonFiles;
 use Hypervel\Tests\Testbench\Fixtures\Providers\Phase2ConsoleServiceProvider;
 use Hypervel\Tests\Testbench\TestCase;
 use Override;
@@ -22,6 +23,8 @@ use function Hypervel\Testbench\testbench_path;
 #[RequiresOperatingSystem('Linux|Darwin')]
 class SyncSkeletonCommandTest extends TestCase
 {
+    use PreservesSkeletonFiles;
+
     private Filesystem $filesystem;
 
     #[Override]
@@ -30,12 +33,17 @@ class SyncSkeletonCommandTest extends TestCase
         parent::setUp();
 
         $this->filesystem = new Filesystem;
+
+        $this->preserveFiles([
+            $this->app->basePath('.env'),
+        ]);
     }
 
     #[Override]
     protected function tearDown(): void
     {
         $this->cleanUpSyncSkeletonArtifacts();
+        $this->restorePreservedFiles();
 
         parent::tearDown();
     }
@@ -101,28 +109,6 @@ class SyncSkeletonCommandTest extends TestCase
                 'reverse' => true,
             ],
         ], $config->getWorkbenchAttributes()['sync']);
-    }
-
-    /**
-     * Delete a file, directory, or symlink if it exists.
-     */
-    private function deletePath(string $path): void
-    {
-        if (is_link($path)) {
-            unlink($path);
-
-            return;
-        }
-
-        if ($this->filesystem->isDirectory($path)) {
-            $this->filesystem->deleteDirectory($path);
-
-            return;
-        }
-
-        if ($this->filesystem->exists($path)) {
-            $this->filesystem->delete($path);
-        }
     }
 
     /**

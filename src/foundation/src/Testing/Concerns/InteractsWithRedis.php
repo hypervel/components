@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
+use Hypervel\Container\Container;
+use Hypervel\Foundation\Testing\RedisTestDatabases;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Testing\ParallelTesting;
 use Throwable;
 
 /**
@@ -21,22 +24,21 @@ use Throwable;
  *
  * Parallel Testing (ParaTest):
  * Each ParaTest worker gets its own Redis DB number to prevent cross-process
- * interference. The DB is computed as REDIS_DB + TEST_TOKEN, where TEST_TOKEN
- * is set by ParaTest (1, 2, 3...). Sequential runs use REDIS_DB directly.
+ * interference. Sequential runs use REDIS_DB directly. Parallel runs allocate
+ * worker databases from REDIS_TEST_DB_MIN through REDIS_TEST_DB_MAX.
  *
- * The base DB (REDIS_DB) is reserved as a shared secondary DB for tests that
- * need to call select() to switch databases. No parallel worker uses it as
- * their primary, so it is never flushed during a parallel run. Tests needing
- * a secondary DB should use getSecondaryRedisDb() instead of hardcoding a
- * DB number.
- *
- * If a worker's TEST_TOKEN exceeds the available Redis databases, its Redis
- * tests are skipped (non-Redis tests still run on that worker).
+ * Tests that need to call select() to switch databases should set
+ * REDIS_TEST_SECONDARY_DB and use getSecondaryRedisDb(). The secondary DB is
+ * shared by tests that explicitly request it; never call flushdb() on it.
+ * Use unique keys and clean them up with del().
  *
  * Environment Variables:
  * - REDIS_HOST: Redis host (default: 127.0.0.1)
  * - REDIS_PORT: Redis port (default: 6379)
- * - REDIS_DB: Base Redis database number (default: 1)
+ * - REDIS_DB: Base Redis database number (default: 0)
+ * - REDIS_TEST_DB_MIN: First Redis database available for parallel workers (default: REDIS_DB)
+ * - REDIS_TEST_DB_MAX: Last Redis database available for parallel workers (default: 15)
+ * - REDIS_TEST_SECONDARY_DB: Shared secondary database for select() tests (optional)
  * - REDIS_PASSWORD: Redis password (optional)
  */
 trait InteractsWithRedis
@@ -47,31 +49,20 @@ trait InteractsWithRedis
     private static bool $connectionFailedOnceWithDefaultsSkip = false;
 
     /**
-     * Indicates if no Redis DB is available for this parallel worker (overflow).
-     */
-    private static bool $noRedisDbAvailable = false;
-
-    /**
      * Set up Redis for testing (auto-called by setUpTraits).
      *
      * Follows Laravel's InteractsWithRedis pattern:
      * - Only skips if using default host/port AND no explicit REDIS_HOST env var
      * - If explicit config exists and fails, the exception propagates (misconfiguration)
      *
-     * When running under ParaTest, assigns a per-worker Redis DB number to
-     * prevent cross-process interference.
+     * When running under ParaTest, assigns a configured per-worker Redis DB
+     * number to prevent cross-process interference.
      */
     protected function setUpInteractsWithRedis(): void
     {
         if (static::$connectionFailedOnceWithDefaultsSkip) {
             $this->markTestSkipped(
                 'Redis connection failed with defaults. Set REDIS_HOST & REDIS_PORT to enable ' . static::class
-            );
-        }
-
-        if (static::$noRedisDbAvailable) {
-            $this->markTestSkipped(
-                'No Redis database available for this parallel worker. Reduce paratest -p or increase Redis databases.'
             );
         }
 
@@ -147,20 +138,47 @@ trait InteractsWithRedis
      */
     protected function getBaseRedisDb(): int
     {
-        return (int) env('REDIS_DB', 0);
+        return RedisTestDatabases::baseDatabase();
     }
 
     /**
-     * Get the primary Redis DB number for the current parallel test worker.
-     *
-     * Sequential (no TEST_TOKEN): returns REDIS_DB (default 1).
-     * Parallel (TEST_TOKEN=N): returns REDIS_DB + N.
+     * Get the first Redis DB number available for parallel test workers.
+     */
+    protected function getRedisTestDbMin(): int
+    {
+        return RedisTestDatabases::minimumDatabase();
+    }
+
+    /**
+     * Get the last Redis DB number available for parallel test workers.
+     */
+    protected function getRedisTestDbMax(): int
+    {
+        return RedisTestDatabases::maximumDatabase();
+    }
+
+    /**
+     * Get the configured secondary Redis DB number.
+     */
+    protected function getConfiguredSecondaryRedisDb(): ?int
+    {
+        return RedisTestDatabases::configuredSecondaryDatabase();
+    }
+
+    /**
+     * Get the primary Redis DB number for the current test worker.
      */
     protected function getParallelRedisDb(): int
     {
-        $token = env('TEST_TOKEN');
+        return RedisTestDatabases::primaryDatabase($this->parallelTestingToken());
+    }
 
-        return $this->getBaseRedisDb() + ($token !== null ? (int) $token : 0);
+    /**
+     * Get the primary Redis DB number for a parallel testing token.
+     */
+    protected function redisDatabaseForParallelToken(string $token): int
+    {
+        return RedisTestDatabases::databaseForToken($token);
     }
 
     /**
@@ -168,83 +186,74 @@ trait InteractsWithRedis
      *
      * Must always return a DB number different from getParallelRedisDb().
      *
-     * Parallel mode: returns the base DB (REDIS_DB). No worker uses it as
-     * their primary (workers start at base + 1), so it is never flushed
-     * during a parallel run — safe for shared use with unique keys.
-     *
-     * Sequential mode: returns base + 1, since the primary IS the base DB
-     * and we need a different one. No conflict because there are no workers.
-     *
-     * IMPORTANT: This DB is shared across all parallel workers. Never call
-     * flushdb() on it — use unique keys (e.g. uniqid()) and clean up via
-     * del() instead.
+     * This DB is shared across all parallel workers. Never call flushdb() on
+     * it — use unique keys and clean up via del() instead.
      */
     protected function getSecondaryRedisDb(): int
     {
-        $base = $this->getBaseRedisDb();
-
-        if (env('TEST_TOKEN') !== null) {
-            return $base;
-        }
-
-        // Sequential: primary == base, so use the next DB up
-        return $base + 1;
+        return RedisTestDatabases::secondaryDatabase($this->parallelTestingToken());
     }
 
     /**
      * Configure the Redis DB number for parallel test isolation.
      *
      * Sets the database.redis.default.database config to the per-worker DB number.
-     * On the first call per process, also checks whether the DB number is
-     * within Redis's configured database limit.
      */
     private function configureParallelRedisDb(): void
     {
-        if (env('TEST_TOKEN') === null) {
+        $token = $this->parallelTestingToken();
+
+        if ($token === false) {
             return;
         }
 
-        $db = $this->getParallelRedisDb();
+        $database = $this->redisDatabaseForParallelToken($token);
 
-        // Check overflow on the first Redis test in this worker
-        if (static::$noRedisDbAvailable === false && ! $this->isRedisDbAvailable($db)) {
-            static::$noRedisDbAvailable = true;
-            $this->markTestSkipped(
-                "No Redis database available for this parallel worker (need DB {$db}). "
-                . 'Reduce paratest -p or increase Redis databases.'
-            );
-        }
-
-        $this->app->make('config')->set('database.redis.default.database', $db);
+        $this->app->make('config')->set('database.redis.default.database', $database);
     }
 
     /**
-     * Check if the given Redis DB number is within the server's configured limit.
+     * Get the current parallel testing token.
      */
-    private function isRedisDbAvailable(int $db): bool
+    protected function parallelTestingToken(): string|false
     {
-        try {
-            $client = new \Redis;
-            $client->connect(
-                env('REDIS_HOST', '127.0.0.1'),
-                (int) env('REDIS_PORT', 6379)
-            );
+        // Testbench defineEnvironment() hooks can ask for Redis DBs before
+        // refreshApplication() assigns the created application to the test case.
+        return ($this->app ?? Container::getInstance())->make(ParallelTesting::class)->token();
+    }
 
-            $auth = env('REDIS_PASSWORD');
-            if ($auth) {
-                $client->auth($auth);
-            }
+    /**
+     * Get the configured Redis worker databases.
+     *
+     * @return array<int, int>
+     */
+    protected function redisWorkerDatabases(): array
+    {
+        return RedisTestDatabases::workerDatabases();
+    }
 
-            $config = $client->config('GET', 'databases');
-            $maxDatabases = (int) ($config['databases'] ?? 16);
-            $client->close();
+    /**
+     * Get the zero-based Redis worker index for a ParaTest token.
+     */
+    protected function redisWorkerIndex(string $token): int
+    {
+        return RedisTestDatabases::workerIndex($token);
+    }
 
-            return $db < $maxDatabases;
-        } catch (Throwable) {
-            // If we can't check, assume it's available — the actual connection
-            // attempt in flushRedis() will catch real failures.
-            return true;
-        }
+    /**
+     * Get a non-negative integer Redis environment value.
+     */
+    protected function integerRedisEnvironment(string $key, int $default): int
+    {
+        return RedisTestDatabases::integerEnvironment($key, $default);
+    }
+
+    /**
+     * Parse a non-negative integer Redis environment value.
+     */
+    protected function integerRedisEnvironmentValue(string $key, mixed $value): int
+    {
+        return RedisTestDatabases::integerEnvironmentValue($key, $value);
     }
 
     /**

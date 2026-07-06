@@ -280,6 +280,33 @@ If you need to run tests in parallel without automatically configuring parallel 
 php artisan test --parallel --without-databases --without-cache
 ```
 
+<a name="parallel-testing-and-redis"></a>
+#### Parallel Testing and Redis
+
+When your tests use Hypervel's `InteractsWithRedis` testing trait, Hypervel will use your normal configured Redis database when the tests are not running in parallel. When tests are running in parallel, the trait may assign each parallel worker its own Redis database so calls such as `flushdb` remain isolated from the other workers.
+
+Parallel Redis databases are selected from the `REDIS_TEST_DB_MIN` and `REDIS_TEST_DB_MAX` environment variables. By default, `REDIS_TEST_DB_MIN` uses your configured `REDIS_DB` value and `REDIS_TEST_DB_MAX` is `15`:
+
+```ini
+REDIS_DB=1
+REDIS_TEST_DB_MIN=1
+REDIS_TEST_DB_MAX=15
+```
+
+If Hypervel cannot assign a Redis database to a worker, the test run will fail. ParaTest uses your machine's CPU count by default, so make sure your Redis test range covers the number of workers you are running or pass an explicit process count:
+
+```shell
+php artisan test --parallel --processes=4
+```
+
+Some low-level Redis tests may need to switch to a second Redis database with `select`. You may reserve that database using `REDIS_TEST_SECONDARY_DB`:
+
+```ini
+REDIS_TEST_SECONDARY_DB=15
+```
+
+When a secondary database is configured inside the worker range, Hypervel skips it when assigning worker databases. Tests that use a shared secondary database should use unique keys and delete them when the test finishes.
+
 <a name="parallel-testing-hooks"></a>
 #### Parallel Testing Hooks
 
@@ -304,29 +331,29 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        ParallelTesting::setUpProcess(function (int $token) {
+        ParallelTesting::setUpProcess(function (string $token) {
             // ...
         });
 
-        ParallelTesting::setUpTestCase(function (int $token, TestCase $testCase) {
+        ParallelTesting::setUpTestCase(function (string $token, TestCase $testCase) {
             // ...
         });
 
         // Executed after a test database is created and before migrations run...
-        ParallelTesting::setUpTestDatabaseBeforeMigrating(function (string $database, int $token) {
+        ParallelTesting::setUpTestDatabaseBeforeMigrating(function (string $database, string $token) {
             // ...
         });
 
         // Executed when a test database has been migrated...
-        ParallelTesting::setUpTestDatabase(function (string $database, int $token) {
+        ParallelTesting::setUpTestDatabase(function (string $database, string $token) {
             Artisan::call('db:seed');
         });
 
-        ParallelTesting::tearDownTestCase(function (int $token, TestCase $testCase) {
+        ParallelTesting::tearDownTestCase(function (string $token, TestCase $testCase) {
             // ...
         });
 
-        ParallelTesting::tearDownProcess(function (int $token) {
+        ParallelTesting::tearDownProcess(function (string $token) {
             // ...
         });
     }

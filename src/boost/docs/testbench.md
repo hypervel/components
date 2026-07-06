@@ -969,6 +969,12 @@ composer run serve
 
 The `serve` command uses Hypervel's normal server configuration and starts the same Swoole server used by a Hypervel application.
 
+You may pass `--host` and `--port` to temporarily override the configured HTTP server address for the current process:
+
+```shell
+vendor/bin/testbench serve --host=127.0.0.1 --port=9502
+```
+
 > [!NOTE]
 > Unlike Orchestra Testbench, Hypervel's `serve` command does not provide preview-only conveniences such as a welcome page or automatic login.
 
@@ -1020,6 +1026,8 @@ To run tests in parallel, pass the `--parallel` option:
 ```shell
 vendor/bin/testbench package:test --parallel
 ```
+
+Package tests use the same parallel database, cache, and Redis isolation behavior as application tests.
 
 The command supports the following options:
 
