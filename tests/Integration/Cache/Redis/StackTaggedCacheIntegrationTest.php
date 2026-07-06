@@ -15,7 +15,7 @@ use Hypervel\Testing\ParallelTesting;
 
 class StackTaggedCacheIntegrationTest extends RedisCacheIntegrationTestCase
 {
-    private string $tempDir;
+    private ?string $tempDir = null;
 
     protected function setUp(): void
     {
@@ -30,7 +30,9 @@ class StackTaggedCacheIntegrationTest extends RedisCacheIntegrationTestCase
 
     protected function tearDown(): void
     {
-        (new Filesystem)->deleteDirectory($this->tempDir);
+        if ($this->tempDir !== null) {
+            (new Filesystem)->deleteDirectory($this->tempDir);
+        }
 
         parent::tearDown();
     }
@@ -128,6 +130,8 @@ class StackTaggedCacheIntegrationTest extends RedisCacheIntegrationTestCase
 
     private function fileStore(): FileStore
     {
+        assert($this->tempDir !== null);
+
         return new FileStore(new Filesystem, $this->tempDir);
     }
 }
