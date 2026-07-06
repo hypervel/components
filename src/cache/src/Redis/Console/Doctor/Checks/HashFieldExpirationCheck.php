@@ -9,14 +9,14 @@ use Hypervel\Redis\RedisConnection;
 use Throwable;
 
 /**
- * Checks that the HEXPIRE command is available.
+ * Checks that hash-field expiration commands are available.
  *
- * Any tag mode depends on Redis/Valkey hash-field expiration commands,
- * including HSETEX and HEXPIRE.
+ * Any tag mode depends on Redis/Valkey hash-field expiration commands:
+ * HSETEX for tagged writes and HEXPIRE when plain touch updates tagged keys.
  *
- * For all mode, this check is skipped (HEXPIRE not needed).
+ * For all mode, this check is skipped (hash-field expiration is not needed).
  */
-final class HexpireCheck implements EnvironmentCheckInterface
+final class HashFieldExpirationCheck implements EnvironmentCheckInterface
 {
     private bool $available = false;
 
@@ -28,33 +28,36 @@ final class HexpireCheck implements EnvironmentCheckInterface
 
     public function name(): string
     {
-        return 'HEXPIRE Command';
+        return 'Hash Field Expiration Commands';
     }
 
     public function run(): CheckResult
     {
         $result = new CheckResult;
 
-        // Skip check for all mode - HEXPIRE not needed
         if ($this->taggingMode === 'all') {
-            $result->assert(true, 'HEXPIRE check skipped (not required for all mode)');
+            $result->assert(true, 'Hash-field expiration check skipped (not required for all mode)');
 
             return $result;
         }
 
-        try {
-            // Try to use HEXPIRE on a test key
-            $testKey = 'erc:doctor:hexpire-test:' . bin2hex(random_bytes(4));
+        $testKey = 'erc:doctor:hash-field-expiration-test:' . bin2hex(random_bytes(4));
 
-            $this->redis->hSet($testKey, 'field', '1');
+        try {
+            $this->redis->hsetex($testKey, ['field' => '1'], ['EX' => 60]);
             $this->redis->hexpire($testKey, 60, ['field']);
-            $this->redis->del($testKey);
 
             $this->available = true;
-            $result->assert(true, 'HEXPIRE command is available');
+            $result->assert(true, 'HSETEX and HEXPIRE commands are available');
         } catch (Throwable) {
             $this->available = false;
-            $result->assert(false, 'HEXPIRE command is available');
+            $result->assert(false, 'HSETEX and HEXPIRE commands are available');
+        } finally {
+            try {
+                $this->redis->del($testKey);
+            } catch (Throwable) {
+                // The command probe result above is the failure that matters.
+            }
         }
 
         return $result;
