@@ -38,6 +38,7 @@ Testbench and workbench:
 
 | Path | Description |
 |------|-------------|
+| `src/boost/docs/` | Hypervel documentation. |
 | `src/testbench/` | Hypervel's testbench package (port of `orchestra/testbench`). Contains `TestCase`, attributes (`WithConfig`, `WithMigration`), and bootstrap logic. Part of the monorepo, not a vendor dependency. |
 | `src/testbench/hypervel/` | Committed Hypervel app skeleton. On bootstrap, testbench clones this to a disposable temp directory (`/tmp/hypervel-components-testbench-{token}-{pid}/`) and points `BASE_PATH` at the clone — tests that write files under `BASE_PATH` (generated providers, migrations, fixtures, etc.) hit the temp copy, not this committed path. The clone is deleted on shutdown and stale copies from crashed runs are cleaned up. Testbench also exports `TESTBENCH_BASE_PATH` so subprocesses can locate the active runtime. |
 | `src/testbench/workbench/` | Committed shared test fixtures (NOT cloned). Subdirs are psr-4-mapped from the monorepo root as `Workbench\App\*`, `Workbench\Database\Factories\*`, `Workbench\Database\Seeders\*` so multiple tests can reuse the same models/factories/seeders without redefining them. Not the runtime app — that's the disposable clone of `src/testbench/hypervel/`. |
@@ -97,6 +98,8 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write new version → delete old version.
 - **`cp` files THEN read them** — when porting a new file, copy it first, then read the copied file in full. Reading the source before copying wastes context because you end up reading it twice.
 - **Preserve source constant/property/method order when merging** — when porting/merging methods into an existing Hypervel class, insert them at the same relative order as they appear in the upstream source. This keeps diffs against upstream meaningful and makes future merges easier.
+- **Use `jsonb()` for JSON columns** — prefer `$table->jsonb()` over `$table->json()` in migrations. PostgreSQL gets real `jsonb`; other supported databases compile it to their compatible JSON/text storage.
+- **Guard optional event dispatches with `hasListeners()`** — before constructing and dispatching framework events, guard them with `hasListeners()` so hot paths skip event overhead when nobody is listening. Do not guard dispatches where dispatching is the side effect, such as jobs, broadcasts, webhooks, or command bus calls.
 - **Import classes, don't use FQCNs** — always add a `use` statement and reference the short name. The only exceptions are places where FQCNs genuinely make more sense, such as middleware arrays and similar config-style identifier lists.
 - **No class docblocks unless warranted** — only add a class-level docblock if something unusual or complex needs explanation. Method docblocks (title only, Laravel-style) are always added. A body can accompany the title for complex methods that need further explanation.
 - **Don't make classes final by default** — keep classes open; add `final` ONLY for a specific reason — e.g. subclassing is inert (a fully-static facade), or would break an invariant (immutability, coroutine-safety, a security guarantee) — never as a blanket modernization.
