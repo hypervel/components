@@ -58,7 +58,7 @@ class ServerStartCommandTest extends TestCase
                     'name' => 'http',
                     'type' => ServerInterface::SERVER_HTTP,
                     'host' => '0.0.0.0',
-                    'port' => 9501,
+                    'port' => 8000,
                 ],
             ],
         ];
@@ -103,7 +103,7 @@ class ServerStartCommandTest extends TestCase
                     'name' => 'http',
                     'type' => ServerInterface::SERVER_HTTP,
                     'host' => '0.0.0.0',
-                    'port' => 9501,
+                    'port' => 8000,
                 ],
             ],
         ];
@@ -119,7 +119,7 @@ class ServerStartCommandTest extends TestCase
                 'name' => 'http',
                 'type' => ServerInterface::SERVER_HTTP,
                 'host' => '127.0.0.1',
-                'port' => 9502,
+                'port' => 8001,
             ],
         ];
 
@@ -147,7 +147,7 @@ class ServerStartCommandTest extends TestCase
 
         $result = $command->run(new ArrayInput([
             '--host' => '127.0.0.1',
-            '--port' => '9502',
+            '--port' => '8001',
         ]), new NullOutput);
 
         $this->assertSame(0, $result);
@@ -167,7 +167,7 @@ class ServerStartCommandTest extends TestCase
                     'name' => 'http',
                     'type' => ServerInterface::SERVER_HTTP,
                     'host' => '0.0.0.0',
-                    'port' => 9501,
+                    'port' => 8000,
                 ],
             ],
         ]);
