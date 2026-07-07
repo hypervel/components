@@ -29,7 +29,7 @@ class TrustHostsTest extends TestCase
         parent::tearDown();
     }
 
-    public function testRequestSucceedsWithTrustedHostPattern()
+    public function testRequestSucceedsWithTrustedHostPattern(): void
     {
         AlwaysTrustHosts::at(['^example\.com$'], subdomains: false);
 
@@ -38,7 +38,7 @@ class TrustHostsTest extends TestCase
             ->assertContent('example.com');
     }
 
-    public function testRequestFailsWithUntrustedHost()
+    public function testRequestFailsWithUntrustedHost(): void
     {
         AlwaysTrustHosts::at(['^example\.com$'], subdomains: false);
         $this->withoutExceptionHandling();
@@ -47,7 +47,7 @@ class TrustHostsTest extends TestCase
         $this->call('GET', 'http://evil.com/host');
     }
 
-    public function testDynamicTrustHostsClosureRunsPerRequest()
+    public function testDynamicTrustHostsClosureRunsPerRequest(): void
     {
         // This verifies the legacy callback is re-run for each request. Real
         // applications should not trust the raw Host header without first
@@ -63,7 +63,7 @@ class TrustHostsTest extends TestCase
             ->assertContent('b.example.com');
     }
 
-    public function testRequestAwareResolverUsesVerifiedHostPatterns()
+    public function testRequestAwareResolverUsesVerifiedHostPatterns(): void
     {
         $verifiedHosts = [
             'tenant.example.com' => ['^tenant\.example\.com$', '^admin\.tenant\.example\.com$'],
@@ -83,7 +83,7 @@ class TrustHostsTest extends TestCase
             ->assertContent('other.example.com');
     }
 
-    public function testRequestAwareResolverRejectsUnrecognizedHosts()
+    public function testRequestAwareResolverRejectsUnrecognizedHosts(): void
     {
         AlwaysTrustHosts::resolveHostsUsing(
             static fn (Request $request): array => $request->headers->get('HOST') === 'tenant.example.com'
@@ -97,7 +97,7 @@ class TrustHostsTest extends TestCase
         $this->call('GET', 'http://evil.com/host');
     }
 
-    public function testEmptyLegacyHostClosureFailsClosed()
+    public function testEmptyLegacyHostClosureFailsClosed(): void
     {
         AlwaysTrustHosts::at(fn () => [], subdomains: false);
 
@@ -107,7 +107,7 @@ class TrustHostsTest extends TestCase
         $this->call('GET', 'http://evil.com/host');
     }
 
-    public function testMissingTrustedHostConfigurationFailsClosed()
+    public function testMissingTrustedHostConfigurationFailsClosed(): void
     {
         config(['app.url' => '']);
 
@@ -117,7 +117,7 @@ class TrustHostsTest extends TestCase
         $this->call('GET', 'http://evil.com/host');
     }
 
-    public function testFlushStateClearsRequestAwareResolver()
+    public function testFlushStateClearsRequestAwareResolver(): void
     {
         AlwaysTrustHosts::resolveHostsUsing(static fn (): array => ['^tenant\.example\.com$']);
 
@@ -126,6 +126,16 @@ class TrustHostsTest extends TestCase
             ->assertContent('tenant.example.com');
 
         AlwaysTrustHosts::flushState();
+
+        $this->withoutExceptionHandling();
+        $this->expectException(SuspiciousOperationException::class);
+
+        $this->call('GET', 'http://tenant.example.com/host');
+    }
+
+    public function testNonArrayRequestAwareResolverResultFailsClosed(): void
+    {
+        AlwaysTrustHosts::resolveHostsUsing(static fn (): mixed => null);
 
         $this->withoutExceptionHandling();
         $this->expectException(SuspiciousOperationException::class);

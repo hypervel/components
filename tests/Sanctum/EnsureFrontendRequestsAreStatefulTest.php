@@ -102,6 +102,36 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
         $this->assertFalse(EnsureFrontendRequestsAreStateful::fromFrontend($request));
     }
 
+    public function testStatefulDomainsResolverIgnoresInvalidEntries(): void
+    {
+        $request = Request::create('http://localhost', server: ['HTTP_REFERER' => 'https://custom.example.com']);
+
+        EnsureFrontendRequestsAreStateful::resolveStatefulDomainsUsing(
+            fn (Request $request): array => ['custom.example.com', null, '']
+        );
+
+        try {
+            $this->assertTrue(EnsureFrontendRequestsAreStateful::fromFrontend($request));
+        } finally {
+            EnsureFrontendRequestsAreStateful::flushState();
+        }
+    }
+
+    public function testStatefulDomainsResolverIgnoresNonArrayResults(): void
+    {
+        $request = Request::create('http://localhost', server: ['HTTP_REFERER' => 'https://custom.example.com']);
+
+        EnsureFrontendRequestsAreStateful::resolveStatefulDomainsUsing(
+            fn (Request $request): mixed => null
+        );
+
+        try {
+            $this->assertFalse(EnsureFrontendRequestsAreStateful::fromFrontend($request));
+        } finally {
+            EnsureFrontendRequestsAreStateful::flushState();
+        }
+    }
+
     public function testMiddlewareDoesNotMutateSessionConfig(): void
     {
         $this->app->make('config')->set([

@@ -946,6 +946,8 @@ public function boot(): void
 
 The resolver returns every host pattern that should be trusted for the current request. When a resolver is registered, it fully replaces the static `at` list and the application's configured URL fallback, so include any first-party, admin, or custom domain patterns that should be accepted. Returning an empty array rejects the request.
 
+The resolver runs during trusted host resolution for each request. In production, resolve against cached verified-host data, such as an application cache or Redis, instead of querying the database on every request.
+
 Do not build trusted host patterns directly from the incoming `Host` header unless that host has first been verified against trusted application data.
 
 When `TrustHosts` is enabled, Hypervel rejects requests if no trusted host patterns can be resolved. Configure a valid application URL, `at` list, or resolver so legitimate hosts are trusted.

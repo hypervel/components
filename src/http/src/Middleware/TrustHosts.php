@@ -86,11 +86,13 @@ class TrustHosts
      */
     protected function resolveTrustedHostPatterns(Request $request): array
     {
-        $hosts = static::$hostsResolver instanceof Closure
+        $resolved = static::$hostsResolver instanceof Closure
             ? (static::$hostsResolver)($request)
             : $this->hosts();
 
-        $hosts = array_values(array_filter($hosts, static fn (mixed $host): bool => is_string($host) && $host !== ''));
+        $hosts = is_array($resolved)
+            ? array_values(array_filter($resolved, static fn (mixed $host): bool => is_string($host) && $host !== ''))
+            : [];
 
         return $hosts === []
             ? [self::REJECT_ALL_HOST_PATTERN]

@@ -100,16 +100,19 @@ class EnsureFrontendRequestsAreStateful
     private static function resolveStatefulDomains(Request $request): array
     {
         if (static::$statefulDomainsResolver !== null) {
-            $domains = (static::$statefulDomainsResolver)($request);
-
-            return array_values(array_filter(
-                $domains,
-                static fn (string $domain): bool => $domain !== ''
-            ));
+            return self::filterDomainList((static::$statefulDomainsResolver)($request));
         }
 
-        $domains = config('sanctum.stateful_domains', []);
+        return self::filterDomainList(config('sanctum.stateful_domains', []));
+    }
 
+    /**
+     * Filter a stateful domain list to non-empty strings.
+     *
+     * @return array<int, string>
+     */
+    private static function filterDomainList(mixed $domains): array
+    {
         return is_array($domains)
             ? array_values(array_filter(
                 $domains,
