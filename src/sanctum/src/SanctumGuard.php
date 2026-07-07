@@ -9,12 +9,13 @@ use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
+use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
 use stdClass;
 
 /**
@@ -47,6 +48,7 @@ class SanctumGuard implements GuardContract
         protected string $name,
         UserProvider $provider,
         protected Container $app,
+        protected array $sessionGuards,
         protected ?Dispatcher $events = null,
         protected ?int $expiration = null,
     ) {
@@ -76,20 +78,36 @@ class SanctumGuard implements GuardContract
             return $cached;
         }
 
-        // Check stateful guards first (like 'web')
         $authFactory = $this->app->make('auth');
-        foreach (Arr::wrap(config('sanctum.guard', 'web')) as $guard) {
-            if ($guard !== $this->name && $authFactory->guard($guard)->check()) {
-                $user = $authFactory->guard($guard)->user();
-                if ($this->supportsTokens($user)) {
-                    /** @var Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenUser */
-                    $tokenUser = $user;
-                    $user = $tokenUser->withAccessToken(new TransientToken);
-                }
-                CoroutineContext::set($contextKey, $user ?? self::$nullUserSentinel);
 
-                return $user;
+        foreach ($this->sessionGuards as $sessionGuardName) {
+            $sessionGuard = $authFactory->guard($sessionGuardName);
+
+            if (! $sessionGuard instanceof StatefulGuard) {
+                throw new InvalidArgumentException(
+                    "Auth guard [{$this->name}] lists [{$sessionGuardName}] in session_guards, but that guard is not a stateful guard."
+                );
             }
+
+            if (! $sessionGuard->check()) {
+                continue;
+            }
+
+            $user = $sessionGuard->user();
+
+            if (! $this->hasValidProvider($user)) {
+                continue;
+            }
+
+            if ($this->supportsTokens($user)) {
+                /** @var Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenUser */
+                $tokenUser = $user;
+                $user = $tokenUser->withAccessToken(new TransientToken);
+            }
+
+            CoroutineContext::set($contextKey, $user);
+
+            return $user;
         }
 
         // Check for token authentication

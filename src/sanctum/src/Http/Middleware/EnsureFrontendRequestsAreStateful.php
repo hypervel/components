@@ -81,6 +81,6 @@ class EnsureFrontendRequestsAreStateful
      */
     public static function statefulDomains(): array
     {
-        return config('sanctum.stateful', []);
+        return config('sanctum.stateful_domains', []);
     }
 }

@@ -33,6 +33,10 @@ return [
     |
     | Guards that send password reset links declare their broker with
     | the "passwords" key, referencing an entry in the passwords array.
+    | Sanctum guards declare the session guards they trust for first-party
+    | SPA requests with the "session_guards" key; set it to an empty array
+    | for bearer-token-only APIs. Guards may also override the password
+    | confirmation window with a "password_timeout" key.
     |
     | Supported by default: "session". Install hypervel/sanctum to use
     | the "sanctum" guard, and hypervel/jwt to use the "jwt" guard
@@ -48,6 +52,7 @@ return [
         'sanctum' => [
             'driver' => 'sanctum',
             'provider' => 'users',
+            'session_guards' => ['web'],
         ],
         'jwt' => [
             'driver' => 'jwt',
@@ -165,6 +170,8 @@ return [
     | Here you may define the number of seconds before a password confirmation
     | window expires and users are asked to re-enter their password via the
     | confirmation screen. By default, the timeout lasts for three hours.
+    | Individual guards may override this with a "password_timeout" key in
+    | their guard configuration.
     |
     */
 
