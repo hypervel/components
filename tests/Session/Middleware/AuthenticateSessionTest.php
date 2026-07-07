@@ -354,4 +354,45 @@ class AuthenticateSessionTest extends TestCase
         $this->assertNull($session->get('a'));
         $this->assertNull($session->get('b'));
     }
+
+    public function testHandleWithMalformedSessionPasswordHashLogsOut(): void
+    {
+        $user = new class {
+            public function getAuthPassword()
+            {
+                return 'my-pass-(*&^%$#!@';
+            }
+        };
+
+        $request = new Request;
+        $request->setUserResolver(fn () => $user);
+
+        $session = new Store('name', new ArraySessionHandler(1));
+        $session->put('a', '1');
+        $session->put('b', '2');
+        $session->put('password_hash_web', ['not-a-password-hash']);
+        $request->setHypervelSession($session);
+
+        $authFactory = m::mock(AuthFactory::class);
+        $authFactory->shouldReceive('viaRemember')->andReturn(false);
+        $authFactory->shouldReceive('getRecallerName')->never();
+        $authFactory->shouldReceive('logoutCurrentDevice')->once()->andReturn(null);
+        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
+        $authFactory->shouldReceive('user')->andReturn(null);
+        $authFactory->shouldReceive('hashPasswordForCookie')->never();
+
+        $middleware = new AuthenticateSession($authFactory);
+
+        $message = '';
+        try {
+            $middleware->handle($request, fn () => 'next-10');
+        } catch (AuthenticationException $e) {
+            $message = $e->getMessage();
+        }
+
+        $this->assertEquals('Unauthenticated.', $message);
+        $this->assertNull($session->get('password_hash_web'));
+        $this->assertNull($session->get('a'));
+        $this->assertNull($session->get('b'));
+    }
 }

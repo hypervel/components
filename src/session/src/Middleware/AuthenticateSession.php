@@ -86,9 +86,10 @@ class AuthenticateSession implements AuthenticatesSessions
      * Only HMAC artifacts are valid; Hypervel has no released raw-hash
      * session artifacts to accept.
      */
-    protected function validatePasswordHash(string $passwordHash, string $storedValue): bool
+    protected function validatePasswordHash(string $passwordHash, mixed $storedValue): bool
     {
-        return hash_equals($this->guard()->hashPasswordForCookie($passwordHash), $storedValue); // @phpstan-ignore method.notFound
+        return is_string($storedValue)
+            && hash_equals($this->guard()->hashPasswordForCookie($passwordHash), $storedValue); // @phpstan-ignore method.notFound
     }
 
     /**
