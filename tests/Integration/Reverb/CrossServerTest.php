@@ -30,12 +30,9 @@ class CrossServerTest extends CrossServerTestCase
         ]);
 
         // Client on server A should receive it via Redis pub/sub
-        $data = $this->recv($clientA, 3);
-        $this->assertNotNull($data, 'Client on server A did not receive broadcast from server B');
-
-        $decoded = json_decode($data, associative: true);
-        $this->assertSame('App\Events\CrossServerEvent', $decoded['event']);
-        $this->assertSame('cross-server-broadcast', $decoded['channel']);
+        $message = $this->receiveEvent($clientA, 'App\Events\CrossServerEvent');
+        $this->assertNotNull($message, 'Client on server A did not receive broadcast from server B');
+        $this->assertSame('cross-server-broadcast', $message['channel']);
 
         $this->disconnect($clientA);
     }
@@ -79,11 +76,8 @@ class CrossServerTest extends CrossServerTestCase
         ]);
 
         // Observer on server A should receive member_added via Redis pub/sub
-        $msg = $this->recv($observer, 3);
-        $this->assertNotNull($msg, 'Observer on server A did not receive member_added from server B');
-
-        $decoded = json_decode($msg, associative: true);
-        $this->assertSame('pusher_internal:member_added', $decoded['event']);
+        $message = $this->receiveMemberAdded($observer, 'user-2');
+        $this->assertNotNull($message, 'Observer on server A did not receive member_added from server B');
 
         // Third client with SAME user_id joins on server A — no duplicate member_added
         ['client' => $clientA2, 'socketId' => $socketIdA2] = $this->connectToServerA();
@@ -92,8 +86,8 @@ class CrossServerTest extends CrossServerTestCase
             'user_info' => ['name' => 'User 2 again'],
         ]);
 
-        $msg = $this->recv($observer, 1);
-        $this->assertNull($msg, 'Observer received duplicate member_added for same user across servers');
+        $messages = $this->receiveMemberAddedEvents($observer, 'user-2');
+        $this->assertCount(0, $messages, 'Observer received duplicate member_added for same user across servers');
 
         $this->disconnect($observer);
         $this->disconnect($clientB);
@@ -118,12 +112,9 @@ class CrossServerTest extends CrossServerTestCase
         ]));
 
         // Client B should receive it via Redis pub/sub
-        $msg = $this->recv($clientB, 3);
-        $this->assertNotNull($msg, 'Client B on server B did not receive whisper from server A');
-
-        $decoded = json_decode($msg, associative: true);
-        $this->assertSame('client-typing', $decoded['event']);
-        $this->assertSame('private-cross-server-whisper', $decoded['channel']);
+        $message = $this->receiveEvent($clientB, 'client-typing');
+        $this->assertNotNull($message, 'Client B on server B did not receive whisper from server A');
+        $this->assertSame('private-cross-server-whisper', $message['channel']);
 
         $this->disconnect($clientA);
         $this->disconnect($clientB);
@@ -146,18 +137,14 @@ class CrossServerTest extends CrossServerTestCase
         ]);
 
         // Drain the member_added on the observer
-        $msg = $this->recv($observer, 3);
-        $this->assertNotNull($msg, 'Observer did not receive member_added');
+        $message = $this->receiveMemberAdded($observer, 'user-2');
+        $this->assertNotNull($message, 'Observer did not receive member_added');
 
         // Disconnect the user on server B — observer on server A should receive member_removed
         $this->disconnect($clientB);
-        usleep(500_000);
 
-        $msg = $this->recv($observer, 3);
-        $this->assertNotNull($msg, 'Observer on server A did not receive member_removed from server B');
-
-        $decoded = json_decode($msg, associative: true);
-        $this->assertSame('pusher_internal:member_removed', $decoded['event']);
+        $message = $this->receiveMemberRemoved($observer, 'user-2');
+        $this->assertNotNull($message, 'Observer on server A did not receive member_removed from server B');
 
         $this->disconnect($observer);
     }

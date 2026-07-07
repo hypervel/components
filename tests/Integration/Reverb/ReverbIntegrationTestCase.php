@@ -157,6 +157,157 @@ abstract class ReverbIntegrationTestCase extends TestCase
     }
 
     /**
+     * Receive the next matching event from a client until timeout.
+     *
+     * @param null|callable(array<string, mixed>): bool $matches
+     * @return null|array<string, mixed>
+     */
+    protected function receiveEvent(Client $client, string $event, float $timeout = 5, ?callable $matches = null): ?array
+    {
+        $deadline = microtime(true) + $timeout;
+
+        while (($remaining = $deadline - microtime(true)) > 0) {
+            $message = $this->recv($client, $remaining);
+
+            if ($message === null) {
+                return null;
+            }
+
+            $decodedMessage = $this->decodeEventMessage($message);
+
+            if (($decodedMessage['event'] ?? null) !== $event) {
+                continue;
+            }
+
+            if ($matches !== null && ! $matches($decodedMessage)) {
+                continue;
+            }
+
+            return $decodedMessage;
+        }
+
+        return null;
+    }
+
+    /**
+     * Receive all matching events from a client until timeout.
+     *
+     * @param null|callable(array<string, mixed>): bool $matches
+     * @return list<array<string, mixed>>
+     */
+    protected function receiveMatchingEvents(Client $client, string $event, float $timeout = 1, ?callable $matches = null): array
+    {
+        $messages = [];
+        $deadline = microtime(true) + $timeout;
+
+        while (($remaining = $deadline - microtime(true)) > 0) {
+            $message = $this->recv($client, $remaining);
+
+            if ($message === null) {
+                break;
+            }
+
+            $decodedMessage = $this->decodeEventMessage($message);
+
+            if (($decodedMessage['event'] ?? null) !== $event) {
+                continue;
+            }
+
+            if ($matches !== null && ! $matches($decodedMessage)) {
+                continue;
+            }
+
+            $messages[] = $decodedMessage;
+        }
+
+        return $messages;
+    }
+
+    /**
+     * Receive a presence member added event for the given user.
+     *
+     * @return null|array<string, mixed>
+     */
+    protected function receiveMemberAdded(Client $client, string|int $userId, float $timeout = 5): ?array
+    {
+        return $this->receiveEvent(
+            $client,
+            'pusher_internal:member_added',
+            $timeout,
+            fn (array $message): bool => (string) ($this->decodeEventData($message)['user_id'] ?? '') === (string) $userId,
+        );
+    }
+
+    /**
+     * Receive a presence member removed event for the given user.
+     *
+     * @return null|array<string, mixed>
+     */
+    protected function receiveMemberRemoved(Client $client, string|int $userId, float $timeout = 5): ?array
+    {
+        return $this->receiveEvent(
+            $client,
+            'pusher_internal:member_removed',
+            $timeout,
+            fn (array $message): bool => (string) ($this->decodeEventData($message)['user_id'] ?? '') === (string) $userId,
+        );
+    }
+
+    /**
+     * Receive matching presence member added events until timeout.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected function receiveMemberAddedEvents(Client $client, string|int $userId, float $timeout = 1): array
+    {
+        return $this->receiveMatchingEvents(
+            $client,
+            'pusher_internal:member_added',
+            $timeout,
+            fn (array $message): bool => (string) ($this->decodeEventData($message)['user_id'] ?? '') === (string) $userId,
+        );
+    }
+
+    /**
+     * Receive matching presence member removed events until timeout.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected function receiveMemberRemovedEvents(Client $client, string|int $userId, float $timeout = 1): array
+    {
+        return $this->receiveMatchingEvents(
+            $client,
+            'pusher_internal:member_removed',
+            $timeout,
+            fn (array $message): bool => (string) ($this->decodeEventData($message)['user_id'] ?? '') === (string) $userId,
+        );
+    }
+
+    /**
+     * Decode a WebSocket event message.
+     *
+     * @return array<string, mixed>
+     */
+    protected function decodeEventMessage(string $message): array
+    {
+        return json_decode($message, associative: true, flags: JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Decode a WebSocket event data payload.
+     *
+     * @param array<string, mixed> $message
+     * @return array<string, mixed>
+     */
+    protected function decodeEventData(array $message): array
+    {
+        /** @var string $data */
+        $data = $message['data'];
+
+        return json_decode($data, associative: true, flags: JSON_THROW_ON_ERROR);
+    }
+
+    /**
      * Receive all pending frames from a client until timeout.
      *
      * @return list<string>
