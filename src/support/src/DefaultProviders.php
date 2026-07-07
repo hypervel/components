@@ -47,7 +47,6 @@ class DefaultProviders
             \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
             \Hypervel\Hashing\HashingServiceProvider::class,
             \Hypervel\Http\HttpServiceProvider::class,
-            \Hypervel\Log\LogServiceProvider::class,
             \Hypervel\Mail\MailServiceProvider::class,
             \Hypervel\Notifications\NotificationServiceProvider::class,
             \Hypervel\ObjectPool\ObjectPoolServiceProvider::class,

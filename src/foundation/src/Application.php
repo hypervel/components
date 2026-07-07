@@ -13,8 +13,12 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Events\EventServiceProvider;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\LocaleUpdated;
+use Hypervel\Log\Context\ContextServiceProvider;
+use Hypervel\Log\LogServiceProvider;
+use Hypervel\Routing\RoutingServiceProvider;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
@@ -267,9 +271,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     protected function registerBaseServiceProviders(): void
     {
-        $this->register(new \Hypervel\Events\EventServiceProvider($this));
-        $this->register(new \Hypervel\Log\Context\ContextServiceProvider($this));
-        $this->register(new \Hypervel\Routing\RoutingServiceProvider($this));
+        $this->register(new EventServiceProvider($this));
+        $this->register(new LogServiceProvider($this));
+        $this->register(new ContextServiceProvider($this));
+        $this->register(new RoutingServiceProvider($this));
     }
 
     /**
