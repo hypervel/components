@@ -69,11 +69,6 @@ class UrlGenerator implements UrlGeneratorContract
     protected ?string $assetRoot = null;
 
     /**
-     * The forced URL root (process-global, set at boot).
-     */
-    protected ?string $forcedRoot = null;
-
-    /**
      * The forced scheme for URLs.
      */
     protected ?string $forceScheme = null;
@@ -533,7 +528,6 @@ class UrlGenerator implements UrlGeneratorContract
         if (is_null($root)) {
             $root = CoroutineContext::getOrSet(self::CACHED_ROOT_CONTEXT_KEY, function () {
                 return CoroutineContext::get(self::FORCED_ROOT_CONTEXT_KEY)
-                    ?? $this->forcedRoot
                     ?: $this->getRequest()->root();
             });
         }
@@ -625,6 +619,10 @@ class UrlGenerator implements UrlGeneratorContract
 
     /**
      * Force the scheme for URLs.
+     *
+     * Boot-only. The scheme is stored on the worker-shared URL generator
+     * singleton and affects subsequent requests across coroutines; not safe
+     * to call per-request.
      */
     public function forceScheme(?string $scheme): void
     {
@@ -634,7 +632,19 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
+     * Get the forced scheme for URLs.
+     */
+    public function getForcedScheme(): ?string
+    {
+        return $this->forceScheme;
+    }
+
+    /**
      * Force the use of the HTTPS scheme for all generated URLs.
+     *
+     * Boot-only. The scheme is stored on the worker-shared URL generator
+     * singleton and affects subsequent requests across coroutines; not safe
+     * to call per-request.
      */
     public function forceHttps(bool $force = true): void
     {
