@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Auth;
 
+use InvalidArgumentException;
+
 interface PasswordBrokerFactory
 {
     /**
@@ -13,6 +15,8 @@ interface PasswordBrokerFactory
 
     /**
      * Resolve the password broker name declared by the given guard.
+     *
+     * @throws InvalidArgumentException
      */
     public function resolveBrokerNameForGuard(string $guard): ?string;
 }

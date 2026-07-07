@@ -39,7 +39,7 @@ class PasswordBrokerManager implements FactoryContract
      */
     public function broker(?string $name = null): PasswordBrokerContract
     {
-        $name = $name ?: $this->getDefaultDriver();
+        $name ??= $this->getDefaultDriver();
 
         return $this->brokers[$name] ??= $this->resolve($name);
     }
@@ -111,6 +111,8 @@ class PasswordBrokerManager implements FactoryContract
 
     /**
      * Resolve the password broker name declared by the given guard.
+     *
+     * @throws InvalidArgumentException
      */
     public function resolveBrokerNameForGuard(string $guard): ?string
     {

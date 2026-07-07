@@ -388,7 +388,7 @@ Route::get('/flights', function () {
 })->middleware('auth:admin');
 ```
 
-Guards that send password reset links declare their password broker with the `passwords` key. Multi-guard applications should set this per guard so route groups such as `auth.guard:admin` make authentication, policies, and password reset flows follow the same user type:
+Guards that send password reset links declare their password broker with the `passwords` key. Multi-guard applications should set this per guard. On guest routes such as login and password reset requests, no `auth` middleware runs to select a guard, so apply the `auth.guard:admin` middleware to the route group — authentication, policies, and password reset flows then all follow the same user type:
 
 ```php
 'guards' => [

@@ -13,6 +13,7 @@ use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Facades\Lang;
 use Hypervel\Support\Facades\Password;
+use InvalidArgumentException;
 use SensitiveParameter;
 
 class ResetPassword extends Notification
@@ -83,7 +84,9 @@ class ResetPassword extends Notification
      * Resolve the expiry minutes from the broker sending this notification.
      *
      * Reads the sending broker stamped by PasswordBroker::sendResetLink();
-     * outside a send flow (tests, previews) the current default broker applies.
+     * outside a send flow (tests, previews), resolves the current default broker.
+     *
+     * @throws InvalidArgumentException
      */
     protected function resolveExpireMinutes(): int
     {

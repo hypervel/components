@@ -61,7 +61,7 @@ class AuthManager implements FactoryContract
      */
     public function guard(?string $name = null): Guard|StatefulGuard
     {
-        $name = $name ?: $this->getDefaultDriver();
+        $name ??= $this->getDefaultDriver();
 
         return $this->guards[$name] ??= $this->resolve($name);
     }
@@ -167,8 +167,8 @@ class AuthManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        if ($driver = CoroutineContext::get(self::DEFAULT_GUARD_CONTEXT_KEY)) {
-            return $driver;
+        if (CoroutineContext::has(self::DEFAULT_GUARD_CONTEXT_KEY)) {
+            return CoroutineContext::get(self::DEFAULT_GUARD_CONTEXT_KEY);
         }
 
         return $this->app->make('config')->string('auth.defaults.guard');
@@ -179,7 +179,7 @@ class AuthManager implements FactoryContract
      */
     public function shouldUse(?string $name): void
     {
-        $name = $name ?: $this->getDefaultDriver();
+        $name ??= $this->getDefaultDriver();
 
         $this->setDefaultDriver($name);
 

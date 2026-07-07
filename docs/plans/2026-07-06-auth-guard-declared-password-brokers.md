@@ -557,7 +557,7 @@ The command file is being touched (container access, signature text) and current
 
 ## Explicitly Unchanged
 
-- `AuthManager` — already correct; it is the pattern being mirrored. One deliberate asymmetry: its `getDefaultDriver()` uses a truthy `get()` check on the context key where the broker manager uses `has()` + `get()`. For guards this is behaviorally equivalent — `shouldUse()` normalizes empty names to the config default before storing (`$name = $name ?: $this->getDefaultDriver()`), so an empty-string context value cannot exist through any public path. No change needed there.
+- `AuthManager` — already correct; it is the pattern being mirrored. One deliberate asymmetry: its `getDefaultDriver()` uses a truthy `get()` check on the context key where the broker manager uses `has()` + `get()`. For guards this is behaviorally equivalent — `shouldUse()` normalizes empty names to the config default before storing (`$name = $name ?: $this->getDefaultDriver()`), so an empty-string context value cannot exist through any public path. No change needed there. Follow-up (bot-review round): `AuthManager` was subsequently aligned after all — `guard()` / `shouldUse()` use null-only defaulting and `getDefaultDriver()` uses a `has()`-based context read, so this rationale is superseded.
 - `UseGuard` / `Authenticate` middleware — already trigger `shouldUse()`; the broker now follows for free.
 - `PasswordBroker::reset()` and token repositories — actual token expiry enforcement was always broker-correct; only the email text was wrong.
 - No BC shims anywhere: a leftover `auth.defaults.passwords` in an app's config is inert (ordinary unused config key), never read, never documented, no deprecation path.

@@ -237,6 +237,37 @@ class AuthPasswordBrokerManagerTest extends TestCase
         $this->assertInstanceOf(PasswordBroker::class, (new PasswordBrokerManager($container))->broker('admins'));
     }
 
+    public function testBrokerWithExplicitFalseyNameDoesNotFallBackToDefaultDriver(): void
+    {
+        $container = $this->makeContainer([
+            'app' => [
+                'key' => 'base64:' . base64_encode(str_repeat('a', 32)),
+            ],
+            'auth' => [
+                'passwords' => [
+                    '0' => [
+                        'provider' => 'zero',
+                        'table' => 'zero_password_reset_tokens',
+                    ],
+                ],
+            ],
+        ]);
+        $container->instance('auth', $auth = m::mock());
+        $container->instance('db', $db = m::mock());
+        $container->instance('hash', m::mock(Hasher::class));
+
+        $auth->shouldReceive('createUserProvider')
+            ->once()
+            ->with('zero')
+            ->andReturn(m::mock(UserProvider::class));
+        $db->shouldReceive('connection')
+            ->once()
+            ->with(null)
+            ->andReturn(m::mock(ConnectionInterface::class));
+
+        $this->assertInstanceOf(PasswordBroker::class, (new PasswordBrokerManager($container))->broker('0'));
+    }
+
     public function testBrokerFailsFastWhenAppKeyIsNotConfigured(): void
     {
         $this->expectException(InvalidArgumentException::class);

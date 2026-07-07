@@ -55,6 +55,17 @@ class AuthManagerTest extends TestCase
         $this->assertSame('foo', $manager->getDefaultDriver());
     }
 
+    public function testGetDefaultDriverAcceptsFalseyContextValue(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')
+            ->set('auth.defaults.guard', 'foo');
+
+        CoroutineContext::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, '0');
+
+        $this->assertSame('0', $manager->getDefaultDriver());
+    }
+
     public function testSetDefaultDriverUsesContext()
     {
         $manager = new AuthManager($this->getContainer());
@@ -85,6 +96,17 @@ class AuthManagerTest extends TestCase
         $this->assertInstanceOf(Closure::class, $manager->userResolver());
     }
 
+    public function testShouldUseAcceptsFalseyGuardName(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')
+            ->set('auth.defaults.guard', 'foo');
+
+        $manager->shouldUse('0');
+
+        $this->assertSame('0', $manager->getDefaultDriver());
+    }
+
     public function testExtendDriver()
     {
         $manager = new AuthManager($container = $this->getContainer());
@@ -97,6 +119,27 @@ class AuthManagerTest extends TestCase
         });
 
         $this->assertSame($guard, $manager->guard('foo'));
+    }
+
+    public function testGuardWithExplicitFalseyNameDoesNotFallBackToDefaultDriver(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')
+            ->set('auth.defaults.guard', 'foo');
+        $container->make('config')
+            ->set('auth.guards.0', ['driver' => 'bar']);
+        $container->make('config')
+            ->set('auth.guards.foo', ['driver' => 'bar']);
+
+        $guard = m::mock(Guard::class);
+        $test = $this;
+        $manager->extend('bar', function ($app, string $name) use ($guard, $test): Guard {
+            $test->assertSame('0', $name);
+
+            return $guard;
+        });
+
+        $this->assertSame($guard, $manager->guard('0'));
     }
 
     public function testExtendCallbackIsBoundToManager()
