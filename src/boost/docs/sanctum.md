@@ -4,7 +4,7 @@
     - [How it Works](#how-it-works)
 - [Installation](#installation)
 - [Configuration](#configuration)
-    - [Setting Sanctum Guard](#setting-sanctum-guard)
+    - [Declaring Trusted Session Guards](#declaring-trusted-session-guards)
     - [Overriding Default Models](#overriding-default-models)
     - [Token Caching](#token-caching)
     - [Token Prefix](#token-prefix)
@@ -90,8 +90,8 @@ Next, if you plan to utilize Sanctum to authenticate an SPA, please refer to the
 <a name="configuration"></a>
 ## Configuration
 
-<a name="setting-sanctum-guard"></a>
-### Setting Sanctum Guard
+<a name="declaring-trusted-session-guards"></a>
+### Declaring Trusted Session Guards
 
 Hypervel's default authentication configuration includes a `sanctum` guard. If your application does not already define this guard, add it to your application's `config/auth.php` file:
 
@@ -100,9 +100,26 @@ Hypervel's default authentication configuration includes a `sanctum` guard. If y
     'sanctum' => [
         'driver' => 'sanctum',
         'provider' => 'users',
+        'session_guards' => ['web'],
     ],
 ],
 ```
+
+The `session_guards` key declares which stateful session guards this Sanctum guard trusts for first-party SPA requests before falling back to bearer-token authentication. A fresh Hypervel application uses `['web']`, meaning the `sanctum` guard accepts a logged-in `web` session or a valid bearer token for the configured provider.
+
+Set `session_guards` to an empty array when a Sanctum guard should accept bearer tokens only:
+
+```php
+'guards' => [
+    'api' => [
+        'driver' => 'sanctum',
+        'provider' => 'users',
+        'session_guards' => [],
+    ],
+],
+```
+
+Every Sanctum guard must declare `session_guards`; omitting the key will throw a configuration exception that names the guard and the setting to add. Each listed guard must implement Hypervel's `StatefulGuard` contract, such as the built-in `session` driver. If a listed session guard returns a user that does not match the Sanctum guard's provider, Sanctum skips that session guard and continues to the next listed guard, then to bearer-token authentication.
 
 <a name="overriding-default-models"></a>
 ### Overriding Default Models
@@ -414,7 +431,7 @@ For this feature, Sanctum does not use tokens of any kind. Instead, Sanctum uses
 <a name="configuring-your-first-party-domains"></a>
 #### Configuring Your First-Party Domains
 
-First, you should configure which domains your SPA will be making requests from. You may configure these domains using the `stateful` configuration option in your `sanctum` configuration file. This configuration setting determines which domains will maintain "stateful" authentication using Hypervel session cookies when making requests to your API.
+First, you should configure which domains your SPA will be making requests from. You may configure these domains using the `stateful_domains` configuration option in your `sanctum` configuration file. This configuration setting determines which domains will maintain "stateful" authentication using Hypervel session cookies when making requests to your API.
 
 To assist you in setting up your first-party stateful domains, Sanctum provides two helper methods that you can include in the configuration. First, `Sanctum::currentApplicationUrlWithPort()` will return the current application URL from the `APP_URL` environment variable, and `Sanctum::currentRequestHost()` will inject a placeholder into the stateful domain list which, at runtime, will be replaced by the host from the current request so that all requests with the same domain are considered stateful.
 
