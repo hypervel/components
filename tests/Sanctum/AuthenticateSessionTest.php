@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\AuthenticationException;
+use Hypervel\Auth\SessionGuard;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Http\Request;
@@ -151,6 +152,83 @@ class AuthenticateSessionTest extends TestCase
         }
     }
 
+    public function testMalformedPasswordHashIsRejected(): void
+    {
+        $this->configureWebAndAdminSanctumGuards();
+
+        $auth = $this->app->make('auth');
+        $auth->forgetGuards();
+        $auth->guard('web')->setUser($this->user('web-password'));
+
+        $request = $this->requestWithSession();
+        $request->session()->put('password_hash_web', ['not-a-password-hash']);
+
+        try {
+            $this->middleware()->handle($request, fn () => new Response('next'));
+            $this->fail('Expected authentication exception was not thrown.');
+        } catch (AuthenticationException $exception) {
+            $this->assertSame('Unauthenticated.', $exception->getMessage());
+            $this->assertSame(['web', 'sanctum'], $exception->guards());
+            $this->assertFalse($request->session()->has('password_hash_web'));
+        }
+    }
+
+    public function testValidRememberCookieHashIsAccepted(): void
+    {
+        $this->configureWebAndAdminSanctumGuards();
+
+        $guard = $this->rememberedGuard('web', 'web-password');
+
+        $request = $this->requestWithSession([
+            $guard->getRecallerName() => '1|token|' . $this->passwordHash('web', 'web-password'),
+        ]);
+
+        $response = $this->middleware()->handle($request, fn () => new Response('next'));
+
+        $this->assertSame('next', $response->getContent());
+        $this->assertSame($this->passwordHash('web', 'web-password'), $request->session()->get('password_hash_web'));
+    }
+
+    public function testStaleRememberCookieHashIsRejected(): void
+    {
+        $this->configureWebAndAdminSanctumGuards();
+
+        $guard = $this->rememberedGuard('web', 'new-web-password');
+
+        $request = $this->requestWithSession([
+            $guard->getRecallerName() => '1|token|' . $this->passwordHash('web', 'old-web-password'),
+        ]);
+
+        try {
+            $this->middleware()->handle($request, fn () => new Response('next'));
+            $this->fail('Expected authentication exception was not thrown.');
+        } catch (AuthenticationException $exception) {
+            $this->assertSame('Unauthenticated.', $exception->getMessage());
+            $this->assertSame(['web', 'sanctum'], $exception->guards());
+            $this->assertFalse($request->session()->has('password_hash_web'));
+        }
+    }
+
+    public function testMissingRememberCookieHashIsRejected(): void
+    {
+        $this->configureWebAndAdminSanctumGuards();
+
+        $guard = $this->rememberedGuard('web', 'web-password');
+
+        $request = $this->requestWithSession([
+            $guard->getRecallerName() => '1|token',
+        ]);
+
+        try {
+            $this->middleware()->handle($request, fn () => new Response('next'));
+            $this->fail('Expected authentication exception was not thrown.');
+        } catch (AuthenticationException $exception) {
+            $this->assertSame('Unauthenticated.', $exception->getMessage());
+            $this->assertSame(['web', 'sanctum'], $exception->guards());
+            $this->assertFalse($request->session()->has('password_hash_web'));
+        }
+    }
+
     public function testSessionAuthenticateSessionHashIsAcceptedBySanctum(): void
     {
         $this->configureWebAndAdminSanctumGuards();
@@ -238,12 +316,28 @@ class AuthenticateSessionTest extends TestCase
         ]);
     }
 
-    private function requestWithSession(): Request
+    private function requestWithSession(array $cookies = []): Request
     {
-        $request = new Request;
+        $request = new Request(cookies: $cookies);
         $request->setHypervelSession(new Store('name', new ArraySessionHandler(1)));
 
         return $request;
+    }
+
+    private function rememberedGuard(string $guard, string $password): SessionGuard
+    {
+        $auth = $this->app->make('auth');
+        $auth->forgetGuards();
+
+        /** @var SessionGuard $guardInstance */
+        $guardInstance = $auth->guard($guard);
+        $guardInstance->setUser($this->user($password));
+
+        (function (): void {
+            $this->setContextState('viaRemember', true);
+        })->call($guardInstance);
+
+        return $guardInstance;
     }
 
     private function passwordHash(string $guard, ?string $password): string

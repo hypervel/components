@@ -54,12 +54,16 @@ class AuthenticateSession implements AuthenticatesSessions
         $shouldLogout = [];
 
         foreach ($authenticatedGuards as $driver => $guard) {
-            if ($request->session()->has('password_hash_' . $driver)
+            $hasStaleRecallerHash = $guard->viaRemember()
+                && ! $this->validateRecallerPasswordHash($request, $guard);
+            $hasStaleSessionHash = $request->session()->has('password_hash_' . $driver)
                 && ! $this->validatePasswordHash(
                     $guard,
                     $guard->user()->getAuthPassword(),
                     $request->session()->get('password_hash_' . $driver)
-                )) {
+                );
+
+            if ($hasStaleRecallerHash || $hasStaleSessionHash) {
                 $shouldLogout[$driver] = $guard;
             }
         }
@@ -132,8 +136,27 @@ class AuthenticateSession implements AuthenticatesSessions
      * Only HMAC artifacts are valid; Hypervel has no released raw-hash
      * session artifacts to accept.
      */
-    protected function validatePasswordHash(SessionGuard $guard, ?string $passwordHash, string $storedValue): bool
+    protected function validatePasswordHash(SessionGuard $guard, ?string $passwordHash, mixed $storedValue): bool
     {
-        return hash_equals($guard->hashPasswordForCookie($passwordHash), $storedValue);
+        return is_string($storedValue)
+            && hash_equals($guard->hashPasswordForCookie($passwordHash), $storedValue);
+    }
+
+    /**
+     * Validate the remembered-login password hash against the guard's current user.
+     */
+    protected function validateRecallerPasswordHash(Request $request, SessionGuard $guard): bool
+    {
+        $recaller = $request->cookies->get($guard->getRecallerName());
+
+        if (! is_string($recaller)) {
+            return false;
+        }
+
+        return $this->validatePasswordHash(
+            $guard,
+            $guard->user()->getAuthPassword(),
+            explode('|', $recaller)[2] ?? null
+        );
     }
 }
