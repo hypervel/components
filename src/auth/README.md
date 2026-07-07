@@ -5,6 +5,13 @@ Auth for Hypervel
 
 <!-- @TODO: Move to 0.4 documentation -->
 
+## Differences From Laravel
+
+- Password brokers are guard-declared via `auth.guards.{guard}.passwords`; `auth.defaults.passwords` and `AUTH_PASSWORD_BROKER` do not exist, and bare `Password::` calls resolve through the current guard or throw.
+- `auth.defaults.provider` does not exist; `getDefaultUserProvider()` returns the provider declared by the current default guard, and `createUserProvider(null)` means no provider.
+- `guest:{guard}` selects the first named guard as the request's default guard on pass-through, mirroring how `auth:{guard}` selects on success.
+- Password confirmation is guard-scoped (`auth.password_confirmed_at_{guard}`) with an optional per-guard `password_timeout`; `RequirePassword` resolves the guard and timeout at handle time.
+
 ## User Lookup Cache
 
 Optional cross-request cache for `EloquentUserProvider::retrieveById()`. Disabled by default. When enabled, each authenticated request can hit the cache instead of re-querying the database for the current user — a large win under Swoole where workers are long-lived and request volume is high.
