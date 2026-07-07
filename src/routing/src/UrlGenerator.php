@@ -44,6 +44,11 @@ class UrlGenerator implements UrlGeneratorContract
     protected const FORCED_ROOT_CONTEXT_KEY = '__routing.url.forced_root';
 
     /**
+     * Context key for the forced asset root URL override.
+     */
+    protected const FORCED_ASSET_ROOT_CONTEXT_KEY = '__routing.url.forced_asset_root';
+
+    /**
      * Context key for request-scoped default route parameters.
      */
     protected const DEFAULT_PARAMETERS_CONTEXT_KEY = '__routing.url.default_parameters';
@@ -245,7 +250,9 @@ class UrlGenerator implements UrlGeneratorContract
         // Once we get the root URL, we will check to see if it contains an index.php
         // file in the paths. If it does, we will remove it since it is not needed
         // for asset paths, but only for routes to endpoints in the application.
-        $root = $this->assetRoot ?: $this->formatRoot($this->formatScheme($secure));
+        $forcedAssetRoot = CoroutineContext::get(self::FORCED_ASSET_ROOT_CONTEXT_KEY);
+
+        $root = ($forcedAssetRoot ?? $this->assetRoot) ?: $this->formatRoot($this->formatScheme($secure));
 
         return Str::finish($this->removeIndex($root), '/') . trim($path, '/');
     }
@@ -664,11 +671,18 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
-     * Set the URL origin for all generated asset URLs.
+     * Set the URL origin for generated asset URLs.
+     *
+     * Stored in coroutine Context for request isolation — one request's
+     * asset origin override does not affect concurrent requests.
      */
     public function useAssetOrigin(?string $root): void
     {
-        $this->assetRoot = $root ? rtrim($root, '/') : null;
+        if ($root !== null) {
+            CoroutineContext::set(self::FORCED_ASSET_ROOT_CONTEXT_KEY, rtrim($root, '/'));
+        } else {
+            CoroutineContext::forget(self::FORCED_ASSET_ROOT_CONTEXT_KEY);
+        }
     }
 
     /**

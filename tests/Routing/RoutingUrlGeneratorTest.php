@@ -642,18 +642,22 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
     {
         $url = new UrlGenerator(
             $routes = new RouteCollection,
-            Request::create('http://www.foo.com/')
+            Request::create('http://www.foo.com/'),
+            'https://assets.example.com'
         );
 
         $url->useOrigin('https://www.bar.com');
         $this->assertSame('http://www.bar.com/foo/bar', $url->to('foo/bar'));
-        $this->assertSame('http://www.bar.com/foo/bar', $url->asset('foo/bar'));
+        $this->assertSame('https://assets.example.com/foo/bar', $url->asset('foo/bar'));
 
         $url->useAssetOrigin('https://www.foo.com');
         $this->assertNotSame('https://www.foo.com/foo/bar', $url->to('foo/bar'));
         $this->assertSame('https://www.foo.com/foo/bar', $url->asset('foo/bar'));
         $this->assertSame('https://www.foo.com/foo/bar', $url->asset('foo/bar', true));
         $this->assertSame('https://www.foo.com/foo/bar', $url->asset('foo/bar', false));
+
+        $url->useAssetOrigin(null);
+        $this->assertSame('https://assets.example.com/foo/bar', $url->asset('foo/bar'));
     }
 
     public function testUseRootUrl()
@@ -1024,6 +1028,75 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
 
         $this->assertSame('https://first.example.com/en/dashboard', $first);
         $this->assertSame('https://second.example.com/fr/dashboard', $second);
+    }
+
+    public function testAssetOriginsAreIsolatedAcrossCoroutines(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://www.foo.com/'),
+            'https://assets.example.com'
+        );
+
+        [$first, $second, $default] = parallel([
+            function () use ($url) {
+                RequestContext::set(Request::create('https://first.example.com/'));
+                $url->useAssetOrigin('https://first-assets.example.com');
+                usleep(5000);
+
+                return $url->asset('foo/bar');
+            },
+            function () use ($url) {
+                RequestContext::set(Request::create('https://second.example.com/'));
+                $url->useAssetOrigin('https://second-assets.example.com');
+                usleep(2500);
+
+                return $url->asset('foo/bar');
+            },
+            function () use ($url) {
+                RequestContext::set(Request::create('https://third.example.com/'));
+
+                return $url->asset('foo/bar');
+            },
+        ]);
+
+        $this->assertSame('https://first-assets.example.com/foo/bar', $first);
+        $this->assertSame('https://second-assets.example.com/foo/bar', $second);
+        $this->assertSame('https://assets.example.com/foo/bar', $default);
+    }
+
+    public function testOriginsAreIsolatedAcrossCoroutines(): void
+    {
+        $url = new UrlGenerator(
+            new RouteCollection,
+            Request::create('https://www.foo.com/')
+        );
+
+        [$first, $second, $default] = parallel([
+            function () use ($url) {
+                RequestContext::set(Request::create('https://first.example.com/'));
+                $url->useOrigin('https://first-origin.example.com');
+                usleep(5000);
+
+                return $url->to('foo/bar');
+            },
+            function () use ($url) {
+                RequestContext::set(Request::create('https://second.example.com/'));
+                $url->useOrigin('https://second-origin.example.com');
+                usleep(2500);
+
+                return $url->to('foo/bar');
+            },
+            function () use ($url) {
+                RequestContext::set(Request::create('https://third.example.com/'));
+
+                return $url->to('foo/bar');
+            },
+        ]);
+
+        $this->assertSame('https://first-origin.example.com/foo/bar', $first);
+        $this->assertSame('https://second-origin.example.com/foo/bar', $second);
+        $this->assertSame('https://third.example.com/foo/bar', $default);
     }
 
     public function testGlobalDefaultsAreVisibleAcrossRequestCoroutines(): void
