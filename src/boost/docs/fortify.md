@@ -82,7 +82,7 @@ By default, `fortify.guard` is `null` and Fortify uses Hypervel's current defaul
 
 When Fortify owns passkey routes, those integrated routes use `fortify.guard`. The standalone `passkeys.guard` setting only matters when using the Passkeys package without Fortify.
 
-Password reset broker selection is also derived from the selected guard. Fortify reads the selected guard's provider and requires exactly one `auth.passwords` broker to use that provider. This keeps password resets, login, password confirmation, and passkeys on the same user store.
+Password reset broker selection follows the selected guard. Guards that send password reset links declare their broker with the `passwords` key in `config/auth.php`.
 
 <a name="features"></a>
 ### Features
@@ -181,6 +181,22 @@ Standalone Passkeys has its own `Passkeys::redirectUsing()` callback and `passke
 ### Multi-Guard Applications
 
 With the default `fortify.guard` value of `null`, Fortify uses the current request default guard. For domain-based, path-based, tenant-based, or role-based guard selection, add middleware early in the stack:
+
+```php
+'guards' => [
+    'web' => [
+        'driver' => 'session',
+        'provider' => 'users',
+        'passwords' => 'users',
+    ],
+
+    'admin' => [
+        'driver' => 'session',
+        'provider' => 'admins',
+        'passwords' => 'admins',
+    ],
+],
+```
 
 ```php
 use Closure;
@@ -310,13 +326,13 @@ After registration, Fortify logs the created user into the current default guard
 <a name="password-resets"></a>
 ## Password Resets
 
-Fortify sends reset links and resets passwords through Hypervel's password broker services. Fortify derives the broker from the selected guard provider:
+Fortify sends reset links and resets passwords through Hypervel's password broker services. Fortify resolves the broker from the selected guard:
 
 1. Resolve the current guard name.
-2. Read `auth.guards.{guard}.provider`.
-3. Find exactly one `auth.passwords.*.provider` entry with the same provider.
+2. Read `auth.guards.{guard}.passwords`.
+3. Use the named broker from `auth.passwords`.
 
-If no broker or multiple brokers match, Fortify throws a configuration exception rather than guessing.
+If the selected guard does not declare a `passwords` broker, Hypervel throws a configuration exception naming the guard and the key to add.
 
 If multiple user providers may share email addresses, use separate password reset token tables or cache stores per broker so one provider's token does not replace another provider's token for the same email address.
 

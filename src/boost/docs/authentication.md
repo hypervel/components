@@ -388,6 +388,24 @@ Route::get('/flights', function () {
 })->middleware('auth:admin');
 ```
 
+Guards that send password reset links declare their password broker with the `passwords` key. Multi-guard applications should set this per guard so route groups such as `auth.guard:admin` make authentication, policies, and password reset flows follow the same user type:
+
+```php
+'guards' => [
+    'web' => [
+        'driver' => 'session',
+        'provider' => 'users',
+        'passwords' => 'users',
+    ],
+
+    'admin' => [
+        'driver' => 'session',
+        'provider' => 'admins',
+        'passwords' => 'admins',
+    ],
+],
+```
+
 <a name="login-throttling"></a>
 ### Login Throttling
 
@@ -886,6 +904,7 @@ Finally, you may reference this provider in your `guards` configuration:
     'web' => [
         'driver' => 'session',
         'provider' => 'users',
+        'passwords' => 'users',
     ],
 ],
 ```
