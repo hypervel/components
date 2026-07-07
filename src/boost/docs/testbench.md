@@ -972,7 +972,7 @@ The `serve` command uses Hypervel's normal server configuration and starts the s
 You may pass `--host` and `--port` to temporarily override the configured HTTP server address for the current process:
 
 ```shell
-vendor/bin/testbench serve --host=127.0.0.1 --port=9502
+vendor/bin/testbench serve --host=127.0.0.1 --port=8001
 ```
 
 > [!NOTE]
