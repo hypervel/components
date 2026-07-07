@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Session\Middleware;
 
-use BadMethodCallException;
 use Closure;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
@@ -74,10 +73,7 @@ class AuthenticateSession implements AuthenticatesSessions
 
         $passwordHash = $request->user()->getAuthPassword();
 
-        try {
-            $passwordHash = $this->guard()->hashPasswordForCookie($passwordHash); // @phpstan-ignore method.notFound
-        } catch (BadMethodCallException) {
-        }
+        $passwordHash = $this->guard()->hashPasswordForCookie($passwordHash); // @phpstan-ignore method.notFound
 
         $request->session()->put([
             'password_hash_' . $this->auth->getDefaultDriver() => $passwordHash, // @phpstan-ignore method.notFound
@@ -86,16 +82,13 @@ class AuthenticateSession implements AuthenticatesSessions
 
     /**
      * Validate the password hash against the stored value.
+     *
+     * Only HMAC artifacts are valid; Hypervel has no released raw-hash
+     * session artifacts to accept.
      */
     protected function validatePasswordHash(string $passwordHash, string $storedValue): bool
     {
-        try {
-            // Try new HMAC format first, then fall back to raw password hash format for backward compatibility
-            return hash_equals($this->guard()->hashPasswordForCookie($passwordHash), $storedValue) // @phpstan-ignore method.notFound
-                || hash_equals($passwordHash, $storedValue);
-        } catch (BadMethodCallException) {
-            return hash_equals($passwordHash, $storedValue);
-        }
+        return hash_equals($this->guard()->hashPasswordForCookie($passwordHash), $storedValue); // @phpstan-ignore method.notFound
     }
 
     /**
