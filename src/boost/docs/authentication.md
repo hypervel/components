@@ -377,6 +377,8 @@ use Hypervel\Http\Request;
 })
 ```
 
+When the `guest` middleware names a guard and the request continues, that guard becomes the current default guard for the request. If multiple guards are listed, the first guard is selected.
+
 <a name="specifying-a-guard"></a>
 #### Specifying a Guard
 
@@ -388,7 +390,7 @@ Route::get('/flights', function () {
 })->middleware('auth:admin');
 ```
 
-Guards that send password reset links declare their password broker with the `passwords` key. Multi-guard applications should set this per guard. On guest routes such as login and password reset requests, no `auth` middleware runs to select a guard, so apply the `auth.guard:admin` middleware to the route group — authentication, policies, and password reset flows then all follow the same user type:
+Guards that send password reset links declare their password broker with the `passwords` key. Multi-guard applications should set this per guard. On guest routes such as login and password reset requests, naming the guard on the `guest` middleware selects it for the request — `guest:admin` makes `admin` the current guard, so authentication, policies, and password reset flows all follow the same user type. For guest routes that do not use the `guest` middleware, apply `auth.guard:admin` instead:
 
 ```php
 'guards' => [
@@ -409,7 +411,7 @@ Guards that send password reset links declare their password broker with the `pa
 <a name="login-throttling"></a>
 ### Login Throttling
 
-If you are using one of our [application starter kits](/docs/{{version}}/starter-kits), rate limiting will automatically be applied to login attempts. By default, the user will not be able to login for one minute if they fail to provide the correct credentials after several attempts. The throttling is unique to the user's username / email address and their IP address.
+If you are using one of our [application starter kits](/docs/{{version}}/starter-kits), rate limiting will automatically be applied to login attempts. By default, the user will not be able to login for one minute if they fail to provide the correct credentials after several attempts. The throttling is unique to the current guard, the user's username / email address, and their IP address.
 
 > [!NOTE]
 > If you would like to rate limit other routes in your application, check out the [rate limiting documentation](/docs/{{version}}/routing#rate-limiting).
@@ -708,7 +710,7 @@ While building your application, you may occasionally have actions that should r
 <a name="password-confirmation-configuration"></a>
 ### Configuration
 
-After confirming their password, a user will not be asked to confirm their password again for three hours. However, you may configure the length of time before the user is re-prompted for their password by changing the value of the `password_timeout` configuration value within your application's `config/auth.php` configuration file.
+After confirming their password, a user will not be asked to confirm their password again for three hours. However, you may configure the length of time before the user is re-prompted for their password by changing the value of the `password_timeout` configuration value within your application's `config/auth.php` configuration file. Password confirmation is scoped to the current guard, so confirming under one guard never satisfies the `password.confirm` middleware under another guard. Individual guards may override the timeout with a `password_timeout` key in their guard configuration.
 
 <a name="password-confirmation-routing"></a>
 ### Routing

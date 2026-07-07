@@ -43,15 +43,23 @@ trait CreatesUserProviders
     }
 
     /**
+     * Get the provider name declared by the current default guard.
+     */
+    public function getDefaultUserProvider(): ?string
+    {
+        return $this->app->make('config')->get('auth.guards.' . $this->getDefaultDriver() . '.provider');
+    }
+
+    /**
      * Get the user provider configuration.
      */
     protected function getProviderConfiguration(?string $provider): ?array
     {
-        if ($provider = $provider ?: $this->getDefaultUserProvider()) {
-            return $this->app->make('config')->get('auth.providers.' . $provider);
+        if (is_null($provider)) {
+            return null;
         }
 
-        return null;
+        return $this->app->make('config')->get('auth.providers.' . $provider);
     }
 
     /**
@@ -60,8 +68,8 @@ trait CreatesUserProviders
     protected function createDatabaseProvider(array $config): DatabaseUserProvider
     {
         return new DatabaseUserProvider(
-            $this->app['db']->connection($config['connection'] ?? null),
-            $this->app['hash'],
+            $this->app->make('db')->connection($config['connection'] ?? null),
+            $this->app->make('hash'),
             $config['table'],
         );
     }
@@ -71,7 +79,7 @@ trait CreatesUserProviders
      */
     protected function createEloquentProvider(array $config): EloquentUserProvider
     {
-        $provider = new EloquentUserProvider($this->app['hash'], $config['model']);
+        $provider = new EloquentUserProvider($this->app->make('hash'), $config['model']);
 
         if (! empty($config['cache']['enabled'])) {
             $provider->enableCache(
@@ -83,13 +91,5 @@ trait CreatesUserProviders
         }
 
         return $provider;
-    }
-
-    /**
-     * Get the default user provider name.
-     */
-    public function getDefaultUserProvider(): ?string
-    {
-        return $this->app->make('config')->get('auth.defaults.provider');
     }
 }

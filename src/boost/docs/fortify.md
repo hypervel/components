@@ -219,7 +219,7 @@ final class SelectAuthenticationGuard
 }
 ```
 
-Run this middleware before `guest`, `auth`, `password.confirm`, Fortify controllers, and Passkeys controllers. Named middleware such as `auth:admin` or `guest:admin` checks that guard, but it does not set the default guard that controller code and other packages use.
+Run this middleware before `guest`, `auth`, `password.confirm`, Fortify controllers, and Passkeys controllers. Named middleware select their guard as the request default: `auth:admin` selects `admin` when authentication succeeds, and `guest:admin` selects `admin` when the request passes the guest check. Use middleware like the example above when many routes should share one guard without naming it on each middleware.
 
 If every built-in Fortify route should use the same guard, set `fortify.guard` instead of writing custom middleware. Fortify will apply that guard to its own routes and to integrated passkey routes. When using `hypervel/passkeys` without Fortify, use the standalone `passkeys.guard` setting the same way.
 
@@ -368,7 +368,7 @@ Hypervel Fortify uses Hypervel's framework password rule directly. Laravel Forti
 <a name="password-confirmation"></a>
 ## Password Confirmation
 
-Fortify supports password confirmation through the `password.confirm` middleware and built-in confirmation routes. Password confirmation uses the current default guard.
+Fortify supports password confirmation through the `password.confirm` middleware and built-in confirmation routes. Password confirmation uses the current default guard. Confirmation is stored per guard, and lockout throttling for login attempts is also scoped per guard.
 
 You may customize password confirmation:
 

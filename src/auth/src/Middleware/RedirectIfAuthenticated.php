@@ -32,12 +32,18 @@ class RedirectIfAuthenticated
      */
     public function handle(Request $request, Closure $next, string ...$guards): Response
     {
-        $guards = empty($guards) ? [null] : $guards;
+        $checkGuards = $guards ?: [null];
 
-        foreach ($guards as $guard) {
+        foreach ($checkGuards as $guard) {
             if (Auth::guard($guard)->check()) {
                 return redirect($this->redirectTo($request));
             }
+        }
+
+        // Naming a guard on an auth middleware makes it current. The first
+        // listed guard is the primary guard for guest pass-through.
+        if ($guards !== []) {
+            Auth::shouldUse($guards[0]);
         }
 
         return $next($request);

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Hypervel\Auth\Middleware\RequirePassword;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Routing\ResponseFactory;
 use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\Contracts\Session\Session;
@@ -18,7 +20,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RequirePasswordMiddlewareTest extends TestCase
 {
-    public function testUsingGeneratesCorrectMiddlewareString()
+    public function testUsingGeneratesCorrectMiddlewareString(): void
     {
         $this->assertSame(
             RequirePassword::class . ':,',
@@ -31,22 +33,19 @@ class RequirePasswordMiddlewareTest extends TestCase
         );
     }
 
-    public function testPassesThroughWhenPasswordConfirmationIsFresh()
+    public function testPassesThroughWhenPasswordConfirmationIsFresh(): void
     {
         Carbon::setTestNow(Carbon::createFromTimestamp(1000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
-            ->with('auth.password_confirmed_at', 0)
+            ->with('auth.password_confirmed_at_web', 0)
             ->andReturn(999); // Confirmed 1 second ago
 
         $request = m::mock(Request::class);
         $request->shouldReceive('session')->andReturn($session);
 
-        $responseFactory = m::mock(ResponseFactory::class);
-        $urlGenerator = m::mock(UrlGenerator::class);
-
-        $middleware = new RequirePassword($responseFactory, $urlGenerator);
+        $middleware = $this->middleware();
 
         $expectedResponse = new Response('ok');
         $result = $middleware->handle($request, fn () => $expectedResponse);
@@ -56,13 +55,13 @@ class RequirePasswordMiddlewareTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function testReturnsJson423WhenStaleAndRequestExpectsJson()
+    public function testReturnsJson423WhenStaleAndRequestExpectsJson(): void
     {
         Carbon::setTestNow(Carbon::createFromTimestamp(20000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
-            ->with('auth.password_confirmed_at', 0)
+            ->with('auth.password_confirmed_at_web', 0)
             ->andReturn(0); // Never confirmed
 
         $request = m::mock(Request::class);
@@ -78,7 +77,7 @@ class RequirePasswordMiddlewareTest extends TestCase
 
         $urlGenerator = m::mock(UrlGenerator::class);
 
-        $middleware = new RequirePassword($responseFactory, $urlGenerator);
+        $middleware = $this->middleware(responseFactory: $responseFactory, urlGenerator: $urlGenerator);
         $result = $middleware->handle($request, fn () => new Response('should not reach'));
 
         $this->assertSame($jsonResponse, $result);
@@ -86,13 +85,13 @@ class RequirePasswordMiddlewareTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function testRedirectsWhenStaleAndRequestDoesNotExpectJson()
+    public function testRedirectsWhenStaleAndRequestDoesNotExpectJson(): void
     {
         Carbon::setTestNow(Carbon::createFromTimestamp(20000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
-            ->with('auth.password_confirmed_at', 0)
+            ->with('auth.password_confirmed_at_web', 0)
             ->andReturn(0);
 
         $request = m::mock(Request::class);
@@ -111,7 +110,7 @@ class RequirePasswordMiddlewareTest extends TestCase
             ->with('password.confirm')
             ->andReturn('/password/confirm');
 
-        $middleware = new RequirePassword($responseFactory, $urlGenerator);
+        $middleware = $this->middleware(responseFactory: $responseFactory, urlGenerator: $urlGenerator);
         $result = $middleware->handle($request, fn () => new Response('should not reach'));
 
         $this->assertSame($redirectResponse, $result);
@@ -119,13 +118,13 @@ class RequirePasswordMiddlewareTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function testCustomRouteIsUsed()
+    public function testCustomRouteIsUsed(): void
     {
         Carbon::setTestNow(Carbon::createFromTimestamp(20000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
-            ->with('auth.password_confirmed_at', 0)
+            ->with('auth.password_confirmed_at_web', 0)
             ->andReturn(0);
 
         $request = m::mock(Request::class);
@@ -144,7 +143,7 @@ class RequirePasswordMiddlewareTest extends TestCase
             ->with('custom.confirm')
             ->andReturn('/custom-confirm');
 
-        $middleware = new RequirePassword($responseFactory, $urlGenerator);
+        $middleware = $this->middleware(responseFactory: $responseFactory, urlGenerator: $urlGenerator);
         $result = $middleware->handle(
             $request,
             fn () => new Response('should not reach'),
@@ -156,13 +155,13 @@ class RequirePasswordMiddlewareTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function testCustomTimeoutIsHonored()
+    public function testCustomTimeoutIsHonored(): void
     {
         Carbon::setTestNow(Carbon::createFromTimestamp(1000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
-            ->with('auth.password_confirmed_at', 0)
+            ->with('auth.password_confirmed_at_web', 0)
             ->andReturn(990); // Confirmed 10 seconds ago
 
         $request = m::mock(Request::class);
@@ -171,7 +170,7 @@ class RequirePasswordMiddlewareTest extends TestCase
         $responseFactory = m::mock(ResponseFactory::class);
         $urlGenerator = m::mock(UrlGenerator::class);
 
-        $middleware = new RequirePassword($responseFactory, $urlGenerator);
+        $middleware = $this->middleware(responseFactory: $responseFactory, urlGenerator: $urlGenerator);
 
         // With default timeout (10800), 10 seconds would pass through
         $expectedResponse = new Response('ok');
@@ -195,5 +194,128 @@ class RequirePasswordMiddlewareTest extends TestCase
         $this->assertSame($jsonResponse, $result);
 
         Carbon::setTestNow();
+    }
+
+    public function testConfirmationIsScopedToCurrentGuard(): void
+    {
+        Carbon::setTestNow(Carbon::createFromTimestamp(20000));
+
+        $session = m::mock(Session::class);
+        $session->shouldReceive('get')
+            ->with('auth.password_confirmed_at_admin', 0)
+            ->andReturn(0);
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('session')->andReturn($session);
+        $request->shouldReceive('expectsJson')->andReturnTrue();
+
+        $responseFactory = m::mock(ResponseFactory::class);
+        $responseFactory->shouldReceive('json')
+            ->with(['message' => 'Password confirmation required.'], 423)
+            ->once()
+            ->andReturn($jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423));
+
+        $result = $this->middleware(responseFactory: $responseFactory, guard: 'admin')
+            ->handle($request, fn () => new Response('should not reach'));
+
+        $this->assertSame($jsonResponse, $result);
+
+        Carbon::setTestNow();
+    }
+
+    public function testPerGuardTimeoutIsHonored(): void
+    {
+        Carbon::setTestNow(Carbon::createFromTimestamp(1000));
+
+        $session = m::mock(Session::class);
+        $session->shouldReceive('get')
+            ->with('auth.password_confirmed_at_admin', 0)
+            ->twice()
+            ->andReturn(989, 991);
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('session')->andReturn($session);
+
+        $responseFactory = m::mock(ResponseFactory::class);
+        $responseFactory->shouldReceive('json')
+            ->with(['message' => 'Password confirmation required.'], 423)
+            ->once()
+            ->andReturn($jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423));
+
+        $config = new Repository([
+            'auth' => [
+                'guards' => [
+                    'admin' => [
+                        'password_timeout' => 10,
+                    ],
+                ],
+            ],
+        ]);
+
+        $middleware = $this->middleware(responseFactory: $responseFactory, config: $config, guard: 'admin');
+
+        $request->shouldReceive('expectsJson')->andReturnTrue();
+        $result = $middleware->handle($request, fn () => new Response('should not reach'));
+        $this->assertSame($jsonResponse, $result);
+
+        $expectedResponse = new Response('ok');
+        $result = $middleware->handle($request, fn () => $expectedResponse);
+        $this->assertSame($expectedResponse, $result);
+
+        Carbon::setTestNow();
+    }
+
+    public function testRouteParameterOverridesPerGuardTimeout(): void
+    {
+        Carbon::setTestNow(Carbon::createFromTimestamp(1000));
+
+        $session = m::mock(Session::class);
+        $session->shouldReceive('get')
+            ->with('auth.password_confirmed_at_admin', 0)
+            ->andReturn(994);
+
+        $request = m::mock(Request::class);
+        $request->shouldReceive('session')->andReturn($session);
+        $request->shouldReceive('expectsJson')->andReturnTrue();
+
+        $responseFactory = m::mock(ResponseFactory::class);
+        $responseFactory->shouldReceive('json')
+            ->with(['message' => 'Password confirmation required.'], 423)
+            ->once()
+            ->andReturn($jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423));
+
+        $config = new Repository([
+            'auth' => [
+                'guards' => [
+                    'admin' => [
+                        'password_timeout' => 10,
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = $this->middleware(responseFactory: $responseFactory, config: $config, guard: 'admin')
+            ->handle($request, fn () => new Response('should not reach'), null, 5);
+
+        $this->assertSame($jsonResponse, $result);
+
+        Carbon::setTestNow();
+    }
+
+    private function middleware(
+        ?ResponseFactory $responseFactory = null,
+        ?UrlGenerator $urlGenerator = null,
+        ?Repository $config = null,
+        string $guard = 'web'
+    ): RequirePassword {
+        $auth = m::mock(AuthFactory::class);
+        $auth->shouldReceive('getDefaultDriver')->andReturn($guard);
+
+        return new RequirePassword(
+            $responseFactory ?? m::mock(ResponseFactory::class),
+            $urlGenerator ?? m::mock(UrlGenerator::class),
+            $auth,
+            $config ?? new Repository,
+        );
     }
 }

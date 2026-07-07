@@ -25,10 +25,12 @@ class ActingAsTest extends TestCase
             'auth.guards.sanctum' => [
                 'driver' => 'sanctum',
                 'provider' => 'users',
+                'session_guards' => ['web'],
             ],
             'auth.guards.api' => [
                 'driver' => 'sanctum',
                 'provider' => 'users',
+                'session_guards' => ['web'],
             ],
             'auth.providers.users' => [
                 'driver' => 'eloquent',

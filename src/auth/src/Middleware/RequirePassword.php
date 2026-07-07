@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Middleware;
 
 use Closure;
+use Hypervel\Auth\PasswordConfirmation;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Routing\ResponseFactory;
 use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\Http\Request;
@@ -14,19 +17,14 @@ use Symfony\Component\HttpFoundation\Response;
 class RequirePassword
 {
     /**
-     * The password timeout in seconds.
-     */
-    protected int $passwordTimeout;
-
-    /**
      * Create a new middleware instance.
      */
     public function __construct(
         protected ResponseFactory $responseFactory,
         protected UrlGenerator $urlGenerator,
-        ?int $passwordTimeout = null,
+        protected AuthFactory $auth,
+        protected Repository $config,
     ) {
-        $this->passwordTimeout = $passwordTimeout ?: 10800;
     }
 
     /**
@@ -59,11 +57,16 @@ class RequirePassword
 
     /**
      * Determine if the confirmation timeout has expired.
+     *
+     * The confirmation timestamp and timeout are scoped to the current
+     * guard, so confirming a password under one guard never satisfies
+     * password confirmation under another.
      */
     protected function shouldConfirmPassword(Request $request, string|int|null $passwordTimeoutSeconds = null): bool
     {
-        $confirmedAt = Date::now()->unix() - $request->session()->get('auth.password_confirmed_at', 0);
+        $guard = $this->auth->getDefaultDriver();
+        $confirmedAt = Date::now()->unix() - $request->session()->get(PasswordConfirmation::sessionKey($guard), 0);
 
-        return $confirmedAt > ($passwordTimeoutSeconds ?? $this->passwordTimeout);
+        return $confirmedAt > PasswordConfirmation::timeout($this->config, $guard, $passwordTimeoutSeconds);
     }
 }

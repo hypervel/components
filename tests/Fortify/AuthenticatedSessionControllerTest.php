@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Fortify;
 
 use Hypervel\Auth\Events\Logout;
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\RateLimiter;
+use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Fortify\Contracts\LoginViewResponse;
 use Hypervel\Fortify\LoginRateLimiter;
@@ -125,7 +127,7 @@ class AuthenticatedSessionControllerTest extends TestCase
             }
         );
 
-        self::assertSame($expectedResult . '|192.168.0.1', $method->invoke($loginRateLimiter, $request));
+        self::assertSame('web|' . $expectedResult . '|192.168.0.1', $method->invoke($loginRateLimiter, $request));
     }
 
     public static function usernameProvider(): array
@@ -136,6 +138,30 @@ class AuthenticatedSessionControllerTest extends TestCase
             'special character numbers' => ['test⑩⓸③@laravel.com', 'test1043@laravel.com'],
             'default email' => ['test@laravel.com', 'test@laravel.com'],
         ];
+    }
+
+    public function testLockoutIsScopedToGuard(): void
+    {
+        $loginRateLimiter = new LoginRateLimiter(
+            new RateLimiter(new Repository(new ArrayStore))
+        );
+
+        $request = Request::create('/login', 'POST', [
+            'email' => 'taylor@laravel.com',
+        ]);
+        $request->server->set('REMOTE_ADDR', '192.168.0.1');
+
+        Auth::shouldUse('web');
+
+        for ($attempt = 0; $attempt < 5; ++$attempt) {
+            $loginRateLimiter->increment($request);
+        }
+
+        $this->assertTrue($loginRateLimiter->tooManyAttempts($request));
+
+        Auth::shouldUse('admin');
+
+        $this->assertFalse($loginRateLimiter->tooManyAttempts($request));
     }
 
     public function testTheUserCanLogoutOfTheApplication(): void
