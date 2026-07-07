@@ -60,9 +60,12 @@ class LoginRateLimiter
 
     /**
      * Get the throttle key for the given request.
+     *
+     * Scoped to the current guard so lockouts in one actor silo never
+     * block logins in another for the same username and IP.
      */
     private function throttleKey(Request $request): string
     {
-        return Str::transliterate(Str::lower((string) $request->input(Fortify::username())) . '|' . $request->ip());
+        return Str::transliterate(Fortify::guardName() . '|' . Str::lower((string) $request->input(Fortify::username())) . '|' . $request->ip());
     }
 }
