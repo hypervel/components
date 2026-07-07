@@ -160,21 +160,35 @@ class AuthManagerTest extends TestCase
         $this->assertSame($manager, $boundTo);
     }
 
-    public function testGetDefaultUserProvider()
-    {
-        $manager = new AuthManager($container = $this->getContainer());
-        $container->make('config')
-            ->set('auth.defaults.provider', 'foo');
-
-        $this->assertSame('foo', $manager->getDefaultUserProvider());
-    }
-
     public function testCreateUserProviderReturnsNullWhenNoProviderIsConfigured(): void
     {
         $manager = new AuthManager($this->getContainer());
 
-        $this->assertNull($manager->getDefaultUserProvider());
         $this->assertNull($manager->createUserProvider());
+    }
+
+    public function testGetDefaultUserProviderUsesCurrentDefaultGuard(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $config = $container->make('config');
+        $config->set('auth.defaults.guard', 'web');
+        $config->set('auth.guards.web.provider', 'users');
+        $config->set('auth.guards.admin.provider', 'admins');
+
+        $this->assertSame('users', $manager->getDefaultUserProvider());
+
+        $manager->shouldUse('admin');
+
+        $this->assertSame('admins', $manager->getDefaultUserProvider());
+    }
+
+    public function testGetDefaultUserProviderReturnsNullWhenCurrentGuardHasNoProvider(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')->set('auth.defaults.guard', 'api');
+        $container->make('config')->set('auth.guards.api', ['driver' => 'token']);
+
+        $this->assertNull($manager->getDefaultUserProvider());
     }
 
     public function testCreateNullUserProvider()
@@ -252,17 +266,43 @@ class AuthManagerTest extends TestCase
         $this->app->make('config')
             ->set('auth.guards.foo', [
                 'driver' => 'custom',
+                'provider' => 'foo',
             ]);
-        $this->app->make('config')
-            ->set('auth.defaults.provider', 'foo');
 
         $provider = m::mock(UserProvider::class);
         $manager->provider('foo', fn () => $provider);
 
         $user = m::mock(Authenticatable::class);
-        $manager->viaRequest('custom', fn () => $user);
+        $manager->viaRequest('custom', function (Request $request, ?UserProvider $requestProvider) use ($provider, $user) {
+            $this->assertSame($provider, $requestProvider);
+
+            return $user;
+        });
 
         $this->assertInstanceOf(RequestGuard::class, $guard = $manager->guard('foo'));
+        $this->assertSame($provider, $guard->getProvider());
+        $this->assertSame($user, $guard->user());
+    }
+
+    public function testViaRequestGuardWithoutProviderKeyGetsNullProvider(): void
+    {
+        $manager = new AuthManager($this->app);
+        RequestContext::set(Request::create('/'));
+
+        $this->app->make('config')
+            ->set('auth.guards.foo', [
+                'driver' => 'custom',
+            ]);
+
+        $user = m::mock(Authenticatable::class);
+        $manager->viaRequest('custom', function (Request $request, ?UserProvider $requestProvider) use ($user) {
+            $this->assertNull($requestProvider);
+
+            return $user;
+        });
+
+        $this->assertInstanceOf(RequestGuard::class, $guard = $manager->guard('foo'));
+        $this->assertNull($guard->getProvider());
         $this->assertSame($user, $guard->user());
     }
 
