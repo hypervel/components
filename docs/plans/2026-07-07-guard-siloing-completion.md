@@ -727,6 +727,16 @@ While verifying the bot-review findings against the upstream source (`examples/l
 
 **Docs.** One-line entries in the session and sanctum README `Differences From Laravel` sections: Laravel's raw-hash backward-compatibility fallback is intentionally omitted — Hypervel has no released legacy sessions; only the HMAC format is valid.
 
+## Addendum (2026-07-07, post-bot-review): input and remembered-session hardening
+
+The follow-up bot pass found three small hardening issues. Consensus (Claude/Codex, owner-directed): fix all three in this PR.
+
+**Fortify confirmed-password status input.** `ConfirmedPasswordStatusController` passed `$request->input('seconds')` directly into `PasswordConfirmation::timeout()`, whose override parameter is typed `string|int|null`. Request input is attacker-controlled and `mixed`; array input such as `?seconds[]=900` can throw before the helper runs. The controller now normalizes at the boundary with `$request->has('seconds') ? $request->integer('seconds') : null`, matching the previous cast-style behavior without widening the helper's contract.
+
+**Sanctum remembered-session validation.** Sanctum's session middleware uses `logoutCurrentDevice()`, matching core `auth.session` and upstream Sanctum. That is the right logout primitive, but core `auth.session` also validates the remember-cookie password-HMAC before accepting a remembered user. Sanctum now performs the same per-guard recaller validation for already-resolved `SessionGuard` instances where `viaRemember()` is true. Missing, malformed, or stale recaller hash segments flow through the same `$shouldLogout` path as stale `password_hash_{guard}` values, so the guard list, session flush, and `AuthenticationException` behavior stay identical. This intentionally exceeds upstream Sanctum, which currently lacks this validation.
+
+**Malformed stored hash values fail closed.** `password_hash_{guard}` is framework-owned and normally written only as a string by the session middlewares. A non-string value still must not wedge the user in a persistent 500 loop: the corrupt value lives in the session, and the code path that would clear it is the one that would otherwise throw a `TypeError`. Both core session and Sanctum validators now accept `mixed $storedValue`, return `false` unless it is a string, and then compare with `hash_equals()`. This is a narrow fail-closed auth-artifact check, not a precedent for broad defensive guards.
+
 ## Explicitly Unchanged
 
 - **`auth.verification.expire` stays global** — a signed-URL TTL with no cross-silo hazard; the URL is already signed per user.
