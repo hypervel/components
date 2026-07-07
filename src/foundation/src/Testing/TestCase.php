@@ -67,6 +67,22 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     protected function refreshApplication(): void
     {
         $this->app = $this->createApplication();
+
+        // Bootstrap the freshly-created app for the test context. Without this the
+        // bootstrappers (RegisterFacades, RegisterProviders, BootProviders, …) never
+        // run in tests — only on the HTTP/console boot path — so the facade root is
+        // never bound and the very next facade call in setUp fails. HandleExceptions is
+        // deliberately omitted so PHPUnit (not the app's Swoole error handler) reports failures.
+        if (! $this->app->hasBeenBootstrapped()) {
+            $this->app->bootstrapWith([
+                \Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables::class,
+                \Hypervel\Foundation\Bootstrap\LoadConfiguration::class,
+                \Hypervel\Foundation\Bootstrap\RegisterFacades::class,
+                \Hypervel\Foundation\Bootstrap\RegisterProviders::class,
+                \Hypervel\Di\Bootstrap\GenerateProxies::class,
+                \Hypervel\Foundation\Bootstrap\BootProviders::class,
+            ]);
+        }
     }
 
     /**
