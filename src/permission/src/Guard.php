@@ -122,6 +122,14 @@ class Guard
     }
 
     /**
+     * Normalize an optional guard name.
+     */
+    public static function normalizeName(?string $guard): ?string
+    {
+        return $guard === '' ? null : $guard;
+    }
+
+    /**
      * Get the configured auth guards.
      *
      * @return array<string, array<string, mixed>>

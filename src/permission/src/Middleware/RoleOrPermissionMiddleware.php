@@ -30,6 +30,7 @@ class RoleOrPermissionMiddleware
      */
     public function handle(Request $request, Closure $next, mixed $roleOrPermission, ?string $guard = null): Response
     {
+        $guard = Guard::normalizeName($guard);
         $authGuard = $this->auth->guard($guard);
 
         $user = $authGuard->user();

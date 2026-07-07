@@ -29,6 +29,7 @@ class RoleMiddleware
      */
     public function handle(Request $request, Closure $next, mixed $role, ?string $guard = null): Response
     {
+        $guard = Guard::normalizeName($guard);
         $authGuard = $this->auth->guard($guard);
 
         $user = $authGuard->user();
