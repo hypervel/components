@@ -30,7 +30,8 @@ class ConfirmedPasswordStatusController extends Controller
         $guard = Fortify::guardName();
         $lastConfirmation = (int) $request->session()->get(PasswordConfirmation::sessionKey($guard), 0);
         $lastConfirmed = Date::now()->unix() - $lastConfirmation;
-        $confirmed = $lastConfirmed < PasswordConfirmation::timeout($this->config, $guard, $request->input('seconds'));
+        $seconds = $request->has('seconds') ? $request->integer('seconds') : null;
+        $confirmed = $lastConfirmed < PasswordConfirmation::timeout($this->config, $guard, $seconds);
 
         return response()->json([
             'confirmed' => $confirmed,

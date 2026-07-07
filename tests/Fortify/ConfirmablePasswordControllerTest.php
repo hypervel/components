@@ -283,6 +283,22 @@ class ConfirmablePasswordControllerTest extends TestCase
             ->assertHeaderMissing('X-Retry-After');
     }
 
+    public function testStatusNormalizesMalformedSecondsInput(): void
+    {
+        $this->freezeSecond();
+
+        $response = $this->withoutExceptionHandling()
+            ->actingAs($this->user)
+            ->withSession(['auth.password_confirmed_at_web' => now()->subSeconds(2)->unix()])
+            ->get(
+                '/user/confirmed-password-status?seconds[]=900',
+            );
+
+        $response->assertOk()
+            ->assertJson(['confirmed' => false])
+            ->assertHeaderMissing('X-Retry-After');
+    }
+
     private function createAdmin(): Admin
     {
         return Admin::forceCreate([
