@@ -15,7 +15,6 @@ use Hypervel\Fortify\Contracts\PasswordConfirmedResponse;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Controller;
-use Hypervel\Support\Facades\Date;
 
 class ConfirmablePasswordController extends Controller
 {
@@ -47,7 +46,7 @@ class ConfirmablePasswordController extends Controller
         );
 
         if ($confirmed) {
-            $request->session()->put('auth.password_confirmed_at', Date::now()->unix());
+            $request->session()->passwordConfirmed();
         }
 
         return $confirmed

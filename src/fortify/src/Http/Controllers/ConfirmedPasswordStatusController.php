@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Fortify\Http\Controllers;
 
+use Hypervel\Auth\PasswordConfirmation;
 use Hypervel\Contracts\Config\Repository as Config;
+use Hypervel\Fortify\Fortify;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Controller;
@@ -25,12 +27,10 @@ class ConfirmedPasswordStatusController extends Controller
      */
     public function show(Request $request): JsonResponse
     {
-        $lastConfirmation = (int) $request->session()->get('auth.password_confirmed_at', 0);
+        $guard = Fortify::guardName();
+        $lastConfirmation = (int) $request->session()->get(PasswordConfirmation::sessionKey($guard), 0);
         $lastConfirmed = Date::now()->unix() - $lastConfirmation;
-        $confirmed = $lastConfirmed < (int) $request->input(
-            'seconds',
-            $this->config->integer('auth.password_timeout', 900),
-        );
+        $confirmed = $lastConfirmed < PasswordConfirmation::timeout($this->config, $guard, $request->input('seconds'));
 
         return response()->json([
             'confirmed' => $confirmed,

@@ -123,6 +123,6 @@ class PasskeyConfirmationTest extends TestCase
             ->assertJsonStructure(['redirect'])
             ->assertJsonMissing(['confirmed']);
 
-        $this->assertNotNull(session('auth.password_confirmed_at'));
+        $this->assertNotNull(session('auth.password_confirmed_at_web'));
     }
 }
