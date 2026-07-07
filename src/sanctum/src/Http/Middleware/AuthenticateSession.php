@@ -8,9 +8,9 @@ use Closure;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Auth\SessionGuard;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Session\Middleware\AuthenticatesSessions;
 use Hypervel\Http\Request;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -21,6 +21,7 @@ class AuthenticateSession implements AuthenticatesSessions
      */
     public function __construct(
         protected AuthFactory $auth,
+        protected Repository $config,
     ) {
     }
 
@@ -35,7 +36,7 @@ class AuthenticateSession implements AuthenticatesSessions
             return $next($request);
         }
 
-        $guards = Collection::make(Arr::wrap(config('sanctum.guard')))
+        $guards = Collection::make($this->sanctumSessionGuards())
             ->mapWithKeys(fn ($guard) => [$guard => $this->auth->guard($guard)])
             ->filter(fn ($guard) => $guard instanceof SessionGuard);
 
@@ -88,6 +89,37 @@ class AuthenticateSession implements AuthenticatesSessions
         return $guards->first(function (string $guard) {
             return $this->auth->guard($guard)->hasUser();
         });
+    }
+
+    /**
+     * Get the session guards declared by the application's sanctum guards.
+     *
+     * The union across every sanctum-driver guard entry: password-hash
+     * invalidation applies to any session guard participating in stateful
+     * sanctum authentication anywhere in the application.
+     */
+    protected function sanctumSessionGuards(): array
+    {
+        $sessionGuards = [];
+
+        foreach ($this->config->array('auth.guards', []) as $guard) {
+            if (! is_array($guard) || ($guard['driver'] ?? null) !== 'sanctum') {
+                continue;
+            }
+
+            $declared = $guard['session_guards'] ?? null;
+
+            if (! is_array($declared)) {
+                continue;
+            }
+
+            $sessionGuards = [
+                ...$sessionGuards,
+                ...array_filter($declared, static fn (mixed $guard): bool => is_string($guard) && $guard !== ''),
+            ];
+        }
+
+        return array_values(array_unique($sessionGuards));
     }
 
     /**
