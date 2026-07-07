@@ -182,6 +182,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Routing\Router::flushState();
         \Hypervel\Routing\SortedMiddleware::flushCache();
         \Hypervel\Routing\UrlGenerator::flushState();
+        \Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::flushState();
         \Hypervel\Server\ServerManager::flushState();
         \Hypervel\ServerProcess\ProcessCollector::flushState();
         \Hypervel\ServerProcess\ProcessManager::flushState();

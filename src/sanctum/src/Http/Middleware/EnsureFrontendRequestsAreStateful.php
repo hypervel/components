@@ -15,15 +15,25 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureFrontendRequestsAreStateful
 {
     /**
+     * The closure used to resolve stateful domains for the current request.
+     *
+     * @var null|Closure(Request): array<int, string>
+     */
+    protected static ?Closure $statefulDomainsResolver = null;
+
+    /**
      * Handle the incoming requests.
      */
     public function handle(Request $request, Closure $next): Response
     {
-        return (new Pipeline(app()))->send($request)->through(
+        /** @var Response $response */
+        $response = (new Pipeline(app()))->send($request)->through(
             static::fromFrontend($request) ? $this->frontendMiddleware() : []
         )->then(function ($request) use ($next) {
             return $next($request);
         });
+
+        return $response;
     }
 
     /**
@@ -33,21 +43,29 @@ class EnsureFrontendRequestsAreStateful
      */
     protected function frontendMiddleware(): array
     {
-        $middleware = array_values(array_filter(array_unique([
+        $middleware = [
             config('sanctum.middleware.encrypt_cookies', \Hypervel\Cookie\Middleware\EncryptCookies::class),
             \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Hypervel\Session\Middleware\StartSession::class,
             config('sanctum.middleware.validate_csrf_token', \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::class),
             config('sanctum.middleware.authenticate_session'),
-        ])));
+        ];
 
-        array_unshift($middleware, function (Request $request, Closure $next) {
+        $filtered = [];
+
+        foreach ($middleware as $candidate) {
+            if ($candidate && ! in_array($candidate, $filtered, true)) {
+                $filtered[] = $candidate;
+            }
+        }
+
+        array_unshift($filtered, function (Request $request, Closure $next) {
             $request->attributes->set('sanctum', true);
 
             return $next($request);
         });
 
-        return $middleware;
+        return $filtered;
     }
 
     /**
@@ -65,7 +83,7 @@ class EnsureFrontendRequestsAreStateful
         $domain = Str::replaceFirst('http://', '', $domain);
         $domain = Str::endsWith($domain, '/') ? $domain : "{$domain}/";
 
-        $stateful = array_filter(static::statefulDomains());
+        $stateful = self::resolveStatefulDomains($request);
 
         return Str::is(Collection::make($stateful)->map(function ($uri) use ($request) {
             $uri = $uri === Sanctum::$currentRequestHostPlaceholder ? $request->getHttpHost() : $uri;
@@ -79,8 +97,46 @@ class EnsureFrontendRequestsAreStateful
      *
      * @return array<int, string>
      */
-    public static function statefulDomains(): array
+    private static function resolveStatefulDomains(Request $request): array
     {
-        return config('sanctum.stateful_domains', []);
+        if (static::$statefulDomainsResolver !== null) {
+            $domains = (static::$statefulDomainsResolver)($request);
+
+            return array_values(array_filter(
+                $domains,
+                static fn (string $domain): bool => $domain !== ''
+            ));
+        }
+
+        $domains = config('sanctum.stateful_domains', []);
+
+        return is_array($domains)
+            ? array_values(array_filter(
+                $domains,
+                static fn (mixed $domain): bool => is_string($domain) && $domain !== ''
+            ))
+            : [];
+    }
+
+    /**
+     * Register a closure that resolves stateful domains for the current request.
+     *
+     * Boot-only. The closure receives the current request and returns the
+     * stateful domain list; useful when the list varies by host or other
+     * request data. Persists for the worker lifetime.
+     *
+     * @param null|Closure(Request): array<int, string> $callback
+     */
+    public static function resolveStatefulDomainsUsing(?Closure $callback): void
+    {
+        static::$statefulDomainsResolver = $callback;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$statefulDomainsResolver = null;
     }
 }

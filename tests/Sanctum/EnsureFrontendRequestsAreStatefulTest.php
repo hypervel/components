@@ -53,24 +53,53 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
         $this->assertFalse(EnsureFrontendRequestsAreStateful::fromFrontend($request));
     }
 
-    public function testStatefulDomainsReturnsConfiguredDomains(): void
-    {
-        $domains = EnsureFrontendRequestsAreStateful::statefulDomains();
-
-        $this->assertIsArray($domains);
-        $this->assertContains('test.com', $domains);
-        $this->assertContains('*.test.com', $domains);
-    }
-
-    public function testStatefulDomainsCanBeOverridden(): void
+    public function testStatefulDomainsCanBeResolvedUsingCallback(): void
     {
         $request = Request::create('http://localhost', server: ['HTTP_REFERER' => 'https://custom.example.com']);
 
-        // Default middleware should NOT match custom domain
         $this->assertFalse(EnsureFrontendRequestsAreStateful::fromFrontend($request));
 
-        // Custom middleware with overridden statefulDomains SHOULD match
-        $this->assertTrue(CustomStatefulMiddleware::fromFrontend($request));
+        EnsureFrontendRequestsAreStateful::resolveStatefulDomainsUsing(
+            fn (Request $request): array => ['custom.example.com']
+        );
+
+        try {
+            $this->assertTrue(EnsureFrontendRequestsAreStateful::fromFrontend($request));
+        } finally {
+            EnsureFrontendRequestsAreStateful::flushState();
+        }
+    }
+
+    public function testStatefulDomainsResolverReceivesCurrentRequest(): void
+    {
+        $request = Request::create('http://api.example.com', server: ['HTTP_REFERER' => 'https://frontend.example.com']);
+
+        EnsureFrontendRequestsAreStateful::resolveStatefulDomainsUsing(function (Request $request): array {
+            $this->assertSame('api.example.com', $request->getHost());
+
+            return ['frontend.example.com'];
+        });
+
+        try {
+            $this->assertTrue(EnsureFrontendRequestsAreStateful::fromFrontend($request));
+        } finally {
+            EnsureFrontendRequestsAreStateful::flushState();
+        }
+    }
+
+    public function testStatefulDomainsResolverCanBeCleared(): void
+    {
+        $request = Request::create('http://localhost', server: ['HTTP_REFERER' => 'https://custom.example.com']);
+
+        EnsureFrontendRequestsAreStateful::resolveStatefulDomainsUsing(
+            fn (Request $request): array => ['custom.example.com']
+        );
+
+        $this->assertTrue(EnsureFrontendRequestsAreStateful::fromFrontend($request));
+
+        EnsureFrontendRequestsAreStateful::flushState();
+
+        $this->assertFalse(EnsureFrontendRequestsAreStateful::fromFrontend($request));
     }
 
     public function testMiddlewareDoesNotMutateSessionConfig(): void
@@ -86,16 +115,5 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
         $this->assertFalse($this->app->make('config')->get('session.http_only'));
         $this->assertSame('strict', $this->app->make('config')->get('session.same_site'));
-    }
-}
-
-/**
- * Custom middleware for testing statefulDomains override.
- */
-class CustomStatefulMiddleware extends EnsureFrontendRequestsAreStateful
-{
-    public static function statefulDomains(): array
-    {
-        return ['custom.example.com'];
     }
 }
