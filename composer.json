@@ -237,6 +237,7 @@
         "hypervel/horizon": "self.version",
         "hypervel/http": "self.version",
         "hypervel/inertia": "self.version",
+        "hypervel/json-schema": "self.version",
         "hypervel/jwt": "self.version",
         "hypervel/log": "self.version",
         "hypervel/macroable": "self.version",
