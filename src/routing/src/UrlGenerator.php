@@ -672,21 +672,6 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
-     * Flush all per-request Context state.
-     *
-     * Clears forced root, cached root, and cached scheme from coroutine
-     * Context. Used in test teardown to prevent state leaking between tests
-     * when not running in coroutines.
-     */
-    public static function flushRequestState(): void
-    {
-        CoroutineContext::forget(self::FORCED_ROOT_CONTEXT_KEY);
-        CoroutineContext::forget(self::CACHED_ROOT_CONTEXT_KEY);
-        CoroutineContext::forget(self::CACHED_SCHEME_CONTEXT_KEY);
-        CoroutineContext::forget(self::DEFAULT_PARAMETERS_CONTEXT_KEY);
-    }
-
-    /**
      * Set a callback to be used to format the host of generated URLs.
      *
      * @return $this
@@ -849,7 +834,6 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public static function flushState(): void
     {
-        static::flushRequestState();
         static::flushMacros();
     }
 }

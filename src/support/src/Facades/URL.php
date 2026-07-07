@@ -35,7 +35,6 @@ namespace Hypervel\Support\Facades;
  * @method static void forceHttps(bool $force = true)
  * @method static void useOrigin(string|null $root)
  * @method static void useAssetOrigin(string|null $root)
- * @method static void flushRequestState()
  * @method static \Hypervel\Routing\UrlGenerator formatHostUsing(\Closure $callback)
  * @method static \Hypervel\Routing\UrlGenerator formatPathUsing(\Closure $callback)
  * @method static \Closure pathFormatter()

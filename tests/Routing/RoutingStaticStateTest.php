@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Routing\RoutingStaticStateTest;
 
-use Hypervel\Http\Request;
 use Hypervel\Routing\Middleware\ThrottleRequests;
 use Hypervel\Routing\PendingResourceRegistration;
 use Hypervel\Routing\PendingSingletonResourceRegistration;
 use Hypervel\Routing\Redirector;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Routing\Route;
-use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Routing\RouteRegistrar;
 use Hypervel\Routing\UrlGenerator;
@@ -45,6 +43,7 @@ class RoutingStaticStateTest extends RoutingTestCase
             [ResponseFactory::class],
             [RouteRegistrar::class],
             [Router::class],
+            [UrlGenerator::class],
         ];
     }
 
@@ -58,25 +57,6 @@ class RoutingStaticStateTest extends RoutingTestCase
         Route::flushState();
 
         $this->assertSame([], $enumCache->getValue());
-    }
-
-    public function testUrlGeneratorFlushStateClearsMacrosAndRequestContext(): void
-    {
-        $generator = new UrlGenerator(
-            new RouteCollection,
-            Request::create('http://example.com/')
-        );
-
-        UrlGenerator::macro('routingFlushProbe', static fn (): string => 'ok');
-        $generator->useOrigin('https://forced.example.com');
-
-        $this->assertTrue(UrlGenerator::hasMacro('routingFlushProbe'));
-        $this->assertSame('http://forced.example.com/foo', $generator->to('foo'));
-
-        UrlGenerator::flushState();
-
-        $this->assertFalse(UrlGenerator::hasMacro('routingFlushProbe'));
-        $this->assertSame('http://example.com/foo', $generator->to('foo'));
     }
 
     public function testThrottleRequestsFlushStateRestoresHashedKeys(): void
