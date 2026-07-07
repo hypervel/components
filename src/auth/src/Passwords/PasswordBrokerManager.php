@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Passwords;
 
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Auth\PasswordBrokerFactory as FactoryContract;
 use Hypervel\Contracts\Container\Container;
@@ -14,6 +16,11 @@ use InvalidArgumentException;
  */
 class PasswordBrokerManager implements FactoryContract
 {
+    /**
+     * The coroutine context key holding the per-request default broker override.
+     */
+    public const string DEFAULT_BROKER_CONTEXT_KEY = '__auth.passwords.default_broker';
+
     /**
      * The array of created "drivers".
      */
@@ -32,7 +39,7 @@ class PasswordBrokerManager implements FactoryContract
      */
     public function broker(?string $name = null): PasswordBrokerContract
     {
-        $name = $name ?: $this->getDefaultDriver();
+        $name ??= $this->getDefaultDriver();
 
         return $this->brokers[$name] ??= $this->resolve($name);
     }
@@ -55,8 +62,9 @@ class PasswordBrokerManager implements FactoryContract
         // aggregate service of sorts providing a convenient interface for resets.
         return new PasswordBroker(
             $this->createTokenRepository($config),
-            $this->app['auth']->createUserProvider($config['provider'] ?? null),
-            $this->app['events'] ?? null,
+            $this->app->make('auth')->createUserProvider($config['provider'] ?? null),
+            $name,
+            $this->app->bound('events') ? $this->app->make('events') : null,
             timeboxDuration: $this->app->make('config')->integer('auth.timebox_duration', 200000),
         );
     }
@@ -75,8 +83,8 @@ class PasswordBrokerManager implements FactoryContract
 
         if (isset($config['driver']) && $config['driver'] === 'cache') {
             return new CacheTokenRepository(
-                $this->app['cache']->store($config['store'] ?? null),
-                $this->app['hash'],
+                $this->app->make('cache')->store($config['store'] ?? null),
+                $this->app->make('hash'),
                 $key,
                 ($config['expire'] ?? 60) * 60,
                 $config['throttle'] ?? 0,
@@ -84,8 +92,8 @@ class PasswordBrokerManager implements FactoryContract
         }
 
         return new DatabaseTokenRepository(
-            $this->app['db']->connection($config['connection'] ?? null),
-            $this->app['hash'],
+            $this->app->make('db')->connection($config['connection'] ?? null),
+            $this->app->make('hash'),
             $config['table'],
             $key,
             ($config['expire'] ?? 60) * 60,
@@ -102,21 +110,57 @@ class PasswordBrokerManager implements FactoryContract
     }
 
     /**
+     * Resolve the password broker name declared by the given guard.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function resolveBrokerNameForGuard(string $guard): ?string
+    {
+        $config = $this->app->make('config');
+        $key = "auth.guards.{$guard}.passwords";
+
+        if (! $config->has($key)) {
+            return null;
+        }
+
+        $name = $config->string($key);
+
+        return $name !== '' ? $name : null;
+    }
+
+    /**
      * Get the default password broker name.
+     *
+     * Resolves the coroutine-scoped override first, then the broker declared
+     * by the current default guard's "passwords" key.
+     *
+     * @throws InvalidArgumentException when the current default guard does not declare a broker
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->make('config')->string('auth.defaults.passwords');
+        if (CoroutineContext::has(self::DEFAULT_BROKER_CONTEXT_KEY)) {
+            return CoroutineContext::get(self::DEFAULT_BROKER_CONTEXT_KEY);
+        }
+
+        $guard = $this->app->make(AuthFactoryContract::class)->getDefaultDriver();
+
+        if (($name = $this->resolveBrokerNameForGuard($guard)) !== null) {
+            return $name;
+        }
+
+        throw new InvalidArgumentException(
+            "Auth guard [{$guard}] does not declare a passwords broker. Set auth.guards.{$guard}.passwords."
+        );
     }
 
     /**
      * Set the default password broker name.
      *
-     * Boot-only. Mutates process-global config; per-request use races across coroutines.
+     * Uses coroutine Context so one request's override doesn't affect others.
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app->make('config')->set('auth.defaults.passwords', $name);
+        CoroutineContext::set(self::DEFAULT_BROKER_CONTEXT_KEY, $name);
     }
 
     /**

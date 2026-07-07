@@ -1,5 +1,7 @@
 # Fortify And Passkeys Port Plan
 
+> Superseded note: the Fortify password broker inference described in this historical plan was later removed by `2026-07-06-auth-guard-declared-password-brokers.md`. Guards now declare password brokers with `auth.guards.{guard}.passwords`; `Fortify::passwordBrokerName()` no longer exists.
+
 Date: 2026-07-01
 
 Author: Codex

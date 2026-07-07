@@ -147,6 +147,14 @@ class PermissionMiddlewareTest extends TestCase
         $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'admin-permission', 'admin'));
     }
 
+    public function testEmptyGuardUsesDefaultGuard(): void
+    {
+        Auth::login($this->testUser);
+        $this->testUser->givePermissionTo('edit-articles');
+
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'edit-articles', ''));
+    }
+
     public function testItCanBeCreatedWithStaticUsingMethod(): void
     {
         $this->assertSame(PermissionMiddleware::class . ':edit-articles', PermissionMiddleware::using('edit-articles'));

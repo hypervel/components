@@ -23,9 +23,8 @@ class PasswordResetServiceProvider extends ServiceProvider
     {
         $this->app->singleton('auth.password', fn ($app) => new PasswordBrokerManager($app));
 
-        // bind() so the alias reflects the current default broker if changed
-        // during boot or tests via setDefaultDriver(). No performance cost —
-        // the closure just asks the singleton manager for its cached broker.
+        // bind() so the alias reflects the current coroutine's default broker.
+        // The closure just asks the singleton manager for its cached broker.
         $this->app->bind('auth.password.broker', fn ($app) => $app->make('auth.password')->broker());
     }
 }

@@ -107,6 +107,14 @@ class RoleMiddlewareTest extends TestCase
         $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole', 'admin'));
     }
 
+    public function testEmptyGuardUsesDefaultGuard(): void
+    {
+        Auth::login($this->testUser);
+        $this->testUser->assignRole('testRole');
+
+        $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, 'testRole', ''));
+    }
+
     public function testUserCannotAccessRoleWithAdminGuardWhileLoggedInUsingDefaultGuard(): void
     {
         Auth::login($this->testUser);

@@ -77,7 +77,7 @@ class PermissionServiceProvider extends ServiceProvider
      */
     public static function bladeMethodWrapper(string $method, mixed $role, ?string $guard = null): bool
     {
-        $authGuard = Container::getInstance()->make(AuthFactory::class)->guard($guard);
+        $authGuard = Container::getInstance()->make(AuthFactory::class)->guard(Guard::normalizeName($guard));
 
         return $authGuard->check() && $authGuard->user()->{$method}($role);
     }

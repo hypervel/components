@@ -10,7 +10,7 @@ See `src/boost/docs/fortify.md` for the canonical Fortify and Passkeys documenta
 ## Differences From Laravel
 
 - Fortify follows Hypervel's current default guard selected by `Auth::shouldUse()` or `auth.defaults.guard`, with optional `fortify.guard` route-group selection for built-in routes.
-- Fortify derives its password reset broker from the selected guard provider instead of using a separate Fortify broker setting.
+- Fortify uses the password reset broker declared by the selected guard's `passwords` key instead of using a separate Fortify broker setting.
 - Fortify integrates with the standalone `hypervel/passkeys` package and keeps passkeys polymorphic across authenticatable model classes.
 - Fortify supports boot-time request-aware redirect callbacks for dynamic post-login destinations, such as for custom domains, multi-guard apps, or multi-tenant apps.
 - Fortify throttles two-factor challenge submissions by default.

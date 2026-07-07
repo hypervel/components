@@ -24,6 +24,20 @@ Most web applications provide a way for users to reset their forgotten passwords
 
 Your application's password reset configuration file is stored at `config/auth.php`. Be sure to review the options available to you in this file. By default, Hypervel is configured to use the `database` password reset driver.
 
+Guards that send password reset links declare their password broker with the `passwords` key. Bare calls to the `Password` facade resolve the broker from the current default guard, so selecting a guard for a route also selects that guard's password broker:
+
+```php
+'guards' => [
+    'web' => [
+        'driver' => 'session',
+        'provider' => 'users',
+        'passwords' => 'users',
+    ],
+],
+```
+
+`Password::setDefaultDriver()` may override the broker for the current coroutine. Otherwise, a bare `Password::sendResetLink()` or `Password::reset()` uses the current guard's `passwords` key. If the current guard does not declare a broker, Hypervel throws a configuration exception naming the guard and the key to add. To target a different broker, pass its name explicitly with `Password::broker('admins')`.
+
 The password reset driver defines where password reset data will be stored. If the `driver` configuration option is omitted, Hypervel will use the `database` driver. Hypervel includes two drivers:
 
 <div class="content-list" markdown="1">
@@ -126,7 +140,7 @@ The `sendResetLink` method returns a "status" slug. This status may be translate
 > [!NOTE]
 > By default, the Hypervel application skeleton does not include the `lang` directory. If you would like to customize Hypervel's language files, you may publish them via the `lang:publish` Artisan command.
 
-You may be wondering how Hypervel knows how to retrieve the user record from your application's database when calling the `Password` facade's `sendResetLink` method. The Hypervel password broker utilizes your authentication system's "user providers" to retrieve database records. The user provider used by the password broker is configured within the `passwords` configuration array of your `config/auth.php` configuration file. To learn more about writing custom user providers, consult the [authentication documentation](/docs/{{version}}/authentication#adding-custom-user-providers).
+You may be wondering how Hypervel knows how to retrieve the user record from your application's database when calling the `Password` facade's `sendResetLink` method. The Hypervel password broker utilizes your authentication system's "user providers" to retrieve database records. The user provider used by the password broker is configured within the `passwords` configuration array of your `config/auth.php` configuration file. Bare `Password` calls use the broker declared by the current guard's `passwords` key; pass a name to `Password::broker()` to target another broker. To learn more about writing custom user providers, consult the [authentication documentation](/docs/{{version}}/authentication#adding-custom-user-providers).
 
 > [!NOTE]
 > When manually implementing password resets, you are required to define the contents of the views and routes yourself. If you would like scaffolding that includes all necessary authentication and verification logic, check out the [Hypervel application starter kits](/docs/{{version}}/starter-kits).
@@ -192,7 +206,7 @@ If the token, email address, and password given to the password broker are valid
 
 The `reset` method returns a "status" slug. This status may be translated using Hypervel's [localization](/docs/{{version}}/localization) helpers in order to display a user-friendly message to the user regarding the status of their request. The translation of the password reset status is determined by your application's `lang/{lang}/passwords.php` language file. An entry for each possible value of the status slug is located within the `passwords` language file. If your application does not contain a `lang` directory, you may create it using the `lang:publish` Artisan command.
 
-Before moving on, you may be wondering how Hypervel knows how to retrieve the user record from your application's database when calling the `Password` facade's `reset` method. The Hypervel password broker utilizes your authentication system's "user providers" to retrieve database records. The user provider used by the password broker is configured within the `passwords` configuration array of your `config/auth.php` configuration file. To learn more about writing custom user providers, consult the [authentication documentation](/docs/{{version}}/authentication#adding-custom-user-providers).
+Before moving on, you may be wondering how Hypervel knows how to retrieve the user record from your application's database when calling the `Password` facade's `reset` method. The Hypervel password broker utilizes your authentication system's "user providers" to retrieve database records. The user provider used by the password broker is configured within the `passwords` configuration array of your `config/auth.php` configuration file. Bare `Password` calls use the broker declared by the current guard's `passwords` key; pass a name to `Password::broker()` to target another broker. To learn more about writing custom user providers, consult the [authentication documentation](/docs/{{version}}/authentication#adding-custom-user-providers).
 
 <a name="deleting-expired-tokens"></a>
 ## Deleting Expired Tokens

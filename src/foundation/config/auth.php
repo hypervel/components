@@ -8,15 +8,14 @@ return [
     | Authentication Defaults
     |--------------------------------------------------------------------------
     |
-    | This option defines the default authentication "guard" and password
-    | reset "broker" for your application. You may change these values
-    | as required, but they're a perfect start for most applications.
+    | This option defines the default authentication "guard" for your
+    | application. You may change this value as required, but it's a
+    | perfect start for most applications.
     |
     */
 
     'defaults' => [
         'guard' => env('AUTH_GUARD', 'web'),
-        'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
     ],
 
     /*
@@ -32,6 +31,9 @@ return [
     | users are actually retrieved out of your database or other storage
     | system used by the application. Typically, Eloquent is utilized.
     |
+    | Guards that send password reset links declare their broker with
+    | the "passwords" key, referencing an entry in the passwords array.
+    |
     | Supported by default: "session". Install hypervel/sanctum to use
     | the "sanctum" guard, and hypervel/jwt to use the "jwt" guard
     |
@@ -41,6 +43,7 @@ return [
         'web' => [
             'driver' => 'session',
             'provider' => 'users',
+            'passwords' => 'users',
         ],
         'sanctum' => [
             'driver' => 'sanctum',
@@ -133,6 +136,7 @@ return [
     | These configuration options specify the behavior of Hypervel's password
     | reset functionality, including the table utilized for token storage
     | and the user provider that is invoked to actually retrieve users.
+    | Guards reference these brokers via their "passwords" key.
     |
     | The expiry time is the number of minutes that each reset token will be
     | considered valid. This security feature keeps tokens short-lived so

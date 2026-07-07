@@ -13,7 +13,7 @@ class ClearResetsCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected ?string $signature = 'auth:clear-resets {name? : The name of the password broker}';
+    protected ?string $signature = 'auth:clear-resets {name? : The name of the password broker (defaults to the current guard\'s broker)}';
 
     /**
      * The console command description.
@@ -25,7 +25,7 @@ class ClearResetsCommand extends Command
      */
     public function handle(): void
     {
-        $this->hypervel['auth.password']->broker($this->argument('name'))->getRepository()->deleteExpired();
+        $this->hypervel->make('auth.password')->broker($this->argument('name'))->getRepository()->deleteExpired();
 
         $this->components->info('Expired reset tokens cleared successfully.');
     }
