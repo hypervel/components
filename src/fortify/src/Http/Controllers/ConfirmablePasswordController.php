@@ -36,6 +36,8 @@ class ConfirmablePasswordController extends Controller
      */
     public function store(Request $request): Responsable
     {
+        $guardName = Fortify::guardName();
+
         /** @var Authenticatable&Model $user */
         $user = $request->user();
 
@@ -46,7 +48,7 @@ class ConfirmablePasswordController extends Controller
         );
 
         if ($confirmed) {
-            $request->session()->passwordConfirmed();
+            $request->session()->passwordConfirmed($guardName);
         }
 
         return $confirmed
