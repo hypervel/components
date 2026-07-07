@@ -254,7 +254,7 @@ class AuthManagerTest extends TestCase
         $this->assertSame('foo', $manager->userResolver()());
     }
 
-    public function testViaRequest()
+    public function testViaRequest(): void
     {
         $manager = new AuthManager($this->app);
         RequestContext::set(Request::create('/'));

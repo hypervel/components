@@ -480,7 +480,7 @@ class SessionStoreTest extends TestCase
         $this->assertSame('https://example.com/foo/bar', $url);
     }
 
-    public function testPasswordConfirmed()
+    public function testPasswordConfirmed(): void
     {
         $session = $this->getSession();
         $this->assertFalse($session->has('auth.password_confirmed_at_web'));
@@ -488,7 +488,7 @@ class SessionStoreTest extends TestCase
         $this->assertTrue($session->has('auth.password_confirmed_at_web'));
     }
 
-    public function testPasswordConfirmedResolvesCurrentGuardWhenNoneGiven()
+    public function testPasswordConfirmedResolvesCurrentGuardWhenNoneGiven(): void
     {
         $previousContainer = Container::getInstance();
         $container = Container::setInstance(new Container);

@@ -70,6 +70,17 @@ abstract class TestCase extends TestbenchTestCase
             $table->timestamps();
         });
 
+        $this->createAdminsTable();
+
+        Schema::create('password_reset_tokens', function (Blueprint $table): void {
+            $table->string('email')->primary();
+            $table->string('token');
+            $table->timestamp('created_at')->nullable();
+        });
+    }
+
+    protected function createAdminsTable(): void
+    {
         Schema::create('admins', function (Blueprint $table): void {
             $table->id();
             $table->string('name')->nullable();
@@ -81,12 +92,6 @@ abstract class TestCase extends TestbenchTestCase
             $table->timestamp('two_factor_confirmed_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
-        });
-
-        Schema::create('password_reset_tokens', function (Blueprint $table): void {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
         });
     }
 
