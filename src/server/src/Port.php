@@ -12,7 +12,7 @@ class Port
 
     protected string $host = '0.0.0.0';
 
-    protected int $port = 9501;
+    protected int $port = 8000;
 
     protected int $sockType = 0;
 
