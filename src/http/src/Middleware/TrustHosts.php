@@ -11,6 +11,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class TrustHosts
 {
+    // Never matches; keeps trusted-host validation enabled when no hosts are trusted.
+    private const REJECT_ALL_HOST_PATTERN = '(?!)';
+
     /**
      * The application instance.
      */
@@ -22,6 +25,13 @@ class TrustHosts
      * @var null|array<int, string>|(Closure(): array<int, string>)
      */
     protected static array|Closure|null $alwaysTrust = null;
+
+    /**
+     * The closure used to resolve trusted hosts for the current request.
+     *
+     * @var null|Closure(Request): array<int, string>
+     */
+    protected static ?Closure $hostsResolver = null;
 
     /**
      * Indicates whether subdomains of the application URL should be trusted.
@@ -63,10 +73,28 @@ class TrustHosts
     public function handle(Request $request, Closure $next): Response
     {
         if ($this->shouldSpecifyTrustedHosts()) {
-            Request::setTrustedHosts(array_filter($this->hosts()));
+            Request::setTrustedHosts($this->resolveTrustedHostPatterns($request));
         }
 
         return $next($request);
+    }
+
+    /**
+     * Get the trusted host patterns for the current request.
+     *
+     * @return array<int, string>
+     */
+    protected function resolveTrustedHostPatterns(Request $request): array
+    {
+        $hosts = static::$hostsResolver instanceof Closure
+            ? (static::$hostsResolver)($request)
+            : $this->hosts();
+
+        $hosts = array_values(array_filter($hosts, static fn (mixed $host): bool => is_string($host) && $host !== ''));
+
+        return $hosts === []
+            ? [self::REJECT_ALL_HOST_PATTERN]
+            : $hosts;
     }
 
     /**
@@ -81,6 +109,19 @@ class TrustHosts
     {
         static::$alwaysTrust = $hosts;
         static::$subdomains = $subdomains;
+    }
+
+    /**
+     * Register a closure that resolves trusted hosts for the current request.
+     *
+     * Boot-only. The callback persists in static state for the worker lifetime
+     * and fully replaces the static trusted host list for every subsequent request.
+     *
+     * @param null|Closure(Request): array<int, string> $callback
+     */
+    public static function resolveHostsUsing(?Closure $callback): void
+    {
+        static::$hostsResolver = $callback;
     }
 
     /**
@@ -110,6 +151,7 @@ class TrustHosts
     public static function flushState(): void
     {
         static::$alwaysTrust = null;
+        static::$hostsResolver = null;
         static::$subdomains = null;
     }
 }
