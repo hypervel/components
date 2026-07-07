@@ -435,42 +435,24 @@ First, you should configure which domains your SPA will be making requests from.
 
 To assist you in setting up your first-party stateful domains, Sanctum provides two helper methods that you can include in the configuration. First, `Sanctum::currentApplicationUrlWithPort()` will return the current application URL from the `APP_URL` environment variable, and `Sanctum::currentRequestHost()` will inject a placeholder into the stateful domain list which, at runtime, will be replaced by the host from the current request so that all requests with the same domain are considered stateful.
 
-If your application needs to determine stateful domains dynamically, such as in a multi-tenant application, you may extend Sanctum's stateful middleware and override the `statefulDomains` method:
+If you need to derive stateful domains from the incoming request, for example to apply per-tenant or per-host stateful API rules, you may register a resolver on Sanctum's stateful middleware from the `boot` method of your application's `App\Providers\AppServiceProvider` class:
 
 ```php
 use App\Support\TenantResolver;
+use Hypervel\Http\Request;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
-class TenantAwareStatefulMiddleware extends EnsureFrontendRequestsAreStateful
+/**
+ * Bootstrap any application services.
+ */
+public function boot(): void
 {
-    /**
-     * Get the domains that should be treated as stateful.
-     *
-     * @return array<int, string>
-     */
-    public static function statefulDomains(): array
-    {
-        $tenant = app(TenantResolver::class)->current();
+    EnsureFrontendRequestsAreStateful::resolveStatefulDomainsUsing(function (Request $request): array {
+        $tenant = app(TenantResolver::class)->forRequest($request);
 
-        return $tenant ? [$tenant->domain] : parent::statefulDomains();
-    }
+        return $tenant ? [$tenant->domain] : config('sanctum.stateful_domains', []);
+    });
 }
-```
-
-You may then replace Sanctum's default stateful middleware in your application's `bootstrap/app.php` file:
-
-```php
-use App\Http\Middleware\TenantAwareStatefulMiddleware;
-use Hypervel\Foundation\Configuration\Middleware;
-use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
-
-->withMiddleware(function (Middleware $middleware): void {
-    $middleware->statefulApi();
-
-    $middleware->api(replace: [
-        EnsureFrontendRequestsAreStateful::class => TenantAwareStatefulMiddleware::class,
-    ]);
-})
 ```
 
 > [!WARNING]

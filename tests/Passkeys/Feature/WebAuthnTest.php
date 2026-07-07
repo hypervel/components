@@ -168,7 +168,7 @@ class WebAuthnTest extends TestCase
         $calls = 0;
         $source = $this->createCredentialSource('user-handle');
 
-        Passkeys::allowedOriginsUsing(
+        Passkeys::resolveAllowedOriginsUsing(
             static fn (Request $request): array => ['https://' . $request->getHost()],
         );
         WebAuthn::configureCeremonyStepManagerFactoryUsing(
@@ -220,7 +220,7 @@ class WebAuthnTest extends TestCase
     {
         $calls = 0;
 
-        Passkeys::allowedOriginsUsing(
+        Passkeys::resolveAllowedOriginsUsing(
             static fn (): array => ['https://dynamic.example.com'],
         );
         WebAuthn::configureCeremonyStepManagerFactoryUsing(

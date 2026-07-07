@@ -45,7 +45,7 @@ class PasskeysTest extends TestCase
         config(['passkeys.relying_party_id' => 'configured.example.com']);
         RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
 
-        Passkeys::relyingPartyIdUsing(
+        Passkeys::resolveRelyingPartyIdUsing(
             static fn (Request $request): string => $request->getHost(),
         );
 
@@ -56,7 +56,7 @@ class PasskeysTest extends TestCase
     {
         config(['passkeys.relying_party_id' => 'configured.example.com']);
 
-        Passkeys::relyingPartyIdUsing(
+        Passkeys::resolveRelyingPartyIdUsing(
             static fn (): string => 'dynamic.example.com',
         );
 
@@ -78,7 +78,7 @@ class PasskeysTest extends TestCase
         config(['passkeys.relying_party_id' => 'configured.example.com']);
         RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
 
-        Passkeys::relyingPartyIdUsing(
+        Passkeys::resolveRelyingPartyIdUsing(
             static fn (): string => '',
         );
 
@@ -100,7 +100,7 @@ class PasskeysTest extends TestCase
         config(['passkeys.allowed_origins' => ['https://configured.example.com']]);
         RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
 
-        Passkeys::allowedOriginsUsing(
+        Passkeys::resolveAllowedOriginsUsing(
             static fn (Request $request): array => ['https://' . $request->getHost()],
         );
 
@@ -111,7 +111,7 @@ class PasskeysTest extends TestCase
     {
         config(['passkeys.allowed_origins' => ['https://configured.example.com']]);
 
-        Passkeys::allowedOriginsUsing(
+        Passkeys::resolveAllowedOriginsUsing(
             static fn (): array => ['https://dynamic.example.com'],
         );
 
@@ -153,7 +153,7 @@ class PasskeysTest extends TestCase
         config(['passkeys.allowed_origins' => ['https://configured.example.com']]);
         RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
 
-        Passkeys::allowedOriginsUsing(
+        Passkeys::resolveAllowedOriginsUsing(
             static fn (): array => ['', null],
         );
 

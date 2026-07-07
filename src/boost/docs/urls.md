@@ -135,13 +135,19 @@ URL::forceScheme('https');
 
 To force HTTPS for all generated URLs, you may also set the `FORCE_HTTPS` environment variable to `true`.
 
-If you need to generate asset URLs from a separate origin, such as a CDN, you may use the `useAssetOrigin` method:
+If all generated asset URLs should use a separate origin, such as a CDN, configure the `ASSET_URL` environment variable:
+
+```env
+ASSET_URL=https://cdn.example.com
+```
+
+If you need to override the asset origin during the current request, you may use the `useAssetOrigin` method:
 
 ```php
 URL::useAssetOrigin('https://cdn.example.com');
 ```
 
-The `useOrigin` method is isolated to the current request. The `forceScheme` and `useAssetOrigin` methods configure the URL generator and are typically called from a service provider.
+The `useOrigin` and `useAssetOrigin` methods are isolated to the current request. The `forceScheme` method configures the URL generator and is typically called from a service provider.
 
 <a name="urls-for-named-routes"></a>
 ## URLs for Named Routes

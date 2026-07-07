@@ -458,17 +458,17 @@ use Hypervel\Passkeys\Passkeys;
 
 public function boot(): void
 {
-    Passkeys::relyingPartyIdUsing(
+    Passkeys::resolveRelyingPartyIdUsing(
         fn (Request $request): string => $request->getHost(),
     );
 
-    Passkeys::allowedOriginsUsing(
+    Passkeys::resolveAllowedOriginsUsing(
         fn (Request $request): array => ['https://' . $request->getHost()],
     );
 }
 ```
 
-These callbacks take priority over the static config values when a request is available. Without a current request, Passkeys falls back to `passkeys.relying_party_id` and `passkeys.allowed_origins`. The relying party ID and allowed origins are separate WebAuthn settings, so register `allowedOriginsUsing()` whenever allowed origins vary by request. Static config uses cached WebAuthn ceremony managers; request-aware origins are resolved for each ceremony so origin-specific state does not leak between requests.
+These callbacks take priority over the static config values when a request is available. Without a current request, Passkeys falls back to `passkeys.relying_party_id` and `passkeys.allowed_origins`. The relying party ID and allowed origins are separate WebAuthn settings, so register `resolveAllowedOriginsUsing()` whenever allowed origins vary by request. Static config uses cached WebAuthn ceremony managers; request-aware origins are resolved for each ceremony so origin-specific state does not leak between requests.
 
 The resolved relying party ID must be a registrable-domain suffix of the resolved origins. Otherwise, browsers will reject the WebAuthn ceremony before the server can verify it.
 
@@ -611,8 +611,8 @@ Call these only during application boot or tests:
 - `Features::passkeys($options)`
 - `Passkeys::usePasskeyModel()`
 - `Passkeys::authorizeLoginUsing()`
-- `Passkeys::relyingPartyIdUsing()`
-- `Passkeys::allowedOriginsUsing()`
+- `Passkeys::resolveRelyingPartyIdUsing()`
+- `Passkeys::resolveAllowedOriginsUsing()`
 - `Passkeys::redirectUsing()`
 - `Passkeys::ignoreRoutes()`
 - `WebAuthn::configureCeremonyStepManagerFactoryUsing()`

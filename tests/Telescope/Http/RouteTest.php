@@ -35,6 +35,7 @@ class RouteTest extends FeatureTestCase
     public function testSimpleListOfEntries(string $endpoint, string $entryType)
     {
         $entry = EntryModelFactory::new()->create(['type' => $entryType]);
+        $entry->refresh();
 
         $this->post($endpoint)
             ->assertSuccessful()

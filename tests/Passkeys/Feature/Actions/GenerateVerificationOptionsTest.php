@@ -34,7 +34,7 @@ class GenerateVerificationOptionsTest extends TestCase
     public function testItUsesRequestAwareRelyingPartyIdForVerificationOptions(): void
     {
         RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
-        Passkeys::relyingPartyIdUsing(
+        Passkeys::resolveRelyingPartyIdUsing(
             static fn (Request $request): string => $request->getHost(),
         );
 
