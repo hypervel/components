@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Http\Request;
 use Hypervel\Session\CookieSessionHandler;
 use Hypervel\Session\Store;
@@ -481,9 +483,28 @@ class SessionStoreTest extends TestCase
     public function testPasswordConfirmed()
     {
         $session = $this->getSession();
-        $this->assertFalse($session->has('auth.password_confirmed_at'));
-        $session->passwordConfirmed();
-        $this->assertTrue($session->has('auth.password_confirmed_at'));
+        $this->assertFalse($session->has('auth.password_confirmed_at_web'));
+        $session->passwordConfirmed('web');
+        $this->assertTrue($session->has('auth.password_confirmed_at_web'));
+    }
+
+    public function testPasswordConfirmedResolvesCurrentGuardWhenNoneGiven()
+    {
+        $previousContainer = Container::getInstance();
+        $container = Container::setInstance(new Container);
+
+        try {
+            $auth = m::mock(AuthFactory::class);
+            $auth->shouldReceive('getDefaultDriver')->once()->andReturn('admin');
+            $container->instance(AuthFactory::class, $auth);
+
+            $session = $this->getSession();
+            $session->passwordConfirmed();
+
+            $this->assertTrue($session->has('auth.password_confirmed_at_admin'));
+        } finally {
+            Container::setInstance($previousContainer);
+        }
     }
 
     public function testKeyPush()

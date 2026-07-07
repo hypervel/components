@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Closure;
+use Hypervel\Auth\PasswordConfirmation;
+use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\Request;
@@ -699,10 +702,15 @@ class Store implements Session
 
     /**
      * Specify that the user has confirmed their password.
+     *
+     * The confirmation is scoped to the given guard, or to the current
+     * default guard when none is given.
      */
-    public function passwordConfirmed(): void
+    public function passwordConfirmed(?string $guard = null): void
     {
-        $this->put('auth.password_confirmed_at', Date::now()->unix());
+        $guard ??= Container::getInstance()->make(AuthFactory::class)->getDefaultDriver();
+
+        $this->put(PasswordConfirmation::sessionKey($guard), Date::now()->unix());
     }
 
     /**

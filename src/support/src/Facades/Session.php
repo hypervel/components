@@ -67,7 +67,7 @@ namespace Hypervel\Support\Facades;
  * @method static void setPreviousUrl(string $url)
  * @method static string|null previousRoute()
  * @method static void setPreviousRoute(string|null $route)
- * @method static void passwordConfirmed()
+ * @method static void passwordConfirmed(string|null $guard = null)
  * @method static \SessionHandlerInterface getHandler()
  * @method static \SessionHandlerInterface setHandler(\SessionHandlerInterface $handler)
  * @method static bool handlerNeedsRequest()
