@@ -95,7 +95,7 @@ class SanctumGuard implements GuardContract
 
             $user = $sessionGuard->user();
 
-            if (! $this->hasValidProvider($user)) {
+            if (! $user || ! $this->hasValidProvider($user)) {
                 continue;
             }
 

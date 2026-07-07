@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -357,6 +359,62 @@ class GuardTest extends TestCase
             ]);
     }
 
+    public function testNullUserFromStatefulGuardFallsThroughToLaterSessionGuard(): void
+    {
+        $auth = $this->app->make('auth');
+        $auth->extend('null-stateful', fn () => new NullUserStatefulGuard);
+
+        $config = $this->app->make('config');
+        $config->set('auth.guards.null-stateful', [
+            'driver' => 'null-stateful',
+            'provider' => 'users',
+        ]);
+        $config->set('auth.guards.sanctum.session_guards', ['null-stateful', 'web']);
+        $auth->forgetGuards();
+
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'test-null-stateful@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+
+        $auth->guard('web')->setUser($user);
+
+        $this->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'token_class' => TransientToken::class,
+            ]);
+    }
+
+    public function testNullUserFromStatefulGuardFallsThroughToBearerToken(): void
+    {
+        $auth = $this->app->make('auth');
+        $auth->extend('null-stateful', fn () => new NullUserStatefulGuard);
+
+        $config = $this->app->make('config');
+        $config->set('auth.guards.null-stateful', [
+            'driver' => 'null-stateful',
+            'provider' => 'users',
+        ]);
+        $config->set('auth.guards.sanctum.session_guards', ['null-stateful']);
+        $auth->forgetGuards();
+
+        [$user, $token, $plainToken] = $this->createUserWithToken(plainTextToken: 'null-stateful-token');
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'token_id' => $token->id,
+            ]);
+    }
+
     public function testAuthenticationWithTokenFailsIfExpired(): void
     {
         $user = TestUser::create([
@@ -589,5 +647,76 @@ class GuardTest extends TestCase
                 'can_write' => true,
                 'can_delete' => false,
             ]);
+    }
+}
+
+class NullUserStatefulGuard implements StatefulGuard
+{
+    public function attempt(array $credentials = [], bool $remember = false): bool
+    {
+        return false;
+    }
+
+    public function once(array $credentials = []): bool
+    {
+        return false;
+    }
+
+    public function login(Authenticatable $user, bool $remember = false): void
+    {
+    }
+
+    public function loginUsingId(mixed $id, bool $remember = false): Authenticatable|false
+    {
+        return false;
+    }
+
+    public function onceUsingId(mixed $id): Authenticatable|false
+    {
+        return false;
+    }
+
+    public function viaRemember(): bool
+    {
+        return false;
+    }
+
+    public function logout(): void
+    {
+    }
+
+    public function check(): bool
+    {
+        return true;
+    }
+
+    public function guest(): bool
+    {
+        return false;
+    }
+
+    public function user(): ?Authenticatable
+    {
+        return null;
+    }
+
+    public function id(): int|string|null
+    {
+        return null;
+    }
+
+    public function validate(array $credentials = []): bool
+    {
+        return false;
+    }
+
+    public function hasUser(): bool
+    {
+        return false;
+    }
+
+    public function setUser(Authenticatable $user): static
+    {
+        return $this;
     }
 }
