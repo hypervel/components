@@ -55,7 +55,7 @@ class GenerateRegistrationOptionsTest extends TestCase
     public function testItUsesRequestAwareRelyingPartyIdForRegistrationOptions(): void
     {
         RequestContext::set(Request::create('https://dynamic.example.com/user/passkeys/options'));
-        Passkeys::relyingPartyIdUsing(
+        Passkeys::resolveRelyingPartyIdUsing(
             static fn (Request $request): string => $request->getHost(),
         );
 
