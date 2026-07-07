@@ -700,6 +700,33 @@ grep -rn "'auth\.password_timeout'" src/ | grep -v "PasswordConfirmation.php\|fo
 
 (The last grep's two exclusions are the only permitted occurrences: the config definition and the single reader, `PasswordConfirmation::timeout()`.)
 
+## Addendum (2026-07-07, post-bot-review): HMAC-only password-hash artifacts
+
+While verifying the bot-review findings against the upstream source (`examples/laravel/sanctum`), the owner surfaced a missed upstream hardening and a live interop bug in the sanctum port. Consensus (Claude/Codex, owner-directed): fix both in this PR.
+
+**Upstream chronology.** Laravel framework `b5f9532ce2` (PR #58107, shipped v12.45.0) changed remember-cookie/session password-hash artifacts from the raw password hash to an HMAC via `SessionGuard::hashPasswordForCookie()`. Laravel Sanctum `dadd227` (PR #582, v4.2.4) added the matching support to Sanctum's `AuthenticateSession`: store HMAC when the guard exposes the method, validate HMAC first, fall back to the raw hash for legacy sessions. Hypervel's `SessionGuard` (`hashPasswordForCookie()`, line 538) and core session `AuthenticateSession` already carry the HMAC format (with Laravel's raw fallback ported); the sanctum middleware port predates it and still stores/compares the raw hash.
+
+**The interop bug.** Both middlewares share the `password_hash_{guard}` session keys. Core `auth.session` writes the HMAC format; sanctum's middleware compared the same key against the raw `getAuthPassword()` with `!==`. In the standard SPA setup (web login via `auth.session`, stateful API via sanctum's middleware) the comparison always mismatches, falsely logging the user out on the first stateful API request — single guard, stock configuration. Not just parity hardening; a real defect on this branch's surface.
+
+**Greenfield decision (owner).** Hypervel 0.4 is unreleased: the HMAC format is the only valid password-hash artifact. Two distinct fallbacks are deleted, for different reasons:
+
+- The raw-*value* fallback (`|| hash_equals($passwordHash, $storedValue)` and Sanctum's equivalent) is legacy-runtime-artifact compatibility for sessions Hypervel never issued. Deleted.
+- The missing-*method* fallback (core middleware's `try/catch BadMethodCallException`) is API-surface tolerance. Deleted without replacement: a guard used with `auth.session` that cannot produce the artifact fails loudly with the natural `BadMethodCallException` (fail-fast rule). The import goes with it.
+
+**Implementation.**
+
+- Core `src/session/src/Middleware/AuthenticateSession.php`: `storePasswordHashInSession()` keeps HMAC storage; `validatePasswordHash()` becomes HMAC-only (`hash_equals($this->guard()->hashPasswordForCookie($passwordHash), $storedValue)`); both try/catches and the `BadMethodCallException` import deleted.
+- Sanctum `src/sanctum/src/Http/Middleware/AuthenticateSession.php`: per-guard validation and storage (from the bot-review follow-up) use the already-resolved concrete `SessionGuard` instances from the derived guard list — `hashPasswordForCookie()` is guaranteed by the `instanceof SessionGuard` filter, so no `method_exists`, no re-resolution through the auth manager, no raw fallback. Validation helper `validatePasswordHash(SessionGuard $guard, ?string $passwordHash, string $storedValue): bool` compares with `hash_equals()` (also replacing the pre-existing non-timing-safe `!==`). Nullable hashes remain supported (`hashPasswordForCookie(?string)`; passkey-only accounts).
+- Current upstream source is the porting reference; the commits above are chronology/rationale only.
+
+**Tests.**
+
+- Cross-middleware interop regression (the discovered bug): core `auth.session` stores the hash for a guard, sanctum's middleware validates the same session, no logout.
+- Sanctum: HMAC round-trip within the middleware; raw stored values are rejected (logout).
+- Core session middleware: `OldFormatCookie*` backward-compatibility tests removed with a concise `REMOVED:` comment at the site per AGENTS.md; an inverted test proves raw values are now invalid.
+
+**Docs.** One-line entries in the session and sanctum README `Differences From Laravel` sections: Laravel's raw-hash backward-compatibility fallback is intentionally omitted — Hypervel has no released legacy sessions; only the HMAC format is valid.
+
 ## Explicitly Unchanged
 
 - **`auth.verification.expire` stays global** — a signed-URL TTL with no cross-silo hazard; the URL is already signed per user.
