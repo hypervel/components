@@ -24,12 +24,21 @@ class ApplicationBootstrapTest extends TestCase
 
     protected string $appBasePath;
 
+    protected mixed $previousEnvironmentBasePath = null;
+
+    protected mixed $previousServerBasePath = null;
+
+    protected bool $hadEnvironmentBasePath = false;
+
+    protected bool $hadServerBasePath = false;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->filesystem = new Filesystem;
         $this->appBasePath = ParallelTesting::tempDir('ApplicationBootstrapTest');
+        $this->rememberBasePathOverride();
 
         $this->filesystem->deleteDirectory($this->appBasePath);
 
@@ -55,26 +64,26 @@ return [
     'name' => 'Foundation Bootstrap Test',
 ];
 PHP);
-    }
-
-    protected function tearDown(): void
-    {
-        $this->filesystem->deleteDirectory($this->appBasePath);
-
-        parent::tearDown();
-    }
-
-    public function testFoundationTestCaseBootstrapsCreatedApplication(): void
-    {
-        $previousEnvironmentBasePath = $_ENV['APP_BASE_PATH'] ?? null;
-        $previousServerBasePath = $_SERVER['APP_BASE_PATH'] ?? null;
-        $hadEnvironmentBasePath = array_key_exists('APP_BASE_PATH', $_ENV);
-        $hadServerBasePath = array_key_exists('APP_BASE_PATH', $_SERVER);
 
         // Application::inferBasePath() supports either source.
         $_ENV['APP_BASE_PATH'] = $this->appBasePath;
         $_SERVER['APP_BASE_PATH'] = $this->appBasePath;
+    }
 
+    protected function tearDown(): void
+    {
+        try {
+            Facade::clearResolvedInstances();
+            Facade::setFacadeApplication(null);
+            $this->restoreBasePathOverride();
+            $this->filesystem->deleteDirectory($this->appBasePath);
+        } finally {
+            parent::tearDown();
+        }
+    }
+
+    public function testFoundationTestCaseBootstrapsCreatedApplication(): void
+    {
         $testCase = new class('testApplicationBootstraps') extends FoundationTestCase {
             public function runSetUp(): void
             {
@@ -115,21 +124,29 @@ PHP);
             if ($testCase->hasApplication()) {
                 $testCase->runTearDown();
             }
+        }
+    }
 
-            Facade::clearResolvedInstances();
-            Facade::setFacadeApplication(null);
+    protected function rememberBasePathOverride(): void
+    {
+        $this->previousEnvironmentBasePath = $_ENV['APP_BASE_PATH'] ?? null;
+        $this->previousServerBasePath = $_SERVER['APP_BASE_PATH'] ?? null;
+        $this->hadEnvironmentBasePath = array_key_exists('APP_BASE_PATH', $_ENV);
+        $this->hadServerBasePath = array_key_exists('APP_BASE_PATH', $_SERVER);
+    }
 
-            if ($hadEnvironmentBasePath) {
-                $_ENV['APP_BASE_PATH'] = $previousEnvironmentBasePath;
-            } else {
-                unset($_ENV['APP_BASE_PATH']);
-            }
+    protected function restoreBasePathOverride(): void
+    {
+        if ($this->hadEnvironmentBasePath) {
+            $_ENV['APP_BASE_PATH'] = $this->previousEnvironmentBasePath;
+        } else {
+            unset($_ENV['APP_BASE_PATH']);
+        }
 
-            if ($hadServerBasePath) {
-                $_SERVER['APP_BASE_PATH'] = $previousServerBasePath;
-            } else {
-                unset($_SERVER['APP_BASE_PATH']);
-            }
+        if ($this->hadServerBasePath) {
+            $_SERVER['APP_BASE_PATH'] = $this->previousServerBasePath;
+        } else {
+            unset($_SERVER['APP_BASE_PATH']);
         }
     }
 }
