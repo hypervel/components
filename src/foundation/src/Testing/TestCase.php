@@ -74,14 +74,10 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         // never bound and the very next facade call in setUp fails. HandleExceptions is
         // deliberately omitted so PHPUnit (not the app's Swoole error handler) reports failures.
         if (! $this->app->hasBeenBootstrapped()) {
-            $this->app->bootstrapWith([
-                \Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables::class,
-                \Hypervel\Foundation\Bootstrap\LoadConfiguration::class,
-                \Hypervel\Foundation\Bootstrap\RegisterFacades::class,
-                \Hypervel\Foundation\Bootstrap\RegisterProviders::class,
-                \Hypervel\Di\Bootstrap\GenerateProxies::class,
-                \Hypervel\Foundation\Bootstrap\BootProviders::class,
-            ]);
+            $this->app->bootstrapWith(array_values(array_diff(
+                Application::DEFAULT_BOOTSTRAPPERS,
+                [\Hypervel\Foundation\Bootstrap\HandleExceptions::class],
+            )));
         }
     }
 

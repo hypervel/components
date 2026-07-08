@@ -88,15 +88,7 @@ class Kernel implements KernelContract
     /**
      * The console application bootstrappers.
      */
-    protected array $bootstrappers = [
-        \Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables::class,
-        \Hypervel\Foundation\Bootstrap\LoadConfiguration::class,
-        \Hypervel\Foundation\Bootstrap\HandleExceptions::class,
-        \Hypervel\Foundation\Bootstrap\RegisterFacades::class,
-        \Hypervel\Foundation\Bootstrap\RegisterProviders::class,
-        \Hypervel\Di\Bootstrap\GenerateProxies::class,
-        \Hypervel\Foundation\Bootstrap\BootProviders::class,
-    ];
+    protected array $bootstrappers = \Hypervel\Foundation\Application::DEFAULT_BOOTSTRAPPERS;
 
     public function __construct(
         protected ContainerContract $app,

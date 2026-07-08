@@ -46,6 +46,24 @@ class Application extends Container implements ApplicationContract, CachesConfig
     public const VERSION = '0.4';
 
     /**
+     * The default bootstrap sequence for the application.
+     *
+     * Shared by the HTTP and console kernels and by the testing
+     * infrastructure so the boot paths cannot drift apart.
+     *
+     * @var array<int, class-string>
+     */
+    public const DEFAULT_BOOTSTRAPPERS = [
+        \Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables::class,
+        \Hypervel\Foundation\Bootstrap\LoadConfiguration::class,
+        \Hypervel\Foundation\Bootstrap\HandleExceptions::class,
+        \Hypervel\Foundation\Bootstrap\RegisterFacades::class,
+        \Hypervel\Foundation\Bootstrap\RegisterProviders::class,
+        \Hypervel\Di\Bootstrap\GenerateProxies::class,
+        \Hypervel\Foundation\Bootstrap\BootProviders::class,
+    ];
+
+    /**
      * The base path for the Hypervel installation.
      */
     protected ?string $basePath = null;
