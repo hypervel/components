@@ -211,12 +211,17 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Infer the application's base directory from the environment.
+     *
+     * Precedence is $_ENV, $_SERVER, Env repository, then Composer. Hypervel
+     * checks $_SERVER and Env so test helpers and worker environments can
+     * provide APP_BASE_PATH without writing to $_ENV.
      */
     public static function inferBasePath(): string
     {
         return match (true) {
             isset($_ENV['APP_BASE_PATH']) => $_ENV['APP_BASE_PATH'],
             isset($_SERVER['APP_BASE_PATH']) => $_SERVER['APP_BASE_PATH'],
+            is_string($basePath = Env::get('APP_BASE_PATH')) => $basePath,
             default => dirname(array_values(array_filter(
                 array_keys(ClassLoader::getRegisteredLoaders()),
                 fn ($path) => ! str_starts_with($path, 'phar://'),
