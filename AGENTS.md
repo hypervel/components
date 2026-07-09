@@ -926,9 +926,9 @@ This applies to tests ported from **both** Hyperf and Laravel.
 
 Tests that require external services (databases, Redis, HTTP servers, search engines) that can't run in every environment go in `tests/Integration/{PackageName}/`. The exception is tests that call freely-available external APIs (e.g., the Guzzle tests hitting the public Pokemon API) — those can stay in regular `tests/` since they work everywhere.
 
-#### Skip Traits
+#### External Service Test Traits
 
-Each external service has a corresponding trait that skips unless the opt-in environment variable is present:
+Integration tests that use an external service must use that service's test trait.
 
 | Trait | Service | Key Env Vars |
 |-------|---------|-------------|
@@ -938,7 +938,15 @@ Each external service has a corresponding trait that skips unless the opt-in env
 | `InteractsWithAlgolia` | Algolia | `ALGOLIA_APP_ID`, `ALGOLIA_SECRET` |
 | `InteractsWithServer` | Engine test servers (HTTP, TCP, WebSocket, HTTP/2) | `TEST_SERVER_HOST` |
 
-These traits follow a consistent pattern: skip before connecting unless the service's opt-in host or credential env var is present; fail if the service is explicitly enabled but unreachable or misconfigured. When porting integration tests for a new service type, create a new trait following this same pattern.
+This applies whether the test calls the service directly or reaches it through the package code under test.
+
+These traits are required for external-service tests to work under ParaTest. Parallel workers share external services unless the trait isolates them. Tests that bypass the trait will leak state across workers and fail depending on timing.
+
+The traits handle service-specific setup and cleanup. For example, `InteractsWithRedis` assigns each ParaTest worker its own Redis database and flushes it before and after each test. This isolates the test keyspace without changing the Redis behavior being tested.
+
+If a service is not configured, the trait skips the test before connecting. If the service is configured but unreachable or misconfigured, the test fails.
+
+When adding integration tests for a new service type that has no trait yet, create one following this same pattern (per-worker isolation, skip-when-unconfigured, fail-when-unreachable).
 
 #### phpunit.xml.dist
 

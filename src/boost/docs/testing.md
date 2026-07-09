@@ -9,6 +9,8 @@
     - [Using Pest](#using-pest)
 - [Running Tests](#running-tests)
     - [Running Tests in Parallel](#running-tests-in-parallel)
+    - [External Service Tests](#external-service-tests)
+    - [Parallel Testing and Redis](#parallel-testing-and-redis)
     - [Reporting Test Coverage](#reporting-test-coverage)
     - [Profiling Tests](#profiling-tests)
 - [Configuration and Route Caching](#configuration-and-route-caching)
@@ -283,14 +285,28 @@ php artisan test --parallel --without-databases --without-cache
 <a name="external-service-tests"></a>
 #### External Service Tests
 
-Tests that use external services skip unless the service is explicitly configured for the test run. Set the service host or credential environment variable to opt into those tests. For example, Redis tests require `REDIS_HOST`, Meilisearch tests require `MEILISEARCH_HOST`, Typesense tests require `TYPESENSE_HOST`, Algolia tests require `ALGOLIA_APP_ID` and `ALGOLIA_SECRET`, and server integration tests require `TEST_SERVER_HOST`.
+Integration tests that use an external service must use that service's test trait.
 
-When a service is explicitly configured but cannot be reached, Hypervel treats that as a test environment error and the test fails.
+| Trait | Service | Key Environment Variables |
+|-------|---------|---------------------------|
+| `InteractsWithRedis` | Redis / Valkey | `REDIS_HOST`, `REDIS_PORT` |
+| `InteractsWithMeilisearch` | Meilisearch | `MEILISEARCH_HOST`, `MEILISEARCH_PORT`, `MEILISEARCH_KEY` |
+| `InteractsWithTypesense` | Typesense | `TYPESENSE_HOST`, `TYPESENSE_PORT`, `TYPESENSE_API_KEY`, `TYPESENSE_PROTOCOL` |
+| `InteractsWithAlgolia` | Algolia | `ALGOLIA_APP_ID`, `ALGOLIA_SECRET` |
+| `InteractsWithServer` | Engine test servers | `TEST_SERVER_HOST` |
+
+This applies whether the test calls the service directly or reaches it through the application or package code under test.
+
+These traits are required for external-service tests to work correctly under ParaTest. Parallel test workers share external services unless the trait isolates them. Tests that bypass the trait will leak state across workers and fail depending on timing.
+
+The traits handle service-specific setup and cleanup. If a service is not configured, the trait skips the test before connecting. If the service is configured but unreachable or misconfigured, the test fails.
 
 <a name="parallel-testing-and-redis"></a>
 #### Parallel Testing and Redis
 
-When your tests use Hypervel's `InteractsWithRedis` testing trait, set `REDIS_HOST` to opt into Redis integration tests. Hypervel will use your normal configured Redis database when the tests are not running in parallel. When tests are running in parallel, the trait may assign each parallel worker its own Redis database so calls such as `flushdb` remain isolated from the other workers.
+Tests that touch Redis must use `InteractsWithRedis`.
+
+Set `REDIS_HOST` to opt into Redis integration tests. When tests are not running in parallel, `InteractsWithRedis` uses your normal configured Redis database. When tests are running in parallel, it assigns each ParaTest worker its own Redis database and flushes it before and after each test. This isolates the test keyspace without changing the Redis behavior being tested.
 
 Parallel Redis databases are selected from the `REDIS_TEST_DB_MIN` and `REDIS_TEST_DB_MAX` environment variables. By default, `REDIS_TEST_DB_MIN` uses your configured `REDIS_DB` value and `REDIS_TEST_DB_MAX` is `15`:
 
