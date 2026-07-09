@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hypervel\Contracts\Redis\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\Limiters\DurationLimiterBuilder;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
@@ -18,7 +18,7 @@ use Mockery as m;
  */
 class DurationLimiterBuilderTest extends TestCase
 {
-    public function testAllowSetsMaxLocks()
+    public function testAllowSetsMaxLocks(): void
     {
         $builder = $this->createBuilder();
 
@@ -28,7 +28,7 @@ class DurationLimiterBuilderTest extends TestCase
         $this->assertSame(10, $builder->maxLocks);
     }
 
-    public function testEverySetsDecayInSeconds()
+    public function testEverySetsDecayInSeconds(): void
     {
         $builder = $this->createBuilder();
 
@@ -38,7 +38,7 @@ class DurationLimiterBuilderTest extends TestCase
         $this->assertSame(60, $builder->decay);
     }
 
-    public function testBlockSetsTimeout()
+    public function testBlockSetsTimeout(): void
     {
         $builder = $this->createBuilder();
 
@@ -48,7 +48,7 @@ class DurationLimiterBuilderTest extends TestCase
         $this->assertSame(10, $builder->timeout);
     }
 
-    public function testSleepSetsSleepDuration()
+    public function testSleepSetsSleepDuration(): void
     {
         $builder = $this->createBuilder();
 
@@ -58,21 +58,21 @@ class DurationLimiterBuilderTest extends TestCase
         $this->assertSame(500, $builder->sleep);
     }
 
-    public function testDefaultTimeoutIsThreeSeconds()
+    public function testDefaultTimeoutIsThreeSeconds(): void
     {
         $builder = $this->createBuilder();
 
         $this->assertSame(3, $builder->timeout);
     }
 
-    public function testDefaultSleepIs750Milliseconds()
+    public function testDefaultSleepIs750Milliseconds(): void
     {
         $builder = $this->createBuilder();
 
         $this->assertSame(750, $builder->sleep);
     }
 
-    public function testThenExecutesCallbackWhenLockAcquired()
+    public function testThenExecutesCallbackWhenLockAcquired(): void
     {
         $redis = $this->mockRedis();
         // DurationLimiter::acquire() Lua script returns success
@@ -90,7 +90,7 @@ class DurationLimiterBuilderTest extends TestCase
         $this->assertSame('success', $result);
     }
 
-    public function testThenCallsFailureCallbackOnTimeout()
+    public function testThenCallsFailureCallbackOnTimeout(): void
     {
         $redis = $this->mockRedis();
         // DurationLimiter::acquire() always fails
@@ -115,7 +115,7 @@ class DurationLimiterBuilderTest extends TestCase
         $this->assertSame('fallback', $result);
     }
 
-    public function testThenThrowsExceptionWithoutFailureCallback()
+    public function testThenThrowsExceptionWithoutFailureCallback(): void
     {
         $redis = $this->mockRedis();
         // DurationLimiter::acquire() always fails
@@ -132,7 +132,7 @@ class DurationLimiterBuilderTest extends TestCase
         });
     }
 
-    public function testFluentChaining()
+    public function testFluentChaining(): void
     {
         $builder = $this->createBuilder();
 
