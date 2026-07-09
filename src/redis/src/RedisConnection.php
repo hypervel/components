@@ -777,6 +777,22 @@ abstract class RedisConnection extends BaseConnection
     }
 
     /**
+     * Determine if the given key contains a Redis Cluster hash tag.
+     */
+    public static function hasHashTag(string $key): bool
+    {
+        $open = strpos($key, '{');
+
+        if ($open === false) {
+            return false;
+        }
+
+        $close = strpos($key, '}', $open + 1);
+
+        return $close !== false && $close - $open > 1;
+    }
+
+    /**
      * Ping Redis for heartbeat health without shadowing the public Redis PING command.
      */
     protected function pingForHeartbeat(): bool
