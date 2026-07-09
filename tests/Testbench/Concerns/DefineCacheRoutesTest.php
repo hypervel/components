@@ -128,24 +128,27 @@ PHP, false);
 
     public function testDefineCacheRoutesCleansRouteFileWhenRouteCacheFails(): void
     {
+        $exception = null;
+
         try {
             $this->defineCacheRoutes(<<<'PHP'
 <?php
 throw new RuntimeException('route cache failed');
 PHP);
-
-            $this->fail('Expected route caching to fail.');
-        } catch (Throwable) {
-            $this->assertCount(1, $this->testbenchRouteFiles);
-
-            $routeFile = $this->testbenchRouteFiles[0];
-
-            $this->assertFileExists($routeFile);
-
-            $this->callBeforeApplicationDestroyedCallbacks();
-
-            $this->assertFileDoesNotExist($routeFile);
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
         }
+
+        $this->assertNotNull($exception, 'Expected route caching to fail.');
+        $this->assertCount(1, $this->testbenchRouteFiles);
+
+        $routeFile = $this->testbenchRouteFiles[0];
+
+        $this->assertFileExists($routeFile);
+
+        $this->callBeforeApplicationDestroyedCallbacks();
+
+        $this->assertFileDoesNotExist($routeFile);
     }
 
     public function testTestbenchRouteFilePathIsUniquePerCall(): void
