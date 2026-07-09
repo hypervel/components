@@ -51,10 +51,6 @@ class ArrayLock extends Lock implements RefreshableLock
      */
     public function release(): bool
     {
-        if (! $this->exists()) {
-            return false;
-        }
-
         if (! $this->isOwnedByCurrentProcess()) {
             return false;
         }
@@ -73,19 +69,23 @@ class ArrayLock extends Lock implements RefreshableLock
     }
 
     /**
-     * Determine if the current lock exists.
-     */
-    protected function exists(): bool
-    {
-        return $this->store->getLockRecord($this->name) !== null;
-    }
-
-    /**
      * Return the owner value written into the driver for this lock.
      */
     protected function getCurrentOwner(): ?string
     {
-        return $this->store->getLockRecord($this->name)['owner'] ?? null;
+        $record = $this->store->getLockRecord($this->name);
+
+        if ($record === null) {
+            return null;
+        }
+
+        $expiresAt = $record['expiresAt'];
+
+        if ($expiresAt !== null && ! $expiresAt->isFuture()) {
+            return null;
+        }
+
+        return $record['owner'];
     }
 
     /**
@@ -95,26 +95,19 @@ class ArrayLock extends Lock implements RefreshableLock
      */
     public function refresh(?int $seconds = null): bool
     {
-        // Permanent lock with no explicit TTL requested - nothing to refresh
         if ($seconds === null && $this->seconds <= 0) {
-            return true;
+            return $this->isOwnedByCurrentProcess();
         }
 
         $seconds ??= $this->seconds;
 
         if ($seconds <= 0) {
-            throw new InvalidArgumentException(
-                'Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.'
-            );
+            throw new InvalidArgumentException('Refresh requires a positive TTL.');
         }
 
         $record = $this->store->getLockRecord($this->name);
 
-        if ($record === null) {
-            return false;
-        }
-
-        if (! $this->isOwnedByCurrentProcess()) {
+        if ($record === null || ! $this->isOwnedByCurrentProcess()) {
             return false;
         }
 
@@ -141,7 +134,7 @@ class ArrayLock extends Lock implements RefreshableLock
             return null;
         }
 
-        if ($expiresAt->isPast()) {
+        if (! $expiresAt->isFuture()) {
             return null;
         }
 

@@ -226,6 +226,24 @@ class CacheArrayStoreTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
+    public function testExpiredLockIsNotLockedOrOwned()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        $store = new ArrayStore;
+        $lock = $store->lock('foo', 10);
+        $lock->acquire();
+
+        $this->assertTrue($lock->isLocked());
+        $this->assertTrue($lock->isOwnedByCurrentProcess());
+
+        Carbon::setTestNow($now->copy()->addSeconds(10));
+
+        $this->assertFalse($lock->isLocked());
+        $this->assertFalse($lock->isOwnedByCurrentProcess());
+        $this->assertNull($lock->getRemainingLifetime());
+    }
+
     public function testLockExpirationLowerBoundary()
     {
         Carbon::setTestNow(Carbon::now());
@@ -266,6 +284,19 @@ class CacheArrayStoreTest extends TestCase
         $owner->acquire();
 
         $this->assertFalse($wannabeOwner->release());
+    }
+
+    public function testExpiredLockCannotBeReleasedByOldOwner()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        $store = new ArrayStore;
+        $lock = $store->lock('foo', 10);
+        $lock->acquire();
+
+        Carbon::setTestNow($now->copy()->addSeconds(10));
+
+        $this->assertFalse($lock->release());
     }
 
     public function testAnotherOwnerCanForceReleaseALock()
@@ -487,6 +518,19 @@ class CacheArrayStoreTest extends TestCase
         $this->assertFalse($wannabeOwner->refresh());
     }
 
+    public function testRefreshReturnsFalseWhenExpired()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        $store = new ArrayStore;
+        $lock = $store->lock('foo', 10);
+        $lock->acquire();
+
+        Carbon::setTestNow($now->copy()->addSeconds(10));
+
+        $this->assertFalse($lock->refresh());
+    }
+
     public function testRefreshOnPermanentLockReturnsTrue()
     {
         $store = new ArrayStore;
@@ -495,6 +539,16 @@ class CacheArrayStoreTest extends TestCase
 
         // No-op for permanent locks
         $this->assertTrue($lock->refresh());
+    }
+
+    public function testRefreshOnPermanentLockReturnsFalseWhenNotOwned()
+    {
+        $store = new ArrayStore;
+        $owner = $store->lock('foo', 0);
+        $wannabeOwner = $store->lock('foo', 0);
+        $owner->acquire();
+
+        $this->assertFalse($wannabeOwner->refresh());
     }
 
     public function testRefreshWithExplicitZeroThrowsException()
