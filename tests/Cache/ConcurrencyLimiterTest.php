@@ -10,11 +10,12 @@ use DateTimeImmutable;
 use Error;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Limiters\ConcurrencyLimiter;
-use Hypervel\Cache\Limiters\LimiterTimeoutException;
 use Hypervel\Cache\Repository;
-use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Limiters\Lease;
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Tests\TestCase;
 use Throwable;
 
@@ -29,7 +30,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->repository = new Repository(new ArrayStore);
     }
 
-    public function testItLocksTasksWhenNoSlotAvailable()
+    public function testItLocksTasksWhenNoSlotAvailable(): void
     {
         $store = [];
 
@@ -54,7 +55,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertEquals([1, 2, 4], $store);
     }
 
-    public function testItReleasesLockAfterTaskFinishes()
+    public function testItReleasesLockAfterTaskFinishes(): void
     {
         $store = [];
 
@@ -67,7 +68,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertEquals([1, 2, 3, 4], $store);
     }
 
-    public function testItReleasesLockIfTaskTookTooLong()
+    public function testItReleasesLockIfTaskTookTooLong(): void
     {
         $store = [];
 
@@ -94,7 +95,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertEquals([1, 3], $store);
     }
 
-    public function testItFailsImmediatelyOrRetriesForAWhileBasedOnAGivenTimeout()
+    public function testItFailsImmediatelyOrRetriesForAWhileBasedOnAGivenTimeout(): void
     {
         $store = [];
 
@@ -119,7 +120,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertEquals([1, 3], $store);
     }
 
-    public function testItFailsAfterRetryTimeout()
+    public function testItFailsAfterRetryTimeout(): void
     {
         $store = [];
 
@@ -140,7 +141,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertEquals([1], $store);
     }
 
-    public function testItReleasesIfErrorIsThrown()
+    public function testItReleasesIfErrorIsThrown(): void
     {
         $store = [];
 
@@ -161,7 +162,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertEquals([1], $store);
     }
 
-    public function testFunnelMethodOnRepository()
+    public function testFunnelMethodOnRepository(): void
     {
         $store = [];
 
@@ -179,7 +180,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertSame('ok', $result);
     }
 
-    public function testFunnelMethodAcceptsBackedEnum()
+    public function testFunnelMethodAcceptsBackedEnum(): void
     {
         $store = [];
 
@@ -197,7 +198,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertSame('ok', $result);
     }
 
-    public function testFunnelMethodAcceptsUnitEnum()
+    public function testFunnelMethodAcceptsUnitEnum(): void
     {
         $store = [];
 
@@ -215,7 +216,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertSame('ok', $result);
     }
 
-    public function testFunnelBackedEnumSharesKeyWithStringEquivalent()
+    public function testFunnelBackedEnumSharesKeyWithStringEquivalent(): void
     {
         // Fill all slots using the backed enum's string value
         foreach (range(1, 2) as $i) {
@@ -240,7 +241,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertSame('failed', $result);
     }
 
-    public function testFunnelThrowsExceptionWhenStoreDoesNotSupportLocks()
+    public function testFunnelThrowsExceptionWhenStoreDoesNotSupportLocks(): void
     {
         $store = $this->createStub(Store::class);
         $repository = new Repository($store);
@@ -253,7 +254,7 @@ class ConcurrencyLimiterTest extends TestCase
         $repository->funnel('test');
     }
 
-    public function testFunnelWithFailureCallback()
+    public function testFunnelWithFailureCallback(): void
     {
         $store = [];
 
@@ -285,7 +286,68 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertSame('failure-result', $result);
     }
 
-    public function testFunnelWithZeroLimitDoesNotRunCallback()
+    public function testFunnelAcquireReturnsLease(): void
+    {
+        $lease = $this->repository->funnel('lease-key')
+            ->limit(1)
+            ->releaseAfter(5)
+            ->block(0)
+            ->acquire();
+
+        try {
+            $this->assertInstanceOf(Lease::class, $lease);
+            $this->assertInstanceOf(RefreshableLease::class, $lease);
+            $this->assertNotEmpty($lease->owner());
+        } finally {
+            $lease->release();
+        }
+    }
+
+    public function testFunnelLeaseReleasesSlot(): void
+    {
+        $lease = $this->repository->funnel('lease-release-key')
+            ->limit(1)
+            ->releaseAfter(5)
+            ->block(0)
+            ->acquire();
+
+        $this->assertTrue($lease->release());
+
+        $result = $this->repository->funnel('lease-release-key')
+            ->limit(1)
+            ->releaseAfter(5)
+            ->block(0)
+            ->then(fn () => 'acquired');
+
+        $this->assertSame('acquired', $result);
+    }
+
+    public function testFunnelDoesNotRouteCallbackTimeoutExceptionToFailureCallback(): void
+    {
+        $failureCalled = false;
+
+        try {
+            $this->repository->funnel('callback-exception')
+                ->limit(1)
+                ->releaseAfter(5)
+                ->block(0)
+                ->then(
+                    function () {
+                        throw new LimiterTimeoutException;
+                    },
+                    function () use (&$failureCalled) {
+                        $failureCalled = true;
+                    }
+                );
+
+            $this->fail('Expected LimiterTimeoutException was not thrown.');
+        } catch (LimiterTimeoutException) {
+        }
+
+        $this->assertFalse($failureCalled);
+    }
+
+    public function testFunnelWithZeroLimitDoesNotRunCallback(): void
     {
         $called = false;
 
@@ -306,7 +368,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertSame('failed', $result);
     }
 
-    public function testFunnelWithNegativeLimitDoesNotRunCallback()
+    public function testFunnelWithNegativeLimitDoesNotRunCallback(): void
     {
         $called = false;
 
@@ -327,7 +389,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertSame('failed', $result);
     }
 
-    public function testReleaseAfterAcceptsDateInterval()
+    public function testReleaseAfterAcceptsDateInterval(): void
     {
         $store = [];
 
@@ -345,7 +407,7 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertSame('ok', $result);
     }
 
-    public function testReleaseAfterAcceptsDateTime()
+    public function testReleaseAfterAcceptsDateTime(): void
     {
         $store = [];
 
@@ -366,8 +428,15 @@ class ConcurrencyLimiterTest extends TestCase
 
 class ConcurrencyLimiterMockThatDoesntRelease extends ConcurrencyLimiter
 {
-    protected function release(Lock $lock): void
+    public function block(int $timeout, ?callable $callback = null, int $sleep = 250): mixed
     {
+        $this->acquire($timeout, $sleep);
+
+        if (is_callable($callback)) {
+            return $callback();
+        }
+
+        return true;
     }
 }
 

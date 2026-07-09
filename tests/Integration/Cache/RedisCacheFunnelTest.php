@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Cache;
 
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
@@ -86,6 +87,36 @@ class RedisCacheFunnelTest extends CacheFunnelTestCase
         $this->assertSame('second', $second);
 
         $cache->lock('perm1')->forceRelease();
+    }
+
+    public function testFastPathLeaseRefreshReappliesReleaseAfterTtl()
+    {
+        $cache = $this->cache();
+        $cache->lock('refresh-ttl1')->forceRelease();
+
+        $lease = $cache->funnel('refresh-ttl')
+            ->limit(1)
+            ->releaseAfter(2)
+            ->block(0)
+            ->acquire();
+
+        try {
+            $this->assertInstanceOf(RefreshableLease::class, $lease);
+
+            usleep(1_100_000);
+
+            $decayedLifetime = $lease->getRemainingLifetime();
+            $this->assertNotNull($decayedLifetime);
+
+            $this->assertTrue($lease->refresh());
+
+            $refreshedLifetime = $lease->getRemainingLifetime();
+            $this->assertNotNull($refreshedLifetime);
+            $this->assertGreaterThan($decayedLifetime, $refreshedLifetime);
+        } finally {
+            $lease->release();
+            $cache->lock('refresh-ttl1')->forceRelease();
+        }
     }
 
     public function testFunnelWithZeroLimitOnRedisDoesNotRunCallback()

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache;
 
+use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\TestCase;
@@ -188,6 +189,19 @@ class PhpRedisCacheFunnelTest extends TestCase
             ->then(fn () => 'second');
 
         $this->assertSame('second', $second);
+
+        $lease = $repository->funnel('test')
+            ->limit(1)
+            ->releaseAfter(60)
+            ->block(0)
+            ->acquire();
+
+        try {
+            $this->assertInstanceOf(RefreshableLease::class, $lease);
+            $this->assertTrue($lease->refresh());
+        } finally {
+            $lease->release();
+        }
 
         $repository->lock('test1')->forceRelease();
     }

@@ -30,7 +30,13 @@ class RedisConcurrencyLimiter extends ConcurrencyLimiter
         int $maxLocks,
         int $releaseAfter,
     ) {
-        parent::__construct($store, $name, $maxLocks, $releaseAfter);
+        $connection = $store->lockConnection();
+
+        $tagged = $connection->isCluster() && ! RedisConnection::hasHashTag($name)
+            ? '{' . $name . '}'
+            : $name;
+
+        parent::__construct($store, $tagged, $maxLocks, $releaseAfter);
 
         $prefix = $store->getPrefix();
         $this->prefixedSlots = array_map(
@@ -45,7 +51,7 @@ class RedisConcurrencyLimiter extends ConcurrencyLimiter
      * Two correctness invariants:
      *
      * 1. The Lua script writes the prefixed slot key to Redis and returns the
-     *    UNPREFIXED slot name (e.g. "my-funnel1") so RedisStore::restoreLock()
+     *    UNPREFIXED slot name (e.g. "my-funnel1") so RedisStore::lock()
      *    prepends the prefix exactly once when constructing the Lock object.
      *
      * 2. The owner ID must be pre-packed via $connection->pack() before being
@@ -54,14 +60,14 @@ class RedisConcurrencyLimiter extends ConcurrencyLimiter
      *    before its owner-check Lua, so the value Redis stores at acquire time
      *    must already be in packed form. If we passed raw $id here, Redis would
      *    store the raw string, but release would compare against a packed value
-     *    — silent mismatch, slot leaks until TTL. We pass the RAW $id to
-     *    restoreLock() so the returned RedisLock's owner field is raw; release
+     *    - silent mismatch, slot leaks until TTL. We pass the RAW $id to
+     *    RedisStore::lock() so the returned RedisLock's owner field is raw; release
      *    will pack it consistently with what we stored.
      *
      * Using withConnection() also keeps both pack() and eval() on the same
      * checked-out pool connection, avoiding two pool roundtrips per attempt.
      */
-    protected function acquire(string $id): bool|Lock
+    protected function claimSlot(string $id): false|Lock
     {
         // Without slots there's nothing to claim. Calling eval with zero KEYS
         // would error inside Lua via unpack({}) → redis.call('mget') with no args.
@@ -72,7 +78,7 @@ class RedisConcurrencyLimiter extends ConcurrencyLimiter
         /** @var RedisStore $store */
         $store = $this->store;
 
-        return $store->lockConnection()->withConnection(function (RedisConnection $connection) use ($id, $store): bool|Lock {
+        return $store->lockConnection()->withConnection(function (RedisConnection $connection) use ($id, $store): false|Lock {
             $packedOwner = $connection->pack([$id])[0];
 
             $result = $connection->eval(...array_merge(
@@ -81,7 +87,7 @@ class RedisConcurrencyLimiter extends ConcurrencyLimiter
                 [$this->name, $this->releaseAfter, $packedOwner],
             ));
 
-            return is_string($result) ? $store->restoreLock($result, $id) : false;
+            return is_string($result) ? $store->lock($result, $this->releaseAfter, $id) : false;
         });
     }
 }
