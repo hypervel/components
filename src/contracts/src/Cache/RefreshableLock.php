@@ -21,12 +21,14 @@ interface RefreshableLock extends Lock
      * This operation is atomic - if the lock has been released or acquired
      * by another process, this will return false without modifying anything.
      *
-     * When called without arguments on a permanent lock (one acquired with
-     * a TTL of 0), this is a no-op that returns true since there's no TTL
-     * to refresh.
+     * When called without arguments, the TTL is re-applied exactly as the
+     * driver interpreted the acquisition duration: drivers with native
+     * expiry treat a lock acquired with a TTL of 0 as permanent and only
+     * verify ownership, while drivers without native expiry re-extend their
+     * default safety timeout.
      *
      * @param null|int $seconds Seconds to set the TTL to (null = use original TTL from construction)
-     * @return bool True if the lock was refreshed (or is permanent), false if not owned or expired
+     * @return bool True if the lock was refreshed (or is permanent and still owned), false if not owned or expired
      *
      * @throws InvalidArgumentException If $seconds is explicitly provided and is not positive
      */
