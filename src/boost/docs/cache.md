@@ -695,6 +695,14 @@ Cache::lock('foo', 10)->get(function () {
 });
 ```
 
+You may determine if a lock is currently held by any process using the `isLocked` method:
+
+```php
+if (Cache::lock('foo')->isLocked()) {
+    // The lock currently exists...
+}
+```
+
 If the lock is not available at the moment you request it, you may instruct Hypervel to wait for a specified number of seconds. If the lock cannot be acquired within the specified time limit, a `Hypervel\Contracts\Cache\LockTimeoutException` will be thrown:
 
 ```php
@@ -763,9 +771,11 @@ Cache::lock('processing')->forceRelease();
 <a name="refreshing-locks"></a>
 ### Refreshing Locks
 
-The `redis`, `database`, and `array` cache lock drivers support atomic TTL refresh and remaining-lifetime inspection via the `Hypervel\Contracts\Cache\RefreshableLock` interface. This is useful for long-running work where you want to extend the lock as you go rather than acquiring a single conservative lock up front:
+The `redis`, `database`, `file`, and `array` cache lock drivers support atomic TTL refresh and remaining-lifetime inspection via the `Hypervel\Contracts\Cache\RefreshableLock` interface. This is useful for long-running work where you want to extend the lock as you go rather than acquiring a single conservative lock up front:
 
 ```php
+use RuntimeException;
+
 $lock = Cache::lock('processing', 60);
 
 if ($lock->get()) {
@@ -773,7 +783,9 @@ if ($lock->get()) {
         foreach ($items as $item) {
             $this->process($item);
 
-            $lock->refresh();
+            if (! $lock->refresh()) {
+                throw new RuntimeException('Lost the lock while processing.');
+            }
         }
     } finally {
         $lock->release();
@@ -787,7 +799,9 @@ The `refresh` method is atomic. If the lock has expired or has been acquired by 
 $lock->refresh(120);
 ```
 
-If the lock was acquired permanently by passing `0` seconds, calling `refresh` without arguments is a no-op that returns `true`. Calling `refresh` with a non-positive explicit TTL will throw an `InvalidArgumentException`.
+Calling `refresh` without arguments re-applies the duration used when the lock was acquired. For native-expiry drivers such as Redis, file, and array, a lock acquired with `0` seconds is permanent, so `refresh()` verifies ownership and returns whether this process still owns the lock. Database locks cannot be truly permanent because the database has no native TTL cleanup; a lock acquired with `0` seconds uses the driver's default crash-safety timeout, and `refresh()` extends that timeout again.
+
+Calling `refresh` with a non-positive explicit TTL will throw an `InvalidArgumentException`.
 
 You may inspect the number of seconds remaining before a refreshable lock expires using the `getRemainingLifetime` method. This method returns `null` if the lock does not exist or has no expiration:
 
@@ -796,7 +810,7 @@ $remaining = $lock->getRemainingLifetime();
 ```
 
 > [!NOTE]
-> File locks do not support lock refreshing. If your code may receive different lock implementations, check that the lock is an instance of `Hypervel\Contracts\Cache\RefreshableLock` before calling `refresh` or `getRemainingLifetime`.
+> If your code may receive different lock implementations, check that the lock is an instance of `Hypervel\Contracts\Cache\RefreshableLock` before calling `refresh` or `getRemainingLifetime`. Non-refreshable lock drivers throw a `RuntimeException` for these methods.
 
 <a name="flushing-locks"></a>
 ### Flushing Locks
@@ -855,10 +869,37 @@ Cache::funnel('foo')
 
 The `funnel` key identifies the resource being limited. The `limit` method defines the maximum concurrent executions. The `releaseAfter` method sets a safety timeout in seconds before an acquired slot is automatically released. The `block` method sets how many seconds to wait for an available slot.
 
-If you prefer to handle the timeout via exceptions instead of providing a failure closure, you may omit the second closure. A `Hypervel\Cache\Limiters\LimiterTimeoutException` will be thrown if the lock cannot be acquired within the specified wait time:
+For work that cannot fit inside a single callback, acquire a lease and release it explicitly later:
 
 ```php
-use Hypervel\Cache\Limiters\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\RefreshableLease;
+use RuntimeException;
+
+$lease = Cache::funnel('podcast-import')
+    ->limit(3)
+    ->releaseAfter(60)
+    ->block(10)
+    ->acquire();
+
+try {
+    foreach ($chunks as $chunk) {
+        $this->import($chunk);
+
+        if ($lease instanceof RefreshableLease && ! $lease->refresh()) {
+            throw new RuntimeException('Lost the lease while processing.');
+        }
+    }
+} finally {
+    $lease->release();
+}
+```
+
+A lease holds one slot until `release` succeeds or the `releaseAfter` safety timeout reclaims the slot after a crash. Refreshable leases support the same `refresh` and `getRemainingLifetime` methods as refreshable locks. Store-agnostic code should check `instanceof RefreshableLease` before refreshing, because some lock-backed stores cannot refresh atomically.
+
+If you prefer to handle the timeout via exceptions instead of providing a failure closure, you may omit the second closure. A `Hypervel\Contracts\Limiters\LimiterTimeoutException` will be thrown if the lock cannot be acquired within the specified wait time:
+
+```php
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 
 try {
     Cache::funnel('foo')

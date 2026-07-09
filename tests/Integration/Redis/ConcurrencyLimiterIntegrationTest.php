@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Redis\ConcurrencyLimiterIntegrationTest;
 
 use Error;
-use Hypervel\Contracts\Redis\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Redis\Limiters\ConcurrencyLease;
 use Hypervel\Redis\Limiters\ConcurrencyLimiter;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
+use Redis as PhpRedis;
 use Throwable;
 
 /**
@@ -22,7 +25,7 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testItLocksTasksWhenNoSlotAvailable()
+    public function testItLocksTasksWhenNoSlotAvailable(): void
     {
         $store = [];
 
@@ -47,7 +50,7 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
         $this->assertEquals([1, 2, 4], $store);
     }
 
-    public function testItReleasesLockAfterTaskFinishes()
+    public function testItReleasesLockAfterTaskFinishes(): void
     {
         $store = [];
 
@@ -60,7 +63,7 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
         $this->assertEquals([1, 2, 3, 4], $store);
     }
 
-    public function testItReleasesLockIfTaskTookTooLong()
+    public function testItReleasesLockIfTaskTookTooLong(): void
     {
         $store = [];
 
@@ -87,7 +90,7 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
         $this->assertEquals([1, 3], $store);
     }
 
-    public function testItFailsImmediatelyOrRetriesForAWhileBasedOnAGivenTimeout()
+    public function testItFailsImmediatelyOrRetriesForAWhileBasedOnAGivenTimeout(): void
     {
         $store = [];
 
@@ -112,7 +115,7 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
         $this->assertEquals([1, 3], $store);
     }
 
-    public function testItFailsAfterRetryTimeout()
+    public function testItFailsAfterRetryTimeout(): void
     {
         $store = [];
 
@@ -133,7 +136,7 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
         $this->assertEquals([1], $store);
     }
 
-    public function testItReleasesIfErrorIsThrown()
+    public function testItReleasesIfErrorIsThrown(): void
     {
         $store = [];
 
@@ -154,12 +157,172 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
         $this->assertEquals([1], $store);
     }
 
+    public function testAcquireReturnsReleasableLease(): void
+    {
+        $this->deleteSlots('lease-release', 1);
+
+        $lease = (new ConcurrencyLimiter($this->redis(), 'lease-release', 1, 5))->acquire(0);
+
+        try {
+            $this->assertInstanceOf(RefreshableLease::class, $lease);
+            $this->assertNotEmpty($lease->owner());
+            $this->assertTrue($lease->release());
+
+            $result = (new ConcurrencyLimiter($this->redis(), 'lease-release', 1, 5))->block(0, fn () => 'released');
+
+            $this->assertSame('released', $result);
+        } finally {
+            $lease->release();
+            $this->deleteSlots('lease-release', 1);
+        }
+    }
+
+    public function testLeakedLeaseIsReclaimedAfterReleaseAfter(): void
+    {
+        $this->deleteSlots('lease-reclaim', 1);
+
+        (new ConcurrencyLimiter($this->redis(), 'lease-reclaim', 1, 1))->acquire(0);
+
+        $this->expectException(LimiterTimeoutException::class);
+
+        try {
+            (new ConcurrencyLimiter($this->redis(), 'lease-reclaim', 1, 1))->acquire(0);
+        } finally {
+            usleep(1_200_000);
+
+            $lease = (new ConcurrencyLimiter($this->redis(), 'lease-reclaim', 1, 1))->acquire(0);
+            $this->assertTrue($lease->release());
+            $this->deleteSlots('lease-reclaim', 1);
+        }
+    }
+
+    public function testLeaseRefreshExtendsLifetime(): void
+    {
+        $this->deleteSlots('lease-refresh', 1);
+
+        $lease = (new ConcurrencyLimiter($this->redis(), 'lease-refresh', 1, 3))->acquire(0);
+
+        try {
+            usleep(1_100_000);
+
+            $decayedLifetime = $lease->getRemainingLifetime();
+            $this->assertNotNull($decayedLifetime);
+
+            $this->assertTrue($lease->refresh());
+
+            $refreshedLifetime = $lease->getRemainingLifetime();
+            $this->assertNotNull($refreshedLifetime);
+            $this->assertGreaterThan($decayedLifetime, $refreshedLifetime);
+        } finally {
+            $lease->release();
+            $this->deleteSlots('lease-refresh', 1);
+        }
+    }
+
+    public function testPermanentLeaseRefreshChecksOwnershipAndHasNoLifetime(): void
+    {
+        $this->deleteSlots('lease-permanent', 1);
+
+        $lease = (new ConcurrencyLimiter($this->redis(), 'lease-permanent', 1, 0))->acquire(0);
+
+        try {
+            $this->assertTrue($lease->refresh());
+            $this->assertNull($lease->getRemainingLifetime());
+
+            $this->redis()->del('lease-permanent1');
+
+            $this->assertFalse($lease->refresh());
+        } finally {
+            $lease->release();
+            $this->deleteSlots('lease-permanent', 1);
+        }
+    }
+
+    public function testPermanentLeaseRefreshUsesRawRedisReadWithSerializer(): void
+    {
+        $connectionName = $this->createRedisConnectionWithOptions('lease_permanent_serializer', [
+            'prefix' => '',
+            'serializer' => PhpRedis::SERIALIZER_PHP,
+        ]);
+
+        $redis = Redis::connection($connectionName);
+
+        $redis->del('lease-permanent-serializer1');
+
+        $lease = (new ConcurrencyLimiter($redis, 'lease-permanent-serializer', 1, 0))->acquire(0);
+
+        try {
+            $this->assertTrue($lease->refresh());
+        } finally {
+            $lease->release();
+            $redis->del('lease-permanent-serializer1');
+        }
+    }
+
+    public function testTwoLeasesDoNotInterfereWithEachOther(): void
+    {
+        $this->deleteSlots('lease-pair', 2);
+
+        $limiter = new ConcurrencyLimiter($this->redis(), 'lease-pair', 2, 5);
+        $first = $limiter->acquire(0);
+        $second = $limiter->acquire(0);
+
+        try {
+            $this->expectException(LimiterTimeoutException::class);
+
+            try {
+                (new ConcurrencyLimiter($this->redis(), 'lease-pair', 2, 5))->acquire(0);
+            } finally {
+                $this->assertTrue($first->release());
+
+                $third = (new ConcurrencyLimiter($this->redis(), 'lease-pair', 2, 5))->acquire(0);
+                $this->assertTrue($third->release());
+
+                $this->assertTrue($second->refresh());
+            }
+        } finally {
+            $first->release();
+            $second->release();
+            $this->deleteSlots('lease-pair', 2);
+        }
+    }
+
+    public function testWrongOwnerCannotReleaseOrRefreshHeldSlot(): void
+    {
+        $this->deleteSlots('lease-owner', 1);
+
+        $lease = (new ConcurrencyLimiter($this->redis(), 'lease-owner', 1, 5))->acquire(0);
+        $wrongOwner = new ConcurrencyLease($this->redis(), 'lease-owner1', 'wrong-owner', 5);
+
+        try {
+            $this->assertFalse($wrongOwner->release());
+            $this->assertFalse($wrongOwner->refresh());
+
+            $this->expectException(LimiterTimeoutException::class);
+
+            (new ConcurrencyLimiter($this->redis(), 'lease-owner', 1, 5))->acquire(0);
+        } finally {
+            $lease->release();
+            $this->deleteSlots('lease-owner', 1);
+        }
+    }
+
     /**
      * Get the Redis connection for testing.
      */
     private function redis(): RedisProxy
     {
         return Redis::connection();
+    }
+
+    /**
+     * Delete limiter slot keys for the given limiter name.
+     */
+    private function deleteSlots(string $name, int $slots): void
+    {
+        foreach (range(1, $slots) as $slot) {
+            $this->redis()->del($name . $slot);
+        }
     }
 }
 
@@ -168,8 +331,14 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
  */
 class ConcurrencyLimiterMockThatDoesntRelease extends ConcurrencyLimiter
 {
-    protected function release(string $key, string $id): void
+    public function block(int $timeout, ?callable $callback = null, int $sleep = 250): mixed
     {
-        // Intentionally empty — prevent lock release so slots stay occupied.
+        $this->acquire($timeout, $sleep);
+
+        if (is_callable($callback)) {
+            return $callback();
+        }
+
+        return true;
     }
 }

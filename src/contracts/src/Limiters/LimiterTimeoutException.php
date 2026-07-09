@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Cache\Limiters;
+namespace Hypervel\Contracts\Limiters;
 
 use Exception;
 

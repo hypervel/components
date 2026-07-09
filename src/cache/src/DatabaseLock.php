@@ -168,6 +168,7 @@ class DatabaseLock extends Lock implements RefreshableLock
     {
         return $this->connection()->table($this->table)
             ->where('key', $this->name)
+            ->where('expiration', '>', $this->currentTime())
             ->first()
             ?->owner;
     }
@@ -175,9 +176,11 @@ class DatabaseLock extends Lock implements RefreshableLock
     /**
      * Get the UNIX timestamp indicating when the lock should expire.
      */
-    protected function expiresAt(): int
+    protected function expiresAt(?int $seconds = null): int
     {
-        $lockTimeout = $this->seconds > 0 ? $this->seconds : $this->defaultTimeoutInSeconds;
+        $seconds ??= $this->seconds;
+
+        $lockTimeout = $seconds > 0 ? $seconds : $this->defaultTimeoutInSeconds;
 
         return $this->currentTime() + $lockTimeout;
     }
@@ -185,28 +188,24 @@ class DatabaseLock extends Lock implements RefreshableLock
     /**
      * Refresh the lock's TTL if still owned by this process.
      *
+     * Database locks are never truly permanent: non-positive acquisition
+     * durations use the default timeout so a crashed process cannot leave an
+     * unreclaimable row. refresh(null) reapplies that acquisition rule.
+     *
      * @throws InvalidArgumentException If an explicit non-positive TTL is provided
      */
     public function refresh(?int $seconds = null): bool
     {
-        // Permanent lock with no explicit TTL requested - nothing to refresh
-        if ($seconds === null && $this->seconds <= 0) {
-            return true;
-        }
-
-        $seconds ??= $this->seconds;
-
-        if ($seconds <= 0) {
-            throw new InvalidArgumentException(
-                'Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.'
-            );
+        if ($seconds !== null && $seconds <= 0) {
+            throw new InvalidArgumentException('Refresh requires a positive TTL.');
         }
 
         $updated = $this->connection()->table($this->table)
             ->where('key', $this->name)
             ->where('owner', $this->owner)
+            ->where('expiration', '>', $this->currentTime())
             ->update([
-                'expiration' => $this->currentTime() + $seconds,
+                'expiration' => $this->expiresAt($seconds),
             ]);
 
         return $updated >= 1;
@@ -217,28 +216,25 @@ class DatabaseLock extends Lock implements RefreshableLock
      */
     public function getRemainingLifetime(): ?float
     {
+        $now = $this->currentTime();
+
         $lock = $this->connection()->table($this->table)
             ->where('key', $this->name)
+            ->where('expiration', '>', $now)
             ->first();
 
         if ($lock === null) {
             return null;
         }
 
-        $remaining = $lock->expiration - $this->currentTime();
-
-        if ($remaining <= 0) {
-            return null;
-        }
-
-        return (float) $remaining;
+        return (float) ($lock->expiration - $now);
     }
 
     /**
      * Get the name of the database connection being used to manage the lock.
      */
-    public function getConnectionName(): string
+    public function getConnectionName(): ?string
     {
-        return $this->connectionName;
+        return $this->connection()->getName();
     }
 }

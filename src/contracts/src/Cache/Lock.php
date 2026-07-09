@@ -37,6 +37,11 @@ interface Lock
     public function owner(): string;
 
     /**
+     * Determine if the lock is currently held by any process.
+     */
+    public function isLocked(): bool;
+
+    /**
      * Releases this lock in disregard of ownership.
      */
     public function forceRelease(): void;

@@ -333,33 +333,40 @@ trait InteractsWithRedis
     {
         $connectionName = 'test_opt_' . ($optPrefix === '' ? 'none' : hash('xxh128', $optPrefix));
 
+        return $this->createRedisConnectionWithOptions($connectionName, [
+            'prefix' => $optPrefix,
+        ]);
+    }
+
+    /**
+     * Create a Redis connection with custom options for integration assertions.
+     *
+     * @param array<string, mixed> $options
+     */
+    protected function createRedisConnectionWithOptions(string $name, array $options, int $maxConnections = 10): string
+    {
         $config = $this->app->make('config');
 
-        // Check if already exists
-        if ($config->get("database.redis.{$connectionName}") !== null) {
-            return $connectionName;
+        if ($config->get("database.redis.{$name}") !== null) {
+            return $name;
         }
 
-        $connectionConfig = [
+        $config->set("database.redis.{$name}", [
             'host' => env('REDIS_HOST', '127.0.0.1'),
             'password' => env('REDIS_PASSWORD', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
             'database' => $this->getParallelRedisDb(),
             'pool' => [
                 'min_connections' => 1,
-                'max_connections' => 10,
+                'max_connections' => $maxConnections,
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
                 'heartbeat' => -1,
                 'max_idle_time' => 60.0,
             ],
-            'options' => [
-                'prefix' => $optPrefix,
-            ],
-        ];
+            'options' => $options,
+        ]);
 
-        $config->set("database.redis.{$connectionName}", $connectionConfig);
-
-        return $connectionName;
+        return $name;
     }
 }

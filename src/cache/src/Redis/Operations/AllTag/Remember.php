@@ -9,6 +9,8 @@ use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
+use function Hypervel\Support\now;
+
 /**
  * Get an item from the cache, or execute a callback and store the result with tag tracking.
  *

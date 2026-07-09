@@ -19,6 +19,7 @@ use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
@@ -1328,6 +1329,24 @@ class RedisConnectionTest extends TestCase
         $connection = new PhpRedisClusterConnectionStub;
 
         $this->assertTrue($connection->isCluster());
+    }
+
+    #[DataProvider('redisClusterHashTagProvider')]
+    public function testHasHashTag(string $key, bool $expected): void
+    {
+        $this->assertSame($expected, RedisConnection::hasHashTag($key));
+    }
+
+    public static function redisClusterHashTagProvider(): array
+    {
+        return [
+            ['plain-key', false],
+            ['{}', false],
+            ['prefix{}suffix', false],
+            ['{queue}', true],
+            ['prefix{queue}suffix', true],
+            ['{queue}:reserved', true],
+        ];
     }
 
     public function testPackReturnsEmptyArrayForEmptyInput(): void

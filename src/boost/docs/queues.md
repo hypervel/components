@@ -118,18 +118,20 @@ In order to use the `redis` queue driver, you should configure a Redis database 
 <a name="redis-cluster"></a>
 ##### Redis Cluster
 
-If your Redis queue connection uses a [Redis Cluster](https://redis.io/docs/latest/operate/rs/databases/durability-ha/clustering), your queue names must contain a [key hash tag](https://redis.io/docs/latest/develop/using-commands/keyspace/#hashtags). This is required in order to ensure all of the Redis keys for a given queue are placed into the same hash slot:
+If your Redis queue connection uses a [Redis Cluster](https://redis.io/docs/latest/operate/rs/databases/durability-ha/clustering), Hypervel automatically wraps queue storage keys in a [key hash tag](https://redis.io/docs/latest/develop/using-commands/keyspace/#hashtags) when the configured queue name does not already contain one. This keeps the queue, delayed, reserved, and notification keys on the same hash slot for the Redis queue driver's Lua scripts:
 
 ```php
 'redis' => [
     'driver' => 'redis',
     'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
-    'queue' => env('REDIS_QUEUE', '{default}'),
+    'queue' => env('REDIS_QUEUE', 'default'),
     'retry_after' => env('REDIS_QUEUE_RETRY_AFTER', 90),
     'block_for' => null,
     'after_commit' => false,
 ],
 ```
+
+You may still include your own hash tag, such as `{mail}:high`, when you need several queue names to share a specific Redis Cluster slot. Hypervel leaves explicit hash tags unchanged.
 
 <a name="blocking"></a>
 ##### Blocking

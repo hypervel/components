@@ -8,6 +8,8 @@ use Hypervel\Console\Command;
 use Hypervel\Sanctum\Sanctum;
 use Symfony\Component\Console\Attribute\AsCommand;
 
+use function Hypervel\Support\now;
+
 #[AsCommand(name: 'sanctum:prune-expired')]
 class PruneExpired extends Command
 {

@@ -18,6 +18,8 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use stdClass;
 
+use function Hypervel\Support\now;
+
 /**
  * Sanctum authentication guard.
  *
