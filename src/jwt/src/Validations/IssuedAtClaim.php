@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Validations;
+namespace Hypervel\Jwt\Validations;
 
-use Hypervel\JWT\Contracts\TemporalValidation;
-use Hypervel\JWT\Exceptions\TokenInvalidException;
+use Hypervel\Jwt\Contracts\TemporalValidation;
+use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Support\Facades\Date;
 
 class IssuedAtClaim extends AbstractValidation implements TemporalValidation

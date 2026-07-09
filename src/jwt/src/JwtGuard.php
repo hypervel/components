@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT;
+namespace Hypervel\Jwt;
 
 use Closure;
 use Hypervel\Auth\Events\Attempting;
@@ -19,13 +19,13 @@ use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\JWT\Contracts\ManagerContract;
-use Hypervel\JWT\Exceptions\JWTException;
-use Hypervel\JWT\Exceptions\TokenBlacklistedException;
-use Hypervel\JWT\Exceptions\TokenExpiredException;
-use Hypervel\JWT\Exceptions\TokenInvalidException;
-use Hypervel\JWT\Exceptions\UserNotDefinedException;
-use Hypervel\JWT\Http\Parser\Parser;
+use Hypervel\Jwt\Contracts\ManagerContract;
+use Hypervel\Jwt\Exceptions\JwtException;
+use Hypervel\Jwt\Exceptions\TokenBlacklistedException;
+use Hypervel\Jwt\Exceptions\TokenExpiredException;
+use Hypervel\Jwt\Exceptions\TokenInvalidException;
+use Hypervel\Jwt\Exceptions\UserNotDefinedException;
+use Hypervel\Jwt\Http\Parser\Parser;
 use Hypervel\Support\Traits\Macroable;
 use stdClass;
 
@@ -540,12 +540,12 @@ class JwtGuard implements Guard
     /**
      * Require a token to be available.
      *
-     * @throws JWTException
+     * @throws JwtException
      */
     protected function requireToken(): string
     {
         if (! $token = $this->getToken()) {
-            throw new JWTException('Token could not be parsed from the request.');
+            throw new JwtException('Token could not be parsed from the request.');
         }
 
         return $token;

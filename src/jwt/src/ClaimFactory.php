@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT;
+namespace Hypervel\Jwt;
 
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
-use Hypervel\JWT\Contracts\JWTSubject;
-use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\Jwt\Contracts\JwtSubject;
+use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Support\Facades\Date;
 
 class ClaimFactory
@@ -59,8 +59,8 @@ class ClaimFactory
             $claims['prv'] = $this->subjectModelHash($provider->getModel());
         }
 
-        if ($user instanceof JWTSubject) {
-            $subjectClaims = $user->getJWTCustomClaims();
+        if ($user instanceof JwtSubject) {
+            $subjectClaims = $user->getJwtCustomClaims();
             $this->rejectReservedCustomClaims($subjectClaims);
 
             $claims = array_merge($claims, $subjectClaims);
@@ -114,8 +114,8 @@ class ClaimFactory
      */
     public function subjectIdentifier(Authenticatable $user): mixed
     {
-        return $user instanceof JWTSubject
-            ? $user->getJWTIdentifier()
+        return $user instanceof JwtSubject
+            ? $user->getJwtIdentifier()
             : $user->getAuthIdentifier();
     }
 
@@ -145,7 +145,7 @@ class ClaimFactory
         if ($reserved !== []) {
             sort($reserved);
 
-            throw new JWTException('Custom JWT claims may not override reserved claims: ' . implode(', ', $reserved) . '.');
+            throw new JwtException('Custom JWT claims may not override reserved claims: ' . implode(', ', $reserved) . '.');
         }
     }
 

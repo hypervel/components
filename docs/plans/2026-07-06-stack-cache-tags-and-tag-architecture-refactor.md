@@ -68,7 +68,7 @@ All file references are relative to the components repo root. Line numbers are a
 
 ### Consumers (full trace results)
 
-- `JWT` (`src/jwt/src/JWTServiceProvider.php:135`): gates blacklist storage on `$repository->supportsTags()` only. `src/jwt/src/Storage/TaggedCache.php` does tag-scoped `get()`/`forget()` — all-mode-only operations. **Live bug:** an any-mode Redis default store passes the gate, then every blacklist read throws at runtime.
+- `JWT` (`src/jwt/src/JwtServiceProvider.php:135`): gates blacklist storage on `$repository->supportsTags()` only. `src/jwt/src/Storage/TaggedCache.php` does tag-scoped `get()`/`forget()` — all-mode-only operations. **Live bug:** an any-mode Redis default store passes the gate, then every blacklist read throws at runtime.
 - `Auth` (`src/auth/src/EloquentUserProvider.php`): `SUPPORTED_AUTH_CACHE_STORES` already contains `StackStore::class`; `ensureTaggableAnyModeStore()` (line 439) checks `instanceof TaggableStore` then `getTagMode() !== TagMode::Any`. `buildTaggedCache()` (line ~497) has a phpstan-ignore because `tags()` is not on the `Repository` contract — that contract follows Laravel and stays unchanged; the ignore is intentional and remains.
 - `cache:doctor` / `cache:redis:benchmark`: guard `instanceof RedisStore` before every `getTagMode()` call, so a throwing `StackStore::getTagMode()` never reaches them.
 - `ClearCommand.php:53` phpstan-ignore (flush via `__call`) — unaffected.
@@ -2093,11 +2093,11 @@ Verify all four `CanFlushLocks` implementers' existing lock tests still pass (th
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Storage;
+namespace Hypervel\Jwt\Storage;
 
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
-use Hypervel\JWT\Contracts\StorageContract;
+use Hypervel\Jwt\Contracts\StorageContract;
 
 class TaggedCache implements StorageContract
 {
@@ -2199,7 +2199,7 @@ class TaggedCache implements StorageContract
 
 Constructor probe note: the probe follows the honest ordering (type → capability → mode) because the provider gate (below) only enforces `supportsTags()` when the blacklist is enabled — with the blacklist disabled, the storage can be constructed over any store, including a `TaggableStore` whose `getTagMode()` throws (an invalid stack composition). `getTagMode()` is never a probe (D5); `supportsTags()` guards it here exactly as in the auth gate and `Repository::tags()`. `storageKey()` applies the prefix only in direct-key mode; the tag name is never prefixed.
 
-**8.2 `JWTServiceProvider::cacheStoreForJwtBlacklist()`** — the `supportsTags()` gate is now composition-aware; only the message changes:
+**8.2 `JwtServiceProvider::cacheStoreForJwtBlacklist()`** — the `supportsTags()` gate is now composition-aware; only the message changes:
 
 ```php
         if ($blacklistEnabled && ! $repository->supportsTags()) {
@@ -2210,7 +2210,7 @@ Constructor probe note: the probe follows the honest ordering (type → capabili
         }
 ```
 
-**Tests**: `tests/JWT/Storage/TaggedCacheTest.php` — split into all-mode and any-mode cases (store mock returning `TagMode::All` / `TagMode::Any`): all mode preserves current expectations verbatim; any mode expects tagged writes with prefixed keys, plain `get`/`forget` with prefixed keys, tagged flush, and asserts the tag name is unprefixed. Collision isolation: any-mode `get('abc')` reads `jwt_blacklist:abc`, never `abc`. `tests/JWT/JWTServiceProviderTest.php` — gate accepts a taggable any-mode store and a valid composition; rejects non-taggable; message updated.
+**Tests**: `tests/Jwt/Storage/TaggedCacheTest.php` — split into all-mode and any-mode cases (store mock returning `TagMode::All` / `TagMode::Any`): all mode preserves current expectations verbatim; any mode expects tagged writes with prefixed keys, plain `get`/`forget` with prefixed keys, tagged flush, and asserts the tag name is unprefixed. Collision isolation: any-mode `get('abc')` reads `jwt_blacklist:abc`, never `abc`. `tests/Jwt/JwtServiceProviderTest.php` — gate accepts a taggable any-mode store and a valid composition; rejects non-taggable; message updated.
 
 ---
 
@@ -2308,8 +2308,8 @@ Ordered by phase; every file run individually right after it's written or update
 | 6 | `tests/Integration/Cache/Redis/StackTaggedCacheIntegrationTest.php` (new) | End-to-end write/read/backfill/flush/staleness/no-resurrection |
 | 7 | `tests/Cache/CacheStackStoreLocksTest.php` (new) | Delegation, throws, probe honesty |
 | 7 | `tests/Cache/FunnelUnsupportedStoresTest.php` (update) | Stack lock-gap assertion replaced by delegation coverage |
-| 8 | `tests/JWT/Storage/TaggedCacheTest.php` (update) | Both modes; prefix isolation |
-| 8 | `tests/JWT/JWTServiceProviderTest.php` (update) | Gate behavior + message |
+| 8 | `tests/Jwt/Storage/TaggedCacheTest.php` (update) | Both modes; prefix isolation |
+| 8 | `tests/Jwt/JwtServiceProviderTest.php` (update) | Gate behavior + message |
 | 9 | Auth cache tests (update) | Gate ordering; stack acceptance |
 | 11 | `composer test:parallel` | Whole suite |
 

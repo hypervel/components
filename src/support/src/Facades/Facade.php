@@ -288,7 +288,7 @@ abstract class Facade
             'Hash' => Hash::class,
             'Http' => Http::class,
             'Js' => Js::class,
-            'JWT' => JWT::class,
+            'Jwt' => Jwt::class,
             'Lang' => Lang::class,
             'Log' => Log::class,
             'Mail' => Mail::class,

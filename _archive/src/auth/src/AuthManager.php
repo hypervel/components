@@ -16,7 +16,7 @@ use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Http\Request;
-use Hypervel\JWT\JWTManager;
+use Hypervel\Jwt\JwtManager;
 use InvalidArgumentException;
 
 /**
@@ -131,7 +131,7 @@ class AuthManager implements AuthFactoryContract
         return new JwtGuard(
             $name,
             $this->createUserProvider($config['provider'] ?? null),
-            $this->app->make(JWTManager::class),
+            $this->app->make(JwtManager::class),
             $this->app->make(Request::class),
             (int) $this->config->get('jwt.ttl', 120)
         );

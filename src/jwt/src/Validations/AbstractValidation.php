@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Validations;
+namespace Hypervel\Jwt\Validations;
 
 use Carbon\CarbonInterface;
-use Hypervel\JWT\Contracts\ValidationContract;
+use Hypervel\Jwt\Contracts\ValidationContract;
 use Hypervel\Support\Facades\Date;
 
 abstract class AbstractValidation implements ValidationContract

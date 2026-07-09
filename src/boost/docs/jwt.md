@@ -48,7 +48,7 @@ The package service provider is discovered automatically.
 You may publish the JWT configuration file using the `vendor:publish` command:
 
 ```shell
-php artisan vendor:publish --provider="Hypervel\JWT\JWTServiceProvider"
+php artisan vendor:publish --provider="Hypervel\Jwt\JwtServiceProvider"
 ```
 
 This publishes a `config/jwt.php` file where you may configure signing keys, token lifetime, parser sources, validation, and blacklist behavior.
@@ -127,7 +127,7 @@ Route::middleware('auth:api')->get('/user', function () {
 <a name="user-models"></a>
 ### User Models
 
-JWT can authenticate any model supported by your configured user provider. If you need to customize the `sub` claim or add model-defined custom claims, implement the `Hypervel\JWT\Contracts\JWTSubject` contract:
+JWT can authenticate any model supported by your configured user provider. If you need to customize the `sub` claim or add model-defined custom claims, implement the `Hypervel\Jwt\Contracts\JwtSubject` contract:
 
 ```php
 <?php
@@ -135,14 +135,14 @@ JWT can authenticate any model supported by your configured user provider. If yo
 namespace App\Models;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\JWT\Contracts\JWTSubject;
+use Hypervel\Jwt\Contracts\JwtSubject;
 
-class User extends Model implements JWTSubject
+class User extends Model implements JwtSubject
 {
     /**
      * Get the identifier that will be stored in the subject claim.
      */
-    public function getJWTIdentifier(): mixed
+    public function getJwtIdentifier(): mixed
     {
         return $this->getKey();
     }
@@ -150,7 +150,7 @@ class User extends Model implements JWTSubject
     /**
      * Return custom claims to add to the token.
      */
-    public function getJWTCustomClaims(): array
+    public function getJwtCustomClaims(): array
     {
         return [];
     }
@@ -173,7 +173,7 @@ For HMAC algorithms, configure `JWT_SECRET` and `JWT_ALGO`:
 ```php
 'secret' => env('JWT_SECRET'),
 
-'algo' => env('JWT_ALGO', Hypervel\JWT\Providers\Provider::ALGO_HS256),
+'algo' => env('JWT_ALGO', Hypervel\Jwt\Providers\Provider::ALGO_HS256),
 ```
 
 For RSA and EC algorithms, configure `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, and `JWT_PASSPHRASE`:
@@ -266,9 +266,9 @@ The input key defaults to `token`:
 You may customize the parser chain:
 
 ```php
-use Hypervel\JWT\Http\Parser\AuthHeaders;
-use Hypervel\JWT\Http\Parser\Cookie;
-use Hypervel\JWT\Http\Parser\InputSource;
+use Hypervel\Jwt\Http\Parser\AuthHeaders;
+use Hypervel\Jwt\Http\Parser\Cookie;
+use Hypervel\Jwt\Http\Parser\InputSource;
 
 'parser' => [
     AuthHeaders::class,
@@ -279,7 +279,7 @@ use Hypervel\JWT\Http\Parser\InputSource;
 
 Cookie parsing is also available but is not enabled by default. If you add the `InputSource` or `Cookie` parser, it reads the same key configured by `jwt.token`.
 
-For a non-standard header or token scheme, implement `Hypervel\JWT\Contracts\TokenExtractor` and add that class to `jwt.parser`.
+For a non-standard header or token scheme, implement `Hypervel\Jwt\Contracts\TokenExtractor` and add that class to `jwt.parser`.
 
 <a name="validations-and-leeway"></a>
 ### Validations and Leeway
@@ -288,11 +288,11 @@ The `validations` option controls which validation classes run when a token is d
 
 ```php
 'validations' => [
-    Hypervel\JWT\Validations\RequiredClaims::class,
-    Hypervel\JWT\Validations\ExpiredClaim::class,
-    Hypervel\JWT\Validations\IssuerClaim::class,
-    Hypervel\JWT\Validations\IssuedAtClaim::class,
-    Hypervel\JWT\Validations\NotBeforeClaim::class,
+    Hypervel\Jwt\Validations\RequiredClaims::class,
+    Hypervel\Jwt\Validations\ExpiredClaim::class,
+    Hypervel\Jwt\Validations\IssuerClaim::class,
+    Hypervel\Jwt\Validations\IssuedAtClaim::class,
+    Hypervel\Jwt\Validations\NotBeforeClaim::class,
 ],
 ```
 
@@ -332,7 +332,7 @@ The blacklist uses the configured storage provider:
 
 ```php
 'providers' => [
-    'storage' => Hypervel\JWT\Storage\TaggedCache::class,
+    'storage' => Hypervel\Jwt\Storage\TaggedCache::class,
 ],
 ```
 
@@ -436,13 +436,13 @@ $newToken = Auth::guard('api')->refresh();
 Expose refresh through a dedicated endpoint:
 
 ```php
-use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Support\Facades\Auth;
 
 Route::post('/token/refresh', function () {
     try {
         $token = Auth::guard('api')->refresh();
-    } catch (JWTException) {
+    } catch (JwtException) {
         abort(401, 'Token cannot be refreshed.');
     }
 
@@ -541,7 +541,7 @@ The `claims` and `setTTL` methods affect only the next token-producing operation
 <a name="exceptions"></a>
 ## Exceptions
 
-JWT exceptions extend `Hypervel\JWT\Exceptions\JWTException`.
+JWT exceptions extend `Hypervel\Jwt\Exceptions\JwtException`.
 
 Common exceptions include:
 
@@ -563,7 +563,7 @@ Hypervel JWT is based on `php-open-source-saver/jwt-auth`, but its internals are
 <div class="content-list" markdown="1">
 
 - Hypervel uses array payloads instead of upstream `Payload`, `Token`, and claim DTO objects.
-- Hypervel keeps the `JWT` facade mapped to the array-based `JWTManager`, but does not include upstream `JWTAuth`, `JWTFactory`, or `JWTProvider` facades.
+- Hypervel keeps the `Jwt` facade mapped to the array-based `JwtManager`, but does not include upstream `JwtAuth`, `JwtFactory`, or `JwtProvider` facades.
 - The parser chain is stateless. Request instances are passed to the parser for each parse so coroutine requests cannot leak through singleton services.
 - Cookie token parsing is available but not enabled by default.
 - Upstream route-parameter and Lumen parser shortcuts are not included.

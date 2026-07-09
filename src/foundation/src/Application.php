@@ -1337,8 +1337,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'hash' => [\Hypervel\Hashing\HashManager::class],
             'hash.driver' => [\Hypervel\Contracts\Hashing\Hasher::class],
             'jwt' => [
-                \Hypervel\JWT\JWTManager::class,
-                \Hypervel\JWT\Contracts\ManagerContract::class,
+                \Hypervel\Jwt\JwtManager::class,
+                \Hypervel\Jwt\Contracts\ManagerContract::class,
             ],
             'log' => [
                 \Hypervel\Log\LogManager::class,

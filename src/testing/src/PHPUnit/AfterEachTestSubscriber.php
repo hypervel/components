@@ -147,8 +147,8 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Http\Middleware\TrustProxies::flushState();
         \Hypervel\Http\Resources\Json\JsonResource::flushState();
         \Hypervel\Http\Resources\JsonApi\JsonApiResource::flushState();
-        \Hypervel\JWT\ClaimFactory::flushState();
-        \Hypervel\JWT\JwtGuard::flushState();
+        \Hypervel\Jwt\ClaimFactory::flushState();
+        \Hypervel\Jwt\JwtGuard::flushState();
         \Hypervel\Log\Context\Repository::flushState();
         \Hypervel\Mail\Attachment::flushState();
         \Hypervel\Mail\Mailable::flushState();

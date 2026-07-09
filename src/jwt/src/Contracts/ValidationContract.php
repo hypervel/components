@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Contracts;
+namespace Hypervel\Jwt\Contracts;
 
 interface ValidationContract
 {

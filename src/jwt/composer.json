@@ -39,13 +39,13 @@
     },
     "autoload": {
         "psr-4": {
-            "Hypervel\\JWT\\": "src/"
+            "Hypervel\\Jwt\\": "src/"
         }
     },
     "extra": {
         "hypervel": {
             "providers": [
-                "Hypervel\\JWT\\JWTServiceProvider"
+                "Hypervel\\Jwt\\JwtServiceProvider"
             ]
         },
         "branch-alias": {

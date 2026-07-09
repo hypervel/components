@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Storage;
+namespace Hypervel\Jwt\Storage;
 
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
-use Hypervel\JWT\Contracts\StorageContract;
+use Hypervel\Jwt\Contracts\StorageContract;
 
 class TaggedCache implements StorageContract
 {
