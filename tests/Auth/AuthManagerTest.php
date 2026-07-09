@@ -323,6 +323,10 @@ class AuthManagerTest extends TestCase
 
         $manager->redirectGuestsTo('/login');
 
+        // Isolate Authenticate's own slot so this test fails if the aggregate
+        // stops configuring the auth-middleware redirect directly.
+        AuthenticationException::flushState();
+
         try {
             (new Authenticate($factory))->handle(Request::create('/secret'), fn () => null);
         } catch (AuthenticationException $exception) {
