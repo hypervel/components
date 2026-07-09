@@ -175,6 +175,8 @@ public function boot(): void
 
 The callback is registered for the worker lifetime, but the callback result is computed for each request. This is safe for multi-tenant and multi-guard applications as long as you do not cache request-specific data in static properties.
 
+This Fortify redirect API controls successful Fortify action fallbacks, such as login or registration responses when no intended URL is stored. It does not configure auth or guest middleware redirects. Use `Auth::redirectGuestsTo()` and `Auth::redirectUsersTo()` for middleware redirects, or the middleware configurator equivalents in `bootstrap/app.php`.
+
 Standalone Passkeys has its own `Passkeys::redirectUsing()` callback and `passkeys.redirect` fallback. When Fortify integrates passkeys, it installs a callback so passkey login uses the same request-aware login redirect as password login.
 
 <a name="multi-guard-applications"></a>

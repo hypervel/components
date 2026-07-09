@@ -358,7 +358,26 @@ use Hypervel\Http\Request;
 })
 ```
 
-Under the hood, the `auth` middleware throws an `Hypervel\Auth\AuthenticationException` when a user is unauthenticated. This exception is converted into a redirect (or a 401 JSON response for API requests) by your application's exception handler. If you need lower-level control beyond `redirectGuestsTo`, you may override the `unauthenticated` method in your exception handler, or pass a callback directly to `AuthenticationException::redirectUsing`.
+Packages and service providers may configure the same redirect through the `Auth` facade:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Auth;
+
+public function boot(): void
+{
+    Auth::redirectGuestsTo('/login');
+
+    // Using a closure...
+    Auth::redirectGuestsTo(fn (Request $request) => route('login'));
+}
+```
+
+Redirect paths may be strings or request-aware callbacks. The callback registration is boot-time worker-lifetime state, but the callback result is computed for each request.
+
+Configure these redirects from `bootstrap/app.php` with the middleware configurator, or from a service provider / package with the `Auth` facade. Both high-level APIs configure the same global redirect callbacks, so an application should generally choose one style for each redirect. If both high-level APIs are called for the same redirect, the most recent registration wins.
+
+Under the hood, the `auth` middleware throws an `Hypervel\Auth\AuthenticationException` when a user is unauthenticated. This exception is converted into a redirect (or a 401 JSON response for API requests) by your application's exception handler. If you need lower-level control beyond the high-level APIs, you may override the `unauthenticated` method in your exception handler or configure the low-level redirect callbacks directly on the relevant middleware or exception classes.
 
 <a name="redirecting-authenticated-users"></a>
 #### Redirecting Authenticated Users
@@ -375,6 +394,21 @@ use Hypervel\Http\Request;
     // Using a closure...
     $middleware->redirectUsersTo(fn (Request $request) => route('panel'));
 })
+```
+
+Packages and service providers may configure the same redirect through the `Auth` facade:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Auth;
+
+public function boot(): void
+{
+    Auth::redirectUsersTo('/panel');
+
+    // Using a closure...
+    Auth::redirectUsersTo(fn (Request $request) => route('panel'));
+}
 ```
 
 When the `guest` middleware names a guard and the request continues, that guard becomes the current default guard for the request. If multiple guards are listed, the first guard is selected.
