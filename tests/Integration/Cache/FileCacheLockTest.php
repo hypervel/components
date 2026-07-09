@@ -6,10 +6,12 @@ namespace Hypervel\Tests\Integration\Cache;
 
 use Exception;
 use Hypervel\Contracts\Cache\LockTimeoutException;
+use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 use Throwable;
 
 #[WithConfig('cache.default', 'file')]
@@ -23,7 +25,7 @@ class FileCacheLockTest extends TestCase
         Cache::lock('foo')->forceRelease();
     }
 
-    public function testLocksCanBeAcquiredAndReleased()
+    public function testLocksCanBeAcquiredAndReleased(): void
     {
         $lock = Cache::lock('foo', 10);
         $this->assertTrue($lock->get());
@@ -36,7 +38,7 @@ class FileCacheLockTest extends TestCase
         Cache::lock('foo')->release();
     }
 
-    public function testLocksCanBlockForSeconds()
+    public function testLocksCanBlockForSeconds(): void
     {
         $this->assertSame('taylor', Cache::lock('foo', 10)->block(1, function () {
             return 'taylor';
@@ -46,7 +48,7 @@ class FileCacheLockTest extends TestCase
         $this->assertTrue(Cache::lock('foo', 10)->block(1));
     }
 
-    public function testConcurrentLocksAreReleasedSafely()
+    public function testConcurrentLocksAreReleasedSafely(): void
     {
         Sleep::fake(syncWithCarbon: true);
 
@@ -62,7 +64,7 @@ class FileCacheLockTest extends TestCase
         $this->assertFalse(Cache::lock('foo')->get());
     }
 
-    public function testLocksWithFailedBlockCallbackAreReleased()
+    public function testLocksWithFailedBlockCallbackAreReleased(): void
     {
         $firstLock = Cache::lock('foo', 10);
 
@@ -81,7 +83,7 @@ class FileCacheLockTest extends TestCase
         $this->assertTrue($secondLock->get());
     }
 
-    public function testLocksCanBeReleasedUsingOwnerToken()
+    public function testLocksCanBeReleasedUsingOwnerToken(): void
     {
         $firstLock = Cache::lock('foo', 10);
         $this->assertTrue($firstLock->get());
@@ -93,7 +95,7 @@ class FileCacheLockTest extends TestCase
         $this->assertTrue(Cache::lock('foo')->get());
     }
 
-    public function testOwnerStatusCanBeCheckedAfterRestoringLock()
+    public function testOwnerStatusCanBeCheckedAfterRestoringLock(): void
     {
         $firstLock = Cache::lock('foo', 10);
         $this->assertTrue($firstLock->get());
@@ -103,7 +105,7 @@ class FileCacheLockTest extends TestCase
         $this->assertTrue($secondLock->isOwnedByCurrentProcess());
     }
 
-    public function testCacheRememberReturnsValueWhenLockWithSameKeyExists()
+    public function testCacheRememberReturnsValueWhenLockWithSameKeyExists(): void
     {
         $lock = Cache::lock('my-key', 5);
         $this->assertTrue($lock->get());
@@ -115,7 +117,19 @@ class FileCacheLockTest extends TestCase
         $lock->release();
     }
 
-    public function testOtherOwnerDoesNotOwnLockAfterRestore()
+    public function testIsLocked(): void
+    {
+        $lock = Cache::lock('foo', 10);
+        $this->assertFalse($lock->isLocked());
+
+        $lock->get();
+        $this->assertTrue($lock->isLocked());
+
+        $lock->release();
+        $this->assertFalse($lock->isLocked());
+    }
+
+    public function testOtherOwnerDoesNotOwnLockAfterRestore(): void
     {
         $firstLock = Cache::lock('foo', 10);
         $this->assertTrue($firstLock->isOwnedBy(null));
@@ -127,7 +141,7 @@ class FileCacheLockTest extends TestCase
         $this->assertFalse($secondLock->isOwnedByCurrentProcess());
     }
 
-    public function testExceptionIfBlockCanNotAcquireLock()
+    public function testExceptionIfBlockCanNotAcquireLock(): void
     {
         Sleep::fake(syncWithCarbon: true);
 
@@ -137,6 +151,108 @@ class FileCacheLockTest extends TestCase
         // try to get lock and hit block timeout
         $this->expectException(LockTimeoutException::class);
         Cache::lock('foo', 10)->block(5);
+    }
+
+    public function testLockImplementsRefreshableLock(): void
+    {
+        $this->assertInstanceOf(RefreshableLock::class, Cache::lock('foo', 10));
+    }
+
+    public function testLockCanBeRefreshed(): void
+    {
+        $lock = Cache::lock('foo', 10);
+        $this->assertTrue($lock->get());
+
+        $this->assertTrue($lock->refresh(20));
+        $this->assertFalse(Cache::lock('foo', 10)->get());
+
+        $lock->release();
+    }
+
+    public function testLockCannotBeRefreshedByAnotherOwner(): void
+    {
+        $firstLock = Cache::lock('foo', 10);
+        $this->assertTrue($firstLock->get());
+
+        $secondLock = Cache::store('file')->restoreLock('foo', 'other_owner');
+
+        $this->assertFalse($secondLock->refresh(20));
+        $this->assertTrue($firstLock->refresh(20));
+
+        $firstLock->release();
+    }
+
+    public function testLockRefreshWithDefaultSeconds(): void
+    {
+        $this->freezeTime();
+
+        $lock = Cache::lock('foo', 10);
+        $this->assertTrue($lock->get());
+
+        $this->travel(5)->seconds();
+
+        $this->assertTrue($lock->refresh());
+        $this->assertSame(10.0, $lock->getRemainingLifetime());
+
+        $lock->release();
+    }
+
+    public function testRefreshReturnsFalseAfterExpiry(): void
+    {
+        $this->freezeTime();
+
+        $lock = Cache::lock('foo', 10);
+        $this->assertTrue($lock->get());
+
+        $this->travel(10)->seconds();
+
+        $this->assertFalse($lock->refresh());
+    }
+
+    public function testRefreshOnPermanentLockVerifiesOwnership(): void
+    {
+        $lock = Cache::lock('foo');
+
+        $this->assertTrue($lock->get());
+        $this->assertTrue($lock->refresh());
+        $this->assertFalse(Cache::store('file')->restoreLock('foo', 'other_owner')->refresh());
+    }
+
+    public function testRefreshWithExplicitZeroThrowsException(): void
+    {
+        $lock = Cache::lock('foo', 10);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
+
+        $lock->refresh(0);
+    }
+
+    public function testGetRemainingLifetimeReturnsSeconds(): void
+    {
+        $this->freezeTime();
+
+        $lock = Cache::lock('foo', 10);
+
+        $this->assertTrue($lock->get());
+        $this->assertSame(10.0, $lock->getRemainingLifetime());
+
+        $this->travel(3)->seconds();
+
+        $this->assertSame(7.0, $lock->getRemainingLifetime());
+    }
+
+    public function testGetRemainingLifetimeReturnsNullWhenLockDoesNotExist(): void
+    {
+        $this->assertNull(Cache::lock('foo', 10)->getRemainingLifetime());
+    }
+
+    public function testGetRemainingLifetimeReturnsNullForPermanentLock(): void
+    {
+        $lock = Cache::lock('foo');
+
+        $this->assertTrue($lock->get());
+        $this->assertNull($lock->getRemainingLifetime());
     }
 
     protected function tearDown(): void

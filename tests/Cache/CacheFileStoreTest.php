@@ -8,6 +8,7 @@ use Exception;
 use Hypervel\Cache\FileStore;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Filesystem\LockableFile;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 use Hypervel\Testing\ParallelTesting;
@@ -183,6 +184,24 @@ class CacheFileStoreTest extends TestCase
 
         $result = $store->put('foo', 'foo', 10);
         $this->assertTrue($result);
+    }
+
+    public function testAddReturnsFalseWhenFileLockCannotBeAcquired(): void
+    {
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest');
+        mkdir($tempDir, 0777, true);
+
+        $store = new FileStore(new Filesystem, $tempDir);
+        $lockableFile = new LockableFile($store->path('foo'), 'c+');
+
+        try {
+            $lockableFile->getExclusiveLock();
+
+            $this->assertFalse($store->add('foo', 'bar', 10));
+        } finally {
+            $lockableFile->close();
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
     }
 
     public function testForeversAreStoredWithHighTimestamp()

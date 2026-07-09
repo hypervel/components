@@ -7,8 +7,8 @@ namespace Hypervel\Cache;
 use Exception;
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
-use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Filesystem\LockTimeoutException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\LockableFile;
 use Hypervel\Support\InteractsWithTime;
@@ -18,6 +18,11 @@ class FileStore implements CanFlushLocks, LockProvider, Store
 {
     use InteractsWithTime;
     use RetrievesMultipleKeys;
+
+    /**
+     * The expiration timestamp stored for items cached forever.
+     */
+    protected const PERMANENT_TIMESTAMP = 9999999999;
 
     /**
      * The Filesystem instance.
@@ -121,6 +126,69 @@ class FileStore implements CanFlushLocks, LockProvider, Store
         $file->close();
 
         return false;
+    }
+
+    /**
+     * Atomically refresh the expiration of a cache key if it matches the expected owner.
+     */
+    public function refreshIfOwned(string $key, string $expectedOwner, int $seconds): bool
+    {
+        $this->ensureCacheDirectoryExists($path = $this->path($key));
+
+        $file = new LockableFile($path, 'c+');
+
+        try {
+            $file->getExclusiveLock();
+        } catch (LockTimeoutException) {
+            $file->close();
+
+            return false;
+        }
+
+        $contents = $file->read();
+
+        if (strlen($contents) < 10) {
+            $file->close();
+
+            return false;
+        }
+
+        $expire = (int) substr($contents, 0, 10);
+        $currentOwner = $this->unserialize(substr($contents, 10));
+
+        if ($currentOwner !== $expectedOwner || $this->currentTime() >= $expire) {
+            $file->close();
+
+            return false;
+        }
+
+        $file->truncate()
+            ->write($this->expiration($seconds) . serialize($expectedOwner))
+            ->close();
+
+        $this->ensurePermissionsAreCorrect($path);
+
+        return true;
+    }
+
+    /**
+     * Get the number of seconds until the given key expires.
+     */
+    public function remainingSeconds(string $key): ?float
+    {
+        try {
+            $expire = (int) substr($this->files->get($this->path($key), true), 0, 10);
+        } catch (Exception) {
+            return null;
+        }
+
+        if ($expire >= self::PERMANENT_TIMESTAMP) {
+            return null;
+        }
+
+        $remaining = $expire - $this->currentTime();
+
+        return $remaining > 0 ? (float) $remaining : null;
     }
 
     /**
@@ -330,7 +398,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     protected function ensurePermissionsAreCorrect(string $path): void
     {
         if (is_null($this->filePermission)
-            || intval($this->files->chmod($path), 8) == $this->filePermission) {
+            || intval($this->files->chmod($path), 8) === $this->filePermission) {
             return;
         }
 
@@ -419,7 +487,7 @@ class FileStore implements CanFlushLocks, LockProvider, Store
     {
         $time = $this->availableAt($seconds);
 
-        return $seconds === 0 || $time > 9999999999 ? 9999999999 : $time;
+        return $seconds === 0 || $time > self::PERMANENT_TIMESTAMP ? self::PERMANENT_TIMESTAMP : $time;
     }
 
     /**
