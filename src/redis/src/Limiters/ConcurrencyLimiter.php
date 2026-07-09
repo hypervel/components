@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Limiters;
 
-use Hypervel\Contracts\Redis\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\LuaScripts;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
 use Throwable;
+
+use function Hypervel\Support\now;
 
 class ConcurrencyLimiter
 {
@@ -21,6 +24,11 @@ class ConcurrencyLimiter
     protected array $slots;
 
     /**
+     * The slot key prefix.
+     */
+    protected string $keyPrefix;
+
+    /**
      * Create a new concurrency limiter instance.
      *
      * @param RedisProxy $redis the Redis connection instance
@@ -30,44 +38,66 @@ class ConcurrencyLimiter
      */
     public function __construct(
         protected RedisProxy $redis,
-        protected string $name,
+        string $name,
         protected int $maxLocks,
         protected int $releaseAfter
     ) {
+        // All slot keys must hash to one cluster node: the acquire script
+        // runs a multi-key MGET, which fails with CROSSSLOT otherwise.
+        $this->keyPrefix = $redis->isCluster() && ! RedisConnection::hasHashTag($name)
+            ? '{' . $name . '}'
+            : $name;
+
         $this->slots = $maxLocks < 1
             ? []
-            : array_map(fn (int $i): string => $name . $i, range(1, $maxLocks));
+            : array_map(fn (int $i): string => $this->keyPrefix . $i, range(1, $maxLocks));
     }
 
     /**
-     * Attempt to acquire the lock for the given number of seconds.
+     * Acquire a lease on one of the limiter's slots, waiting up to the given timeout.
      *
      * @throws LimiterTimeoutException
-     * @throws Throwable
      */
-    public function block(int $timeout, ?callable $callback = null, int $sleep = 250): mixed
+    public function acquire(int $timeout, int $sleep = 250): ConcurrencyLease
     {
-        $starting = time();
-
         $id = Str::random(20);
 
-        while (! $slot = $this->acquire($id)) {
-            if (time() - $timeout >= $starting) {
+        $starting = ((int) now()->format('Uu')) / 1000;
+
+        $milliseconds = $timeout * 1000;
+
+        while (! $slot = $this->claimSlot($id)) {
+            $now = ((int) now()->format('Uu')) / 1000;
+
+            if (($now + $sleep - $milliseconds) >= $starting) {
                 throw new LimiterTimeoutException;
             }
 
             Sleep::usleep($sleep * 1000);
         }
 
+        return new ConcurrencyLease($this->redis, $slot, $id, $this->releaseAfter);
+    }
+
+    /**
+     * Attempt to acquire the lock for the given number of seconds.
+     *
+     * When no callback is given, the slot is reserved fire-and-forget: it is
+     * held until the releaseAfter TTL reclaims it. Use acquire() to obtain a
+     * releasable lease instead.
+     *
+     * @throws LimiterTimeoutException
+     * @throws Throwable
+     */
+    public function block(int $timeout, ?callable $callback = null, int $sleep = 250): mixed
+    {
+        $lease = $this->acquire($timeout, $sleep);
+
         if (is_callable($callback)) {
             try {
-                return tap($callback(), function () use ($slot, $id): void {
-                    $this->release($slot, $id);
-                });
-            } catch (Throwable $exception) {
-                $this->release($slot, $id);
-
-                throw $exception;
+                return $callback();
+            } finally {
+                $lease->release();
             }
         }
 
@@ -75,11 +105,11 @@ class ConcurrencyLimiter
     }
 
     /**
-     * Attempt to acquire the lock.
+     * Attempt to claim a free slot.
      *
-     * @param string $id a unique identifier for this lock
+     * @param string $id a unique identifier for this lease
      */
-    protected function acquire(string $id): mixed
+    protected function claimSlot(string $id): false|string
     {
         // Without slots there's nothing to claim. Calling eval with zero KEYS
         // would error inside Lua via unpack({}) → redis.call('mget') with no args.
@@ -87,18 +117,12 @@ class ConcurrencyLimiter
             return false;
         }
 
-        return $this->redis->eval(...array_merge(
+        $result = $this->redis->eval(...array_merge(
             [LuaScripts::acquireConcurrencySlot(), count($this->slots)],
             $this->slots,
-            [$this->name, $this->releaseAfter, $id],
+            [$this->keyPrefix, $this->releaseAfter, $id],
         ));
-    }
 
-    /**
-     * Release the lock.
-     */
-    protected function release(string $key, string $id): void
-    {
-        $this->redis->eval(LuaScripts::releaseLock(), 1, $key, $id);
+        return is_string($result) ? $result : false;
     }
 }
