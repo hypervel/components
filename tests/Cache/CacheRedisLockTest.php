@@ -40,7 +40,7 @@ class CacheRedisLockTest extends TestCase
         $redis->shouldReceive('setnx')
             ->once()
             ->with('foo', m::type('string'))
-            ->andReturn(true);
+            ->andReturn(1);
 
         $this->assertTrue($lock->acquire());
     }
@@ -141,12 +141,52 @@ class CacheRedisLockTest extends TestCase
         $this->assertFalse($lock->refresh());
     }
 
-    public function testRefreshOnPermanentLockReturnsTrue()
+    public function testRefreshOnPermanentLockReturnsTrueWhenStillOwned()
     {
-        [$lock] = $this->getLock(seconds: 0);
+        [$lock, $redis] = $this->getLock(seconds: 0);
 
-        // No Redis call should be made - it's a no-op for permanent locks
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('foo')
+            ->andReturn($lock->owner());
+
         $this->assertTrue($lock->refresh());
+    }
+
+    public function testRefreshOnPermanentLockReturnsFalseWhenNotOwned()
+    {
+        [$lock, $redis] = $this->getLock(seconds: 0);
+
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('foo')
+            ->andReturn('other-owner');
+
+        $this->assertFalse($lock->refresh());
+    }
+
+    public function testIsLockedReturnsTrueWhenLockExists()
+    {
+        [$lock, $redis] = $this->getLock();
+
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('foo')
+            ->andReturn('owner');
+
+        $this->assertTrue($lock->isLocked());
+    }
+
+    public function testIsLockedReturnsFalseWhenLockDoesNotExist()
+    {
+        [$lock, $redis] = $this->getLock();
+
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('foo')
+            ->andReturn(null);
+
+        $this->assertFalse($lock->isLocked());
     }
 
     public function testRefreshWithExplicitZeroThrowsException()
