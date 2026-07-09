@@ -216,21 +216,18 @@ class DatabaseLock extends Lock implements RefreshableLock
      */
     public function getRemainingLifetime(): ?float
     {
+        $now = $this->currentTime();
+
         $lock = $this->connection()->table($this->table)
             ->where('key', $this->name)
+            ->where('expiration', '>', $now)
             ->first();
 
         if ($lock === null) {
             return null;
         }
 
-        $remaining = $lock->expiration - $this->currentTime();
-
-        if ($remaining <= 0) {
-            return null;
-        }
-
-        return (float) $remaining;
+        return (float) ($lock->expiration - $now);
     }
 
     /**

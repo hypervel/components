@@ -284,13 +284,14 @@ class CacheDatabaseLockTest extends TestCase
         $lock->refresh(-5);
     }
 
-    public function testGetRemainingLifetimeReturnsSeconds()
+    public function testGetRemainingLifetimeReturnsSeconds(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
         [$lock, $table] = $this->getLock();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', $now->getTimestamp())->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn((object) [
             'expiration' => $now->getTimestamp() + 5,
         ]);
@@ -298,26 +299,26 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertSame(5.0, $lock->getRemainingLifetime());
     }
 
-    public function testGetRemainingLifetimeReturnsNullWhenLockDoesNotExist()
+    public function testGetRemainingLifetimeReturnsNullWhenLockDoesNotExist(): void
     {
         [$lock, $table] = $this->getLock();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn(null);
 
         $this->assertNull($lock->getRemainingLifetime());
     }
 
-    public function testGetRemainingLifetimeReturnsNullWhenExpired()
+    public function testGetRemainingLifetimeReturnsNullWhenExpired(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
         [$lock, $table] = $this->getLock();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn((object) [
-            'expiration' => $now->getTimestamp() - 1, // Already expired
-        ]);
+        $table->shouldReceive('where')->once()->with('expiration', '>', $now->getTimestamp())->andReturn($table);
+        $table->shouldReceive('first')->once()->andReturn(null);
 
         $this->assertNull($lock->getRemainingLifetime());
     }
