@@ -613,36 +613,4 @@ class RedisProxyIntegrationTest extends TestCase
             $redis->del("concurrent_transaction_test_{$i}_counter");
         }
     }
-
-    /**
-     * Create a Redis connection with custom options for integration assertions.
-     *
-     * @param array<string, mixed> $options
-     */
-    private function createRedisConnectionWithOptions(string $name, array $options, int $maxConnections = 10): string
-    {
-        $config = $this->app->make('config');
-
-        if ($config->get("database.redis.{$name}") !== null) {
-            return $name;
-        }
-
-        $config->set("database.redis.{$name}", [
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'password' => env('REDIS_PASSWORD', null) ?: null,
-            'port' => (int) env('REDIS_PORT', 6379),
-            'database' => $this->getParallelRedisDb(),
-            'pool' => [
-                'min_connections' => 1,
-                'max_connections' => $maxConnections,
-                'connect_timeout' => 10.0,
-                'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'max_idle_time' => 60.0,
-            ],
-            'options' => $options,
-        ]);
-
-        return $name;
-    }
 }
