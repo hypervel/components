@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Configuration;
 
+use Hypervel\Auth\AuthenticationException;
+use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Foundation\MaintenanceMode;
@@ -243,6 +245,23 @@ class MiddlewareTest extends TestCase
 
         $this->assertTrue($middleware->isDisabled('aaa'));
         $this->assertTrue($middleware->isDisabled('bbb'));
+    }
+
+    public function testRedirectGuestsToConfiguresAuthenticationRedirects(): void
+    {
+        (new Middleware)->redirectGuestsTo('/login');
+
+        $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
+    }
+
+    public function testRedirectUsersToConfiguresAuthenticationRedirects(): void
+    {
+        (new Middleware)->redirectUsersTo('/panel');
+
+        $reflection = new ReflectionClass(RedirectIfAuthenticated::class);
+        $method = $reflection->getMethod('redirectTo');
+
+        $this->assertSame('/panel', $method->invoke(new RedirectIfAuthenticated, Request::create('/login')));
     }
 
     public function testPreventRequestsDuringMaintenance()

@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Closure;
+use Hypervel\Auth\AuthenticationException;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\DatabaseUserProvider;
 use Hypervel\Auth\EloquentUserProvider;
+use Hypervel\Auth\Middleware\Authenticate;
+use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Auth\RequestGuard;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\RedisStore;
@@ -16,6 +19,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
@@ -24,6 +28,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Foundation\Auth\User as FoundationUser;
 use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Auth as AuthFacade;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -304,6 +309,123 @@ class AuthManagerTest extends TestCase
         $this->assertInstanceOf(RequestGuard::class, $guard = $manager->guard('foo'));
         $this->assertNull($guard->getProvider());
         $this->assertSame($user, $guard->user());
+    }
+
+    public function testRedirectGuestsToConfiguresAuthenticateMiddleware(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $guard = m::mock(Guard::class);
+        $guard->shouldReceive('check')->andReturnFalse();
+
+        $factory = m::mock(AuthFactory::class);
+        $factory->shouldReceive('guard')->with(null)->andReturn($guard);
+
+        $manager->redirectGuestsTo('/login');
+
+        try {
+            (new Authenticate($factory))->handle(Request::create('/secret'), fn () => null);
+        } catch (AuthenticationException $exception) {
+            $this->assertSame('/login', $exception->redirectTo(Request::create('/secret')));
+
+            return;
+        }
+
+        $this->fail('AuthenticationException was not thrown.');
+    }
+
+    public function testRedirectGuestsToConfiguresAuthenticationExceptionFallbackPerRequest(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $manager->redirectGuestsTo(fn (Request $request) => $request->headers->get('X-Tenant') === 'admin'
+            ? '/admin/login'
+            : '/login');
+
+        $this->assertSame(
+            '/admin/login',
+            (new AuthenticationException)->redirectTo(Request::create('/', server: ['HTTP_X_TENANT' => 'admin']))
+        );
+
+        $this->assertSame(
+            '/login',
+            (new AuthenticationException)->redirectTo(Request::create('/'))
+        );
+    }
+
+    public function testRedirectGuestsToCanBeConfiguredThroughFacade(): void
+    {
+        AuthFacade::swap(new AuthManager($this->getContainer()));
+
+        AuthFacade::redirectGuestsTo('/facade-login');
+
+        $this->assertSame('/facade-login', (new AuthenticationException)->redirectTo(Request::create('/')));
+    }
+
+    public function testRedirectUsersToConfiguresRedirectIfAuthenticatedMiddlewarePerRequest(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+        $manager->redirectUsersTo(fn (Request $request) => $request->headers->get('X-Tenant') === 'admin'
+            ? '/admin'
+            : '/dashboard');
+
+        $guard = m::mock(Guard::class);
+        $guard->shouldReceive('check')->andReturnTrue();
+
+        $factory = m::mock(AuthFactory::class);
+        $factory->shouldReceive('guard')->andReturn($guard);
+        AuthFacade::swap($factory);
+
+        $response = (new RedirectIfAuthenticated)->handle(
+            Request::create('/login', server: ['HTTP_X_TENANT' => 'admin']),
+            fn () => null
+        );
+
+        $this->assertStringContainsString('/admin', $response->headers->get('Location'));
+    }
+
+    public function testRedirectToConfiguresBothRedirectSides(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $manager->redirectTo(guests: '/login', users: '/dashboard');
+
+        $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
+
+        $guard = m::mock(Guard::class);
+        $guard->shouldReceive('check')->andReturnTrue();
+
+        $factory = m::mock(AuthFactory::class);
+        $factory->shouldReceive('guard')->andReturn($guard);
+        AuthFacade::swap($factory);
+
+        $response = (new RedirectIfAuthenticated)->handle(Request::create('/login'), fn () => null);
+
+        $this->assertStringContainsString('/dashboard', $response->headers->get('Location'));
+    }
+
+    public function testRedirectConfigurationUsesMostRecentHighLevelRegistration(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $manager->redirectGuestsTo('/first-login');
+        $manager->redirectGuestsTo('/second-login');
+
+        $this->assertSame('/second-login', (new AuthenticationException)->redirectTo(Request::create('/')));
+
+        $manager->redirectUsersTo('/first-dashboard');
+        $manager->redirectUsersTo('/second-dashboard');
+
+        $guard = m::mock(Guard::class);
+        $guard->shouldReceive('check')->andReturnTrue();
+
+        $factory = m::mock(AuthFactory::class);
+        $factory->shouldReceive('guard')->andReturn($guard);
+        AuthFacade::swap($factory);
+
+        $response = (new RedirectIfAuthenticated)->handle(Request::create('/login'), fn () => null);
+
+        $this->assertStringContainsString('/second-dashboard', $response->headers->get('Location'));
     }
 
     public function testGuardCachesResolvedInstances()
