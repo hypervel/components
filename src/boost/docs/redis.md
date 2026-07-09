@@ -15,6 +15,8 @@
     - [Holding a Pooled Connection](#holding-a-pooled-connection)
     - [Pinned Connections](#pinned-connections)
     - [Checking Cluster Connections](#checking-cluster-connections)
+    - [Concurrency Limiting](#concurrency-limiting)
+    - [Rate Limiting](#rate-limiting)
     - [Deleting Keys by Pattern](#deleting-keys-by-pattern)
     - [Transactions](#transactions)
     - [Pipelining Commands](#pipelining-commands)
@@ -226,6 +228,8 @@ If your application is utilizing Redis Cluster, you should define a `cluster` ar
 
 The `seeds` option should contain one or more `host:port` entries for nodes in the cluster. Redis Cluster does not support selecting logical databases, so the `database` option is ignored for clustered connections.
 
+Hypervel automatically hash-tags Redis queue storage keys and Redis funnel slot keys when a clustered connection is used and the configured queue or funnel name does not already contain a valid Redis Cluster hash tag. This keeps all keys used by Hypervel's multi-key Lua scripts on the same hash slot. You may still provide your own hash tag, such as `{orders}:high`, when you need to control key placement.
+
 <a name="sentinel"></a>
 ### Sentinel
 
@@ -394,6 +398,82 @@ if (Redis::connection('cache')->isCluster()) {
     // ...
 }
 ```
+
+<a name="concurrency-limiting"></a>
+#### Concurrency Limiting
+
+The `Redis::funnel` method limits how many operations may run at the same time for a named resource:
+
+```php
+use Hypervel\Support\Facades\Redis;
+
+Redis::funnel('reports')
+    ->limit(3)
+    ->releaseAfter(60)
+    ->block(10)
+    ->then(function () {
+        // One of three slots is held for this callback...
+    });
+```
+
+The `limit` method defines the number of slots. The `releaseAfter` method defines a crash-safety timeout in seconds, and `block` defines how long to wait for a free slot. If a slot cannot be acquired within the wait time and no failure callback is supplied, Hypervel throws a `Hypervel\Contracts\Limiters\LimiterTimeoutException`:
+
+```php
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+
+try {
+    Redis::funnel('reports')
+        ->limit(3)
+        ->releaseAfter(60)
+        ->block(10)
+        ->then(fn () => $this->buildReport());
+} catch (LimiterTimeoutException $e) {
+    // Unable to acquire a slot...
+}
+```
+
+For work that needs to hold a slot across several operations, acquire a lease and release it when the work is complete:
+
+```php
+$lease = Redis::funnel('reports')
+    ->limit(3)
+    ->releaseAfter(60)
+    ->block(10)
+    ->acquire();
+
+try {
+    foreach ($steps as $step) {
+        $this->runStep($step);
+
+        $lease->refresh();
+    }
+} finally {
+    $lease->release();
+}
+```
+
+Redis funnel leases are refreshable. Calling `refresh()` extends the slot's `releaseAfter` timeout if the lease still owns it, while `release()` frees the slot immediately. The `owner()` method returns the lease owner token, and `getRemainingLifetime()` returns the number of seconds before the slot expires or `null` when the slot does not exist or has no expiry.
+
+If the process exits without releasing the lease, Redis expires the slot after the `releaseAfter` timeout. A `releaseAfter(0)` lease is permanent: Redis will not expire the slot, `getRemainingLifetime()` returns `null`, and `refresh()` only verifies that the lease still owns the slot. Permanent leases must be released explicitly to reclaim capacity.
+
+<a name="rate-limiting"></a>
+#### Rate Limiting
+
+The `Redis::throttle` method limits how many times an operation may run during a time window:
+
+```php
+Redis::throttle('api')
+    ->allow(100)
+    ->every(60)
+    ->block(5)
+    ->then(function () {
+        // At most 100 executions per 60 seconds...
+    }, function () {
+        // Could not acquire capacity within five seconds...
+    });
+```
+
+Unlike `funnel`, a throttle does not return a releasable lease. It records an execution in a sliding window and lets Redis expire that record when it falls out of the configured duration.
 
 <a name="deleting-keys-by-pattern"></a>
 #### Deleting Keys by Pattern
