@@ -262,6 +262,48 @@ class AuthManager implements FactoryContract
     }
 
     /**
+     * Configure where guests are redirected by the "auth" middleware.
+     *
+     * Boot-only. The callback persists in authentication middleware and
+     * exception static properties for the worker lifetime and affects every
+     * subsequent unauthenticated or session-mismatch request.
+     */
+    public function redirectGuestsTo(callable|string $redirect): static
+    {
+        AuthenticationRedirects::redirectGuestsTo($redirect);
+
+        return $this;
+    }
+
+    /**
+     * Configure where users are redirected by the "guest" middleware.
+     *
+     * Boot-only. The callback persists in the guest middleware static property
+     * for the worker lifetime and affects every subsequent already-authenticated
+     * guest-route request.
+     */
+    public function redirectUsersTo(callable|string $redirect): static
+    {
+        AuthenticationRedirects::redirectUsersTo($redirect);
+
+        return $this;
+    }
+
+    /**
+     * Configure where users are redirected by the authentication and guest middleware.
+     *
+     * Boot-only. The callbacks persist in authentication middleware and
+     * exception static properties for the worker lifetime and affect every
+     * subsequent matching request.
+     */
+    public function redirectTo(callable|string|null $guests = null, callable|string|null $users = null): static
+    {
+        AuthenticationRedirects::redirectTo(guests: $guests, users: $users);
+
+        return $this;
+    }
+
+    /**
      * Register a custom driver creator Closure.
      *
      * Boot-only. The callback persists in the singleton's customCreators array
