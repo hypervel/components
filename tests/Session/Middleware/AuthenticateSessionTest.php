@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Session\Middleware;
 
 use Hypervel\Auth\AuthenticationException;
+use Hypervel\Auth\AuthManager;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Http\Request;
 use Hypervel\Session\ArraySessionHandler;
@@ -145,6 +147,46 @@ class AuthenticateSessionTest extends TestCase
         // ensure session is flushed:
         $this->assertNull($session->get('a'));
         $this->assertNull($session->get('b'));
+    }
+
+    public function testAuthManagerRedirectGuestsToConfiguresSessionMismatchRedirect(): void
+    {
+        $manager = new AuthManager(new Container);
+        $manager->redirectGuestsTo('/login');
+
+        // Isolate AuthenticateSession's own slot so this test fails if the
+        // aggregate stops configuring session-mismatch redirects directly.
+        AuthenticationException::flushState();
+
+        $user = new class {
+            public function getAuthPassword(): string
+            {
+                return 'my-pass-(*&^%$#!@';
+            }
+        };
+
+        $request = new Request(cookies: ['recaller-name' => 'a|b|invalid-mac']);
+        $request->setUserResolver(fn () => $user);
+
+        $session = new Store('name', new ArraySessionHandler(1));
+        $request->setHypervelSession($session);
+
+        $authFactory = m::mock(AuthFactory::class);
+        $authFactory->shouldReceive('viaRemember')->andReturn(true);
+        $authFactory->shouldReceive('getRecallerName')->once()->andReturn('recaller-name');
+        $authFactory->shouldReceive('logoutCurrentDevice')->once()->andReturn(null);
+        $authFactory->shouldReceive('getDefaultDriver')->andReturn('web');
+        $authFactory->shouldReceive('hashPasswordForCookie')->with('my-pass-(*&^%$#!@')->andReturn('mac:my-pass-(*&^%$#!@');
+
+        try {
+            (new AuthenticateSession($authFactory))->handle($request, fn () => 'next');
+        } catch (AuthenticationException $exception) {
+            $this->assertSame('/login', $exception->redirectTo($request));
+
+            return;
+        }
+
+        $this->fail('AuthenticationException was not thrown.');
     }
 
     public function testHandleWithInvalidIncookiePasswordHashViaRememberTrue()

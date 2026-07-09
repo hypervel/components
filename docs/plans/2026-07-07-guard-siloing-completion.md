@@ -171,7 +171,7 @@ Delete `registerRequirePassword()` and its call in `register()`. All four constr
 
 ### 5. `src/session/composer.json`
 
-Add `"hypervel/auth": "^0.4"` to `require` (alphabetically first, before `hypervel/cache`). This also fixes a pre-existing packaging bug: `src/session/src/Middleware/AuthenticateSession.php:9` already imports the concrete `Hypervel\Auth\AuthenticationException` with no declared dependency, so a standalone subtree-split install of `hypervel/session` is broken today. No cycle: `src/auth/composer.json` only *suggests* `hypervel/session`. The root `composer.json` needs no change (monorepo `replace` covers all packages).
+Add `"hypervel/auth": "^0.4"` to `require` (alphabetically first, before `hypervel/cache`). This also fixes a pre-existing packaging bug: `src/session/src/Middleware/AuthenticateSession.php:9` already imports the concrete `Hypervel\Auth\AuthenticationException` with no declared dependency, so a standalone subtree-split install of `hypervel/session` is broken today. The later auth redirect convenience API work intentionally made auth and session mutually required; see `docs/plans/2026-07-09-auth-redirect-convenience-api.md` for that package-graph decision. The root `composer.json` needs no change (monorepo `replace` covers all packages).
 
 ### 6. `src/support/src/Facades/Session.php` and `src/contracts/src/Session/Session.php`
 

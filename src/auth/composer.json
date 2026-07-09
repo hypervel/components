@@ -34,10 +34,8 @@
         "hypervel/hashing": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
+        "hypervel/session": "^0.4",
         "hypervel/support": "^0.4"
-    },
-    "suggest": {
-        "hypervel/session": "Required to use session guard. (^0.4)"
     },
     "autoload": {
         "psr-4": {
