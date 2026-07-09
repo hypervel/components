@@ -580,7 +580,7 @@ Examples: `tests/Inertia/CoroutineIsolationTest.php`, `tests/Container/Coroutine
 
 #### Static State and Test Cleanup
 
-`AfterEachTestSubscriber` handles global static state cleanup between tests. It calls `flushState()` on framework classes that accumulate static state (Mockery, HandleExceptions, Carbon, Number, Eloquent Model, Paginator, etc.). **Never add cleanup for these in `tearDown()`** — it's already handled. Testbench-specific flush helpers are not the global cleanup registry.
+`AfterEachTestSubscriber` handles global cleanup between tests. It calls `flushState()` on framework classes that hold static state, and resets the container itself — `Container::flushState()` + `setInstance(null)` — plus `CoroutineContext::flush()`, with each test in a fresh coroutine. So container singleton/auto-singleton instance state and coroutine context don't leak between tests; only `static`/process-global state and live external resources need package cleanup, not mutable state on a container-cached instance. **Never add cleanup in `tearDown()`** — it's handled. `AfterEachTestSubscriber` is the one authoritative registry; don't register cleanup elsewhere.
 
 When porting source classes that use static properties for caching (e.g., `$booted`, `$globalScopes`, resolved config values, compiled formats):
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
