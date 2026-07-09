@@ -7,6 +7,8 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
+use function Hypervel\Support\now;
+
 /**
  * Adjust the expiration time of a tagged cache item and its tag entries.
  *

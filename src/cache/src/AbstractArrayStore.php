@@ -10,6 +10,8 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\InteractsWithTime;
 use RuntimeException;
 
+use function Hypervel\Support\now;
+
 abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks, LockProvider
 {
     use InteractsWithTime;
