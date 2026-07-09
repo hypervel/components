@@ -27,7 +27,7 @@ class PhpRedisCacheFunnelTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testFunnelReleasesSlotWithoutSerializationAndCompression()
+    public function testFunnelReleasesSlotWithoutSerializationAndCompression(): void
     {
         $this->configureLockConnection([
             'serializer' => Redis::SERIALIZER_NONE,
@@ -36,7 +36,7 @@ class PhpRedisCacheFunnelTest extends TestCase
         $this->assertFunnelAcquiresAndReleases();
     }
 
-    public function testFunnelReleasesSlotWithPhpSerialization()
+    public function testFunnelReleasesSlotWithPhpSerialization(): void
     {
         $this->configureLockConnection([
             'serializer' => Redis::SERIALIZER_PHP,
@@ -45,7 +45,7 @@ class PhpRedisCacheFunnelTest extends TestCase
         $this->assertFunnelAcquiresAndReleases();
     }
 
-    public function testFunnelReleasesSlotWithJsonSerialization()
+    public function testFunnelReleasesSlotWithJsonSerialization(): void
     {
         $this->configureLockConnection([
             'serializer' => Redis::SERIALIZER_JSON,
@@ -54,7 +54,7 @@ class PhpRedisCacheFunnelTest extends TestCase
         $this->assertFunnelAcquiresAndReleases();
     }
 
-    public function testFunnelReleasesSlotWithIgbinarySerialization()
+    public function testFunnelReleasesSlotWithIgbinarySerialization(): void
     {
         if (! defined('Redis::SERIALIZER_IGBINARY')) {
             $this->markTestSkipped('Redis extension is not configured to support the igbinary serializer.');
@@ -67,7 +67,7 @@ class PhpRedisCacheFunnelTest extends TestCase
         $this->assertFunnelAcquiresAndReleases();
     }
 
-    public function testFunnelReleasesSlotWithMsgpackSerialization()
+    public function testFunnelReleasesSlotWithMsgpackSerialization(): void
     {
         if (! defined('Redis::SERIALIZER_MSGPACK')) {
             $this->markTestSkipped('Redis extension is not configured to support the msgpack serializer.');
@@ -80,7 +80,7 @@ class PhpRedisCacheFunnelTest extends TestCase
         $this->assertFunnelAcquiresAndReleases();
     }
 
-    public function testFunnelReleasesSlotWithLzfCompression()
+    public function testFunnelReleasesSlotWithLzfCompression(): void
     {
         if (! defined('Redis::COMPRESSION_LZF')) {
             $this->markTestSkipped('Redis extension is not configured to support the lzf compression.');
@@ -94,7 +94,7 @@ class PhpRedisCacheFunnelTest extends TestCase
         $this->assertFunnelAcquiresAndReleases();
     }
 
-    public function testFunnelReleasesSlotWithZstdCompression()
+    public function testFunnelReleasesSlotWithZstdCompression(): void
     {
         if (! defined('Redis::COMPRESSION_ZSTD')) {
             $this->markTestSkipped('Redis extension is not configured to support the zstd compression.');
@@ -109,7 +109,7 @@ class PhpRedisCacheFunnelTest extends TestCase
         $this->assertFunnelAcquiresAndReleases();
     }
 
-    public function testFunnelReleasesSlotWithLz4Compression()
+    public function testFunnelReleasesSlotWithLz4Compression(): void
     {
         if (! defined('Redis::COMPRESSION_LZ4')) {
             $this->markTestSkipped('Redis extension is not configured to support the lz4 compression.');
@@ -124,7 +124,7 @@ class PhpRedisCacheFunnelTest extends TestCase
         $this->assertFunnelAcquiresAndReleases();
     }
 
-    public function testFunnelReleasesSlotWithSerializationAndCompression()
+    public function testFunnelReleasesSlotWithSerializationAndCompression(): void
     {
         if (! defined('Redis::COMPRESSION_LZF')) {
             $this->markTestSkipped('Redis extension is not configured to support the lzf compression.');

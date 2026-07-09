@@ -12,7 +12,7 @@ use Throwable;
 
 class DefineCacheRoutesTest extends TestCase
 {
-    public function testCompiledRouteCollectionIsInstalledAfterDefineCacheRoutes()
+    public function testCompiledRouteCollectionIsInstalledAfterDefineCacheRoutes(): void
     {
         $this->assertInstanceOf(
             RouteCollection::class,
@@ -31,7 +31,7 @@ PHP);
         );
     }
 
-    public function testCachedRoutesAreDispatchable()
+    public function testCachedRoutesAreDispatchable(): void
     {
         $this->defineCacheRoutes(<<<'PHP'
 <?php
@@ -44,7 +44,7 @@ PHP);
         $this->assertSame('world', $response->getContent());
     }
 
-    public function testMultipleRoutesInSingleDefineCacheRoutes()
+    public function testMultipleRoutesInSingleDefineCacheRoutes(): void
     {
         $this->defineCacheRoutes(<<<'PHP'
 <?php
@@ -59,7 +59,7 @@ PHP);
         $this->post('/gamma')->assertOk()->assertSee('gamma_response');
     }
 
-    public function testNamedRoutesSurviveCaching()
+    public function testNamedRoutesSurviveCaching(): void
     {
         $this->defineCacheRoutes(<<<'PHP'
 <?php
@@ -75,7 +75,7 @@ PHP);
         $this->assertSame('named', $routes->getByName('test.named')->uri());
     }
 
-    public function testDefineCacheRoutesHasRunFlagIsSet()
+    public function testDefineCacheRoutesHasRunFlagIsSet(): void
     {
         $this->assertFalse($this->requireApplicationCachedRoutesHasRun);
 
@@ -88,7 +88,7 @@ PHP);
         $this->assertTrue($this->requireApplicationCachedRoutesHasRun);
     }
 
-    public function testDefineCacheRoutesTracksOwnedRouteFile()
+    public function testDefineCacheRoutesTracksOwnedRouteFile(): void
     {
         $this->defineCacheRoutes(<<<'PHP'
 <?php
@@ -100,7 +100,7 @@ PHP, false);
         $this->assertFileExists($this->testbenchRouteFiles[0]);
     }
 
-    public function testDefineCacheRoutesDeletesOnlyOwnedRouteFiles()
+    public function testDefineCacheRoutesDeletesOnlyOwnedRouteFiles(): void
     {
         $this->defineCacheRoutes(<<<'PHP'
 <?php
@@ -148,7 +148,7 @@ PHP);
         }
     }
 
-    public function testTestbenchRouteFilePathIsUniquePerCall()
+    public function testTestbenchRouteFilePathIsUniquePerCall(): void
     {
         $firstRouteFile = $this->testbenchRouteFilePath($this->app->basePath());
         $secondRouteFile = $this->testbenchRouteFilePath($this->app->basePath());
@@ -158,7 +158,7 @@ PHP);
         $this->assertStringEndsWith('.php', $firstRouteFile);
     }
 
-    public function testCacheFileExistsAfterDefineCacheRoutes()
+    public function testCacheFileExistsAfterDefineCacheRoutes(): void
     {
         $this->defineCacheRoutes(<<<'PHP'
 <?php
@@ -169,7 +169,7 @@ PHP);
         $this->assertFileExists($this->app->getCachedRoutesPath());
     }
 
-    public function testSetUpApplicationRoutesSkipsWhenRoutesCached()
+    public function testSetUpApplicationRoutesSkipsWhenRoutesCached(): void
     {
         $this->defineCacheRoutes(<<<'PHP'
 <?php

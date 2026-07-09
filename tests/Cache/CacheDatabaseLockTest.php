@@ -18,7 +18,7 @@ use Mockery as m;
 
 class CacheDatabaseLockTest extends TestCase
 {
-    public function testLockCanBeAcquired()
+    public function testLockCanBeAcquired(): void
     {
         [$lock, $table] = $this->getLock();
 
@@ -32,7 +32,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
-    public function testLockCanBeAcquiredIfAlreadyOwnedBySameOwner()
+    public function testLockCanBeAcquiredIfAlreadyOwnedBySameOwner(): void
     {
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
@@ -58,7 +58,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
-    public function testLockCannotBeAcquiredIfAlreadyHeld()
+    public function testLockCannotBeAcquiredIfAlreadyHeld(): void
     {
         [$lock, $table] = $this->getLock();
 
@@ -85,7 +85,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertFalse($lock->acquire());
     }
 
-    public function testExpiredLocksAreDeletedDuringAcquisition()
+    public function testExpiredLocksAreDeletedDuringAcquisition(): void
     {
         [$lock, $table] = $this->getLock(lockLottery: [1, 1]); // Always hit lottery
 
@@ -98,7 +98,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
-    public function testLockCanBeReleased()
+    public function testLockCanBeReleased(): void
     {
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
@@ -116,7 +116,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->release());
     }
 
-    public function testLockCannotBeReleasedIfNotOwned()
+    public function testLockCannotBeReleasedIfNotOwned(): void
     {
         [$lock, $table] = $this->getLock();
 
@@ -127,7 +127,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertFalse($lock->release());
     }
 
-    public function testLockCannotBeReleasedIfNotExists()
+    public function testLockCannotBeReleasedIfNotExists(): void
     {
         [$lock, $table] = $this->getLock();
 
@@ -138,7 +138,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertFalse($lock->release());
     }
 
-    public function testExpiredLockIsNotLockedOrOwned()
+    public function testExpiredLockIsNotLockedOrOwned(): void
     {
         [$lock, $table] = $this->getLock();
 
@@ -150,7 +150,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertFalse($lock->isOwnedByCurrentProcess());
     }
 
-    public function testLockCanBeForceReleased()
+    public function testLockCanBeForceReleased(): void
     {
         [$lock, $table] = $this->getLock();
 
@@ -161,7 +161,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue(true); // Just verify no exceptions
     }
 
-    public function testLockWithDefaultTimeout()
+    public function testLockWithDefaultTimeout(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
@@ -177,14 +177,14 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
-    public function testLockImplementsRefreshableLock()
+    public function testLockImplementsRefreshableLock(): void
     {
         [$lock] = $this->getLock();
 
         $this->assertInstanceOf(RefreshableLock::class, $lock);
     }
 
-    public function testRefreshExtendsLockExpiration()
+    public function testRefreshExtendsLockExpiration(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
@@ -202,7 +202,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->refresh());
     }
 
-    public function testRefreshWithCustomTtl()
+    public function testRefreshWithCustomTtl(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
@@ -220,7 +220,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->refresh(30));
     }
 
-    public function testRefreshReturnsFalseWhenNotOwned()
+    public function testRefreshReturnsFalseWhenNotOwned(): void
     {
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
@@ -233,7 +233,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertFalse($lock->refresh());
     }
 
-    public function testRefreshOnDefaultTimeoutLockReappliesDefaultTimeout()
+    public function testRefreshOnDefaultTimeoutLockReappliesDefaultTimeout(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
@@ -251,7 +251,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->refresh());
     }
 
-    public function testRefreshReturnsFalseWhenExpired()
+    public function testRefreshReturnsFalseWhenExpired(): void
     {
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
@@ -264,7 +264,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertFalse($lock->refresh());
     }
 
-    public function testRefreshWithExplicitZeroThrowsException()
+    public function testRefreshWithExplicitZeroThrowsException(): void
     {
         [$lock] = $this->getLock(seconds: 10);
 
@@ -274,7 +274,7 @@ class CacheDatabaseLockTest extends TestCase
         $lock->refresh(0);
     }
 
-    public function testRefreshWithNegativeSecondsThrowsException()
+    public function testRefreshWithNegativeSecondsThrowsException(): void
     {
         [$lock] = $this->getLock(seconds: 10);
 
@@ -323,7 +323,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertNull($lock->getRemainingLifetime());
     }
 
-    public function testGetConnectionNameReturnsConnectionName()
+    public function testGetConnectionNameReturnsConnectionName(): void
     {
         [$lock,, $connection] = $this->getLock();
 
@@ -332,7 +332,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertSame('default', $lock->getConnectionName());
     }
 
-    public function testGetConnectionNameCanReturnNull()
+    public function testGetConnectionNameCanReturnNull(): void
     {
         [$lock,, $connection] = $this->getLock(connectionName: null);
 
