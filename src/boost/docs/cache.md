@@ -774,6 +774,8 @@ Cache::lock('processing')->forceRelease();
 The `redis`, `database`, `file`, and `array` cache lock drivers support atomic TTL refresh and remaining-lifetime inspection via the `Hypervel\Contracts\Cache\RefreshableLock` interface. This is useful for long-running work where you want to extend the lock as you go rather than acquiring a single conservative lock up front:
 
 ```php
+use RuntimeException;
+
 $lock = Cache::lock('processing', 60);
 
 if ($lock->get()) {
@@ -781,7 +783,9 @@ if ($lock->get()) {
         foreach ($items as $item) {
             $this->process($item);
 
-            $lock->refresh();
+            if (! $lock->refresh()) {
+                throw new RuntimeException('Lost the lock while processing.');
+            }
         }
     } finally {
         $lock->release();
@@ -869,6 +873,7 @@ For work that cannot fit inside a single callback, acquire a lease and release i
 
 ```php
 use Hypervel\Contracts\Limiters\RefreshableLease;
+use RuntimeException;
 
 $lease = Cache::funnel('podcast-import')
     ->limit(3)
@@ -880,8 +885,8 @@ try {
     foreach ($chunks as $chunk) {
         $this->import($chunk);
 
-        if ($lease instanceof RefreshableLease) {
-            $lease->refresh();
+        if ($lease instanceof RefreshableLease && ! $lease->refresh()) {
+            throw new RuntimeException('Lost the lease while processing.');
         }
     }
 } finally {

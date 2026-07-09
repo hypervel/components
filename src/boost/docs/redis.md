@@ -435,6 +435,8 @@ try {
 For work that needs to hold a slot across several operations, acquire a lease and release it when the work is complete:
 
 ```php
+use RuntimeException;
+
 $lease = Redis::funnel('reports')
     ->limit(3)
     ->releaseAfter(60)
@@ -445,7 +447,9 @@ try {
     foreach ($steps as $step) {
         $this->runStep($step);
 
-        $lease->refresh();
+        if (! $lease->refresh()) {
+            throw new RuntimeException('Lost the lease while processing.');
+        }
     }
 } finally {
     $lease->release();
