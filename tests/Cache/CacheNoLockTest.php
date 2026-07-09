@@ -75,6 +75,13 @@ class CacheNoLockTest extends TestCase
         $this->assertNull($lock->getRemainingLifetime());
     }
 
+    public function testIsLockedAlwaysReturnsFalse()
+    {
+        $lock = new NoLock('foo', 10);
+
+        $this->assertFalse($lock->isLocked());
+    }
+
     public function testOwnerReturnsOwner()
     {
         $lock = new NoLock('foo', 10, 'custom-owner');

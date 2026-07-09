@@ -47,20 +47,25 @@ class NoLock extends Lock implements RefreshableLock
      */
     public function refresh(?int $seconds = null): bool
     {
-        // Permanent lock with no explicit TTL requested - nothing to refresh
         if ($seconds === null && $this->seconds <= 0) {
-            return true;
+            return $this->isOwnedByCurrentProcess();
         }
 
         $seconds ??= $this->seconds;
 
         if ($seconds <= 0) {
-            throw new InvalidArgumentException(
-                'Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.'
-            );
+            throw new InvalidArgumentException('Refresh requires a positive TTL.');
         }
 
         return true;
+    }
+
+    /**
+     * Determine if the lock is currently held by any process.
+     */
+    public function isLocked(): bool
+    {
+        return false;
     }
 
     /**
