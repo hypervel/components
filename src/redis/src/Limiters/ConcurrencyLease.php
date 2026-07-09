@@ -13,9 +13,10 @@ use InvalidArgumentException;
  * A held slot in a Redis funnel limiter.
  *
  * The owner id is stored and compared raw, never packed: the slot value is
- * written by the acquire Lua script and only read by release/refresh scripts.
- * RedisLock writes through set(), so its owner must be packed before Lua
- * comparisons; funnel leases do not.
+ * written by the acquire Lua script, compared raw by release/refresh scripts,
+ * and read raw during permanent-slot ownership checks. RedisLock writes
+ * through set(), so its owner must be packed before Lua comparisons; funnel
+ * leases do not.
  */
 class ConcurrencyLease implements RefreshableLease
 {
@@ -54,7 +55,9 @@ class ConcurrencyLease implements RefreshableLease
     public function refresh(?int $seconds = null): bool
     {
         if ($seconds === null && $this->releaseAfter <= 0) {
-            return $this->redis->get($this->key) === $this->owner;
+            return $this->redis->withoutSerializationOrCompression(
+                fn (): bool => $this->redis->get($this->key) === $this->owner
+            );
         }
 
         $seconds ??= $this->releaseAfter;

@@ -13,6 +13,7 @@ use Hypervel\Redis\Limiters\ConcurrencyLimiter;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
+use Redis as PhpRedis;
 use Throwable;
 
 /**
@@ -234,6 +235,27 @@ class ConcurrencyLimiterIntegrationTest extends TestCase
         } finally {
             $lease->release();
             $this->deleteSlots('lease-permanent', 1);
+        }
+    }
+
+    public function testPermanentLeaseRefreshUsesRawRedisReadWithSerializer(): void
+    {
+        $connectionName = $this->createRedisConnectionWithOptions('lease_permanent_serializer', [
+            'prefix' => '',
+            'serializer' => PhpRedis::SERIALIZER_PHP,
+        ]);
+
+        $redis = Redis::connection($connectionName);
+
+        $redis->del('lease-permanent-serializer1');
+
+        $lease = (new ConcurrencyLimiter($redis, 'lease-permanent-serializer', 1, 0))->acquire(0);
+
+        try {
+            $this->assertTrue($lease->refresh());
+        } finally {
+            $lease->release();
+            $redis->del('lease-permanent-serializer1');
         }
     }
 
