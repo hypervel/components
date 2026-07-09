@@ -8,6 +8,7 @@ use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\RouteCollection;
 use Hypervel\Routing\Router;
 use Hypervel\Testbench\TestCase;
+use Throwable;
 
 class DefineCacheRoutesTest extends TestCase
 {
@@ -122,6 +123,28 @@ PHP, false);
             $this->assertFileExists($siblingRouteFile);
         } finally {
             @unlink($siblingRouteFile);
+        }
+    }
+
+    public function testDefineCacheRoutesCleansRouteFileWhenRouteCacheFails(): void
+    {
+        try {
+            $this->defineCacheRoutes(<<<'PHP'
+<?php
+throw new RuntimeException('route cache failed');
+PHP);
+
+            $this->fail('Expected route caching to fail.');
+        } catch (Throwable) {
+            $this->assertCount(1, $this->testbenchRouteFiles);
+
+            $routeFile = $this->testbenchRouteFiles[0];
+
+            $this->assertFileExists($routeFile);
+
+            $this->callBeforeApplicationDestroyedCallbacks();
+
+            $this->assertFileDoesNotExist($routeFile);
         }
     }
 

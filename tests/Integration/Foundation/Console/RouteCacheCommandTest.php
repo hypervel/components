@@ -25,6 +25,7 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         parent::setUp();
 
         $this->files = new Filesystem;
+        $this->assertNoLeakedTestbenchRouteFiles();
     }
 
     protected function tearDown(): void
@@ -212,5 +213,19 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         );
 
         $this->routeFiles[] = $routePath;
+    }
+
+    /**
+     * Assert no testbench route files leaked from an earlier test in this worker.
+     */
+    protected function assertNoLeakedTestbenchRouteFiles(): void
+    {
+        $leakedRouteFiles = glob($this->app->basePath('routes/testbench-*.php')) ?: [];
+
+        $this->assertSame(
+            [],
+            $leakedRouteFiles,
+            'Leaked testbench route files found: ' . implode(', ', $leakedRouteFiles)
+        );
     }
 }
