@@ -15,7 +15,7 @@ use Mockery as m;
 
 class PoolFactoryTest extends TestCase
 {
-    public function testGetPoolReturnsSameInstance()
+    public function testGetPoolReturnsSameInstance(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -27,7 +27,7 @@ class PoolFactoryTest extends TestCase
         $this->assertSame($pool1, $pool2);
     }
 
-    public function testGetPoolReturnsDifferentInstancesForDifferentNames()
+    public function testGetPoolReturnsDifferentInstancesForDifferentNames(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -39,7 +39,7 @@ class PoolFactoryTest extends TestCase
         $this->assertNotSame($pool1, $pool2);
     }
 
-    public function testFlushAll()
+    public function testFlushAll(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -65,7 +65,7 @@ class PoolFactoryTest extends TestCase
         $this->assertSame(0, $pool2->getConnectionsInChannel());
     }
 
-    public function testFlushAllClearsCachedPools()
+    public function testFlushAllClearsCachedPools(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -83,7 +83,32 @@ class PoolFactoryTest extends TestCase
         $this->assertNotSame($original, $fresh);
     }
 
-    public function testFlushPoolOnlyFlushesNamedPool()
+    public function testFlushAllDetachesPoolsBeforeClosingThem(): void
+    {
+        $container = m::mock(ContainerContract::class);
+        $original = m::mock(RedisPool::class);
+        $replacement = m::mock(RedisPool::class);
+        $container->shouldReceive('make')
+            ->with(RedisPool::class, ['name' => 'default'])
+            ->twice()
+            ->andReturn($original, $replacement);
+        $factory = new PoolFactory($container);
+        $resolvedDuringClose = null;
+        $original->shouldReceive('close')->once()->andReturnUsing(
+            function () use ($factory, &$resolvedDuringClose): void {
+                $resolvedDuringClose = $factory->getPool('default');
+            }
+        );
+
+        $this->assertSame($original, $factory->getPool('default'));
+
+        $factory->flushAll();
+
+        $this->assertSame($replacement, $resolvedDuringClose);
+        $this->assertSame($replacement, $factory->getPool('default'));
+    }
+
+    public function testFlushPoolOnlyFlushesNamedPool(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -117,6 +142,31 @@ class PoolFactoryTest extends TestCase
         // Getting default pool again should return a fresh instance
         $freshDefaultPool = $factory->getPool('default');
         $this->assertNotSame($defaultPool, $freshDefaultPool);
+    }
+
+    public function testFlushPoolDetachesPoolBeforeClosingIt(): void
+    {
+        $container = m::mock(ContainerContract::class);
+        $original = m::mock(RedisPool::class);
+        $replacement = m::mock(RedisPool::class);
+        $container->shouldReceive('make')
+            ->with(RedisPool::class, ['name' => 'default'])
+            ->twice()
+            ->andReturn($original, $replacement);
+        $factory = new PoolFactory($container);
+        $resolvedDuringClose = null;
+        $original->shouldReceive('close')->once()->andReturnUsing(
+            function () use ($factory, &$resolvedDuringClose): void {
+                $resolvedDuringClose = $factory->getPool('default');
+            }
+        );
+
+        $this->assertSame($original, $factory->getPool('default'));
+
+        $factory->flushPool('default');
+
+        $this->assertSame($replacement, $resolvedDuringClose);
+        $this->assertSame($replacement, $factory->getPool('default'));
     }
 
     private function mockContainerWithPools(): m\MockInterface|ContainerContract
