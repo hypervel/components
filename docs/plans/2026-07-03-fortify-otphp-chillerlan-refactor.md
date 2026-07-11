@@ -1,10 +1,8 @@
 # Fortify OTPHP And Chillerlan Refactor Plan
 
-Date: 2026-07-03
+## Scope
 
-Author: Codex
-
-Scope: refactor Hypervel Fortify two-factor authentication to use `spomky-labs/otphp` for TOTP and `chillerlan/php-qrcode` for QR SVG generation, while preserving Fortify's public API shape and making the final codebase read as if it was designed this way from the start.
+Refactor Hypervel Fortify two-factor authentication to use `spomky-labs/otphp` for TOTP and `chillerlan/php-qrcode` for QR SVG generation, while preserving Fortify's public API shape and making the final codebase read as if it was designed this way from the start.
 
 ## Goal
 
