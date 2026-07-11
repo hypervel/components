@@ -1836,6 +1836,8 @@ class PendingRequest
         $merged = [];
 
         foreach ($layers as $layer) {
+            // Apply Laravel's merge rules to each layer: distinct mergeable entries
+            // accumulate, while later same-key values replace instead of nesting.
             $merged = array_replace_recursive(
                 array_merge_recursive($merged, Arr::only($layer, $this->mergeableOptions)),
                 $layer,

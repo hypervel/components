@@ -158,6 +158,8 @@ class QueuePoolProxy extends PoolProxy implements Queue
                     PoolErrorReporter::report($recoveryException);
 
                     try {
+                        // Terminal recovery normally finalizes the attached lease;
+                        // this is an idempotent backstop if attachment or finalization failed first.
                         $lease->discard();
                     } catch (Throwable $cleanupException) {
                         PoolErrorReporter::report($cleanupException);
