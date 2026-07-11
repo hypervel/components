@@ -64,6 +64,36 @@ class FileResponseBuilderTest extends TestCase
         $this->assertSame(0, $sizeCalls);
     }
 
+    public function testHeadResponseSendsHeadersWithoutResolvingTheBodyOrApplyingARange(): void
+    {
+        $request = Request::create('/file.txt', 'HEAD', server: [
+            'HTTP_RANGE' => 'bytes=1-3',
+        ]);
+        $writable = new FakeWritableConnection;
+        $response = $this->response($writable)->withoutBody();
+        $resolverCalls = 0;
+
+        $result = $this->build(
+            $request,
+            $response,
+            function (?int $start, ?int $end) use (&$resolverCalls): mixed {
+                ++$resolverCalls;
+
+                return $this->stream('body');
+            },
+            4,
+        );
+
+        $this->assertSame($response, $result);
+        $this->assertSame(0, $resolverCalls);
+        $this->assertSame('', $writable->written);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertFalse($response->headers->has('Content-Range'));
+        $this->assertSame('bytes', $response->headers->get('Accept-Ranges'));
+        $this->assertSame('text/plain', $writable->getSocket()->headers['Content-Type']);
+        $this->assertSame(200, $writable->getSocket()->statusCode);
+    }
+
     public function testBodyContainingOnlyZeroIsWritten(): void
     {
         $writable = new FakeWritableConnection;
@@ -238,6 +268,43 @@ class FileResponseBuilderTest extends TestCase
         $this->assertSame(0, $sizeCalls);
     }
 
+    #[DataProvider('weakIfRangeProvider')]
+    public function testWeakIfRangeEtagsFallBackToTheFullResponse(string $etag, string $ifRange): void
+    {
+        $request = Request::create('/file.txt', 'GET', server: [
+            'HTTP_RANGE' => 'bytes=1-3',
+            'HTTP_IF_RANGE' => $ifRange,
+        ]);
+        $writable = new FakeWritableConnection;
+        $response = $this->response($writable, ['ETag' => $etag]);
+        $sizeCalls = 0;
+
+        $this->build(
+            $request,
+            $response,
+            fn (?int $start, ?int $end): mixed => $this->stream('0123456789'),
+            function () use (&$sizeCalls): int {
+                ++$sizeCalls;
+
+                return 10;
+            },
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertFalse($response->headers->has('Content-Range'));
+        $this->assertSame('0123456789', $writable->written);
+        $this->assertSame(0, $sizeCalls);
+    }
+
+    public static function weakIfRangeProvider(): array
+    {
+        return [
+            'matching weak validators' => ['W/"current"', 'W/"current"'],
+            'weak request validator' => ['"current"', 'W/"current"'],
+            'weak response validator' => ['W/"current"', '"current"'],
+        ];
+    }
+
     public function testRangeOutputIsCappedEvenWhenTheResolverReturnsMoreData(): void
     {
         $request = Request::create('/file.txt', 'GET', server: ['HTTP_RANGE' => 'bytes=2-4']);
@@ -290,6 +357,45 @@ class FileResponseBuilderTest extends TestCase
             $this->fail('Expected the read failure to propagate.');
         } catch (UnableToReadFile $exception) {
             $this->assertStringContainsString('Unable to read from the stream.', $exception->getMessage());
+        }
+
+        $this->assertSame(1, $state->closeCount);
+    }
+
+    public function testEmptyReadBeforeEofThrowsAndClosesTheStream(): void
+    {
+        $state = new FileResponseBuilderStreamState('unread', emptyRead: true);
+
+        try {
+            $this->build(
+                Request::create('/file.txt', 'GET'),
+                $this->response(new FakeWritableConnection),
+                fn (?int $start, ?int $end): mixed => $this->wrappedStream($state),
+                6,
+            );
+            $this->fail('Expected the empty read to fail.');
+        } catch (UnableToReadFile $exception) {
+            $this->assertStringContainsString('The stream returned no data before reaching end of file.', $exception->getMessage());
+        }
+
+        $this->assertSame(1, $state->closeCount);
+    }
+
+    public function testPrematureRangeEofThrowsAndClosesTheStream(): void
+    {
+        $state = new FileResponseBuilderStreamState('12');
+        $request = Request::create('/file.txt', 'GET', server: ['HTTP_RANGE' => 'bytes=0-3']);
+
+        try {
+            $this->build(
+                $request,
+                $this->response(new FakeWritableConnection),
+                fn (?int $start, ?int $end): mixed => $this->wrappedStream($state),
+                4,
+            );
+            $this->fail('Expected the truncated range to fail.');
+        } catch (UnableToReadFile $exception) {
+            $this->assertStringContainsString('The stream ended before the requested range was complete.', $exception->getMessage());
         }
 
         $this->assertSame(1, $state->closeCount);
@@ -430,6 +536,7 @@ class FileResponseBuilderStreamState
     public function __construct(
         public string $content,
         public bool $failRead = false,
+        public bool $emptyRead = false,
         public ?Throwable $closeFailure = null,
     ) {
     }
@@ -467,6 +574,10 @@ class FileResponseBuilderStreamWrapper
     {
         if ($this->state->failRead) {
             return false;
+        }
+
+        if ($this->state->emptyRead) {
+            return '';
         }
 
         $content = substr($this->state->content, $this->state->position, $count);

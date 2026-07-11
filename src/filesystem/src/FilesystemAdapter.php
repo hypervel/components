@@ -643,6 +643,12 @@ class FilesystemAdapter implements CloudFilesystemContract
                 throw UnableToReadFile::fromLocation($path, 'Unable to position the stream at the requested range.');
             }
 
+            if ($content === '') {
+                fclose($stream);
+
+                throw UnableToReadFile::fromLocation($path, 'The stream returned no data while positioning at the requested range.');
+            }
+
             $remaining -= strlen($content);
         }
 

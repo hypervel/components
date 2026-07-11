@@ -174,8 +174,13 @@ class FileResponseBuilder
      */
     private function hasValidIfRangeHeader(Response $response, string $header): bool
     {
-        if ($response->headers->get('ETag') === $header) {
-            return true;
+        if (str_contains(substr($header, 0, 3), '"')) {
+            $etag = $response->headers->get('ETag');
+
+            return $etag !== null
+                && ! str_starts_with($header, 'W/')
+                && ! str_starts_with($etag, 'W/')
+                && $etag === $header;
         }
 
         $lastModified = $response->headers->get('Last-Modified');
@@ -214,6 +219,10 @@ class FileResponseBuilder
             }
 
             if ($content === '') {
+                if (! feof($stream)) {
+                    throw UnableToReadFile::fromLocation($path, 'The stream returned no data before reaching end of file.');
+                }
+
                 continue;
             }
 

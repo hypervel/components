@@ -479,6 +479,36 @@ class FilesystemAdapterTest extends TestCase
         fclose($stream);
     }
 
+    public function testReadStreamRangeRejectsAnEmptyReadBeforeEof(): void
+    {
+        Runtime::enableCoroutine(0);
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $this->assertIsArray($sockets);
+        [$reader, $writer] = $sockets;
+        $this->assertTrue(stream_set_blocking($reader, false));
+        $this->assertFalse(stream_get_meta_data($reader)['seekable']);
+        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
+        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
+
+        try {
+            $filesystemAdapter->readStreamRange('file.txt', 3, 5);
+            $this->fail('Expected the stalled stream to be rejected.');
+        } catch (UnableToReadFile $exception) {
+            $this->assertStringContainsString(
+                'The stream returned no data while positioning at the requested range.',
+                $exception->getMessage(),
+            );
+        } finally {
+            if (is_resource($reader)) {
+                fclose($reader);
+            }
+
+            fclose($writer);
+        }
+
+        $this->assertFalse(is_resource($reader));
+    }
+
     public function testStreamInvalidResourceThrows()
     {
         $this->expectException(InvalidArgumentException::class);
