@@ -8,12 +8,17 @@ use Closure;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Waiter;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
+use Psr\Log\LoggerInterface;
 use ReflectionProperty;
+use RuntimeException;
 
 class TimerTest extends TestCase
 {
-    public function testAfter()
+    public function testAfter(): void
     {
         $this->wait(function () {
             $id = 0;
@@ -30,7 +35,7 @@ class TimerTest extends TestCase
         });
     }
 
-    public function testAfterWhenClosing()
+    public function testAfterWhenClosing(): void
     {
         $this->wait(function () {
             $id = 0;
@@ -47,7 +52,7 @@ class TimerTest extends TestCase
         });
     }
 
-    public function testAfterWhenClear()
+    public function testAfterWhenClear(): void
     {
         $this->wait(function () {
             $id = 0;
@@ -62,7 +67,7 @@ class TimerTest extends TestCase
         });
     }
 
-    public function testTick()
+    public function testTick(): void
     {
         $this->wait(function () {
             $id = 0;
@@ -77,7 +82,7 @@ class TimerTest extends TestCase
         });
     }
 
-    public function testTickWhenReturnStop()
+    public function testTickWhenReturnStop(): void
     {
         $this->wait(function () {
             $id = 0;
@@ -94,7 +99,72 @@ class TimerTest extends TestCase
         });
     }
 
-    public function testClearDontExistsClosure()
+    public function testTickReportsThroughTheConfiguredLoggerAndContinues(): void
+    {
+        $this->wait(function (): void {
+            $exception = new RuntimeException('recurring timer failed');
+            $logger = m::mock(LoggerInterface::class);
+            $logger->shouldReceive('error')->once()->with((string) $exception);
+            $timer = new Timer($logger);
+            $calls = 0;
+
+            $timer->tick(0.001, function () use (&$calls, $exception): ?string {
+                if (++$calls === 1) {
+                    throw $exception;
+                }
+
+                return Timer::STOP;
+            }, uniqid());
+
+            usleep(10_000);
+
+            $this->assertSame(2, $calls);
+        });
+    }
+
+    public function testTickFallsBackToThePhpErrorLogAndContinues(): void
+    {
+        $directory = ParallelTesting::tempDir('TimerTest');
+        mkdir($directory, 0777, true);
+        $errorLog = $directory . '/php-error.log';
+        $previousErrorLog = ini_set('error_log', $errorLog);
+        $previousLogErrors = ini_set('log_errors', '1');
+
+        try {
+            $this->wait(function (): void {
+                $timer = new Timer;
+                $calls = 0;
+
+                $timer->tick(0.001, function () use (&$calls): ?string {
+                    if (++$calls === 1) {
+                        throw new RuntimeException('recurring timer fallback failed');
+                    }
+
+                    return Timer::STOP;
+                }, uniqid());
+
+                usleep(10_000);
+
+                $this->assertSame(2, $calls);
+            });
+
+            $contents = file_get_contents($errorLog);
+            $this->assertIsString($contents);
+            $this->assertStringContainsString('recurring timer fallback failed', $contents);
+        } finally {
+            if ($previousErrorLog !== false) {
+                ini_set('error_log', $previousErrorLog);
+            }
+
+            if ($previousLogErrors !== false) {
+                ini_set('log_errors', $previousLogErrors);
+            }
+
+            (new Filesystem)->deleteDirectory($directory);
+        }
+    }
+
+    public function testClearDontExistsClosure(): void
     {
         $timer = new Timer;
 
@@ -103,7 +173,7 @@ class TimerTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testUntil()
+    public function testUntil(): void
     {
         $this->wait(function () {
             $id = 0;
@@ -119,7 +189,7 @@ class TimerTest extends TestCase
         });
     }
 
-    public function testUntilWhenClear()
+    public function testUntilWhenClear(): void
     {
         $this->wait(function () {
             $id = 0;
@@ -135,7 +205,7 @@ class TimerTest extends TestCase
         });
     }
 
-    public function testFlushStateRestoresTimerStats()
+    public function testFlushStateRestoresTimerStats(): void
     {
         (new ReflectionProperty(Timer::class, 'count'))->setValue(null, 3);
         (new ReflectionProperty(Timer::class, 'round'))->setValue(null, 7);
