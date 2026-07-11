@@ -36,7 +36,7 @@ use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
  * @method static string|null resolveConnectionFromQueueRoute(object $queueable)
  * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static array|null resolveAuthenticatedUser(\Hypervel\Http\Request $request)
- * @method static void resolveAuthenticatedUserUsing(\Closure $callback)
+ * @method static void resolveAuthenticatedUserUsing(\Closure|null $callback)
  * @method static \Hypervel\Broadcasting\Broadcasters\Broadcaster channel(\Hypervel\Contracts\Broadcasting\HasBroadcastChannel|string $channel, callable|string $callback, array $options = [])
  * @method static \Hypervel\Support\Collection getChannels()
  * @method static void flushChannels()
