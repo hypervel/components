@@ -4,30 +4,47 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool\Contracts;
 
+use Hypervel\ObjectPool\PoolDefinition;
+
 interface Factory
 {
     /**
-     * Get a managed pool by name.
+     * Get or create the pool registered for an immutable definition.
      */
-    public function get(string $name): ObjectPool;
+    public function getOrCreate(
+        PoolDefinition $definition,
+        callable $callback,
+    ): ObjectPool;
 
     /**
-     * Create and register a new object pool.
+     * Get a managed pool by identity.
      */
-    public function create(string $name, callable $callback, array $options = []): ObjectPool;
+    public function get(string $identity): ObjectPool;
 
     /**
-     * Get all registered pools.
+     * Determine if a pool exists for an identity.
+     */
+    public function has(string $identity): bool;
+
+    /**
+     * Get all registered pools keyed by identity.
+     *
+     * @return array<string, ObjectPool>
      */
     public function pools(): array;
 
     /**
-     * Check if a pool exists.
+     * Get the definition registered for an identity.
      */
-    public function has(string $name): bool;
+    public function definition(string $identity): ?PoolDefinition;
 
     /**
-     * Remove a pool from the manager.
+     * Remove and close a pool when it still matches an optional expected instance.
      */
-    public function remove(string $name): static;
+    public function remove(string $identity, ?ObjectPool $expected = null): bool;
+
+    /**
+     * Remove and close every registered pool.
+     */
+    public function flush(): void;
 }

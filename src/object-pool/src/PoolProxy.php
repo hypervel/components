@@ -5,62 +5,106 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Closure;
-use Hypervel\Container\Container;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\Contracts\Factory;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
+use Throwable;
 
 class PoolProxy
 {
     /**
-     * The object pool instance being proxied.
-     */
-    protected ObjectPool $pool;
-
-    /**
-     * Constructor for PoolProxy.
-     *
-     * @param string $name The name identifier for the pool
-     * @param Closure $resolver The function to create new objects for the pool
-     * @param array $options Configuration options for the pool
-     * @param null|Closure $releaseCallback Optional callback to run before releasing objects back to the pool
+     * Create a proxy that resolves its current pool per operation.
      */
     public function __construct(
-        protected string $name,
+        protected PoolDefinition $definition,
         protected Closure $resolver,
-        protected array $options = [],
+        protected Factory $pools,
         protected ?Closure $releaseCallback = null,
     ) {
-        $this->pool = Container::getInstance()
-            ->make(PoolFactory::class)
-            ->create(
-                $this->name,
-                $this->resolver,
-                $this->options
-            );
     }
 
     /**
-     * Proxies method calls to the pooled object.
-     *
-     * Gets an object from the pool, calls the requested method on it,
-     * and then releases the object back to the pool
-     *
-     * @param string $method The method name to call on the pooled object
-     * @param array $args The arguments to pass to the method
-     *
-     * @return mixed The result of the method call
+     * Resolve the current pool for this proxy's definition.
      */
-    public function __call(string $method, array $args)
+    protected function pool(): ObjectPool
     {
-        $driver = $this->pool->get();
+        return $this->pools->getOrCreate($this->definition, $this->resolver);
+    }
+
+    /**
+     * Borrow an object under an exactly-once lease.
+     */
+    protected function lease(): Lease
+    {
+        $pool = $this->pool();
+        $object = $pool->get();
 
         try {
-            return $driver->{$method}(...$args);
-        } finally {
-            if ($this->releaseCallback) {
-                ($this->releaseCallback)($driver);
+            $this->configureBorrowed($object);
+        } catch (Throwable $exception) {
+            try {
+                $pool->discard($object);
+            } catch (Throwable $discardException) {
+                PoolErrorReporter::report($discardException);
             }
-            $this->pool->release($driver);
+
+            throw $exception;
         }
+
+        return new Lease($pool, $object, $this->releaseCallback);
+    }
+
+    /**
+     * Invoke a synchronous method on a borrowed object.
+     */
+    protected function invoke(string $method, array $arguments): mixed
+    {
+        $lease = $this->lease();
+
+        try {
+            $result = $lease->get()->{$method}(...$arguments);
+        } catch (Throwable $operationException) {
+            try {
+                $lease->release();
+            } catch (Throwable $finalizationException) {
+                PoolErrorReporter::report($finalizationException);
+            }
+
+            throw $operationException;
+        }
+
+        $lease->release();
+
+        return $result;
+    }
+
+    /**
+     * Apply proxy-held state to a freshly borrowed object.
+     */
+    protected function configureBorrowed(object $object): void
+    {
+    }
+
+    /**
+     * Get this proxy's immutable pool definition.
+     */
+    public function getDefinition(): PoolDefinition
+    {
+        return $this->definition;
+    }
+
+    /**
+     * Get this proxy's pool identity.
+     */
+    public function getPoolName(): string
+    {
+        return $this->definition->identity;
+    }
+
+    /**
+     * Remove and close this proxy's current shared pool.
+     */
+    public function invalidatePool(): bool
+    {
+        return $this->pools->remove($this->definition->identity);
     }
 }

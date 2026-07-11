@@ -7,60 +7,98 @@ namespace Hypervel\ObjectPool;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\Factory as FactoryContract;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
+use JsonException;
 use RuntimeException;
 
 class PoolManager implements FactoryContract
 {
-    /**
-     * Registered object pools managed by the manager.
-     *
-     * @var ObjectPool[]
-     */
+    /** @var array<string, ObjectPool> */
     protected array $pools = [];
 
+    /** @var array<string, PoolDefinition> */
+    protected array $definitions = [];
+
     /**
-     * Create a new pool manager with the given configuration.
+     * Create an object-pool manager.
      */
     public function __construct(
-        protected Container $container
+        protected Container $container,
     ) {
     }
 
     /**
-     * Get a managed pool by name.
+     * Get or create the pool registered for an immutable definition.
      */
-    public function get(string $name): ObjectPool
+    public function getOrCreate(
+        PoolDefinition $definition,
+        callable $callback,
+    ): ObjectPool {
+        $identity = $definition->identity;
+
+        if (($pool = $this->pools[$identity] ?? null) !== null) {
+            if ($pool->isClosed()) {
+                unset($this->pools[$identity], $this->definitions[$identity]);
+            } else {
+                $current = $this->definitions[$identity];
+
+                if ($current->resourceType !== $definition->resourceType) {
+                    throw new RuntimeException(
+                        "Pool [{$identity}] already exists for resource type [{$current->resourceType}]; "
+                        . "requested [{$definition->resourceType}]. Explicit pool identities never span resource types."
+                    );
+                }
+
+                if ($current->fingerprint !== $definition->fingerprint) {
+                    throw new RuntimeException(
+                        "Pool [{$identity}] already exists with a different construction fingerprint "
+                        . "[{$current->fingerprint}] (requested [{$definition->fingerprint}]). "
+                        . 'Purge the pool or use a distinct explicit pool name.'
+                    );
+                }
+
+                if (! $current->options->equals($definition->options)) {
+                    throw new RuntimeException(
+                        "Pool [{$identity}] already exists with different options: "
+                        . $this->diffOptions($current->options, $definition->options)
+                        . '. Align the pool options or use a distinct explicit pool name.'
+                    );
+                }
+
+                return $pool;
+            }
+        }
+
+        $pool = new SimpleObjectPool($this->container, $callback, $definition->options);
+
+        $this->definitions[$identity] = $definition;
+
+        return $this->pools[$identity] = $pool;
+    }
+
+    /**
+     * Get a managed pool by identity.
+     */
+    public function get(string $identity): ObjectPool
     {
-        if (! $pool = $this->pools[$name] ?? null) {
-            throw new RuntimeException("The pool name `{$name}` does not exist.");
+        if (($pool = $this->pools[$identity] ?? null) === null) {
+            throw new RuntimeException("Pool [{$identity}] does not exist.");
         }
 
         return $pool;
     }
 
     /**
-     * Create and register a new object pool.
-     *
-     * Boot-only. Pools persist on the singleton PoolManager for the worker
-     * lifetime and are shared by every coroutine.
+     * Determine if a pool exists for an identity.
      */
-    public function create(string $name, callable $callback, array $options = []): ObjectPool
+    public function has(string $identity): bool
     {
-        if (isset($this->pools[$name])) {
-            throw new RuntimeException("The pool name `{$name}` already exists.");
-        }
-
-        $pool = new SimpleObjectPool(
-            $this->container,
-            $callback,
-            $options
-        );
-
-        return $this->pools[$name] = $pool;
+        return isset($this->pools[$identity]);
     }
 
     /**
-     * Get all registered pools.
+     * Get all registered pools keyed by identity.
+     *
+     * @return array<string, ObjectPool>
      */
     public function pools(): array
     {
@@ -68,64 +106,68 @@ class PoolManager implements FactoryContract
     }
 
     /**
-     * Set a pool to the manager.
-     *
-     * Boot or tests only. Replaces a pool on the singleton PoolManager;
-     * concurrent coroutines may already hold a reference to the prior pool.
+     * Get the definition registered for an identity.
      */
-    public function set(string $name, ObjectPool $pool): static
+    public function definition(string $identity): ?PoolDefinition
     {
-        $this->pools[$name] = $pool;
-
-        return $this;
+        return $this->definitions[$identity] ?? null;
     }
 
     /**
-     * Set multiple pools the manager.
-     *
-     * Boot or tests only. Delegates to set() for each pool, mutating the
-     * singleton PoolManager shared by every coroutine.
+     * Remove and close a pool when it still matches an optional expected instance.
      */
-    public function setPools(array $pools): static
+    public function remove(string $identity, ?ObjectPool $expected = null): bool
     {
-        foreach ($pools as $name => $pool) {
-            $this->set($name, $pool);
+        $pool = $this->pools[$identity] ?? null;
+
+        if ($pool === null || ($expected !== null && $pool !== $expected)) {
+            return false;
         }
 
-        return $this;
+        unset($this->pools[$identity], $this->definitions[$identity]);
+        $pool->close();
+
+        return true;
     }
 
     /**
-     * Check if a pool exists.
-     */
-    public function has(string $name): bool
-    {
-        return isset($this->pools[$name]);
-    }
-
-    /**
-     * Remove a pool from the manager.
+     * Remove and close every registered pool.
      *
-     * Boot or tests only. Removes a pool from the singleton PoolManager;
-     * concurrent coroutines may already hold a reference to the removed pool.
+     * Boot or tests only. This clears worker-lifetime pools shared by every
+     * coroutine; use targeted removal for runtime resource recovery.
      */
-    public function remove(string $name): static
+    public function flush(): void
     {
-        unset($this->pools[$name]);
-
-        return $this;
-    }
-
-    /**
-     * Flush all pools.
-     *
-     * Boot or tests only. Clears the singleton PoolManager registry; concurrent
-     * coroutines may already hold pool references that next lookup cannot find.
-     */
-    public function flush(): static
-    {
+        $pools = $this->pools;
         $this->pools = [];
+        $this->definitions = [];
 
-        return $this;
+        foreach ($pools as $pool) {
+            $pool->close();
+        }
+    }
+
+    /**
+     * Describe only normalized pool-option differences.
+     *
+     * @throws JsonException
+     */
+    protected function diffOptions(PoolOptions $registered, PoolOptions $requested): string
+    {
+        $differences = [];
+        $requestedOptions = $requested->toArray();
+
+        foreach ($registered->toArray() as $name => $value) {
+            $requestedValue = $requestedOptions[$name];
+
+            if ($value !== $requestedValue) {
+                $differences[$name] = [
+                    'registered' => $value,
+                    'requested' => $requestedValue,
+                ];
+            }
+        }
+
+        return json_encode($differences, JSON_THROW_ON_ERROR);
     }
 }
