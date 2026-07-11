@@ -20,10 +20,8 @@ abstract class CacheFunnelTestCase extends TestCase
 {
     abstract protected function cache(): Repository;
 
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
         try {
             $this->releaseFunnelLocks();
         } catch (Throwable) {
@@ -312,13 +310,11 @@ abstract class CacheFunnelTestCase extends TestCase
         $this->cache()->lock('lease-owner1')->forceRelease();
     }
 
-    protected function tearDown(): void
+    protected function tearDownInCoroutine(): void
     {
         try {
             $this->releaseFunnelLocks();
         } catch (Throwable) {
         }
-
-        parent::tearDown();
     }
 }
