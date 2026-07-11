@@ -11,6 +11,8 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
 use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
@@ -43,6 +45,38 @@ class FilesystemManager implements FactoryContract
     use HasPoolProxy;
 
     /**
+     * The logical name used while resolving on-demand disks.
+     */
+    protected const ON_DEMAND_DISK_NAME = 'ondemand';
+
+    /**
+     * Google Cloud Storage client constructor options supported by the installed SDK.
+     */
+    protected const GCS_CLIENT_OPTIONS = [
+        'apiEndpoint',
+        'projectId',
+        'authCache',
+        'authCacheOptions',
+        'authHttpHandler',
+        'credentialsFetcher',
+        'httpHandler',
+        'keyFile',
+        'keyFilePath',
+        'requestTimeout',
+        'retries',
+        'retryStrategy',
+        'restDelayFunction',
+        'restCalcDelayFunction',
+        'restRetryFunction',
+        'restRetryListener',
+        'scopes',
+        'quotaProject',
+    ];
+
+    /** @var null|list<string> */
+    protected static ?array $s3ArgumentNames = null;
+
+    /**
      * The array of resolved filesystem drivers.
      */
     protected array $disks = [];
@@ -51,11 +85,6 @@ class FilesystemManager implements FactoryContract
      * The registered custom driver creators.
      */
     protected array $customCreators = [];
-
-    /**
-     * The pool proxy class.
-     */
-    protected string $poolProxyClass = FilesystemPoolProxy::class;
 
     /**
      * The array of drivers which will be wrapped as pool proxies.
@@ -97,7 +126,7 @@ class FilesystemManager implements FactoryContract
      */
     public function build(array|string $config): mixed
     {
-        return $this->resolve('ondemand', is_array($config) ? $config : [
+        return $this->resolve(self::ON_DEMAND_DISK_NAME, is_array($config) ? $config : [
             'driver' => 'local',
             'root' => $config,
         ]);
@@ -126,16 +155,21 @@ class FilesystemManager implements FactoryContract
 
         $driver = $config['driver'];
         $hasPool = in_array($driver, $this->poolables, true);
+        $constructionConfig = Arr::except($config, ['pool']);
 
         if (isset($this->customCreators[$driver])) {
-            if ($hasPool) {
-                return $this->createPoolProxy(
-                    $name,
-                    fn () => $this->callCustomCreator($config),
-                    $config['pool'] ?? []
-                );
-            }
-            return $this->callCustomCreator($config);
+            return $hasPool
+                ? $this->createDriverPooledDisk(
+                    $driver,
+                    $config,
+                    null,
+                    fn () => $this->callCustomCreator($constructionConfig),
+                )
+                : $this->callCustomCreator($constructionConfig);
+        }
+
+        if ($hasPool && ($driver === 's3' || $driver === 'gcs')) {
+            return $this->createClientPooledDisk($driver, $config);
         }
 
         $driverMethod = 'create' . ucfirst($driver) . 'Driver';
@@ -145,10 +179,11 @@ class FilesystemManager implements FactoryContract
         }
 
         if ($hasPool) {
-            return $this->createPoolProxy(
+            return $this->createDriverPooledDisk(
+                $driver,
+                $config,
                 $name,
-                fn () => $this->{$driverMethod}($config, $name),
-                $config['pool'] ?? []
+                fn () => $this->{$driverMethod}($constructionConfig, $name),
             );
         }
 
@@ -161,6 +196,75 @@ class FilesystemManager implements FactoryContract
     protected function callCustomCreator(array $config): mixed
     {
         return $this->customCreators[$config['driver']]($this->app, $config);
+    }
+
+    /**
+     * Create a whole-driver pooled disk for a resource the framework cannot split.
+     */
+    protected function createDriverPooledDisk(
+        string $driver,
+        array $config,
+        ?string $name,
+        Closure $resolver,
+    ): FilesystemPoolProxy {
+        return new FilesystemPoolProxy(
+            $this->diskPoolDefinition($driver, $config, $name),
+            $resolver,
+            $this->poolFactory(),
+            $config,
+            $this->getReleaseCallback($driver),
+        );
+    }
+
+    /**
+     * Create a client-pooled disk for a built-in cloud driver.
+     */
+    protected function createClientPooledDisk(string $driver, array $config): ClientPooledFilesystem
+    {
+        if ($driver === 's3') {
+            $clientConfig = $this->s3ClientConfig($config);
+
+            return new ClientPooledFilesystem(
+                $this->poolDefinition($driver, $config['pool'] ?? [], $clientConfig),
+                fn (): S3Client => $this->createS3Client($clientConfig),
+                fn (S3Client $client): AwsS3V3Adapter => $this->buildS3Disk($client, $config),
+                $this->poolFactory(),
+                $config,
+                $this->getReleaseCallback($driver),
+            );
+        }
+
+        if ($driver === 'gcs') {
+            $clientConfig = $this->gcsClientConfig($config);
+
+            return new ClientPooledFilesystem(
+                $this->poolDefinition($driver, $config['pool'] ?? [], $clientConfig),
+                fn (): GcsClient => $this->createGcsClient($clientConfig),
+                fn (GcsClient $client): GoogleCloudStorageAdapter => $this->buildGcsDisk($client, $config),
+                $this->poolFactory(),
+                $config,
+                $this->getReleaseCallback($driver),
+            );
+        }
+
+        throw new InvalidArgumentException("Driver [{$driver}] does not support client-level pooling.");
+    }
+
+    /**
+     * Derive the immutable pool definition for a disk configuration.
+     */
+    protected function diskPoolDefinition(string $driver, array $config, ?string $name): PoolDefinition
+    {
+        $fingerprintSource = match (true) {
+            $driver === 's3' => $this->s3ClientConfig($config),
+            $driver === 'gcs' => $this->gcsClientConfig($config),
+            default => [
+                'config' => Arr::except($config, ['pool']),
+                'name' => isset($this->customCreators[$driver]) ? null : $name,
+            ],
+        };
+
+        return $this->poolDefinition($driver, $config['pool'] ?? [], $fingerprintSource);
     }
 
     /**
@@ -236,6 +340,51 @@ class FilesystemManager implements FactoryContract
      */
     public function createS3Driver(array $config): Cloud
     {
+        return $this->buildS3Disk(
+            $this->createS3Client($this->s3ClientConfig($config)),
+            $config,
+        );
+    }
+
+    /**
+     * Derive the S3 client construction config from a disk config.
+     */
+    protected function s3ClientConfig(array $config): array
+    {
+        $s3Config = $this->formatS3Config($config);
+        $arguments = static::s3ArgumentNames();
+
+        return array_merge(
+            Arr::only($s3Config, $arguments),
+            $this->clientConfigBlock($s3Config, $arguments),
+        );
+    }
+
+    /**
+     * Get the S3 client constructor argument names.
+     *
+     * The SDK argument set is immutable for the worker's installed version.
+     *
+     * @return list<string>
+     */
+    protected static function s3ArgumentNames(): array
+    {
+        return static::$s3ArgumentNames ??= array_keys(S3Client::getArguments());
+    }
+
+    /**
+     * Create an S3 client from normalized client config.
+     */
+    protected function createS3Client(array $clientConfig): S3Client
+    {
+        return new S3Client($clientConfig);
+    }
+
+    /**
+     * Build an S3 disk adapter stack around a client.
+     */
+    protected function buildS3Disk(S3Client $client, array $config): AwsS3V3Adapter
+    {
         $s3Config = $this->formatS3Config($config);
 
         $root = (string) ($s3Config['root'] ?? '');
@@ -245,8 +394,6 @@ class FilesystemManager implements FactoryContract
         );
 
         $streamReads = $s3Config['stream_reads'] ?? false;
-
-        $client = new S3Client($s3Config);
 
         $adapter = new S3Adapter($client, $s3Config['bucket'], $root, $visibility, null, $config['options'] ?? [], $streamReads);
 
@@ -281,8 +428,39 @@ class FilesystemManager implements FactoryContract
      */
     public function createGcsDriver(array $config): Cloud
     {
+        return $this->buildGcsDisk(
+            $this->createGcsClient($this->gcsClientConfig($config)),
+            $config,
+        );
+    }
+
+    /**
+     * Derive the Google Cloud Storage client construction config from a disk config.
+     */
+    protected function gcsClientConfig(array $config): array
+    {
         $gcsConfig = $this->formatGcsConfig($config);
-        $client = $this->createGcsClient($gcsConfig);
+
+        return array_merge(
+            Arr::only($gcsConfig, ['keyFilePath', 'keyFile', 'projectId', 'apiEndpoint']),
+            $this->clientConfigBlock($gcsConfig, self::GCS_CLIENT_OPTIONS),
+        );
+    }
+
+    /**
+     * Create a Google Cloud Storage client from normalized client config.
+     */
+    protected function createGcsClient(array $clientConfig): GcsClient
+    {
+        return new GcsClient($clientConfig);
+    }
+
+    /**
+     * Build a Google Cloud Storage disk adapter stack around a client.
+     */
+    protected function buildGcsDisk(GcsClient $client, array $config): GoogleCloudStorageAdapter
+    {
+        $gcsConfig = $this->formatGcsConfig($config);
 
         $visibilityHandlerClass = Arr::get($gcsConfig, 'visibilityHandler');
         $defaultVisibility = in_array(
@@ -302,7 +480,7 @@ class FilesystemManager implements FactoryContract
         );
 
         return new GoogleCloudStorageAdapter(
-            new Flysystem($adapter, $gcsConfig),
+            $this->createFlysystem($adapter, $gcsConfig),
             $adapter,
             $gcsConfig,
             $client
@@ -327,29 +505,26 @@ class FilesystemManager implements FactoryContract
     }
 
     /**
-     * Create a Google Cloud Storage client instance.
+     * Validate and return an explicit SDK client-option block.
      */
-    protected function createGcsClient(array $config): GcsClient
+    protected function clientConfigBlock(array $config, array $supportedKeys): array
     {
-        $options = [];
+        $block = array_key_exists('client', $config) ? $config['client'] : [];
 
-        if ($keyFilePath = Arr::get($config, 'keyFilePath')) {
-            $options['keyFilePath'] = $keyFilePath;
+        if (! is_array($block)) {
+            throw new InvalidArgumentException('The disk "client" configuration option must be an array.');
         }
 
-        if ($keyFile = Arr::get($config, 'keyFile')) {
-            $options['keyFile'] = $keyFile;
+        $unknown = array_diff(array_keys($block), $supportedKeys);
+
+        if ($unknown !== []) {
+            throw new InvalidArgumentException(
+                'Unknown client option(s) [' . implode(', ', $unknown)
+                . '] in the disk "client" configuration.'
+            );
         }
 
-        if ($projectId = Arr::get($config, 'projectId')) {
-            $options['projectId'] = $projectId;
-        }
-
-        if ($apiEndpoint = Arr::get($config, 'apiEndpoint')) {
-            $options['apiEndpoint'] = $apiEndpoint;
-        }
-
-        return new GcsClient($options);
+        return $block;
     }
 
     /**
@@ -359,6 +534,24 @@ class FilesystemManager implements FactoryContract
      */
     public function createScopedDriver(array $config): Filesystem
     {
+        return $this->build($this->expandScopedConfig($config));
+    }
+
+    /**
+     * Expand a scoped disk into the effective parent-disk configuration.
+     */
+    protected function expandScopedConfig(array $config): array
+    {
+        return $this->expandScopedConfigRecursively($config, []);
+    }
+
+    /**
+     * Expand nested scoped disks while detecting named definition cycles.
+     *
+     * @param list<string> $diskStack
+     */
+    private function expandScopedConfigRecursively(array $config, array $diskStack): array
+    {
         if (empty($config['disk'])) {
             throw new InvalidArgumentException('Scoped disk is missing "disk" configuration option.');
         }
@@ -366,29 +559,53 @@ class FilesystemManager implements FactoryContract
             throw new InvalidArgumentException('Scoped disk is missing "prefix" configuration option.');
         }
 
-        return $this->build(tap(
-            is_string($config['disk']) ? $this->getConfig($config['disk']) : $config['disk'],
-            function (&$parent) use ($config) {
-                if (empty($parent['prefix'])) {
-                    $parent['prefix'] = $config['prefix'];
-                } else {
-                    $separator = $parent['directory_separator'] ?? DIRECTORY_SEPARATOR;
+        if (! is_string($config['disk']) && ! is_array($config['disk'])) {
+            throw new InvalidArgumentException(
+                'Scoped disk "disk" configuration option must be a disk name or configuration array.',
+            );
+        }
 
-                    $parentPrefix = rtrim($parent['prefix'], $separator);
-                    $scopedPrefix = ltrim($config['prefix'], $separator);
+        if (! is_string($config['prefix'])) {
+            throw new InvalidArgumentException('Scoped disk "prefix" configuration option must be a string.');
+        }
 
-                    $parent['prefix'] = "{$parentPrefix}{$separator}{$scopedPrefix}";
-                }
+        if (is_string($config['disk'])) {
+            $disk = $config['disk'];
 
-                if (isset($config['visibility'])) {
-                    $parent['visibility'] = $config['visibility'];
-                }
+            if (($cycleStart = array_search($disk, $diskStack, true)) !== false) {
+                $cycle = [...array_slice($diskStack, $cycleStart), $disk];
 
-                if (isset($config['throw'])) {
-                    $parent['throw'] = $config['throw'];
-                }
+                throw new InvalidArgumentException(
+                    'Circular scoped disk definition detected: ' . implode(' -> ', $cycle) . '.',
+                );
             }
-        ));
+
+            $diskStack[] = $disk;
+            $parent = $this->getConfig($disk);
+        } else {
+            $parent = $config['disk'];
+        }
+
+        if (empty($parent['prefix'])) {
+            $parent['prefix'] = $config['prefix'];
+        } else {
+            $separator = $parent['directory_separator'] ?? DIRECTORY_SEPARATOR;
+            $parentPrefix = rtrim($parent['prefix'], $separator);
+            $scopedPrefix = ltrim($config['prefix'], $separator);
+            $parent['prefix'] = "{$parentPrefix}{$separator}{$scopedPrefix}";
+        }
+
+        if (isset($config['visibility'])) {
+            $parent['visibility'] = $config['visibility'];
+        }
+
+        if (isset($config['throw'])) {
+            $parent['throw'] = $config['throw'];
+        }
+
+        return ($parent['driver'] ?? null) === 'scoped'
+            ? $this->expandScopedConfigRecursively($parent, $diskStack)
+            : $parent;
     }
 
     /**
@@ -425,7 +642,8 @@ class FilesystemManager implements FactoryContract
      *
      * Boot or tests only. Mutates the singleton's disk cache; concurrent
      * coroutines may already hold a reference to the prior disk and next
-     * resolution will return the replacement.
+     * resolution will return the replacement. Any shared pool remains
+     * available until its idle TTL expires or purge() invalidates it.
      */
     public function set(string $name, mixed $disk): static
     {
@@ -443,6 +661,14 @@ class FilesystemManager implements FactoryContract
     }
 
     /**
+     * Get the shared object-pool factory.
+     */
+    protected function poolFactory(): PoolFactory
+    {
+        return $this->app->make(PoolFactory::class);
+    }
+
+    /**
      * Get the default driver name.
      */
     public function getDefaultDriver(): string
@@ -455,7 +681,8 @@ class FilesystemManager implements FactoryContract
      *
      * Boot or tests only. Mutates the singleton's disk cache; concurrent
      * coroutines may already hold a reference to the disk and next resolution
-     * will rebuild with fresh adapters.
+     * will rebuild a wrapper. Shared pools remain available until their idle
+     * TTL expires or purge() deliberately invalidates them.
      */
     public function forgetDisk(array|string $disk): static
     {
@@ -467,17 +694,39 @@ class FilesystemManager implements FactoryContract
     }
 
     /**
-     * Disconnect the given disk and remove from local cache.
+     * Disconnect the given disk, remove it from local cache, and close its pool.
      *
-     * Boot or tests only. Mutates the singleton's disk cache; concurrent
-     * coroutines may already hold a reference to the disk and next resolution
-     * will rebuild with fresh adapters.
+     * Boot or tests only, plus operational recovery of broken pooled resources.
+     * Closing deliberately invalidates a shared pool; other converged disks
+     * acquire a fresh pool on their next operation.
      */
     public function purge(?string $name = null): void
     {
         $name ??= $this->getDefaultDriver();
 
+        $disk = $this->disks[$name] ?? null;
         unset($this->disks[$name]);
+
+        if ($disk instanceof ClientPooledFilesystem || $disk instanceof FilesystemPoolProxy) {
+            $disk->invalidatePool();
+
+            return;
+        }
+
+        $config = $this->getConfig($name);
+
+        if (($config['driver'] ?? null) === 'scoped') {
+            // Scoped disks resolve their expanded parent through build(). Use
+            // that same logical name because whole-driver fingerprints include it.
+            $config = $this->expandScopedConfig($config);
+            $name = self::ON_DEMAND_DISK_NAME;
+        }
+
+        $driver = $config['driver'] ?? null;
+
+        if (is_string($driver) && in_array($driver, $this->poolables, true)) {
+            $this->poolFactory()->remove($this->diskPoolDefinition($driver, $config, $name)->identity);
+        }
     }
 
     /**
@@ -509,6 +758,14 @@ class FilesystemManager implements FactoryContract
         $this->app = $app;
 
         return $this;
+    }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$s3ArgumentNames = null;
     }
 
     /**

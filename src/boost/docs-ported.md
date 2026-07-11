@@ -53,6 +53,7 @@ migrations.md
 mocking.md
 nested-set.md
 notifications.md
+object-pools.md
 packages.md
 pagination.md
 passwords.md

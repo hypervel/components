@@ -7,20 +7,22 @@ namespace Hypervel\Tests\Sentry;
 use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use Sentry\ClientBuilder;
 use Sentry\Transport\TransportInterface;
 
 class ConfigTest extends SentryTestCase
 {
-    public function testPoolIsConstructedFromSentryPoolConfig()
+    public function testPoolIsConstructedFromSentryPoolConfig(): void
     {
         $this->resetApplicationWithConfig([
             'sentry.dsn' => 'https://key@sentry.io/123',
             'sentry.pool' => [
-                'min_objects' => 2,
                 'max_objects' => 7,
                 'wait_timeout' => 0.05,
+                'max_lifetime' => 120,
             ],
         ]);
 
@@ -35,23 +37,50 @@ class ConfigTest extends SentryTestCase
 
         $pool = $this->getPoolFromTransport($transport);
 
-        $this->assertSame(7, $pool->getOption()->getMaxObjects());
-        $this->assertSame(0.05, $pool->getOption()->getWaitTimeout());
+        $this->assertSame(7, $pool->getOptions()->maxObjects);
+        $this->assertSame(0.05, $pool->getOptions()->waitTimeout);
+        $this->assertSame(120.0, $pool->getOptions()->maxLifetime);
+        $this->assertSame(0.0, $pool->getOptions()->maxIdleTime);
+        $this->assertNull($pool->getOptions()->idleTtl);
     }
 
-    public function testOldPoolsKeyIsNotUsed()
+    #[DataProvider('unsupportedPoolOptions')]
+    public function testUnsupportedPoolOptionsAreRejected(string $name, mixed $value): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            "Unsupported Sentry pool option(s) [{$name}]. Supported options are [max_objects, wait_timeout, max_lifetime]."
+        );
+
+        $this->resetApplicationWithConfig([
+            'sentry.dsn' => 'https://key@sentry.io/123',
+            'sentry.pool' => [$name => $value],
+        ]);
+    }
+
+    public static function unsupportedPoolOptions(): array
+    {
+        return [
+            ['min_retained_objects', 1],
+            ['max_idle_time', 30],
+            ['idle_ttl', 300],
+            ['unknown', true],
+        ];
+    }
+
+    public function testOldPoolsKeyIsNotUsed(): void
     {
         $this->assertNull($this->app['config']->get('pools.sentry'));
     }
 
-    public function testRedisFeatureIsInDefaultFeaturesConfig()
+    public function testRedisFeatureIsInDefaultFeaturesConfig(): void
     {
         $features = $this->app['config']->get('sentry.features', []);
 
         $this->assertContains(RedisFeature::class, $features);
     }
 
-    public function testPoolWaitTimeoutDefaultIsSetForFastFail()
+    public function testPoolWaitTimeoutDefaultIsSetForFastFail(): void
     {
         // Default config should have a low wait_timeout for backpressure
         /** @var ClientBuilder $builder */
@@ -60,7 +89,7 @@ class ConfigTest extends SentryTestCase
         $pool = $this->getPoolFromTransport($transport);
 
         // Should be 10ms or less for fast-fail backpressure
-        $this->assertLessThanOrEqual(0.01, $pool->getOption()->getWaitTimeout());
+        $this->assertLessThanOrEqual(0.01, $pool->getOptions()->waitTimeout);
     }
 
     private function getTransportFromBuilder(ClientBuilder $builder): TransportInterface

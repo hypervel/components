@@ -45,8 +45,7 @@ abstract class IntegrationTestCase extends TestCase
         $config->set('queue', $this->originalQueueConfig);
 
         $poolFactory = $this->app->make(PoolFactory::class);
-        $pool = $poolFactory->getPool('default');
-        $pool->flushOne(true);
+        $poolFactory->flushPool('default');
 
         parent::tearDown();
     }
@@ -56,11 +55,8 @@ abstract class IntegrationTestCase extends TestCase
         $poolFactory = $this->app->make(PoolFactory::class);
 
         Coroutine::defer(function () use ($poolFactory) {
-            $pool = $poolFactory->getPool('default');
-            $pool->flushOne(true);
-
-            $pool = $poolFactory->getPool('horizon');
-            $pool->flushOne(true);
+            $poolFactory->flushPool('default');
+            $poolFactory->flushPool('horizon');
         });
     }
 

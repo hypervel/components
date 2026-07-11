@@ -11,6 +11,8 @@ use Hypervel\Support\ViewErrorBag;
 use Hypervel\Testing\TestComponent;
 use Hypervel\Testing\TestView;
 use Hypervel\View\View;
+use RuntimeException;
+use Throwable;
 
 trait InteractsWithViews
 {
@@ -36,14 +38,29 @@ trait InteractsWithViews
             ViewFacade::addLocation(sys_get_temp_dir());
         }
 
-        $tempFileInfo = pathinfo(tempnam($tempDirectory, 'hypervel-blade'));
+        $placeholder = @tempnam($tempDirectory, 'hypervel-blade');
 
-        // Remove the placeholder file created by tempnam() — we only need the unique name.
-        @unlink($tempFileInfo['dirname'] . '/' . $tempFileInfo['basename']);
+        if ($placeholder === false) {
+            throw new RuntimeException('Unable to create a temporary Blade view file.');
+        }
 
+        $tempFileInfo = pathinfo($placeholder);
         $tempFile = $tempFileInfo['dirname'] . '/' . $tempFileInfo['filename'] . '.blade.php';
 
-        file_put_contents($tempFile, $template);
+        try {
+            if (@file_put_contents($placeholder, $template) !== strlen($template)) {
+                throw new RuntimeException('Unable to write the complete temporary Blade view.');
+            }
+
+            if (! @rename($placeholder, $tempFile)) {
+                throw new RuntimeException("Unable to move the temporary Blade view to [{$tempFile}].");
+            }
+        } catch (Throwable $exception) {
+            @unlink($placeholder);
+            @unlink($tempFile);
+
+            throw $exception;
+        }
 
         $this->beforeApplicationDestroyed(function () use ($tempFile) {
             @unlink($tempFile);

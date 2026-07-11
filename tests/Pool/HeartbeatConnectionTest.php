@@ -7,12 +7,16 @@ namespace Hypervel\Tests\Pool;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\ClassInvoker;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Pool\Fixtures\HeartbeatPoolStub;
 use Hypervel\Tests\Pool\Fixtures\KeepaliveConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 class HeartbeatConnectionTest extends TestCase
 {
@@ -118,6 +122,42 @@ class HeartbeatConnectionTest extends TestCase
 
         $this->assertFalse($connection->check());
         $this->assertSame(1, $connection->closeCount);
+    }
+
+    public function testHeartbeatFailureFallsBackToThePhpErrorLogWithoutALogger(): void
+    {
+        $directory = ParallelTesting::tempDir('HeartbeatConnectionTest');
+        mkdir($directory, 0777, true);
+        $errorLog = $directory . '/php-error.log';
+        $previousErrorLog = ini_set('error_log', $errorLog);
+        $previousLogErrors = ini_set('log_errors', '1');
+
+        try {
+            $container = $this->getContainer(['heartbeat' => 0.001]);
+            $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
+            $pool = $container->make(HeartbeatPoolStub::class);
+            /** @var KeepaliveConnectionStub $connection */
+            $connection = $pool->get();
+            $connection->heartbeatFailure = new RuntimeException('heartbeat fallback failed');
+            $connection->reconnect();
+
+            Coroutine::sleep(0.01);
+
+            $this->assertFalse($connection->check());
+            $contents = file_get_contents($errorLog);
+            $this->assertIsString($contents);
+            $this->assertStringContainsString('heartbeat fallback failed', $contents);
+        } finally {
+            if ($previousErrorLog !== false) {
+                ini_set('error_log', $previousErrorLog);
+            }
+
+            if ($previousLogErrors !== false) {
+                ini_set('log_errors', $previousLogErrors);
+            }
+
+            (new Filesystem)->deleteDirectory($directory);
+        }
     }
 
     public function testConnectionDestruct(): void

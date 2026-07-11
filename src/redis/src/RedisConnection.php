@@ -486,8 +486,6 @@ abstract class RedisConnection extends BaseConnection
             if ($now > $this->pool->getOption()->getMaxIdleTime() + max($this->lastReleaseTime, $this->lastUseTime)) {
                 return false;
             }
-
-            $this->lastUseTime = $now;
         }
 
         return true;

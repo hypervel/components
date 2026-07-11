@@ -118,7 +118,7 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function resolveJob(string $payload, ?string $queue): SyncJob
     {
-        return new SyncJob($this->container, $payload, $this->connectionName, $queue);
+        return new SyncJob($this->container, $payload, $this->connectionName, $queue ?? 'sync');
     }
 
     /**

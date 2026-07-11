@@ -7,8 +7,10 @@ namespace Hypervel\Tests\Integration\Database\Sqlite;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 
 use function Hypervel\Coroutine\parallel;
 use function Hypervel\Coroutine\run;
@@ -21,29 +23,25 @@ class QueryDurationThresholdPooledTest extends TestCase
 
     protected static string $analyticsDatabasePath;
 
+    protected static string $databaseDirectory;
+
     public static function setUpBeforeClass(): void
     {
         parent::setUpBeforeClass();
 
-        self::$primaryDatabasePath = sys_get_temp_dir() . '/hypervel_query_duration_primary_' . getmypid() . '.sqlite';
-        self::$analyticsDatabasePath = sys_get_temp_dir() . '/hypervel_query_duration_analytics_' . getmypid() . '.sqlite';
+        self::$databaseDirectory = ParallelTesting::tempDir('QueryDurationThresholdPooledTest');
+        (new Filesystem)->ensureDirectoryExists(self::$databaseDirectory);
+        self::$primaryDatabasePath = self::$databaseDirectory . '/primary.sqlite';
+        self::$analyticsDatabasePath = self::$databaseDirectory . '/analytics.sqlite';
 
         foreach ([self::$primaryDatabasePath, self::$analyticsDatabasePath] as $path) {
-            if (file_exists($path)) {
-                @unlink($path);
-            }
-
             touch($path);
         }
     }
 
     public static function tearDownAfterClass(): void
     {
-        foreach ([self::$primaryDatabasePath, self::$analyticsDatabasePath] as $path) {
-            if (file_exists($path)) {
-                @unlink($path);
-            }
-        }
+        (new Filesystem)->deleteDirectory(self::$databaseDirectory);
 
         parent::tearDownAfterClass();
     }

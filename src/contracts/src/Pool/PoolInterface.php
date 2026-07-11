@@ -22,9 +22,19 @@ interface PoolInterface
     public function release(ConnectionInterface $connection): void;
 
     /**
-     * Close and clear the connection pool.
+     * Close idle connections in excess of the minimum pool size.
      */
     public function flush(): void;
+
+    /**
+     * Close the connection pool and release its resources.
+     */
+    public function close(): void;
+
+    /**
+     * Determine if the connection pool is closed.
+     */
+    public function isClosed(): bool;
 
     /**
      * Get the pool configuration options.

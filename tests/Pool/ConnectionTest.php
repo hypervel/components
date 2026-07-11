@@ -16,7 +16,7 @@ use Mockery as m;
 
 class ConnectionTest extends TestCase
 {
-    public function testGetActiveConnectionAgain()
+    public function testGetActiveConnectionAgain(): void
     {
         $container = m::mock(ContainerContract::class);
         $logger = m::mock(StdoutLoggerInterface::class);
@@ -29,7 +29,7 @@ class ConnectionTest extends TestCase
         $this->assertEquals($connection, $connection->getConnection());
     }
 
-    public function testReleaseConnectionEvent()
+    public function testReleaseConnectionEvent(): void
     {
         $assert = 0;
         $container = m::mock(ContainerContract::class);
@@ -48,7 +48,7 @@ class ConnectionTest extends TestCase
         $this->assertTrue($assert > 0);
     }
 
-    public function testDontHaveEvents()
+    public function testDontHaveEvents(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
@@ -63,5 +63,22 @@ class ConnectionTest extends TestCase
         $connection->release();
 
         $this->assertTrue(true);
+    }
+
+    public function testCheckDoesNotResetActivityTimestamp(): void
+    {
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
+        $container->shouldReceive('bound')->with('events')->andReturnFalse();
+        $pool = m::mock(Pool::class);
+        $pool->shouldReceive('release')->once();
+        $pool->shouldReceive('getOption')->twice()->andReturn(new PoolOption(maxIdleTime: 60.0));
+        $connection = new ActiveConnectionStub($container, $pool);
+
+        $connection->release();
+        $lastUseTime = $connection->getLastUseTime();
+
+        $this->assertTrue($connection->check());
+        $this->assertSame($lastUseTime, $connection->getLastUseTime());
     }
 }

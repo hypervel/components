@@ -10,14 +10,12 @@ use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\FrequencyInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Contracts\Pool\PoolOptionInterface;
+use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 
 /**
- * Abstract base class for connection pools.
- *
- * Manages a pool of reusable connections using a Swoole channel for
- * coroutine-safe storage and retrieval.
+ * Manage reusable connections with explicit ownership and terminal teardown.
  */
 abstract class Pool implements PoolInterface
 {
@@ -25,10 +23,21 @@ abstract class Pool implements PoolInterface
 
     protected PoolOptionInterface $option;
 
-    protected int $currentConnections = 0;
+    /** @var array<int, true> */
+    protected array $managedConnections = [];
+
+    /** @var array<int, true> */
+    protected array $borrowedConnections = [];
+
+    protected int $creating = 0;
+
+    protected bool $closed = false;
 
     protected FrequencyInterface|LowFrequencyInterface|null $frequency = null;
 
+    /**
+     * Create a connection pool.
+     */
     public function __construct(
         protected Container $container,
         protected string $name,
@@ -52,20 +61,26 @@ abstract class Pool implements PoolInterface
      */
     public function get(): ConnectionInterface
     {
-        $connection = $this->getConnection();
+        if ($this->closed) {
+            throw new RuntimeException('Cannot borrow from a closed connection pool.');
+        }
+
+        $deadline = $this->deadline($this->option->getWaitTimeout());
+        $connection = $this->getConnection($deadline);
+        $this->borrowedConnections[spl_object_id($connection)] = true;
 
         try {
             if ($this->frequency instanceof FrequencyInterface) {
                 $this->frequency->hit();
             }
 
-            if ($this->frequency instanceof LowFrequencyInterface) {
-                if ($this->frequency->isLowFrequency()) {
-                    $this->flush();
-                }
+            if ($this->frequency instanceof LowFrequencyInterface
+                && $this->frequency->isLowFrequency()
+            ) {
+                $this->flush();
             }
         } catch (Throwable $exception) {
-            $this->getLogger()?->error((string) $exception);
+            $this->report($exception);
         }
 
         return $connection;
@@ -76,64 +91,86 @@ abstract class Pool implements PoolInterface
      */
     public function release(ConnectionInterface $connection): void
     {
-        $this->channel->push($connection);
+        $connectionId = $this->assertBorrowed($connection);
+        unset($this->borrowedConnections[$connectionId]);
+
+        if ($this->closed) {
+            $this->destroyConnection($connection);
+
+            return;
+        }
+
+        $this->requeueConnection($connection);
     }
 
     /**
-     * Flush excess connections down to the minimum pool size.
+     * Close idle connections in excess of the minimum pool size.
      */
     public function flush(): void
     {
-        $num = $this->getConnectionsInChannel();
+        $connectionsToInspect = $this->getConnectionsInChannel();
 
-        if ($num > 0) {
-            while ($this->currentConnections > $this->option->getMinConnections() && $conn = $this->channel->pop(0.001)) {
-                try {
-                    $conn->close();
-                } catch (Throwable $exception) {
-                    $this->getLogger()?->error((string) $exception);
-                } finally {
-                    --$this->currentConnections;
-                    --$num;
-                }
-
-                if ($num <= 0) {
-                    // Ignore connections queued during flushing.
-                    break;
-                }
-            }
+        while ($connectionsToInspect-- > 0
+            && count($this->managedConnections) > $this->option->getMinConnections()
+            && $connection = $this->popIdleConnection()
+        ) {
+            $this->destroyConnection($connection);
         }
     }
 
     /**
-     * Flush a single connection from the pool.
+     * Check one idle connection and discard it when unhealthy.
      */
-    public function flushOne(bool $force = false): void
+    public function checkIdleConnection(): void
     {
-        $num = $this->getConnectionsInChannel();
-        if ($num > 0 && $conn = $this->channel->pop(0.001)) {
-            if ($force || ! $conn->check()) {
-                try {
-                    $conn->close();
-                } catch (Throwable $exception) {
-                    $this->getLogger()?->error((string) $exception);
-                } finally {
-                    --$this->currentConnections;
-                }
-            } else {
-                $this->release($conn);
-            }
+        $connection = $this->popIdleConnection();
+
+        if ($connection === false) {
+            return;
+        }
+
+        try {
+            $healthy = $connection->check();
+        } catch (Throwable $exception) {
+            $this->report($exception);
+            $healthy = false;
+        }
+
+        if ($healthy && ! $this->closed) {
+            $this->requeueConnection($connection);
+
+            return;
+        }
+
+        $this->destroyConnection($connection);
+    }
+
+    /**
+     * Close the pool and destroy every idle connection.
+     *
+     * Idempotent. Connections borrowed when closure begins are destroyed on
+     * release, and factories completing after closure destroy their orphan.
+     */
+    public function close(): void
+    {
+        if ($this->closed) {
+            return;
+        }
+
+        $this->closed = true;
+        $this->channel->close();
+
+        while ($connection = $this->popIdleConnection()) {
+            $this->destroyConnection($connection);
         }
     }
 
     /**
-     * Flush all connections from the pool.
+     * Determine if the pool is closed.
      */
-    public function flushAll(): void
+    public function isClosed(): bool
     {
-        while ($this->getConnectionsInChannel() > 0) {
-            $this->flushOne(true);
-        }
+        return $this->closed;
     }
 
     /**
@@ -141,7 +178,7 @@ abstract class Pool implements PoolInterface
      */
     public function getCurrentConnections(): int
     {
-        return $this->currentConnections;
+        return count($this->managedConnections);
     }
 
     /**
@@ -165,6 +202,26 @@ abstract class Pool implements PoolInterface
      */
     protected function initOption(array $options = []): void
     {
+        $knownOptions = [
+            'min_connections',
+            'max_connections',
+            'connect_timeout',
+            'wait_timeout',
+            'heartbeat',
+            'heartbeat_timeout',
+            'max_idle_time',
+            'max_lifetime',
+            'events',
+        ];
+        $unknownOptions = array_diff(array_keys($options), $knownOptions);
+
+        if ($unknownOptions !== []) {
+            throw new InvalidArgumentException(
+                'Unknown connection pool option(s) [' . implode(', ', $unknownOptions) . ']. Known options are ['
+                . implode(', ', $knownOptions) . '].',
+            );
+        }
+
         $this->option = new PoolOption(
             minConnections: $options['min_connections'] ?? 1,
             maxConnections: $options['max_connections'] ?? 10,
@@ -180,43 +237,210 @@ abstract class Pool implements PoolInterface
 
     /**
      * Create a new connection for the pool.
+     *
+     * @phpstan-impure Connection factories may yield, allowing another
+     *                  coroutine to change this pool's lifecycle state.
      */
     abstract protected function createConnection(): ConnectionInterface;
 
     /**
-     * Get a connection from the pool or create a new one.
+     * Pop and validate one idle connection.
      */
-    private function getConnection(): ConnectionInterface
+    protected function popIdleConnection(): ConnectionInterface|false
     {
-        $num = $this->getConnectionsInChannel();
+        $connection = $this->channel->pop();
 
-        try {
-            if ($num === 0 && $this->currentConnections < $this->option->getMaxConnections()) {
-                ++$this->currentConnections;
-                return $this->createConnection();
-            }
-        } catch (Throwable $throwable) {
-            --$this->currentConnections;
-            throw $throwable;
+        if ($connection === false) {
+            return false;
         }
 
-        $connection = $this->channel->pop($this->option->getWaitTimeout());
-        if (! $connection instanceof ConnectionInterface) {
-            throw new RuntimeException('Connection pool exhausted. Cannot establish new connection before wait_timeout.');
+        $connectionId = spl_object_id($connection);
+
+        if (! isset($this->managedConnections[$connectionId])) {
+            throw new RuntimeException('The connection pool channel contained a connection this pool does not manage.');
+        }
+
+        if (isset($this->borrowedConnections[$connectionId])) {
+            throw new RuntimeException('The connection pool channel contained a connection that is still checked out.');
         }
 
         return $connection;
     }
 
     /**
+     * Return an idle connection without changing its activity timestamps.
+     */
+    protected function requeueConnection(ConnectionInterface $connection): void
+    {
+        $connectionId = spl_object_id($connection);
+
+        if (! isset($this->managedConnections[$connectionId])) {
+            throw new RuntimeException('Cannot requeue a connection this pool does not manage.');
+        }
+
+        if (isset($this->borrowedConnections[$connectionId])) {
+            throw new RuntimeException('Cannot requeue a connection that is still checked out.');
+        }
+
+        $this->channel->push($connection);
+    }
+
+    /**
+     * Destroy a managed connection and release its capacity.
+     */
+    protected function destroyConnection(ConnectionInterface $connection): void
+    {
+        $connectionId = spl_object_id($connection);
+
+        if (! isset($this->managedConnections[$connectionId])) {
+            throw new RuntimeException('Cannot destroy a connection this pool does not manage.');
+        }
+
+        try {
+            $connection->close();
+        } catch (Throwable $exception) {
+            $this->report($exception);
+        } finally {
+            unset(
+                $this->managedConnections[$connectionId],
+                $this->borrowedConnections[$connectionId]
+            );
+            $this->channel->signal();
+        }
+    }
+
+    /**
+     * Report a pool maintenance or cleanup failure without throwing.
+     */
+    protected function report(Throwable|string $error): void
+    {
+        try {
+            $this->getLogger()?->error((string) $error);
+        } catch (Throwable) {
+        }
+    }
+
+    /**
      * Get the logger instance if available.
      */
-    private function getLogger(): ?StdoutLoggerInterface
+    protected function getLogger(): ?StdoutLoggerInterface
     {
         if (! $this->container->has(StdoutLoggerInterface::class)) {
             return null;
         }
 
         return $this->container->make(StdoutLoggerInterface::class);
+    }
+
+    /**
+     * Get or create a connection before the checkout deadline.
+     */
+    private function getConnection(int $deadline): ConnectionInterface
+    {
+        while (true) {
+            if ($this->closed) {
+                throw new RuntimeException('Cannot borrow from a closed connection pool.');
+            }
+
+            if ($connection = $this->popIdleConnection()) {
+                return $connection;
+            }
+
+            if (count($this->managedConnections) + $this->creating < $this->option->getMaxConnections()) {
+                ++$this->creating;
+
+                try {
+                    $connection = $this->createConnection();
+                } catch (Throwable $exception) {
+                    --$this->creating;
+                    $this->channel->signal();
+
+                    throw $exception;
+                }
+
+                --$this->creating;
+                $connectionId = spl_object_id($connection);
+
+                if (isset($this->managedConnections[$connectionId])) {
+                    $this->channel->signal();
+
+                    throw new RuntimeException(
+                        'The connection pool factory returned a connection this pool already manages. '
+                        . 'Factories must construct fresh connection instances.'
+                    );
+                }
+
+                $this->managedConnections[$connectionId] = true;
+
+                if ($this->closed) {
+                    $this->destroyConnection($connection);
+
+                    throw new RuntimeException('Cannot borrow from a closed connection pool.');
+                }
+
+                return $connection;
+            }
+
+            if (! $this->waitForStateChange($deadline)) {
+                throw new RuntimeException(
+                    'Connection pool exhausted. Cannot establish new connection before wait_timeout.'
+                );
+            }
+        }
+    }
+
+    /**
+     * Wait until pool state changes or the checkout deadline expires.
+     */
+    private function waitForStateChange(int $deadline): bool
+    {
+        $remaining = $deadline - hrtime(true);
+
+        if ($remaining <= 0) {
+            return false;
+        }
+
+        return $this->channel->wait($remaining / 1e9);
+    }
+
+    /**
+     * Convert seconds to nanoseconds without overflowing integer arithmetic.
+     */
+    protected function nanoseconds(float $seconds): int
+    {
+        return $seconds >= PHP_INT_MAX / 1e9
+            ? PHP_INT_MAX
+            : (int) ($seconds * 1e9);
+    }
+
+    /**
+     * Build a monotonic deadline without overflowing at long durations or uptimes.
+     */
+    protected function deadline(float $seconds): int
+    {
+        $now = hrtime(true);
+        $duration = $this->nanoseconds($seconds);
+
+        return $duration > PHP_INT_MAX - $now
+            ? PHP_INT_MAX
+            : $now + $duration;
+    }
+
+    /**
+     * Assert that a connection is currently borrowed from this pool.
+     */
+    private function assertBorrowed(ConnectionInterface $connection): int
+    {
+        $connectionId = spl_object_id($connection);
+
+        if (! isset($this->managedConnections[$connectionId])) {
+            throw new RuntimeException('Cannot release a connection this pool does not manage.');
+        }
+
+        if (! isset($this->borrowedConnections[$connectionId])) {
+            throw new RuntimeException('Cannot release a connection that is not checked out (double release?).');
+        }
+
+        return $connectionId;
     }
 }

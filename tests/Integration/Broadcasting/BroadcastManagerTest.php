@@ -6,11 +6,15 @@ namespace Hypervel\Tests\Integration\Broadcasting;
 
 use Exception;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster as BaseBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
+use Hypervel\Broadcasting\BroadcastPoolProxy;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\UniqueBroadcastEvent;
+use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -21,7 +25,7 @@ use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
-use Hypervel\ObjectPool\Contracts\ObjectPool;
+use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Routing\Route;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
@@ -33,7 +37,7 @@ use RuntimeException;
 
 class BroadcastManagerTest extends TestCase
 {
-    public function testEventCanBeBroadcastNow()
+    public function testEventCanBeBroadcastNow(): void
     {
         Bus::fake();
         Queue::fake();
@@ -44,7 +48,7 @@ class BroadcastManagerTest extends TestCase
         Queue::assertNotPushed(BroadcastEvent::class);
     }
 
-    public function testEventsCanBeBroadcast()
+    public function testEventsCanBeBroadcast(): void
     {
         Bus::fake();
         Queue::fake();
@@ -55,7 +59,7 @@ class BroadcastManagerTest extends TestCase
         Queue::assertPushed(BroadcastEvent::class);
     }
 
-    public function testEventsCanBeBroadcastUsingQueueRoutes()
+    public function testEventsCanBeBroadcastUsingQueueRoutes(): void
     {
         Bus::fake();
         Queue::fake();
@@ -67,7 +71,7 @@ class BroadcastManagerTest extends TestCase
         Queue::connection('broadcast-connection')->assertPushedOn('broadcast-queue', BroadcastEvent::class);
     }
 
-    public function testEventsCanBeRescued()
+    public function testEventsCanBeRescued(): void
     {
         Bus::fake();
         Queue::fake();
@@ -78,7 +82,7 @@ class BroadcastManagerTest extends TestCase
         Queue::assertPushed(BroadcastEvent::class);
     }
 
-    public function testNowEventsCanBeRescued()
+    public function testNowEventsCanBeRescued(): void
     {
         Bus::fake();
         Queue::fake();
@@ -89,7 +93,7 @@ class BroadcastManagerTest extends TestCase
         Queue::assertNotPushed(BroadcastEvent::class);
     }
 
-    public function testUniqueEventsCanBeBroadcast()
+    public function testUniqueEventsCanBeBroadcast(): void
     {
         Bus::fake();
         Queue::fake();
@@ -107,7 +111,7 @@ class BroadcastManagerTest extends TestCase
         Queue::assertPushed(UniqueBroadcastEvent::class);
     }
 
-    public function testUniqueEventsCanBeBroadcastWithUniqueIdFromProperty()
+    public function testUniqueEventsCanBeBroadcastWithUniqueIdFromProperty(): void
     {
         Bus::fake();
         Queue::fake();
@@ -121,7 +125,7 @@ class BroadcastManagerTest extends TestCase
         $this->assertFalse($this->app->get(Cache::class)->lock($lockKey, 10)->get());
     }
 
-    public function testUniqueEventsCanBeBroadcastWithUniqueIdFromMethod()
+    public function testUniqueEventsCanBeBroadcastWithUniqueIdFromMethod(): void
     {
         Bus::fake();
         Queue::fake();
@@ -135,7 +139,7 @@ class BroadcastManagerTest extends TestCase
         $this->assertFalse($this->app->get(Cache::class)->lock($lockKey, 10)->get());
     }
 
-    public function testThrowExceptionWhenUnknownStoreIsUsed()
+    public function testThrowExceptionWhenUnknownStoreIsUsed(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Broadcast connection [alien_connection] is not defined.');
@@ -229,52 +233,29 @@ class BroadcastManagerTest extends TestCase
     public function testAuthenticatedUserResolverWorksThroughPooledManagerDriver(): void
     {
         $app = new Container;
-        $app->singleton('config', fn () => new \Hypervel\Config\Repository([
+        $app->singleton('config', fn () => new Repository([
             'broadcasting' => [
                 'default' => 'test',
                 'connections' => [
                     'test' => [
                         'driver' => 'custom',
                         'pool' => [
-                            'min_connections' => 0,
-                            'max_connections' => 2,
+                            'min_retained_objects' => 0,
+                            'max_objects' => 2,
                         ],
                     ],
                 ],
             ],
         ]));
+        $app->instance(ContainerContract::class, $app);
+        $app->singleton(PoolFactory::class, PoolManager::class);
         Container::setInstance($app);
 
-        $firstBroadcaster = new ManagerUserAuthenticationBroadcaster($app);
-        $secondBroadcaster = new ManagerUserAuthenticationBroadcaster($app);
-
-        $pool = m::mock(ObjectPool::class);
-        $pool->shouldReceive('get')
-            ->twice()
-            ->andReturn($firstBroadcaster, $secondBroadcaster);
-        $pool->shouldReceive('release')
-            ->once()
-            ->with($firstBroadcaster);
-        $pool->shouldReceive('release')
-            ->once()
-            ->with($secondBroadcaster);
-
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('create')
-            ->once()
-            ->withArgs(function (string $name, callable $resolver, array $options): bool {
-                $this->assertSame(BroadcastManager::class . ':test', $name);
-                $this->assertSame([
-                    'min_connections' => 0,
-                    'max_connections' => 2,
-                ], $options);
-
-                return true;
-            })
-            ->andReturn($pool);
-        $app->instance(PoolFactory::class, $poolFactory);
-
         $broadcastManager = new BroadcastManager($app);
+        $broadcastManager->extend(
+            'custom',
+            fn () => new ManagerUserAuthenticationBroadcaster($app)
+        );
         $broadcastManager->addPoolable('custom');
 
         $broadcastManager->resolveAuthenticatedUserUsing(function (Request $request): array {
@@ -291,10 +272,125 @@ class BroadcastManagerTest extends TestCase
         );
     }
 
+    public function testEquivalentConnectionsConvergeAndCustomCreatorNeverReceivesPoolMetadata(): void
+    {
+        $connection = [
+            'driver' => 'custom',
+            'key' => 'shared',
+            'pool' => ['max_objects' => 2],
+        ];
+        $app = $this->poolingApplication([
+            'first' => $connection,
+            'second' => $connection,
+        ]);
+        $received = null;
+        $manager = new BroadcastManager($app);
+        $manager->extend(
+            'custom',
+            function (ContainerContract $container, array $config) use (&$received): Broadcaster {
+                $received = $config;
+
+                return new ManagerUserAuthenticationBroadcaster($container);
+            }
+        );
+        $manager->addPoolable('custom');
+
+        $first = $manager->connection('first');
+        $second = $manager->connection('second');
+
+        $this->assertInstanceOf(BroadcastPoolProxy::class, $first);
+        $this->assertInstanceOf(BroadcastPoolProxy::class, $second);
+        $this->assertSame($first->getPoolName(), $second->getPoolName());
+
+        $first->getChannels();
+        $this->assertSame([
+            'driver' => 'custom',
+            'key' => 'shared',
+        ], $received);
+    }
+
+    public function testReverbResolvesDirectlyWhileExistingPoolableDriversRemainUnchanged(): void
+    {
+        $app = $this->poolingApplication([
+            'reverb' => [
+                'driver' => 'reverb',
+                'key' => 'key',
+                'secret' => 'secret',
+                'app_id' => 'app',
+                'options' => ['host' => '127.0.0.1'],
+            ],
+        ]);
+        $manager = new BroadcastManager($app);
+
+        $this->assertInstanceOf(PusherBroadcaster::class, $manager->connection('reverb'));
+        $this->assertSame([], $app->make(PoolFactory::class)->pools());
+        $this->assertContains('pusher', $manager->getPoolables());
+        $this->assertContains('ably', $manager->getPoolables());
+        $this->assertNotContains('reverb', $manager->getPoolables());
+    }
+
+    public function testPurgeInvalidatesCachedAndUncachedBroadcasterPoolsWhileForgetIsCacheOnly(): void
+    {
+        $app = $this->poolingApplication([
+            'custom' => ['driver' => 'custom'],
+        ]);
+        $manager = new BroadcastManager($app);
+        $manager->extend(
+            'custom',
+            fn (ContainerContract $container) => new ManagerUserAuthenticationBroadcaster($container)
+        );
+        $manager->addPoolable('custom');
+
+        $driver = $manager->connection('custom');
+        $this->assertInstanceOf(BroadcastPoolProxy::class, $driver);
+        $identity = $driver->getPoolName();
+        $pools = $app->make(PoolFactory::class);
+        $driver->getChannels();
+        $this->assertTrue($pools->has($identity));
+
+        $manager->forgetDrivers();
+        $this->assertTrue($pools->has($identity));
+
+        $cachedAgain = $manager->connection('custom');
+        $this->assertInstanceOf(BroadcastPoolProxy::class, $cachedAgain);
+
+        $manager->purge('custom');
+        $this->assertFalse($pools->has($identity));
+
+        $driver->getChannels();
+        $this->assertTrue($pools->has($identity));
+
+        $manager->purge('custom');
+        $this->assertFalse($pools->has($identity));
+    }
+
+    public function testPooledConstructionFailureNamesTheDriverNotAConvergedConnection(): void
+    {
+        $connection = ['driver' => 'redis', 'connection' => 'default'];
+        $app = $this->poolingApplication([
+            'first' => $connection,
+            'second' => $connection,
+        ]);
+        $app->singleton('redis', fn () => throw new Exception('Redis unavailable.'));
+        $manager = new BroadcastManager($app);
+        $manager->addPoolable('redis');
+
+        $first = $manager->connection('first');
+        $second = $manager->connection('second');
+        $this->assertInstanceOf(BroadcastPoolProxy::class, $first);
+        $this->assertInstanceOf(BroadcastPoolProxy::class, $second);
+        $this->assertSame($first->getPoolName(), $second->getPoolName());
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to create broadcaster for driver "redis" with error: Redis unavailable.');
+
+        $second->auth(Request::create('/broadcasting/auth', 'POST'));
+    }
+
     public function testCustomDriverClosureBoundObjectIsBroadcastManager(): void
     {
         $app = new Container;
-        $app->singleton('config', fn () => new \Hypervel\Config\Repository([
+        $app->singleton('config', fn () => new Repository([
             'broadcasting' => [
                 'connections' => [
                     'test' => [
@@ -310,7 +406,7 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager->extend('custom', function () use (&$boundInstance) {
             $boundInstance = $this;
 
-            return m::mock(\Hypervel\Contracts\Broadcasting\Broadcaster::class);
+            return m::mock(Broadcaster::class);
         });
 
         $broadcastManager->connection('test');
@@ -323,7 +419,7 @@ class BroadcastManagerTest extends TestCase
         $this->expectExceptionMessage('Failed to create broadcaster for connection "failing" with error: Redis unavailable.');
 
         $app = new Container;
-        $app->singleton('config', fn () => new \Hypervel\Config\Repository([
+        $app->singleton('config', fn () => new Repository([
             'broadcasting' => [
                 'connections' => [
                     'failing' => [
@@ -336,6 +432,25 @@ class BroadcastManagerTest extends TestCase
 
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->connection('failing');
+    }
+
+    /**
+     * Create an application with object pooling and broadcast connections.
+     */
+    protected function poolingApplication(array $connections): Container
+    {
+        $app = new Container;
+        $app->instance(ContainerContract::class, $app);
+        $app->instance('config', new Repository([
+            'broadcasting' => [
+                'default' => array_key_first($connections),
+                'connections' => $connections,
+            ],
+        ]));
+        $app->singleton(PoolFactory::class, PoolManager::class);
+        Container::setInstance($app);
+
+        return $app;
     }
 }
 

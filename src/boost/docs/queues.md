@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
     - [Connections vs. Queues](#connections-vs-queues)
+    - [Connection Pools](#connection-pools)
     - [Driver Notes and Prerequisites](#driver-prerequisites)
     - [Laravel Job Interoperability](#laravel-job-interoperability)
 - [Creating Jobs](#creating-jobs)
@@ -95,6 +96,38 @@ Some applications may not need to ever push jobs onto multiple queues, instead p
 ```shell
 php artisan queue:work --queue=high,default
 ```
+
+<a name="connection-pools"></a>
+### Connection Pools
+
+Hypervel pools `sqs` and `beanstalkd` queue connections by default so concurrent coroutines never share a mutable backend client. Pool identity is derived from the complete connector configuration except for the `pool` control block. Equivalent named connections converge automatically; differences such as the default queue, endpoint, credentials, or connector options produce distinct pools.
+
+Configure a connection pool inside its queue connection definition:
+
+```php
+'sqs' => [
+    'driver' => 'sqs',
+    'key' => env('AWS_ACCESS_KEY_ID'),
+    'secret' => env('AWS_SECRET_ACCESS_KEY'),
+    'prefix' => env('SQS_PREFIX'),
+    'queue' => env('SQS_QUEUE', 'default'),
+    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    'pool' => [
+        'min_retained_objects' => 1,
+        'max_objects' => 10,
+        'wait_timeout' => 3.0,
+        'max_lifetime' => 60.0,
+        'max_idle_time' => 0.0,
+        'idle_ttl' => 300.0,
+    ],
+],
+```
+
+`min_retained_objects` is an idle-trimming floor and does not eagerly connect. `max_objects` should be at least the maximum number of jobs a worker may process concurrently: a popped SQS or Beanstalkd job keeps its connection leased until `delete()`, `release()`, or `bury()` finishes. Backend failures discard the leased connection so a potentially desynchronized client is never returned to the pool.
+
+Automatic identities are sufficient for scalar and array connector configuration. Use `pool.name` for an explicit readable identity and `pool.fingerprint` when custom connector input contains an object, closure, or resource. Reusing an explicit name with a different driver, fingerprint, or normalized options fails immediately.
+
+`Queue::purge($name)` evicts the cached connection wrapper and closes its current pool. Existing jobs retain their old connection lease through their terminal backend operation; the connection is destroyed when that lease finishes. The next manager resolution creates a fresh pool.
 
 <a name="driver-prerequisites"></a>
 ### Driver Notes and Prerequisites

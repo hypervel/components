@@ -2266,6 +2266,47 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($connection->check());
     }
 
+    public function testCheckDoesNotResetActivityTimestamp(): void
+    {
+        $pool = m::mock(PoolInterface::class);
+        $pool->shouldReceive('getOption')->andReturn(new PoolOption(maxIdleTime: 60.0));
+        $redis = m::mock(Redis::class);
+
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+
+            public function prepareForIdleCheck(): float
+            {
+                $this->availableForReuse = true;
+                $this->lastReleaseTime = microtime(true);
+
+                return $this->lastUseTime;
+            }
+
+            public function getLastUseTimeForTest(): float
+            {
+                return $this->lastUseTime;
+            }
+        };
+
+        $lastUseTime = $connection->prepareForIdleCheck();
+
+        $this->assertTrue($connection->check());
+        $this->assertSame($lastUseTime, $connection->getLastUseTimeForTest());
+    }
+
     public function testScanWithArrayOptions(): void
     {
         $connection = $this->mockRedisConnection(transform: true);

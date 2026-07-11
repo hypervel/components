@@ -604,7 +604,7 @@ Do not add `Boot-only.`, `Tests only.`, or `Boot or tests only.` warning paragra
 
 Keep the docblock to the title only — no extra paragraphs. If the method body has a non-obvious WHY worth explaining (ordering constraints, late-static-binding subtleties, etc.), put it as an inline comment above the relevant line inside the method, not as an extra paragraph under the title.
 
-When the property's initial value and `flushState()`'s reset value share a literal (a number, string, class name, etc.), extract it to a `DEFAULT_*` class constant and reference it from both sides — this prevents drift if the default ever changes. Make the constant `public` only if tests or external callers reference it; otherwise `protected`.
+When the property's initial value and `flushState()`'s reset value share a literal (a number, string, class name, etc.), extract it to a `DEFAULT_*` class constant and reference it from both sides — this prevents drift if the default ever changes. Make the constant `public` only if tests or external callers reference it; otherwise `protected`. Nullable lazy caches and callback slots are exempt: `null` there is the structural "not yet computed" sentinel required by the `??=` pattern, not a configurable default — initialize and reset with a literal `null`, no constant.
 
 ```php
 public const DEFAULT_TRUNCATE_AT = 120;

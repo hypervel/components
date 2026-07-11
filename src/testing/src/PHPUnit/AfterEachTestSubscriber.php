@@ -114,6 +114,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Events\Dispatcher::flushState();
         \Hypervel\Filesystem\Filesystem::flushState();
         \Hypervel\Filesystem\FilesystemAdapter::flushState();
+        \Hypervel\Filesystem\FilesystemManager::flushState();
         \Hypervel\Foundation\Application::flushState();
         \Hypervel\Foundation\Bootstrap\LoadConfiguration::flushState();
         \Hypervel\Foundation\Bootstrap\RegisterProviders::flushState();

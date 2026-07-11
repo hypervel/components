@@ -301,6 +301,20 @@ The round robin transport selects a random mailer from the list of configured ma
 
 Hypervel pools mail transports that hold persistent connections or API clients so they can be safely reused across concurrent requests. Pooling applies to the `smtp`, `sendmail`, `mailgun`, `ses-v2`, `postmark`, `resend`, `cloudflare`, `failover`, and `roundrobin` transports.
 
+Named mailers use pooling by default when their transport is poolable. On-demand mailers created with `Mail::build()` are direct by default and opt in explicitly:
+
+| `pool` value | Named poolable mailer | `Mail::build()` mailer |
+|---|---|---|
+| absent | pooled with defaults | direct |
+| `false` | direct | direct |
+| `true` | pooled with defaults | pooled with defaults |
+| `[]` | pooled with defaults | pooled with defaults |
+| option array | pooled with the supplied overrides | pooled with the supplied overrides |
+
+Any other value is rejected. Explicitly requesting pooling for a transport that is not poolable is also rejected instead of being silently ignored.
+
+Pool identity is derived from the transport's resolved construction input, including fallback credentials from `config/services.php`. Equivalent named mailers and explicitly pooled equivalent mailers created through `Mail::build()` converge on one pool. Credential changes create a different identity. Failover and round-robin identities include each resolved child transport in order, so changing a child or its credentials also changes the composite pool.
+
 The default pool settings are suitable for most applications. If your application sends a high volume of concurrent mail, or if you encounter pool exhaustion errors, you may tune the pool for any mailer by adding a `pool` configuration option to the mailer's configuration array:
 
 ```php
@@ -308,15 +322,45 @@ The default pool settings are suitable for most applications. If your applicatio
     'transport' => 'smtp',
     // ...
     'pool' => [
-        'min_objects' => 1,
+        'min_retained_objects' => 1,
         'max_objects' => 10,
         'wait_timeout' => 3.0,
         'max_lifetime' => 60.0,
+        'max_idle_time' => 0.0,
+        'idle_ttl' => 300.0,
     ],
 ],
 ```
 
-The `min_objects` and `max_objects` options determine the minimum and maximum number of transports kept in the pool. The `wait_timeout` option determines how many seconds a coroutine will wait for a transport to become available before the pool throws a `RuntimeException`. The `max_lifetime` option determines how long, in seconds, a pooled transport may live before it is recycled.
+`min_retained_objects` is an idle-trimming floor and does not eagerly create transports. `max_objects` limits concurrent pool capacity. `wait_timeout` determines how long a coroutine waits for capacity before a `RuntimeException` is thrown. `max_lifetime` expires transports by absolute age, `max_idle_time` trims individual idle transports, and `idle_ttl` removes an entirely unused pool after 300 seconds by default. Set `idle_ttl` explicitly to `null` to disable whole-pool eviction.
+
+Use `pool.name` to select a readable explicit identity and `pool.fingerprint` to declare construction equivalence when a custom transport config contains an object, closure, or resource that cannot be fingerprinted automatically. Reusing an explicit name with a different transport type, fingerprint, or normalized options fails immediately.
+
+`Mail::forgetMailers()` only drops the manager's cached mailer wrappers. `Mail::purge($name)` drops the wrapper and closes its current transport pool; any equivalent retained wrapper transparently creates a fresh pool on its next send.
+
+When provider credentials vary at runtime — for example, by customer account, provider subaccount, or tenant — opt an on-demand mailer into pooling and let the resolved credentials define its pool identity:
+
+```php
+$mailer = Mail::build([
+    'transport' => 'smtp',
+    'host' => $account->smtp_host,
+    'port' => $account->smtp_port,
+    'username' => $account->smtp_username,
+    'password' => $account->smtp_password,
+    'pool' => [
+        'max_objects' => 20,
+        'idle_ttl' => 300,
+    ],
+]);
+```
+
+Equivalent jobs reuse the same bounded transport pool, while different credentials create separate pools. An on-demand mailer is not stored under a manager name, so immediate invalidation is performed on its transport proxy:
+
+```php
+$mailer->getSymfonyTransport()->invalidatePool();
+```
+
+Otherwise, the pool is reclaimed automatically after `idle_ttl` once it has no active borrow. Custom transports require both declarations: register the transport with `poolable: true`, then set `pool` to `true` or an option array for on-demand builds. This ensures the transport author declares reuse safe and the caller deliberately requests retention.
 
 <a name="generating-mailables"></a>
 ## Generating Mailables

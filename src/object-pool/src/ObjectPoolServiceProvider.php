@@ -19,7 +19,7 @@ class ObjectPoolServiceProvider extends ServiceProvider
     {
         $this->app->singleton(Factory::class, PoolManager::class);
 
-        $this->app->singleton(Recycler::class, ObjectRecycler::class);
+        $this->app->singleton(Recycler::class, PoolRecycler::class);
     }
 
     /**

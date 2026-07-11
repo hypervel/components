@@ -73,7 +73,11 @@ class Timer
                     try {
                         $result = $closure($isClosing);
                     } catch (Throwable $exception) {
-                        $this->logger?->error((string) $exception);
+                        if ($this->logger !== null) {
+                            $this->logger->error((string) $exception);
+                        } else {
+                            error_log((string) $exception);
+                        }
                     }
 
                     if ($result === self::STOP || $isClosing) {

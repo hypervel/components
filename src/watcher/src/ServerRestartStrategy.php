@@ -24,7 +24,8 @@ class ServerRestartStrategy implements RestartStrategy
 
     protected string $bin;
 
-    protected string $command;
+    /** @var non-empty-list<non-empty-string> */
+    protected array $command;
 
     public function __construct(
         protected Container $container,
@@ -41,9 +42,24 @@ class ServerRestartStrategy implements RestartStrategy
             throw new InvalidArgumentException('Please set `server.settings.daemonize` to false');
         }
 
+        $bin = $config->string('watcher.bin', PHP_BINARY);
+        $command = $config->array('watcher.command', ['artisan', 'serve']);
+
+        if ($bin === '') {
+            throw new InvalidArgumentException('The watcher.bin configuration value must be a non-empty executable path.');
+        }
+
+        if (! array_is_list($command)
+            || $command === []
+            || array_any($command, fn (mixed $argument): bool => ! is_string($argument) || $argument === '')
+        ) {
+            throw new InvalidArgumentException('The watcher.command configuration value must be a non-empty list of non-empty strings.');
+        }
+
+        /** @var non-empty-list<non-empty-string> $command */
         $this->pidFile = $pidFile;
-        $this->bin = $config->string('watcher.bin', PHP_BINARY);
-        $this->command = $config->string('watcher.command', 'artisan serve');
+        $this->bin = $bin;
+        $this->command = $command;
         $this->filesystem = new Filesystem;
         $this->channel = new Channel(1);
         $this->channel->push(true);
@@ -105,7 +121,7 @@ class ServerRestartStrategy implements RestartStrategy
             ];
 
             $process = proc_open(
-                command: $this->getBin() . ' ' . base_path($this->command),
+                command: $this->serverCommand(),
                 descriptor_spec: $descriptorSpec,
                 pipes: $pipes
             );
@@ -120,14 +136,15 @@ class ServerRestartStrategy implements RestartStrategy
     }
 
     /**
-     * Get the PHP binary path, quoted if it contains spaces.
+     * Build the server command arguments without a shell intermediary.
+     *
+     * @return non-empty-list<non-empty-string>
      */
-    protected function getBin(): string
+    protected function serverCommand(): array
     {
-        if (str_contains($this->bin, ' ')) {
-            return '"' . $this->bin . '"';
-        }
+        $script = $this->command[0];
+        $arguments = array_slice($this->command, 1);
 
-        return $this->bin;
+        return [$this->bin, base_path($script), ...$arguments];
     }
 }

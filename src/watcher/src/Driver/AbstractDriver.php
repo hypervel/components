@@ -47,6 +47,8 @@ abstract class AbstractDriver implements DriverInterface
     /**
      * Execute a shell command, using Swoole's coroutine-aware exec when available.
      *
+     * Every interpolated argument must be escaped before it reaches this boundary.
+     *
      * @return array{code: int, output: string}
      */
     protected function exec(string $command): array
@@ -61,5 +63,15 @@ abstract class AbstractDriver implements DriverInterface
         }
 
         throw new RuntimeException('No available function to run command.');
+    }
+
+    /**
+     * Escape a list of arguments for interpolation into a shell command.
+     *
+     * @param list<string> $arguments
+     */
+    protected function shellArguments(array $arguments): string
+    {
+        return implode(' ', array_map(escapeshellarg(...), $arguments));
     }
 }
