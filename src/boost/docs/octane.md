@@ -554,7 +554,7 @@ Cache::store('octane')->put('framework', 'Laravel', 30);
 <a name="cache-intervals"></a>
 ### Cache Intervals
 
-In addition to the typical methods provided by Laravel's cache system, the Octane cache driver features interval based caches. These caches are automatically refreshed at the specified interval and should be registered within the `boot` method of one of your application's service providers. For example, the following cache will be refreshed every five seconds:
+In addition to the typical methods provided by Hypervel's cache system, the Octane cache driver features interval based caches. These caches are automatically refreshed at the specified interval and should be registered within the `boot` method of one of your application's service providers. For example, the following cache will be refreshed every five seconds:
 
 ```php
 use Hypervel\Support\Str;
@@ -563,6 +563,8 @@ Cache::store('octane')->interval('random', function () {
     return Str::random(10);
 }, seconds: 5);
 ```
+
+Interval cache metadata is shared through Swoole tables and refreshed by the Swoole manager process. The first manager refresh tick seeds the shared cache value, so workers that did not register the interval locally may briefly read `null` until that first tick runs. The registering worker can resolve the interval immediately through its local fallback.
 
 <a name="tables"></a>
 ## Tables

@@ -163,6 +163,10 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
      */
     public function putMany(array $values, int $seconds): bool
     {
+        if (empty($values)) {
+            return true;
+        }
+
         $serializedValues = [];
 
         $expiration = $this->getTime() + $seconds;
@@ -175,7 +179,10 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
             ];
         }
 
-        return $this->table()->upsert($serializedValues, 'key') > 0;
+        // Identical-value upserts can report zero affected rows; failures surface as database exceptions.
+        $this->table()->upsert($serializedValues, 'key');
+
+        return true;
     }
 
     /**

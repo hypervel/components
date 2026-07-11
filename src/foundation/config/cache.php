@@ -79,6 +79,7 @@ return [
             'eviction_policy' => SwooleStore::EVICTION_POLICY_LRU,
             'eviction_proportion' => 0.05,
             'eviction_interval' => 10000, // milliseconds
+            'interval_refresh_interval' => 1000, // milliseconds
         ],
 
         'stack' => [

@@ -201,6 +201,37 @@ class CacheDatabaseStoreTest extends TestCase
         $this->assertTrue($result);
     }
 
+    public function testPutManyReturnsTrueForEmptyInputWithoutUpserting(): void
+    {
+        [$store, $table] = $this->getStore();
+
+        $table->shouldNotReceive('upsert');
+
+        $this->assertTrue($store->putMany([], 10));
+    }
+
+    public function testPutManyReturnsTrueWhenUpsertAffectsNoRows(): void
+    {
+        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getMocks())->getMock();
+        [$table] = $this->mockTable($store);
+
+        $store->expects($this->once())->method('getTime')->willReturn(1);
+        $table->shouldReceive('upsert')->once()->with([['key' => 'prefixfoo', 'value' => serialize('bar'), 'expiration' => 61]], 'key')->andReturn(0);
+
+        $this->assertTrue($store->putMany(['foo' => 'bar'], 60));
+    }
+
+    public function testPutReturnsTrueWhenDelegatedUpsertAffectsNoRows(): void
+    {
+        $store = $this->getMockBuilder(DatabaseStore::class)->onlyMethods(['getTime'])->setConstructorArgs($this->getMocks())->getMock();
+        [$table] = $this->mockTable($store);
+
+        $store->expects($this->once())->method('getTime')->willReturn(1);
+        $table->shouldReceive('upsert')->once()->with([['key' => 'prefixfoo', 'value' => serialize('bar'), 'expiration' => 61]], 'key')->andReturn(0);
+
+        $this->assertTrue($store->put('foo', 'bar', 60));
+    }
+
     public function testAddOnlyAddsIfKeyDoesntExist()
     {
         [$store, $table] = $this->getStore();

@@ -356,7 +356,7 @@ If a job receives a collection or array of Eloquent models instead of a single m
 ### Unique Jobs
 
 > [!WARNING]
-> Unique jobs require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, and `array` cache drivers support atomic locks.
+> Unique jobs require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, and `array` cache drivers support atomic locks.
 
 > [!WARNING]
 > Unique job constraints do not apply to jobs within batches.
@@ -784,7 +784,7 @@ public function middleware(): array
 ```
 
 > [!WARNING]
-> The `WithoutOverlapping` middleware requires a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, and `array` cache drivers support atomic locks.
+> The `WithoutOverlapping` middleware requires a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, and `array` cache drivers support atomic locks.
 
 <a name="sharing-lock-keys"></a>
 #### Sharing Lock Keys Across Job Classes

@@ -549,7 +549,7 @@ class SendShipmentNotification implements ShouldQueue, ShouldBeEncrypted
 ### Unique Event Listeners
 
 > [!WARNING]
-> Unique listeners require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). The `redis`, `database`, `file`, and `array` cache drivers support atomic locks.
+> Unique listeners require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). The `redis`, `database`, `file`, `swoole`, and `array` cache drivers support atomic locks.
 
 Sometimes, you may want to ensure that only one instance of a specific listener is on the queue at any point in time. You may do so by implementing the `ShouldBeUnique` interface on your listener class:
 

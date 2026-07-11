@@ -131,10 +131,13 @@ use Hypervel\Cache\SwooleStore;
     'eviction_policy' => SwooleStore::EVICTION_POLICY_LRU,
     'eviction_proportion' => 0.05,
     'eviction_interval' => 10000, // milliseconds
+    'interval_refresh_interval' => 1000, // milliseconds
 ],
 ```
 
 The available eviction policy constants are `EVICTION_POLICY_LRU`, `EVICTION_POLICY_LFU`, `EVICTION_POLICY_TTL`, and `EVICTION_POLICY_NOEVICTION`.
+
+The `eviction_interval` option controls how often stale records are pruned and memory-pressure eviction runs. The `interval_refresh_interval` option controls how often registered interval caches are checked and refreshed by the elected Swoole worker.
 
 The table itself is configured in the `swoole_tables` section of your `config/cache.php` file:
 
@@ -668,7 +671,7 @@ You may schedule this command to run periodically based on how often tagged cach
 ## Atomic Locks
 
 > [!WARNING]
-> To utilize this feature, your application must be using the `redis`, `database`, `file`, `array`, or `stack` cache driver as your application's default cache driver. Stack locks are delegated to the bottom layer, so the bottom store must support locks. For distributed locks, all servers must be communicating with the same central cache server.
+> To utilize this feature, your application must be using the `redis`, `database`, `file`, `swoole`, `array`, or `stack` cache driver as your application's default cache driver. Stack locks are delegated to the bottom layer, so the bottom store must support locks. For distributed locks, all servers must be communicating with the same central cache server.
 
 <a name="managing-locks"></a>
 ### Managing Locks
@@ -771,7 +774,7 @@ Cache::lock('processing')->forceRelease();
 <a name="refreshing-locks"></a>
 ### Refreshing Locks
 
-The `redis`, `database`, `file`, and `array` cache lock drivers support atomic TTL refresh and remaining-lifetime inspection via the `Hypervel\Contracts\Cache\RefreshableLock` interface. This is useful for long-running work where you want to extend the lock as you go rather than acquiring a single conservative lock up front:
+The `redis`, `database`, `file`, `swoole`, and `array` cache lock drivers support atomic TTL refresh and remaining-lifetime inspection via the `Hypervel\Contracts\Cache\RefreshableLock` interface. This is useful for long-running work where you want to extend the lock as you go rather than acquiring a single conservative lock up front:
 
 ```php
 use RuntimeException;
@@ -799,7 +802,7 @@ The `refresh` method is atomic. If the lock has expired or has been acquired by 
 $lock->refresh(120);
 ```
 
-Calling `refresh` without arguments re-applies the duration used when the lock was acquired. For native-expiry drivers such as Redis, file, and array, a lock acquired with `0` seconds is permanent, so `refresh()` verifies ownership and returns whether this process still owns the lock. Database locks cannot be truly permanent because the database has no native TTL cleanup; a lock acquired with `0` seconds uses the driver's default crash-safety timeout, and `refresh()` extends that timeout again.
+Calling `refresh` without arguments re-applies the duration used when the lock was acquired. For native-expiry drivers such as Redis, file, Swoole, and array, a lock acquired with `0` seconds is permanent, so `refresh()` verifies ownership and returns whether this process still owns the lock. Database locks cannot be truly permanent because the database has no native TTL cleanup; a lock acquired with `0` seconds uses the driver's default crash-safety timeout, and `refresh()` extends that timeout again.
 
 Calling `refresh` with a non-positive explicit TTL will throw an `InvalidArgumentException`.
 
@@ -821,7 +824,7 @@ You may clear all atomic locks in the cache using the `flushLocks` method:
 Cache::flushLocks();
 ```
 
-The `flushLocks` method is supported by the `redis`, `database`, `file`, `array`, and `stack` cache drivers when their current configuration can flush locks. Stack stores delegate lock flushing to the bottom layer and support it only when that bottom layer supports flushing locks. Redis, database, and file stores only support flushing locks when lock storage is configured separately from regular cache storage. If the repository's configured store cannot currently flush locks, Hypervel will throw a `BadMethodCallException`. Direct store-level `flushLocks` calls still throw a `RuntimeException` when lock storage is shared with regular cache storage.
+The `flushLocks` method is supported by the `redis`, `database`, `file`, `swoole`, `array`, and `stack` cache drivers when their current configuration can flush locks. Stack stores delegate lock flushing to the bottom layer and support it only when that bottom layer supports flushing locks. Redis, database, and file stores only support flushing locks when lock storage is configured separately from regular cache storage. If the repository's configured store cannot currently flush locks, Hypervel will throw a `BadMethodCallException`. Direct store-level `flushLocks` calls still throw a `RuntimeException` when lock storage is shared with regular cache storage.
 
 > [!WARNING]
 > The `flushLocks` method removes every lock in the lock store, regardless of which application or process owns the lock. Use it carefully in shared environments.

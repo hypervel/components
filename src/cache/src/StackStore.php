@@ -69,13 +69,13 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
 
     public function putMany(array $values, int $seconds): bool
     {
+        $result = true;
+
         foreach ($values as $key => $value) {
-            if (! $this->put($key, $value, $seconds)) {
-                return false;
-            }
+            $result = $this->put((string) $key, $value, $seconds) && $result;
         }
 
-        return true;
+        return $result;
     }
 
     public function increment(string $key, int $value = 1): bool|int
