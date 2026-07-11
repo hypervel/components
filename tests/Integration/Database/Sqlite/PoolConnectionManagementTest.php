@@ -11,9 +11,11 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 
 use function Hypervel\Coroutine\run;
 
@@ -32,23 +34,21 @@ class PoolConnectionManagementTest extends TestCase
 
     protected static string $databasePath;
 
+    protected static string $databaseDirectory;
+
     public static function setUpBeforeClass(): void
     {
         parent::setUpBeforeClass();
 
-        self::$databasePath = sys_get_temp_dir() . '/hypervel_pool_mgmt_test.db';
-
-        if (file_exists(self::$databasePath)) {
-            @unlink(self::$databasePath);
-        }
+        self::$databaseDirectory = ParallelTesting::tempDir('PoolConnectionManagementTest');
+        (new Filesystem)->ensureDirectoryExists(self::$databaseDirectory);
+        self::$databasePath = self::$databaseDirectory . '/database.sqlite';
         touch(self::$databasePath);
     }
 
     public static function tearDownAfterClass(): void
     {
-        if (file_exists(self::$databasePath)) {
-            @unlink(self::$databasePath);
-        }
+        (new Filesystem)->deleteDirectory(self::$databaseDirectory);
 
         parent::tearDownAfterClass();
     }

@@ -160,6 +160,11 @@ interface Session
     public function setPreviousUrl(string $url): void;
 
     /**
+     * Specify that the user has confirmed their password.
+     */
+    public function passwordConfirmed(?string $guard = null): void;
+
+    /**
      * Get the session handler instance.
      */
     public function getHandler(): SessionHandlerInterface;

@@ -6,11 +6,8 @@ namespace Hypervel\Auth;
 
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Auth\Console\ClearResetsCommand;
-use Hypervel\Auth\Middleware\RequirePassword;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable as AuthenticatableContract;
-use Hypervel\Contracts\Routing\ResponseFactory;
-use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\Http\Request;
 use Hypervel\Support\ServiceProvider;
 
@@ -24,7 +21,6 @@ class AuthServiceProvider extends ServiceProvider
         $this->registerAuthenticator();
         $this->registerUserResolver();
         $this->registerAccessGate();
-        $this->registerRequirePassword();
         $this->registerRequestUserResolver();
         $this->registerEventRebindHandler();
         $this->commands([ClearResetsCommand::class]);
@@ -41,7 +37,7 @@ class AuthServiceProvider extends ServiceProvider
         // current default guard per-coroutine via Context. The actual guard
         // instances are still cached by AuthManager; this binding just needs
         // to resolve which cached guard is current at call time.
-        $this->app->bind('auth.driver', fn ($app) => $app['auth']->guard());
+        $this->app->bind('auth.driver', fn ($app) => $app->make('auth')->guard());
     }
 
     /**
@@ -52,7 +48,7 @@ class AuthServiceProvider extends ServiceProvider
         // bind() is required here — each resolution must call the user resolver
         // fresh to get the current coroutine's authenticated user from Context.
         // A singleton would cache the first user and leak it across requests.
-        $this->app->bind(AuthenticatableContract::class, fn ($app) => call_user_func($app['auth']->userResolver()));
+        $this->app->bind(AuthenticatableContract::class, fn ($app) => call_user_func($app->make('auth')->userResolver()));
     }
 
     /**
@@ -61,21 +57,7 @@ class AuthServiceProvider extends ServiceProvider
     protected function registerAccessGate(): void
     {
         $this->app->singleton(GateContract::class, function ($app) {
-            return new Gate($app, fn () => call_user_func($app['auth']->userResolver()));
-        });
-    }
-
-    /**
-     * Register the require password middleware.
-     */
-    protected function registerRequirePassword(): void
-    {
-        $this->app->singleton(RequirePassword::class, function ($app) {
-            return new RequirePassword(
-                $app[ResponseFactory::class],
-                $app[UrlGenerator::class],
-                $app->make('config')->integer('auth.password_timeout', 10800),
-            );
+            return new Gate($app, fn () => call_user_func($app->make('auth')->userResolver()));
         });
     }
 
@@ -91,7 +73,7 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->callAfterResolving(Request::class, function (Request $request) {
             $request->setUserResolver(function (?string $guard = null) {
-                return call_user_func($this->app['auth']->userResolver(), $guard);
+                return call_user_func($this->app->make('auth')->userResolver(), $guard);
             });
         });
     }

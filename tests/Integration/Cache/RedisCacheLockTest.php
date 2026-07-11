@@ -8,12 +8,13 @@ use Exception;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Testbench\TestCase;
+use InvalidArgumentException;
 
 class RedisCacheLockTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testRedisLocksCanBeAcquiredAndReleased()
+    public function testRedisLocksCanBeAcquiredAndReleased(): void
     {
         Cache::store('redis')->lock('foo')->forceRelease();
 
@@ -28,14 +29,14 @@ class RedisCacheLockTest extends TestCase
         Cache::store('redis')->lock('foo')->release();
     }
 
-    public function testRedisLockCanHaveASeparateConnection()
+    public function testRedisLockCanHaveASeparateConnection(): void
     {
         $this->app['config']->set('cache.stores.redis.lock_connection', 'default');
 
         $this->assertSame('default', Cache::store('redis')->lock('foo')->getConnectionName());
     }
 
-    public function testRedisLocksCanBlockForSeconds()
+    public function testRedisLocksCanBlockForSeconds(): void
     {
         Cache::store('redis')->lock('foo')->forceRelease();
         $this->assertSame('taylor', Cache::store('redis')->lock('foo', 10)->block(1, function () {
@@ -46,7 +47,7 @@ class RedisCacheLockTest extends TestCase
         $this->assertTrue(Cache::store('redis')->lock('foo', 10)->block(1));
     }
 
-    public function testConcurrentRedisLocksAreReleasedSafely()
+    public function testConcurrentRedisLocksAreReleasedSafely(): void
     {
         Cache::store('redis')->lock('foo')->forceRelease();
 
@@ -62,7 +63,7 @@ class RedisCacheLockTest extends TestCase
         $this->assertFalse(Cache::store('redis')->lock('foo')->get());
     }
 
-    public function testRedisLocksWithFailedBlockCallbackAreReleased()
+    public function testRedisLocksWithFailedBlockCallbackAreReleased(): void
     {
         Cache::store('redis')->lock('foo')->forceRelease();
 
@@ -83,7 +84,7 @@ class RedisCacheLockTest extends TestCase
         $this->assertTrue($secondLock->get());
     }
 
-    public function testRedisLocksCanBeReleasedUsingOwnerToken()
+    public function testRedisLocksCanBeReleasedUsingOwnerToken(): void
     {
         Cache::store('redis')->lock('foo')->forceRelease();
 
@@ -97,7 +98,7 @@ class RedisCacheLockTest extends TestCase
         $this->assertTrue(Cache::store('redis')->lock('foo')->get());
     }
 
-    public function testOwnerStatusCanBeCheckedAfterRestoringLock()
+    public function testOwnerStatusCanBeCheckedAfterRestoringLock(): void
     {
         Cache::store('redis')->lock('foo')->forceRelease();
 
@@ -109,7 +110,21 @@ class RedisCacheLockTest extends TestCase
         $this->assertTrue($secondLock->isOwnedByCurrentProcess());
     }
 
-    public function testOtherOwnerDoesNotOwnLockAfterRestore()
+    public function testIsLocked(): void
+    {
+        Cache::store('redis')->lock('foo')->forceRelease();
+
+        $lock = Cache::store('redis')->lock('foo', 10);
+        $this->assertFalse($lock->isLocked());
+
+        $lock->get();
+        $this->assertTrue($lock->isLocked());
+
+        $lock->release();
+        $this->assertFalse($lock->isLocked());
+    }
+
+    public function testOtherOwnerDoesNotOwnLockAfterRestore(): void
     {
         Cache::store('redis')->lock('foo')->forceRelease();
 
@@ -121,5 +136,77 @@ class RedisCacheLockTest extends TestCase
         $secondLock = Cache::store('redis')->restoreLock('foo', 'other_owner');
         $this->assertTrue($secondLock->isOwnedBy($firstLock->owner()));
         $this->assertFalse($secondLock->isOwnedByCurrentProcess());
+    }
+
+    public function testRedisLockCanBeRefreshed(): void
+    {
+        Cache::store('redis')->lock('foo')->forceRelease();
+
+        $lock = Cache::store('redis')->lock('foo', 10);
+        $this->assertTrue($lock->get());
+
+        $this->assertTrue($lock->refresh(20));
+        $this->assertFalse(Cache::store('redis')->lock('foo', 10)->get());
+
+        $lock->release();
+    }
+
+    public function testRedisLockCannotBeRefreshedByAnotherOwner(): void
+    {
+        Cache::store('redis')->lock('foo')->forceRelease();
+
+        $firstLock = Cache::store('redis')->lock('foo', 10);
+        $this->assertTrue($firstLock->get());
+
+        $secondLock = Cache::store('redis')->restoreLock('foo', 'other_owner');
+
+        $this->assertFalse($secondLock->refresh(20));
+        $this->assertTrue($firstLock->refresh(20));
+
+        $firstLock->release();
+    }
+
+    public function testRedisLockRefreshWithDefaultSeconds(): void
+    {
+        Cache::store('redis')->lock('foo')->forceRelease();
+
+        $lock = Cache::store('redis')->lock('foo', 10);
+        $this->assertTrue($lock->get());
+
+        $this->assertTrue($lock->refresh());
+        $this->assertFalse(Cache::store('redis')->lock('foo', 10)->get());
+
+        $lock->release();
+    }
+
+    public function testRedisLockRefreshWithNoExpirationChecksOwnership(): void
+    {
+        Cache::store('redis')->lock('foo')->forceRelease();
+
+        $lock = Cache::store('redis')->lock('foo');
+        $this->assertTrue($lock->get());
+        $this->assertTrue($lock->refresh());
+        $this->assertFalse(Cache::store('redis')->lock('foo')->get());
+
+        $lock->forceRelease();
+
+        $this->assertFalse($lock->refresh());
+    }
+
+    public function testRedisLockRefreshWithZeroSecondsThrowsException(): void
+    {
+        Cache::store('redis')->lock('foo')->forceRelease();
+
+        $lock = Cache::store('redis')->lock('foo', 10);
+        $this->assertTrue($lock->get());
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL.');
+
+        try {
+            $lock->refresh(0);
+        } finally {
+            $lock->release();
+        }
     }
 }

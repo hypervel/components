@@ -21,7 +21,6 @@ class EntryModelFactory extends Factory
     public function definition(): array
     {
         return [
-            'sequence' => random_int(1, 10000),
             'uuid' => $this->faker->uuid(),
             'batch_id' => $this->faker->uuid(),
             'type' => $this->faker->randomElement([

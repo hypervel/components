@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Providers;
+namespace Hypervel\Jwt\Providers;
 
 use Hypervel\Support\Arr;
 
@@ -39,7 +39,7 @@ abstract class Provider
     /**
      * Set the algorithm used to sign the token.
      *
-     * Boot-only. Providers are cached on the singleton JWTManager; runtime
+     * Boot-only. Providers are cached on the singleton JwtManager; runtime
      * mutation affects every subsequent request and races across coroutines.
      *
      * @return $this
@@ -63,7 +63,7 @@ abstract class Provider
     /**
      * Set the secret used to sign the token.
      *
-     * Boot-only. Providers are cached on the singleton JWTManager; runtime
+     * Boot-only. Providers are cached on the singleton JwtManager; runtime
      * mutation affects every subsequent request and races across coroutines.
      *
      * @return $this
@@ -87,7 +87,7 @@ abstract class Provider
     /**
      * Set the keys used to sign the token.
      *
-     * Boot-only. Providers are cached on the singleton JWTManager; runtime
+     * Boot-only. Providers are cached on the singleton JwtManager; runtime
      * mutation affects every subsequent request and races across coroutines.
      *
      * @return $this

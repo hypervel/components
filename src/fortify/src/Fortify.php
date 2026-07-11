@@ -375,32 +375,6 @@ class Fortify
     }
 
     /**
-     * Infer the password broker name from the selected guard provider.
-     */
-    public static function passwordBrokerName(): string
-    {
-        $config = self::config();
-        $guard = self::guardName();
-        $provider = $config->get("auth.guards.{$guard}.provider");
-
-        if (! is_string($provider) || $provider === '') {
-            throw new RuntimeException("Unable to infer a password broker because auth guard [{$guard}] has no provider.");
-        }
-
-        $matches = array_keys(array_filter(
-            $config->array('auth.passwords', []),
-            static fn (mixed $broker): bool => is_array($broker)
-                && ($broker['provider'] ?? null) === $provider,
-        ));
-
-        if (count($matches) !== 1) {
-            throw new RuntimeException("Unable to infer a password broker for auth guard [{$guard}]. Ensure exactly one auth.passwords broker uses provider [{$provider}].");
-        }
-
-        return $matches[0];
-    }
-
-    /**
      * Determine if Fortify routes should be registered.
      */
     public static function shouldRegisterRoutes(): bool

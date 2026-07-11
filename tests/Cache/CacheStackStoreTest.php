@@ -13,6 +13,7 @@ use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StackStoreProxy;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
 
@@ -48,6 +49,14 @@ class CacheStackStoreTest extends TestCase
         $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
 
         $this->assertSame($value, $this->store->get($key));
+    }
+
+    public function testConstructorRequiresAtLeastOneStore(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A cache stack requires at least one store layer.');
+
+        new StackStore([]);
     }
 
     public function testPutWithCorrectTTL()

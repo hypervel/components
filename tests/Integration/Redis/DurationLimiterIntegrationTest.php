@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
-use Hypervel\Contracts\Redis\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Limiters\DurationLimiter;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 use Throwable;
@@ -20,7 +21,7 @@ class DurationLimiterIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testItLocksTasksWhenNoSlotAvailable()
+    public function testItLocksTasksWhenNoSlotAvailable(): void
     {
         $store = [];
 
@@ -51,7 +52,7 @@ class DurationLimiterIntegrationTest extends TestCase
         $this->assertEquals([1, 2, 3], $store);
     }
 
-    public function testItFailsImmediatelyOrRetriesForAWhileBasedOnAGivenTimeout()
+    public function testItFailsImmediatelyOrRetriesForAWhileBasedOnAGivenTimeout(): void
     {
         $store = [];
 
@@ -74,7 +75,7 @@ class DurationLimiterIntegrationTest extends TestCase
         $this->assertEquals([1, 3], $store);
     }
 
-    public function testItReturnsTheCallbackResult()
+    public function testItReturnsTheCallbackResult(): void
     {
         $limiter = new DurationLimiter($this->redis(), 'key', 1, 1);
 
@@ -85,7 +86,7 @@ class DurationLimiterIntegrationTest extends TestCase
         $this->assertSame('foo', $result);
     }
 
-    public function testAcquireSetsDecaysAtAndRemaining()
+    public function testAcquireSetsDecaysAtAndRemaining(): void
     {
         $limiter = new DurationLimiter($this->redis(), 'acquire-key', 2, 2);
 
@@ -103,7 +104,7 @@ class DurationLimiterIntegrationTest extends TestCase
         $this->assertSame(0, $limiter->remaining);
     }
 
-    public function testTooManyAttemptsReportsCorrectly()
+    public function testTooManyAttemptsReportsCorrectly(): void
     {
         $limiter = new DurationLimiter($this->redis(), 'too-many-key', 2, 1);
 
@@ -125,7 +126,7 @@ class DurationLimiterIntegrationTest extends TestCase
         $this->assertFalse($limiter->tooManyAttempts());
     }
 
-    public function testClearResetsLimiter()
+    public function testClearResetsLimiter(): void
     {
         $limiter = new DurationLimiter($this->redis(), 'clear-key', 1, 2);
 
@@ -137,14 +138,14 @@ class DurationLimiterIntegrationTest extends TestCase
         $this->assertTrue($limiter->acquire());
     }
 
-    public function testBlockReturnsTrueWithoutCallback()
+    public function testBlockReturnsTrueWithoutCallback(): void
     {
         $limiter = new DurationLimiter($this->redis(), 'no-callback-key', 1, 1);
 
         $this->assertTrue($limiter->block(1));
     }
 
-    public function testAcquireResetsAfterDecay()
+    public function testAcquireResetsAfterDecay(): void
     {
         $limiter = new DurationLimiter($this->redis(), 'reset-after-decay-key', 1, 1);
 
@@ -160,7 +161,7 @@ class DurationLimiterIntegrationTest extends TestCase
     /**
      * Get the Redis connection for testing.
      */
-    private function redis(): \Hypervel\Redis\RedisProxy
+    private function redis(): RedisProxy
     {
         return Redis::connection();
     }

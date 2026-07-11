@@ -294,7 +294,7 @@ class EloquentUserProvider implements UserProvider
      * Boot-only. User providers are held by cached guards; runtime use mutates
      * the provider used by every subsequent authentication lookup.
      *
-     * @param null|array<string> $tags optional tag names enabling tag-based bulk flush; requires a TaggableStore in TagMode::Any
+     * @param null|array<string> $tags optional tag names enabling tag-based bulk flush; requires any-mode tag support
      *
      * @throws InvalidArgumentException when the resolved store is not supported
      */
@@ -426,11 +426,13 @@ class EloquentUserProvider implements UserProvider
     }
 
     /**
-     * Ensure the resolved cache store supports tags and is in any-mode.
+     * Ensure the resolved cache store supports tags in any-mode.
      *
      * Auth caching only supports tag-based bulk flush via any-mode because:
      *  - any-mode keys are independent of tags, so reads and per-user
      *    forgets stay on the plain repo (no mode branching in the hot path);
+     *  - stack caches can layer short-lived local reads over shared any-mode
+     *    tag indexes without changing auth's plain-key read path;
      *  - the dynamic tag resolver can't cause cross-context invalidation
      *    bugs since the auto-invalidation listener never touches tags.
      *
@@ -440,18 +442,20 @@ class EloquentUserProvider implements UserProvider
     {
         $store = $cache->getStore();
 
-        if (! $store instanceof TaggableStore) {
+        if (! $store instanceof TaggableStore || ! $store->supportsTags()) {
             throw new InvalidArgumentException(sprintf(
-                'Auth user caching tags require a TaggableStore; got [%s]. See the auth cache documentation for supported stores.',
+                'Auth user caching tags require a store that supports tags; got [%s]. See the auth cache documentation for supported stores.',
                 $store::class,
             ));
         }
 
-        if ($store->getTagMode() !== TagMode::Any) {
+        $mode = $store->getTagMode();
+
+        if ($mode !== TagMode::Any) {
             throw new InvalidArgumentException(sprintf(
-                'Auth user caching tags require a store configured in TagMode::Any; got [%s] in mode [%s]. Configure a separate Redis store with tag_mode=any for auth caching.',
+                'Auth user caching tags require a store configured in TagMode::Any; got [%s] in mode [%s]. Configure a Redis store with tag_mode=any (or a stack over one) for auth caching.',
                 $store::class,
-                $store->getTagMode()->value,
+                $mode->value,
             ));
         }
     }

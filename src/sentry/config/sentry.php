@@ -194,7 +194,6 @@ return [
     // wait_timeout is set low (10ms) so pool exhaustion fails fast (backpressure)
     // rather than blocking request coroutines for seconds during exception storms.
     'pool' => [
-        'min_objects' => 1,
         'max_objects' => 10,
         'wait_timeout' => 0.01,
         'max_lifetime' => 60.0,

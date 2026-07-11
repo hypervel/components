@@ -45,7 +45,7 @@ class ServeCommand extends Command
         event(new ServeCommandStarted($input, $styledOutput, $components));
 
         try {
-            $exitCode = $this->startServer();
+            $exitCode = $this->startServer($input);
         } catch (Throwable $throwable) {
             event(new ServeCommandEnded($input, $styledOutput, $components, self::FAILURE));
 

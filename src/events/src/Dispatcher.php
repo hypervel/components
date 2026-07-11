@@ -91,6 +91,13 @@ class Dispatcher implements DispatcherContract
     protected array $wildcards = [];
 
     /**
+     * The registered interface listener keys.
+     *
+     * @var array<string, true>
+     */
+    protected array $interfaceListeners = [];
+
+    /**
      * The cached wildcard listeners.
      *
      * @var array<string, array<int, Closure>>
@@ -205,6 +212,14 @@ class Dispatcher implements DispatcherContract
                 $this->setupWildcardListen($event, $listener);
             } else {
                 $this->listeners[$event][] = $listener;
+
+                // Track interface keys so hasListeners() and getListeners() know
+                // whether interface resolution is worth entering. This autoloads
+                // intentionally: listener keys are usually passed as ::class strings,
+                // and class-string interface listeners need classification now.
+                if (interface_exists($event)) {
+                    $this->interfaceListeners[$event] = true;
+                }
             }
         }
 
@@ -273,7 +288,8 @@ class Dispatcher implements DispatcherContract
 
         return $this->hasListenersCache[$eventName] = isset($this->listeners[$eventName])
             || isset($this->wildcards[$eventName])
-            || $this->hasWildcardListeners($eventName);
+            || $this->hasWildcardListeners($eventName)
+            || $this->hasInterfaceListeners($eventName);
     }
 
     /**
@@ -288,6 +304,34 @@ class Dispatcher implements DispatcherContract
         }
 
         return false;
+    }
+
+    /**
+     * Determine if the event class implements an interface with listeners.
+     */
+    protected function hasInterfaceListeners(string $eventName): bool
+    {
+        if (! $this->shouldResolveInterfaceListeners($eventName)) {
+            return false;
+        }
+
+        foreach (class_implements($eventName) as $interface) {
+            if (isset($this->listeners[$interface])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if interface listeners should be resolved for the event.
+     *
+     * Relies on interface listener keys being classified at registration time.
+     */
+    protected function shouldResolveInterfaceListeners(string $eventName): bool
+    {
+        return $this->interfaceListeners !== [] && class_exists($eventName);
     }
 
     /**
@@ -411,6 +455,8 @@ class Dispatcher implements DispatcherContract
     protected function invokeListeners(string $event, array $payload, bool $halt = false): mixed
     {
         if ($this->shouldBroadcast($payload)) {
+            // Broadcasting is a dispatch side effect, not a listener. Broadcast
+            // events should be dispatched directly instead of guarded by hasListeners().
             $this->broadcastEvent($payload[0]);
         }
 
@@ -508,7 +554,7 @@ class Dispatcher implements DispatcherContract
             $this->wildcardsCache[$eventName] ?? $this->getWildcardListeners($eventName)
         );
 
-        $listeners = class_exists($eventName, false)
+        $listeners = $this->shouldResolveInterfaceListeners($eventName)
             ? $this->addInterfaceListeners($eventName, $listeners)
             : $listeners;
 
@@ -912,7 +958,7 @@ class Dispatcher implements DispatcherContract
         if (str_contains($event, '*')) {
             unset($this->wildcards[$event], $this->observerWildcards[$event]);
         } else {
-            unset($this->listeners[$event], $this->observers[$event]);
+            unset($this->listeners[$event], $this->observers[$event], $this->interfaceListeners[$event]);
         }
 
         foreach ($this->wildcardsCache as $key => $listeners) {

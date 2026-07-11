@@ -445,10 +445,18 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
      */
     protected function userProviderModel(): ?string
     {
+        // Best-effort guess: console may run without the auth package installed.
+        if (! $this->hypervel->bound('auth')) {
+            return null;
+        }
+
         $config = $this->hypervel->make('config');
 
-        // This best-effort guess returns null when auth config is absent.
-        $provider = $config->get('auth.guards.' . $config->get('auth.defaults.guard') . '.provider');
+        if (! $config->has('auth.defaults.guard')) {
+            return null;
+        }
+
+        $provider = $config->get('auth.guards.' . $this->hypervel->make('auth')->getDefaultDriver() . '.provider');
 
         return $config->get("auth.providers.{$provider}.model");
     }

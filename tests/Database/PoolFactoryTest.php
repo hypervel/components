@@ -17,7 +17,7 @@ use Mockery as m;
 
 class PoolFactoryTest extends TestCase
 {
-    public function testGetPoolReturnsSameInstance()
+    public function testGetPoolReturnsSameInstance(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -29,7 +29,7 @@ class PoolFactoryTest extends TestCase
         $this->assertSame($pool1, $pool2);
     }
 
-    public function testGetPoolReturnsDifferentInstancesForDifferentNames()
+    public function testGetPoolReturnsDifferentInstancesForDifferentNames(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -41,7 +41,7 @@ class PoolFactoryTest extends TestCase
         $this->assertNotSame($pool1, $pool2);
     }
 
-    public function testHasPool()
+    public function testHasPool(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -55,7 +55,7 @@ class PoolFactoryTest extends TestCase
         $this->assertFalse($factory->hasPool('cache'));
     }
 
-    public function testFlushAll()
+    public function testFlushAll(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -81,7 +81,7 @@ class PoolFactoryTest extends TestCase
         $this->assertSame(0, $pool2->getConnectionsInChannel());
     }
 
-    public function testFlushAllClearsCachedPools()
+    public function testFlushAllClearsCachedPools(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -99,7 +99,32 @@ class PoolFactoryTest extends TestCase
         $this->assertNotSame($original, $fresh);
     }
 
-    public function testFlushPoolOnlyFlushesNamedPool()
+    public function testFlushAllDetachesPoolsBeforeClosingThem(): void
+    {
+        $container = m::mock(ContainerContract::class);
+        $original = m::mock(DbPool::class);
+        $replacement = m::mock(DbPool::class);
+        $container->shouldReceive('make')
+            ->with(DbPool::class, ['name' => 'default'])
+            ->twice()
+            ->andReturn($original, $replacement);
+        $factory = new PoolFactory($container);
+        $resolvedDuringClose = null;
+        $original->shouldReceive('close')->once()->andReturnUsing(
+            function () use ($factory, &$resolvedDuringClose): void {
+                $resolvedDuringClose = $factory->getPool('default');
+            }
+        );
+
+        $this->assertSame($original, $factory->getPool('default'));
+
+        $factory->flushAll();
+
+        $this->assertSame($replacement, $resolvedDuringClose);
+        $this->assertSame($replacement, $factory->getPool('default'));
+    }
+
+    public function testFlushPoolOnlyFlushesNamedPool(): void
     {
         $container = $this->mockContainerWithPools();
 
@@ -131,6 +156,67 @@ class PoolFactoryTest extends TestCase
         // Getting default pool again should return a fresh instance
         $freshDefaultPool = $factory->getPool('default');
         $this->assertNotSame($defaultPool, $freshDefaultPool);
+    }
+
+    public function testFlushPoolDetachesPoolBeforeClosingIt(): void
+    {
+        $container = m::mock(ContainerContract::class);
+        $original = m::mock(DbPool::class);
+        $replacement = m::mock(DbPool::class);
+        $container->shouldReceive('make')
+            ->with(DbPool::class, ['name' => 'default'])
+            ->twice()
+            ->andReturn($original, $replacement);
+        $factory = new PoolFactory($container);
+        $resolvedDuringClose = null;
+        $original->shouldReceive('close')->once()->andReturnUsing(
+            function () use ($factory, &$resolvedDuringClose): void {
+                $resolvedDuringClose = $factory->getPool('default');
+            }
+        );
+
+        $this->assertSame($original, $factory->getPool('default'));
+
+        $factory->flushPool('default');
+
+        $this->assertSame($replacement, $resolvedDuringClose);
+        $this->assertSame($replacement, $factory->getPool('default'));
+    }
+
+    public function testFlushPoolGivesReplacementPoolIndependentCapacity(): void
+    {
+        $container = $this->mockContainerWithPools([
+            'default' => $this->connectionConfig([
+                'pool' => [
+                    'min_connections' => 1,
+                    'max_connections' => 1,
+                    'connect_timeout' => 10.0,
+                    'wait_timeout' => 3.0,
+                    'heartbeat' => -1,
+                    'max_idle_time' => 60.0,
+                ],
+            ]),
+        ]);
+        $factory = new PoolFactory($container);
+        $oldPool = $factory->getPool('default');
+        $oldConnection = $oldPool->get();
+
+        $factory->flushPool('default');
+
+        $newPool = $factory->getPool('default');
+        $newConnection = $newPool->get();
+
+        $this->assertTrue($oldPool->isClosed());
+        $this->assertNotSame($oldPool, $newPool);
+        $this->assertSame(1, $oldPool->getCurrentConnections());
+        $this->assertSame(1, $newPool->getCurrentConnections());
+
+        $oldPool->release($oldConnection);
+
+        $this->assertSame(0, $oldPool->getCurrentConnections());
+        $this->assertSame(1, $oldConnection->closeCount);
+
+        $newPool->release($newConnection);
     }
 
     public function testWriteConnectionUsesBasePool(): void
@@ -286,8 +372,12 @@ class PoolFactoryTestPool extends DbPool
 
 class PoolFactoryTestConnection extends Connection
 {
+    public int $closeCount = 0;
+
     public function close(): bool
     {
+        ++$this->closeCount;
+
         return true;
     }
 

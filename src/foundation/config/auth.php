@@ -8,15 +8,14 @@ return [
     | Authentication Defaults
     |--------------------------------------------------------------------------
     |
-    | This option defines the default authentication "guard" and password
-    | reset "broker" for your application. You may change these values
-    | as required, but they're a perfect start for most applications.
+    | This option defines the default authentication "guard" for your
+    | application. You may change this value as required, but it's a
+    | perfect start for most applications.
     |
     */
 
     'defaults' => [
         'guard' => env('AUTH_GUARD', 'web'),
-        'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
     ],
 
     /*
@@ -32,6 +31,13 @@ return [
     | users are actually retrieved out of your database or other storage
     | system used by the application. Typically, Eloquent is utilized.
     |
+    | Guards that send password reset links declare their broker with
+    | the "passwords" key, referencing an entry in the passwords array.
+    | Sanctum guards declare the session guards they trust for first-party
+    | SPA requests with the "session_guards" key; set it to an empty array
+    | for bearer-token-only APIs. Guards may also override the password
+    | confirmation window with a "password_timeout" key.
+    |
     | Supported by default: "session". Install hypervel/sanctum to use
     | the "sanctum" guard, and hypervel/jwt to use the "jwt" guard
     |
@@ -41,10 +47,12 @@ return [
         'web' => [
             'driver' => 'session',
             'provider' => 'users',
+            'passwords' => 'users',
         ],
         'sanctum' => [
             'driver' => 'sanctum',
             'provider' => 'users',
+            'session_guards' => ['web'],
         ],
         'jwt' => [
             'driver' => 'jwt',
@@ -102,15 +110,17 @@ return [
             | authed requests at high concurrency. See the auth caching
             | documentation for the full explanation.
             |
-            | Caveat: only the outer store is validated. A stack with an
-            | unsupported inner tier (e.g. [array, redis]) won't be caught.
+            | Caveat: without tags, only the outer store is validated. A stack
+            | with an unsupported inner tier (e.g. [array, redis]) won't be caught.
+            | When cache tags are enabled, the stack's tag composition is also
+            | validated.
             |
             | Cache tags (optional):
             |   Set 'tags' to an array of tag names (e.g. ['auth_users'])
             |   to add those cache tags to every cached user. This is useful
             |   for bulk cache invalidation using Cache::store(...)->tags([...])->flush().
-            |   Requires a TaggableStore configured in TagMode::Any
-            |   (e.g. a Redis store with tag_mode=any).
+            |   Requires a store with any-mode tag support (e.g. a Redis
+            |   store with tag_mode=any, or a stack over any-mode taggable layers).
             |
             */
             'cache' => [
@@ -131,6 +141,7 @@ return [
     | These configuration options specify the behavior of Hypervel's password
     | reset functionality, including the table utilized for token storage
     | and the user provider that is invoked to actually retrieve users.
+    | Guards reference these brokers via their "passwords" key.
     |
     | The expiry time is the number of minutes that each reset token will be
     | considered valid. This security feature keeps tokens short-lived so
@@ -159,6 +170,8 @@ return [
     | Here you may define the number of seconds before a password confirmation
     | window expires and users are asked to re-enter their password via the
     | confirmation screen. By default, the timeout lasts for three hours.
+    | Individual guards may override this with a "password_timeout" key in
+    | their guard configuration.
     |
     */
 

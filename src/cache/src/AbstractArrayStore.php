@@ -10,6 +10,8 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\InteractsWithTime;
 use RuntimeException;
 
+use function Hypervel\Support\now;
+
 abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks, LockProvider
 {
     use InteractsWithTime;
@@ -162,6 +164,14 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
     {
         $this->clearCacheItems();
 
+        return true;
+    }
+
+    /**
+     * Determine if the store can currently flush locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
         return true;
     }
 

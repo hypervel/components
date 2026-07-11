@@ -486,8 +486,6 @@ abstract class RedisConnection extends BaseConnection
             if ($now > $this->pool->getOption()->getMaxIdleTime() + max($this->lastReleaseTime, $this->lastUseTime)) {
                 return false;
             }
-
-            $this->lastUseTime = $now;
         }
 
         return true;
@@ -774,6 +772,22 @@ abstract class RedisConnection extends BaseConnection
     public function isCluster(): bool
     {
         return false;
+    }
+
+    /**
+     * Determine if the given key contains a Redis Cluster hash tag.
+     */
+    public static function hasHashTag(string $key): bool
+    {
+        $open = strpos($key, '{');
+
+        if ($open === false) {
+            return false;
+        }
+
+        $close = strpos($key, '}', $open + 1);
+
+        return $close !== false && $close - $open > 1;
     }
 
     /**

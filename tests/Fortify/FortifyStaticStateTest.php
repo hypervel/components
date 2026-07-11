@@ -7,8 +7,9 @@ namespace Hypervel\Tests\Fortify;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Password;
 use Hypervel\Testbench\Attributes\WithConfig;
-use RuntimeException;
+use InvalidArgumentException;
 
 class FortifyStaticStateTest extends TestCase
 {
@@ -26,28 +27,28 @@ class FortifyStaticStateTest extends TestCase
         $this->assertSame('/home', Fortify::redirects('login', request: Request::create('/')));
     }
 
-    public function testPasswordBrokerIsDerivedFromCurrentGuardProvider(): void
+    public function testPasswordBrokerFollowsGuardDeclaration(): void
     {
         /** @var AuthFactory $auth */
         $auth = $this->app->make(AuthFactory::class);
 
         $auth->shouldUse('web');
-        $this->assertSame('users', Fortify::passwordBrokerName());
+        $this->assertSame('users', Password::getDefaultDriver());
 
         $auth->shouldUse('admin');
-        $this->assertSame('admins', Fortify::passwordBrokerName());
+        $this->assertSame('admins', Password::getDefaultDriver());
     }
 
-    #[WithConfig('auth.passwords.duplicate-users', ['provider' => 'users', 'table' => 'other_password_reset_tokens'])]
-    public function testPasswordBrokerInferenceFailsWhenProviderMappingIsAmbiguous(): void
+    #[WithConfig('auth.guards.unkeyed', ['driver' => 'session', 'provider' => 'users'])]
+    public function testPasswordBrokerThrowsWhenGuardDeclaresNone(): void
     {
         /** @var AuthFactory $auth */
         $auth = $this->app->make(AuthFactory::class);
-        $auth->shouldUse('web');
+        $auth->shouldUse('unkeyed');
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Unable to infer a password broker for auth guard [web].');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Auth guard [unkeyed] does not declare a passwords broker. Set auth.guards.unkeyed.passwords.');
 
-        Fortify::passwordBrokerName();
+        Password::broker();
     }
 }

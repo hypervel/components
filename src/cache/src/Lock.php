@@ -9,6 +9,9 @@ use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Sleep;
 use Hypervel\Support\Str;
+use RuntimeException;
+
+use function Hypervel\Support\now;
 
 abstract class Lock implements LockContract
 {
@@ -114,11 +117,39 @@ abstract class Lock implements LockContract
     }
 
     /**
+     * Attempt to refresh the lock for the given number of seconds.
+     *
+     * @throws RuntimeException
+     */
+    public function refresh(?int $seconds = null): bool
+    {
+        throw new RuntimeException('This lock driver does not support refreshing locks.');
+    }
+
+    /**
+     * Get the number of seconds until the lock expires.
+     *
+     * @throws RuntimeException
+     */
+    public function getRemainingLifetime(): ?float
+    {
+        throw new RuntimeException('This lock driver does not support lifetime inspection.');
+    }
+
+    /**
      * Return the current owner of the lock.
      */
     public function owner(): string
     {
         return $this->owner;
+    }
+
+    /**
+     * Determine if the lock is currently held by any process.
+     */
+    public function isLocked(): bool
+    {
+        return $this->getCurrentOwner() !== null;
     }
 
     /**

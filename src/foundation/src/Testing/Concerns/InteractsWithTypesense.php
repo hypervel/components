@@ -15,14 +15,14 @@ use Typesense\Client as TypesenseClient;
  * - tearDownInteractsWithTypesense() runs via beforeApplicationDestroyed()
  *
  * Features:
- * - Auto-skip: Skips tests if Typesense unavailable
+ * - Opt-in skip: Skips unless TYPESENSE_HOST is set
  * - Parallel-safe: Uses TEST_TOKEN for unique collection prefixes
  * - Auto-cleanup: Removes test collections in teardown
  *
  * Usage: Add `use InteractsWithTypesense;` to your test case.
  *
  * Environment Variables:
- * - TYPESENSE_HOST: Host (default: 127.0.0.1)
+ * - TYPESENSE_HOST: Host; must be set to enable Typesense integration tests
  * - TYPESENSE_PORT: Port (default: 8108)
  * - TYPESENSE_PROTOCOL: Protocol (default: http)
  * - TYPESENSE_API_KEY: API key (required)
@@ -30,11 +30,6 @@ use Typesense\Client as TypesenseClient;
  */
 trait InteractsWithTypesense
 {
-    /**
-     * Indicates if connection failed once, skip all subsequent tests.
-     */
-    private static bool $typesenseConnectionFailed = false;
-
     /**
      * The test prefix for collection isolation.
      */
@@ -48,35 +43,20 @@ trait InteractsWithTypesense
     /**
      * Set up Typesense for testing (auto-called by setUpTraits).
      *
-     * Follows Laravel's InteractsWithRedis pattern:
-     * - Only skips if using default host/port AND no explicit TYPESENSE_HOST env var
-     * - If explicit config exists and fails, the exception propagates (misconfiguration)
+     * Typesense integration tests are opt-in via TYPESENSE_HOST. Port, protocol,
+     * and API key settings are only read after TYPESENSE_HOST is present.
      */
     protected function setUpInteractsWithTypesense(): void
     {
-        if (static::$typesenseConnectionFailed) {
+        if (env('TYPESENSE_HOST') === null) {
             $this->markTestSkipped(
-                'Typesense connection failed with defaults. Set TYPESENSE_HOST & TYPESENSE_PORT to enable ' . static::class
+                'Set TYPESENSE_HOST to run Typesense integration tests for ' . static::class
             );
         }
 
-        $host = env('TYPESENSE_HOST', '127.0.0.1');
-        $port = env('TYPESENSE_PORT', '8108');
-
-        try {
-            $this->initializeTypesenseClient();
-            $this->typesense->health->retrieve();
-            $this->cleanupTypesenseCollections();
-        } catch (Throwable $e) {
-            if ($host === '127.0.0.1' && $port === '8108' && env('TYPESENSE_HOST') === null) {
-                static::$typesenseConnectionFailed = true;
-                $this->markTestSkipped(
-                    'Typesense connection failed with defaults. Set TYPESENSE_HOST & TYPESENSE_PORT to enable ' . static::class
-                );
-            }
-            // Explicit config exists but failed - rethrow so test fails (misconfiguration)
-            throw $e;
-        }
+        $this->initializeTypesenseClient();
+        $this->typesense->health->retrieve();
+        $this->cleanupTypesenseCollections();
     }
 
     /**
@@ -84,7 +64,7 @@ trait InteractsWithTypesense
      */
     protected function tearDownInteractsWithTypesense(): void
     {
-        if (static::$typesenseConnectionFailed || $this->typesense === null) {
+        if ($this->typesense === null) {
             return;
         }
 

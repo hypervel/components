@@ -13,6 +13,22 @@ class StackStoreProxy implements Store
     {
     }
 
+    /**
+     * Get the wrapped store.
+     */
+    public function getStore(): Store
+    {
+        return $this->store;
+    }
+
+    /**
+     * Get the layer TTL override in seconds, if configured.
+     */
+    public function getTtl(): ?int
+    {
+        return $this->ttl;
+    }
+
     public function get(string $key): mixed
     {
         return $this->call(__FUNCTION__, func_get_args());

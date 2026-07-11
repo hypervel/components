@@ -8,6 +8,8 @@ use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
+use function Hypervel\Support\now;
+
 /**
  * Store multiple items in the cache with all tag tracking.
  *

@@ -312,6 +312,7 @@ class CacheEventsTest extends TestCase
 
         // Create a store that fails to flush locks
         $failingStore = m::mock(ArrayStore::class);
+        $failingStore->shouldReceive('supportsFlushingLocks')->andReturn(true);
         $failingStore->shouldReceive('flushLocks')->andReturn(false);
 
         $repository = new Repository($failingStore, ['store' => 'array']);

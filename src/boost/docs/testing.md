@@ -4,10 +4,13 @@
 - [Environment](#environment)
 - [Creating Tests](#creating-tests)
     - [Running Tests in Coroutines](#running-tests-in-coroutines)
+    - [Test State Cleanup](#test-state-cleanup)
     - [Macro State](#macro-state)
     - [Using Pest](#using-pest)
 - [Running Tests](#running-tests)
     - [Running Tests in Parallel](#running-tests-in-parallel)
+    - [External Service Tests](#external-service-tests)
+    - [Parallel Testing and Redis](#parallel-testing-and-redis)
     - [Reporting Test Coverage](#reporting-test-coverage)
     - [Profiling Tests](#profiling-tests)
 - [Configuration and Route Caching](#configuration-and-route-caching)
@@ -167,40 +170,48 @@ By default, Hypervel copies coroutine context values prepared outside the test m
 protected bool $copyNonCoroutineContext = false;
 ```
 
+<a name="test-state-cleanup"></a>
+### Test State Cleanup
+
+Hypervel applications keep framework objects, static caches, macros, and manager state in memory for the life of the PHP process. During tests, Hypervel's PHPUnit extension flushes framework-owned state after every test method.
+
+If your application has its own worker-lifetime state, add its cleanup to `tests/Support/TestState.php`. Use this class as one application-level entry point that aggregates the cleanup for any stateful classes your app owns:
+
+```php
+<?php
+
+namespace Tests\Support;
+
+use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
+
+class TestState
+{
+    public static function register(): void
+    {
+        AfterEachTestCleanup::flushUsing('app', fn () => static::flushState());
+    }
+
+    public static function flushState(): void
+    {
+        InvoiceNumbers::flushState();
+        TaxRates::flushState();
+        ReceiptMacros::flushState();
+    }
+}
+```
+
+Callbacks registered by your application run after package cleanup callbacks and before Hypervel flushes framework state. This means framework services are still available while your callback runs, then Hypervel tears them down immediately after.
+
+Do not call `AfterEachTestCleanup::forgetCallbacks()` from ordinary application tests. That method clears all registered callbacks for the current PHPUnit worker, including callbacks discovered from application and package metadata.
+
 <a name="macro-state"></a>
 ### Macro State
 
 Macroable classes store registered macros in static state for the life of the PHP process. Typically, macros should be registered during application boot from a [service provider](/docs/{{version}}/providers).
 
-If you register a temporary macro from inside a test, flush that class's macro state before the test finishes so the macro does not affect later tests in the same process:
+Hypervel already flushes framework macroable classes such as `Collection`, `ResponseFactory`, `View\Factory`, and testing helpers after every test. Do not add teardown cleanup for framework classes already handled by Hypervel.
 
-```php
-<?php
-
-namespace Tests\Feature;
-
-use Hypervel\Support\Collection;
-use Tests\TestCase;
-
-class CollectionMacroTest extends TestCase
-{
-    protected function tearDown(): void
-    {
-        Collection::flushMacros();
-
-        parent::tearDown();
-    }
-
-    public function test_collection_macro(): void
-    {
-        Collection::macro('summary', function () {
-            return $this->implode(', ');
-        });
-
-        $this->assertSame('first, second', collect(['first', 'second'])->summary());
-    }
-}
-```
+If your application or package defines its own macroable class and registers temporary macros inside a test, add that class to your test-state cleanup.
 
 <a name="using-pest"></a>
 ### Using Pest
@@ -271,6 +282,54 @@ If you need to run tests in parallel without automatically configuring parallel 
 php artisan test --parallel --without-databases --without-cache
 ```
 
+<a name="external-service-tests"></a>
+#### External Service Tests
+
+Integration tests that use an external service must use that service's test trait.
+
+| Trait | Service | Key Environment Variables |
+|-------|---------|---------------------------|
+| `InteractsWithRedis` | Redis / Valkey | `REDIS_HOST`, `REDIS_PORT` |
+| `InteractsWithMeilisearch` | Meilisearch | `MEILISEARCH_HOST`, `MEILISEARCH_PORT`, `MEILISEARCH_KEY` |
+| `InteractsWithTypesense` | Typesense | `TYPESENSE_HOST`, `TYPESENSE_PORT`, `TYPESENSE_API_KEY`, `TYPESENSE_PROTOCOL` |
+| `InteractsWithAlgolia` | Algolia | `ALGOLIA_APP_ID`, `ALGOLIA_SECRET` |
+| `InteractsWithServer` | Engine test servers | `TEST_SERVER_HOST` |
+
+This applies whether the test calls the service directly or reaches it through the application or package code under test.
+
+These traits are required for external-service tests to work correctly under ParaTest. Parallel test workers share external services unless the trait isolates them. Tests that bypass the trait will leak state across workers and fail depending on timing.
+
+The traits handle service-specific setup and cleanup. If a service is not configured, the trait skips the test before connecting. If the service is configured but unreachable or misconfigured, the test fails.
+
+<a name="parallel-testing-and-redis"></a>
+#### Parallel Testing and Redis
+
+Tests that touch Redis must use `InteractsWithRedis`.
+
+Set `REDIS_HOST` to opt into Redis integration tests. When tests are not running in parallel, `InteractsWithRedis` uses your normal configured Redis database. When tests are running in parallel, it assigns each ParaTest worker its own Redis database and flushes it before and after each test. This isolates the test keyspace without changing the Redis behavior being tested.
+
+Parallel Redis databases are selected from the `REDIS_TEST_DB_MIN` and `REDIS_TEST_DB_MAX` environment variables. By default, `REDIS_TEST_DB_MIN` uses your configured `REDIS_DB` value and `REDIS_TEST_DB_MAX` is `15`:
+
+```ini
+REDIS_DB=1
+REDIS_TEST_DB_MIN=1
+REDIS_TEST_DB_MAX=15
+```
+
+If Hypervel cannot assign a Redis database to a worker, the test run will fail. ParaTest uses your machine's CPU count by default, so make sure your Redis test range covers the number of workers you are running or pass an explicit process count:
+
+```shell
+php artisan test --parallel --processes=4
+```
+
+Some low-level Redis tests may need to switch to a second Redis database with `select`. You may reserve that database using `REDIS_TEST_SECONDARY_DB`:
+
+```ini
+REDIS_TEST_SECONDARY_DB=15
+```
+
+When a secondary database is configured inside the worker range, Hypervel skips it when assigning worker databases. Tests that use a shared secondary database should use unique keys and delete them when the test finishes.
+
 <a name="parallel-testing-hooks"></a>
 #### Parallel Testing Hooks
 
@@ -295,29 +354,29 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        ParallelTesting::setUpProcess(function (int $token) {
+        ParallelTesting::setUpProcess(function (string $token) {
             // ...
         });
 
-        ParallelTesting::setUpTestCase(function (int $token, TestCase $testCase) {
+        ParallelTesting::setUpTestCase(function (string $token, TestCase $testCase) {
             // ...
         });
 
         // Executed after a test database is created and before migrations run...
-        ParallelTesting::setUpTestDatabaseBeforeMigrating(function (string $database, int $token) {
+        ParallelTesting::setUpTestDatabaseBeforeMigrating(function (string $database, string $token) {
             // ...
         });
 
         // Executed when a test database has been migrated...
-        ParallelTesting::setUpTestDatabase(function (string $database, int $token) {
+        ParallelTesting::setUpTestDatabase(function (string $database, string $token) {
             Artisan::call('db:seed');
         });
 
-        ParallelTesting::tearDownTestCase(function (int $token, TestCase $testCase) {
+        ParallelTesting::tearDownTestCase(function (string $token, TestCase $testCase) {
             // ...
         });
 
-        ParallelTesting::tearDownProcess(function (int $token) {
+        ParallelTesting::tearDownProcess(function (string $token) {
             // ...
         });
     }

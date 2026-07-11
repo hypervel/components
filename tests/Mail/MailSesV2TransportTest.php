@@ -25,7 +25,7 @@ class MailSesV2TransportTest extends TestCase
         $this->app->instance('view', m::mock(ViewFactory::class));
     }
 
-    public function testGetTransport()
+    public function testGetTransport(): void
     {
         $this->app->make('config')->set('services.ses', [
             'key' => 'foo',
@@ -45,7 +45,7 @@ class MailSesV2TransportTest extends TestCase
         $this->assertSame('ses-v2', (string) $transport);
     }
 
-    public function testSend()
+    public function testSend(): void
     {
         $message = new Email;
         $message->subject('Foo subject');
@@ -76,7 +76,7 @@ class MailSesV2TransportTest extends TestCase
         (new SesV2Transport($client))->send($message);
     }
 
-    public function testSendError()
+    public function testSendError(): void
     {
         $message = new Email;
         $message->subject('Foo subject');
@@ -93,7 +93,7 @@ class MailSesV2TransportTest extends TestCase
         (new SesV2Transport($client))->send($message);
     }
 
-    public function testSesV2LocalConfiguration()
+    public function testSesV2LocalConfiguration(): void
     {
         $this->app->make('config')->set('mail', [
             'mailers' => [
@@ -118,7 +118,7 @@ class MailSesV2TransportTest extends TestCase
         $manager = new MailManager($this->app);
 
         /** @var \Hypervel\Mail\Mailer $mailer */
-        $mailer = $manager->mailer('ses');
+        $mailer = $manager->removePoolable('ses-v2')->mailer('ses');
 
         /** @var \Hypervel\Mail\Transport\SesV2Transport $transport */
         $transport = $mailer->getSymfonyTransport();

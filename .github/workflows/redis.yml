@@ -59,6 +59,8 @@ jobs:
         env:
           REDIS_HOST: redis
           REDIS_PORT: 6379
+          REDIS_DB: 0
+          REDIS_TEST_SECONDARY_DB: 1
         run: |
           vendor/bin/phpunit tests/Integration/Auth
           vendor/bin/phpunit tests/Integration/Cache/Redis
@@ -116,6 +118,8 @@ jobs:
         env:
           REDIS_HOST: valkey
           REDIS_PORT: 6379
+          REDIS_DB: 0
+          REDIS_TEST_SECONDARY_DB: 1
         run: |
           vendor/bin/phpunit tests/Integration/Auth
           vendor/bin/phpunit tests/Integration/Cache/Redis

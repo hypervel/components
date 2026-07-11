@@ -6,6 +6,7 @@ namespace Hypervel\Http\Client;
 
 use Closure;
 use Exception;
+use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Exception\ConnectException;
@@ -82,7 +83,7 @@ class PendingRequest
     /**
      * The request cookies.
      */
-    protected ?CookieJar $cookies = null;
+    protected CookieJar $cookies;
 
     /**
      * The transfer stats for the request.
@@ -93,6 +94,11 @@ class PendingRequest
      * The request options.
      */
     protected array $options = [];
+
+    /**
+     * The factory-level options applied below connection and request options.
+     */
+    protected array $baseOptions = [];
 
     /**
      * A callback to run when throwing if a server or client error occurs.
@@ -190,7 +196,6 @@ class PendingRequest
      * The Guzzle request options that are mergeable via array_merge_recursive.
      */
     protected array $mergeableOptions = [
-        'cookies',
         'form_params',
         'headers',
         'json',
@@ -208,18 +213,21 @@ class PendingRequest
      */
     public function __construct(
         protected ?Factory $factory = null,
-        array $middleware = []
+        array $middleware = [],
+        array $options = [],
     ) {
         $this->middleware = new Collection($middleware);
+        $this->bodyFormat = 'json';
+        $this->cookies = new CookieJar;
 
-        $this->asJson();
+        $this->validateRequestOptions($options, 'global HTTP client options');
 
-        $this->options = [
+        $this->baseOptions = $this->mergeOptionLayers([
             'connect_timeout' => 10,
             'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
             'http_errors' => false,
             'timeout' => 30,
-        ];
+        ], $options);
 
         $this->beforeSendingCallbacks = new Collection([
             function (Request $request, array $options, PendingRequest $pendingRequest) {
@@ -464,9 +472,9 @@ class PendingRequest
     public function withCookies(array $cookies, string $domain): static
     {
         return tap($this, function () use ($cookies, $domain) {
-            $this->options = array_merge_recursive($this->options, [
-                'cookies' => CookieJar::fromArray($cookies, $domain),
-            ]);
+            foreach (CookieJar::fromArray($cookies, $domain) as $cookie) {
+                $this->cookies->setCookie($cookie);
+            }
         });
     }
 
@@ -555,10 +563,8 @@ class PendingRequest
     public function withOptions(array $options): static
     {
         return tap($this, function () use ($options) {
-            $this->options = array_replace_recursive(
-                array_merge_recursive($this->options, Arr::only($options, $this->mergeableOptions)),
-                $options
-            );
+            $this->validateRequestOptions($options, 'fluent HTTP request options');
+            $this->options = $this->mergeOptionLayers($this->options, $options);
         });
     }
 
@@ -1078,7 +1084,7 @@ class PendingRequest
 
         $data = $this->parseRequestData($method, $url, $options);
         $onStats = function (TransferStats $transferStats) {
-            if (($callback = ($this->options['on_stats'] ?? false)) instanceof Closure) {
+            if (($callback = ($this->getOptions()['on_stats'] ?? false)) instanceof Closure) {
                 $transferStats = $callback($transferStats) ?: $transferStats;
             }
 
@@ -1342,7 +1348,16 @@ class PendingRequest
      */
     public function buildClient(): ClientInterface
     {
-        return $this->client ?? $this->factory->getClient($this->getConnection(), $this->buildHandlerStack(), $this->getConnectionConfig());
+        if ($this->client !== null) {
+            return $this->client;
+        }
+
+        $handlerStack = $this->buildHandlerStack();
+
+        return $this->factory?->createClient($handlerStack, $this->cookies) ?? new Client([
+            'handler' => $handlerStack,
+            'cookies' => $this->cookies,
+        ]);
     }
 
     /**
@@ -1358,7 +1373,7 @@ class PendingRequest
      */
     protected function getReusableClient(): ClientInterface
     {
-        return $this->client ??= $this->factory->getClient($this->getConnection(), $this->buildHandlerStack(), $this->getConnectionConfig());
+        return $this->client ??= $this->buildClient();
     }
 
     /**
@@ -1366,7 +1381,13 @@ class PendingRequest
      */
     public function buildHandlerStack(): HandlerStack
     {
-        return $this->pushHandlers(HandlerStack::create($this->handler));
+        $handler = $this->handler;
+
+        if ($handler === null && $this->connection !== null && $this->factory !== null) {
+            $handler = $this->factory->getConnectionHandler($this->connection);
+        }
+
+        return $this->pushHandlers(HandlerStack::create($handler));
     }
 
     /**
@@ -1505,10 +1526,20 @@ class PendingRequest
      */
     public function mergeOptions(...$options): array
     {
-        return array_replace_recursive(
-            array_merge_recursive($this->options, Arr::only($options, $this->mergeableOptions)),
-            ...$options
+        foreach ($options as $layer) {
+            $this->validateRequestOptions($layer, 'request options');
+        }
+
+        $merged = $this->mergeOptionLayers(
+            $this->baseOptions,
+            $this->connectionOptions(),
+            $this->options,
+            ...$options,
         );
+
+        $merged['cookies'] = $this->cookies;
+
+        return $merged;
     }
 
     /**
@@ -1742,7 +1773,11 @@ class PendingRequest
      */
     public function getOptions(): array
     {
-        return $this->options;
+        return $this->mergeOptionLayers(
+            $this->baseOptions,
+            $this->connectionOptions(),
+            $this->options,
+        );
     }
 
     /**
@@ -1750,10 +1785,16 @@ class PendingRequest
      */
     public function connection(string $connection, ?array $config = null): static
     {
-        $this->connection = $connection;
-        if ($config) {
-            $this->connectionConfig = $config;
+        if ($this->factory !== null && ! $this->factory->hasConnection($connection)) {
+            throw new InvalidArgumentException("Connection [{$connection}] is not registered.");
         }
+
+        if ($config !== null) {
+            $this->validateRequestOptions($config, 'per-call HTTP connection options');
+        }
+
+        $this->connection = $connection;
+        $this->connectionConfig = $config;
 
         return $this;
     }
@@ -1769,5 +1810,48 @@ class PendingRequest
     public function getConnectionConfig(): ?array
     {
         return $this->connectionConfig;
+    }
+
+    /**
+     * Get the effective request-option preset for the selected connection.
+     */
+    protected function connectionOptions(): array
+    {
+        if ($this->client !== null || $this->connection === null) {
+            return [];
+        }
+
+        if ($this->connectionConfig !== null) {
+            return $this->connectionConfig;
+        }
+
+        return $this->factory?->getConnectionOptions($this->connection) ?? [];
+    }
+
+    /**
+     * Merge HTTP option layers using the request-option merge rules.
+     */
+    protected function mergeOptionLayers(array ...$layers): array
+    {
+        $merged = [];
+
+        foreach ($layers as $layer) {
+            // Apply Laravel's merge rules to each layer: distinct mergeable entries
+            // accumulate, while later same-key values replace instead of nesting.
+            $merged = array_replace_recursive(
+                array_merge_recursive($merged, Arr::only($layer, $this->mergeableOptions)),
+                $layer,
+            );
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Reject options whose ownership belongs to dedicated APIs.
+     */
+    protected function validateRequestOptions(array $options, string $source): void
+    {
+        ReservedOptions::reject($options, false, $source);
     }
 }

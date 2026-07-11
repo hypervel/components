@@ -15,6 +15,13 @@ class FoundationPackageManifestTest extends TestCase
 
     private string $manifestPath;
 
+    /**
+     * Temporary directories created by this test.
+     *
+     * @var array<int, string>
+     */
+    private array $tempDirectories = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -29,6 +36,12 @@ class FoundationPackageManifestTest extends TestCase
     {
         @unlink($this->manifestPath);
 
+        $filesystem = new Filesystem;
+
+        foreach ($this->tempDirectories as $directory) {
+            $filesystem->deleteDirectory($directory);
+        }
+
         PackageManifest::flushState();
 
         parent::tearDown();
@@ -37,6 +50,19 @@ class FoundationPackageManifestTest extends TestCase
     private function makeManifest(): PackageManifest
     {
         return new PackageManifest(new Filesystem, $this->basePath, $this->manifestPath);
+    }
+
+    private function makeTempComposerRoot(string $name): string
+    {
+        $path = sys_get_temp_dir() . '/hypervel_package_manifest_' . getmypid() . '_' . $name;
+        $filesystem = new Filesystem;
+
+        $filesystem->deleteDirectory($path);
+        $filesystem->ensureDirectoryExists($path . '/vendor/composer');
+
+        $this->tempDirectories[] = $path;
+
+        return $path;
     }
 
     public function testProvidersReturnsDiscoveredProviders()
@@ -88,6 +114,171 @@ class FoundationPackageManifestTest extends TestCase
 
         $this->assertSame('v1.0.1', $cached['vendor-a/package-a']['version']);
         $this->assertSame('v2.3.0', $cached['vendor-a/package-b']['version']);
+    }
+
+    public function testDiscoverInstalledPackagesMatchesBuildCacheForFixtures(): void
+    {
+        $filesystem = new Filesystem;
+        $manifest = $this->makeManifest();
+
+        $manifest->build();
+
+        $this->assertSame(
+            require $this->manifestPath,
+            PackageManifest::discoverInstalledPackages(
+                $filesystem,
+                $this->basePath . '/vendor',
+                PackageManifest::packagesToIgnoreFromComposer($filesystem, $this->basePath)
+            )
+        );
+    }
+
+    public function testDiscoverInstalledPackagesHandlesLegacyBareInstalledJsonFormat(): void
+    {
+        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('legacy');
+        $filesystem->put($basePath . '/composer.json', '{}');
+        $filesystem->put($basePath . '/vendor/composer/installed.json', json_encode([
+            [
+                'name' => 'vendor-a/package-a',
+                'version' => 'v1.0.0',
+                'extra' => [
+                    'hypervel' => [
+                        'providers' => ['Vendor\Package\Provider'],
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame(
+            [
+                'vendor-a/package-a' => [
+                    'providers' => ['Vendor\Package\Provider'],
+                    'version' => 'v1.0.0',
+                ],
+            ],
+            PackageManifest::discoverInstalledPackages($filesystem, $basePath . '/vendor', [])
+        );
+    }
+
+    public function testDiscoverInstalledPackagesKeepsVersionOnlyPackagesUnlessIgnored(): void
+    {
+        $packages = PackageManifest::discoverInstalledPackages(
+            new Filesystem,
+            $this->basePath . '/vendor',
+            []
+        );
+
+        $this->assertSame(['version' => 'v3.1.4'], $packages['vendor-a/package-d']);
+    }
+
+    public function testDiscoverInstalledPackagesHonorsWildcardDontDiscover(): void
+    {
+        $this->assertSame(
+            [],
+            PackageManifest::discoverInstalledPackages(new Filesystem, $this->basePath . '/vendor', ['*'])
+        );
+    }
+
+    public function testDiscoverInstalledPackagesReturnsEmptyArrayForMissingInstalledJson(): void
+    {
+        $basePath = $this->makeTempComposerRoot('missing-installed-json');
+
+        (new Filesystem)->delete($basePath . '/vendor/composer/installed.json');
+
+        $this->assertSame(
+            [],
+            PackageManifest::discoverInstalledPackages(new Filesystem, $basePath . '/vendor', [])
+        );
+    }
+
+    public function testDiscoverInstalledPackagesReturnsEmptyArrayForMalformedInstalledJson(): void
+    {
+        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('malformed-installed-json');
+        $filesystem->put($basePath . '/vendor/composer/installed.json', '{');
+
+        $this->assertSame(
+            [],
+            PackageManifest::discoverInstalledPackages($filesystem, $basePath . '/vendor', [])
+        );
+    }
+
+    public function testDiscoverInstalledPackagesReturnsEmptyArrayForMalformedPackagesShape(): void
+    {
+        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('malformed-packages-shape');
+        $filesystem->put($basePath . '/vendor/composer/installed.json', json_encode([
+            'packages' => 'invalid',
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame(
+            [],
+            PackageManifest::discoverInstalledPackages($filesystem, $basePath . '/vendor', [])
+        );
+    }
+
+    public function testDiscoverInstalledPackagesSkipsMalformedPackageEntries(): void
+    {
+        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('malformed-package-entries');
+        $filesystem->put($basePath . '/vendor/composer/installed.json', json_encode([
+            'packages' => [
+                'invalid',
+                [
+                    'version' => 'v1.0.0',
+                ],
+                [
+                    'name' => 'vendor-a/package-a',
+                    'version' => 'v1.0.0',
+                ],
+                [
+                    'name' => 'vendor-a/package-b',
+                    'version' => 'v2.0.0',
+                    'extra' => [
+                        'hypervel' => 'invalid',
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame(
+            [
+                'vendor-a/package-a' => [
+                    'version' => 'v1.0.0',
+                ],
+                'vendor-a/package-b' => [
+                    'version' => 'v2.0.0',
+                ],
+            ],
+            PackageManifest::discoverInstalledPackages($filesystem, $basePath . '/vendor', [])
+        );
+    }
+
+    public function testPackagesToIgnoreFromComposerReturnsEmptyArrayForMalformedComposerJson(): void
+    {
+        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('malformed-composer-json');
+        $filesystem->put($basePath . '/composer.json', '{');
+
+        $this->assertSame(
+            [],
+            PackageManifest::packagesToIgnoreFromComposer($filesystem, $basePath)
+        );
+    }
+
+    public function testRootHypervelExtraReturnsNullForMalformedHypervelMetadata(): void
+    {
+        $filesystem = new Filesystem;
+        $basePath = $this->makeTempComposerRoot('malformed-root-hypervel-metadata');
+        $filesystem->put($basePath . '/composer.json', json_encode([
+            'extra' => [
+                'hypervel' => 'invalid',
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertNull(PackageManifest::rootHypervelExtra($filesystem, $basePath, 'test-state'));
+        $this->assertSame([], PackageManifest::packagesToIgnoreFromComposer($filesystem, $basePath));
     }
 
     public function testVersionReturnsPackageVersion()

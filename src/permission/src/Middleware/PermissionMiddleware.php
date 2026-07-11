@@ -30,6 +30,7 @@ class PermissionMiddleware
      */
     public function handle(Request $request, Closure $next, mixed $permission, ?string $guard = null): Response
     {
+        $guard = Guard::normalizeName($guard);
         $authGuard = $this->auth->guard($guard);
 
         $user = $authGuard->user();

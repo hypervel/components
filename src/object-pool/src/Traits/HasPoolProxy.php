@@ -5,40 +5,68 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool\Traits;
 
 use Closure;
+use Hypervel\ObjectPool\Contracts\Factory;
+use Hypervel\ObjectPool\PoolDefinition;
+use Hypervel\ObjectPool\PoolFingerprint;
+use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\ObjectPool\PoolProxy;
+use Hypervel\Support\Arr;
 use InvalidArgumentException;
 
 trait HasPoolProxy
 {
-    /**
-     * The array of release callbacks for the drivers.
-     */
+    /** @var array<string, Closure> */
     protected array $releaseCallbacks = [];
 
     /**
-     * Create a new pool proxy.
+     * Create a pool proxy for an immutable definition.
      */
-    protected function createPoolProxy(string $driver, Closure $resolver, array $config = [], ?string $proxyClass = null): mixed
-    {
-        $proxyClass ??= $this->poolProxyClass;
-
+    protected function createPoolProxy(
+        string $driver,
+        Closure $resolver,
+        PoolDefinition $definition,
+        string $proxyClass,
+    ): mixed {
         if (! is_a($proxyClass, PoolProxy::class, true)) {
             throw new InvalidArgumentException('The pool proxy class must be an instance of ' . PoolProxy::class);
         }
 
         return new $proxyClass(
-            static::class . ':' . $driver,
+            $definition,
             $resolver,
-            $config,
-            $this->getReleaseCallback($driver)
+            $this->poolFactory(),
+            $this->getReleaseCallback($driver),
         );
     }
 
     /**
-     * Set the release callback for the driver.
+     * Build a namespaced pool definition for a pooled resource.
+     */
+    protected function poolDefinition(string $resource, array $poolConfig, array $fingerprintSource): PoolDefinition
+    {
+        $explicitName = $this->poolControlString($poolConfig, 'name');
+        $explicitFingerprint = $this->poolControlString($poolConfig, 'fingerprint');
+        $options = PoolOptions::fromArray(Arr::except($poolConfig, ['name', 'fingerprint']));
+        $fingerprint = $explicitFingerprint !== null
+            ? PoolFingerprint::fromExplicit($explicitFingerprint)
+            : PoolFingerprint::fromConfig($fingerprintSource);
+        $identity = $explicitName !== null
+            ? static::class . ':named:' . $explicitName
+            : static::class . ':auto:' . $resource . ':' . $fingerprint;
+
+        return new PoolDefinition($identity, $resource, $fingerprint, $options);
+    }
+
+    /**
+     * Get the pool factory used by this manager.
+     */
+    abstract protected function poolFactory(): Factory;
+
+    /**
+     * Set the release callback for a pooled driver.
      *
      * Boot-only. The callback persists on the manager for the worker lifetime
-     * and is captured by every subsequently created pool proxy for the driver.
+     * and is captured by every subsequently created proxy for the driver.
      */
     public function setReleaseCallback(string $driver, Closure $callback): static
     {
@@ -48,7 +76,7 @@ trait HasPoolProxy
     }
 
     /**
-     * Get the release callback for the driver.
+     * Get the release callback for a pooled driver.
      */
     public function getReleaseCallback(string $driver): ?Closure
     {
@@ -56,7 +84,7 @@ trait HasPoolProxy
     }
 
     /**
-     * Add a driver to the poolables list.
+     * Add a driver to the poolable-driver list.
      *
      * Boot-only. The list persists on the manager for the worker lifetime and
      * is consulted on subsequent driver creation. Per-request use races across
@@ -64,7 +92,7 @@ trait HasPoolProxy
      */
     public function addPoolable(string $driver): static
     {
-        if (! in_array($driver, $this->poolables)) {
+        if (! in_array($driver, $this->poolables, true)) {
             $this->poolables[] = $driver;
         }
 
@@ -72,7 +100,7 @@ trait HasPoolProxy
     }
 
     /**
-     * Remove a driver from the poolables list.
+     * Remove a driver from the poolable-driver list.
      *
      * Boot-only. The list persists on the manager for the worker lifetime and
      * is consulted on subsequent driver creation. Per-request use races across
@@ -80,18 +108,20 @@ trait HasPoolProxy
      */
     public function removePoolable(string $driver): static
     {
-        $index = array_search($driver, $this->poolables);
+        $index = array_search($driver, $this->poolables, true);
+
         if ($index === false) {
             return $this;
         }
 
         unset($this->poolables[$index]);
+        $this->poolables = array_values($this->poolables);
 
         return $this;
     }
 
     /**
-     * Get the poolables list.
+     * Get the poolable-driver list.
      */
     public function getPoolables(): array
     {
@@ -99,7 +129,7 @@ trait HasPoolProxy
     }
 
     /**
-     * Set the poolables list.
+     * Set the poolable-driver list.
      *
      * Boot-only. The list persists on the manager for the worker lifetime and
      * is consulted on subsequent driver creation. Per-request use races across
@@ -107,8 +137,26 @@ trait HasPoolProxy
      */
     public function setPoolables(array $poolables): static
     {
-        $this->poolables = $poolables;
+        $this->poolables = array_values($poolables);
 
         return $this;
+    }
+
+    /**
+     * Read and validate an optional string pool-control field.
+     */
+    private function poolControlString(array $poolConfig, string $name): ?string
+    {
+        if (! array_key_exists($name, $poolConfig)) {
+            return null;
+        }
+
+        $value = $poolConfig[$name];
+
+        if (! is_string($value) || trim($value) === '') {
+            throw new InvalidArgumentException("The pool [{$name}] option must be a non-empty string.");
+        }
+
+        return $value;
     }
 }

@@ -9,12 +9,12 @@ use Hypervel\Tests\TestCase;
 
 class AspectCollectorTest extends TestCase
 {
-    public function testHasAspectsReturnsFalseWhenEmpty()
+    public function testHasAspectsReturnsFalseWhenEmpty(): void
     {
         $this->assertFalse(AspectCollector::hasAspects());
     }
 
-    public function testSetAroundRegistersAspect()
+    public function testSetAroundRegistersAspect(): void
     {
         AspectCollector::setAround('App\Aspect\FooAspect', ['App\Foo::bar'], 5);
 
@@ -25,14 +25,14 @@ class AspectCollectorTest extends TestCase
         ], AspectCollector::getRule('App\Aspect\FooAspect'));
     }
 
-    public function testSetAroundDefaultsPriorityToZero()
+    public function testSetAroundDefaultsPriorityToZero(): void
     {
         AspectCollector::setAround('App\Aspect\FooAspect', ['App\Foo']);
 
         $this->assertSame(0, AspectCollector::getPriority('App\Aspect\FooAspect'));
     }
 
-    public function testSetAroundMergesClassesOnDuplicateRegistration()
+    public function testSetAroundMergesClassesOnDuplicateRegistration(): void
     {
         AspectCollector::setAround('App\Aspect\FooAspect', ['App\Foo::bar'], 5);
         AspectCollector::setAround('App\Aspect\FooAspect', ['App\Baz::qux'], 5);
@@ -43,17 +43,38 @@ class AspectCollectorTest extends TestCase
         );
     }
 
-    public function testGetPriorityReturnsZeroForUnregisteredAspect()
+    public function testSetAroundDeduplicatesClassesOnInitialRegistration(): void
+    {
+        AspectCollector::setAround('App\Aspect\FooAspect', ['App\Foo::bar', 'App\Foo::bar'], 5);
+
+        $this->assertSame(
+            ['App\Foo::bar'],
+            AspectCollector::getRule('App\Aspect\FooAspect')['classes']
+        );
+    }
+
+    public function testSetAroundDeduplicatesClassesOnRepeatedRegistration(): void
+    {
+        AspectCollector::setAround('App\Aspect\FooAspect', ['App\Foo::bar'], 5);
+        AspectCollector::setAround('App\Aspect\FooAspect', ['App\Foo::bar'], 5);
+
+        $this->assertSame(
+            ['App\Foo::bar'],
+            AspectCollector::getRule('App\Aspect\FooAspect')['classes']
+        );
+    }
+
+    public function testGetPriorityReturnsZeroForUnregisteredAspect(): void
     {
         $this->assertSame(0, AspectCollector::getPriority('NonExistent'));
     }
 
-    public function testGetRuleReturnsEmptyForUnregisteredAspect()
+    public function testGetRuleReturnsEmptyForUnregisteredAspect(): void
     {
         $this->assertSame([], AspectCollector::getRule('NonExistent'));
     }
 
-    public function testForgetAspectRemovesSpecificAspect()
+    public function testForgetAspectRemovesSpecificAspect(): void
     {
         AspectCollector::setAround('Aspect1', ['Class1']);
         AspectCollector::setAround('Aspect2', ['Class2']);
@@ -65,7 +86,7 @@ class AspectCollectorTest extends TestCase
         $this->assertTrue(AspectCollector::hasAspects());
     }
 
-    public function testFlushStateRemovesAllAspects()
+    public function testFlushStateRemovesAllAspects(): void
     {
         AspectCollector::setAround('Aspect1', ['Class1']);
         AspectCollector::setAround('Aspect2', ['Class2']);
@@ -76,28 +97,14 @@ class AspectCollectorTest extends TestCase
         $this->assertSame([], AspectCollector::getRules());
     }
 
-    public function testGetReturnsContainerData()
+    public function testGetClassRulesReturnsClassRules(): void
     {
         AspectCollector::setAround('Aspect1', ['Class1', 'Class2']);
 
-        $this->assertSame(['Class1', 'Class2'], AspectCollector::get('classes.Aspect1'));
+        $this->assertSame(['Class1', 'Class2'], AspectCollector::getClassRules()['Aspect1']);
     }
 
-    public function testGetReturnsDefaultWhenKeyNotFound()
-    {
-        $this->assertSame('default', AspectCollector::get('nonexistent', 'default'));
-    }
-
-    public function testListReturnsAllContainerData()
-    {
-        AspectCollector::setAround('Aspect1', ['Class1']);
-
-        $list = AspectCollector::list();
-        $this->assertArrayHasKey('classes', $list);
-        $this->assertArrayHasKey('Aspect1', $list['classes']);
-    }
-
-    public function testGetRulesReturnsAllRules()
+    public function testGetRulesReturnsAllRules(): void
     {
         AspectCollector::setAround('Aspect1', ['Class1'], 5);
         AspectCollector::setAround('Aspect2', ['Class2'], 10);

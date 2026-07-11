@@ -367,8 +367,9 @@ class Application
     /**
      * Flush static state touched by Testbench application bootstrap tests.
      *
-     * This is not the global per-test cleanup registry. Add general framework
-     * static-state resets to tests/AfterEachTestSubscriber instead.
+     * IMPORTANT: This is NOT the global framework static-state cleanup list.
+     * Do not add general framework static-state resets here. Add them to
+     * src/testing/src/PHPUnit/AfterEachTestSubscriber.php instead.
      *
      * @param object $instance active test instance, used to thread the running TestCase through to HandleExceptions::flushState()
      */

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Console;
+namespace Hypervel\Jwt\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Support\Env;

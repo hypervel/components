@@ -4,220 +4,125 @@ declare(strict_types=1);
 
 namespace Hypervel\Filesystem;
 
+use Closure;
 use Hypervel\Contracts\Filesystem\Cloud;
-use Hypervel\Http\UploadedFile;
+use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
+use Hypervel\Filesystem\Concerns\InteractsWithPooledFilesystem;
+use Hypervel\ObjectPool\Contracts\Factory;
+use Hypervel\ObjectPool\PoolDefinition;
+use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\ObjectPool\PoolProxy;
-use Psr\Http\Message\StreamInterface;
 use RuntimeException;
+use Throwable;
 
 class FilesystemPoolProxy extends PoolProxy implements Cloud
 {
+    use InteractsWithPooledFilesystem;
+
     /**
-     * Get the full path to the file that exists at the given relative path.
+     * Create a whole-driver pooled filesystem proxy.
      */
-    public function path(string $path): string
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
+    public function __construct(
+        PoolDefinition $definition,
+        Closure $resolver,
+        Factory $pools,
+        protected array $config,
+        ?Closure $releaseCallback = null,
+    ) {
+        parent::__construct($definition, $resolver, $pools, $releaseCallback);
     }
 
     /**
-     * Determine if a file exists.
+     * Apply every proxy-held callback slot to a borrowed adapter.
      */
-    public function exists(string $path): bool
+    protected function configureBorrowed(object $object): void
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        if (! $object instanceof FilesystemContract) {
+            throw new RuntimeException(
+                'Pooled filesystem resolvers must return an instance of ' . FilesystemContract::class . '.',
+            );
+        }
+
+        if (! $object instanceof FilesystemAdapter) {
+            if ($this->serveCallback === null
+                && $this->temporaryUrlCallback === null
+                && $this->temporaryUploadUrlCallback === null
+            ) {
+                return;
+            }
+
+            throw new RuntimeException(
+                'Pooled filesystem driver [' . $object::class . '] cannot receive serve or temporary URL callbacks. '
+                . 'These callbacks require a driver based on ' . FilesystemAdapter::class . '.',
+            );
+        }
+
+        $object->serveUsing($this->serveCallback);
+        $object->buildTemporaryUrlsUsing($this->temporaryUrlCallback);
+        $object->buildTemporaryUploadUrlsUsing($this->temporaryUploadUrlCallback);
     }
 
     /**
-     * Get the contents of a file.
-     */
-    public function get(string $path): ?string
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Get a resource to read the file.
+     * Open a stream that owns its whole-driver lease until closure.
      *
-     * @return null|resource the path resource or null on failure
+     * @param Closure(FilesystemContract): mixed $operation
+     * @return null|resource
      */
-    public function readStream(string $path): mixed
+    protected function leasedStream(Closure $operation): mixed
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        $lease = $this->lease();
+
+        try {
+            $filesystem = $lease->get();
+            $stream = $operation($filesystem);
+        } catch (Throwable $operationException) {
+            try {
+                $lease->release();
+            } catch (Throwable $finalizationException) {
+                PoolErrorReporter::report($finalizationException);
+            }
+
+            throw $operationException;
+        }
+
+        if (! is_resource($stream)) {
+            $lease->release();
+
+            return $stream;
+        }
+
+        return LeasedStream::wrap($stream, $lease);
     }
 
     /**
-     * Get a resource to read the partial file.
-     *
-     * @return null|resource the path resource or null on failure
-     * @throws RuntimeException
+     * Run a callback with an accessor result from a borrowed driver.
      */
-    public function readStreamRange(string $path, ?int $start, ?int $end): mixed
+    protected function withBorrowedAccessor(string $accessor, Closure $callback): mixed
     {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
+        $lease = $this->lease();
 
-    /**
-     * Write the contents of a file.
-     *
-     * @param resource|StreamInterface|string|UploadedFile $contents
-     */
-    public function put(string $path, mixed $contents, mixed $options = []): bool|string
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
+        try {
+            $filesystem = $lease->get();
 
-    /**
-     * Store the uploaded file on the disk.
-     */
-    public function putFile(string|UploadedFile $path, array|string|UploadedFile|null $file = null, mixed $options = []): false|string
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
+            if (! method_exists($filesystem, $accessor)) {
+                throw new RuntimeException(
+                    'Pooled filesystem driver [' . $filesystem::class . "] does not support [{$accessor}] access.",
+                );
+            }
 
-    /**
-     * Store the uploaded file on the disk with a given name.
-     */
-    public function putFileAs(string|UploadedFile $path, array|string|UploadedFile|null $file, array|string|null $name = null, mixed $options = []): false|string
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
+            $result = $callback($filesystem->{$accessor}());
+        } catch (Throwable $operationException) {
+            try {
+                $lease->release();
+            } catch (Throwable $finalizationException) {
+                PoolErrorReporter::report($finalizationException);
+            }
 
-    /**
-     * Write a new file using a stream.
-     *
-     * @param resource $resource
-     */
-    public function writeStream(string $path, mixed $resource, array $options = []): bool
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
+            throw $operationException;
+        }
 
-    /**
-     * Get the visibility for the given path.
-     */
-    public function getVisibility(string $path): string
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
+        $lease->release();
 
-    /**
-     * Set the visibility for the given path.
-     */
-    public function setVisibility(string $path, string $visibility): bool
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Prepend to a file.
-     */
-    public function prepend(string $path, string $data): bool
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Append to a file.
-     */
-    public function append(string $path, string $data): bool
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Delete the file at a given path.
-     */
-    public function delete(array|string $paths): bool
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Copy a file to a new location.
-     */
-    public function copy(string $from, string $to): bool
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Move a file to a new location.
-     */
-    public function move(string $from, string $to): bool
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Get the file size of a given file.
-     */
-    public function size(string $path): int
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Get the file's last modification time.
-     */
-    public function lastModified(string $path): int
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Get an array of all files in a directory.
-     */
-    public function files(?string $directory = null, bool $recursive = false): array
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Get all of the files from the given directory (recursive).
-     */
-    public function allFiles(?string $directory = null): array
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Get all of the directories within a given directory.
-     */
-    public function directories(?string $directory = null, bool $recursive = false): array
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Get all (recursive) of the directories within a given directory.
-     */
-    public function allDirectories(?string $directory = null): array
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Create a directory.
-     */
-    public function makeDirectory(string $path): bool
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Recursively delete a directory.
-     */
-    public function deleteDirectory(string $directory): bool
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
-    }
-
-    /**
-     * Get the URL for the file at the given path.
-     */
-    public function url(string $path): string
-    {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $result;
     }
 }

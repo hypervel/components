@@ -70,10 +70,12 @@ return [
             'block_for' => 0,
             'after_commit' => false,
             'pool' => [
-                'min_objects' => 1,
+                'min_retained_objects' => 1,
                 'max_objects' => 10,
                 'wait_timeout' => 3.0,
                 'max_lifetime' => 60.0,
+                'max_idle_time' => 0.0,
+                'idle_ttl' => 300.0,
             ],
         ],
 
@@ -87,10 +89,12 @@ return [
             'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
             'after_commit' => false,
             'pool' => [
-                'min_objects' => 1,
+                'min_retained_objects' => 1,
                 'max_objects' => 10,
                 'wait_timeout' => 3.0,
                 'max_lifetime' => 60.0,
+                'max_idle_time' => 0.0,
+                'idle_ttl' => 300.0,
             ],
         ],
 

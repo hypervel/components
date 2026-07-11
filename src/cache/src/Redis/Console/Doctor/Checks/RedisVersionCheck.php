@@ -11,7 +11,8 @@ use Throwable;
 /**
  * Checks that Redis/Valkey version meets requirements.
  *
- * For any mode: Requires Redis 8.0+ or Valkey 9.0+ for HEXPIRE support.
+ * For any mode: Requires Redis 8.0+ or Valkey 9.0+ for hash-field
+ * expiration commands including HSETEX and HEXPIRE.
  * For all mode: Any version is acceptable (just verifies connection).
  */
 final class RedisVersionCheck implements EnvironmentCheckInterface

@@ -16,8 +16,8 @@
         </testsuite>
     </testsuites>
     <extensions>
-        <bootstrap class="Hypervel\Tests\AfterEachTestExtension" />
-        <bootstrap class="Hypervel\Tests\SlowTestExtension">
+        <bootstrap class="Hypervel\Testing\PHPUnit\AfterEachTestExtension" />
+        <bootstrap class="Hypervel\Testing\PHPUnit\SlowTestExtension">
             <parameter name="threshold" value="0.3"/>
         </bootstrap>
     </extensions>
@@ -26,5 +26,6 @@
         <ini name="display_errors" value="on"/>
         <ini name="display_startup_errors" value="on"/>
         <ini name="memory_limit" value="1024M"/>
+        <server name="HYPERVEL_PARALLEL_TESTING" value="1"/>
     </php>
 </phpunit>

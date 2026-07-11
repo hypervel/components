@@ -402,7 +402,7 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->assertTrue($fired, 'ReleaseConnection event should be dispatched when configured');
     }
 
-    public function testLastUseTimeUpdatedOnReuseCheck(): void
+    public function testReuseCheckDoesNotResetLastUseTime(): void
     {
         $pool = new DbPool($this->app, 'pool_test');
 
@@ -421,7 +421,7 @@ class PooledConnectionTest extends DatabaseTestCase
         $nextPooledConnection->getConnection();
 
         $this->assertSame($pooledConnection, $nextPooledConnection);
-        $this->assertGreaterThan($initialTime, $nextPooledConnection->getLastUseTime());
+        $this->assertSame($initialTime, $nextPooledConnection->getLastUseTime());
 
         $nextPooledConnection->release();
     }

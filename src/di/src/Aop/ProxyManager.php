@@ -9,6 +9,13 @@ use Hypervel\Filesystem\Filesystem;
 class ProxyManager
 {
     /**
+     * Source paths used to generate existing proxy files.
+     *
+     * @var array<string, string> className => sourceFilePath
+     */
+    protected static array $generatedFrom = [];
+
+    /**
      * The classes that have been rewritten as proxies.
      *
      * @var array<string, string> className => proxyFilePath
@@ -55,7 +62,7 @@ class ProxyManager
     public function getAspectClasses(): array
     {
         $aspectClasses = [];
-        $classesAspects = AspectCollector::get('classes', []);
+        $classesAspects = AspectCollector::getClassRules();
         foreach ($classesAspects as $aspect => $rules) {
             foreach ($rules as $rule) {
                 if (isset($this->proxies[$rule])) {
@@ -92,15 +99,18 @@ class ProxyManager
     protected function putProxyFile(Ast $ast, string $className): string
     {
         $proxyFilePath = $this->getProxyFilePath($className);
+        $sourceFilePath = $this->classMap[$className];
         $modified = true;
         if (file_exists($proxyFilePath)) {
-            $modified = $this->isModified($className, $proxyFilePath);
+            $modified = $this->isModified($className, $sourceFilePath, $proxyFilePath);
         }
 
         if ($modified) {
-            $code = $ast->proxy($className);
+            $code = $ast->proxy($className, $sourceFilePath);
             file_put_contents($proxyFilePath, $code);
         }
+
+        static::$generatedFrom[$className] = $sourceFilePath;
 
         return $proxyFilePath;
     }
@@ -108,12 +118,15 @@ class ProxyManager
     /**
      * Determine if the source class has been modified since the proxy was generated.
      */
-    protected function isModified(string $className, ?string $proxyFilePath = null): bool
+    protected function isModified(string $className, string $sourceFilePath, ?string $proxyFilePath = null): bool
     {
         $proxyFilePath = $proxyFilePath ?? $this->getProxyFilePath($className);
+        if (isset(static::$generatedFrom[$className]) && static::$generatedFrom[$className] !== $sourceFilePath) {
+            return true;
+        }
+
         $time = $this->filesystem->lastModified($proxyFilePath);
-        $origin = $this->classMap[$className];
-        if ($time >= $this->filesystem->lastModified($origin)) {
+        if ($time >= $this->filesystem->lastModified($sourceFilePath)) {
             return false;
         }
 
@@ -159,7 +172,7 @@ class ProxyManager
         if (! $reflectionClassMap) {
             return $proxies;
         }
-        $classesAspects = AspectCollector::get('classes', []);
+        $classesAspects = AspectCollector::getClassRules();
         foreach ($classesAspects as $aspect => $rules) {
             foreach ($rules as $rule) {
                 foreach ($reflectionClassMap as $class => $path) {
@@ -171,5 +184,17 @@ class ProxyManager
             }
         }
         return $proxies;
+    }
+
+    /**
+     * Flush generated proxy source tracking.
+     *
+     * Tests only. Do not register this with the global after-test subscriber:
+     * proxy files can persist in a worker's runtime skeleton between tests,
+     * and clearing this map would hide source-path changes behind mtime checks.
+     */
+    public static function flushState(): void
+    {
+        static::$generatedFrom = [];
     }
 }

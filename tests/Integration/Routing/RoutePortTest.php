@@ -22,7 +22,7 @@ class RoutePortTest extends RoutingTestCase
     {
         Route::port(8080)->get('/foo', fn () => 'port 8080');
 
-        $response = $this->call('GET', 'http://localhost:9501/foo');
+        $response = $this->call('GET', 'http://localhost:8000/foo');
 
         $response->assertNotFound();
     }
@@ -32,7 +32,7 @@ class RoutePortTest extends RoutingTestCase
         Route::get('/foo', fn () => 'any port');
 
         $this->call('GET', 'http://localhost:8080/foo')->assertOk();
-        $this->call('GET', 'http://localhost:9501/foo')->assertOk();
+        $this->call('GET', 'http://localhost:8000/foo')->assertOk();
     }
 
     public function testPortGroupScopesAllChildRoutes()
@@ -45,7 +45,7 @@ class RoutePortTest extends RoutingTestCase
         $this->call('GET', 'http://localhost:8080/foo')->assertOk();
         $this->call('GET', 'http://localhost:8080/bar')->assertOk();
 
-        $this->call('GET', 'http://localhost:9501/foo')->assertNotFound();
-        $this->call('GET', 'http://localhost:9501/bar')->assertNotFound();
+        $this->call('GET', 'http://localhost:8000/foo')->assertNotFound();
+        $this->call('GET', 'http://localhost:8000/bar')->assertNotFound();
     }
 }

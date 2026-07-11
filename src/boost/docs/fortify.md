@@ -82,7 +82,7 @@ By default, `fortify.guard` is `null` and Fortify uses Hypervel's current defaul
 
 When Fortify owns passkey routes, those integrated routes use `fortify.guard`. The standalone `passkeys.guard` setting only matters when using the Passkeys package without Fortify.
 
-Password reset broker selection is also derived from the selected guard. Fortify reads the selected guard's provider and requires exactly one `auth.passwords` broker to use that provider. This keeps password resets, login, password confirmation, and passkeys on the same user store.
+Password reset broker selection follows the selected guard. Guards that send password reset links declare their broker with the `passwords` key in `config/auth.php`.
 
 <a name="features"></a>
 ### Features
@@ -175,12 +175,30 @@ public function boot(): void
 
 The callback is registered for the worker lifetime, but the callback result is computed for each request. This is safe for multi-tenant and multi-guard applications as long as you do not cache request-specific data in static properties.
 
+This Fortify redirect API controls successful Fortify action fallbacks, such as login or registration responses when no intended URL is stored. It does not configure auth or guest middleware redirects. Use `Auth::redirectGuestsTo()` and `Auth::redirectUsersTo()` for middleware redirects, or the middleware configurator equivalents in `bootstrap/app.php`.
+
 Standalone Passkeys has its own `Passkeys::redirectUsing()` callback and `passkeys.redirect` fallback. When Fortify integrates passkeys, it installs a callback so passkey login uses the same request-aware login redirect as password login.
 
 <a name="multi-guard-applications"></a>
 ### Multi-Guard Applications
 
 With the default `fortify.guard` value of `null`, Fortify uses the current request default guard. For domain-based, path-based, tenant-based, or role-based guard selection, add middleware early in the stack:
+
+```php
+'guards' => [
+    'web' => [
+        'driver' => 'session',
+        'provider' => 'users',
+        'passwords' => 'users',
+    ],
+
+    'admin' => [
+        'driver' => 'session',
+        'provider' => 'admins',
+        'passwords' => 'admins',
+    ],
+],
+```
 
 ```php
 use Closure;
@@ -203,7 +221,7 @@ final class SelectAuthenticationGuard
 }
 ```
 
-Run this middleware before `guest`, `auth`, `password.confirm`, Fortify controllers, and Passkeys controllers. Named middleware such as `auth:admin` or `guest:admin` checks that guard, but it does not set the default guard that controller code and other packages use.
+Run this middleware before `guest`, `auth`, `password.confirm`, Fortify controllers, and Passkeys controllers. Named middleware select their guard as the request default: `auth:admin` selects `admin` when authentication succeeds, and `guest:admin` selects `admin` when the request passes the guest check. Use middleware like the example above when many routes should share one guard without naming it on each middleware.
 
 If every built-in Fortify route should use the same guard, set `fortify.guard` instead of writing custom middleware. Fortify will apply that guard to its own routes and to integrated passkey routes. When using `hypervel/passkeys` without Fortify, use the standalone `passkeys.guard` setting the same way.
 
@@ -310,13 +328,13 @@ After registration, Fortify logs the created user into the current default guard
 <a name="password-resets"></a>
 ## Password Resets
 
-Fortify sends reset links and resets passwords through Hypervel's password broker services. Fortify derives the broker from the selected guard provider:
+Fortify sends reset links and resets passwords through Hypervel's password broker services. Fortify resolves the broker from the selected guard:
 
 1. Resolve the current guard name.
-2. Read `auth.guards.{guard}.provider`.
-3. Find exactly one `auth.passwords.*.provider` entry with the same provider.
+2. Read `auth.guards.{guard}.passwords`.
+3. Use the named broker from `auth.passwords`.
 
-If no broker or multiple brokers match, Fortify throws a configuration exception rather than guessing.
+If the selected guard does not declare a `passwords` broker, Hypervel throws a configuration exception naming the guard and the key to add.
 
 If multiple user providers may share email addresses, use separate password reset token tables or cache stores per broker so one provider's token does not replace another provider's token for the same email address.
 
@@ -352,7 +370,7 @@ Hypervel Fortify uses Hypervel's framework password rule directly. Laravel Forti
 <a name="password-confirmation"></a>
 ## Password Confirmation
 
-Fortify supports password confirmation through the `password.confirm` middleware and built-in confirmation routes. Password confirmation uses the current default guard.
+Fortify supports password confirmation through the `password.confirm` middleware and built-in confirmation routes. Password confirmation uses the current default guard. Confirmation is stored per guard, and lockout throttling for login attempts is also scoped per guard.
 
 You may customize password confirmation:
 
@@ -442,17 +460,17 @@ use Hypervel\Passkeys\Passkeys;
 
 public function boot(): void
 {
-    Passkeys::relyingPartyIdUsing(
+    Passkeys::resolveRelyingPartyIdUsing(
         fn (Request $request): string => $request->getHost(),
     );
 
-    Passkeys::allowedOriginsUsing(
+    Passkeys::resolveAllowedOriginsUsing(
         fn (Request $request): array => ['https://' . $request->getHost()],
     );
 }
 ```
 
-These callbacks take priority over the static config values when a request is available. Without a current request, Passkeys falls back to `passkeys.relying_party_id` and `passkeys.allowed_origins`. The relying party ID and allowed origins are separate WebAuthn settings, so register `allowedOriginsUsing()` whenever allowed origins vary by request. Static config uses cached WebAuthn ceremony managers; request-aware origins are resolved for each ceremony so origin-specific state does not leak between requests.
+These callbacks take priority over the static config values when a request is available. Without a current request, Passkeys falls back to `passkeys.relying_party_id` and `passkeys.allowed_origins`. The relying party ID and allowed origins are separate WebAuthn settings, so register `resolveAllowedOriginsUsing()` whenever allowed origins vary by request. Static config uses cached WebAuthn ceremony managers; request-aware origins are resolved for each ceremony so origin-specific state does not leak between requests.
 
 The resolved relying party ID must be a registrable-domain suffix of the resolved origins. Otherwise, browsers will reject the WebAuthn ceremony before the server can verify it.
 
@@ -595,8 +613,8 @@ Call these only during application boot or tests:
 - `Features::passkeys($options)`
 - `Passkeys::usePasskeyModel()`
 - `Passkeys::authorizeLoginUsing()`
-- `Passkeys::relyingPartyIdUsing()`
-- `Passkeys::allowedOriginsUsing()`
+- `Passkeys::resolveRelyingPartyIdUsing()`
+- `Passkeys::resolveAllowedOriginsUsing()`
 - `Passkeys::redirectUsing()`
 - `Passkeys::ignoreRoutes()`
 - `WebAuthn::configureCeremonyStepManagerFactoryUsing()`

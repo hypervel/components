@@ -63,10 +63,12 @@ return [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
             ],
             'pool' => [
-                'min_objects' => 1,
+                'min_retained_objects' => 1,
                 'max_objects' => 10,
                 'wait_timeout' => 3.0,
                 'max_lifetime' => 60.0,
+                'max_idle_time' => 0.0,
+                'idle_ttl' => 300.0,
             ],
         ],
 
@@ -74,10 +76,12 @@ return [
             'driver' => 'ably',
             'key' => env('ABLY_KEY'),
             'pool' => [
-                'min_objects' => 1,
+                'min_retained_objects' => 1,
                 'max_objects' => 10,
                 'wait_timeout' => 3.0,
                 'max_lifetime' => 60.0,
+                'max_idle_time' => 0.0,
+                'idle_ttl' => 300.0,
             ],
         ],
 

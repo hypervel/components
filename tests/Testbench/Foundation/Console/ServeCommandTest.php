@@ -45,11 +45,11 @@ class ServeCommandTest extends TestCase
         $serverFactory = m::mock(ServerFactory::class);
         $serverFactory->shouldReceive('setEventDispatcher')->once()->andReturnSelf();
         $serverFactory->shouldReceive('setLogger')->once()->andReturnSelf();
-        $serverFactory->shouldReceive('configure')->once()->with(['http' => ['port' => 9501]]);
+        $serverFactory->shouldReceive('configure')->once()->with(['http' => ['port' => 8000]]);
         $serverFactory->shouldReceive('start')->once();
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server', [])->andReturn(['http' => ['port' => 9501]]);
+        $config->shouldReceive('array')->once()->with('server', [])->andReturn(['http' => ['port' => 8000]]);
 
         $logger = m::mock(StdoutLoggerInterface::class);
 

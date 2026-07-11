@@ -9,9 +9,11 @@ use Hypervel\Fortify\Contracts\ConfirmPasswordViewResponse;
 use Hypervel\Fortify\Fortify;
 use Hypervel\Foundation\Auth\User;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
+use Hypervel\Tests\Fortify\Fixtures\Admin;
 
 #[WithMigration]
 class ConfirmablePasswordControllerTest extends TestCase
@@ -27,6 +29,8 @@ class ConfirmablePasswordControllerTest extends TestCase
             'email' => 'taylor@laravel.com',
             'password' => bcrypt('secret'),
         ]);
+
+        $this->createAdminsTable();
     }
 
     public function testTheConfirmPasswordViewIsReturned(): void
@@ -55,7 +59,7 @@ class ConfirmablePasswordControllerTest extends TestCase
                 ['password' => 'secret']
             );
 
-        $response->assertSessionHas('auth.password_confirmed_at', Date::now()->unix());
+        $response->assertSessionHas('auth.password_confirmed_at_web', Date::now()->unix());
         $response->assertRedirect('http://foo.com/bar');
     }
 
@@ -70,7 +74,7 @@ class ConfirmablePasswordControllerTest extends TestCase
             );
 
         $response->assertSessionHasErrors(['password']);
-        $response->assertSessionMissing('auth.password_confirmed_at');
+        $response->assertSessionMissing('auth.password_confirmed_at_web');
         $response->assertRedirect();
         $this->assertNotEquals($response->getTargetUrl(), 'http://foo.com/bar');
     }
@@ -86,7 +90,7 @@ class ConfirmablePasswordControllerTest extends TestCase
             );
 
         $response->assertSessionHasErrors(['password']);
-        $response->assertSessionMissing('auth.password_confirmed_at');
+        $response->assertSessionMissing('auth.password_confirmed_at_web');
         $response->assertRedirect();
         $this->assertNotEquals($response->getTargetUrl(), 'http://foo.com/bar');
     }
@@ -107,7 +111,7 @@ class ConfirmablePasswordControllerTest extends TestCase
                 ['password' => 'invalid']
             );
 
-        $response->assertSessionHas('auth.password_confirmed_at', Date::now()->unix());
+        $response->assertSessionHas('auth.password_confirmed_at_web', Date::now()->unix());
         $response->assertRedirect('http://foo.com/bar');
 
         Fortify::flushState();
@@ -129,7 +133,7 @@ class ConfirmablePasswordControllerTest extends TestCase
                 ['password' => null]
             );
 
-        $response->assertSessionHas('auth.password_confirmed_at', Date::now()->unix());
+        $response->assertSessionHas('auth.password_confirmed_at_web', Date::now()->unix());
         $response->assertRedirect('http://foo.com/bar');
 
         Fortify::flushState();
@@ -164,7 +168,7 @@ class ConfirmablePasswordControllerTest extends TestCase
 
         $response = $this->withoutExceptionHandling()
             ->actingAs($this->user)
-            ->withSession(['auth.password_confirmed_at' => now()->subMinute(1)->unix()])
+            ->withSession(['auth.password_confirmed_at_web' => now()->subMinute(1)->unix()])
             ->get(
                 '/user/confirmed-password-status',
             );
@@ -181,7 +185,7 @@ class ConfirmablePasswordControllerTest extends TestCase
 
         $response = $this->withoutExceptionHandling()
             ->actingAs($this->user)
-            ->withSession(['auth.password_confirmed_at' => now()->subMinutes(10)->unix()])
+            ->withSession(['auth.password_confirmed_at_web' => now()->subMinutes(10)->unix()])
             ->get(
                 '/user/confirmed-password-status',
             );
@@ -205,6 +209,103 @@ class ConfirmablePasswordControllerTest extends TestCase
         $response->assertOk()
             ->assertJson(['confirmed' => false])
             ->assertHeaderMissing('X-Retry-After');
+    }
+
+    #[WithConfig('fortify.guard', 'admin')]
+    public function testConfirmationStampsCurrentGuardKey(): void
+    {
+        $this->freezeSecond();
+
+        $admin = $this->createAdmin();
+        Auth::guard('admin')->setUser($admin);
+
+        $response = $this->withoutExceptionHandling()
+            ->withSession(['url.intended' => 'http://foo.com/admin'])
+            ->post(
+                '/user/confirm-password',
+                ['password' => 'secret']
+            );
+
+        $response->assertSessionHas('auth.password_confirmed_at_admin', Date::now()->unix());
+        $response->assertSessionMissing('auth.password_confirmed_at_web');
+        $response->assertRedirect('http://foo.com/admin');
+    }
+
+    #[WithConfig('fortify.guard', 'admin')]
+    public function testStatusReadsCurrentGuardConfirmation(): void
+    {
+        $this->freezeSecond();
+
+        $admin = $this->createAdmin();
+        Auth::guard('admin')->setUser($admin);
+
+        $response = $this->withoutExceptionHandling()
+            ->withSession(['auth.password_confirmed_at_admin' => now()->subMinute(1)->unix()])
+            ->get(
+                '/user/confirmed-password-status',
+            );
+
+        $response->assertOk()
+            ->assertJson(['confirmed' => true])
+            ->assertHeader('X-Retry-After', 60);
+    }
+
+    public function testStatusDoesNotReadAnotherGuardConfirmation(): void
+    {
+        $this->freezeSecond();
+
+        $response = $this->withoutExceptionHandling()
+            ->actingAs($this->user)
+            ->withSession(['auth.password_confirmed_at_admin' => now()->subMinute(1)->unix()])
+            ->get(
+                '/user/confirmed-password-status',
+            );
+
+        $response->assertOk()
+            ->assertJson(['confirmed' => false])
+            ->assertHeaderMissing('X-Retry-After');
+    }
+
+    public function testStatusUsesPerGuardTimeout(): void
+    {
+        $this->freezeSecond();
+        $this->app->make('config')->set('auth.guards.web.password_timeout', 10);
+
+        $response = $this->withoutExceptionHandling()
+            ->actingAs($this->user)
+            ->withSession(['auth.password_confirmed_at_web' => now()->subSeconds(11)->unix()])
+            ->get(
+                '/user/confirmed-password-status',
+            );
+
+        $response->assertOk()
+            ->assertJson(['confirmed' => false])
+            ->assertHeaderMissing('X-Retry-After');
+    }
+
+    public function testStatusNormalizesMalformedSecondsInput(): void
+    {
+        $this->freezeSecond();
+
+        $response = $this->withoutExceptionHandling()
+            ->actingAs($this->user)
+            ->withSession(['auth.password_confirmed_at_web' => now()->subSeconds(2)->unix()])
+            ->get(
+                '/user/confirmed-password-status?seconds[]=900',
+            );
+
+        $response->assertOk()
+            ->assertJson(['confirmed' => false])
+            ->assertHeaderMissing('X-Retry-After');
+    }
+
+    private function createAdmin(): Admin
+    {
+        return Admin::forceCreate([
+            'name' => 'Admin User',
+            'email' => 'admin@example.test',
+            'password' => bcrypt('secret'),
+        ]);
     }
 
     protected function defineEnvironment(ApplicationContract $app): void

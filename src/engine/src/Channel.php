@@ -63,6 +63,10 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
 
     /**
      * Close the channel.
+     *
+     * Call only from a deterministic lifecycle path while the Swoole runtime
+     * is live. Native channel methods are uncatchably fatal after the native
+     * handle is torn down, so destructors must not call this method.
      */
     public function close(): bool
     {

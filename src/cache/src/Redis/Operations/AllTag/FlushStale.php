@@ -7,6 +7,8 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 
+use function Hypervel\Support\now;
+
 /**
  * Flushes stale entries from tag sorted sets.
  *

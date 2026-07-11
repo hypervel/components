@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool\Contracts;
 
-use DateTime;
-use Hypervel\ObjectPool\PoolOption;
+use Hypervel\ObjectPool\PoolOptions;
 
 interface ObjectPool
 {
@@ -20,14 +19,39 @@ interface ObjectPool
     public function release(object $object): void;
 
     /**
-     * Flush excess objects from the pool down to the minimum.
+     * Destroy a checked-out object instead of returning it to the pool.
      */
-    public function flush(): void;
+    public function discard(object $object): void;
 
     /**
-     * Flush a single object from the pool if it meets removal criteria.
+     * Destroy idle objects that exceed the maximum lifetime.
      */
-    public function flushOne(bool $force = false): void;
+    public function sweepExpired(): void;
+
+    /**
+     * Destroy idle objects past the maximum idle time down to the retention floor.
+     */
+    public function trimIdle(): void;
+
+    /**
+     * Close the pool and destroy all idle objects.
+     */
+    public function close(): void;
+
+    /**
+     * Determine if the pool is closed.
+     */
+    public function isClosed(): bool;
+
+    /**
+     * Determine if the entire pool has exceeded its idle TTL.
+     */
+    public function isIdle(): bool;
+
+    /**
+     * Return the number of objects currently checked out.
+     */
+    public function getBorrowedObjectNumber(): int;
 
     /**
      * Return the current number of objects managed by the pool.
@@ -40,22 +64,14 @@ interface ObjectPool
     public function getObjectNumberInPool(): int;
 
     /**
-     * Get the pool's configuration options.
+     * Get the normalized pool options.
      */
-    public function getOption(): PoolOption;
+    public function getOptions(): PoolOptions;
 
     /**
-     * Get the recycle strategy instance for this pool.
+     * Return statistics about the pool's current state.
+     *
+     * @return array{total: int, idle: int, borrowed: int, closed: bool}
      */
-    public function getRecycleStrategy(): RecycleStrategy;
-
-    /**
-     * Get the last time the pool was recycled.
-     */
-    public function getLastRecycledAt(): DateTime|int|null;
-
-    /**
-     * Set the last time the pool was recycled.
-     */
-    public function setLastRecycledAt(DateTime|int|null $lastRecycledAt): static;
+    public function getStats(): array;
 }

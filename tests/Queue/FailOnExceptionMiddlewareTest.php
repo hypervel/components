@@ -29,7 +29,7 @@ class FailOnExceptionMiddlewareTest extends TestCase
     }
 
     #[DataProvider('middlewareDataProvider')]
-    public function testMiddleware(string $thrown, FailOnException $middleware, bool $expectedToFail)
+    public function testMiddleware(string $thrown, FailOnException $middleware, bool $expectedToFail): void
     {
         FailOnExceptionMiddlewareTestJob::$_middleware = [$middleware];
 
@@ -73,7 +73,7 @@ class FailOnExceptionMiddlewareTest extends TestCase
 
     #[TestWith(['abc', true])]
     #[TestWith(['tots', false])]
-    public function testCanTestAgainstJobProperties(mixed $value, bool $expectedToFail)
+    public function testCanTestAgainstJobProperties(mixed $value, bool $expectedToFail): void
     {
         FailOnExceptionMiddlewareTestJob::$_middleware = [
             new FailOnException(fn (Throwable $thrown, FailOnExceptionMiddlewareTestJob $job) => $job->value === 'abc'),
@@ -85,14 +85,17 @@ class FailOnExceptionMiddlewareTest extends TestCase
         $fakeJob = new FakeJob;
         $job->setJob($fakeJob);
 
+        $exception = null;
+
         try {
             $instance->call($fakeJob, [
                 'command' => serialize($job),
             ]);
-
-            $this->fail('Did not throw exception');
-        } catch (Throwable) {
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
         }
+
+        $this->assertNotNull($exception, 'Did not throw exception');
 
         $expectedToFail ? $job->assertFailed() : $job->assertNotFailed();
     }

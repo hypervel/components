@@ -15,7 +15,7 @@ use InvalidArgumentException;
 
 class FindDriverTest extends TestCase
 {
-    public function testWatch()
+    public function testWatch(): void
     {
         $option = new Option(
             driver: FindDriver::class,
@@ -44,5 +44,43 @@ class FindDriverTest extends TestCase
             }
             $channel->close();
         }
+    }
+
+    public function testFindEscapesEveryTargetPath(): void
+    {
+        $option = new Option(driver: FindDriver::class, watchPaths: [], scanInterval: 1);
+        $driver = new class($option) extends FindDriver {
+            public string $capturedCommand = '';
+
+            protected function exec(string $command): array
+            {
+                if (str_starts_with($command, 'which ')) {
+                    return ['code' => 0, 'output' => '/usr/bin/find'];
+                }
+
+                if ($command === 'find --help') {
+                    return ['code' => 0, 'output' => 'GNU find'];
+                }
+
+                $this->capturedCommand = $command;
+
+                return ['code' => 0, 'output' => ''];
+            }
+
+            public function findForTest(array $targets): void
+            {
+                $this->find([], $targets, '-0.10');
+            }
+        };
+        $targets = ['/tmp/path with spaces', "/tmp/path'quoted", '/tmp/$(ignored);touch nope'];
+
+        $driver->findForTest($targets);
+
+        $this->assertSame(
+            ($driver->isDarwin() ? 'gfind' : 'find') . ' '
+                . implode(' ', array_map(escapeshellarg(...), $targets))
+                . ' -mmin -0.10 -type f -print',
+            $driver->capturedCommand,
+        );
     }
 }

@@ -1915,7 +1915,7 @@ class InvoicePaid extends Notification
 }
 ```
 
-If your custom channel wraps a transport that should not be used by multiple coroutines at the same time, such as a persistent connection or SDK client, you may register it as a custom driver and opt it into pooling:
+You may also register a custom channel under a short driver name:
 
 ```php
 use App\Notifications\VoiceChannel;
@@ -1923,14 +1923,10 @@ use Hypervel\Support\Facades\Notification;
 
 Notification::extend('voice', function ($app) {
     return $app->make(VoiceChannel::class);
-}, poolable: true);
-
-Notification::setPoolConfig('voice', [
-    'min_objects' => 1,
-    'max_objects' => 10,
-    'wait_timeout' => 3.0,
-]);
+});
 ```
+
+The notification manager does not pool channel objects. Built-in router channels are lightweight container-backed dispatchers, not connection-owning resources, so wrapping them in an object pool would add no isolation. If a custom channel owns a persistent connection or mutable SDK client that cannot be used concurrently, keep that resource pool inside the channel implementation using Hypervel's object-pool definitions and leases. This lets the channel retain its resource for the complete send operation and choose the correct release or discard boundary.
 
 Once the custom driver has been registered, you may return its name from your notification's `via` method:
 

@@ -19,8 +19,10 @@ return [
         '.env',
     ],
 
+    // A single executable path, not a shell command or command fragment.
     'bin' => PHP_BINARY,
-    'command' => 'artisan serve',
+    // The project-relative script followed by its arguments.
+    'command' => ['artisan', 'serve'],
 ];
 ```
 

@@ -92,8 +92,6 @@ abstract class Connection implements ConnectionInterface
             return false;
         }
 
-        $this->lastUseTime = $now;
-
         return true;
     }
 

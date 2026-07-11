@@ -57,7 +57,8 @@ return [
     | PHP Binary Path
     |--------------------------------------------------------------------------
     |
-    | The path to the PHP binary used to start the server process.
+    | The path to the executable used to start the server process. This must
+    | be a single executable path, not a shell command or command fragment.
     |
     */
 
@@ -68,9 +69,10 @@ return [
     | Server Command
     |--------------------------------------------------------------------------
     |
-    | The command used to start the server, relative to the project root.
+    | The command arguments used to start the server. The first item is the
+    | script path relative to the project root; remaining items are arguments.
     |
     */
 
-    'command' => 'artisan serve',
+    'command' => ['artisan', 'serve'],
 ];

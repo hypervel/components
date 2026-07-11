@@ -27,7 +27,7 @@ class SocketTest extends TestCase
         }
 
         try {
-            (new Socket\SocketFactory)->make(new Socket\SocketOption('192.0.0.1', 9501, 0.2));
+            (new Socket\SocketFactory)->make(new Socket\SocketOption('192.0.0.1', 8000, 0.2));
         } catch (SocketConnectException $exception) {
             $this->assertSame(SOCKET_ETIMEDOUT, $exception->getCode());
             $this->assertStringContainsString('timed out', $exception->getMessage());

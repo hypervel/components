@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Http\Parser;
+namespace Hypervel\Jwt\Http\Parser;
 
 use Hypervel\Http\Request;
-use Hypervel\JWT\Contracts\TokenExtractor;
+use Hypervel\Jwt\Contracts\TokenExtractor;
 
 class InputSource implements TokenExtractor
 {

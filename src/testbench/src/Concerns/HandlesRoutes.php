@@ -34,6 +34,23 @@ trait HandlesRoutes
     protected bool $requireApplicationCachedRoutesHasRun = false;
 
     /**
+     * Whether route file cleanup has been registered for this test.
+     */
+    protected bool $testbenchRouteCleanupRegistered = false;
+
+    /**
+     * Whether defineCacheRoutes() is reloading the application to load cached routes.
+     */
+    protected bool $reloadingApplicationForCachedRoutes = false;
+
+    /**
+     * Route files written by this test instance.
+     *
+     * @var array<int, string>
+     */
+    protected array $testbenchRouteFiles = [];
+
+    /**
      * Setup application routes.
      */
     protected function setUpApplicationRoutes(ApplicationContract $app): void
@@ -94,6 +111,8 @@ trait HandlesRoutes
      */
     protected function defineCacheRoutes(Closure|string $route, bool $cached = true): void
     {
+        $this->configureParallelCachePaths();
+
         static::usesTestingFeature($attribute = new UsesVendor, Attribute::TARGET_METHOD);
 
         if (
@@ -106,8 +125,6 @@ trait HandlesRoutes
 
         $files = new Filesystem;
 
-        $time = time();
-
         $basePath = static::applicationBasePath();
         if ($route instanceof Closure) {
             $cached = false;
@@ -117,10 +134,11 @@ trait HandlesRoutes
             $route = str_replace('{{routes}}', var_export($serializeRoute, true), $stub);
         }
 
-        $files->put(
-            join_paths($basePath, 'routes', "testbench-{$time}.php"),
-            $route
-        );
+        $routeFile = $this->testbenchRouteFilePath($basePath);
+        $this->testbenchRouteFiles[] = $routeFile;
+
+        $files->put($routeFile, $route);
+        $this->registerTestbenchRouteCleanup($files);
 
         if ($cached === true) {
             remote('route:cache')->mustRun();
@@ -143,7 +161,16 @@ trait HandlesRoutes
         }
 
         if ($this->app instanceof HypervelApplication) {
-            $this->reloadApplication();
+            $this->reloadingApplicationForCachedRoutes = true;
+
+            try {
+                $this->reloadApplication();
+            } finally {
+                $this->reloadingApplicationForCachedRoutes = false;
+
+                $this->testbenchRouteCleanupRegistered = false;
+                $this->registerTestbenchRouteCleanup($files);
+            }
         }
 
         $this->requireApplicationCachedRoutes($files, $cached);
@@ -172,17 +199,46 @@ trait HandlesRoutes
             }
         });
 
+        $this->requireApplicationCachedRoutesHasRun = true;
+    }
+
+    /**
+     * Register cleanup for route files and route cache written by this test.
+     */
+    protected function registerTestbenchRouteCleanup(Filesystem $files): void
+    {
+        if ($this->testbenchRouteCleanupRegistered === true) {
+            return;
+        }
+
         $this->beforeApplicationDestroyed(function () use ($files): void {
+            if ($this->reloadingApplicationForCachedRoutes === true) {
+                return;
+            }
+
             if ($this->app instanceof HypervelApplication) {
                 // Use the dynamic cache path — parallel workers suffix it with _test_{token},
                 // so hardcoding routes-v7.php would miss the actual file and leak stale caches.
-                $files->delete(
-                    $this->app->getCachedRoutesPath(),
-                    ...$files->glob($this->app->basePath(join_paths('routes', 'testbench-*.php')))
-                );
+                $files->delete($this->app->getCachedRoutesPath());
             }
+
+            $files->delete($this->testbenchRouteFiles);
         });
 
-        $this->requireApplicationCachedRoutesHasRun = true;
+        $this->testbenchRouteCleanupRegistered = true;
+    }
+
+    /**
+     * Get a route file path owned by this test instance.
+     */
+    protected function testbenchRouteFilePath(string $basePath): string
+    {
+        $token = $this->paraTestWorkerToken() ?? 'default';
+
+        return join_paths(
+            $basePath,
+            'routes',
+            sprintf('testbench-%s-%s-%s.php', $token, getmypid(), hrtime(true))
+        );
     }
 }

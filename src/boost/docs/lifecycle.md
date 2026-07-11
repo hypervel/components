@@ -29,7 +29,7 @@ The entry point for a Hypervel application is the `artisan` executable. This fil
 
 The `bootstrap/app.php` file creates and configures the application using `Hypervel\Foundation\Application`. This is where routing, middleware, exception handling, service providers, and console command paths are configured before the application instance is returned.
 
-When you run `php artisan serve`, the console kernel resolves the `serve` command, which starts the configured Swoole server. By default, the HTTP server is configured in your application's `config/server.php` file and listens on port `9501`.
+When you run `php artisan serve`, the console kernel resolves the `serve` command, which starts the configured Swoole server. By default, the HTTP server is configured in your application's `config/server.php` file and listens on port `8000`. Any `serve` command host or port options are applied before Swoole workers start.
 
 <a name="bootstrapping-the-application"></a>
 ### Bootstrapping the Application

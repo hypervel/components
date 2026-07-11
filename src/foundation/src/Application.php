@@ -13,8 +13,12 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Foundation\CachesConfiguration;
 use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Events\EventServiceProvider;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\LocaleUpdated;
+use Hypervel\Log\Context\ContextServiceProvider;
+use Hypervel\Log\LogServiceProvider;
+use Hypervel\Routing\RoutingServiceProvider;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
@@ -207,12 +211,17 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Infer the application's base directory from the environment.
+     *
+     * Precedence is $_ENV, $_SERVER, Env repository, then Composer. Hypervel
+     * checks $_SERVER and Env so test helpers and worker environments can
+     * provide APP_BASE_PATH without writing to $_ENV.
      */
     public static function inferBasePath(): string
     {
         return match (true) {
             isset($_ENV['APP_BASE_PATH']) => $_ENV['APP_BASE_PATH'],
             isset($_SERVER['APP_BASE_PATH']) => $_SERVER['APP_BASE_PATH'],
+            is_string($basePath = Env::get('APP_BASE_PATH')) => $basePath,
             default => dirname(array_values(array_filter(
                 array_keys(ClassLoader::getRegisteredLoaders()),
                 fn ($path) => ! str_starts_with($path, 'phar://'),
@@ -267,9 +276,10 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     protected function registerBaseServiceProviders(): void
     {
-        $this->register(new \Hypervel\Events\EventServiceProvider($this));
-        $this->register(new \Hypervel\Log\Context\ContextServiceProvider($this));
-        $this->register(new \Hypervel\Routing\RoutingServiceProvider($this));
+        $this->register(new EventServiceProvider($this));
+        $this->register(new LogServiceProvider($this));
+        $this->register(new ContextServiceProvider($this));
+        $this->register(new RoutingServiceProvider($this));
     }
 
     /**
@@ -1327,8 +1337,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
             'hash' => [\Hypervel\Hashing\HashManager::class],
             'hash.driver' => [\Hypervel\Contracts\Hashing\Hasher::class],
             'jwt' => [
-                \Hypervel\JWT\JWTManager::class,
-                \Hypervel\JWT\Contracts\ManagerContract::class,
+                \Hypervel\Jwt\JwtManager::class,
+                \Hypervel\Jwt\Contracts\ManagerContract::class,
             ],
             'log' => [
                 \Hypervel\Log\LogManager::class,

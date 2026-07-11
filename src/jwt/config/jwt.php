@@ -13,7 +13,7 @@ return [
     |
     | The driver you are using to encode, decode and sign your
     | JWT token, all the drivers must implement:
-    | Hypervel\JWT\Contracts\ProviderContract::class
+    | Hypervel\Jwt\Contracts\ProviderContract::class
     |
     */
 
@@ -147,7 +147,7 @@ return [
     |
     */
 
-    'algo' => env('JWT_ALGO', Hypervel\JWT\Providers\Provider::ALGO_HS256),
+    'algo' => env('JWT_ALGO', Hypervel\Jwt\Providers\Provider::ALGO_HS256),
 
     /*
     |--------------------------------------------------------------------------
@@ -158,11 +158,11 @@ return [
     |
     */
     'validations' => [
-        \Hypervel\JWT\Validations\RequiredClaims::class,
-        \Hypervel\JWT\Validations\ExpiredClaim::class,
-        \Hypervel\JWT\Validations\IssuerClaim::class,
-        \Hypervel\JWT\Validations\IssuedAtClaim::class,
-        \Hypervel\JWT\Validations\NotBeforeClaim::class,
+        \Hypervel\Jwt\Validations\RequiredClaims::class,
+        \Hypervel\Jwt\Validations\ExpiredClaim::class,
+        \Hypervel\Jwt\Validations\IssuerClaim::class,
+        \Hypervel\Jwt\Validations\IssuedAtClaim::class,
+        \Hypervel\Jwt\Validations\NotBeforeClaim::class,
     ],
 
     /*
@@ -269,7 +269,7 @@ return [
     'token' => env('JWT_TOKEN', 'token'),
 
     'parser' => [
-        \Hypervel\JWT\Http\Parser\AuthHeaders::class,
+        \Hypervel\Jwt\Http\Parser\AuthHeaders::class,
     ],
 
     /*
@@ -317,7 +317,7 @@ return [
         |
         */
 
-        'jwt' => Hypervel\JWT\Providers\Lcobucci::class,
+        'jwt' => Hypervel\Jwt\Providers\Lcobucci::class,
 
         /*
         |--------------------------------------------------------------------------
@@ -325,9 +325,12 @@ return [
         |--------------------------------------------------------------------------
         |
         | Specify the provider that is used to store tokens in the blacklist.
+        | The default tagged-cache storage requires a taggable default cache
+        | store; with node-local stack tiers, blacklist visibility is bounded
+        | by the upper tier's TTL.
         |
         */
 
-        'storage' => Hypervel\JWT\Storage\TaggedCache::class,
+        'storage' => Hypervel\Jwt\Storage\TaggedCache::class,
     ],
 ];

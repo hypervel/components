@@ -12,7 +12,6 @@ use Hypervel\Fortify\Concerns\DispatchesEvents;
 use Hypervel\Fortify\Contracts\PasswordUpdateResponse;
 use Hypervel\Fortify\Contracts\UpdatesUserPasswords;
 use Hypervel\Fortify\Events\PasswordUpdatedViaController;
-use Hypervel\Fortify\Fortify;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Controller;
 use Hypervel\Support\Facades\Password;
@@ -51,6 +50,6 @@ class PasswordController extends Controller
      */
     protected function broker(): PasswordBroker
     {
-        return Password::broker(Fortify::passwordBrokerName());
+        return Password::broker();
     }
 }

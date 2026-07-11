@@ -14,7 +14,7 @@ use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
-class TaggedCache extends Repository
+abstract class TaggedCache extends Repository
 {
     /**
      * The tag set instance.
@@ -80,11 +80,13 @@ class TaggedCache extends Repository
     }
 
     /**
-     * Get a fully qualified key for a tagged item.
+     * Remove all items from the cache.
+     *
+     * A tagged cache's PSR clear() scope is the tag set, not the whole store.
      */
-    public function taggedItemKey(string $key): string
+    public function clear(): bool
     {
-        return hash('xxh128', $this->tags->getNamespace()) . ':' . $key;
+        return $this->flush();
     }
 
     /**
@@ -93,11 +95,6 @@ class TaggedCache extends Repository
     public function getTags(): TagSet
     {
         return $this->tags;
-    }
-
-    protected function itemKey(string $key): string
-    {
-        return $this->taggedItemKey($key);
     }
 
     /**

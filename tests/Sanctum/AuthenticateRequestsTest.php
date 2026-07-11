@@ -43,6 +43,7 @@ class AuthenticateRequestsTest extends TestCase
             'auth.guards.sanctum' => [
                 'driver' => 'sanctum',
                 'provider' => 'users',
+                'session_guards' => ['web'],
             ],
             'auth.guards.web' => [
                 'driver' => 'session',
@@ -50,8 +51,7 @@ class AuthenticateRequestsTest extends TestCase
             ],
             'auth.providers.users.model' => TestUser::class,
             'auth.providers.users.driver' => 'eloquent',
-            'sanctum.stateful' => ['localhost', '127.0.0.1'],
-            'sanctum.guard' => ['web'],
+            'sanctum.stateful_domains' => ['localhost', '127.0.0.1'],
         ]);
     }
 

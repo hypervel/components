@@ -43,7 +43,7 @@ You may then start the Hypervel development server and frontend asset watcher us
 composer dev
 ```
 
-Once you have started the Hypervel development server, your application will be accessible in your web browser at [http://localhost:9501](http://localhost:9501).
+Once you have started the Hypervel development server, your application will be accessible in your web browser at [http://localhost:8000](http://localhost:8000).
 
 <a name="react"></a>
 ## React

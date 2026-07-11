@@ -7,10 +7,10 @@ namespace Hypervel\Pool;
 use Hypervel\Coordinator\Timer;
 
 /**
- * A frequency implementation that flushes connections at a constant interval.
+ * A frequency implementation that checks idle connections at a constant interval.
  *
- * Unlike Frequency which tracks actual usage, this periodically flushes
- * one connection regardless of usage patterns.
+ * Unlike Frequency which tracks actual usage, this periodically probes one
+ * idle connection regardless of usage patterns.
  */
 class ConstantFrequency implements LowFrequencyInterface
 {
@@ -31,7 +31,7 @@ class ConstantFrequency implements LowFrequencyInterface
         if ($pool) {
             $this->timerId = $this->timer->tick(
                 $this->interval / 1000,
-                fn () => $this->pool->flushOne()
+                fn () => $this->pool->checkIdleConnection()
             );
         }
     }

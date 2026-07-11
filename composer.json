@@ -26,9 +26,6 @@
     },
     "autoload": {
         "psr-4": {
-            "Workbench\\App\\": "src/testbench/workbench/app/",
-            "Workbench\\Database\\Factories\\": "src/testbench/workbench/database/factories/",
-            "Workbench\\Database\\Seeders\\": "src/testbench/workbench/database/seeders/",
             "Hypervel\\ApiClient\\": "src/api-client/src/",
             "Hypervel\\Contracts\\": "src/contracts/src/",
             "Hypervel\\Auth\\": "src/auth/src/",
@@ -57,7 +54,7 @@
             "Hypervel\\Http\\": "src/http/src/",
             "Hypervel\\Inertia\\": "src/inertia/src/",
             "Hypervel\\JsonSchema\\": "src/json-schema/src/",
-            "Hypervel\\JWT\\": "src/jwt/src/",
+            "Hypervel\\Jwt\\": "src/jwt/src/",
             "Hypervel\\Log\\": "src/log/src/",
             "Hypervel\\Mail\\": "src/mail/src/",
             "Hypervel\\NestedSet\\": "src/nested-set/src/",
@@ -121,12 +118,19 @@
             "tests/Database/Fixtures/MigrationCreatorFakeMigration.php"
         ],
         "psr-4": {
+            "Workbench\\App\\": "src/testbench/workbench/app/",
+            "Workbench\\Database\\Factories\\": "src/testbench/workbench/database/factories/",
+            "Workbench\\Database\\Seeders\\": "src/testbench/workbench/database/seeders/",
             "Hypervel\\Tests\\": "tests/"
         },
         "classmap": [
             "tests/Validation/Enums.php"
         ]
     },
+    "bin": [
+        "src/facade-documenter/facade.php",
+        "src/testbench/bin/testbench"
+    ],
     "require": {
         "php": ">=8.4",
         "ext-dom": "*",
@@ -179,22 +183,22 @@
         "psy/psysh": "^0.12.22",
         "sentry/sentry": "^4.15",
         "spomky-labs/otphp": "^11.0",
-        "symfony/console": "^8.0",
-        "symfony/error-handler": "^8.0",
-        "symfony/finder": "^8.0",
-        "symfony/http-foundation": "^8.0",
-        "symfony/http-kernel": "^8.0.12",
-        "symfony/mailer": "^8.0.12",
-        "symfony/mime": "^8.0.12",
+        "symfony/console": "^8.1",
+        "symfony/error-handler": "^8.1",
+        "symfony/finder": "^8.1",
+        "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1",
+        "symfony/mailer": "^8.1",
+        "symfony/mime": "^8.1",
         "symfony/polyfill-php85": "^1.33",
         "symfony/polyfill-php86": "^1.36",
-        "symfony/process": "^8.0.5",
-        "symfony/property-access": "^8.0",
-        "symfony/psr-http-message-bridge": "^8.0",
-        "symfony/routing": "^8.0.12",
+        "symfony/process": "^8.1",
+        "symfony/property-access": "^8.1",
+        "symfony/psr-http-message-bridge": "^8.1",
+        "symfony/routing": "^8.1",
         "symfony/serializer": "^8.1",
-        "symfony/uid": "^8.0",
-        "symfony/var-dumper": "^8.0",
+        "symfony/uid": "^8.1",
+        "symfony/var-dumper": "^8.1",
         "tijsverkoyen/css-to-inline-styles": "^2.2.5",
         "vlucas/phpdotenv": "^5.6.1",
         "voku/portable-ascii": "^2.0.2",
@@ -233,6 +237,7 @@
         "hypervel/horizon": "self.version",
         "hypervel/http": "self.version",
         "hypervel/inertia": "self.version",
+        "hypervel/json-schema": "self.version",
         "hypervel/jwt": "self.version",
         "hypervel/log": "self.version",
         "hypervel/macroable": "self.version",
@@ -291,11 +296,11 @@
         "pusher/pusher-php-server": "^7.2",
         "resend/resend-php": "^1.0",
         "swoole/ide-helper": "^6.0.2",
-        "symfony/filesystem": "^8.0",
-        "symfony/http-client": "^8.0",
-        "symfony/mailgun-mailer": "^8.0",
-        "symfony/postmark-mailer": "^8.0",
-        "symfony/yaml": "^8.0.12",
+        "symfony/filesystem": "^8.1",
+        "symfony/http-client": "^8.1",
+        "symfony/mailgun-mailer": "^8.1",
+        "symfony/postmark-mailer": "^8.1",
+        "symfony/yaml": "^8.1",
         "typesense/typesense-php": "^5.2"
     },
     "config": {
@@ -323,7 +328,7 @@
                 "Hypervel\\Hashing\\HashingServiceProvider",
                 "Hypervel\\Http\\HttpServiceProvider",
                 "Hypervel\\Inertia\\InertiaServiceProvider",
-                "Hypervel\\JWT\\JWTServiceProvider",
+                "Hypervel\\Jwt\\JwtServiceProvider",
                 "Hypervel\\Log\\Context\\ContextServiceProvider",
                 "Hypervel\\Log\\LogServiceProvider",
                 "Hypervel\\Mail\\MailServiceProvider",
@@ -363,7 +368,13 @@
     },
     "scripts": {
         "test": "phpunit",
-        "test:parallel": "php bin/paratest",
+        "test:parallel": "paratest",
+        "test:testbench": "php src/testbench/bin/testbench package:test --parallel tests/Testbench",
+        "test:dogfood": [
+            "Composer\\Config::disableProcessTimeout",
+            "composer --working-dir=dogfood/testbench-package install --prefer-dist -n -o",
+            "composer --working-dir=dogfood/testbench-package test"
+        ],
         "analyse": [
             "phpstan analyse",
             "phpstan analyse -c phpstan.types.neon.dist"
@@ -373,13 +384,17 @@
         "facade": "php -f src/facade-documenter/facade.php --",
         "check": [
             "@test",
+            "@test:testbench",
+            "@test:dogfood",
             "@analyse",
             "@lint"
         ],
         "fix": [
             "@lint:fix",
             "@analyse",
-            "@test:parallel"
+            "@test:parallel",
+            "@test:testbench",
+            "@test:dogfood"
         ]
     },
     "minimum-stability": "dev",

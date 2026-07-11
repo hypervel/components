@@ -16,6 +16,7 @@ use Hypervel\Mail\Transport\CloudflareTransport;
 use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Mail\Transport\ResendTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Arr;
 use Hypervel\Support\ConfigurationUrlParser;
@@ -45,6 +46,13 @@ class MailManager implements FactoryContract
     use HasPoolProxy;
 
     /**
+     * Mailer-level keys that do not affect built-in transport construction.
+     */
+    protected const TRANSPORT_PRESENTATION_KEYS = [
+        'from', 'reply_to', 'return_path', 'to', 'name', 'pool',
+    ];
+
+    /**
      * The config instance.
      */
     protected Repository $config;
@@ -58,11 +66,6 @@ class MailManager implements FactoryContract
      * The registered custom driver creators.
      */
     protected array $customCreators = [];
-
-    /**
-     * The pool proxy class.
-     */
-    protected string $poolProxyClass = TransportPoolProxy::class;
 
     /**
      * The array of drivers which will be wrapped as pool proxies.
@@ -122,16 +125,13 @@ class MailManager implements FactoryContract
             throw new InvalidArgumentException("Mailer [{$name}] is not defined.");
         }
 
-        $transport = $config['transport'];
-        $hasPool = in_array($transport, $this->poolables, true);
-
         // Once we have created the mailer instance we will set a container instance
         // on the mailer. This allows us to resolve mailer classes via containers
         // for maximum testability on said classes instead of passing Closures.
         $mailer = new Mailer(
             $name,
             $this->app['view'],
-            $this->createSymfonyTransport($config, $hasPool ? $name : null),
+            $this->createMailerTransport($config, [$name], poolByDefault: true),
             $this->app['events']
         );
 
@@ -151,15 +151,13 @@ class MailManager implements FactoryContract
 
     /**
      * Build a new mailer instance.
-     *
-     * @TODO Implement transport pooling for on-demand mailers — see POOL-AND-MAIL-POOLING.md
      */
     public function build(array $config): Mailer
     {
         $mailer = new Mailer(
             $config['name'] ?? 'ondemand',
             $this->app['view'],
-            $this->createSymfonyTransport($config),
+            $this->createMailerTransport($config),
             $this->app['events']
         );
 
@@ -175,36 +173,231 @@ class MailManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    public function createSymfonyTransport(array $config, ?string $poolName = null): TransportInterface
+    public function createSymfonyTransport(array $config): TransportInterface
+    {
+        return $this->createSymfonyTransportFromConstructionConfig(
+            $this->transportConstructionConfig($config)
+        );
+    }
+
+    /**
+     * Create a pooled or direct transport for a mailer.
+     *
+     * @param list<string> $mailerStack
+     */
+    protected function createMailerTransport(
+        array $config,
+        array $mailerStack = [],
+        bool $poolByDefault = false,
+    ): TransportInterface {
+        $constructionConfig = $this->transportConstructionConfig($config, $mailerStack);
+        $transport = $constructionConfig['transport'];
+        $poolConfig = $this->transportPoolConfig($transport, $config, $poolByDefault);
+
+        if ($poolConfig === null) {
+            return $this->createSymfonyTransportFromConstructionConfig($constructionConfig);
+        }
+
+        return $this->createPoolProxy(
+            $transport,
+            fn () => $this->createSymfonyTransportFromConstructionConfig($constructionConfig),
+            $this->poolDefinition($transport, $poolConfig, $constructionConfig),
+            TransportPoolProxy::class,
+        );
+    }
+
+    /**
+     * Resolve whether and how a mail transport should be pooled.
+     */
+    protected function transportPoolConfig(string $transport, array $config, bool $poolByDefault): ?array
+    {
+        if (! array_key_exists('pool', $config)) {
+            return $poolByDefault && in_array($transport, $this->poolables, true) ? [] : null;
+        }
+
+        $pool = $config['pool'];
+
+        if ($pool === false) {
+            return null;
+        }
+
+        if ($pool === true) {
+            $pool = [];
+        } elseif (! is_array($pool)) {
+            throw new InvalidArgumentException(
+                'Mail transport pool configuration must be false, true, or an array of pool options.'
+            );
+        }
+
+        if (! in_array($transport, $this->poolables, true)) {
+            throw new InvalidArgumentException("Mail transport [{$transport}] is not registered as poolable.");
+        }
+
+        return $pool;
+    }
+
+    /**
+     * Create a transport from its fully resolved construction config.
+     */
+    protected function createSymfonyTransportFromConstructionConfig(array $config): TransportInterface
     {
         $transport = $config['transport'];
 
         if (isset($this->customCreators[$transport])) {
-            if (! is_null($poolName)) {
-                return $this->createPoolProxy(
-                    $poolName,
-                    fn () => call_user_func($this->customCreators[$transport], $config),
-                    $config['pool'] ?? []
-                );
-            }
             return call_user_func($this->customCreators[$transport], $config);
         }
 
-        if (trim($transport ?? '') === ''
-            || ! method_exists($this, $method = 'create' . ucfirst(Str::camel($transport)) . 'Transport')
+        $method = 'create' . ucfirst(Str::camel($transport)) . 'Transport';
+
+        return $this->{$method}($config);
+    }
+
+    /**
+     * Resolve the exact configuration consumed to construct a transport.
+     *
+     * @param list<string> $mailerStack
+     * @return array{transport: string, ...}
+     */
+    protected function transportConstructionConfig(array $config, array $mailerStack = []): array
+    {
+        $transport = $config['transport'] ?? null;
+
+        if (! is_string($transport)
+            || trim($transport) === ''
+            || (! isset($this->customCreators[$transport])
+                && ! method_exists($this, 'create' . ucfirst(Str::camel($transport)) . 'Transport'))
         ) {
-            throw new InvalidArgumentException("Unsupported mail transport [{$transport}].");
+            throw new InvalidArgumentException('Unsupported mail transport [' . (is_scalar($transport) ? $transport : '') . '].');
         }
 
-        if (! is_null($poolName)) {
-            return $this->createPoolProxy(
-                $poolName,
-                fn () => $this->{$method}($config),
-                $config['pool'] ?? []
+        if (isset($this->customCreators[$transport])) {
+            return Arr::except($config, ['pool']);
+        }
+
+        $config = Arr::except($config, self::TRANSPORT_PRESENTATION_KEYS);
+
+        return match ($transport) {
+            'sendmail' => [
+                'transport' => $transport,
+                'path' => $config['path'] ?? $this->config->get('mail.sendmail'),
+            ],
+            'ses-v2' => array_merge(
+                $this->config->array('services.ses', []),
+                ['version' => 'latest'],
+                $config,
+            ),
+            'resend' => [
+                'transport' => $transport,
+                'key' => $config['key'] ?? $this->config->get('services.resend.key'),
+            ],
+            'cloudflare' => [
+                'transport' => $transport,
+                'account_id' => $config['account_id']
+                    ?? $this->config->get('services.cloudflare.account_id'),
+                'token' => $config['token']
+                    ?? $config['key']
+                    ?? $this->config->get('services.cloudflare.token')
+                    ?? $this->config->get('services.cloudflare.key'),
+                ...$this->httpClientConstructionConfig($config),
+            ],
+            'mailgun' => $this->mailgunTransportConstructionConfig($config),
+            'postmark' => [
+                'transport' => $transport,
+                'token' => $config['token']
+                    ?? $config['key']
+                    ?? $this->config->get('services.postmark.token')
+                    ?? $this->config->get('services.postmark.key'),
+                ...(isset($config['message_stream_id'])
+                    ? ['message_stream_id' => $config['message_stream_id']]
+                    : []),
+                ...$this->httpClientConstructionConfig($config),
+            ],
+            'failover', 'roundrobin' => $this->compositeTransportConstructionConfig(
+                $transport,
+                $config,
+                $mailerStack,
+            ),
+            'log' => [
+                'transport' => $transport,
+                'channel' => $config['channel'] ?? $this->config->get('mail.log_channel'),
+            ],
+            'mail', 'array' => ['transport' => $transport],
+            default => $config,
+        };
+    }
+
+    /**
+     * Resolve Mailgun's credential and HTTP-client construction config.
+     *
+     * @return array{transport: string, scheme: mixed, endpoint: mixed, secret: mixed, domain: mixed, ...}
+     */
+    protected function mailgunTransportConstructionConfig(array $config): array
+    {
+        $credentials = isset($config['secret'])
+            ? $config
+            : $this->config->array('services.mailgun', []);
+
+        return [
+            'transport' => 'mailgun',
+            'scheme' => $credentials['scheme'] ?? 'https',
+            'endpoint' => $credentials['endpoint'] ?? 'default',
+            'secret' => $credentials['secret'] ?? null,
+            'domain' => $credentials['domain'] ?? null,
+            ...$this->httpClientConstructionConfig($config),
+        ];
+    }
+
+    /**
+     * Resolve a composite transport's ordered child construction configs.
+     *
+     * @param list<string> $mailerStack
+     * @return array{transport: string, mailers: list<array{transport: string, ...}>, retry_after: mixed}
+     */
+    protected function compositeTransportConstructionConfig(
+        string $transport,
+        array $config,
+        array $mailerStack,
+    ): array {
+        $mailers = [];
+
+        foreach ($config['mailers'] as $name) {
+            if (! is_string($name) || trim($name) === '') {
+                throw new InvalidArgumentException('Composite mailer transports require non-empty mailer names.');
+            }
+
+            if (($cycleStart = array_search($name, $mailerStack, true)) !== false) {
+                $cycle = [...array_slice($mailerStack, $cycleStart), $name];
+
+                throw new InvalidArgumentException(
+                    'Circular mailer transport definition detected: ' . implode(' -> ', $cycle) . '.'
+                );
+            }
+
+            $childConfig = $this->getConfig($name);
+
+            if (is_null($childConfig)) {
+                throw new InvalidArgumentException("Mailer [{$name}] is not defined.");
+            }
+
+            $mailers[] = $this->transportConstructionConfig(
+                $childConfig,
+                [...$mailerStack, $name],
             );
         }
 
-        return $this->{$method}($config);
+        return [
+            'transport' => $transport,
+            'mailers' => $mailers,
+            'retry_after' => $config['retry_after'] ?? 60,
+        ];
+    }
+
+    /**
+     * Extract HTTP-client options that affect transport construction.
+     */
+    protected function httpClientConstructionConfig(array $config): array
+    {
+        return ($config['client'] ?? false) ? ['client' => $config['client']] : [];
     }
 
     /**
@@ -258,9 +451,7 @@ class MailManager implements FactoryContract
      */
     protected function createSendmailTransport(array $config): SendmailTransport
     {
-        return new SendmailTransport(
-            $config['path'] ?? $this->config->get('mail.sendmail')
-        );
+        return new SendmailTransport($config['path']);
     }
 
     /**
@@ -268,12 +459,6 @@ class MailManager implements FactoryContract
      */
     protected function createSesV2Transport(array $config): SesV2Transport
     {
-        $config = array_merge(
-            $this->config->array('services.ses', []),
-            ['version' => 'latest'],
-            $config
-        );
-
         $config = Arr::except($config, ['transport']);
 
         return new SesV2Transport(
@@ -303,9 +488,7 @@ class MailManager implements FactoryContract
      */
     protected function createResendTransport(array $config): ResendTransport
     {
-        return new ResendTransport(
-            Resend::client($config['key'] ?? $this->config->get('services.resend.key')),
-        );
+        return new ResendTransport(Resend::client($config['key']));
     }
 
     /**
@@ -314,12 +497,8 @@ class MailManager implements FactoryContract
     protected function createCloudflareTransport(array $config): CloudflareTransport
     {
         return new CloudflareTransport(
-            $config['account_id']
-                ?? $this->config->get('services.cloudflare.account_id'),
-            $config['token']
-                ?? $config['key']
-                ?? $this->config->get('services.cloudflare.token')
-                ?? $this->config->get('services.cloudflare.key'),
+            $config['account_id'],
+            $config['token'],
             $this->getHttpClient($config),
         );
     }
@@ -340,14 +519,10 @@ class MailManager implements FactoryContract
         /* @phpstan-ignore-next-line */
         $factory = new MailgunTransportFactory(null, $this->getHttpClient($config));
 
-        if (! isset($config['secret'])) {
-            $config = $this->config->array('services.mailgun', []);
-        }
-
         /* @phpstan-ignore-next-line */
         return $factory->create(new Dsn(
-            'mailgun+' . ($config['scheme'] ?? 'https'),
-            $config['endpoint'] ?? 'default',
+            'mailgun+' . $config['scheme'],
+            $config['endpoint'],
             $config['secret'],
             $config['domain']
         ));
@@ -367,10 +542,7 @@ class MailManager implements FactoryContract
         return $factory->create(new Dsn( // @phpstan-ignore return.type
             'postmark+api',
             'default',
-            $config['token']
-                ?? $config['key']
-                ?? $this->config->get('services.postmark.token')
-                ?? $this->config->get('services.postmark.key'),
+            $config['token'],
             null,
             null,
             $options
@@ -407,14 +579,8 @@ class MailManager implements FactoryContract
     {
         $transports = [];
 
-        foreach ($config['mailers'] as $name) {
-            $config = $this->getConfig($name);
-
-            if (is_null($config)) {
-                throw new InvalidArgumentException("Mailer [{$name}] is not defined.");
-            }
-
-            $transports[] = $this->createSymfonyTransport($config);
+        foreach ($config['mailers'] as $childConfig) {
+            $transports[] = $this->createSymfonyTransportFromConstructionConfig($childConfig);
         }
 
         return new $class($transports, $config['retry_after'] ?? 60, $this->app->make(LoggerInterface::class));
@@ -428,9 +594,7 @@ class MailManager implements FactoryContract
         $logger = $this->app->make(LoggerInterface::class);
 
         if ($logger instanceof LogManager) {
-            $logger = $logger->channel(
-                $config['channel'] ?? $this->app['config']->get('mail.log_channel')
-            );
+            $logger = $logger->channel($config['channel']);
         }
 
         return new LogTransport($logger);
@@ -473,7 +637,7 @@ class MailManager implements FactoryContract
         $address = Arr::get($config, $type, $this->config->get('mail.' . $type));
 
         if (is_array($address) && isset($address['address'])) {
-            $mailer->{'always' . Str::studly($type)}($address['address'], $address['name']);
+            $mailer->{'always' . Str::studly($type)}($address['address'], $address['name'] ?? null);
         }
     }
 
@@ -491,6 +655,14 @@ class MailManager implements FactoryContract
         }
 
         return $config;
+    }
+
+    /**
+     * Get the shared object-pool factory.
+     */
+    protected function poolFactory(): PoolFactory
+    {
+        return $this->app->make(PoolFactory::class);
     }
 
     /**
@@ -512,17 +684,47 @@ class MailManager implements FactoryContract
     }
 
     /**
-     * Disconnect the given mailer and remove from local cache.
+     * Disconnect the given mailer and close its shared transport pool.
      *
-     * Boot or tests only. Mutates the singleton's mailer cache; concurrent
-     * coroutines may already hold a reference to the mailer and next
-     * resolution will rebuild with fresh transports.
+     * Boot or tests only, plus operational recovery of broken pooled
+     * resources. Other mailers sharing the pool transparently acquire a fresh
+     * pool on their next operation.
      */
     public function purge(?string $name = null): void
     {
         $name = $name ?: $this->getDefaultDriver();
+        $mailer = $this->mailers[$name] ?? null;
 
         unset($this->mailers[$name]);
+
+        if ($mailer !== null) {
+            $transport = $mailer->getSymfonyTransport();
+
+            if ($transport instanceof TransportPoolProxy) {
+                $transport->invalidatePool();
+            }
+
+            return;
+        }
+
+        $config = $this->getConfig($name);
+
+        if (is_null($config)) {
+            return;
+        }
+
+        $constructionConfig = $this->transportConstructionConfig($config, [$name]);
+        $transport = $constructionConfig['transport'];
+
+        if (($poolConfig = $this->transportPoolConfig($transport, $config, poolByDefault: true)) !== null) {
+            $definition = $this->poolDefinition(
+                $transport,
+                $poolConfig,
+                $constructionConfig,
+            );
+
+            $this->poolFactory()->remove($definition->identity);
+        }
     }
 
     /**
@@ -569,9 +771,8 @@ class MailManager implements FactoryContract
     /**
      * Forget all of the resolved mailer instances.
      *
-     * Boot or tests only. Clears the singleton's mailer cache; concurrent
-     * coroutines may already hold references that next resolution will not
-     * share.
+     * Boot or tests only. This is cache-only: pooled transports remain shared
+     * resources until purged or reclaimed by their idle TTL.
      */
     public function forgetMailers(): static
     {

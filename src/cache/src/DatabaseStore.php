@@ -374,6 +374,14 @@ class DatabaseStore implements CanFlushLocks, LockProvider, Store
     }
 
     /**
+     * Determine if the store can currently flush locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
+        return $this->hasSeparateLockStore();
+    }
+
+    /**
      * Remove all locks from the store.
      *
      * @throws RuntimeException

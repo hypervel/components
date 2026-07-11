@@ -26,21 +26,21 @@ class ScalingMultiWorkerTest extends MultiWorkerTestCase
         // If the scaling+multi-worker duplicate delivery bug exists,
         // clients would receive it twice (once from Redis, once from
         // the erroneous pipe fan-out of the Redis-delivered message).
-        foreach ($result['connections'] as $conn) {
-            $messages = $this->recvAll($conn['client'], 1);
+        foreach ($result['connections'] as $connection) {
+            $message = $this->receiveEvent($connection['client'], 'App\Events\TestEvent');
+            $this->assertNotNull($message, 'Client on worker ' . $connection['workerId'] . ' did not receive broadcast');
+
+            $messages = $this->receiveMatchingEvents($connection['client'], 'App\Events\TestEvent', 1);
 
             $this->assertCount(
-                1,
+                0,
                 $messages,
-                'Client on worker ' . $conn['workerId'] . ' received ' . count($messages) . ' messages instead of 1'
+                'Client on worker ' . $connection['workerId'] . ' received ' . (count($messages) + 1) . ' messages instead of 1'
             );
-
-            $decoded = json_decode($messages[0], associative: true);
-            $this->assertSame('App\Events\TestEvent', $decoded['event']);
         }
 
-        foreach ($result['connections'] as $conn) {
-            $this->disconnect($conn['client']);
+        foreach ($result['connections'] as $connection) {
+            $this->disconnect($connection['client']);
         }
     }
 
@@ -60,19 +60,15 @@ class ScalingMultiWorkerTest extends MultiWorkerTestCase
             'user_info' => ['name' => 'Joiner'],
         ]);
 
-        // Observer should receive member_added exactly once
-        $messages = $this->recvAll($observer['client'], 1);
+        // Observer should receive member_added exactly once.
+        $message = $this->receiveMemberAdded($observer['client'], 'joiner');
+        $this->assertNotNull($message, 'Observer did not receive member_added for joiner');
 
-        $memberAdded = array_filter($messages, function ($msg) {
-            $decoded = json_decode($msg, associative: true);
-
-            return ($decoded['event'] ?? null) === 'pusher_internal:member_added';
-        });
-
+        $messages = $this->receiveMemberAddedEvents($observer['client'], 'joiner');
         $this->assertCount(
-            1,
-            $memberAdded,
-            'Observer received ' . count($memberAdded) . ' member_added messages instead of 1'
+            0,
+            $messages,
+            'Observer received ' . (count($messages) + 1) . ' member_added messages instead of 1'
         );
 
         $this->disconnect($observer['client']);

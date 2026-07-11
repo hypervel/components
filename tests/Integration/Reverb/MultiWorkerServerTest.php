@@ -24,16 +24,13 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
         // ALL clients should receive the broadcast — including those on
         // a different worker from the one that handled the HTTP trigger.
         // This proves ChannelBroadcastPipeMessage fan-out is working.
-        foreach ($result['connections'] as $conn) {
-            $data = $this->recv($conn['client'], 2);
-            $this->assertNotNull($data, 'Client on worker ' . $conn['workerId'] . ' did not receive broadcast');
-
-            $decoded = json_decode($data, associative: true);
-            $this->assertSame('App\Events\TestEvent', $decoded['event']);
+        foreach ($result['connections'] as $connection) {
+            $message = $this->receiveEvent($connection['client'], 'App\Events\TestEvent');
+            $this->assertNotNull($message, 'Client on worker ' . $connection['workerId'] . ' did not receive broadcast');
         }
 
-        foreach ($result['connections'] as $conn) {
-            $this->disconnect($conn['client']);
+        foreach ($result['connections'] as $connection) {
+            $this->disconnect($connection['client']);
         }
     }
 
@@ -82,10 +79,8 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
         ]);
 
         // Observer should receive member_added via pipe fan-out (cross-worker)
-        $msg = $this->recv($observer['client'], 3);
-        $this->assertNotNull($msg, 'Observer did not receive member_added for user-2');
-        $decoded = json_decode($msg, associative: true);
-        $this->assertSame('pusher_internal:member_added', $decoded['event']);
+        $message = $this->receiveMemberAdded($observer['client'], 'user-2');
+        $this->assertNotNull($message, 'Observer did not receive member_added for user-2');
 
         // Third client with SAME user_id=2 — observer should NOT get another member_added
         $duplicate = $this->connect();
@@ -94,8 +89,8 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
             'user_info' => ['name' => 'User 2 again'],
         ]);
 
-        $msg = $this->recv($observer['client'], 1);
-        $this->assertNull($msg, 'Observer received duplicate member_added for same user');
+        $messages = $this->receiveMemberAddedEvents($observer['client'], 'user-2');
+        $this->assertCount(0, $messages, 'Observer received duplicate member_added for same user');
 
         $this->disconnect($observer['client']);
         $this->disconnect($joiner['client']);
@@ -124,24 +119,21 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
             'user_info' => ['name' => 'User 2 again'],
         ]);
 
-        // Drain the member_added from observer
-        $this->recv($observer['client'], 1);
+        // Drain the member_added from observer.
+        $message = $this->receiveMemberAdded($observer['client'], 'user-2');
+        $this->assertNotNull($message, 'Observer did not receive member_added for user-2');
 
         // Disconnect first client — member_removed should NOT fire (user still connected)
         $this->disconnect($clientA['client']);
-        usleep(200_000);
 
-        $msg = $this->recv($observer['client'], 1);
-        $this->assertNull($msg, 'Observer received premature member_removed');
+        $messages = $this->receiveMemberRemovedEvents($observer['client'], 'user-2');
+        $this->assertCount(0, $messages, 'Observer received premature member_removed');
 
         // Disconnect second client — NOW member_removed fires
         $this->disconnect($clientB['client']);
-        usleep(200_000);
 
-        $msg = $this->recv($observer['client'], 2);
-        $this->assertNotNull($msg, 'Observer did not receive member_removed');
-        $decoded = json_decode($msg, associative: true);
-        $this->assertSame('pusher_internal:member_removed', $decoded['event']);
+        $message = $this->receiveMemberRemoved($observer['client'], 'user-2');
+        $this->assertNotNull($message, 'Observer did not receive member_removed');
 
         $this->disconnect($observer['client']);
     }
@@ -158,19 +150,17 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
         // Disconnect one client
         $first = array_shift($result['connections']);
         $this->disconnect($first['client']);
-        usleep(200_000);
 
-        $count = $this->readSharedState("sub:{$this->appId}:test-sub-count-mw");
+        $count = $this->waitForSharedState("sub:{$this->appId}:test-sub-count-mw", $totalClients - 1);
         $this->assertSame($totalClients - 1, $count);
 
         // Disconnect all remaining
-        foreach ($result['connections'] as $conn) {
-            $this->disconnect($conn['client']);
+        foreach ($result['connections'] as $connection) {
+            $this->disconnect($connection['client']);
         }
-        usleep(200_000);
 
         // Counter should be gone (key deleted when count reaches 0)
-        $count = $this->readSharedState("sub:{$this->appId}:test-sub-count-mw");
+        $count = $this->waitForSharedState("sub:{$this->appId}:test-sub-count-mw", null);
         $this->assertNull($count);
     }
 
@@ -186,22 +176,16 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
         $this->assertSame(200, $httpClient->getStatusCode());
         $httpClient->close();
 
-        usleep(200_000);
-
         // At least one client should still be connected (on the other worker).
         // Trigger a broadcast and check who receives it.
         $this->triggerEvent('test-drain-mw', 'App\Events\DrainTest', ['after' => 'drain']);
 
         $receivedCount = 0;
-        foreach ($result['connections'] as $conn) {
-            $data = $this->recv($conn['client'], 1);
+        foreach ($result['connections'] as $connection) {
+            $message = $this->receiveEvent($connection['client'], 'App\Events\DrainTest', 1);
 
-            if ($data !== null) {
-                $decoded = json_decode($data, associative: true);
-
-                if (($decoded['event'] ?? null) === 'App\Events\DrainTest') {
-                    ++$receivedCount;
-                }
+            if ($message !== null) {
+                ++$receivedCount;
             }
         }
 
@@ -211,8 +195,8 @@ class MultiWorkerServerTest extends MultiWorkerTestCase
         // But not all clients should have received it (the drained ones are gone)
         $this->assertLessThan(count($result['connections']), $receivedCount, 'All clients received broadcast — drain may not have worked');
 
-        foreach ($result['connections'] as $conn) {
-            @$conn['client']->close();
+        foreach ($result['connections'] as $connection) {
+            @$connection['client']->close();
         }
     }
 }

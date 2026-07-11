@@ -38,6 +38,7 @@ Testbench and workbench:
 
 | Path | Description |
 |------|-------------|
+| `src/boost/docs/` | Hypervel documentation. |
 | `src/testbench/` | Hypervel's testbench package (port of `orchestra/testbench`). Contains `TestCase`, attributes (`WithConfig`, `WithMigration`), and bootstrap logic. Part of the monorepo, not a vendor dependency. |
 | `src/testbench/hypervel/` | Committed Hypervel app skeleton. On bootstrap, testbench clones this to a disposable temp directory (`/tmp/hypervel-components-testbench-{token}-{pid}/`) and points `BASE_PATH` at the clone — tests that write files under `BASE_PATH` (generated providers, migrations, fixtures, etc.) hit the temp copy, not this committed path. The clone is deleted on shutdown and stale copies from crashed runs are cleaned up. Testbench also exports `TESTBENCH_BASE_PATH` so subprocesses can locate the active runtime. |
 | `src/testbench/workbench/` | Committed shared test fixtures (NOT cloned). Subdirs are psr-4-mapped from the monorepo root as `Workbench\App\*`, `Workbench\Database\Factories\*`, `Workbench\Database\Seeders\*` so multiple tests can reuse the same models/factories/seeders without redefining them. Not the runtime app — that's the disposable clone of `src/testbench/hypervel/`. |
@@ -80,7 +81,11 @@ After porting is complete, run phpstan on the newly ported package and fix error
 
 #### 5. Run the full test suite
 
-**Always use `composer test:parallel`** to run the test suite. This invokes `bin/paratest` via a custom wrapper that configures per-worker isolation. Running `vendor/bin/paratest` directly bypasses this setup and will cause failures.
+**Always use `composer test:parallel`** to run the full components test suite. This runs raw ParaTest with Hypervel's parallel testing flag supplied by `phpunit.xml.dist`.
+
+**Always use `composer test:testbench`** after Testbench changes. This runs the scoped Testbench package-mode contract suite through the real `package:test` command.
+
+ParaTest defaults to the machine CPU count when no process count is specified. Redis integration runs need `REDIS_TEST_DB_MIN` / `REDIS_TEST_DB_MAX` to cover the chosen worker count, or an explicit `--processes` / `-p` value that fits the configured range.
 
 Investigate all failures thoroughly — don't assume a failure is caused by the porting work without confirming it. For straightforward fixes (e.g. a missed namespace update), fix and continue. For anything more complex (behavioral changes, test logic issues, unclear root causes), STOP and explain the cause along with your recommended fix for approval.
 
@@ -93,9 +98,12 @@ Investigate all failures thoroughly — don't assume a failure is caused by the 
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write new version → delete old version.
 - **`cp` files THEN read them** — when porting a new file, copy it first, then read the copied file in full. Reading the source before copying wastes context because you end up reading it twice.
 - **Preserve source constant/property/method order when merging** — when porting/merging methods into an existing Hypervel class, insert them at the same relative order as they appear in the upstream source. This keeps diffs against upstream meaningful and makes future merges easier.
+- **Use `jsonb()` for JSON columns** — prefer `$table->jsonb()` over `$table->json()` in migrations. PostgreSQL gets real `jsonb`; other supported databases compile it to their compatible JSON/text storage.
+- **Guard optional event dispatches with `hasListeners()`** — before constructing and dispatching framework events, guard them with `hasListeners()` so hot paths skip event overhead when nobody is listening. Do not guard dispatches where dispatching is the side effect, such as jobs, broadcasts, webhooks, or command bus calls.
+- **Use `resolve...Using` for Hypervel-owned config resolvers** — prefer this naming for callbacks that resolve config-derived values, unless an established Laravel domain convention already exists, such as `redirectUsing()`.
 - **Import classes, don't use FQCNs** — always add a `use` statement and reference the short name. The only exceptions are places where FQCNs genuinely make more sense, such as middleware arrays and similar config-style identifier lists.
 - **No class docblocks unless warranted** — only add a class-level docblock if something unusual or complex needs explanation. Method docblocks (title only, Laravel-style) are always added. A body can accompany the title for complex methods that need further explanation.
-- **Don't make classes final by default** — keep classes open; add `final` ONLY for a specific reason — e.g. subclassing is inert (a fully-static facade), or would break an invariant (immutability, coroutine-safety, a security guarantee) — never as a blanket modernization.
+- **Don't make classes final by default** — keep classes open; add `final` only when it protects a real invariant or avoids a concrete framework/API problem, e.g. immutability, coroutine-safety, or a security guarantee.
 - **Preserve existing comments** - use the following rules for upstream code comments and docblocks:
   Do not remove or modify upstream code comments unless they are incorrect. 
   Only remove `@param` and `@return` annotations where the description adds nothing beyond what the native type hint and parameter/method name already convey.
@@ -572,11 +580,15 @@ Examples: `tests/Inertia/CoroutineIsolationTest.php`, `tests/Container/Coroutine
 
 #### Static State and Test Cleanup
 
-`AfterEachTestSubscriber` handles global static state cleanup between tests. It calls `flushState()` on framework classes that accumulate static state (Mockery, HandleExceptions, Carbon, Number, Eloquent Model, Paginator, etc.). **Never add cleanup for these in `tearDown()`** — it's already handled. Testbench-specific flush helpers are not the global cleanup registry.
+`AfterEachTestSubscriber` handles global cleanup between tests. It calls `flushState()` on framework classes that hold static state, and resets the container itself — `Container::flushState()` + `setInstance(null)` — plus `CoroutineContext::flush()`, with each test in a fresh coroutine. So container singleton/auto-singleton instance state and coroutine context don't leak between tests; only `static`/process-global state and live external resources need package cleanup, not mutable state on a container-cached instance. **Never add cleanup in `tearDown()`** — it's handled. `AfterEachTestSubscriber` is the one authoritative registry; don't register cleanup elsewhere.
 
 When porting source classes that use static properties for caching (e.g., `$booted`, `$globalScopes`, resolved config values, compiled formats):
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
-2. Check whether the subscriber (`tests/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
+2. Check whether the subscriber (`src/testing/src/PHPUnit/AfterEachTestSubscriber.php`) should call it — if the cached state could leak between tests and cause failures, add the call
+
+Framework-owned classes go in `AfterEachTestSubscriber`. First-party optional framework packages may stay in grouped optional methods at the bottom of that subscriber. Third-party packages, private packages, and applications should register their cleanup through `extra.hypervel.test-state` and a `TestState` registrar instead of hardcoding their classes into the framework subscriber.
+
+Do not add `Hypervel\Testing\PHPUnit\AfterEachTestCleanup` itself to `AfterEachTestSubscriber`. Its callbacks are suite-level registrations that must persist for the PHPUnit worker lifetime.
 
 Place `flushState()` at the end of the class. The only exception is when the class has trailing magic dispatch/lifecycle methods (`__call`, `__callStatic`, `__get`, `__set`, `__isset`, `__unset`, `__destruct`) at the end; in that case, place `flushState()` immediately before that trailing magic-method block. `__invoke()` is not a placement anchor.
 
@@ -592,7 +604,7 @@ Do not add `Boot-only.`, `Tests only.`, or `Boot or tests only.` warning paragra
 
 Keep the docblock to the title only — no extra paragraphs. If the method body has a non-obvious WHY worth explaining (ordering constraints, late-static-binding subtleties, etc.), put it as an inline comment above the relevant line inside the method, not as an extra paragraph under the title.
 
-When the property's initial value and `flushState()`'s reset value share a literal (a number, string, class name, etc.), extract it to a `DEFAULT_*` class constant and reference it from both sides — this prevents drift if the default ever changes. Make the constant `public` only if tests or external callers reference it; otherwise `protected`.
+When the property's initial value and `flushState()`'s reset value share a literal (a number, string, class name, etc.), extract it to a `DEFAULT_*` class constant and reference it from both sides — this prevents drift if the default ever changes. Make the constant `public` only if tests or external callers reference it; otherwise `protected`. Nullable lazy caches and callback slots are exempt: `null` there is the structural "not yet computed" sentinel required by the `??=` pattern, not a configurable default — initialize and reset with a literal `null`, no constant.
 
 ```php
 public const DEFAULT_TRUNCATE_AT = 120;
@@ -914,20 +926,31 @@ This applies to tests ported from **both** Hyperf and Laravel.
 
 Tests that require external services (databases, Redis, HTTP servers, search engines) that can't run in every environment go in `tests/Integration/{PackageName}/`. The exception is tests that call freely-available external APIs (e.g., the Guzzle tests hitting the public Pokemon API) — those can stay in regular `tests/` since they work everywhere.
 
-#### Skip Traits
+#### External Service Test Traits
 
-Each external service has a corresponding trait that auto-skips tests when the service isn't reachable:
+Integration tests that use an external service must use that service's test trait.
 
 | Trait | Service | Key Env Vars |
 |-------|---------|-------------|
 | `InteractsWithRedis` | Redis/Valkey | `REDIS_HOST`, `REDIS_PORT` |
-| `InteractsWithServer` | Engine test servers (HTTP, TCP, WebSocket, HTTP/2) | `ENGINE_TEST_SERVER_HOST` |
+| `InteractsWithMeilisearch` | Meilisearch | `MEILISEARCH_HOST`, `MEILISEARCH_PORT`, `MEILISEARCH_KEY` |
+| `InteractsWithTypesense` | Typesense | `TYPESENSE_HOST`, `TYPESENSE_PORT`, `TYPESENSE_API_KEY`, `TYPESENSE_PROTOCOL` |
+| `InteractsWithAlgolia` | Algolia | `ALGOLIA_APP_ID`, `ALGOLIA_SECRET` |
+| `InteractsWithServer` | Engine test servers (HTTP, TCP, WebSocket, HTTP/2) | `TEST_SERVER_HOST` |
 
-These traits follow a consistent pattern: try to connect, skip with defaults if unavailable, fail if explicit config is set but unreachable (misconfiguration). When porting integration tests for a new service type, create a new trait following this same pattern.
+This applies whether the test calls the service directly or reaches it through the package code under test.
+
+These traits are required for external-service tests to work under ParaTest. Parallel workers share external services unless the trait isolates them. Tests that bypass the trait will leak state across workers and fail depending on timing.
+
+The traits handle service-specific setup and cleanup. For example, `InteractsWithRedis` assigns each ParaTest worker its own Redis database and flushes it before and after each test. This isolates the test keyspace without changing the Redis behavior being tested.
+
+If a service is not configured, the trait skips the test before connecting. If the service is configured but unreachable or misconfigured, the test fails.
+
+When adding integration tests for a new service type that has no trait yet, create one following this same pattern (per-worker isolation, skip-when-unconfigured, fail-when-unreachable).
 
 #### phpunit.xml.dist
 
-`tests/Integration/` is **not** excluded from `phpunit.xml.dist`. The skip traits handle graceful skipping when services aren't available. When services are available (CI or local with `.env`), the tests run normally.
+`tests/Integration/` is **not** excluded from `phpunit.xml.dist`. The skip traits handle graceful skipping when service env vars are not configured. When services are explicitly enabled (CI or local with `.env`), the tests run normally.
 
 #### GH Workflows
 

@@ -45,7 +45,7 @@ class RedisLockTest extends TestCase
         $redis->shouldReceive('setnx')
             ->once()
             ->with('lock:foo', m::type('string'))
-            ->andReturn(true);
+            ->andReturn(1);
 
         $lock = new RedisLock($redis, 'lock:foo', 0);
 
@@ -58,7 +58,7 @@ class RedisLockTest extends TestCase
         $redis->shouldReceive('setnx')
             ->once()
             ->with('lock:foo', m::type('string'))
-            ->andReturn(false);
+            ->andReturn(0);
 
         $lock = new RedisLock($redis, 'lock:foo', 0);
 

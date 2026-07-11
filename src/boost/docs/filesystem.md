@@ -209,10 +209,12 @@ If you need to configure a Google Cloud Storage filesystem manually, you may use
     'throw' => false,
     'stream_reads' => false,
     'pool' => [
-        'min_objects' => 1,
+        'min_retained_objects' => 1,
         'max_objects' => 10,
         'wait_timeout' => 3.0,
         'max_lifetime' => 60.0,
+        'max_idle_time' => 0.0,
+        'idle_ttl' => 300.0,
     ],
 ],
 ```
@@ -220,22 +222,64 @@ If you need to configure a Google Cloud Storage filesystem manually, you may use
 <a name="driver-pools"></a>
 ### Driver Pools
 
-The `s3` and `gcs` drivers are pooled by default, allowing Hypervel to safely reuse cloud storage driver instances across concurrent requests. You may configure the pool for these disks using the `pool` configuration option:
+The `s3` and `gcs` drivers pool their SDK clients by default. The bucket-specific Flysystem adapter stack is rebuilt around a borrowed client for each operation. This lets disks on the same cloud account share the expensive client pool even when their buckets, roots, visibility, or other disk behavior differ.
+
+Pool identity is derived from the exact normalized configuration passed to the SDK client constructor. Equivalent client configurations converge automatically, including repeated `Storage::build()` calls. Different credentials, regions, endpoints, or client options produce different pools.
+
+You may configure a pool using the disk's `pool` option:
 
 ```php
 's3' => [
     'driver' => 's3',
     // ...
     'pool' => [
-        'min_objects' => 1,
+        'min_retained_objects' => 1,
         'max_objects' => 10,
         'wait_timeout' => 3.0,
         'max_lifetime' => 60.0,
+        'max_idle_time' => 0.0,
+        'idle_ttl' => 300.0,
     ],
 ],
 ```
 
-The default pool settings are suitable for most applications, but you may tune them for workloads with high concurrent storage traffic, long-running uploads or downloads, or pool exhaustion errors. If all pooled objects are in use and no object becomes available before the configured `wait_timeout`, a `RuntimeException` will be thrown.
+`min_retained_objects` is an idle-trimming floor; it does not eagerly create clients. `max_lifetime` expires clients by absolute age, while `max_idle_time` trims individual idle clients. `idle_ttl` removes an entirely unused pool after 300 seconds by default; set it explicitly to `null` to disable whole-pool eviction. If all clients are in use and no capacity becomes available before `wait_timeout`, a `RuntimeException` is thrown.
+
+An explicit pool name may be useful when multiple configurations intentionally identify the same operational resource:
+
+```php
+'pool' => [
+    'name' => 'primary-s3',
+    'fingerprint' => 'primary-s3-credentials-v1',
+    'max_objects' => 20,
+],
+```
+
+An existing explicit name may only be reused with the same resource type, construction fingerprint, and normalized options. Mismatches fail immediately instead of silently sharing clients with different credentials. `pool.fingerprint` is also the required way to declare equivalence when SDK client configuration contains an object, closure, or resource that cannot be canonicalized automatically. For example, the Google Cloud SDK recommends a `credentialsFetcher` object instead of externally sourced `keyFile` configuration:
+
+```php
+'gcs' => [
+    'driver' => 'gcs',
+    'bucket' => 'documents',
+    'client' => [
+        'projectId' => 'example-project',
+        'credentialsFetcher' => $credentialsFetcher,
+    ],
+    'pool' => [
+        'fingerprint' => 'example-project-credentials-v1',
+    ],
+],
+```
+
+Pooled disks do not expose a borrowed SDK client, adapter, or Flysystem driver after its operation has finished. Use `withClient()`, `withAdapter()`, or `withDriver()` for raw access that remains inside the borrow:
+
+```php
+$result = Storage::disk('s3')->withClient(function ($client) {
+    return $client->listBuckets();
+});
+```
+
+`Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. Streams returned by `readStream()` retain their client lease until the stream is closed or destroyed.
 
 <a name="scoped-and-read-only-filesystems"></a>
 ### Scoped and Read-Only Filesystems
@@ -251,6 +295,23 @@ You may create a path scoped instance of any existing filesystem disk by definin
     'prefix' => 'path/to/videos',
 ],
 ```
+
+For a prefix that changes per request, user, team, or tenant, wrap an existing disk with `ScopedFilesystemProxy` or `ScopedCloudFilesystemProxy`. The resolver runs exactly once for each operation, so it may safely read coroutine-scoped context:
+
+```php
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Filesystem\ScopedCloudFilesystemProxy;
+use Hypervel\Support\Facades\Storage;
+
+$files = new ScopedCloudFilesystemProxy(
+    Storage::disk('s3'),
+    fn (): string => CoroutineContext::get('storage-prefix'),
+);
+
+$files->put('avatar.jpg', $contents);
+```
+
+Dynamic scoped filesystems fail closed when the resolved prefix is empty. Pass `allowRootPassthrough: true` to the constructor only when root access is intentional. Prefixes and user paths are normalized with Flysystem's path normalizer, traversal and control characters are rejected, and unknown methods are not forwarded because an unmapped call could bypass the scope. Percent-encoded segments are treated as literal file names; URL decoding belongs at the HTTP boundary.
 
 "Read-only" disks allow you to create filesystem disks that do not allow write operations. You may include the `read-only` configuration option in one or more of your disk's configuration arrays:
 

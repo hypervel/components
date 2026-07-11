@@ -6,7 +6,7 @@ namespace Hypervel\Redis\Limiters;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Contracts\Redis\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\InteractsWithTime;
 
@@ -87,6 +87,16 @@ class ConcurrencyLimiterBuilder
     }
 
     /**
+     * Acquire a lease on one of the limiter's slots, waiting up to the configured timeout.
+     *
+     * @throws LimiterTimeoutException
+     */
+    public function acquire(): ConcurrencyLease
+    {
+        return $this->createLimiter()->acquire($this->timeout, $this->sleep);
+    }
+
+    /**
      * Execute the given callback if a lock is obtained, otherwise call the failure callback.
      *
      * @throws LimiterTimeoutException
@@ -94,12 +104,7 @@ class ConcurrencyLimiterBuilder
     public function then(callable $callback, ?callable $failure = null): mixed
     {
         try {
-            return (new ConcurrencyLimiter(
-                $this->connection,
-                $this->name,
-                $this->maxLocks,
-                $this->releaseAfter
-            ))->block($this->timeout, $callback, $this->sleep);
+            $lease = $this->acquire();
         } catch (LimiterTimeoutException $e) {
             if ($failure) {
                 return $failure($e);
@@ -107,5 +112,19 @@ class ConcurrencyLimiterBuilder
 
             throw $e;
         }
+
+        try {
+            return $callback();
+        } finally {
+            $lease->release();
+        }
+    }
+
+    /**
+     * Create the concurrency limiter instance.
+     */
+    protected function createLimiter(): ConcurrencyLimiter
+    {
+        return new ConcurrencyLimiter($this->connection, $this->name, $this->maxLocks, $this->releaseAfter);
     }
 }

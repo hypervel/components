@@ -33,10 +33,10 @@ class RedisLock extends Lock implements RefreshableLock
     public function acquire(): bool
     {
         if ($this->seconds > 0) {
-            return $this->redis->set($this->name, $this->owner, 'EX', $this->seconds, 'NX') == true;
+            return $this->redis->set($this->name, $this->owner, 'EX', $this->seconds, 'NX') === true;
         }
 
-        return $this->redis->setnx($this->name, $this->owner) == true;
+        return $this->redis->setnx($this->name, $this->owner) === 1;
     }
 
     /**
@@ -77,22 +77,21 @@ class RedisLock extends Lock implements RefreshableLock
      */
     public function refresh(?int $seconds = null): bool
     {
-        // Permanent lock with no explicit TTL requested - nothing to refresh
         if ($seconds === null && $this->seconds <= 0) {
-            return true;
+            return $this->isOwnedByCurrentProcess();
         }
 
         $seconds ??= $this->seconds;
 
         if ($seconds <= 0) {
-            throw new InvalidArgumentException(
-                'Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.'
-            );
+            throw new InvalidArgumentException('Refresh requires a positive TTL.');
         }
 
         return $this->redis->withConnection(function (RedisConnection $connection) use ($seconds) {
             $packedOwner = $connection->pack([$this->owner])[0];
 
+            // The owner is packed because RedisLock writes through set(), but
+            // seconds stays raw so Lua tonumber(ARGV[2]) works with serializers.
             return (bool) $connection->eval(
                 LuaScripts::refreshLock(),
                 1,

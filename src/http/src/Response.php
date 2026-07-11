@@ -15,7 +15,6 @@ use JsonSerializable;
 use Override;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 
 class Response extends SymfonyResponse
 {
@@ -49,11 +48,11 @@ class Response extends SymfonyResponse
      */
     public function __construct(mixed $content = '', int $status = 200, array $headers = [])
     {
-        $this->headers = new ResponseHeaderBag($headers);
+        // The parent constructor accepts the headers since Symfony 8.1; assigning
+        // the property directly would hit the deprecated property setter.
+        parent::__construct('', $status, $headers);
 
         $this->setContent($content);
-        $this->setStatusCode($status);
-        $this->setProtocolVersion('1.0');
     }
 
     /**

@@ -10,7 +10,7 @@ use Hypervel\Support\Testing\Fakes\MailFake;
  * @method static \Hypervel\Contracts\Mail\Mailer mailer(string|null $name = null)
  * @method static \Hypervel\Contracts\Mail\Mailer driver(string|null $driver = null)
  * @method static \Hypervel\Mail\Mailer build(array $config)
- * @method static \Symfony\Component\Mailer\Transport\TransportInterface createSymfonyTransport(array $config, string|null $poolName = null)
+ * @method static \Symfony\Component\Mailer\Transport\TransportInterface createSymfonyTransport(array $config)
  * @method static string getDefaultDriver()
  * @method static void setDefaultDriver(string $name)
  * @method static void purge(string|null $name = null)

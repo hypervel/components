@@ -46,8 +46,8 @@ class PasskeysStaticStateTest extends TestCase
         ]);
         RequestContext::set(Request::create('https://dynamic.example.com/passkeys/login/options'));
 
-        Passkeys::relyingPartyIdUsing(static fn (): string => 'dynamic.example.com');
-        Passkeys::allowedOriginsUsing(static fn (): array => ['https://dynamic.example.com']);
+        Passkeys::resolveRelyingPartyIdUsing(static fn (): string => 'dynamic.example.com');
+        Passkeys::resolveAllowedOriginsUsing(static fn (): array => ['https://dynamic.example.com']);
 
         $this->assertSame('dynamic.example.com', Passkeys::relyingPartyId());
         $this->assertSame(['https://dynamic.example.com'], Passkeys::allowedOrigins());

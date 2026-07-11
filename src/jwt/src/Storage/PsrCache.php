@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Storage;
+namespace Hypervel\Jwt\Storage;
 
-use Hypervel\JWT\Contracts\StorageContract;
+use Hypervel\Jwt\Contracts\StorageContract;
 use Psr\SimpleCache\CacheInterface;
 
 class PsrCache implements StorageContract

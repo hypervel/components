@@ -22,7 +22,9 @@ class FakeJob extends Job
     public int $attempts = 1;
 
     public function __construct(
-        public array $payload = []
+        public array $payload = [],
+        protected string $connectionName = 'sync',
+        protected string $queue = 'default',
     ) {
     }
 

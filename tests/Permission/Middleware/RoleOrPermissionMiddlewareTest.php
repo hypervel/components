@@ -102,6 +102,14 @@ class RoleOrPermissionMiddlewareTest extends TestCase
         $this->assertSame(403, $this->runMiddleware($this->roleOrPermissionMiddleware, 'edit-articles|testRole', 'admin'));
     }
 
+    public function testEmptyGuardUsesDefaultGuard(): void
+    {
+        Auth::login($this->testUser);
+        $this->testUser->assignRole('testRole');
+
+        $this->assertSame(200, $this->runMiddleware($this->roleOrPermissionMiddleware, 'edit-articles|testRole', ''));
+    }
+
     public function testItCanBeCreatedWithStaticUsingMethod(): void
     {
         $this->assertSame(RoleOrPermissionMiddleware::class . ':edit-articles', RoleOrPermissionMiddleware::using('edit-articles'));

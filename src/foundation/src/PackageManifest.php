@@ -183,30 +183,58 @@ class PackageManifest
     }
 
     /**
+     * Discover installed Hypervel package metadata.
+     *
+     * @param array<int, string> $baseIgnore
+     */
+    public static function discoverInstalledPackages(Filesystem $files, string $vendorPath, array $baseIgnore): array
+    {
+        $packages = [];
+
+        if ($files->exists($path = $vendorPath . '/composer/installed.json')) {
+            $installed = json_decode($files->get($path), true);
+
+            if (is_array($installed)) {
+                $installedPackages = $installed['packages'] ?? $installed;
+
+                if (is_array($installedPackages)) {
+                    $packages = $installedPackages;
+                }
+            }
+        }
+
+        $ignore = $baseIgnore;
+
+        return (new Collection($packages))->filter(function (mixed $package): bool {
+            return is_array($package) && is_string($package['name'] ?? null);
+        })->mapWithKeys(function (array $package) use ($vendorPath) {
+            $configuration = $package['extra']['hypervel'] ?? [];
+
+            if (! is_array($configuration)) {
+                $configuration = [];
+            }
+
+            return [static::formatPackageName($package['name'], $vendorPath) => [
+                ...$configuration,
+                'version' => $package['version'] ?? null,
+            ]];
+        })->each(function (array $configuration) use (&$ignore) {
+            $ignore = array_merge($ignore, (array) ($configuration['dont-discover'] ?? []));
+        })->reject(function (array $configuration, string $package) use ($ignore) {
+            return in_array('*', $ignore, true) || in_array($package, $ignore, true);
+        })->filter()->all();
+    }
+
+    /**
      * Build the manifest and write it to disk.
      */
     public function build(): void
     {
-        $packages = [];
-
-        if ($this->files->exists($path = $this->vendorPath . '/composer/installed.json')) {
-            $installed = json_decode($this->files->get($path), true);
-
-            $packages = $installed['packages'] ?? $installed;
-        }
-
-        $ignore = $this->packagesToIgnore();
-
-        $manifest = (new Collection($packages))->mapWithKeys(function (array $package) {
-            return [$this->format($package['name']) => [
-                ...($package['extra']['hypervel'] ?? []),
-                'version' => $package['version'] ?? null,
-            ]];
-        })->each(function (array $configuration) use (&$ignore) {
-            $ignore = array_merge($ignore, $configuration['dont-discover'] ?? []);
-        })->reject(function (array $configuration, string $package) use ($ignore) {
-            return in_array($package, $ignore, true);
-        })->filter()->all();
+        $manifest = static::discoverInstalledPackages(
+            $this->files,
+            $this->vendorPath,
+            $this->packagesToIgnore()
+        );
 
         $this->write($manifest);
 
@@ -219,7 +247,53 @@ class PackageManifest
      */
     protected function format(string $package): string
     {
-        return str_replace($this->vendorPath . '/', '', $package);
+        return static::formatPackageName($package, $this->vendorPath);
+    }
+
+    /**
+     * Format the given package name with the given vendor path.
+     */
+    protected static function formatPackageName(string $package, string $vendorPath): string
+    {
+        return str_replace($vendorPath . '/', '', $package);
+    }
+
+    /**
+     * Get the package names ignored by root composer metadata.
+     *
+     * @return array<int, string>
+     */
+    public static function packagesToIgnoreFromComposer(Filesystem $files, string $basePath): array
+    {
+        $ignore = static::rootHypervelExtra($files, $basePath, 'dont-discover');
+
+        return is_array($ignore) ? $ignore : [];
+    }
+
+    /**
+     * Get a root Composer extra.hypervel value.
+     */
+    public static function rootHypervelExtra(Filesystem $files, string $basePath, string $key): mixed
+    {
+        if (! $files->isFile($basePath . '/composer.json')) {
+            return null;
+        }
+
+        $composer = json_decode($files->get(
+            $basePath . '/composer.json'
+        ), true);
+
+        if (! is_array($composer)) {
+            return null;
+        }
+
+        $hypervel = $composer['extra']['hypervel'] ?? null;
+
+        if (! is_array($hypervel)) {
+            return null;
+        }
+
+        return $hypervel[$key] ?? null;
     }
 
     /**
@@ -231,13 +305,7 @@ class PackageManifest
      */
     protected function packagesToIgnore(): array
     {
-        if (! is_file($this->basePath . '/composer.json')) {
-            return [];
-        }
-
-        return json_decode(file_get_contents(
-            $this->basePath . '/composer.json'
-        ), true)['extra']['hypervel']['dont-discover'] ?? [];
+        return static::packagesToIgnoreFromComposer($this->files, $this->basePath);
     }
 
     /**

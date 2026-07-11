@@ -20,7 +20,7 @@ class SyncJob extends Job
         protected Container $container,
         protected string $payload,
         protected string $connectionName,
-        protected ?string $queue
+        protected string $queue
     ) {
     }
 

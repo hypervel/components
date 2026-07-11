@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Notifications;
 
 use Closure;
+use Hypervel\Auth\Passwords\PasswordBroker;
+use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Facades\Lang;
+use Hypervel\Support\Facades\Password;
+use InvalidArgumentException;
 use SensitiveParameter;
 
 class ResetPassword extends Notification
@@ -27,12 +33,18 @@ class ResetPassword extends Notification
     public static ?Closure $toMailCallback = null;
 
     /**
+     * The number of minutes until the reset token expires.
+     */
+    public int $expireMinutes;
+
+    /**
      * Create a notification instance.
      */
     public function __construct(
         #[SensitiveParameter]
         public string $token,
     ) {
+        $this->expireMinutes = $this->resolveExpireMinutes();
     }
 
     /**
@@ -64,8 +76,25 @@ class ResetPassword extends Notification
             ->subject(Lang::get('Reset your password'))
             ->line(Lang::get('You are receiving this email because we received a password reset request for your account.'))
             ->action(Lang::get('Reset Password'), $url)
-            ->line(Lang::get('This password reset link will expire in :count minutes.', ['count' => config('auth.passwords.' . config('auth.defaults.passwords') . '.expire')]))
+            ->line(Lang::get('This password reset link will expire in :count minutes.', ['count' => $this->expireMinutes]))
             ->line(Lang::get('If you did not request a password reset, no further action is required.'));
+    }
+
+    /**
+     * Resolve the expiry minutes from the broker sending this notification.
+     *
+     * Reads the sending broker stamped by PasswordBroker::sendResetLink();
+     * outside a send flow (tests, previews), resolves the current default broker.
+     *
+     * @throws InvalidArgumentException
+     */
+    protected function resolveExpireMinutes(): int
+    {
+        $broker = CoroutineContext::get(PasswordBroker::SENDING_BROKER_CONTEXT_KEY)
+            ?? Password::getDefaultDriver();
+
+        return Container::getInstance()->make(ConfigContract::class)
+            ->integer("auth.passwords.{$broker}.expire", 60);
     }
 
     /**

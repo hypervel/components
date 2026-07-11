@@ -20,7 +20,7 @@ class CoroutineIsolationTest extends TestCase
 
     public function testRequestAwareAllowedOriginsAreIsolatedBetweenCoroutines(): void
     {
-        Passkeys::allowedOriginsUsing(
+        Passkeys::resolveAllowedOriginsUsing(
             static fn (Request $request): array => ['https://' . $request->getHost()],
         );
 

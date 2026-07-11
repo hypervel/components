@@ -4,19 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis;
 
-use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Generator;
-use Hypervel\Cache\Events\CacheFlushed;
-use Hypervel\Cache\Events\CacheFlushing;
+use Hypervel\Cache\AnyModeTaggedCache;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Cache\TaggedCache;
+use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
 
@@ -25,13 +23,10 @@ use function Hypervel\Support\enum_value;
 /**
  * Any-mode tagged cache for Redis 8.0+ enhanced tagging.
  *
- * Key differences from AllTaggedCache:
- * - Tags are for WRITING and FLUSHING only, not for scoped reads
- * - get() throws exception - use Cache::get() directly
- * - flush() deletes items with ANY of the specified tags (any semantics)
- * - Uses HSETEX for automatic hash field expiration
+ * Uses Redis hashes with field expiration and single-connection operations
+ * for tagged writes and remember-style cache misses.
  */
-class AnyTaggedCache extends TaggedCache
+class AnyTaggedCache extends AnyModeTaggedCache
 {
     /**
      * The cache store implementation.
@@ -45,7 +40,7 @@ class AnyTaggedCache extends TaggedCache
      *
      * @var AnyTagSet
      */
-    protected \Hypervel\Cache\TagSet $tags;
+    protected TagSet $tags;
 
     /**
      * Create a new tagged cache instance.
@@ -55,93 +50,6 @@ class AnyTaggedCache extends TaggedCache
         AnyTagSet $tags,
     ) {
         parent::__construct($store, $tags);
-    }
-
-    /**
-     * Retrieve an item from the cache by key.
-     *
-     * @throws BadMethodCallException Always - tags are for writing/flushing only
-     */
-    public function get(array|UnitEnum|string $key, mixed $default = null): mixed
-    {
-        throw new BadMethodCallException(
-            'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
-            . 'Use Cache::get() directly with the full key.'
-        );
-    }
-
-    /**
-     * @throws BadMethodCallException Always - tags are for writing/flushing only
-     */
-    public function getRaw(UnitEnum|string $key): mixed
-    {
-        throw new BadMethodCallException(
-            'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
-            . 'Use Cache::get() directly with the full key.'
-        );
-    }
-
-    /**
-     * Retrieve multiple items from the cache by key.
-     *
-     * @throws BadMethodCallException Always - tags are for writing/flushing only
-     */
-    public function many(array $keys): array
-    {
-        throw new BadMethodCallException(
-            'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
-            . 'Use Cache::many() directly with the full keys.'
-        );
-    }
-
-    /**
-     * @throws BadMethodCallException Always - tags are for writing/flushing only
-     */
-    public function manyRaw(array $keys): array
-    {
-        throw new BadMethodCallException(
-            'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
-            . 'Use Cache::get() directly.'
-        );
-    }
-
-    /**
-     * Determine if an item exists in the cache.
-     *
-     * @throws BadMethodCallException Always - tags are for writing/flushing only
-     */
-    public function has(array|UnitEnum|string $key): bool
-    {
-        throw new BadMethodCallException(
-            'Cannot check existence via tags in any mode. Tags are for writing and flushing only. '
-            . 'Use Cache::has() directly with the full key.'
-        );
-    }
-
-    /**
-     * Retrieve an item from the cache and delete it.
-     *
-     * @throws BadMethodCallException Always - tags are for writing/flushing only
-     */
-    public function pull(UnitEnum|string $key, mixed $default = null): mixed
-    {
-        throw new BadMethodCallException(
-            'Cannot pull items via tags in any mode. Tags are for writing and flushing only. '
-            . 'Use Cache::pull() directly with the full key.'
-        );
-    }
-
-    /**
-     * Remove an item from the cache.
-     *
-     * @throws BadMethodCallException Always - tags are for writing/flushing only
-     */
-    public function forget(UnitEnum|string $key): bool
-    {
-        throw new BadMethodCallException(
-            'Cannot forget items via tags in any mode. Tags are for writing and flushing only. '
-            . 'Use Cache::forget() directly with the full key, or flush() to remove all tagged items.'
-        );
     }
 
     /**
@@ -162,8 +70,7 @@ class AnyTaggedCache extends TaggedCache
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
-            // Can't forget via tags, just return false
-            return false;
+            return $this->store->forget($key);
         }
 
         $result = $this->store->anyTagOps()->put()->execute($key, $value, $seconds, $this->tags->getNames());
@@ -187,7 +94,15 @@ class AnyTaggedCache extends TaggedCache
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
-            return false;
+            $result = true;
+
+            foreach (array_keys($values) as $key) {
+                if (! $this->store->forget((string) $key)) {
+                    $result = false;
+                }
+            }
+
+            return $result;
         }
 
         $result = $this->store->anyTagOps()->putMany()->execute($values, $seconds, $this->tags->getNames());
@@ -255,20 +170,6 @@ class AnyTaggedCache extends TaggedCache
     }
 
     /**
-     * Remove all items from the cache that have any of the specified tags.
-     */
-    public function flush(): bool
-    {
-        $this->event(CacheFlushing::class, fn (): CacheFlushing => new CacheFlushing(null));
-
-        $this->tags->flush();
-
-        $this->event(CacheFlushed::class, fn (): CacheFlushed => new CacheFlushed(null));
-
-        return true;
-    }
-
-    /**
      * Get all items (keys and values) tagged with the current tags.
      *
      * This is useful for debugging or bulk operations on tagged items.
@@ -297,6 +198,7 @@ class AnyTaggedCache extends TaggedCache
             return $this->rememberForever($key, $callback);
         }
 
+        $key = enum_value($key);
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
@@ -334,6 +236,8 @@ class AnyTaggedCache extends TaggedCache
      */
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
+        $key = enum_value($key);
+
         [$value, $wasHit] = $this->store->anyTagOps()->rememberForever()->execute(
             $key,
             $callback,
@@ -356,17 +260,6 @@ class AnyTaggedCache extends TaggedCache
     public function getTags(): AnyTagSet
     {
         return $this->tags;
-    }
-
-    /**
-     * Format the key for a cache item.
-     *
-     * In any mode, keys are NOT namespaced by tags.
-     * Tags are only for invalidation, not for scoping reads.
-     */
-    protected function itemKey(string $key): string
-    {
-        return $key;
     }
 
     /**

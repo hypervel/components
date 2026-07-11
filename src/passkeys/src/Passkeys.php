@@ -29,10 +29,10 @@ class Passkeys
     private static ?Closure $authorizeLoginUsing = null;
 
     /** @var null|Closure(Request): string */
-    private static ?Closure $relyingPartyIdUsingCallback = null;
+    private static ?Closure $relyingPartyIdResolver = null;
 
     /** @var null|Closure(Request): list<string> */
-    private static ?Closure $allowedOriginsUsingCallback = null;
+    private static ?Closure $allowedOriginsResolver = null;
 
     /** @var null|Closure(Request): (null|string) */
     private static ?Closure $redirectUsingCallback = null;
@@ -42,7 +42,7 @@ class Passkeys
      */
     public static function relyingPartyId(): string
     {
-        $callback = self::$relyingPartyIdUsingCallback;
+        $callback = self::$relyingPartyIdResolver;
         $request = $callback instanceof Closure ? RequestContext::getOrNull() : null;
 
         $relyingPartyId = $request instanceof Request
@@ -69,9 +69,9 @@ class Passkeys
      *
      * @param null|(callable(Request): string) $callback
      */
-    public static function relyingPartyIdUsing(?callable $callback): void
+    public static function resolveRelyingPartyIdUsing(?callable $callback): void
     {
-        self::$relyingPartyIdUsingCallback = $callback === null
+        self::$relyingPartyIdResolver = $callback === null
             ? null
             : Closure::fromCallable($callback);
     }
@@ -83,7 +83,7 @@ class Passkeys
      */
     public static function allowedOrigins(): array
     {
-        $callback = self::$allowedOriginsUsingCallback;
+        $callback = self::$allowedOriginsResolver;
         $request = $callback instanceof Closure ? RequestContext::getOrNull() : null;
 
         $origins = $request instanceof Request
@@ -113,9 +113,9 @@ class Passkeys
      *
      * @param null|(callable(Request): list<string>) $callback
      */
-    public static function allowedOriginsUsing(?callable $callback): void
+    public static function resolveAllowedOriginsUsing(?callable $callback): void
     {
-        self::$allowedOriginsUsingCallback = $callback === null
+        self::$allowedOriginsResolver = $callback === null
             ? null
             : Closure::fromCallable($callback);
     }
@@ -125,7 +125,7 @@ class Passkeys
      */
     public static function hasRequestAwareAllowedOrigins(): bool
     {
-        return self::$allowedOriginsUsingCallback instanceof Closure
+        return self::$allowedOriginsResolver instanceof Closure
             && RequestContext::has();
     }
 
@@ -315,8 +315,8 @@ class Passkeys
         self::$passkeyModel = self::DEFAULT_PASSKEY_MODEL;
         self::$registersRoutes = self::DEFAULT_REGISTERS_ROUTES;
         self::$authorizeLoginUsing = null;
-        self::$relyingPartyIdUsingCallback = null;
-        self::$allowedOriginsUsingCallback = null;
+        self::$relyingPartyIdResolver = null;
+        self::$allowedOriginsResolver = null;
         self::$redirectUsingCallback = null;
     }
 }

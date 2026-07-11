@@ -26,7 +26,7 @@ class PhpRedisCacheLockTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithoutSerializationAndCompression()
+    public function testRedisLockCanBeAcquiredAndReleasedWithoutSerializationAndCompression(): void
     {
         $this->configureLockConnection([
             'serializer' => Redis::SERIALIZER_NONE,
@@ -35,7 +35,7 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithPhpSerialization()
+    public function testRedisLockCanBeAcquiredAndReleasedWithPhpSerialization(): void
     {
         $this->configureLockConnection([
             'serializer' => Redis::SERIALIZER_PHP,
@@ -44,7 +44,7 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithJsonSerialization()
+    public function testRedisLockCanBeAcquiredAndReleasedWithJsonSerialization(): void
     {
         $this->configureLockConnection([
             'serializer' => Redis::SERIALIZER_JSON,
@@ -53,7 +53,7 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithIgbinarySerialization()
+    public function testRedisLockCanBeAcquiredAndReleasedWithIgbinarySerialization(): void
     {
         if (! defined('Redis::SERIALIZER_IGBINARY')) {
             $this->markTestSkipped('Redis extension is not configured to support the igbinary serializer.');
@@ -66,7 +66,7 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithMsgpackSerialization()
+    public function testRedisLockCanBeAcquiredAndReleasedWithMsgpackSerialization(): void
     {
         if (! defined('Redis::SERIALIZER_MSGPACK')) {
             $this->markTestSkipped('Redis extension is not configured to support the msgpack serializer.');
@@ -79,7 +79,7 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithLzfCompression()
+    public function testRedisLockCanBeAcquiredAndReleasedWithLzfCompression(): void
     {
         if (! defined('Redis::COMPRESSION_LZF')) {
             $this->markTestSkipped('Redis extension is not configured to support the lzf compression.');
@@ -93,7 +93,7 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithZstdCompression()
+    public function testRedisLockCanBeAcquiredAndReleasedWithZstdCompression(): void
     {
         if (! defined('Redis::COMPRESSION_ZSTD')) {
             $this->markTestSkipped('Redis extension is not configured to support the zstd compression.');
@@ -108,7 +108,7 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithLz4Compression()
+    public function testRedisLockCanBeAcquiredAndReleasedWithLz4Compression(): void
     {
         if (! defined('Redis::COMPRESSION_LZ4')) {
             $this->markTestSkipped('Redis extension is not configured to support the lz4 compression.');
@@ -123,7 +123,7 @@ class PhpRedisCacheLockTest extends TestCase
         $this->assertLockCanBeAcquiredAndReleased();
     }
 
-    public function testRedisLockCanBeAcquiredAndReleasedWithSerializationAndCompression()
+    public function testRedisLockCanBeAcquiredAndReleasedWithSerializationAndCompression(): void
     {
         if (! defined('Redis::COMPRESSION_LZF')) {
             $this->markTestSkipped('Redis extension is not configured to support the lzf compression.');
@@ -167,9 +167,21 @@ class PhpRedisCacheLockTest extends TestCase
         $store = Cache::store('redis');
 
         $store->lock('foo')->forceRelease();
-        $lock = $store->lock('foo', 10);
+        $lock = $store->lock('foo', 3);
         $this->assertTrue($lock->get());
-        $this->assertFalse($store->lock('foo', 10)->get());
+        $this->assertFalse($store->lock('foo', 3)->get());
+
+        usleep(1_100_000);
+
+        $decayedLifetime = $lock->getRemainingLifetime();
+        $this->assertNotNull($decayedLifetime);
+
+        $this->assertTrue($lock->refresh());
+
+        $refreshedLifetime = $lock->getRemainingLifetime();
+        $this->assertNotNull($refreshedLifetime);
+        $this->assertGreaterThan($decayedLifetime, $refreshedLifetime);
+
         $lock->release();
 
         // After release, lock should be acquirable again

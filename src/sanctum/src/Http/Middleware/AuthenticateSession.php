@@ -8,10 +8,9 @@ use Closure;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Auth\SessionGuard;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Session\Middleware\AuthenticatesSessions;
 use Hypervel\Http\Request;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Collection;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthenticateSession implements AuthenticatesSessions
@@ -21,6 +20,7 @@ class AuthenticateSession implements AuthenticatesSessions
      */
     public function __construct(
         protected AuthFactory $auth,
+        protected Repository $config,
     ) {
     }
 
@@ -35,68 +35,128 @@ class AuthenticateSession implements AuthenticatesSessions
             return $next($request);
         }
 
-        $guards = Collection::make(Arr::wrap(config('sanctum.guard')))
-            ->mapWithKeys(fn ($guard) => [$guard => $this->auth->guard($guard)])
-            ->filter(fn ($guard) => $guard instanceof SessionGuard);
+        $guards = [];
 
-        // Get the authenticated user from the guards
-        $user = null;
-        foreach ($guards as $guard) {
-            if ($guard->check()) {
-                $user = $guard->user();
-                break;
+        foreach ($this->sanctumSessionGuards() as $name) {
+            $guard = $this->auth->guard($name);
+
+            if ($guard instanceof SessionGuard) {
+                $guards[$name] = $guard;
             }
         }
 
-        if (! $user) {
+        $authenticatedGuards = array_filter($guards, fn (SessionGuard $guard): bool => $guard->check());
+
+        if ($authenticatedGuards === []) {
             return $next($request);
         }
 
-        $shouldLogout = $guards->filter(
-            fn (mixed $guard, string $driver) => $request->session()->has('password_hash_' . $driver)
-        )->filter(
-            fn (mixed $guard, string $driver) => $request->session()->get('password_hash_' . $driver)
-                                    !== $user->getAuthPassword()
-        );
+        $shouldLogout = [];
 
-        if ($shouldLogout->isNotEmpty()) {
-            $shouldLogout->each(function ($guard) {
-                /** @var SessionGuard $guard */
-                $guard->logout();
-            });
+        foreach ($authenticatedGuards as $driver => $guard) {
+            $hasStaleRecallerHash = $guard->viaRemember()
+                && ! $this->validateRecallerPasswordHash($request, $guard);
+            $hasStaleSessionHash = $request->session()->has('password_hash_' . $driver)
+                && ! $this->validatePasswordHash(
+                    $guard,
+                    $guard->user()->getAuthPassword(),
+                    $request->session()->get('password_hash_' . $driver)
+                );
+
+            if ($hasStaleRecallerHash || $hasStaleSessionHash) {
+                $shouldLogout[$driver] = $guard;
+            }
+        }
+
+        if ($shouldLogout !== []) {
+            foreach ($shouldLogout as $guard) {
+                $guard->logoutCurrentDevice();
+            }
 
             $request->session()->flush();
 
-            throw new AuthenticationException('Unauthenticated.', [...$shouldLogout->keys()->all(), 'sanctum']);
+            throw new AuthenticationException('Unauthenticated.', [...array_keys($shouldLogout), 'sanctum']);
         }
 
-        // Store password hash after successful request
         $response = $next($request);
 
-        if (! is_null($guard = $this->getFirstGuardWithUser($guards->keys()))) {
-            $this->storePasswordHashInSession($request, $guard);
+        foreach ($guards as $name => $guard) {
+            if ($guard->hasUser()) {
+                $this->storePasswordHashInSession($request, $name, $guard);
+            }
         }
 
         return $response;
     }
 
     /**
-     * Get the first authentication guard that has a user.
+     * Get the session guards declared by the application's sanctum guards.
+     *
+     * The union across every sanctum-driver guard entry: password-hash
+     * invalidation applies to any session guard participating in stateful
+     * sanctum authentication anywhere in the application.
      */
-    protected function getFirstGuardWithUser(Collection $guards): ?string
+    protected function sanctumSessionGuards(): array
     {
-        return $guards->first(function (string $guard) {
-            return $this->auth->guard($guard)->hasUser();
-        });
+        $sessionGuards = [];
+
+        foreach ($this->config->array('auth.guards', []) as $guard) {
+            if (! is_array($guard) || ($guard['driver'] ?? null) !== 'sanctum') {
+                continue;
+            }
+
+            $declared = $guard['session_guards'] ?? null;
+
+            if (! is_array($declared)) {
+                continue;
+            }
+
+            $sessionGuards = [
+                ...$sessionGuards,
+                ...array_filter($declared, static fn (mixed $guard): bool => is_string($guard) && $guard !== ''),
+            ];
+        }
+
+        return array_values(array_unique($sessionGuards));
     }
 
     /**
      * Store the user's current password hash in the session.
      */
-    protected function storePasswordHashInSession(Request $request, string $guard): void
+    protected function storePasswordHashInSession(Request $request, string $guard, SessionGuard $guardInstance): void
     {
         $request->session()->put([
-            "password_hash_{$guard}" => $this->auth->guard($guard)->user()->getAuthPassword(),
+            "password_hash_{$guard}" => $guardInstance->hashPasswordForCookie($guardInstance->user()->getAuthPassword()),
         ]);
+    }
+
+    /**
+     * Validate the password hash against the stored value.
+     *
+     * Only HMAC artifacts are valid; Hypervel has no released raw-hash
+     * session artifacts to accept.
+     */
+    protected function validatePasswordHash(SessionGuard $guard, ?string $passwordHash, mixed $storedValue): bool
+    {
+        return is_string($storedValue)
+            && hash_equals($guard->hashPasswordForCookie($passwordHash), $storedValue);
+    }
+
+    /**
+     * Validate the remembered-login password hash against the guard's current user.
+     */
+    protected function validateRecallerPasswordHash(Request $request, SessionGuard $guard): bool
+    {
+        $recaller = $request->cookies->get($guard->getRecallerName());
+
+        if (! is_string($recaller)) {
+            return false;
+        }
+
+        return $this->validatePasswordHash(
+            $guard,
+            $guard->user()->getAuthPassword(),
+            explode('|', $recaller)[2] ?? null
+        );
     }
 }

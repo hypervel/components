@@ -75,6 +75,10 @@ class RoutingServiceProvider extends ServiceProvider
         });
 
         $this->app->extend('url', function (UrlGenerator $url, $app) {
+            if ($app->make('config')->boolean('app.force_https', false)) {
+                $url->forceHttps();
+            }
+
             $url->setSessionResolver(function () {
                 return $this->app['session'] ?? null;
             });

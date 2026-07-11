@@ -13,6 +13,7 @@ use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
+use Hypervel\Foundation\Testing\RedisTestDatabases;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
@@ -48,9 +49,10 @@ $config->set('queue', [
 
 // Parallel test isolation: use the same per-worker Redis DB as the test process.
 // InteractsWithRedis sets this in the test, but this subprocess bootstraps separately.
-if ($token = getenv('TEST_TOKEN')) {
-    $baseDb = (int) $config->get('database.redis.default.database', 0);
-    $config->set('database.redis.default.database', $baseDb + (int) $token);
+$token = getenv('TEST_TOKEN');
+
+if (is_string($token)) {
+    $config->set('database.redis.default.database', RedisTestDatabases::databaseForToken($token));
 }
 
 $app->register(HorizonServiceProvider::class);

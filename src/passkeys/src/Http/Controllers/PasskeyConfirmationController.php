@@ -56,6 +56,8 @@ class PasskeyConfirmationController extends Controller
         PasskeyVerificationRequest $request,
         VerifyPasskey $verify,
     ): PasskeyConfirmationResponse {
+        $guardName = Passkeys::guardName();
+
         $user = Passkeys::guard()->user()
             ?? throw new AuthenticationException;
 
@@ -72,7 +74,7 @@ class PasskeyConfirmationController extends Controller
         /** @var SessionStore $session */
         $session = $request->session();
 
-        $session->passwordConfirmed();
+        $session->passwordConfirmed($guardName);
 
         return $this->container->make(PasskeyConfirmationResponse::class);
     }

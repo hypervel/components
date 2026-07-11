@@ -221,7 +221,7 @@ AUTH_USERS_CACHE_ENABLED=true
 AUTH_USERS_CACHE_STORE=stack
 ```
 
-Supported stores are `redis`, `database`, `file`, `swoole`, and `stack`. The `array`, `null`, `session`, and `failover` stores are rejected when the guard is resolved because they are either request-local, user-local, discard writes, or have fallback behavior that is not appropriate for authentication data. If you use `stack`, Hypervel only validates the outer stack store; unsupported inner stores such as `array`, `null`, `session`, or `failover` can still cause stale, missing, or unsafe auth cache behavior. Choose supported inner stores such as `swoole` and `redis`.
+Supported stores are `redis`, `database`, `file`, `swoole`, and `stack`. The `array`, `null`, `session`, and `failover` stores are rejected when the guard is resolved because they are either request-local, user-local, discard writes, or have fallback behavior that is not appropriate for authentication data. For untagged auth caching, Hypervel validates the outer stack store; unsupported inner stores such as `array`, `null`, `session`, or `failover` can still cause stale, missing, or unsafe auth cache behavior. Choose supported inner stores such as `swoole` and `redis`. When auth cache tags are configured, the stack's tag composition is also validated.
 
 When using a node-local store such as `swoole` or `file`, invalidation is local to that node. In a multi-node deployment using `stack` with a Swoole L1, a user update clears the current node's L1 and the shared backing store, while other nodes may serve their L1 entry until its short TTL expires. Use plain `redis` or `database` if you need strict cross-node consistency.
 
@@ -297,7 +297,7 @@ Then flush the tagged entries:
 Cache::store('auth')->tags(['auth_users'])->flush();
 ```
 
-Auth cache tags require a taggable store configured in `any` mode. Redis is the stock store that supports configurable tag modes. The default Redis tag mode is `all`, so use a separate Redis store with `tag_mode` set to `any` when enabling auth cache tags.
+Auth cache tags require a store that supports tags in `any` mode. Use a Redis store with `tag_mode` set to `any`, or a valid cache stack whose taggable layers are all any-mode stores. The default Redis tag mode is `all`, so use a separate Redis store or stack when enabling auth cache tags.
 
 You may also add per-request dynamic tags. This is useful when every cached user should keep a broad static tag, such as `auth_users`, plus a narrower request-specific tag, such as the current tenant:
 
@@ -358,7 +358,26 @@ use Hypervel\Http\Request;
 })
 ```
 
-Under the hood, the `auth` middleware throws an `Hypervel\Auth\AuthenticationException` when a user is unauthenticated. This exception is converted into a redirect (or a 401 JSON response for API requests) by your application's exception handler. If you need lower-level control beyond `redirectGuestsTo`, you may override the `unauthenticated` method in your exception handler, or pass a callback directly to `AuthenticationException::redirectUsing`.
+Packages and service providers may configure the same redirect through the `Auth` facade:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Auth;
+
+public function boot(): void
+{
+    Auth::redirectGuestsTo('/login');
+
+    // Using a closure...
+    Auth::redirectGuestsTo(fn (Request $request) => route('login'));
+}
+```
+
+Redirect paths may be strings or request-aware callbacks. The callback registration is boot-time worker-lifetime state, but the callback result is computed for each request.
+
+Configure these redirects from `bootstrap/app.php` with the middleware configurator, or from a service provider / package with the `Auth` facade. Both high-level APIs configure the same global redirect callbacks, so an application should generally choose one style for each redirect. If both high-level APIs are called for the same redirect, the most recent registration wins.
+
+Under the hood, the `auth` middleware throws an `Hypervel\Auth\AuthenticationException` when a user is unauthenticated. This exception is converted into a redirect (or a 401 JSON response for API requests) by your application's exception handler. If you need lower-level control beyond the high-level APIs, you may override the `unauthenticated` method in your exception handler or configure the low-level redirect callbacks directly on the relevant middleware or exception classes.
 
 <a name="redirecting-authenticated-users"></a>
 #### Redirecting Authenticated Users
@@ -377,6 +396,23 @@ use Hypervel\Http\Request;
 })
 ```
 
+Packages and service providers may configure the same redirect through the `Auth` facade:
+
+```php
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Auth;
+
+public function boot(): void
+{
+    Auth::redirectUsersTo('/panel');
+
+    // Using a closure...
+    Auth::redirectUsersTo(fn (Request $request) => route('panel'));
+}
+```
+
+When the `guest` middleware names a guard and the request continues, that guard becomes the current default guard for the request. If multiple guards are listed, the first guard is selected.
+
 <a name="specifying-a-guard"></a>
 #### Specifying a Guard
 
@@ -388,10 +424,28 @@ Route::get('/flights', function () {
 })->middleware('auth:admin');
 ```
 
+Guards that send password reset links declare their password broker with the `passwords` key. Multi-guard applications should set this per guard. On guest routes such as login and password reset requests, naming the guard on the `guest` middleware selects it for the request — `guest:admin` makes `admin` the current guard, so authentication, policies, and password reset flows all follow the same user type. For guest routes that do not use the `guest` middleware, apply `auth.guard:admin` instead:
+
+```php
+'guards' => [
+    'web' => [
+        'driver' => 'session',
+        'provider' => 'users',
+        'passwords' => 'users',
+    ],
+
+    'admin' => [
+        'driver' => 'session',
+        'provider' => 'admins',
+        'passwords' => 'admins',
+    ],
+],
+```
+
 <a name="login-throttling"></a>
 ### Login Throttling
 
-If you are using one of our [application starter kits](/docs/{{version}}/starter-kits), rate limiting will automatically be applied to login attempts. By default, the user will not be able to login for one minute if they fail to provide the correct credentials after several attempts. The throttling is unique to the user's username / email address and their IP address.
+If you are using one of our [application starter kits](/docs/{{version}}/starter-kits), rate limiting will automatically be applied to login attempts. By default, the user will not be able to login for one minute if they fail to provide the correct credentials after several attempts. The throttling is unique to the current guard, the user's username / email address, and their IP address.
 
 > [!NOTE]
 > If you would like to rate limit other routes in your application, check out the [rate limiting documentation](/docs/{{version}}/routing#rate-limiting).
@@ -690,7 +744,7 @@ While building your application, you may occasionally have actions that should r
 <a name="password-confirmation-configuration"></a>
 ### Configuration
 
-After confirming their password, a user will not be asked to confirm their password again for three hours. However, you may configure the length of time before the user is re-prompted for their password by changing the value of the `password_timeout` configuration value within your application's `config/auth.php` configuration file.
+After confirming their password, a user will not be asked to confirm their password again for three hours. However, you may configure the length of time before the user is re-prompted for their password by changing the value of the `password_timeout` configuration value within your application's `config/auth.php` configuration file. Password confirmation is scoped to the current guard, so confirming under one guard never satisfies the `password.confirm` middleware under another guard. Individual guards may override the timeout with a `password_timeout` key in their guard configuration.
 
 <a name="password-confirmation-routing"></a>
 ### Routing
@@ -886,6 +940,7 @@ Finally, you may reference this provider in your `guards` configuration:
     'web' => [
         'driver' => 'session',
         'provider' => 'users',
+        'passwords' => 'users',
     ],
 ],
 ```

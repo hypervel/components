@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Cache;
 
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Limiters\RefreshableLease;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Support\Facades\Cache;
@@ -18,7 +19,7 @@ class RedisCacheFunnelTest extends CacheFunnelTestCase
         return Cache::store('redis');
     }
 
-    public function testCoroutineConcurrencyAllSlotsHeldAllFail()
+    public function testCoroutineConcurrencyAllSlotsHeldAllFail(): void
     {
         $cache = $this->cache();
 
@@ -42,7 +43,7 @@ class RedisCacheFunnelTest extends CacheFunnelTestCase
         $lock2->forceRelease();
     }
 
-    public function testCoroutineConcurrencyLimitMatchesCount()
+    public function testCoroutineConcurrencyLimitMatchesCount(): void
     {
         $cache = $this->cache();
 
@@ -63,7 +64,7 @@ class RedisCacheFunnelTest extends CacheFunnelTestCase
         }
     }
 
-    public function testFunnelWithZeroReleaseAfterAcquiresAndReleasesPermanentSlot()
+    public function testFunnelWithZeroReleaseAfterAcquiresAndReleasesPermanentSlot(): void
     {
         // releaseAfter(0) means no TTL — RedisLock semantic for "permanent".
         // The Lua acquire path must SET without EX in that case (EX 0 errors).
@@ -88,7 +89,37 @@ class RedisCacheFunnelTest extends CacheFunnelTestCase
         $cache->lock('perm1')->forceRelease();
     }
 
-    public function testFunnelWithZeroLimitOnRedisDoesNotRunCallback()
+    public function testFastPathLeaseRefreshReappliesReleaseAfterTtl(): void
+    {
+        $cache = $this->cache();
+        $cache->lock('refresh-ttl1')->forceRelease();
+
+        $lease = $cache->funnel('refresh-ttl')
+            ->limit(1)
+            ->releaseAfter(2)
+            ->block(0)
+            ->acquire();
+
+        try {
+            $this->assertInstanceOf(RefreshableLease::class, $lease);
+
+            usleep(1_100_000);
+
+            $decayedLifetime = $lease->getRemainingLifetime();
+            $this->assertNotNull($decayedLifetime);
+
+            $this->assertTrue($lease->refresh());
+
+            $refreshedLifetime = $lease->getRemainingLifetime();
+            $this->assertNotNull($refreshedLifetime);
+            $this->assertGreaterThan($decayedLifetime, $refreshedLifetime);
+        } finally {
+            $lease->release();
+            $cache->lock('refresh-ttl1')->forceRelease();
+        }
+    }
+
+    public function testFunnelWithZeroLimitOnRedisDoesNotRunCallback(): void
     {
         // limit(0) results in zero precomputed slots — the limiter must short-circuit
         // before calling Lua eval, otherwise unpack({}) → redis.call('mget') errors.

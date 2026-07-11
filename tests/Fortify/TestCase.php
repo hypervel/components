@@ -41,8 +41,8 @@ abstract class TestCase extends TestbenchTestCase
             'app.name' => 'Hypervel Test',
             'app.url' => 'https://example.test',
             'auth.defaults.guard' => 'web',
-            'auth.guards.web' => ['driver' => 'session', 'provider' => 'users'],
-            'auth.guards.admin' => ['driver' => 'session', 'provider' => 'admins'],
+            'auth.guards.web' => ['driver' => 'session', 'provider' => 'users', 'passwords' => 'users'],
+            'auth.guards.admin' => ['driver' => 'session', 'provider' => 'admins', 'passwords' => 'admins'],
             'auth.providers.users' => ['driver' => 'eloquent', 'model' => $userModel],
             'auth.providers.admins' => ['driver' => 'eloquent', 'model' => Admin::class],
             'auth.passwords.users' => ['provider' => 'users', 'table' => 'password_reset_tokens'],
@@ -70,10 +70,28 @@ abstract class TestCase extends TestbenchTestCase
             $table->timestamps();
         });
 
+        $this->createAdminsTable();
+
         Schema::create('password_reset_tokens', function (Blueprint $table): void {
             $table->string('email')->primary();
             $table->string('token');
             $table->timestamp('created_at')->nullable();
+        });
+    }
+
+    protected function createAdminsTable(): void
+    {
+        Schema::create('admins', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name')->nullable();
+            $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password')->nullable();
+            $table->text('two_factor_secret')->nullable();
+            $table->text('two_factor_recovery_codes')->nullable();
+            $table->timestamp('two_factor_confirmed_at')->nullable();
+            $table->rememberToken();
+            $table->timestamps();
         });
     }
 

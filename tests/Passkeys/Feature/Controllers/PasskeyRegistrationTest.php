@@ -24,7 +24,7 @@ class PasskeyRegistrationTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->withSession(['auth.password_confirmed_at' => time()])
+            ->withSession(['auth.password_confirmed_at_web' => time()])
             ->getJson('/user/passkeys/options')
             ->assertOk()
             ->assertJsonStructure([
@@ -49,7 +49,7 @@ class PasskeyRegistrationTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)
-            ->withSession(['auth.password_confirmed_at' => time()])
+            ->withSession(['auth.password_confirmed_at_web' => time()])
             ->getJson('/user/passkeys/options')
             ->assertOk();
 
@@ -67,7 +67,7 @@ class PasskeyRegistrationTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->withSession(['auth.password_confirmed_at' => time()])
+            ->withSession(['auth.password_confirmed_at_web' => time()])
             ->getJson('/user/passkeys/options')
             ->assertOk();
 
@@ -122,7 +122,7 @@ class PasskeyRegistrationTest extends TestCase
             ->getMock());
 
         $this->actingAs($user)
-            ->withSession(['auth.password_confirmed_at' => time()])
+            ->withSession(['auth.password_confirmed_at_web' => time()])
             ->withSession(['passkey.registration_options' => 'serialized-options'])
             ->postJson('/user/passkeys', [
                 'name' => 'My Passkey',
@@ -145,7 +145,7 @@ class PasskeyRegistrationTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->withSession(['auth.password_confirmed_at' => time()])
+            ->withSession(['auth.password_confirmed_at_web' => time()])
             ->postJson('/user/passkeys', [
                 'name' => 'My Passkey',
                 'credential' => [
@@ -202,7 +202,7 @@ class PasskeyRegistrationTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->withSession(['auth.password_confirmed_at' => time()])
+            ->withSession(['auth.password_confirmed_at_web' => time()])
             ->deleteJson("/user/passkeys/{$passkey->id}")
             ->assertOk()
             ->assertJson(['status' => 'passkey-deleted']);
@@ -226,7 +226,7 @@ class PasskeyRegistrationTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->withSession(['auth.password_confirmed_at' => time()])
+            ->withSession(['auth.password_confirmed_at_web' => time()])
             ->deleteJson("/user/passkeys/{$passkey->credential_id}")
             ->assertOk()
             ->assertJson(['status' => 'passkey-deleted']);
@@ -277,7 +277,7 @@ class PasskeyRegistrationTest extends TestCase
         ]);
 
         $this->actingAs($otherUser)
-            ->withSession(['auth.password_confirmed_at' => time()])
+            ->withSession(['auth.password_confirmed_at_web' => time()])
             ->deleteJson("/user/passkeys/{$passkey->id}")
             ->assertForbidden();
 

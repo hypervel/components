@@ -5,13 +5,18 @@ import { expect, test } from "vitest";
 
 const generatorScript = path.join(__dirname, "generate.php");
 
-const generateWithAppUrl = (appUrl: string, outputPath: string) => {
+const generateWithAppUrl = (
+    appUrl: string,
+    outputPath: string,
+    env: NodeJS.ProcessEnv = {},
+) => {
     rmSync(outputPath, { recursive: true, force: true });
 
     execFileSync("php", [generatorScript, outputPath], {
         env: {
             ...process.env,
             APP_URL: appUrl,
+            ...env,
         },
     });
 };
@@ -49,5 +54,26 @@ test("does not inject APP_URL port into explicit domain routes", () => {
     expect(contents).toContain("url: '//example.test/fixed-domain/{param}'");
     expect(contents).toContain(
         "url: '//{defaultDomain?}.au/default-parameters-domain/{param}'",
+    );
+});
+
+test("applies forced HTTPS scheme to explicit domain routes", () => {
+    const outputPath = "/tmp/wayfinder-forced-https";
+
+    generateWithAppUrl("https://localhost:8001", outputPath, {
+        WAYFINDER_FORCE_HTTPS: "1",
+    });
+
+    const contents = readFileSync(
+        path.join(
+            outputPath,
+            "actions/Hypervel/Tests/Wayfinder/Fixtures/Controllers/DomainController.ts",
+        ),
+        "utf8",
+    );
+
+    expect(contents).toContain("url: 'https://example.test/fixed-domain/{param}'");
+    expect(contents).toContain(
+        "url: 'https://{defaultDomain?}.au/default-parameters-domain/{param}'",
     );
 });

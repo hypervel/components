@@ -38,7 +38,7 @@ class RedisPoolHeartbeatTest extends TestCase
     protected function tearDown(): void
     {
         foreach ($this->pools as $pool) {
-            run(fn () => $pool->flushAll());
+            run(fn () => $pool->close());
         }
 
         parent::tearDown();
@@ -55,7 +55,7 @@ class RedisPoolHeartbeatTest extends TestCase
         });
     }
 
-    public function testEnabledHeartbeatStartsTimerAndFlushAllClearsIt(): void
+    public function testEnabledHeartbeatStartsTimerAndCloseClearsIt(): void
     {
         run(function () {
             $pool = $this->createPool([
@@ -64,7 +64,7 @@ class RedisPoolHeartbeatTest extends TestCase
 
             $this->assertSame(1, $pool->heartbeatTimerClosureCount());
 
-            $pool->flushAll();
+            $pool->close();
 
             $this->assertSame(0, $pool->heartbeatTimerClosureCount());
         });
@@ -319,14 +319,14 @@ class RedisPoolHeartbeatTest extends TestCase
         });
     }
 
-    public function testSuccessfulHeartbeatCheckAfterFlushDiscardsConnection(): void
+    public function testSuccessfulHeartbeatCheckAfterCloseDiscardsConnection(): void
     {
         run(function () {
             $pool = $this->createPool([
                 'min_connections' => 1,
                 'max_connections' => 1,
                 'heartbeat' => -1,
-            ], FlushingHeartbeatRedisPool::class);
+            ], ClosingHeartbeatRedisPool::class);
 
             $connection = $pool->get();
             $connection->release();
@@ -640,19 +640,19 @@ class SlowHeartbeatRedisConnection extends HeartbeatRedisConnection
     }
 }
 
-class FlushingHeartbeatRedisPool extends InspectableRedisPool
+class ClosingHeartbeatRedisPool extends InspectableRedisPool
 {
     protected function createConnection(): ConnectionInterface
     {
-        return new FlushingHeartbeatRedisConnection($this->container, $this, $this->config);
+        return new ClosingHeartbeatRedisConnection($this->container, $this, $this->config);
     }
 }
 
-class FlushingHeartbeatRedisConnection extends HeartbeatRedisConnection
+class ClosingHeartbeatRedisConnection extends HeartbeatRedisConnection
 {
     protected function pingForHeartbeat(): bool
     {
-        $this->pool->flushAll();
+        $this->pool->close();
 
         return true;
     }

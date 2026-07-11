@@ -110,4 +110,24 @@ abstract class MultiWorkerTestCase extends ReverbIntegrationTestCase
 
         return $body['count'] ?? null;
     }
+
+    /**
+     * Wait for a shared state value to match the expected value.
+     */
+    protected function waitForSharedState(string $key, ?int $expected, float $timeout = 5): ?int
+    {
+        $deadline = microtime(true) + $timeout;
+
+        do {
+            $value = $this->readSharedState($key);
+
+            if ($value === $expected) {
+                return $value;
+            }
+
+            usleep(10_000);
+        } while (microtime(true) < $deadline);
+
+        return $this->readSharedState($key);
+    }
 }

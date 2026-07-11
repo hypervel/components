@@ -36,15 +36,17 @@ return [
             | authed requests at high concurrency. See the auth caching
             | documentation for the full explanation.
             |
-            | Caveat: only the outer store is validated. A stack with an
-            | unsupported inner tier (e.g. [array, redis]) won't be caught.
+            | Caveat: without tags, only the outer store is validated. A stack
+            | with an unsupported inner tier (e.g. [array, redis]) won't be caught.
+            | When cache tags are enabled, the stack's tag composition is also
+            | validated.
             |
             | Cache tags (optional):
             |   Set 'tags' to an array of tag names (e.g. ['auth_users'])
             |   to add those cache tags to every cached user. This is useful
             |   for bulk cache invalidation using Cache::store(...)->tags([...])->flush().
-            |   Requires a TaggableStore configured in TagMode::Any
-            |   (e.g. a Redis store with tag_mode=any).
+            |   Requires a store with any-mode tag support (e.g. a Redis
+            |   store with tag_mode=any, or a stack over any-mode taggable layers).
             |
             */
             'cache' => [

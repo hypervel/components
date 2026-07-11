@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Attributes\UnitTest;
@@ -74,7 +75,11 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function createApplication(): ApplicationContract
     {
-        return require Application::inferBasePath() . '/bootstrap/app.php';
+        $app = require Application::inferBasePath() . '/bootstrap/app.php';
+
+        $app->make(KernelContract::class)->bootstrap();
+
+        return $app;
     }
 
     /**

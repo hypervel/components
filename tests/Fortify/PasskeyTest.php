@@ -100,10 +100,10 @@ class PasskeyTest extends TestCase
     {
         RequestContext::set(Request::create('https://dynamic.example.test/passkeys/login/options'));
 
-        Passkeys::relyingPartyIdUsing(
+        Passkeys::resolveRelyingPartyIdUsing(
             static fn (Request $request): string => $request->getHost(),
         );
-        Passkeys::allowedOriginsUsing(
+        Passkeys::resolveAllowedOriginsUsing(
             static fn (Request $request): array => ['https://' . $request->getHost()],
         );
 
