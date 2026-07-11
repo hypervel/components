@@ -14,8 +14,10 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Engine\Coroutine;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use PDO;
 use PDOStatement;
 use Psr\Log\AbstractLogger;
@@ -30,6 +32,8 @@ class DbPoolHeartbeatTest extends TestCase
     protected bool $runTestsInCoroutine = false;
 
     protected string $databasePath;
+
+    protected string $databaseDirectory;
 
     /**
      * @var InspectableHeartbeatDbPool[]
@@ -47,7 +51,9 @@ class DbPoolHeartbeatTest extends TestCase
     {
         parent::setUp();
 
-        $this->databasePath = sys_get_temp_dir() . '/hypervel_db_pool_heartbeat_' . getmypid() . '_' . spl_object_id($this) . '.sqlite';
+        $this->databaseDirectory = ParallelTesting::tempDir('DbPoolHeartbeatTest');
+        (new Filesystem)->ensureDirectoryExists($this->databaseDirectory);
+        $this->databasePath = $this->databaseDirectory . '/database.sqlite';
         touch($this->databasePath);
 
         $this->app->instance('db.connector.sqlite', new SQLiteConnector);
@@ -56,12 +62,10 @@ class DbPoolHeartbeatTest extends TestCase
     protected function tearDown(): void
     {
         foreach ($this->pools as $pool) {
-            run(fn () => $pool->flushAll());
+            run(fn () => $pool->close());
         }
 
-        if (file_exists($this->databasePath)) {
-            @unlink($this->databasePath);
-        }
+        (new Filesystem)->deleteDirectory($this->databaseDirectory);
 
         parent::tearDown();
     }
@@ -75,7 +79,7 @@ class DbPoolHeartbeatTest extends TestCase
         $this->assertSame(0, $pool->heartbeatTimerClosureCount());
     }
 
-    public function testEnabledHeartbeatStartsTimerAndFlushAllClearsIt(): void
+    public function testEnabledHeartbeatStartsTimerAndCloseClearsIt(): void
     {
         $pool = $this->createPool([
             'heartbeat' => 0.001,
@@ -83,7 +87,7 @@ class DbPoolHeartbeatTest extends TestCase
 
         $this->assertSame(1, $pool->heartbeatTimerClosureCount());
 
-        run(fn () => $pool->flushAll());
+        run(fn () => $pool->close());
 
         $this->assertSame(0, $pool->heartbeatTimerClosureCount());
     }
@@ -352,14 +356,14 @@ class DbPoolHeartbeatTest extends TestCase
         });
     }
 
-    public function testSuccessfulHeartbeatPingAfterFlushDiscardsConnection(): void
+    public function testSuccessfulHeartbeatPingAfterCloseDiscardsConnection(): void
     {
         run(function () {
             $pool = $this->createPool([
                 'min_connections' => 1,
                 'max_connections' => 1,
                 'heartbeat' => -1,
-            ], FlushingHeartbeatDbPool::class);
+            ], ClosingHeartbeatDbPool::class);
 
             $pooledConnection = $pool->get();
             $pooledConnection->release();
@@ -492,19 +496,19 @@ class LifetimeExpiredPingTrackingPooledConnection extends PooledConnection
     }
 }
 
-class FlushingHeartbeatDbPool extends InspectableHeartbeatDbPool
+class ClosingHeartbeatDbPool extends InspectableHeartbeatDbPool
 {
     protected function createConnection(): ConnectionInterface
     {
-        return new FlushingHeartbeatPooledConnection($this->container, $this, $this->config);
+        return new ClosingHeartbeatPooledConnection($this->container, $this, $this->config);
     }
 }
 
-class FlushingHeartbeatPooledConnection extends PooledConnection
+class ClosingHeartbeatPooledConnection extends PooledConnection
 {
     public function ping(float $timeout): bool
     {
-        $this->pool->flushAll();
+        $this->pool->close();
 
         return true;
     }

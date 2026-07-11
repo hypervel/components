@@ -178,8 +178,6 @@ class PooledConnection implements PoolConnectionInterface
             if ($now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
                 return false;
             }
-
-            $this->lastUseTime = $now;
         }
 
         return true;

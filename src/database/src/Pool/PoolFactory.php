@@ -84,14 +84,18 @@ class PoolFactory
 
     /**
      * Flush a specific pool, closing all connections.
+     *
+     * Boot or tests only. Closes a worker-shared pool; connections already
+     * checked out by concurrent coroutines are destroyed on release.
      */
     public function flushPool(string $name): void
     {
         $poolName = $this->getExistingPoolName($name);
+        $pool = $this->pools[$poolName] ?? null;
 
-        if (isset($this->pools[$poolName])) {
-            $this->pools[$poolName]->flushAll();
+        if ($pool !== null) {
             unset($this->pools[$poolName]);
+            $pool->close();
         }
     }
 
@@ -124,13 +128,17 @@ class PoolFactory
 
     /**
      * Flush all pools, closing all connections.
+     *
+     * Boot or tests only. Closes every worker-shared pool; connections already
+     * checked out by concurrent coroutines are destroyed on release.
      */
     public function flushAll(): void
     {
-        foreach ($this->pools as $pool) {
-            $pool->flushAll();
-        }
-
+        $pools = $this->pools;
         $this->pools = [];
+
+        foreach ($pools as $pool) {
+            $pool->close();
+        }
     }
 }
