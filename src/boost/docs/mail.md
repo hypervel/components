@@ -338,15 +338,15 @@ Use `pool.name` to select a readable explicit identity and `pool.fingerprint` to
 
 `Mail::forgetMailers()` only drops the manager's cached mailer wrappers. `Mail::purge($name)` drops the wrapper and closes its current transport pool; any equivalent retained wrapper transparently creates a fresh pool on its next send.
 
-For tenant-specific provider credentials, opt an on-demand mailer into pooling and let the resolved credentials define its pool identity:
+When provider credentials vary at runtime — for example, by customer account, provider subaccount, or tenant — opt an on-demand mailer into pooling and let the resolved credentials define its pool identity:
 
 ```php
 $mailer = Mail::build([
     'transport' => 'smtp',
-    'host' => $tenant->smtp_host,
-    'port' => $tenant->smtp_port,
-    'username' => $tenant->smtp_username,
-    'password' => $tenant->smtp_password,
+    'host' => $account->smtp_host,
+    'port' => $account->smtp_port,
+    'username' => $account->smtp_username,
+    'password' => $account->smtp_password,
     'pool' => [
         'max_objects' => 20,
         'idle_ttl' => 300,
