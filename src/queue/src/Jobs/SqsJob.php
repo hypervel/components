@@ -6,6 +6,8 @@ namespace Hypervel\Queue\Jobs;
 
 use Aws\Sqs\SqsClient;
 use Hypervel\Contracts\Container\Container;
+use RuntimeException;
+use Throwable;
 
 class SqsJob extends Job
 {
@@ -17,7 +19,7 @@ class SqsJob extends Job
         protected SqsClient $sqs,
         protected array $job,
         protected string $connectionName,
-        protected ?string $queue
+        protected string $queue
     ) {
     }
 
@@ -28,11 +30,17 @@ class SqsJob extends Job
     {
         parent::release($delay);
 
-        $this->sqs->changeMessageVisibility([
-            'QueueUrl' => $this->queue,
-            'ReceiptHandle' => $this->job['ReceiptHandle'],
-            'VisibilityTimeout' => $delay,
-        ]);
+        try {
+            $this->getSqs()->changeMessageVisibility([
+                'QueueUrl' => $this->queue,
+                'ReceiptHandle' => $this->job['ReceiptHandle'],
+                'VisibilityTimeout' => $delay,
+            ]);
+        } catch (Throwable $exception) {
+            $this->discardPoolLeaseAfterFailure($exception);
+        }
+
+        $this->releasePoolLease();
     }
 
     /**
@@ -42,10 +50,16 @@ class SqsJob extends Job
     {
         parent::delete();
 
-        $this->sqs->deleteMessage([
-            'QueueUrl' => $this->queue,
-            'ReceiptHandle' => $this->job['ReceiptHandle'],
-        ]);
+        try {
+            $this->getSqs()->deleteMessage([
+                'QueueUrl' => $this->queue,
+                'ReceiptHandle' => $this->job['ReceiptHandle'],
+            ]);
+        } catch (Throwable $exception) {
+            $this->discardPoolLeaseAfterFailure($exception);
+        }
+
+        $this->releasePoolLease();
     }
 
     /**
@@ -77,6 +91,10 @@ class SqsJob extends Job
      */
     public function getSqs(): SqsClient
     {
+        if ($this->poolLeaseIsFinalized()) {
+            throw new RuntimeException('The pooled SQS job client is no longer available after a terminal operation.');
+        }
+
         return $this->sqs;
     }
 

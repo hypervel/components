@@ -8,16 +8,25 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\ObjectPool\PoolProxy;
+use Hypervel\Queue\Jobs\Job as PoolLeaseAwareJob;
+use RuntimeException;
+use Throwable;
 
 class QueuePoolProxy extends PoolProxy implements Queue
 {
+    /**
+     * The logical connection name applied to each borrowed queue.
+     */
+    protected string $connectionName = '';
+
     /**
      * Get the size of the queue.
      */
     public function size(?string $queue = null): int
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -25,7 +34,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function pendingSize(?string $queue = null): int
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -33,7 +42,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function delayedSize(?string $queue = null): int
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -41,7 +50,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function reservedSize(?string $queue = null): int
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -49,7 +58,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -57,7 +66,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -65,7 +74,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function pushOn(?string $queue, object|string $job, mixed $data = ''): mixed
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -73,7 +82,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -81,7 +90,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function later(DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -89,7 +98,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function laterOn(?string $queue, DateInterval|DateTimeInterface|int $delay, object|string $job, mixed $data = ''): mixed
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -97,7 +106,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function bulk(array $jobs, mixed $data = '', ?string $queue = null): mixed
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -105,7 +114,67 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function pop(?string $queue = null): ?Job
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        $lease = $this->lease();
+
+        try {
+            /** @var Queue $connection */
+            $connection = $lease->get();
+            $job = $connection->pop($queue);
+
+            if ($job === null) {
+                $lease->release();
+
+                return null;
+            }
+
+            if (! $job instanceof PoolLeaseAwareJob) {
+                try {
+                    $job->release(0);
+                } catch (Throwable $requeueException) {
+                    try {
+                        $lease->discard();
+                    } catch (Throwable $cleanupException) {
+                        PoolErrorReporter::report($cleanupException);
+                    }
+
+                    throw new RuntimeException(
+                        'Pooled queue connections require jobs extending Hypervel\Queue\Jobs\Job; '
+                        . 'requeueing the popped job also failed.',
+                        previous: $requeueException,
+                    );
+                }
+
+                throw new RuntimeException(
+                    'Pooled queue connections require jobs extending Hypervel\Queue\Jobs\Job.'
+                );
+            }
+
+            try {
+                return $job->withPoolLease($lease);
+            } catch (Throwable $attachmentException) {
+                try {
+                    $job->release(0);
+                } catch (Throwable $recoveryException) {
+                    PoolErrorReporter::report($recoveryException);
+
+                    try {
+                        $lease->discard();
+                    } catch (Throwable $cleanupException) {
+                        PoolErrorReporter::report($cleanupException);
+                    }
+                }
+
+                throw $attachmentException;
+            }
+        } catch (Throwable $operationException) {
+            try {
+                $lease->release();
+            } catch (Throwable $finalizationException) {
+                PoolErrorReporter::report($finalizationException);
+            }
+
+            throw $operationException;
+        }
     }
 
     /**
@@ -113,7 +182,7 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function getConnectionName(): string
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->connectionName;
     }
 
     /**
@@ -121,6 +190,17 @@ class QueuePoolProxy extends PoolProxy implements Queue
      */
     public function setConnectionName(string $name): static
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        $this->connectionName = $name;
+
+        return $this;
+    }
+
+    /**
+     * Apply the proxy's logical connection name to a borrowed queue.
+     */
+    protected function configureBorrowed(object $object): void
+    {
+        /** @var Queue $object */
+        $object->setConnectionName($this->connectionName);
     }
 }

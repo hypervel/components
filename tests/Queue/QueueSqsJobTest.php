@@ -5,51 +5,59 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Aws\Sqs\SqsClient;
+use Closure;
+use Exception;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\ObjectPool\Lease;
+use Hypervel\ObjectPool\PoolOptions;
+use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\SqsQueue;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use stdClass;
 
 class QueueSqsJobTest extends TestCase
 {
-    protected $key;
+    protected string $key;
 
-    protected $secret;
+    protected string $secret;
 
-    protected $service;
+    protected string $service;
 
-    protected $region;
+    protected string $region;
 
-    protected $account;
+    protected string $account;
 
-    protected $queueName;
+    protected string $queueName;
 
-    protected $baseUrl;
+    protected string $baseUrl;
 
-    protected $releaseDelay;
+    protected int $releaseDelay;
 
-    protected $queueUrl;
+    protected string $queueUrl;
 
-    protected $mockedSqsClient;
+    protected SqsClient $mockedSqsClient;
 
-    protected $mockedContainer;
+    protected Container $mockedContainer;
 
-    protected $mockedJob;
+    protected string $mockedJob;
 
-    protected $mockedData;
+    protected array $mockedData;
 
-    protected $mockedPayload;
+    protected string $mockedPayload;
 
-    protected $mockedMessageId;
+    protected string $mockedMessageId;
 
-    protected $mockedReceiptHandle;
+    protected string $mockedReceiptHandle;
 
-    protected $mockedJobData;
+    protected array $mockedJobData;
 
     protected function setUp(): void
     {
+        parent::setUp();
+
         $this->key = 'AMAZONSQSKEY';
         $this->secret = 'AmAz0n+SqSsEcReT+aLpHaNuM3R1CsTr1nG';
         $this->service = 'sqs';
@@ -83,7 +91,7 @@ class QueueSqsJobTest extends TestCase
         ];
     }
 
-    public function testFireProperlyCallsTheJobHandler()
+    public function testFireProperlyCallsTheJobHandler(): void
     {
         $job = $this->getJob();
         $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(stdClass::class));
@@ -91,7 +99,7 @@ class QueueSqsJobTest extends TestCase
         $job->fire();
     }
 
-    public function testDeleteRemovesTheJobFromSqs()
+    public function testDeleteRemovesTheJobFromSqs(): void
     {
         $this->mockedSqsClient = m::mock(SqsClient::class)->makePartial();
         $queue = m::mock(SqsQueue::class, [$this->mockedSqsClient, $this->queueName, $this->account])->makePartial();
@@ -101,7 +109,7 @@ class QueueSqsJobTest extends TestCase
         $job->delete();
     }
 
-    public function testReleaseProperlyReleasesTheJobOntoSqs()
+    public function testReleaseProperlyReleasesTheJobOntoSqs(): void
     {
         $this->mockedSqsClient = m::mock(SqsClient::class)->makePartial();
         $queue = m::mock(SqsQueue::class, [$this->mockedSqsClient, $this->queueName, $this->account])->makePartial();
@@ -112,7 +120,91 @@ class QueueSqsJobTest extends TestCase
         $this->assertTrue($job->isReleased());
     }
 
-    protected function getJob()
+    public function testDeleteReleasesPoolLeaseAfterBackendCall(): void
+    {
+        [$pool, $lease] = $this->lease();
+        $job = $this->getJob();
+        $job->getSqs()->shouldReceive('deleteMessage')->once()
+            ->andReturnUsing(function () use ($pool): void {
+                $this->assertSame(1, $pool->getBorrowedObjectNumber());
+            });
+
+        $job->withPoolLease($lease)->delete();
+
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(1, $pool->getObjectNumberInPool());
+    }
+
+    public function testReleaseReleasesPoolLeaseAfterBackendCall(): void
+    {
+        [$pool, $lease] = $this->lease();
+        $job = $this->getJob();
+        $job->getSqs()->shouldReceive('changeMessageVisibility')->once()
+            ->andReturnUsing(function () use ($pool): void {
+                $this->assertSame(1, $pool->getBorrowedObjectNumber());
+            });
+
+        $job->withPoolLease($lease)->release(5);
+
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+        $this->assertSame(1, $pool->getObjectNumberInPool());
+    }
+
+    public function testBackendFailureDiscardsPoolLeaseAndPreservesTheException(): void
+    {
+        $destroyed = 0;
+        [$pool, $lease] = $this->lease(function () use (&$destroyed): void {
+            ++$destroyed;
+        });
+        $job = $this->getJob();
+        $expected = new Exception('delete failed');
+        $job->getSqs()->shouldReceive('deleteMessage')->once()->andThrow($expected);
+
+        try {
+            $job->withPoolLease($lease)->delete();
+            $this->fail('The backend exception was not thrown.');
+        } catch (Exception $exception) {
+            $this->assertSame($expected, $exception);
+        }
+
+        $this->assertSame(1, $destroyed);
+        $this->assertSame(0, $pool->getCurrentObjectNumber());
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+    }
+
+    public function testBackendAccessIsRejectedAfterLeaseFinalization(): void
+    {
+        [$pool, $lease] = $this->lease();
+        $job = $this->getJob();
+        $job->getSqs()->shouldReceive('deleteMessage')->once();
+
+        $job->withPoolLease($lease)->delete();
+        $this->assertSame(0, $pool->getBorrowedObjectNumber());
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('client is no longer available');
+
+        $job->getSqs();
+    }
+
+    /**
+     * Create a checked-out object under a queue-job lease.
+     *
+     * @return array{SimpleObjectPool, Lease}
+     */
+    protected function lease(?Closure $destroyCallback = null): array
+    {
+        $pool = new SimpleObjectPool(
+            m::mock(Container::class),
+            fn () => new stdClass,
+            PoolOptions::fromArray([]),
+            $destroyCallback,
+        );
+
+        return [$pool, new Lease($pool, $pool->get())];
+    }
+
+    protected function getJob(): SqsJob
     {
         return new SqsJob(
             $this->mockedContainer,

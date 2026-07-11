@@ -9,10 +9,13 @@ use Hypervel\Bus\BatchRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
+use Hypervel\ObjectPool\Lease;
+use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\ManuallyFailedException;
 use Hypervel\Queue\TimeoutExceededException;
 use Hypervel\Support\InteractsWithTime;
+use RuntimeException;
 use Throwable;
 
 abstract class Job implements JobContract
@@ -52,7 +55,17 @@ abstract class Job implements JobContract
     /**
      * The name of the queue the job belongs to.
      */
-    protected ?string $queue;
+    protected string $queue;
+
+    /**
+     * The lease pinning this job's pooled backend until a terminal operation.
+     */
+    protected ?Lease $poolLease = null;
+
+    /**
+     * Indicates whether this job has ever carried a pool lease.
+     */
+    protected bool $poolLeaseAttached = false;
 
     /**
      * Get the job identifier.
@@ -63,6 +76,75 @@ abstract class Job implements JobContract
      * Get the raw body of the job.
      */
     abstract public function getRawBody(): string;
+
+    /**
+     * Attach the backend lease held for this job.
+     */
+    public function withPoolLease(Lease $lease): static
+    {
+        if ($this->poolLeaseAttached) {
+            throw new RuntimeException('A queue job cannot be attached to more than one pool lease.');
+        }
+
+        // Attach first so a failing initialization hook can still recover the
+        // reserved job through its normal terminal operation.
+        $this->poolLeaseAttached = true;
+        $this->poolLease = $lease;
+        $this->onPoolLeaseAttached();
+
+        return $this;
+    }
+
+    /**
+     * Initialize state that must be captured while the backend is pinned.
+     */
+    protected function onPoolLeaseAttached(): void
+    {
+    }
+
+    /**
+     * Return the pinned backend to its pool.
+     */
+    protected function releasePoolLease(): void
+    {
+        $lease = $this->poolLease;
+        $this->poolLease = null;
+
+        $lease?->release();
+    }
+
+    /**
+     * Discard the pinned backend instead of returning it to its pool.
+     */
+    protected function discardPoolLease(): void
+    {
+        $lease = $this->poolLease;
+        $this->poolLease = null;
+
+        $lease?->discard();
+    }
+
+    /**
+     * Determine whether a previously attached backend lease is finalized.
+     */
+    protected function poolLeaseIsFinalized(): bool
+    {
+        return $this->poolLeaseAttached && $this->poolLease === null;
+    }
+
+    /**
+     * Discard a backend after failure without masking the primary exception.
+     */
+    protected function discardPoolLeaseAfterFailure(Throwable $exception): never
+    {
+        try {
+            $this->discardPoolLease();
+        } catch (Throwable $cleanupException) {
+            PoolErrorReporter::report($cleanupException);
+        }
+
+        throw $exception;
+    }
 
     /**
      * Get the UUID of the job.
