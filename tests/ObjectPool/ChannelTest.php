@@ -117,6 +117,17 @@ class ChannelTest extends TestCase
 
         $this->assertTrue($channel->wait(0.001));
     }
+
+    public function testPushAfterCloseIsRejectedWithoutRetainingTheObject(): void
+    {
+        $channel = new Channel(1);
+
+        $channel->close();
+
+        $this->assertFalse($channel->push(new stdClass));
+        $this->assertSame(0, $channel->length());
+        $this->assertFalse($channel->pop());
+    }
 }
 
 class FullSignalObjectPoolChannel extends Channel

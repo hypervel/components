@@ -48,6 +48,10 @@ class Channel
      */
     public function push(ConnectionInterface $data): bool
     {
+        if ($this->closed) {
+            return false;
+        }
+
         $this->queue->enqueue($data);
         $this->signal();
 

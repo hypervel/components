@@ -118,6 +118,17 @@ class ChannelTest extends TestCase
 
         $this->assertTrue($channel->wait(0.001));
     }
+
+    public function testPushAfterCloseIsRejectedWithoutRetainingTheConnection(): void
+    {
+        $channel = new Channel(1);
+
+        $channel->close();
+
+        $this->assertFalse($channel->push(m::mock(ConnectionInterface::class)));
+        $this->assertSame(0, $channel->length());
+        $this->assertFalse($channel->pop());
+    }
 }
 
 class FullSignalConnectionPoolChannel extends Channel

@@ -47,6 +47,10 @@ class Channel
      */
     public function push(object $data): bool
     {
+        if ($this->closed) {
+            return false;
+        }
+
         $this->queue->enqueue($data);
         $this->signal();
 
