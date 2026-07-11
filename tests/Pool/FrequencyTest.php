@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Pool;
 
-use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Pool\Channel;
 use Hypervel\Pool\Pool;
 use Hypervel\Tests\Pool\Fixtures\ConstantFrequencyStub;
 use Hypervel\Tests\Pool\Fixtures\FrequencyStub;
@@ -15,7 +13,7 @@ use Mockery as m;
 
 class FrequencyTest extends TestCase
 {
-    public function testFrequencyHit()
+    public function testFrequencyHit(): void
     {
         $frequency = new FrequencyStub;
         $now = time();
@@ -36,21 +34,17 @@ class FrequencyTest extends TestCase
         $this->assertSame(42 / 5, $num);
     }
 
-    public function testConstantFrequency()
+    public function testConstantFrequency(): void
     {
         $pool = m::mock(Pool::class);
-        $channel = new Channel(100);
-        $pool->shouldReceive('flushOne')->andReturnUsing(function () use ($channel) {
-            $channel->push(m::mock(ConnectionInterface::class));
-        });
+        $pool->shouldReceive('checkIdleConnection')->atLeast()->once();
 
         $stub = new ConstantFrequencyStub($pool);
         Coroutine::sleep(0.005);
         $stub->clear();
-        $this->assertGreaterThan(0, $channel->length());
     }
 
-    public function testFrequencyHitOneSecondAfter()
+    public function testFrequencyHitOneSecondAfter(): void
     {
         $frequency = new FrequencyStub;
         $now = time();
