@@ -101,7 +101,7 @@ class ConfigCacheCommand extends Command
      */
     protected function getFreshConfigurationCacheContentsFromSubprocess(): string
     {
-        $dumpPath = tempnam(sys_get_temp_dir(), 'hypervel-config-');
+        $dumpPath = @tempnam(sys_get_temp_dir(), 'hypervel-config-');
 
         try {
             if ($dumpPath === false) {
@@ -163,7 +163,7 @@ class ConfigCacheCommand extends Command
     {
         $config = $this->hypervel['config']->all();
         $contents = '<?php return ' . var_export($config, true) . ';' . PHP_EOL;
-        $cachePath = tempnam(sys_get_temp_dir(), 'hypervel-config-cache-');
+        $cachePath = @tempnam(sys_get_temp_dir(), 'hypervel-config-cache-');
 
         try {
             if ($cachePath === false) {
