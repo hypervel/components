@@ -770,10 +770,11 @@ class CacheSwooleStoreTest extends TestCase
         );
     }
 
-    public function testSwooleStoreImplementsLockContracts(): void
+    public function testSwooleStoreImplementsLockContractsAndSupportsFlushingLocks(): void
     {
         $this->assertTrue(is_subclass_of(SwooleStore::class, LockProvider::class));
         $this->assertTrue(is_subclass_of(SwooleStore::class, CanFlushLocks::class));
+        $this->assertTrue($this->createStore()->supportsFlushingLocks());
     }
 
     public function testSwooleStoreSupportsFunnels(): void
