@@ -14,7 +14,6 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\TransferStats;
 use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
@@ -29,8 +28,6 @@ use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\Client\Response;
 use Hypervel\Http\Client\ResponseSequence;
 use Hypervel\Http\Response as HttpResponse;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
-use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
@@ -4001,14 +3998,12 @@ class HttpClientTest extends TestCase
         $this->assertTrue($response[1]->body() === 'bar');
     }
 
-    public function testPoolableClient()
+    public function testRegisteredConnectionBuildsClient(): void
     {
-        $container = $this->getContainer();
-
-        Container::setInstance($container);
-
         $this->factory->registerConnection('vapor');
-        $client = $this->factory->getClient('vapor', (new PendingRequest($this->factory))->buildHandlerStack());
+
+        $client = $this->factory->connection('vapor')->buildClient();
+
         $this->assertInstanceOf(ClientInterface::class, $client);
     }
 
@@ -4094,7 +4089,6 @@ class HttpClientTest extends TestCase
         $container = new \Hypervel\Container\Container;
         $container->instance(ContainerContract::class, $container);
         $container->instance('config', new ConfigRepository(['http_client' => $config]));
-        $container->singleton(PoolFactory::class, PoolManager::class);
 
         return $container;
     }
