@@ -37,10 +37,6 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
         $storageApiUri = Arr::get($this->config, 'storageApiUri')
             ?: static::DEFAULT_API_ENDPOINT . '/' . ltrim(Arr::get($this->config, 'bucket'), '/');
 
-        if (Arr::get($this->config, 'storageApiUri')) {
-            $storageApiUri = Arr::get($this->config, 'storageApiUri');
-        }
-
         return $this->concatPathToUrl($storageApiUri, $this->prefixer->prefixPath($path));
     }
 
@@ -88,6 +84,12 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
      */
     public function readStreamRange(string $path, ?int $start, ?int $end): mixed
     {
+        [$start, $end] = $this->normalizeStreamRange($start, $end);
+
+        if ($start === null && $end === null) {
+            return $this->readStream($path);
+        }
+
         return $this->readStreamWithOptions(
             $path,
             [
@@ -116,11 +118,26 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
         try {
             $stream = $this->getBucket()->object($prefixedPath)->downloadAsStream($options)->detach();
         } catch (Throwable $exception) {
-            throw UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
+            $exception = UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
+
+            throw_if($this->throwsExceptions(), $exception);
+
+            $this->report($exception);
+
+            return null;
         }
 
         if (! is_resource($stream)) {
-            throw UnableToReadFile::fromLocation($path, 'Downloaded object does not contain a file resource.');
+            $exception = UnableToReadFile::fromLocation(
+                $path,
+                'Downloaded object does not contain a file resource.',
+            );
+
+            throw_if($this->throwsExceptions(), $exception);
+
+            $this->report($exception);
+
+            return null;
         }
 
         return $stream;

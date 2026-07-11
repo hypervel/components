@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Filesystem;
 
 use Carbon\Carbon;
+use DateTimeInterface;
 use GuzzleHttp\Psr7\Stream;
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
@@ -13,6 +14,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
+use Hypervel\Filesystem\LocalFilesystemAdapter as HypervelLocalFilesystemAdapter;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
@@ -23,6 +25,7 @@ use InvalidArgumentException;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Ftp\FtpAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter;
+use League\Flysystem\PathTraversalDetected;
 use League\Flysystem\UnableToReadFile;
 use League\Flysystem\UnableToRetrieveMetadata;
 use League\Flysystem\UnableToWriteFile;
@@ -119,20 +122,53 @@ class FilesystemAdapterTest extends TestCase
         $this->assertSame('42', $response->headers->get('X-Custom-Count'));
     }
 
-    public function testFallbackNameCalledAlreadyProvidedToResponse()
+    public function testProvidedContentDispositionBypassesGeneratedDisposition(): void
     {
         $this->mockResponse();
 
         $this->filesystem->write('file.txt', 'Hello World');
-
-        $files = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])
-            ->shouldAllowMockingProtectedMethods()
-            ->makePartial();
-        $files->shouldReceive('fallbackName')->never();
-
-        $files->response('file.txt', null, [
+        $files = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $response = $files->response('file.txt', null, [
             'Content-Disposition' => 'attachment',
         ]);
+
+        $this->assertSame('attachment', $response->headers->get('Content-Disposition'));
+    }
+
+    public function testResponseStreamsTheRequestedRangeFromALocalDisk(): void
+    {
+        $request = Request::create('/file.txt', 'GET', server: ['HTTP_RANGE' => 'bytes=3-5']);
+        RequestContext::set($request);
+        $writable = new FakeWritableConnection;
+        $response = new Response;
+        $response->setConnection($writable);
+        ResponseContext::set($response);
+        $this->filesystem->write('file.txt', '0123456789');
+        $files = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $result = $files->response('file.txt');
+
+        $this->assertSame(206, $result->getStatusCode());
+        $this->assertSame('bytes 3-5/10', $result->headers->get('Content-Range'));
+        $this->assertSame('345', $writable->written);
+    }
+
+    public function testServeUsesTheSuppliedRequestForRangeHandling(): void
+    {
+        RequestContext::set(Request::create('/file.txt', 'GET'));
+        $request = Request::create('/file.txt', 'GET', server: ['HTTP_RANGE' => 'bytes=6-8']);
+        $writable = new FakeWritableConnection;
+        $response = new Response;
+        $response->setConnection($writable);
+        ResponseContext::set($response);
+        $this->filesystem->write('file.txt', '0123456789');
+        $files = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $result = $files->serve($request, 'file.txt');
+
+        $this->assertSame(206, $result->getStatusCode());
+        $this->assertSame('bytes 6-8/10', $result->headers->get('Content-Range'));
+        $this->assertSame('678', $writable->written);
     }
 
     public function testDownload()
@@ -214,6 +250,17 @@ class FilesystemAdapterTest extends TestCase
             'root' => $this->tempDir . DIRECTORY_SEPARATOR,
         ]);
         $this->assertEquals($this->tempDir . DIRECTORY_SEPARATOR . 'file.txt', $filesystemAdapter->path('file.txt'));
+    }
+
+    public function testPathRejectsTraversalBeforePrefixing(): void
+    {
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter, [
+            'root' => $this->tempDir . DIRECTORY_SEPARATOR,
+        ]);
+
+        $this->expectException(PathTraversalDetected::class);
+
+        $filesystemAdapter->path('../secret.txt');
     }
 
     public function testGet()
@@ -352,6 +399,84 @@ class FilesystemAdapterTest extends TestCase
     {
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
         $this->assertNull($filesystemAdapter->readStream('nonexistent.txt'));
+    }
+
+    public function testReadStreamRangePositionsASeekableStream(): void
+    {
+        $this->filesystem->write('file.txt', '0123456789');
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $stream = $filesystemAdapter->readStreamRange('file.txt', 3, 5);
+
+        $this->assertIsResource($stream);
+        $this->assertSame('3456789', stream_get_contents($stream));
+        fclose($stream);
+    }
+
+    public function testReadStreamRangeResolvesSuffixAgainstFileSize(): void
+    {
+        $this->filesystem->write('file.txt', '0123456789');
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $stream = $filesystemAdapter->readStreamRange('file.txt', null, 3);
+
+        $this->assertIsResource($stream);
+        $this->assertSame('789', stream_get_contents($stream));
+        fclose($stream);
+    }
+
+    public function testReadStreamRangeWithoutBoundsDelegatesToTheFullStream(): void
+    {
+        $stream = tmpfile();
+        $this->assertIsResource($stream);
+        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
+        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($stream);
+
+        $this->assertSame($stream, $filesystemAdapter->readStreamRange('file.txt', null, null));
+
+        fclose($stream);
+    }
+
+    public function testReadStreamRangeRejectsInvalidArgumentsBeforeFileIo(): void
+    {
+        $invalidRanges = [
+            [-1, 2],
+            [1, -2],
+            [3, 2],
+            [null, 0],
+        ];
+
+        foreach ($invalidRanges as [$start, $end]) {
+            $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
+            $filesystemAdapter->shouldNotReceive('readStream');
+            $filesystemAdapter->shouldNotReceive('size');
+
+            try {
+                $filesystemAdapter->readStreamRange('file.txt', $start, $end);
+                $this->fail('Expected the invalid stream range to be rejected.');
+            } catch (InvalidArgumentException $exception) {
+                $this->assertStringContainsString('A stream range must be', $exception->getMessage());
+            }
+        }
+    }
+
+    public function testReadStreamRangeDiscardsBytesFromANonSeekableStream(): void
+    {
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $this->assertIsArray($sockets);
+        [$reader, $writer] = $sockets;
+        fwrite($writer, '0123456789');
+        fclose($writer);
+        $metadata = stream_get_meta_data($reader);
+        $this->assertFalse($metadata['seekable']);
+        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
+        $filesystemAdapter->shouldReceive('readStream')->once()->with('file.txt')->andReturn($reader);
+
+        $stream = $filesystemAdapter->readStreamRange('file.txt', 3, 5);
+
+        $this->assertSame($reader, $stream);
+        $this->assertSame('3456789', stream_get_contents($stream));
+        fclose($stream);
     }
 
     public function testStreamInvalidResourceThrows()
@@ -523,6 +648,98 @@ class FilesystemAdapterTest extends TestCase
             $path . $expiration->toString() . implode('', $options),
             $filesystemAdapter->temporaryUrl($path, $expiration, $options)
         );
+    }
+
+    public function testTemporaryUrlCallbacksSupportStaticFirstClassAndBoundClosures(): void
+    {
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $expiration = Carbon::create(2021, 12, 18, 13);
+        $handler = new FilesystemTemporaryUrlCallbackHandler;
+
+        $filesystemAdapter->buildTemporaryUrlsUsing(static fn (): string => 'static');
+        $this->assertSame('static', $filesystemAdapter->temporaryUrl('file.txt', $expiration));
+
+        $filesystemAdapter->buildTemporaryUrlsUsing(filesystemTemporaryUrlCallback(...));
+        $this->assertSame('function:file.txt', $filesystemAdapter->temporaryUrl('file.txt', $expiration));
+
+        $filesystemAdapter->buildTemporaryUrlsUsing($handler->temporaryUrl(...));
+        $this->assertSame('method:file.txt', $filesystemAdapter->temporaryUrl('file.txt', $expiration));
+
+        $filesystemAdapter->buildTemporaryUrlsUsing(function (): string {
+            return get_class($this);
+        });
+        $this->assertSame(FilesystemAdapter::class, $filesystemAdapter->temporaryUrl('file.txt', $expiration));
+
+        $filesystemAdapter->buildTemporaryUploadUrlsUsing(static fn (): array => ['kind' => 'static']);
+        $this->assertSame(
+            ['kind' => 'static'],
+            $filesystemAdapter->temporaryUploadUrl('file.txt', $expiration),
+        );
+
+        $filesystemAdapter->buildTemporaryUploadUrlsUsing(filesystemTemporaryUploadUrlCallback(...));
+        $this->assertSame(
+            ['kind' => 'function', 'path' => 'file.txt'],
+            $filesystemAdapter->temporaryUploadUrl('file.txt', $expiration),
+        );
+
+        $filesystemAdapter->buildTemporaryUploadUrlsUsing($handler->temporaryUploadUrl(...));
+        $this->assertSame(
+            ['kind' => 'method', 'path' => 'file.txt'],
+            $filesystemAdapter->temporaryUploadUrl('file.txt', $expiration),
+        );
+
+        $filesystemAdapter->buildTemporaryUploadUrlsUsing(function (): array {
+            return ['class' => get_class($this)];
+        });
+        $this->assertSame(
+            ['class' => FilesystemAdapter::class],
+            $filesystemAdapter->temporaryUploadUrl('file.txt', $expiration),
+        );
+    }
+
+    public function testLocalAdapterOverridesInvokeNormalizedStaticCallbacksDirectly(): void
+    {
+        $filesystemAdapter = (new HypervelLocalFilesystemAdapter($this->filesystem, $this->adapter))
+            ->diskName('local');
+        $expiration = Carbon::create(2021, 12, 18, 13);
+        $filesystemAdapter->buildTemporaryUrlsUsing(static fn (): string => 'local-static');
+        $filesystemAdapter->buildTemporaryUploadUrlsUsing(
+            static fn (): array => ['kind' => 'local-static'],
+        );
+
+        $this->assertSame('local-static', $filesystemAdapter->temporaryUrl('file.txt', $expiration));
+        $this->assertSame(
+            ['kind' => 'local-static'],
+            $filesystemAdapter->temporaryUploadUrl('file.txt', $expiration),
+        );
+    }
+
+    public function testCallbackMutatorsCanClearPreviouslyConfiguredCallbacks(): void
+    {
+        $serveCalled = false;
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+        $filesystemAdapter->serveUsing(function () use (&$serveCalled): Response {
+            $serveCalled = true;
+
+            return new Response;
+        });
+        $filesystemAdapter->buildTemporaryUrlsUsing(static fn (): string => 'temporary');
+        $filesystemAdapter->buildTemporaryUploadUrlsUsing(static fn (): array => ['url' => 'temporary']);
+
+        $this->assertTrue($filesystemAdapter->providesTemporaryUrls());
+        $this->assertTrue($filesystemAdapter->providesTemporaryUploadUrls());
+
+        $filesystemAdapter->serveUsing(null);
+        $filesystemAdapter->buildTemporaryUrlsUsing(null);
+        $filesystemAdapter->buildTemporaryUploadUrlsUsing(null);
+
+        $this->assertFalse($filesystemAdapter->providesTemporaryUrls());
+        $this->assertFalse($filesystemAdapter->providesTemporaryUploadUrls());
+
+        $this->mockResponse();
+        $this->filesystem->write('file.txt', 'contents');
+        $filesystemAdapter->serve(Request::create('/file.txt'), 'file.txt');
+        $this->assertFalse($serveCalled);
     }
 
     public function testThrowExceptionsForGet()
@@ -941,5 +1158,40 @@ class FailAfterFirstWriteConnection implements \Hypervel\Contracts\Engine\Http\W
     public function end(): ?bool
     {
         return true;
+    }
+}
+
+function filesystemTemporaryUrlCallback(
+    string $path,
+    DateTimeInterface $expiration,
+    array $options,
+): string {
+    return 'function:' . $path;
+}
+
+function filesystemTemporaryUploadUrlCallback(
+    string $path,
+    DateTimeInterface $expiration,
+    array $options,
+): array {
+    return ['kind' => 'function', 'path' => $path];
+}
+
+class FilesystemTemporaryUrlCallbackHandler
+{
+    /**
+     * Build a temporary URL through a first-class instance method.
+     */
+    public function temporaryUrl(string $path, DateTimeInterface $expiration, array $options): string
+    {
+        return 'method:' . $path;
+    }
+
+    /**
+     * Build a temporary upload URL through a first-class instance method.
+     */
+    public function temporaryUploadUrl(string $path, DateTimeInterface $expiration, array $options): array
+    {
+        return ['kind' => 'method', 'path' => $path];
     }
 }

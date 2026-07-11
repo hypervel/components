@@ -9,7 +9,9 @@ use DateTimeInterface;
 use Hypervel\Support\Traits\Conditionable;
 use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
+use League\Flysystem\UnableToReadFile;
 use RuntimeException;
+use Throwable;
 
 class AwsS3V3Adapter extends FilesystemAdapter
 {
@@ -115,6 +117,80 @@ class AwsS3V3Adapter extends FilesystemAdapter
             'url' => (string) $uri,
             'headers' => $signedRequest->getHeaders(),
         ];
+    }
+
+    /**
+     * Get a resource to read the file without dropping configured HTTP options.
+     *
+     * @return null|resource the path resource or null on failure
+     */
+    public function readStream(string $path): mixed
+    {
+        return $this->readStreamWithOptions($path);
+    }
+
+    /**
+     * Get a resource to read a byte range without downloading the full object.
+     *
+     * @return null|resource the path resource or null on failure
+     */
+    public function readStreamRange(string $path, ?int $start, ?int $end): mixed
+    {
+        [$start, $end] = $this->normalizeStreamRange($start, $end);
+
+        if ($start === null && $end === null) {
+            return $this->readStream($path);
+        }
+
+        return $this->readStreamWithOptions($path, [
+            'Range' => "bytes={$start}-{$end}",
+        ]);
+    }
+
+    /**
+     * Read an object while preserving configured options and operation-owned keys.
+     *
+     * @return null|resource
+     */
+    private function readStreamWithOptions(string $path, array $operationOptions = []): mixed
+    {
+        try {
+            $options = $this->config['options'] ?? [];
+            $options['Bucket'] = $this->config['bucket'];
+            $options['Key'] = $this->prefixer->prefixPath($path);
+
+            foreach ($operationOptions as $key => $value) {
+                $options[$key] = $value;
+            }
+
+            if (($this->config['stream_reads'] ?? false) && ! isset($options['@http']['stream'])) {
+                $options['@http']['stream'] = true;
+            }
+
+            $command = $this->client->getCommand('GetObject', $options);
+            $stream = $this->client->execute($command)->get('Body')->detach();
+        } catch (Throwable $exception) {
+            $exception = UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
+
+            throw_if($this->throwsExceptions(), $exception);
+            $this->report($exception);
+
+            return null;
+        }
+
+        if (! is_resource($stream)) {
+            $exception = UnableToReadFile::fromLocation(
+                $path,
+                'Downloaded object does not contain a file resource.',
+            );
+
+            throw_if($this->throwsExceptions(), $exception);
+            $this->report($exception);
+
+            return null;
+        }
+
+        return $stream;
     }
 
     /**

@@ -6,7 +6,6 @@ namespace Hypervel\Filesystem;
 
 use BadMethodCallException;
 use Closure;
-use DateTimeImmutable;
 use DateTimeInterface;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
@@ -15,7 +14,6 @@ use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
-use Hypervel\Http\StreamOutput;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
@@ -26,6 +24,7 @@ use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Ftp\FtpAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter as LocalAdapter;
+use League\Flysystem\PathNormalizer;
 use League\Flysystem\PathPrefixer;
 use League\Flysystem\PhpseclibV3\SftpAdapter;
 use League\Flysystem\StorageAttributes;
@@ -40,12 +39,12 @@ use League\Flysystem\UnableToRetrieveMetadata;
 use League\Flysystem\UnableToSetVisibility;
 use League\Flysystem\UnableToWriteFile;
 use League\Flysystem\Visibility;
+use League\Flysystem\WhitespacePathNormalizer;
 use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
+use ReflectionFunction;
 use RuntimeException;
-use Symfony\Component\HttpFoundation\HeaderUtils;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 /**
@@ -67,6 +66,11 @@ class FilesystemAdapter implements CloudFilesystemContract
      * The Flysystem PathPrefixer instance.
      */
     protected PathPrefixer $prefixer;
+
+    /**
+     * The Flysystem path normalizer instance.
+     */
+    protected PathNormalizer $pathNormalizer;
 
     /**
      * The file server callback.
@@ -92,6 +96,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         array $config = []
     ) {
         $this->config = $config;
+        $this->pathNormalizer = new WhitespacePathNormalizer;
         $separator = $config['directory_separator'] ?? DIRECTORY_SEPARATOR;
 
         $this->prefixer = new PathPrefixer($config['root'] ?? '', $separator);
@@ -233,7 +238,7 @@ class FilesystemAdapter implements CloudFilesystemContract
      */
     public function path(string $path): string
     {
-        return $this->prefixer->prefixPath($path);
+        return $this->prefixer->prefixPath($this->pathNormalizer->normalizePath($path));
     }
 
     /**
@@ -271,83 +276,15 @@ class FilesystemAdapter implements CloudFilesystemContract
      * not set as a default header — Swoole's streaming model handles it, and
      * range requests may alter the actual content length sent.
      */
-    public function response(string $path, ?string $name = null, array $headers = [], ?string $disposition = 'inline'): Response
+    public function response(string $path, ?string $name = null, array $headers = [], string $disposition = 'inline'): Response
     {
-        $container = Container::getInstance();
-        $request = $container->make(Request::class);
-        $response = $container->make(Response::class);
-
-        $headers['Content-Type'] ??= $this->mimeType($path);
-
-        if (! array_key_exists('Content-Disposition', $headers)) {
-            $filename = $name ?? basename($path);
-
-            $headers['Content-Disposition'] = HeaderUtils::makeDisposition(
-                $disposition,
-                $filename,
-                $this->fallbackName($filename)
-            );
-        }
-
-        // Set Accept-Ranges header based on HTTP method safety
-        $isMethodSafe = in_array($request->getMethod(), ['GET', 'HEAD', 'OPTIONS', 'TRACE']);
-        $headers['Accept-Ranges'] = $isMethodSafe ? 'bytes' : 'none';
-
-        // Apply all headers to the response before range processing so that
-        // If-Range validation can check ETag/Last-Modified on the response.
-        foreach ($headers as $key => $value) {
-            $response->headers->set(
-                $key,
-                is_string($value) || is_array($value) || is_null($value) ? $value : (string) $value
-            );
-        }
-
-        // Range-specific headers that will be added during range processing
-        $rangeHeaders = [];
-        $stream = null;
-
-        if ($request->headers->has('Range')
-            && $request->getMethod() === 'GET'
-            && str_starts_with($request->headers->get('Range', ''), 'bytes=')
-        ) {
-            // Validate If-Range header — if present and doesn't match, serve full content
-            $ifRange = $request->headers->get('If-Range');
-
-            if ($ifRange === null || $this->hasValidIfRangeHeader($response, $ifRange)) {
-                $fileSize = $this->size($path);
-
-                [$start, $end] = static::validateRangeHeaders(
-                    $request->headers->get('Range'),
-                    $fileSize
-                );
-
-                $response->setStatusCode(206);
-
-                $rangeEnd = $end !== null ? $end : '*';
-                $rangeHeaders['Content-Range'] = sprintf('bytes %d-%s/%s', $start, $rangeEnd, $fileSize);
-
-                $stream = $this->readStreamRange($path, $start, $end);
-            }
-        }
-
-        if ($stream === null) {
-            $stream = $this->readStream($path);
-        }
-
-        $chunkSize = 64 * 1024;
-
-        return $response->stream(function (StreamOutput $output) use ($stream, $chunkSize) {
-            while (! feof($stream)) {
-                if (! $content = fread($stream, $chunkSize)) {
-                    continue;
-                }
-                if (! $output->write($content)) {
-                    break;
-                }
-            }
-
-            fclose($stream);
-        }, $rangeHeaders);
+        return $this->buildFileResponse(
+            Container::getInstance()->make(Request::class),
+            $path,
+            $name,
+            $headers,
+            $disposition,
+        );
     }
 
     /**
@@ -357,7 +294,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     {
         return isset($this->serveCallback)
             ? call_user_func($this->serveCallback, $request, $path, $headers)
-            : $this->response($path, $name, $headers);
+            : $this->buildFileResponse($request, $path, $name, $headers, 'inline');
     }
 
     /**
@@ -369,75 +306,30 @@ class FilesystemAdapter implements CloudFilesystemContract
     }
 
     /**
-     * Convert the string to ASCII characters that are equivalent to the given name.
+     * Build a file response using the supplied request context.
      */
-    protected function fallbackName(string $name): string
-    {
-        return str_replace('%', '', Str::ascii($name));
-    }
+    protected function buildFileResponse(
+        Request $request,
+        string $path,
+        ?string $name,
+        array $headers,
+        string $disposition,
+    ): Response {
+        $container = Container::getInstance();
 
-    /**
-     * Validate and parse a Range header value.
-     *
-     * @return array{0: int, 1: null|int} The start and end byte positions
-     *
-     * @throws HttpException When the range is not satisfiable (416)
-     */
-    protected static function validateRangeHeaders(string $rangeHeader, ?int $fileSize = null): array
-    {
-        [$start, $end] = explode('-', substr($rangeHeader, 6), 2) + [1 => ''];
-
-        if ($start === '') {
-            // Suffix range: "bytes=-100" means last 100 bytes
-            if ($fileSize === null) {
-                throw new HttpException(416, '', null, ['Content-Range' => 'bytes */*']);
-            }
-            $start = $fileSize - (int) $end;
-            $end = $fileSize - 1;
-        } else {
-            $start = (int) $start;
-        }
-
-        // Convert end position
-        if ($end === '') {
-            $end = $fileSize !== null ? $fileSize - 1 : null;
-        } else {
-            $end = (int) $end;
-        }
-
-        // Validate the requested range
-        if ($start < 0 || ($end !== null && $start > $end) || ($fileSize !== null && $start >= $fileSize)) {
-            throw new HttpException(416, '', null, [
-                'Content-Range' => sprintf('bytes */%s', $fileSize !== null ? $fileSize : '*'),
-            ]);
-        }
-
-        // Ensure the end position does not exceed the file size
-        if ($fileSize !== null) {
-            $end = min($end, $fileSize - 1);
-        }
-
-        return [$start, $end];
-    }
-
-    /**
-     * Determine if the If-Range header matches the response's ETag or Last-Modified.
-     */
-    protected function hasValidIfRangeHeader(Response $response, string $header): bool
-    {
-        if ($response->headers->get('ETag') === $header) {
-            return true;
-        }
-
-        $lastModified = $response->headers->get('Last-Modified');
-        if ($lastModified === null) {
-            return false;
-        }
-
-        $lastModified = DateTimeImmutable::createFromFormat(DATE_RFC2822, $lastModified);
-
-        return $lastModified !== false
-            && $lastModified->format('D, d M Y H:i:s') . ' GMT' === $header;
+        return $container->make(FileResponseBuilder::class)->build(
+            $request,
+            $container->make(Response::class),
+            $path,
+            $name,
+            $headers,
+            $disposition,
+            fn (): false|string => $this->mimeType($path),
+            fn (): int => $this->size($path),
+            fn (?int $start, ?int $end): mixed => $start === null && $end === null
+                ? $this->readStream($path)
+                : $this->readStreamRange($path, $start, $end),
+        );
     }
 
     /**
@@ -526,7 +418,7 @@ class FilesystemAdapter implements CloudFilesystemContract
      */
     public function getVisibility(string $path): string
     {
-        if ($this->driver->visibility($path) == Visibility::PUBLIC) {
+        if ($this->driver->visibility($path) === Visibility::PUBLIC) {
             return FilesystemContract::VISIBILITY_PUBLIC;
         }
 
@@ -707,12 +599,76 @@ class FilesystemAdapter implements CloudFilesystemContract
      * Get a resource to read the partial file.
      *
      * @return null|resource the path resource or null on failure
-     *
-     * @throws RuntimeException
      */
     public function readStreamRange(string $path, ?int $start, ?int $end): mixed
     {
-        throw new RuntimeException('This driver does not support reading stream with range.');
+        [$start, $end] = $this->normalizeStreamRange($start, $end);
+
+        if ($start === null && $end === null) {
+            return $this->readStream($path);
+        }
+
+        if ($start === null) {
+            $start = max(0, $this->size($path) - $end);
+        }
+
+        $stream = $this->readStream($path);
+
+        if (! is_resource($stream) || $start === 0) {
+            return $stream;
+        }
+
+        $metadata = stream_get_meta_data($stream);
+
+        if ($metadata['seekable']) {
+            if (fseek($stream, $start) === 0) {
+                return $stream;
+            }
+
+            if (! rewind($stream)) {
+                fclose($stream);
+
+                throw UnableToReadFile::fromLocation($path, 'Unable to position the stream at the requested range.');
+            }
+        }
+
+        $remaining = $start;
+
+        while ($remaining > 0) {
+            $content = fread($stream, min(8192, $remaining));
+
+            if ($content === false || ($content === '' && feof($stream))) {
+                fclose($stream);
+
+                throw UnableToReadFile::fromLocation($path, 'Unable to position the stream at the requested range.');
+            }
+
+            $remaining -= strlen($content);
+        }
+
+        return $stream;
+    }
+
+    /**
+     * Normalize and validate byte-range stream arguments.
+     *
+     * @return array{0: ?int, 1: ?int}
+     */
+    protected function normalizeStreamRange(?int $start, ?int $end): array
+    {
+        if (($start !== null && $start < 0)
+            || ($end !== null && $end < 0)
+            || ($start === null && $end === 0)
+            || ($start !== null && $end !== null && $start > $end)
+        ) {
+            throw new InvalidArgumentException(
+                'A stream range must be a non-negative bounded range (start, end), '
+                . 'an open-ended range (start, null), a positive suffix length (null, end), '
+                . 'or no range (null, null).',
+            );
+        }
+
+        return [$start, $end];
     }
 
     /**
@@ -825,7 +781,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         }
 
         if ($this->temporaryUrlCallback) {
-            return $this->temporaryUrlCallback->bindTo($this, static::class)(
+            return ($this->temporaryUrlCallback)(
                 $path,
                 $expiration,
                 $options
@@ -847,7 +803,7 @@ class FilesystemAdapter implements CloudFilesystemContract
         }
 
         if ($this->temporaryUploadUrlCallback) {
-            return $this->temporaryUploadUrlCallback->bindTo($this, static::class)(
+            return ($this->temporaryUploadUrlCallback)(
                 $path,
                 $expiration,
                 $options
@@ -1009,7 +965,7 @@ class FilesystemAdapter implements CloudFilesystemContract
      * Boot-only. The callback persists on the cached disk adapter for the
      * worker lifetime and runs on every subsequent serve() call for that disk.
      */
-    public function serveUsing(Closure $callback): void
+    public function serveUsing(?Closure $callback): void
     {
         $this->serveCallback = $callback;
     }
@@ -1021,9 +977,9 @@ class FilesystemAdapter implements CloudFilesystemContract
      * worker lifetime and runs on every subsequent temporary URL generation for
      * that disk.
      */
-    public function buildTemporaryUrlsUsing(Closure $callback): void
+    public function buildTemporaryUrlsUsing(?Closure $callback): void
     {
-        $this->temporaryUrlCallback = $callback;
+        $this->temporaryUrlCallback = $this->prepareTemporaryUrlCallback($callback);
     }
 
     /**
@@ -1033,9 +989,28 @@ class FilesystemAdapter implements CloudFilesystemContract
      * worker lifetime and runs on every subsequent temporary upload URL
      * generation for that disk.
      */
-    public function buildTemporaryUploadUrlsUsing(Closure $callback): void
+    public function buildTemporaryUploadUrlsUsing(?Closure $callback): void
     {
-        $this->temporaryUploadUrlCallback = $callback;
+        $this->temporaryUploadUrlCallback = $this->prepareTemporaryUrlCallback($callback);
+    }
+
+    /**
+     * Prepare a temporary URL callback for direct invocation.
+     */
+    protected function prepareTemporaryUrlCallback(?Closure $callback): ?Closure
+    {
+        if ($callback === null) {
+            return null;
+        }
+
+        $reflection = new ReflectionFunction($callback);
+
+        if ($reflection->isStatic() || ! $reflection->isAnonymous()) {
+            return $callback;
+        }
+
+        return $callback->bindTo($this, static::class)
+            ?? throw new RuntimeException('Unable to bind the temporary URL callback to the filesystem adapter.');
     }
 
     /**
