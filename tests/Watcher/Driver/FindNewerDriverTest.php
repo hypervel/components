@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Watcher\Driver;
 
+use Hypervel\Coordinator\Timer;
 use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Watcher\Fixtures\FindNewerDriverStub;
@@ -12,6 +13,7 @@ use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
 use InvalidArgumentException;
+use Psr\Log\NullLogger;
 use RuntimeException;
 
 class FindNewerDriverTest extends TestCase
@@ -60,6 +62,12 @@ class FindNewerDriverTest extends TestCase
         // exec() is stubbed to bypass the find availability check.
         $driver = new class($option) extends FindNewerDriver {
             private int $scanCallCount = 0;
+
+            public function __construct(Option $option)
+            {
+                parent::__construct($option);
+                $this->timer = new Timer(new NullLogger);
+            }
 
             protected function exec(string $command): array
             {
@@ -289,6 +297,218 @@ class FindNewerDriverTest extends TestCase
         }
     }
 
+    public function testChangeMadeDuringScanRemainsEligibleForTheNextScan(): void
+    {
+        $completed = new Channel(1);
+        $driver = new class($this->option(), $completed) extends FindNewerDriver {
+            /** @var array<string, int> */
+            public array $cutoffs = [];
+
+            /** @var list<string> */
+            public array $scanReferences = [];
+
+            /** @var list<string> */
+            public array $updatedReferences = [];
+
+            public bool $lateChangeEligible = false;
+
+            private int $clock = 0;
+
+            private int $lateChangeAt = 0;
+
+            private int $scanCount = 0;
+
+            public function __construct(Option $option, private Channel $completed)
+            {
+                parent::__construct($option);
+            }
+
+            protected function exec(string $command): array
+            {
+                return ['code' => 0, 'output' => '/usr/bin/find'];
+            }
+
+            protected function createReferenceFile(): string
+            {
+                $path = parent::createReferenceFile();
+                $this->cutoffs[$path] = 0;
+
+                return $path;
+            }
+
+            protected function updateReferenceFile(string $path): void
+            {
+                $this->updatedReferences[] = $path;
+                $this->cutoffs[$path] = ++$this->clock;
+            }
+
+            protected function scan(): array
+            {
+                $reference = $this->getToScanFile();
+                $this->scanReferences[] = $reference;
+
+                if (++$this->scanCount === 1) {
+                    // This change happens after the active scan has passed its path.
+                    $this->lateChangeAt = ++$this->clock;
+
+                    return ['/tmp/another-change.php'];
+                }
+
+                $this->lateChangeEligible = $this->lateChangeAt > $this->cutoffs[$reference];
+                $this->stop();
+                $this->completed->push(true);
+
+                return $this->lateChangeEligible ? ['/tmp/late-change.php'] : [];
+            }
+        };
+        $output = new Channel(2);
+
+        try {
+            $driver->watch($output);
+            $this->assertTrue($completed->pop(0.2));
+
+            $this->assertTrue($driver->lateChangeEligible);
+            $this->assertCount(2, $driver->updatedReferences);
+            $this->assertCount(2, $driver->scanReferences);
+            $this->assertSame($driver->updatedReferences[0], $driver->scanReferences[1]);
+            $this->assertSame($driver->scanReferences[0], $driver->updatedReferences[1]);
+        } finally {
+            $driver->stop();
+            $completed->close();
+            $output->close();
+        }
+    }
+
+    public function testQuietSuccessfulScanStillRotatesReferenceRoles(): void
+    {
+        $completed = new Channel(1);
+        $driver = new class($this->option(), $completed) extends FindNewerDriver {
+            /** @var list<string> */
+            public array $scanReferences = [];
+
+            /** @var list<string> */
+            public array $updatedReferences = [];
+
+            public function __construct(Option $option, private Channel $completed)
+            {
+                parent::__construct($option);
+            }
+
+            protected function exec(string $command): array
+            {
+                return ['code' => 0, 'output' => '/usr/bin/find'];
+            }
+
+            protected function updateReferenceFile(string $path): void
+            {
+                $this->updatedReferences[] = $path;
+            }
+
+            protected function scan(): array
+            {
+                $this->scanReferences[] = $this->getToScanFile();
+
+                if (count($this->scanReferences) === 2) {
+                    $this->stop();
+                    $this->completed->push(true);
+                }
+
+                return [];
+            }
+        };
+        $output = new Channel(1);
+
+        try {
+            $driver->watch($output);
+            $this->assertTrue($completed->pop(0.2));
+
+            $this->assertCount(2, $driver->updatedReferences);
+            $this->assertCount(2, $driver->scanReferences);
+            $this->assertSame($driver->updatedReferences[0], $driver->scanReferences[1]);
+            $this->assertSame($driver->scanReferences[0], $driver->updatedReferences[1]);
+        } finally {
+            $driver->stop();
+            $completed->close();
+            $output->close();
+        }
+    }
+
+    public function testStopDuringAYieldingReferenceUpdateSkipsTheScanAndDefersCleanup(): void
+    {
+        $entered = new Channel(1);
+        $resume = new Channel(1);
+        $removed = new Channel(1);
+        $output = new Channel(1);
+        $driver = new class($this->option(), $entered, $resume, $removed) extends FindNewerDriver {
+            public bool $scanCalled = false;
+
+            public int $updateCount = 0;
+
+            public function __construct(
+                Option $option,
+                private Channel $entered,
+                private Channel $resume,
+                private Channel $removed,
+            ) {
+                parent::__construct($option);
+            }
+
+            protected function exec(string $command): array
+            {
+                return ['code' => 0, 'output' => '/usr/bin/find'];
+            }
+
+            protected function updateReferenceFile(string $path): void
+            {
+                ++$this->updateCount;
+                $this->entered->push(true);
+                $this->resume->pop();
+            }
+
+            protected function scan(): array
+            {
+                $this->scanCalled = true;
+
+                return [];
+            }
+
+            protected function removeReferenceFiles(): void
+            {
+                $hadFiles = $this->referenceFiles !== [];
+
+                parent::removeReferenceFiles();
+
+                if ($hadFiles) {
+                    $this->removed->push(true);
+                }
+            }
+
+            public function referenceFilesForTest(): array
+            {
+                return $this->referenceFiles;
+            }
+        };
+
+        try {
+            $driver->watch($output);
+            $this->assertTrue($entered->pop(0.2));
+
+            $driver->stop();
+            $resume->push(true);
+
+            $this->assertTrue($removed->pop(0.2));
+            $this->assertSame(1, $driver->updateCount);
+            $this->assertFalse($driver->scanCalled);
+            $this->assertSame([], $driver->referenceFilesForTest());
+        } finally {
+            $driver->stop();
+            $entered->close();
+            $resume->close();
+            $removed->close();
+            $output->close();
+        }
+    }
+
     public function testStopDuringAYieldingScanDefersCleanupAndRejectsAnImmediateRestart(): void
     {
         $entered = new Channel(1);
@@ -367,7 +587,7 @@ class FindNewerDriverTest extends TestCase
 
             $resume->push(true);
             $this->assertTrue($removed->pop(0.2));
-            $this->assertSame(0, $driver->updateCount);
+            $this->assertSame(1, $driver->updateCount);
             $this->assertSame([], $driver->referenceFilesForTest());
 
             foreach ($files as $file) {

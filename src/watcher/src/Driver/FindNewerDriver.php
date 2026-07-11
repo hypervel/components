@@ -51,18 +51,23 @@ class FindNewerDriver extends AbstractDriver
             }
             $this->scanning = true;
             try {
+                // Record the next cutoff before scanning so changes made after
+                // find passes their path remain eligible on the next tick.
+                $this->updateReferenceFile($this->getToModifyFile());
+
+                if ($this->stopping) {
+                    return;
+                }
+
                 $changedFiles = $this->scan();
 
                 if ($this->stopping) {
                     return;
                 }
 
+                // Every successful scan swaps reference roles, including a
+                // quiet scan, so the pre-recorded cutoff becomes authoritative.
                 ++$this->count;
-                // Update reference file mtimes after detecting changes.
-                if ($changedFiles) {
-                    $this->updateReferenceFile($this->getToModifyFile());
-                    $this->updateReferenceFile($this->getToScanFile());
-                }
 
                 foreach ($changedFiles as $file) {
                     $channel->push($file);
