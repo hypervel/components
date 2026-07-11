@@ -37,6 +37,10 @@ class StoreTagsForFailedTest extends IntegrationTestCase
 
 class FailedJob extends Job
 {
+    protected string $connectionName = 'redis';
+
+    protected string $queue = 'default';
+
     public function getJobId(): int|string|null
     {
         return '1';

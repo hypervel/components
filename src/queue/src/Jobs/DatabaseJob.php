@@ -17,7 +17,7 @@ class DatabaseJob extends Job
         protected DatabaseQueue $database,
         protected DatabaseJobRecord $job,
         protected string $connectionName,
-        protected ?string $queue
+        protected string $queue
     ) {
     }
 
