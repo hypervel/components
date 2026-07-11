@@ -16,7 +16,7 @@ use RuntimeException;
 
 class FindNewerDriverTest extends TestCase
 {
-    public function testWatch()
+    public function testWatch(): void
     {
         $option = new Option(
             driver: FindNewerDriver::class,
@@ -46,7 +46,7 @@ class FindNewerDriverTest extends TestCase
         }
     }
 
-    public function testRecoveryAfterScanException()
+    public function testRecoveryAfterScanException(): void
     {
         $option = new Option(
             driver: FindNewerDriver::class,
@@ -57,7 +57,7 @@ class FindNewerDriverTest extends TestCase
         );
 
         // Stub that throws on first scan(), succeeds on second, then returns empty.
-        // exec() is stubbed to bypass shell commands (which find, echo).
+        // exec() is stubbed to bypass the find availability check.
         $driver = new class($option) extends FindNewerDriver {
             private int $scanCallCount = 0;
 
@@ -89,7 +89,7 @@ class FindNewerDriverTest extends TestCase
         }
     }
 
-    public function testAllChangedFilesAreReported()
+    public function testAllChangedFilesAreReported(): void
     {
         $option = new Option(
             driver: FindNewerDriver::class,
@@ -139,5 +139,317 @@ class FindNewerDriverTest extends TestCase
             $driver->stop();
             $channel->close();
         }
+    }
+
+    public function testFindEscapesTargetsAndTheReferencePath(): void
+    {
+        $driver = new class($this->option()) extends FindNewerDriver {
+            public string $capturedCommand = '';
+
+            protected function exec(string $command): array
+            {
+                if ($command === 'which find') {
+                    return ['code' => 0, 'output' => '/usr/bin/find'];
+                }
+
+                $this->capturedCommand = $command;
+
+                return ['code' => 0, 'output' => ''];
+            }
+
+            public function scanReferenceForTest(): string
+            {
+                return $this->getToScanFile();
+            }
+
+            public function findForTest(array $targets): void
+            {
+                $this->find($targets);
+            }
+        };
+        $targets = ['/tmp/path with spaces', "/tmp/path'quoted", '/tmp/$(ignored);touch nope'];
+
+        try {
+            $driver->findForTest($targets);
+
+            $reference = escapeshellarg($driver->scanReferenceForTest());
+            $expected = implode('&', array_map(
+                fn (string $target): string => 'find ' . escapeshellarg($target) . " -newer {$reference} -type f",
+                $targets,
+            ));
+            $this->assertSame($expected, $driver->capturedCommand);
+        } finally {
+            $driver->stop();
+        }
+    }
+
+    public function testReferenceFileUpdateCreatesAndBumpsTheFile(): void
+    {
+        $driver = new class($this->option()) extends FindNewerDriver {
+            protected function exec(string $command): array
+            {
+                return ['code' => 0, 'output' => '/usr/bin/find'];
+            }
+
+            public function referenceFileForTest(): string
+            {
+                return $this->getToModifyFile();
+            }
+
+            public function updateForTest(string $path): void
+            {
+                parent::updateReferenceFile($path);
+            }
+        };
+        $path = $driver->referenceFileForTest();
+
+        try {
+            $this->assertFileExists($path);
+
+            touch($path, 1);
+            clearstatcache(true, $path);
+            $driver->updateForTest($path);
+            clearstatcache(true, $path);
+
+            $this->assertGreaterThan(1, filemtime($path));
+        } finally {
+            $driver->stop();
+        }
+    }
+
+    public function testReferenceFileUpdateThrowsWhenTouchFails(): void
+    {
+        $driver = new class($this->option()) extends FindNewerDriver {
+            protected function exec(string $command): array
+            {
+                return ['code' => 0, 'output' => '/usr/bin/find'];
+            }
+
+            public function updateForTest(string $path): void
+            {
+                parent::updateReferenceFile($path);
+            }
+        };
+        $path = sys_get_temp_dir() . '/missing-hypervel-watcher-directory-' . getmypid() . '/reference';
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Unable to update the watcher reference file [{$path}].");
+
+        try {
+            $driver->updateForTest($path);
+        } finally {
+            $driver->stop();
+        }
+    }
+
+    public function testReferenceFilesAreUniquePerDriverAndRemovedOnStop(): void
+    {
+        $first = $this->referenceFileDriver();
+        $second = $this->referenceFileDriver();
+        $firstFiles = $first->referenceFilesForTest();
+        $secondFiles = $second->referenceFilesForTest();
+
+        $this->assertCount(2, $firstFiles);
+        $this->assertCount(2, $secondFiles);
+        $this->assertCount(4, array_unique([...$firstFiles, ...$secondFiles]));
+
+        foreach ([...$firstFiles, ...$secondFiles] as $file) {
+            $this->assertFileExists($file);
+        }
+
+        $first->stop();
+        $first->stop();
+        $second->stop();
+
+        foreach ([...$firstFiles, ...$secondFiles] as $file) {
+            $this->assertFileDoesNotExist($file);
+        }
+    }
+
+    public function testWatchRecreatesReferenceFilesAfterStop(): void
+    {
+        $driver = $this->referenceFileDriver();
+        $oldFiles = $driver->referenceFilesForTest();
+        $driver->stop();
+        $channel = new Channel(1);
+
+        try {
+            $driver->watch($channel);
+            $newFiles = $driver->referenceFilesForTest();
+
+            $this->assertCount(2, $newFiles);
+            $this->assertSame([], array_intersect($oldFiles, $newFiles));
+
+            foreach ($newFiles as $file) {
+                $this->assertFileExists($file);
+            }
+        } finally {
+            $driver->stop();
+            $channel->close();
+        }
+    }
+
+    public function testStopDuringAYieldingScanDefersCleanupAndRejectsAnImmediateRestart(): void
+    {
+        $entered = new Channel(1);
+        $resume = new Channel(1);
+        $removed = new Channel(1);
+        $output = new Channel(1);
+        $driver = new class($this->option(), $entered, $resume, $removed) extends FindNewerDriver {
+            public int $updateCount = 0;
+
+            public function __construct(
+                Option $option,
+                private Channel $entered,
+                private Channel $resume,
+                private Channel $removed,
+            ) {
+                parent::__construct($option);
+            }
+
+            protected function exec(string $command): array
+            {
+                return ['code' => 0, 'output' => '/usr/bin/find'];
+            }
+
+            protected function scan(): array
+            {
+                $this->entered->push(true);
+                $this->resume->pop();
+
+                return ['/tmp/changed.php'];
+            }
+
+            protected function updateReferenceFile(string $path): void
+            {
+                ++$this->updateCount;
+
+                parent::updateReferenceFile($path);
+            }
+
+            protected function removeReferenceFiles(): void
+            {
+                $hadFiles = $this->referenceFiles !== [];
+
+                parent::removeReferenceFiles();
+
+                if ($hadFiles) {
+                    $this->removed->push(true);
+                }
+            }
+
+            public function referenceFilesForTest(): array
+            {
+                return $this->referenceFiles;
+            }
+        };
+
+        try {
+            $driver->watch($output);
+            $this->assertTrue($entered->pop(0.2));
+            $files = $driver->referenceFilesForTest();
+
+            $driver->stop();
+
+            foreach ($files as $file) {
+                $this->assertFileExists($file);
+            }
+
+            try {
+                $driver->watch($output);
+                $this->fail('Expected an immediate restart during scan shutdown to fail.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame(
+                    'Cannot restart the find-newer watcher while its previous scan is still stopping.',
+                    $exception->getMessage(),
+                );
+            }
+
+            $resume->push(true);
+            $this->assertTrue($removed->pop(0.2));
+            $this->assertSame(0, $driver->updateCount);
+            $this->assertSame([], $driver->referenceFilesForTest());
+
+            foreach ($files as $file) {
+                $this->assertFileDoesNotExist($file);
+            }
+        } finally {
+            $driver->stop();
+            $entered->close();
+            $resume->close();
+            $removed->close();
+            $output->close();
+        }
+    }
+
+    public function testSecondReferenceFileCreationFailureRemovesTheFirstFile(): void
+    {
+        $createdFiles = [];
+
+        try {
+            new class($this->option(), $createdFiles) extends FindNewerDriver {
+                private int $creationCount = 0;
+
+                /** @var list<string> */
+                private array $createdFiles;
+
+                public function __construct(Option $option, array &$createdFiles)
+                {
+                    $this->createdFiles = &$createdFiles;
+
+                    parent::__construct($option);
+                }
+
+                protected function exec(string $command): array
+                {
+                    return ['code' => 0, 'output' => '/usr/bin/find'];
+                }
+
+                protected function createReferenceFile(): string
+                {
+                    if (++$this->creationCount === 2) {
+                        throw new RuntimeException('Unable to create a watcher reference file.');
+                    }
+
+                    $path = parent::createReferenceFile();
+                    $this->createdFiles[] = $path;
+
+                    return $path;
+                }
+            };
+
+            $this->fail('Expected reference-file creation to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to create a watcher reference file.', $exception->getMessage());
+        }
+
+        $this->assertCount(1, $createdFiles);
+        $this->assertFileDoesNotExist($createdFiles[0]);
+    }
+
+    /**
+     * Create standard find-newer options.
+     */
+    private function option(): Option
+    {
+        return new Option(driver: FindNewerDriver::class, watchPaths: [], scanInterval: 1);
+    }
+
+    /**
+     * Create a driver exposing its owned reference files.
+     */
+    private function referenceFileDriver(): FindNewerDriver
+    {
+        return new class($this->option()) extends FindNewerDriver {
+            protected function exec(string $command): array
+            {
+                return ['code' => 0, 'output' => '/usr/bin/find'];
+            }
+
+            public function referenceFilesForTest(): array
+            {
+                return $this->referenceFiles;
+            }
+        };
     }
 }
