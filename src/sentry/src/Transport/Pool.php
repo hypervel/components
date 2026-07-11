@@ -6,6 +6,7 @@ namespace Hypervel\Sentry\Transport;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\ObjectPool;
+use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Sentry\HttpClient\HttpClient;
 use Sentry\Client as SentryClient;
 use Sentry\HttpClient\HttpClientInterface;
@@ -18,24 +19,21 @@ use Sentry\Transport\HttpTransport;
  */
 class Pool extends ObjectPool
 {
-    /**
-     * @param array<string, mixed> $config
-     */
     public function __construct(
-        protected Options $options,
+        protected Options $sentryOptions,
         Container $container,
-        array $config = [],
+        PoolOptions $poolOptions,
     ) {
-        parent::__construct($container, $config);
+        parent::__construct($container, $poolOptions);
     }
 
     protected function createObject(): HttpTransport
     {
         return new HttpTransport(
-            $this->options,
+            $this->sentryOptions,
             $this->getHttpClient(),
-            new PayloadSerializer($this->options),
-            $this->options->getLogger()
+            new PayloadSerializer($this->sentryOptions),
+            $this->sentryOptions->getLogger()
         );
     }
 

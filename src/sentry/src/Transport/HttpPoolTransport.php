@@ -49,13 +49,15 @@ class HttpPoolTransport implements TransportInterface
         try {
             return $transport->send($event);
         } catch (Throwable) {
-            // Remove from tracked list and release back to pool
             $transports = CoroutineContext::get(self::CONTEXT_TRANSPORTS_KEY, []);
             if (($key = array_search($transport, $transports, true)) !== false) {
                 unset($transports[$key]);
                 CoroutineContext::set(self::CONTEXT_TRANSPORTS_KEY, array_values($transports));
             }
-            $this->pool->release($transport);
+
+            // A transport that failed mid-send may retain corrupt or pending
+            // state and must never be handed to another coroutine.
+            $this->pool->discard($transport);
 
             return new Result(ResultStatus::failed());
         }

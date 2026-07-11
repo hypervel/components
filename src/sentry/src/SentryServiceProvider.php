@@ -14,6 +14,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Console\AboutCommand;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Http\Request;
+use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Routing\Contracts\CallableDispatcher;
 use Hypervel\Routing\Contracts\ControllerDispatcher;
 use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
@@ -176,7 +177,11 @@ class SentryServiceProvider extends ServiceProvider
             // Set the pooled transport for async sending via Swoole coroutines
             $poolConfig = $this->app->make('config')->array('sentry.pool', []);
             $transport = new HttpPoolTransport(
-                new Pool($clientBuilder->getOptions(), $this->app, $poolConfig)
+                new Pool(
+                    $clientBuilder->getOptions(),
+                    $this->app,
+                    $this->sentryPoolOptions($poolConfig),
+                )
             );
             $clientBuilder->setTransport($transport);
 
@@ -264,6 +269,28 @@ class SentryServiceProvider extends ServiceProvider
 
             return new BacktraceHelper($options, new RepresentationSerializer($options));
         });
+    }
+
+    /**
+     * Normalize the options supported by Sentry's standalone transport pool.
+     */
+    protected function sentryPoolOptions(array $config): PoolOptions
+    {
+        $supported = ['max_objects', 'wait_timeout', 'max_lifetime'];
+        $unknown = array_diff(array_keys($config), $supported);
+
+        if ($unknown !== []) {
+            throw new InvalidArgumentException(
+                'Unsupported Sentry pool option(s) [' . implode(', ', $unknown) . ']. Supported options are ['
+                . implode(', ', $supported) . '].'
+            );
+        }
+
+        return PoolOptions::fromArray([
+            ...$config,
+            'max_idle_time' => 0,
+            'idle_ttl' => null,
+        ]);
     }
 
     /**
