@@ -7,12 +7,14 @@ namespace Hypervel\Tests\Integration\Horizon\Feature;
 use Exception;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
+use Hypervel\Horizon\Events\MasterSupervisorLooped;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\MasterSupervisorCommands\AddSupervisor;
 use Hypervel\Horizon\PhpBinary;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SupervisorProcess;
 use Hypervel\Horizon\WorkerCommandString;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\EternalSupervisor;
 use Hypervel\Tests\Integration\Horizon\Feature\Fixtures\SupervisorProcessWithFakeRestart;
@@ -192,6 +194,20 @@ class MasterSupervisorTest extends IntegrationTestCase
         $this->assertSame('paused', $masterRecord->status);
     }
 
+    public function testMasterStateIsPersistedBeforeLoopedEvent(): void
+    {
+        $master = new MasterSupervisor;
+        $master->working = false;
+        $observedStatus = null;
+        Event::listen(MasterSupervisorLooped::class, function () use ($master, &$observedStatus): void {
+            $observedStatus = resolve(MasterSupervisorRepository::class)->find($master->name)?->status;
+        });
+
+        $master->loop();
+
+        $this->assertSame('paused', $observedStatus);
+    }
+
     public function testMasterProcessShouldNotAllowDuplicateMasterProcessOnSameMachine()
     {
         $this->expectException(Exception::class);
@@ -231,12 +247,13 @@ class MasterSupervisorTest extends IntegrationTestCase
         $master = new MasterSupervisor;
         $master->working = true;
 
-        $master->supervisors = collect([new EternalSupervisor]);
+        $master->supervisors = collect([$supervisor = new EternalSupervisor]);
 
         $master->persist();
         $master->terminate();
 
         $this->assertTrue($master->shouldExitLoop);
+        $this->assertTrue($supervisor->killed);
     }
 
     protected function supervisorOptions()

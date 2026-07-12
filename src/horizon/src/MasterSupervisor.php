@@ -20,8 +20,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Throwable;
 
-use function Hypervel\Coroutine\go;
-
 class MasterSupervisor implements Pausable, Restartable, Terminable
 {
     use ListensForSignals;
@@ -166,9 +164,12 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
         // Here we will wait until all of the child supervisors finish terminating and
         // then exit the process. We will keep track of a timeout value so that the
         // process does not get stuck in an infinite loop here waiting for these.
-        while (count($this->supervisors->filter->isRunning())) { // @phpstan-ignore argument.type (higher-order proxy)
+        while (($runningSupervisors = $this->supervisors->filter(
+            fn (SupervisorProcess $supervisor): bool => $supervisor->isRunning()
+        ))->isNotEmpty()) {
             if (CarbonImmutable::now()->subSeconds($longest)
                 ->gte($startedTerminating)) {
+                $runningSupervisors->each->kill();
                 break;
             }
 
@@ -231,23 +232,7 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
                 $this->monitorSupervisors();
             }
 
-            // Persistence is dispatched in a detached coroutine. Under Swoole
-            // the coroutine-hooked Redis write yields to the event loop; without
-            // this go() wrapper every loop iteration would block on that yield,
-            // which shifts supervisor lifecycle pacing enough to cause tearDown
-            // to exceed its retry budget in parallel tests. Callers that read
-            // persisted state immediately after loop() must retry for it (see
-            // the $this->wait(...) pattern in MasterSupervisorTest) — a
-            // synchronous read can miss an uncommitted persist.
-            go(function (): void {
-                // Exceptions thrown inside a spawned coroutine are not caught by
-                // the parent loop() try/catch, so report them in this coroutine.
-                try {
-                    $this->persist();
-                } catch (Throwable $e) {
-                    app(ExceptionHandler::class)->report($e);
-                }
-            });
+            $this->persist();
 
             event(new MasterSupervisorLooped($this));
         } catch (Throwable $e) {
@@ -272,8 +257,9 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
     {
         $this->supervisors->each->monitor();
 
-        /* @phpstan-ignore-next-line */
-        $this->supervisors = $this->supervisors->reject->dead;
+        $this->supervisors = $this->supervisors->reject(
+            fn (SupervisorProcess $supervisor): bool => $supervisor->dead
+        );
     }
 
     /**

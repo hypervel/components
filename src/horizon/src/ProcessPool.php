@@ -228,7 +228,7 @@ class ProcessPool implements Countable
             $timeout = $this->options->timeout;
 
             if ($process['terminatedAt']->addSeconds((int) $timeout)->lte(CarbonImmutable::now())) {
-                $process['process']->stop();
+                $process['process']->kill();
             }
         }
     }

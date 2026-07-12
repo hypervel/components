@@ -11,6 +11,7 @@ use Hypervel\Horizon\AutoScaler;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
+use Hypervel\Horizon\Events\SupervisorLooped;
 use Hypervel\Horizon\Events\WorkerProcessRestarting;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\PhpBinary;
@@ -70,17 +71,27 @@ class SupervisorTest extends IntegrationTestCase
         );
     }
 
-    protected function terminateProcesses()
+    protected function terminateProcesses(): void
     {
         if (! $this->supervisor) {
             return;
         }
 
-        $this->supervisor->processes()->each->terminate();
+        $processes = $this->supervisor->processes()
+            ->concat($this->supervisor->terminatingProcesses()->pluck('process'))
+            ->unique(static fn (WorkerProcess $process): int => spl_object_id($process));
 
-        retry(200, function () {
-            $this->assertCount(0, $this->supervisor->processes()->filter->isRunning());
-        }, 50);
+        try {
+            $processes->each->terminate();
+        } finally {
+            $processes->each->kill();
+
+            $processes->each(function (WorkerProcess $process): void {
+                if ($process->isStarted()) {
+                    $process->wait();
+                }
+            });
+        }
     }
 
     public function testSupervisorStartsMultiplePoolsWhenBalancing()
@@ -192,7 +203,6 @@ class SupervisorTest extends IntegrationTestCase
         $options->queue = 'default,another';
 
         $supervisor->scale(2);
-        usleep(100 * 1000);
 
         $supervisor->loop();
 
@@ -529,6 +539,20 @@ class SupervisorTest extends IntegrationTestCase
         $this->wait(function () use ($supervisor) {
             $this->assertSame(3, $supervisor->totalSystemProcessCount());
         });
+    }
+
+    public function testSupervisorStateIsPersistedBeforeLoopedEvent(): void
+    {
+        $this->supervisor = $supervisor = new Supervisor($this->supervisorOptions());
+        $supervisor->working = false;
+        $observedStatus = null;
+        Event::listen(SupervisorLooped::class, function () use ($supervisor, &$observedStatus): void {
+            $observedStatus = app(SupervisorRepository::class)->find($supervisor->name)?->status;
+        });
+
+        $supervisor->loop();
+
+        $this->assertSame('paused', $observedStatus);
     }
 
     public function testSupervisorDoesNotStartWorkersUntilLoopedAndActive()
