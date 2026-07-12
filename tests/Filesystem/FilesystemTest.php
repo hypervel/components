@@ -391,6 +391,26 @@ class FilesystemTest extends TestCase
         (new Filesystem)->get($this->tempDir . '/unknown-file.txt');
     }
 
+    public function testGetThrowsAFrameworkExceptionWhenTheFileDisappearsBeforeReading(): void
+    {
+        $path = $this->tempDir . '/vanished.txt';
+
+        $this->expectException(FileNotFoundException::class);
+        $this->expectExceptionMessage("Unable to read file at path {$path}.");
+
+        (new VanishingReadFilesystem)->get($path);
+    }
+
+    public function testSharedGetThrowsAFrameworkExceptionWhenTheFileDisappearsBeforeOpening(): void
+    {
+        $path = $this->tempDir . '/vanished.txt';
+
+        $this->expectException(FileNotFoundException::class);
+        $this->expectExceptionMessage("Unable to read file at path {$path}.");
+
+        (new VanishingReadFilesystem)->get($path, true);
+    }
+
     public function testGetRequireReturnsProperly()
     {
         file_put_contents($this->tempDir . '/file.php', '<?php return "Howdy?"; ?>');
@@ -794,5 +814,16 @@ class FilesystemTest extends TestCase
         sort($files);
 
         return $files;
+    }
+}
+
+class VanishingReadFilesystem extends Filesystem
+{
+    /**
+     * Simulate a file disappearing after the initial metadata check.
+     */
+    public function isFile(string $file): bool
+    {
+        return true;
     }
 }

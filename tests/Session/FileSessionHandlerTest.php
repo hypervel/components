@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Session\FileSessionHandler;
 use Hypervel\Support\Carbon;
@@ -80,6 +81,21 @@ class FileSessionHandlerTest extends TestCase
         $result = $this->sessionHandler->read($sessionId);
 
         $this->assertSame('', $result);
+    }
+
+    public function testReadReturnsEmptyStringWhenTheSessionFileDisappearsBeforeReading(): void
+    {
+        $sessionId = 'vanished_session_id';
+        $path = '/path/to/sessions/' . $sessionId;
+        Carbon::setTestNow(Carbon::parse('2025-02-02 01:30:00'));
+
+        $this->files->shouldReceive('isFile')->with($path)->andReturnTrue();
+        $this->files->shouldReceive('lastModified')->with($path)->andReturn(Carbon::now()->getTimestamp());
+        $this->files->shouldReceive('sharedGet')->with($path)->once()->andThrow(
+            new FileNotFoundException("Unable to read file at path {$path}.")
+        );
+
+        $this->assertSame('', $this->sessionHandler->read($sessionId));
     }
 
     public function testWriteStoresData()
