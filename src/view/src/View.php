@@ -176,7 +176,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      */
     public function gatherData(): array
     {
-        $data = array_merge($this->factory->getShared(), $this->data);
+        $data = $this->factory->mergeSharedData($this->data);
 
         foreach ($data as $key => $value) {
             if ($value instanceof Renderable) {

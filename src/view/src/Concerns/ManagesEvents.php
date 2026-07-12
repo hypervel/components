@@ -12,6 +12,9 @@ trait ManagesEvents
 {
     /**
      * Register a view creator event.
+     *
+     * Boot-only. The listener persists on the singleton View Factory's event
+     * dispatcher for the worker lifetime and affects every subsequent request.
      */
     public function creator(array|string $views, Closure|string $callback): array
     {
@@ -26,6 +29,9 @@ trait ManagesEvents
 
     /**
      * Register multiple view composers via an array.
+     *
+     * Boot-only. The listeners persist on the singleton View Factory's event
+     * dispatcher for the worker lifetime and affect every subsequent request.
      */
     public function composers(array $composers): array
     {
@@ -40,6 +46,9 @@ trait ManagesEvents
 
     /**
      * Register a view composer event.
+     *
+     * Boot-only. The listener persists on the singleton View Factory's event
+     * dispatcher for the worker lifetime and affects every subsequent request.
      */
     public function composer(array|string $views, Closure|string $callback): array
     {

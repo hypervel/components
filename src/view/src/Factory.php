@@ -277,6 +277,9 @@ class Factory implements FactoryContract
 
     /**
      * Add a piece of shared data to the environment.
+     *
+     * Boot-only. Shared data persists on the singleton factory for the worker
+     * lifetime and is visible to every request handled by that worker.
      */
     public function share(array|string $key, mixed $value = null): mixed
     {
@@ -372,6 +375,9 @@ class Factory implements FactoryContract
 
     /**
      * Add a location to the array of view locations.
+     *
+     * Boot-only. The location persists on the singleton view finder for the
+     * worker lifetime and affects every subsequent request.
      */
     public function addLocation(string $location): void
     {
@@ -380,6 +386,9 @@ class Factory implements FactoryContract
 
     /**
      * Prepend a location to the array of view locations.
+     *
+     * Boot-only. The location persists on the singleton view finder for the
+     * worker lifetime and affects every subsequent request.
      */
     public function prependLocation(string $location): void
     {
@@ -388,6 +397,9 @@ class Factory implements FactoryContract
 
     /**
      * Add a new namespace to the loader.
+     *
+     * Boot-only. The namespace persists on the singleton view finder for the
+     * worker lifetime and affects every subsequent request.
      */
     public function addNamespace(string $namespace, string|array $hints): static
     {
@@ -398,6 +410,9 @@ class Factory implements FactoryContract
 
     /**
      * Prepend a new namespace to the loader.
+     *
+     * Boot-only. The namespace persists on the singleton view finder for the
+     * worker lifetime and affects every subsequent request.
      */
     public function prependNamespace(string $namespace, string|array $hints): static
     {
@@ -408,6 +423,9 @@ class Factory implements FactoryContract
 
     /**
      * Replace the namespace hints for the given namespace.
+     *
+     * Boot-only. The namespace persists on the singleton view finder for the
+     * worker lifetime and affects every subsequent request.
      */
     public function replaceNamespace(string $namespace, string|array $hints): static
     {
@@ -418,6 +436,9 @@ class Factory implements FactoryContract
 
     /**
      * Register a valid view extension and its engine.
+     *
+     * Boot-only. The extension persists on the singleton Factory and engine
+     * resolver for the worker lifetime and affects every subsequent request.
      */
     public function addExtension(string $extension, string $engine, ?Closure $resolver = null): void
     {
@@ -550,16 +571,22 @@ class Factory implements FactoryContract
      */
     public function shared(string $key, mixed $default = null): mixed
     {
-        return Arr::get($this->shared, $key, $default);
+        return Arr::get($this->getShared(), $key, $default);
     }
 
     /**
      * Get all of the shared data for the environment.
-     *
-     * @return array
      */
-    public function getShared()
+    public function getShared(): array
     {
-        return $this->shared;
+        return $this->mergeSharedData([]);
+    }
+
+    /**
+     * Merge shared data into the given view data.
+     */
+    public function mergeSharedData(array $data): array
+    {
+        return array_merge($this->shared, RequestSharedData::all(), $data);
     }
 }
