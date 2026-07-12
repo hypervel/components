@@ -54,7 +54,7 @@ abstract class AbstractProcess implements ProcessInterface
     /**
      * Determine if the process should start.
      */
-    public function isEnable(Server $server): bool
+    public function isEnabled(Server $server): bool
     {
         return true;
     }

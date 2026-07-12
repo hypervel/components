@@ -32,7 +32,7 @@ class AbstractProcessTest extends TestCase
         parent::tearDown();
     }
 
-    public function testIsEnableReturnsTrueByDefault()
+    public function testIsEnabledReturnsTrueByDefault()
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->andReturn(false);
@@ -41,7 +41,7 @@ class AbstractProcessTest extends TestCase
         $process = new FooProcess($container);
         $server = m::mock(Server::class);
 
-        $this->assertTrue($process->isEnable($server));
+        $this->assertTrue($process->isEnabled($server));
     }
 
     public function testDefaultPropertyValues()

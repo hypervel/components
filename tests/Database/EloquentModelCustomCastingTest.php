@@ -259,12 +259,9 @@ class AddressCast implements CastsAttributes
      * Cast the given value.
      *
      * @param \Illuminate\Database\Eloquent\Model $model
-     * @param string $key
-     * @param mixed $value
-     * @param array $attributes
      * @return \Illuminate\Tests\Integration\Database\AddressModel
      */
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return new AddressModel(
             $attributes['address_line_one'],
@@ -276,12 +273,10 @@ class AddressCast implements CastsAttributes
      * Prepare the given value for storage.
      *
      * @param \Illuminate\Database\Eloquent\Model $model
-     * @param string $key
      * @param AddressModel $value
-     * @param array $attributes
      * @return array
      */
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         if (! $value instanceof AddressModel) {
             throw new InvalidArgumentException('The given value is not an Address instance.');
@@ -300,12 +295,10 @@ class GMPCast implements CastsAttributes, SerializesCastableAttributes
      * Cast the given value.
      *
      * @param \Illuminate\Database\Eloquent\Model $model
-     * @param string $key
      * @param string $value
-     * @param array $attributes
      * @return null|string
      */
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return gmp_init($value, 10);
     }
@@ -314,12 +307,10 @@ class GMPCast implements CastsAttributes, SerializesCastableAttributes
      * Prepare the given value for storage.
      *
      * @param \Illuminate\Database\Eloquent\Model $model
-     * @param string $key
      * @param null|string $value
-     * @param array $attributes
      * @return string
      */
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return gmp_strval($value, 10);
     }
@@ -339,12 +330,10 @@ class NonNullableString implements CastsAttributes
      * Cast the given value.
      *
      * @param \Illuminate\Database\Eloquent\Model $model
-     * @param string $key
      * @param string $value
-     * @param array $attributes
      * @return null|string
      */
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return ($value != '') ? $value : null;
     }
@@ -353,12 +342,10 @@ class NonNullableString implements CastsAttributes
      * Prepare the given value for storage.
      *
      * @param \Illuminate\Database\Eloquent\Model $model
-     * @param string $key
      * @param null|string $value
-     * @param array $attributes
      * @return string
      */
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return $value ?? '';
     }
@@ -408,7 +395,7 @@ class Euro implements Castable
         $this->value = $value;
     }
 
-    public static function castUsing(array $arguments)
+    public static function castUsing(array $arguments): string
     {
         return EuroCaster::class;
     }
@@ -416,12 +403,12 @@ class Euro implements Castable
 
 class EuroCaster implements CastsAttributes
 {
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return new Euro($value);
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return $value instanceof Euro ? $value->value : $value;
     }
@@ -472,12 +459,12 @@ class Person extends Model
 
 class StructuredDocumentCaster implements CastsAttributes, ComparesCastableAttributes
 {
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return json_decode($value);
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return json_encode($value);
     }
@@ -497,12 +484,12 @@ class AddressDto
 
 class AsAddress implements CastsAttributes
 {
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return new AddressDto($attributes['address_line_one'], $attributes['address_line_two']);
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return ['address_line_one' => $value->lineOne, 'address_line_two' => $value->lineTwo];
     }

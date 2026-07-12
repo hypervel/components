@@ -8,5 +8,8 @@ use Hypervel\Contracts\Engine\SocketInterface;
 
 interface SocketFactoryInterface
 {
+    /**
+     * Create a socket.
+     */
     public function make(SocketOptionInterface $option): SocketInterface;
 }

@@ -11,10 +11,8 @@ interface SupportsPartialRelations
 {
     /**
      * Indicate that the relation is a single result of a larger one-to-many relationship.
-     *
-     * @return $this
      */
-    public function ofMany(?string $column = 'id', string|Closure|null $aggregate = 'MAX', ?string $relation = null);
+    public function ofMany(array|string|null $column = 'id', string|Closure|null $aggregate = 'MAX', ?string $relation = null): static;
 
     /**
      * Determine whether the relationship is a one-of-many relationship.

@@ -18,7 +18,7 @@ interface Container extends ArrayAccess, ContainerInterface
      * @param class-string<TClass>|string $id
      * @return ($id is class-string<TClass> ? TClass : mixed)
      */
-    public function get(string $id);
+    public function get(string $id): mixed;
 
     /**
      * Determine if the given abstract type has been bound.

@@ -10,7 +10,7 @@ use Hypervel\Tests\TestCase;
 
 class ModelIdentifierTest extends TestCase
 {
-    public function testFlushStateRestoresRawClassSerialization()
+    public function testFlushStateRestoresRawClassSerialization(): void
     {
         try {
             Relation::morphMap([

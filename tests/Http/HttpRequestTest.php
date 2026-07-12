@@ -111,9 +111,19 @@ class HttpRequestTest extends TestCase
         $request = Request::createFromBase($base);
 
         $request->merge([
-            'name' => $request->get('first') . ' ' . $request->get('last'),
+            'name' => $request->input('first') . ' ' . $request->input('last'),
         ]);
 
-        $this->assertSame('Taylor Otwell', $request->get('name'));
+        $this->assertSame('Taylor Otwell', $request->input('name'));
+    }
+
+    // REMOVED: Request::get() mixes unrelated input sources; callers select
+    // request input, query parameters, or route parameters explicitly.
+    public function testInputPrefersRequestBodyOverQueryParameters(): void
+    {
+        $request = Request::create('/?name=query', 'POST', ['name' => 'body']);
+
+        $this->assertSame('body', $request->input('name'));
+        $this->assertSame('query', $request->query('name'));
     }
 }

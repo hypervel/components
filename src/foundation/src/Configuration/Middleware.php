@@ -471,15 +471,8 @@ class Middleware
         return $this;
     }
 
-    /**
-     * Configure the CSRF token validation middleware.
-     *
-     * @deprecated use preventRequestForgery() instead
-     */
-    public function validateCsrfTokens(array $except = []): static
-    {
-        return $this->preventRequestForgery($except);
-    }
+    // Laravel's deprecated validateCsrfTokens() alias is intentionally not
+    // ported. Use preventRequestForgery() instead.
 
     /**
      * Configure the URL signature validation middleware.

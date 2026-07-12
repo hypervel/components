@@ -715,10 +715,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Get or check the current application environment.
-     *
-     * @param array|string ...$environments
      */
-    public function environment(...$environments): bool|string
+    public function environment(array|string ...$environments): bool|string
     {
         if (count($environments) > 0) {
             $patterns = is_array($environments[0]) ? $environments[0] : $environments;

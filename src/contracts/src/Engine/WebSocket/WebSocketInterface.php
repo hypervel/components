@@ -10,7 +10,13 @@ interface WebSocketInterface
 
     public const ON_CLOSE = 'close';
 
+    /**
+     * Register an event callback.
+     */
     public function on(string $event, callable $callback): void;
 
+    /**
+     * Start the WebSocket server.
+     */
     public function start(): void;
 }

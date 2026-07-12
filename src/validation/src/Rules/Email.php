@@ -12,11 +12,13 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
+use Hypervel\Validation\Rules\Concerns\ClonesCustomRules;
 use InvalidArgumentException;
 
 class Email implements Rule, DataAwareRule, ValidatorAwareRule
 {
     use Conditionable;
+    use ClonesCustomRules;
     use Macroable;
 
     public bool $validateMxRecord = false;
@@ -52,7 +54,7 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
     protected array $messages = [];
 
     /**
-     * The callback that will generate the "default" version of the file rule.
+     * The callback that will generate the "default" version of the email rule.
      *
      * @var null|array|callable|string
      */
@@ -85,15 +87,23 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
     }
 
     /**
-     * Get the default configuration of the file rule.
+     * Get the default configuration of the email rule.
      */
     public static function default(): static
     {
+        if (static::$defaultCallback === null) {
+            return new static;
+        }
+
         $email = is_callable(static::$defaultCallback)
             ? call_user_func(static::$defaultCallback)
             : static::$defaultCallback;
 
-        return $email instanceof static ? $email : new static;
+        if (! $email instanceof static) {
+            throw new InvalidArgumentException('The default callback must return an instance of ' . static::class . '.');
+        }
+
+        return clone $email;
     }
 
     /**
@@ -264,6 +274,7 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
      */
     public static function flushState(): void
     {
+        static::$defaultCallback = null;
         static::flushMacros();
     }
 }

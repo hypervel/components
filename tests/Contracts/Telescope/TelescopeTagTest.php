@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class TelescopeTagTest extends TestCase
 {
-    public function testCasesMapToExpectedWireValues()
+    public function testCasesMapToExpectedWireValues(): void
     {
         // Locks in the string values used at the wire level. Changing any of
         // these would be a breaking change for consumers (MCP servers,
@@ -20,7 +20,7 @@ class TelescopeTagTest extends TestCase
         $this->assertSame('typesense', TelescopeTag::Typesense->value);
     }
 
-    public function testAllCasesHaveNonEmptyDescriptions()
+    public function testAllCasesHaveNonEmptyDescriptions(): void
     {
         foreach (TelescopeTag::cases() as $case) {
             $description = $case->description();

@@ -660,7 +660,9 @@ class RoutingUrlGeneratorTest extends RoutingTestCase
         $this->assertSame('https://assets.example.com/foo/bar', $url->asset('foo/bar'));
     }
 
-    public function testUseRootUrl()
+    // REMOVED: forceRootUrl() is a deprecated alias; useOrigin() is the
+    // request-isolated URL-origin API.
+    public function testUseOrigin()
     {
         $url = new UrlGenerator(
             $routes = new RouteCollection,

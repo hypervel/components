@@ -663,29 +663,8 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
         return $this;
     }
 
-    /**
-     * Retrieve a parameter from the request.
-     *
-     * Instead, you may use the "input" method.
-     *
-     * @deprecated use ->input() instead
-     */
-    public function get(string $key, mixed $default = null): mixed
-    {
-        if ($this !== $result = $this->attributes->get($key, $this)) {
-            return $result;
-        }
-
-        if ($this->query->has($key)) {
-            return $this->query->all()[$key];
-        }
-
-        if ($this->request->has($key)) {
-            return $this->request->all()[$key];
-        }
-
-        return $default;
-    }
+    // Laravel's deprecated get() input-source mixer is intentionally not ported.
+    // Use input(), query(), or route() to select the intended source.
 
     /**
      * Get the JSON payload for the request.

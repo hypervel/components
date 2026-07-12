@@ -15,17 +15,17 @@ interface CoroutineInterface
      */
     public function __construct(callable $callable);
 
-    /**
-     * @param mixed ...$data
-     */
-    public function execute(...$data): static;
+    public function execute(mixed ...$data): static;
 
+    /**
+     * Get the coroutine ID.
+     */
     public function getId(): int;
 
     /**
      * Create and execute a new coroutine.
      */
-    public static function create(callable $callable, ...$data): static;
+    public static function create(callable $callable, mixed ...$data): static;
 
     /**
      * @return int returns coroutine id from current coroutine, -1 in non coroutine environment
@@ -41,7 +41,10 @@ interface CoroutineInterface
     public static function pid(?int $id = null): int;
 
     /**
-     * Set config to coroutine.
+     * Set the process-wide coroutine configuration.
+     *
+     * Boot-only. The configuration affects every coroutine subsequently
+     * created in the worker process.
      */
     public static function set(array $config): void;
 

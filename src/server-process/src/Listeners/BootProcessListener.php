@@ -56,7 +56,7 @@ class BootProcessListener
             }
             $seen[$id] = true;
 
-            $instance->isEnable($server) && $instance->bind($server);
+            $instance->isEnabled($server) && $instance->bind($server);
         }
     }
 }

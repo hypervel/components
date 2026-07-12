@@ -4640,7 +4640,7 @@ class UnsavedModel extends Model
 
 class Uppercase implements CastsInboundAttributes
 {
-    public function set($model, string $key, $value, array $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return is_string($value) ? strtoupper($value) : $value;
     }

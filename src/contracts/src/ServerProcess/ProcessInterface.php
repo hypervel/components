@@ -16,7 +16,7 @@ interface ProcessInterface
     /**
      * Determine if the process should start.
      */
-    public function isEnable(Server $server): bool;
+    public function isEnabled(Server $server): bool;
 
     /**
      * The logic of the process.

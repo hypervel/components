@@ -9,12 +9,23 @@ use Hypervel\Contracts\Engine\CoroutineInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
+use Hypervel\Engine\Exceptions\RuntimeException;
 use Hypervel\Tests\TestCase;
 use Swoole\Coroutine\CanceledException;
 use Throwable;
 
 class CoroutineTest extends TestCase
 {
+    public function testCoroutineIdRequiresExecution(): void
+    {
+        $coroutine = new Coroutine(fn () => null);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Coroutine has not been executed.');
+
+        $coroutine->getId();
+    }
+
     public function testCoroutineCreate(): void
     {
         $coroutine = new Coroutine(function () {

@@ -22,8 +22,8 @@ class ConvertEmptyStringsToNullTest extends TestCase
         $request = Request::createFromBase($symfonyRequest);
 
         $middleware->handle($request, function (Request $request) {
-            $this->assertSame('bar', $request->get('foo'));
-            $this->assertNull($request->get('baz'));
+            $this->assertSame('bar', $request->input('foo'));
+            $this->assertNull($request->input('baz'));
         });
     }
 
@@ -39,8 +39,8 @@ class ConvertEmptyStringsToNullTest extends TestCase
         $request = Request::createFromBase($symfonyRequest);
 
         $middleware->handle($request, function (Request $request) {
-            $this->assertSame('bar', $request->get('foo'));
-            $this->assertSame('', $request->get('baz'));
+            $this->assertSame('bar', $request->input('foo'));
+            $this->assertSame('', $request->input('baz'));
         });
     }
 }
