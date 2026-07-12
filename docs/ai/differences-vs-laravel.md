@@ -78,5 +78,3 @@ Hypervel caches more aggressively than Laravel: any class resolved via `make()` 
 - `setUp()` / `tearDown()` run outside the test's coroutine. Use `setUpInCoroutine()` / `tearDownInCoroutine()` for code that must run inside it.
 - Request and Response are coroutine-local. The `'request'` and `Hypervel\Http\Response::class` container bindings are `bind()` closures that read from `RequestContext` / `ResponseContext`. The Laravel pattern `$this->app->instance('request', $r)` (or `instance(Response::class, $r)`) doesn't apply — it overrides the closure with a worker-global value and bypasses the production resolution path. Use `RequestContext::set($r)` / `ResponseContext::set($r)` instead.
 - After seeding via `RequestContext::set(...)`, `request()->merge([...])` works as in Laravel. Without seeding, each `request()` call returns a throwaway, so `merge()` is lost.
-- Don't add `Mockery::close()` to `tearDown()` — handled globally.
-

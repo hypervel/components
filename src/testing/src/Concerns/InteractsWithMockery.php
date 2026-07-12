@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Testbench\Concerns;
+namespace Hypervel\Testing\Concerns;
 
 use Mockery;
 use PHPUnit\Framework\TestCase as PHPUnitTestCase;
