@@ -298,5 +298,32 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
             $routeFiles,
             'Unexpected Testbench runtime route files found: ' . implode(', ', $routeFiles),
         );
+
+        $manifestPath = $this->app->getCachedPackagesPath();
+
+        if ($this->files->isFile($manifestPath)) {
+            $manifest = $this->files->getRequire($manifestPath);
+
+            $this->assertIsArray(
+                $manifest,
+                "Testbench package manifest [{$manifestPath}] did not return an array.",
+            );
+
+            $providers = [];
+
+            foreach ($manifest as $configuration) {
+                if (is_array($configuration)) {
+                    $providers = [...$providers, ...(array) ($configuration['providers'] ?? [])];
+                }
+            }
+
+            $providers = array_values(array_unique(array_filter($providers, is_string(...))));
+
+            $this->assertSame(
+                [],
+                $providers,
+                'Unexpected Testbench package providers found: ' . implode(', ', $providers),
+            );
+        }
     }
 }
