@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Watcher\Driver;
 
-use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Watcher\Fixtures\FindNewerDriverStub;
 use Hypervel\Watcher\Driver\FindNewerDriver;
@@ -13,7 +14,6 @@ use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
 use InvalidArgumentException;
-use Psr\Log\NullLogger;
 use RuntimeException;
 
 class FindNewerDriverTest extends TestCase
@@ -33,7 +33,14 @@ class FindNewerDriverTest extends TestCase
 
         try {
             $driver = new FindNewerDriverStub($option);
-            $driver->watch($channel);
+            $finished = new WaitGroup(1);
+            Coroutine::create(function () use ($channel, $driver, $finished): void {
+                try {
+                    $driver->watch($channel);
+                } finally {
+                    $finished->done();
+                }
+            });
             $this->assertSame('.env', $channel->pop($option->getScanIntervalSeconds() + 0.1));
         } catch (InvalidArgumentException $e) {
             if (str_contains($e->getMessage(), 'find not exists')) {
@@ -44,11 +51,14 @@ class FindNewerDriverTest extends TestCase
             if (isset($driver)) {
                 $driver->stop();
             }
+            if (isset($finished)) {
+                $this->assertTrue($finished->wait(0.1));
+            }
             $channel->close();
         }
     }
 
-    public function testRecoveryAfterScanException(): void
+    public function testScanExceptionTerminatesTheWatchLifecycle(): void
     {
         $option = new Option(
             driver: FindNewerDriver::class,
@@ -58,17 +68,7 @@ class FindNewerDriverTest extends TestCase
             scanInterval: 1,
         );
 
-        // Stub that throws on first scan(), succeeds on second, then returns empty.
-        // exec() is stubbed to bypass the find availability check.
         $driver = new class($option) extends FindNewerDriver {
-            private int $scanCallCount = 0;
-
-            public function __construct(Option $option)
-            {
-                parent::__construct($option);
-                $this->timer = new Timer(new NullLogger);
-            }
-
             protected function exec(string $command): array
             {
                 return ['code' => 0, 'output' => '/usr/bin/find'];
@@ -76,21 +76,16 @@ class FindNewerDriverTest extends TestCase
 
             protected function scan(): array
             {
-                return match (++$this->scanCallCount) {
-                    1 => throw new RuntimeException('Simulated scan failure'),
-                    2 => ['/tmp/recovered.php'],
-                    default => [],
-                };
+                throw new RuntimeException('Simulated scan failure');
             }
         };
 
         $channel = new Channel(10);
-        $driver->watch($channel);
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Simulated scan failure');
 
         try {
-            // First tick throws (recovered via finally), second tick succeeds.
-            $file = $channel->pop(0.2);
-            $this->assertSame('/tmp/recovered.php', $file);
+            $driver->watch($channel);
         } finally {
             $driver->stop();
             $channel->close();
@@ -122,6 +117,8 @@ class FindNewerDriverTest extends TestCase
                 if (++$this->scanCallCount === 1) {
                     return ['/tmp/a.php', '/tmp/b.php', '/tmp/c.php'];
                 }
+
+                $this->stop();
 
                 return [];
             }
@@ -274,7 +271,7 @@ class FindNewerDriverTest extends TestCase
         }
     }
 
-    public function testWatchRecreatesReferenceFilesAfterStop(): void
+    public function testStoppedDriverCannotStartAnotherWatchLifecycle(): void
     {
         $driver = $this->referenceFileDriver();
         $oldFiles = $driver->referenceFilesForTest();
@@ -283,13 +280,10 @@ class FindNewerDriverTest extends TestCase
 
         try {
             $driver->watch($channel);
-            $newFiles = $driver->referenceFilesForTest();
+            $this->assertSame([], $driver->referenceFilesForTest());
 
-            $this->assertCount(2, $newFiles);
-            $this->assertSame([], array_intersect($oldFiles, $newFiles));
-
-            foreach ($newFiles as $file) {
-                $this->assertFileExists($file);
+            foreach ($oldFiles as $file) {
+                $this->assertFileDoesNotExist($file);
             }
         } finally {
             $driver->stop();
@@ -488,15 +482,23 @@ class FindNewerDriverTest extends TestCase
                 return $this->referenceFiles;
             }
         };
+        $finished = new WaitGroup(1);
 
         try {
-            $driver->watch($output);
+            Coroutine::create(function () use ($driver, $finished, $output): void {
+                try {
+                    $driver->watch($output);
+                } finally {
+                    $finished->done();
+                }
+            });
             $this->assertTrue($entered->pop(0.2));
 
             $driver->stop();
             $resume->push(true);
 
             $this->assertTrue($removed->pop(0.2));
+            $this->assertTrue($finished->wait(0.2));
             $this->assertSame(1, $driver->updateCount);
             $this->assertFalse($driver->scanCalled);
             $this->assertSame([], $driver->referenceFilesForTest());
@@ -563,9 +565,16 @@ class FindNewerDriverTest extends TestCase
                 return $this->referenceFiles;
             }
         };
+        $finished = new WaitGroup(1);
 
         try {
-            $driver->watch($output);
+            Coroutine::create(function () use ($driver, $finished, $output): void {
+                try {
+                    $driver->watch($output);
+                } finally {
+                    $finished->done();
+                }
+            });
             $this->assertTrue($entered->pop(0.2));
             $files = $driver->referenceFilesForTest();
 
@@ -587,6 +596,7 @@ class FindNewerDriverTest extends TestCase
 
             $resume->push(true);
             $this->assertTrue($removed->pop(0.2));
+            $this->assertTrue($finished->wait(0.2));
             $this->assertSame(1, $driver->updateCount);
             $this->assertSame([], $driver->referenceFilesForTest());
 

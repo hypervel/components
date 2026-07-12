@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Watcher\Driver;
 
+use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Watcher\Fixtures\FindDriverStub;
 use Hypervel\Watcher\Driver\FindDriver;
@@ -30,7 +32,14 @@ class FindDriverTest extends TestCase
 
         try {
             $driver = new FindDriverStub($option);
-            $driver->watch($channel);
+            $finished = new WaitGroup(1);
+            Coroutine::create(function () use ($channel, $driver, $finished): void {
+                try {
+                    $driver->watch($channel);
+                } finally {
+                    $finished->done();
+                }
+            });
 
             $this->assertSame('.env', $channel->pop($option->getScanIntervalSeconds() + 0.1));
         } catch (InvalidArgumentException $e) {
@@ -41,6 +50,9 @@ class FindDriverTest extends TestCase
         } finally {
             if (isset($driver)) {
                 $driver->stop();
+            }
+            if (isset($finished)) {
+                $this->assertTrue($finished->wait(0.1));
             }
             $channel->close();
         }
