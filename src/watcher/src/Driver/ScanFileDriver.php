@@ -35,7 +35,7 @@ class ScanFileDriver extends AbstractDriver
     public function watch(Channel $channel): void
     {
         $seconds = $this->option->getScanIntervalSeconds();
-        $this->timerId = $this->timer->tick($seconds, function () use ($channel) {
+        $this->watchAtInterval($seconds, function () use ($channel): void {
             $this->processFileHashes($channel, $this->getWatchFileHashes());
         });
     }

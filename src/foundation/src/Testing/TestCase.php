@@ -23,6 +23,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithViews;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Testing\Concerns\InteractsWithMockery;
 use ReflectionMethod;
 use Throwable;
 
@@ -43,6 +44,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     use InteractsWithViews;
     use MocksApplicationServices;
     use RunTestsInCoroutine;
+    use InteractsWithMockery;
     use WithFaker;
 
     /**
@@ -89,11 +91,25 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function tearDown(): void
     {
-        if ($this->withoutBootingFramework()) {
-            return;
+        $exception = null;
+
+        try {
+            if (! $this->withoutBootingFramework()) {
+                $this->tearDownTheTestEnvironment();
+            }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
         }
 
-        $this->tearDownTheTestEnvironment();
+        try {
+            $this->tearDownTheTestEnvironmentUsingMockery();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**

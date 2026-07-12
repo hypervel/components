@@ -16,6 +16,9 @@ use Hypervel\Contracts\Queue\Interruptible;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Job as QueueJobContract;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobPopped;
@@ -128,27 +131,86 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
     }
 
-    public function testWorkerCanMonitorTimeoutJobs()
+    public function testWorkerCanMonitorTimeoutJobs(): void
     {
         $workerOptions = new WorkerOptions;
         $workerOptions->stopWhenEmpty = true;
+        $workerOptions->monitorInterval = 5;
 
-        $monitored = false;
+        $timer = new QueueWorkerTimer;
         $worker = $this->getWorker('default', ['queue' => [
             $firstJob = new WorkerFakeJob,
-        ]]);
+        ]], timer: $timer);
 
-        $status = $worker->daemon('default', 'queue', $workerOptions, function () use (&$monitored) {
-            $monitored = true;
-        });
+        $status = $worker->daemon('default', 'queue', $workerOptions);
 
-        $this->assertTrue($monitored);
+        $this->assertSame([1], $timer->registered);
+        $this->assertSame([5.0], $timer->timeouts);
+        $this->assertSame([1], $timer->cleared);
 
         $this->assertTrue($firstJob->fired);
 
         $this->assertSame(0, $status);
 
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
+    }
+
+    public function testDaemonClearsItsMonitorWhenTheLoopThrows(): void
+    {
+        $timer = new QueueWorkerTimer;
+        $worker = $this->getWorker(
+            'default',
+            ['queue' => []],
+            static fn (): never => throw new LoopBreakerException,
+            $timer,
+        );
+
+        try {
+            $worker->daemon('default', 'queue', new WorkerOptions);
+            $this->fail('Expected the daemon loop to fail.');
+        } catch (LoopBreakerException) {
+            $this->addToAssertionCount(1);
+        }
+
+        $this->assertSame([1], $timer->registered);
+        $this->assertSame([1], $timer->cleared);
+    }
+
+    public function testTimeoutMonitorUnlocksWhenScanningThrows(): void
+    {
+        $timer = new QueueWorkerTimer;
+        $worker = new MonitorFailureWorker(
+            ...$this->workerDependencies(timer: $timer),
+        );
+        $worker->startMonitorForTest(new WorkerOptions);
+
+        try {
+            $timer->fire(1);
+            $this->fail('Expected timeout scanning to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('timeout scan failed', $exception->getMessage());
+        }
+
+        $this->assertFalse($worker->monitorIsLockedForTest());
+        $timer->fire(1);
+        $this->assertSame(2, $worker->scanCount);
+        $this->assertFalse($worker->monitorIsLockedForTest());
+    }
+
+    public function testKillDoesNotWaitForUnrelatedActiveJobs(): void
+    {
+        $worker = new KillTestWorker(...$this->workerDependencies());
+        $worker->registerCoroutineJobForTest(new WorkerFakeJob, new WorkerOptions);
+
+        try {
+            $worker->kill(Worker::EXIT_SUCCESS, new WorkerOptions);
+            $this->fail('Expected the process termination seam to throw.');
+        } catch (WorkerKilledException $exception) {
+            $this->assertSame(Worker::EXIT_SUCCESS, $exception->status);
+        }
+
+        $this->assertNull($worker->sleptFor);
+        $this->events->shouldHaveReceived('dispatch')->with(m::type(WorkerStopping::class))->once();
     }
 
     public function testWorkerCanWorkUntilQueueIsEmpty()
@@ -171,6 +233,34 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->twice();
 
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->twice();
+    }
+
+    public function testRecordingSleepStillYieldsToAConcurrencyLimitedJob(): void
+    {
+        $jobCompleted = false;
+        $reported = null;
+        $this->exceptionHandler->shouldReceive('report')->andReturnUsing(
+            function (Throwable $exception) use (&$reported): void {
+                $reported = $exception;
+            },
+        );
+        $job = new WorkerFakeJob(function () use (&$jobCompleted): void {
+            Coroutine::sleep(0.001);
+            $jobCompleted = true;
+        });
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $options = new WorkerOptions;
+        $options->concurrency = 1;
+        $options->sleep = 0;
+        $options->stopWhenEmpty = true;
+
+        $status = $worker->daemon('default', 'queue', $options);
+
+        $this->assertSame(Worker::EXIT_SUCCESS, $status);
+        $this->assertTrue($job->fired);
+        $this->assertNull($reported, $reported?->getMessage() ?? 'Unexpected job failure.');
+        $this->assertTrue($jobCompleted);
+        $this->assertSame(0, $worker->sleptFor);
     }
 
     public function testDaemonSleepsWhenQueueIsEmptyAtStartup()
@@ -714,15 +804,23 @@ class QueueWorkerTest extends TestCase
      * @param mixed $connectionName
      * @param mixed $jobs
      */
-    private function getWorker($connectionName = 'default', $jobs = [], ?callable $isInMaintenanceMode = null): InsomniacWorker
-    {
+    private function getWorker(
+        $connectionName = 'default',
+        $jobs = [],
+        ?callable $isInMaintenanceMode = null,
+        ?Timer $timer = null,
+    ): InsomniacWorker {
         return new InsomniacWorker(
-            ...$this->workerDependencies($connectionName, $jobs, $isInMaintenanceMode)
+            ...$this->workerDependencies($connectionName, $jobs, $isInMaintenanceMode, $timer)
         );
     }
 
-    private function workerDependencies($connectionName = 'default', $jobs = [], ?callable $isInMaintenanceMode = null): array
-    {
+    private function workerDependencies(
+        $connectionName = 'default',
+        $jobs = [],
+        ?callable $isInMaintenanceMode = null,
+        ?Timer $timer = null,
+    ): array {
         return [
             new WorkerFakeManager($connectionName, new WorkerFakeConnection($connectionName, $jobs)),
             $this->events,
@@ -730,6 +828,7 @@ class QueueWorkerTest extends TestCase
             $isInMaintenanceMode ?? function () {
                 return false;
             },
+            $timer,
         ];
     }
 
@@ -761,13 +860,14 @@ class QueueWorkerTest extends TestCase
  */
 class InsomniacWorker extends Worker
 {
-    public $sleptFor;
+    public int|float|null $sleptFor = null;
 
-    public $stopOnMemoryExceeded = false;
+    public bool $stopOnMemoryExceeded = false;
 
     public function sleep(float|int $seconds): void
     {
         $this->sleptFor = $seconds;
+        parent::sleep(0);
     }
 
     public function stop(int $status = 0, ?WorkerOptions $options = null, ?WorkerStopReason $reason = null): int
@@ -809,6 +909,49 @@ class InsomniacWorker extends Worker
     {
         return parent::registerCoroutineJob($job, $options);
     }
+
+    protected function supportsAsyncSignals(): bool
+    {
+        return false;
+    }
+}
+
+class MonitorFailureWorker extends InsomniacWorker
+{
+    public int $scanCount = 0;
+
+    public function startMonitorForTest(WorkerOptions $options): void
+    {
+        $this->monitorTimeoutJobs($options);
+    }
+
+    public function monitorIsLockedForTest(): bool
+    {
+        return $this->monitorLocked;
+    }
+
+    protected function terminateTimeoutJobs(WorkerOptions $options): void
+    {
+        if (++$this->scanCount === 1) {
+            throw new RuntimeException('timeout scan failed');
+        }
+    }
+}
+
+class KillTestWorker extends InsomniacWorker
+{
+    protected function terminateProcess(int $status): never
+    {
+        throw new WorkerKilledException($status);
+    }
+}
+
+class WorkerKilledException extends RuntimeException
+{
+    public function __construct(public readonly int $status)
+    {
+        parent::__construct('Worker process terminated.');
+    }
 }
 
 class LoopAwareWorker extends Worker
@@ -816,6 +959,45 @@ class LoopAwareWorker extends Worker
     public function daemonShouldRunForTest(WorkerOptions $options, string $connectionName, string $queue): bool
     {
         return parent::daemonShouldRun($options, $connectionName, $queue);
+    }
+}
+
+class QueueWorkerTimer extends Timer
+{
+    /** @var float[] */
+    public array $timeouts = [];
+
+    /** @var array<int, callable> */
+    public array $callbacks = [];
+
+    /** @var int[] */
+    public array $registered = [];
+
+    /** @var int[] */
+    public array $cleared = [];
+
+    public function tick(
+        float $timeout,
+        callable $closure,
+        string $identifier = Constants::WORKER_EXIT,
+    ): int {
+        $id = count($this->registered) + 1;
+        $this->registered[] = $id;
+        $this->timeouts[] = $timeout;
+        $this->callbacks[$id] = $closure;
+
+        return $id;
+    }
+
+    public function clear(int $id): void
+    {
+        $this->cleared[] = $id;
+        unset($this->callbacks[$id]);
+    }
+
+    public function fire(int $id): void
+    {
+        ($this->callbacks[$id])();
     }
 }
 

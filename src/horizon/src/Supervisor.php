@@ -18,8 +18,6 @@ use Hypervel\Horizon\Events\SupervisorLooped;
 use Hypervel\Support\Collection;
 use Throwable;
 
-use function Hypervel\Coroutine\go;
-
 class Supervisor implements Pausable, Restartable, Terminable
 {
     use ListensForSignals;
@@ -182,14 +180,10 @@ class Supervisor implements Pausable, Restartable, Terminable
         // pools down to zero workers to gracefully terminate them all out here.
         app(SupervisorRepository::class)->forget($this->name);
 
-        $this->processPools->each(function ($pool) {
-            $pool->processes()->each(function ($process) {
-                $process->terminate();
-            });
-        });
+        $this->processPools->each->scale(0);
 
         if ($this->shouldWait()) {
-            while ($this->processPools->map->runningProcesses()->collapse()->count()) {
+            while ($this->processPools->map->runningProcesses()->collapse()->isNotEmpty()) {
                 sleep(1);
             }
         }
@@ -261,27 +255,8 @@ class Supervisor implements Pausable, Restartable, Terminable
                 $this->processPools->each->monitor();
             }
 
-            // Next, we'll persist the supervisor state to storage so that it can be read by a
-            // user interface. This contains information on the specific options for it and
-            // the current number of worker processes per queue for easy load monitoring.
-            //
-            // Persistence is dispatched in a detached coroutine. Under Swoole
-            // the coroutine-hooked Redis write yields to the event loop; without
-            // this go() wrapper every loop iteration would block on that yield,
-            // which shifts worker lifecycle pacing enough to cause tearDown to
-            // exceed its retry budget in parallel tests. Callers that read
-            // persisted state immediately after loop() must retry for it (see
-            // the $this->wait(...) pattern in SupervisorTest) — a synchronous
-            // read can miss an uncommitted persist.
-            go(function (): void {
-                // Exceptions thrown inside a spawned coroutine are not caught by
-                // the parent loop() try/catch, so report them in this coroutine.
-                try {
-                    $this->persist();
-                } catch (Throwable $e) {
-                    app(ExceptionHandler::class)->report($e);
-                }
-            });
+            // Persist before the loop event so observers always see this iteration's state.
+            $this->persist();
 
             event(new SupervisorLooped($this));
         } catch (Throwable $e) {

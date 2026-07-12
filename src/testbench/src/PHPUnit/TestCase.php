@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\PHPUnit;
 
 use Hypervel\Testbench\Concerns\HandlesAssertions;
-use Hypervel\Testbench\Concerns\InteractsWithMockery;
+use Hypervel\Testing\Concerns\InteractsWithMockery;
 use Override;
 use Throwable;
 

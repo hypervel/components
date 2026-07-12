@@ -49,7 +49,13 @@ class Filesystem
     public function get(string $path, bool $lock = false): string
     {
         if ($this->isFile($path)) {
-            return $lock ? $this->sharedGet($path) : file_get_contents($path);
+            $contents = $lock ? $this->sharedGet($path) : @file_get_contents($path);
+
+            if ($contents === false) {
+                throw new FileNotFoundException("Unable to read file at path {$path}.");
+            }
+
+            return $contents;
         }
 
         throw new FileNotFoundException("File does not exist at path {$path}.");
@@ -71,23 +77,31 @@ class Filesystem
     public function sharedGet(string $path): string
     {
         return $this->atomic($path, function ($path) {
-            $contents = '';
-            $handle = fopen($path, 'rb');
-            if ($handle) {
-                $wouldBlock = false;
-                flock($handle, LOCK_SH | LOCK_NB, $wouldBlock);
-                while ($wouldBlock) {
-                    usleep(1000);
-                    flock($handle, LOCK_SH | LOCK_NB, $wouldBlock);
-                }
-                try {
-                    clearstatcache(true, $path);
-                    $contents = stream_get_contents($handle);
-                } finally {
-                    flock($handle, LOCK_UN);
-                    fclose($handle);
-                }
+            $handle = @fopen($path, 'rb');
+
+            if ($handle === false) {
+                throw new FileNotFoundException("Unable to read file at path {$path}.");
             }
+
+            $wouldBlock = false;
+            flock($handle, LOCK_SH | LOCK_NB, $wouldBlock);
+            while ($wouldBlock) {
+                usleep(1000);
+                flock($handle, LOCK_SH | LOCK_NB, $wouldBlock);
+            }
+
+            try {
+                clearstatcache(true, $path);
+                $contents = @stream_get_contents($handle);
+            } finally {
+                flock($handle, LOCK_UN);
+                fclose($handle);
+            }
+
+            if ($contents === false) {
+                throw new FileNotFoundException("Unable to read file at path {$path}.");
+            }
+
             return $contents;
         });
     }

@@ -148,10 +148,76 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
             throw new CommandNotFoundException(sprintf('The command "%s" does not exist.', $command));
         }
 
-        return $this->run(
+        return $this->runProgrammatically(
             $input,
-            CoroutineContext::set(self::LAST_OUTPUT_CONTEXT_KEY, $outputBuffer ?: new BufferedOutput)
+            CoroutineContext::set(
+                self::LAST_OUTPUT_CONTEXT_KEY,
+                $outputBuffer ?: new BufferedOutput,
+            ),
         );
+    }
+
+    /**
+     * Run a command without Symfony's process-global CLI wrapper.
+     *
+     * Symfony's run() owns root CLI concerns: terminal environment export,
+     * process-global exception handling, shell-verbosity restoration, and
+     * auto-exit. Programmatic calls need explicit IO configuration and
+     * doRun() only.
+     * Keep this boundary aligned with Symfony through the parity tests.
+     *
+     * @see SymfonyApplication::run()
+     */
+    protected function runProgrammatically(
+        InputInterface $input,
+        OutputInterface $output,
+    ): int {
+        $this->configureProgrammaticIO($input, $output);
+
+        return $this->doRun($input, $output);
+    }
+
+    /**
+     * Configure the input and output for a programmatic command.
+     */
+    protected function configureProgrammaticIO(InputInterface $input, OutputInterface $output): void
+    {
+        if ($input->hasParameterOption(['--ansi'], true)) {
+            $output->setDecorated(true);
+        } elseif ($input->hasParameterOption(['--no-ansi'], true)) {
+            $output->setDecorated(false);
+        }
+
+        $shellVerbosity = match (true) {
+            $input->hasParameterOption(['--silent'], true) => -2,
+            $input->hasParameterOption(['--quiet', '-q'], true) => -1,
+            $input->hasParameterOption('-vvv', true)
+                || $input->hasParameterOption('--verbose=3', true)
+                || $input->getParameterOption('--verbose', false, true) === 3 => 3,
+            $input->hasParameterOption('-vv', true)
+                || $input->hasParameterOption('--verbose=2', true)
+                || $input->getParameterOption('--verbose', false, true) === 2 => 2,
+            $input->hasParameterOption('-v', true)
+                || $input->hasParameterOption('--verbose=1', true)
+                || $input->hasParameterOption('--verbose', true)
+                || $input->getParameterOption('--verbose', false, true) => 1,
+            default => 0,
+        };
+
+        $output->setVerbosity(match ($shellVerbosity) {
+            -2 => OutputInterface::VERBOSITY_SILENT,
+            -1 => OutputInterface::VERBOSITY_QUIET,
+            1 => OutputInterface::VERBOSITY_VERBOSE,
+            2 => OutputInterface::VERBOSITY_VERY_VERBOSE,
+            3 => OutputInterface::VERBOSITY_DEBUG,
+            default => $output->getVerbosity(),
+        });
+
+        if ($shellVerbosity < 0
+            || $input->hasParameterOption(['--no-interaction', '-n'], true)
+        ) {
+            $input->setInteractive(false);
+        }
     }
 
     /**

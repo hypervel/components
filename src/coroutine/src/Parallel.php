@@ -88,10 +88,17 @@ class Parallel
                 }
             };
 
-            if ($this->copyContext === false) {
-                Coroutine::create($childCallable);
-            } else {
-                Coroutine::fork($childCallable, is_array($this->copyContext) ? $this->copyContext : []);
+            try {
+                if ($this->copyContext === false) {
+                    Coroutine::create($childCallable);
+                } else {
+                    Coroutine::fork($childCallable, is_array($this->copyContext) ? $this->copyContext : []);
+                }
+            } catch (Throwable $throwable) {
+                $this->throwables[$key] = $throwable;
+                unset($this->results[$key]);
+                $this->concurrentChannel?->pop();
+                $wg->done();
             }
         }
         $wg->wait();

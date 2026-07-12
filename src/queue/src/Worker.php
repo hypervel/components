@@ -32,6 +32,7 @@ use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
+use RuntimeException;
 use Throwable;
 
 class Worker
@@ -52,6 +53,17 @@ class Worker
     public const RESTART_SIGNAL_CACHE_KEY = 'illuminate:queue:restart';
 
     /**
+     * Signals installed when the worker daemon starts.
+     */
+    protected const HANDLED_SIGNALS = [
+        SIGQUIT,
+        SIGTERM,
+        SIGINT,
+        SIGUSR2,
+        SIGCONT,
+    ];
+
+    /**
      * The name of the worker.
      */
     protected ?string $name = null;
@@ -69,13 +81,6 @@ class Worker
     protected $isDownForMaintenance;
 
     /**
-     * The callback used to monitor timeout jobs.
-     *
-     * @var null|callable
-     */
-    protected $monitorTimeoutJobs;
-
-    /**
      * The running jobs.
      */
     protected array $runningJobs = [];
@@ -88,7 +93,12 @@ class Worker
     /**
      * The job monitor's ID.
      */
-    protected int $monitorId = 0;
+    protected ?int $monitorId = null;
+
+    /**
+     * The timer that owns the timeout monitor.
+     */
+    protected Timer $timer;
 
     /**
      * Indicates if the job monitor is checking for timeout jobs.
@@ -143,24 +153,22 @@ class Worker
      * @param Dispatcher $events the event dispatcher instance
      * @param ExceptionHandlerContract $exceptions the exception handler instance
      * @param callable $isDownForMaintenance the callback used to determine if the application is in maintenance mode
-     * @param int $monitorInterval the monitor interval
      */
     public function __construct(
         protected QueueManager $manager,
         protected Dispatcher $events,
         protected ExceptionHandlerContract $exceptions,
         callable $isDownForMaintenance,
-        ?callable $monitorTimeoutJobs = null,
-        protected int $monitorInterval = 1,
+        ?Timer $timer = null,
     ) {
         $this->isDownForMaintenance = $isDownForMaintenance;
-        $this->monitorTimeoutJobs = $monitorTimeoutJobs;
+        $this->timer = $timer ?? new Timer;
     }
 
     /**
      * Listen to the given queue in a loop.
      */
-    public function daemon(string $connectionName, string $queue, WorkerOptions $options, ?callable $monitorTimeoutJobs = null): int
+    public function daemon(string $connectionName, string $queue, WorkerOptions $options): int
     {
         if ($this->supportsAsyncSignals()) {
             $this->listenForSignals($connectionName, $queue, $options);
@@ -175,90 +183,94 @@ class Worker
         $waiter = new Waiter;
         $concurrent = new Concurrent($options->concurrency);
 
-        // Before we begin processing, we will setup the monitor to check for timeout jobs
-        $monitorTimeoutJobs
-            ? $monitorTimeoutJobs($options)
-            : $this->monitorTimeoutJobs($options);
+        $this->monitorTimeoutJobs($options);
 
-        while (true) {
-            // Before reserving any jobs, we will make sure this queue is not paused and
-            // if it is we will just pause this worker for a given amount of time and
-            // make sure we do not need to kill this worker process off completely.
-            if (! $this->daemonShouldRun($options, $connectionName, $queue)) {
-                [$status, $reason] = $this->pauseWorker($options, $lastRestart) ?? [null, null];
+        try {
+            while (true) {
+                // Before reserving any jobs, we will make sure this queue is not paused and
+                // if it is we will just pause this worker for a given amount of time and
+                // make sure we do not need to kill this worker process off completely.
+                if (! $this->daemonShouldRun($options, $connectionName, $queue)) {
+                    [$status, $reason] = $this->pauseWorker($options, $lastRestart) ?? [null, null];
 
-                if (! is_null($status)) {
-                    return $this->stop($status, $options, $reason);
+                    if (! is_null($status)) {
+                        return $this->stop($status, $options, $reason);
+                    }
+
+                    continue;
                 }
 
-                continue;
-            }
+                // If there are timeout jobs or the concurrency limit is hit,
+                // we should not accept new jobs
+                if ($this->hasTimeoutJobs() || $concurrent->isFull()) {
+                    $this->sleep($options->sleep);
 
-            // If there are timeout jobs or the concurrency limit is hit,
-            // we should not accept new jobs
-            if ($this->hasTimeoutJobs() || $concurrent->isFull()) {
-                $this->sleep($options->sleep);
+                    $status = $this->stopIfNecessary(
+                        $options,
+                        $lastRestart,
+                        $startTime,
+                        $jobsProcessed,
+                        checkQueueEmpty: false,
+                    );
 
+                    if (! is_null($status)) {
+                        [$status, $reason] = $status;
+
+                        while (! $concurrent->isEmpty()) {
+                            usleep(1000);
+                        }
+
+                        return $this->stop($status, $options, $reason);
+                    }
+
+                    continue;
+                }
+
+                // First, we will attempt to get the next job off of the queue.
+                // Then, we can fire off this job in coroutine. If there are no jobs,
+                // we will need to sleep the worker so no more jobs are processed
+                // until they should be processed.
+                $job = $waiter->wait(fn () => $this->getNextJob(
+                    $this->manager->connection($connectionName),
+                    $queue
+                ));
+                if ($job) {
+                    ++$jobsProcessed;
+                    $concurrent->create(fn () => $this->runJob($job, $connectionName, $options));
+
+                    if ($options->rest > 0) {
+                        $this->sleep($options->rest);
+                    }
+                } else {
+                    $this->sleep($options->sleep);
+                }
+
+                // Finally, we will check to see if we have exceeded our memory limits or if
+                // the queue should restart based on other indications. If so, we'll stop
+                // this worker and let whatever is "monitoring" it restart the process.
                 $status = $this->stopIfNecessary(
                     $options,
                     $lastRestart,
                     $startTime,
                     $jobsProcessed,
-                    checkQueueEmpty: false,
+                    $job
                 );
 
                 if (! is_null($status)) {
                     [$status, $reason] = $status;
 
+                    // Ensure in-flight job coroutines finish before daemon() reports completion.
                     while (! $concurrent->isEmpty()) {
                         usleep(1000);
                     }
 
                     return $this->stop($status, $options, $reason);
                 }
-
-                continue;
             }
-
-            // First, we will attempt to get the next job off of the queue.
-            // Then, we can fire off this job in coroutine. If there are no jobs,
-            // we will need to sleep the worker so no more jobs are processed
-            // until they should be processed.
-            $job = $waiter->wait(fn () => $this->getNextJob(
-                $this->manager->connection($connectionName),
-                $queue
-            ));
-            if ($job) {
-                ++$jobsProcessed;
-                $concurrent->create(fn () => $this->runJob($job, $connectionName, $options));
-
-                if ($options->rest > 0) {
-                    $this->sleep($options->rest);
-                }
-            } else {
-                $this->sleep($options->sleep);
-            }
-
-            // Finally, we will check to see if we have exceeded our memory limits or if
-            // the queue should restart based on other indications. If so, we'll stop
-            // this worker and let whatever is "monitoring" it restart the process.
-            $status = $this->stopIfNecessary(
-                $options,
-                $lastRestart,
-                $startTime,
-                $jobsProcessed,
-                $job
-            );
-
-            if (! is_null($status)) {
-                [$status, $reason] = $status;
-
-                // Ensure in-flight job coroutines finish before daemon() reports completion.
-                while (! $concurrent->isEmpty()) {
-                    usleep(1000);
-                }
-
-                return $this->stop($status, $options, $reason);
+        } finally {
+            if ($this->monitorId !== null) {
+                $this->timer->clear($this->monitorId);
+                $this->monitorId = null;
             }
         }
     }
@@ -268,31 +280,28 @@ class Worker
      */
     protected function monitorTimeoutJobs(WorkerOptions $options): void
     {
-        if ($this->monitorId) {
+        if ($this->monitorId !== null) {
             return;
         }
 
-        if ($this->monitorTimeoutJobs) {
-            ($this->monitorTimeoutJobs)($options);
-            return;
-        }
-
-        $this->monitorId = (new Timer)->tick($this->monitorInterval, function () use ($options) {
-            $this->withCoroutineContext($options, function () use ($options) {
+        $this->monitorId = $this->timer->tick($options->monitorInterval, function () use ($options): void {
+            $this->withCoroutineContext($options, function () use ($options): void {
                 if ($this->monitorLocked) {
                     return;
                 }
 
                 $this->monitorLocked = true;
 
-                $this->terminateTimeoutJobs($options);
+                try {
+                    $this->terminateTimeoutJobs($options);
 
-                if ($this->hasTimeoutJobs()) {
-                    $this->shouldQuit = true;
-                    $this->kill(static::EXIT_SUCCESS, $options);
+                    if ($this->hasTimeoutJobs()) {
+                        $this->shouldQuit = true;
+                        $this->kill(static::EXIT_SUCCESS, $options);
+                    }
+                } finally {
+                    $this->monitorLocked = false;
                 }
-
-                $this->monitorLocked = false;
             });
         });
     }
@@ -310,14 +319,6 @@ class Worker
                 $this->handleTimeoutJob($job['job'], $options);
             }
         }
-    }
-
-    /**
-     * Determine if there are any active coroutines.
-     */
-    protected function hasActiveCoroutines(): bool
-    {
-        return (bool) count($this->runningJobs);
     }
 
     /**
@@ -874,6 +875,10 @@ class Worker
 
         pcntl_signal(SIGUSR2, fn () => $this->handlePauseSignal($connectionName, $queue, $options));
         pcntl_signal(SIGCONT, fn () => $this->handleResumeSignal($connectionName, $queue, $options));
+
+        if (! pcntl_sigprocmask(SIG_UNBLOCK, self::HANDLED_SIGNALS)) {
+            throw new RuntimeException('Unable to unblock queue worker signals.');
+        }
     }
 
     /**
@@ -965,19 +970,19 @@ class Worker
 
     /**
      * Kill the process.
-     *
-     * @return never
      */
-    public function kill(int $status = 0, ?WorkerOptions $options = null): void
+    public function kill(int $status = 0, ?WorkerOptions $options = null): never
     {
         $this->events->dispatch(new WorkerStopping($status, $options));
 
-        // If there are any active coroutines, we will need to wait for
-        // them to finish before we can exit.
-        while ($this->hasActiveCoroutines()) {
-            $this->sleep(1);
-        }
+        $this->terminateProcess($status);
+    }
 
+    /**
+     * Terminate the current worker process immediately.
+     */
+    protected function terminateProcess(int $status): never
+    {
         if (extension_loaded('posix')) {
             posix_kill(getmypid(), SIGKILL);
         }

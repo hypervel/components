@@ -73,7 +73,7 @@ trait InteractsWithTestCaseLifecycle
 
         // Reset after Application exists so container-change detection works correctly
         // and rebinding hooks are registered on the current container.
-        DatabaseConnectionResolver::flushCachedConnections();
+        DatabaseConnectionResolver::resetCachedConnections();
 
         $this->runInCoroutine(function () {
             $this->setUpTraits();
@@ -104,6 +104,10 @@ trait InteractsWithTestCaseLifecycle
         if ($this->app) {
             $this->runInCoroutine(
                 fn () => $this->callBeforeApplicationDestroyedCallbacks()
+            );
+
+            $this->runInCoroutine(
+                fn () => DatabaseConnectionResolver::flushCachedConnections()
             );
 
             // Flush the DB connection pool in a separate coroutine so the

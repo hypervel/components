@@ -1296,7 +1296,6 @@ class Router implements BindingRegistrar, RegistrarContract
      */
     protected function flushRoutingCaches(): void
     {
-        CompiledRouteCollection::flushCache();
         ControllerDispatcher::flushState();
         CallableDispatcher::flushState();
         RouteSignatureParameters::flushCache();
@@ -1305,7 +1304,7 @@ class Router implements BindingRegistrar, RegistrarContract
     }
 
     /**
-     * Compile routes and pre-warm all static caches.
+     * Compile routes and pre-warm collection and static caches.
      *
      * In dev mode, compiles RouteCollection → CompiledRouteCollection for
      * CompiledUrlMatcher performance (O(1) hash + single regex). In production
@@ -1331,7 +1330,7 @@ class Router implements BindingRegistrar, RegistrarContract
     }
 
     /**
-     * Pre-warm all static caches for the registered routes.
+     * Pre-warm all caches for the registered routes.
      *
      * Eagerly populates route compilation, middleware resolution, and
      * reflection caches so they're available before fork. Workers inherit

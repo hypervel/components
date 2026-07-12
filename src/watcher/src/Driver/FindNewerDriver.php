@@ -18,8 +18,6 @@ class FindNewerDriver extends AbstractDriver
 
     protected bool $scanning = false;
 
-    protected bool $stopping = false;
-
     protected int $count = 0;
 
     public function __construct(protected Option $option)
@@ -41,11 +39,14 @@ class FindNewerDriver extends AbstractDriver
             throw new RuntimeException('Cannot restart the find-newer watcher while its previous scan is still stopping.');
         }
 
-        $this->stopping = false;
+        if ($this->stopping) {
+            return;
+        }
+
         $this->ensureReferenceFiles();
 
         $seconds = $this->option->getScanIntervalSeconds();
-        $this->timerId = $this->timer->tick($seconds, function () use ($channel) {
+        $this->watchAtInterval($seconds, function () use ($channel): void {
             if ($this->scanning || $this->stopping) {
                 return;
             }
@@ -87,8 +88,6 @@ class FindNewerDriver extends AbstractDriver
      */
     public function stop(): void
     {
-        $this->stopping = true;
-
         parent::stop();
 
         if (! $this->scanning) {

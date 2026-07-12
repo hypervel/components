@@ -8,7 +8,6 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Core\Events\OnWorkerExit;
-use Hypervel\Coroutine\Coroutine;
 use Swoole\Server;
 
 class WorkerExitCallback
@@ -22,9 +21,10 @@ class WorkerExitCallback
      */
     public function onWorkerExit(Server $server, int $workerId): void
     {
-        $this->dispatcher->dispatch(new OnWorkerExit($server, $workerId));
-        Coroutine::create(function () {
+        try {
+            $this->dispatcher->dispatch(new OnWorkerExit($server, $workerId));
+        } finally {
             CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
-        });
+        }
     }
 }

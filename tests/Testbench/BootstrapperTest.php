@@ -12,12 +12,13 @@ use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
 use ReflectionMethod;
+use RuntimeException;
 use UnexpectedValueException;
 
 class BootstrapperTest extends TestCase
 {
     #[Test]
-    public function testFlushStateKeepsRuntimePathForShutdownCleanup()
+    public function testFlushStateKeepsRuntimePathForShutdownCleanup(): void
     {
         $reflection = new ReflectionClass(Bootstrapper::class);
         $runtimePath = '/tmp/hypervel-components-testbench-flush-state';
@@ -60,6 +61,80 @@ class BootstrapperTest extends TestCase
             $this->deleteRuntimeDirectoryWithFilesystem($filesystem);
         } finally {
             $this->assertSame(2, $filesystem->deleteAttempts);
+        }
+    }
+
+    #[Test]
+    public function itRollsBackAPartialRuntimeCopyWhenDirectoryCopyingFails(): void
+    {
+        $packagePath = $this->temporaryDirectory('failed-copy-package');
+        $sourcePath = $this->temporaryDirectory('failed-copy-source');
+        $filesystem = new FailedRuntimeCopyFilesystem;
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-failed-copy', false, function () use ($filesystem, $sourcePath, $packagePath): void {
+                $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath): void {
+                    $reflection = new ReflectionClass(Bootstrapper::class);
+                    $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+
+                    try {
+                        $this->createRuntimeCopy($sourcePath, $packagePath);
+                        $this->fail('Expected runtime copy creation to fail.');
+                    } catch (RuntimeException $exception) {
+                        $this->assertStringContainsString('Unable to create the Testbench runtime copy', $exception->getMessage());
+                    }
+
+                    $this->assertNotNull($filesystem->runtimePath);
+                    $this->assertDirectoryDoesNotExist($filesystem->runtimePath);
+                    $this->assertSame($previousRuntimePath, $reflection->getStaticPropertyValue('runtimePath'));
+                });
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($filesystem->runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itRollsBackTheRuntimeCopyWhenProcessMarkerCreationFails(): void
+    {
+        $packagePath = $this->temporaryDirectory('failed-marker-package');
+        $sourcePath = $this->temporaryDirectory('failed-marker-source');
+        $failure = new RuntimeException('marker creation failed');
+        $filesystem = new FailedRuntimeMarkerFilesystem($failure);
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+
+        BootstrapperIdentityProbe::setProcessIdentity(null, 'start-identity');
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-failed-marker', false, function () use ($filesystem, $sourcePath, $packagePath, $failure): void {
+                $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath, $failure): void {
+                    $reflection = new ReflectionClass(Bootstrapper::class);
+                    $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+
+                    try {
+                        $this->createRuntimeCopy($sourcePath, $packagePath, BootstrapperIdentityProbe::class);
+                        $this->fail('Expected process marker creation to fail.');
+                    } catch (RuntimeException $exception) {
+                        $this->assertSame($failure, $exception);
+                    }
+
+                    $this->assertNotNull($filesystem->runtimePath);
+                    $this->assertDirectoryDoesNotExist($filesystem->runtimePath);
+                    $this->assertSame($previousRuntimePath, $reflection->getStaticPropertyValue('runtimePath'));
+                });
+            });
+        } finally {
+            BootstrapperIdentityProbe::resetProcessIdentity();
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($filesystem->runtimePath);
         }
     }
 
@@ -142,6 +217,191 @@ class BootstrapperTest extends TestCase
         }
     }
 
+    #[Test]
+    public function itWritesAPrivateProcessIncarnationMarker(): void
+    {
+        $packagePath = $this->temporaryDirectory('identity-package');
+        $sourcePath = $this->temporaryDirectory('identity-skeleton');
+        $runtimePath = null;
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+
+        try {
+            $this->withRuntimeCopyEnvironment(
+                'bootstrapper-identity',
+                false,
+                function () use (
+                    $sourcePath,
+                    $packagePath,
+                    &$runtimePath,
+                ): void {
+                    $runtimePath = $this->createRuntimeCopy($sourcePath, $packagePath);
+                },
+            );
+
+            $marker = $runtimePath . DIRECTORY_SEPARATOR . '.testbench-process';
+            $identity = json_decode((string) file_get_contents($marker), true, flags: JSON_THROW_ON_ERROR);
+
+            $this->assertSame([
+                'pid' => getmypid(),
+                'started_at' => BootstrapperIdentityProbe::startIdentity(getmypid()),
+            ], $identity);
+            $this->assertSame(0600, fileperms($marker) & 0777);
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itRecognizesAMatchingServeProcessIdentity(): void
+    {
+        [$runtimePath, $pid] = $this->createServeIdentityRuntime();
+
+        try {
+            BootstrapperIdentityProbe::setProcessIdentity(
+                '/usr/bin/php /workspace/src/testbench/bin/testbench serve --host=127.0.0.1',
+                'start-identity',
+            );
+
+            $this->assertTrue(
+                BootstrapperIdentityProbe::matchesServeProcess($pid, $runtimePath),
+            );
+        } finally {
+            BootstrapperIdentityProbe::resetProcessIdentity();
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itRejectsACommandThatIsNotTestbenchServe(): void
+    {
+        [$runtimePath, $pid] = $this->createServeIdentityRuntime();
+
+        try {
+            BootstrapperIdentityProbe::setProcessIdentity(
+                '/usr/bin/php /workspace/artisan queue:work',
+                'start-identity',
+            );
+
+            $this->assertFalse(
+                BootstrapperIdentityProbe::matchesServeProcess($pid, $runtimePath),
+            );
+        } finally {
+            BootstrapperIdentityProbe::resetProcessIdentity();
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itRejectsAReusedPidWithADifferentStartIdentity(): void
+    {
+        [$runtimePath, $pid] = $this->createServeIdentityRuntime();
+
+        try {
+            BootstrapperIdentityProbe::setProcessIdentity(
+                '/usr/bin/php /workspace/src/testbench/bin/testbench serve',
+                'different-start-identity',
+            );
+
+            $this->assertFalse(
+                BootstrapperIdentityProbe::matchesServeProcess($pid, $runtimePath),
+            );
+        } finally {
+            BootstrapperIdentityProbe::resetProcessIdentity();
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itRejectsAMalformedProcessMarker(): void
+    {
+        [$runtimePath, $pid] = $this->createServeIdentityRuntime();
+
+        try {
+            file_put_contents($runtimePath . '/.testbench-process', '{invalid');
+            BootstrapperIdentityProbe::setProcessIdentity(
+                '/usr/bin/php /workspace/src/testbench/bin/testbench serve',
+                'start-identity',
+            );
+
+            $this->assertFalse(
+                BootstrapperIdentityProbe::matchesServeProcess($pid, $runtimePath),
+            );
+        } finally {
+            BootstrapperIdentityProbe::resetProcessIdentity();
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itRejectsAnUnreadableProcessIdentity(): void
+    {
+        [$runtimePath, $pid] = $this->createServeIdentityRuntime();
+
+        try {
+            BootstrapperIdentityProbe::setProcessIdentity(null, null);
+
+            $this->assertFalse(
+                BootstrapperIdentityProbe::matchesServeProcess($pid, $runtimePath),
+            );
+        } finally {
+            BootstrapperIdentityProbe::resetProcessIdentity();
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itRejectsAMismatchedRuntimePidFile(): void
+    {
+        [$runtimePath, $pid] = $this->createServeIdentityRuntime();
+
+        try {
+            file_put_contents(
+                $runtimePath . '/storage/framework/hypervel.pid',
+                (string) ($pid + 1),
+            );
+            BootstrapperIdentityProbe::setProcessIdentity(
+                '/usr/bin/php /workspace/src/testbench/bin/testbench serve',
+                'start-identity',
+            );
+
+            $this->assertFalse(
+                BootstrapperIdentityProbe::matchesServeProcess($pid, $runtimePath),
+            );
+        } finally {
+            BootstrapperIdentityProbe::resetProcessIdentity();
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itRejectsADeadPidBeforeInspectingItsIdentity(): void
+    {
+        [$runtimePath] = $this->createServeIdentityRuntime();
+        $deadPid = 2_000_000_000;
+
+        try {
+            file_put_contents(
+                $runtimePath . '/storage/framework/hypervel.pid',
+                (string) $deadPid,
+            );
+            BootstrapperIdentityProbe::setProcessIdentity(
+                '/usr/bin/php /workspace/src/testbench/bin/testbench serve',
+                'start-identity',
+            );
+
+            $this->assertFalse(
+                BootstrapperIdentityProbe::isOrphanedServe($deadPid, $runtimePath),
+            );
+        } finally {
+            BootstrapperIdentityProbe::resetProcessIdentity();
+            $this->deleteDirectory($runtimePath);
+        }
+    }
+
     /**
      * Create a temporary test directory.
      */
@@ -154,12 +414,31 @@ class BootstrapperTest extends TestCase
     /**
      * Create a runtime copy through Bootstrapper's protected method.
      */
-    private function createRuntimeCopy(string $sourcePath, string $workingPath): string
-    {
-        $method = new ReflectionMethod(Bootstrapper::class, 'createRuntimeCopy');
+    private function createRuntimeCopy(
+        string $sourcePath,
+        string $workingPath,
+        string $bootstrapper = Bootstrapper::class,
+    ): string {
+        $method = new ReflectionMethod($bootstrapper, 'createRuntimeCopy');
         $method->setAccessible(true);
 
         return $method->invoke(null, $sourcePath, $workingPath);
+    }
+
+    /**
+     * Run a callback with a specific Bootstrapper filesystem.
+     */
+    private function withBootstrapperFilesystem(Filesystem $filesystem, callable $callback): void
+    {
+        $reflection = new ReflectionClass(Bootstrapper::class);
+        $previousFilesystem = $reflection->getStaticPropertyValue('filesystem');
+
+        try {
+            $reflection->setStaticPropertyValue('filesystem', $filesystem);
+            $callback();
+        } finally {
+            $reflection->setStaticPropertyValue('filesystem', $previousFilesystem);
+        }
     }
 
     /**
@@ -209,6 +488,32 @@ class BootstrapperTest extends TestCase
             $this->restorePackageTester($previousServerPackageTester, $previousEnvironmentPackageTester, $previousProcessPackageTester);
             $reflection->setStaticPropertyValue('runtimePath', $previousRuntimePath);
         }
+    }
+
+    /**
+     * Create a runtime directory containing matching serve identity markers.
+     *
+     * @return array{string, int}
+     */
+    private function createServeIdentityRuntime(): array
+    {
+        $runtimePath = $this->temporaryDirectory('serve-identity');
+        $pid = getmypid();
+
+        mkdir($runtimePath . '/storage/framework', 0777, true);
+        file_put_contents(
+            $runtimePath . '/storage/framework/hypervel.pid',
+            (string) $pid,
+        );
+        file_put_contents(
+            $runtimePath . '/.testbench-process',
+            json_encode([
+                'pid' => $pid,
+                'started_at' => 'start-identity',
+            ], JSON_THROW_ON_ERROR),
+        );
+
+        return [$runtimePath, $pid];
     }
 
     /**
@@ -291,6 +596,50 @@ class BootstrapperTest extends TestCase
     }
 }
 
+class BootstrapperIdentityProbe extends Bootstrapper
+{
+    protected static ?string $command = null;
+
+    protected static ?string $startIdentity = null;
+
+    public static function setProcessIdentity(?string $command, ?string $startIdentity): void
+    {
+        static::$command = $command;
+        static::$startIdentity = $startIdentity;
+    }
+
+    public static function resetProcessIdentity(): void
+    {
+        static::$command = null;
+        static::$startIdentity = null;
+    }
+
+    public static function matchesServeProcess(int $pid, string $runtimeDir): bool
+    {
+        return parent::matchesServeProcessIdentity($pid, $runtimeDir);
+    }
+
+    public static function isOrphanedServe(int $pid, string $runtimeDir): bool
+    {
+        return parent::isOrphanedServeProcess($pid, $runtimeDir);
+    }
+
+    protected static function processCommand(int $pid): ?string
+    {
+        return static::$command;
+    }
+
+    public static function startIdentity(int $pid): ?string
+    {
+        return parent::processStartIdentity($pid);
+    }
+
+    protected static function processStartIdentity(int $pid): ?string
+    {
+        return static::$startIdentity;
+    }
+}
+
 class RuntimeDirectoryVanishedFilesystem extends Filesystem
 {
     public int $deleteAttempts = 0;
@@ -334,5 +683,48 @@ class RuntimeDirectoryStillPresentFilesystem extends Filesystem
         ++$this->deleteAttempts;
 
         throw new UnexpectedValueException('runtime directory still present');
+    }
+}
+
+class FailedRuntimeCopyFilesystem extends Filesystem
+{
+    public ?string $runtimePath = null;
+
+    /**
+     * Create a partial destination before reporting copy failure.
+     */
+    public function copyDirectory(string $directory, string $destination, ?int $options = null): bool
+    {
+        $this->runtimePath = $destination;
+        mkdir($destination, 0777, true);
+
+        return false;
+    }
+}
+
+class FailedRuntimeMarkerFilesystem extends Filesystem
+{
+    public ?string $runtimePath = null;
+
+    public function __construct(private RuntimeException $failure)
+    {
+    }
+
+    /**
+     * Capture the runtime destination while copying it normally.
+     */
+    public function copyDirectory(string $directory, string $destination, ?int $options = null): bool
+    {
+        $this->runtimePath = $destination;
+
+        return parent::copyDirectory($directory, $destination, $options);
+    }
+
+    /**
+     * Simulate process-marker creation failure.
+     */
+    public function replace(string $path, string $content, ?int $mode = null): void
+    {
+        throw $this->failure;
     }
 }

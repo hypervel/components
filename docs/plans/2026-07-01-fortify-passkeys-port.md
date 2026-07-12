@@ -2,11 +2,9 @@
 
 > Superseded note: the Fortify password broker inference described in this historical plan was later removed by `2026-07-06-auth-guard-declared-password-brokers.md`. Guards now declare password brokers with `auth.guards.{guard}.passwords`; `Fortify::passwordBrokerName()` no longer exists.
 
-Date: 2026-07-01
+## Scope
 
-Author: Codex
-
-Scope: port Laravel Fortify and Laravel Passkeys Server into the Hypervel components monorepo, with Swoole coroutine safety, worker-lifetime performance, clean Hypervel-native APIs, full tests, and updated Boost documentation.
+Port Laravel Fortify and Laravel Passkeys Server into the Hypervel components monorepo, with Swoole coroutine safety, worker-lifetime performance, clean Hypervel-native APIs, full tests, and updated Boost documentation.
 
 ## Source Material Reviewed
 

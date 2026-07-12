@@ -8,7 +8,10 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Pool\Pool;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
+use Swoole\Coroutine as SwooleCoroutine;
+use Swoole\Event;
 
 class PoolNonCoroutineTest extends TestCase
 {
@@ -27,6 +30,54 @@ class PoolNonCoroutineTest extends TestCase
         );
 
         $pool->get();
+    }
+
+    #[RunInSeparateProcess]
+    public function testDeadlineReleaseRemainsCommittedWhenItsWakeCannotBeCreated(): void
+    {
+        $pool = $this->createPool();
+        $borrowed = $pool->get();
+        $replacement = null;
+        SwooleCoroutine::set(['max_coroutine' => 1]);
+        SwooleCoroutine::create(function () use ($pool, &$replacement): void {
+            $replacement = $pool->get();
+        });
+
+        $pool->release($borrowed);
+        Event::wait();
+
+        $this->assertSame($borrowed, $replacement);
+        $pool->release($replacement);
+    }
+
+    #[RunInSeparateProcess]
+    public function testDeadlineDiscardRemainsCommittedWhenItsWakeCannotBeCreated(): void
+    {
+        $pool = $this->createPool();
+        $borrowed = $pool->get();
+        $replacement = null;
+        SwooleCoroutine::set(['max_coroutine' => 1]);
+        SwooleCoroutine::create(function () use ($pool, &$replacement): void {
+            $replacement = $pool->get();
+        });
+
+        $pool->discard($borrowed);
+        Event::wait();
+
+        $this->assertInstanceOf(ConnectionInterface::class, $replacement);
+        $this->assertNotSame($borrowed, $replacement);
+        $pool->release($replacement);
+    }
+
+    private function createPool(): NonCoroutinePool
+    {
+        $container = new Container;
+        Container::setInstance($container);
+
+        return new NonCoroutinePool($container, 'test', [
+            'max_connections' => 1,
+            'wait_timeout' => 0.001,
+        ]);
     }
 }
 
@@ -61,6 +112,10 @@ class NonCoroutinePoolConnection implements ConnectionInterface
     }
 
     public function release(): void
+    {
+    }
+
+    public function discard(): void
     {
     }
 }

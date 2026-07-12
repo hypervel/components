@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Watcher\Driver;
 
 use Hypervel\Engine\Channel;
-use Hypervel\Engine\Coroutine;
 use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use InvalidArgumentException;
@@ -32,6 +31,10 @@ class FswatchDriver extends AbstractDriver
      */
     public function watch(Channel $channel): void
     {
+        if ($this->stopping) {
+            return;
+        }
+
         $this->openProcess();
 
         try {
@@ -41,8 +44,9 @@ class FswatchDriver extends AbstractDriver
                 throw new RuntimeException('The fswatch process did not provide an output pipe.');
             }
 
-            $basePath = null;
-            $watchPaths = null;
+            $basePath = base_path();
+            $watchPaths = $this->option->getWatchPaths();
+            $buffer = '';
 
             while (true) {
                 if ($this->shouldStopWatching($channel)) {
@@ -55,32 +59,61 @@ class FswatchDriver extends AbstractDriver
                     return;
                 }
 
-                if ($result === '' && feof($pipe)) {
-                    throw new RuntimeException('The fswatch process exited unexpectedly.');
-                }
-
-                if ($result === false || $result === '') {
+                if ($result === false) {
                     throw new RuntimeException('Unable to read output from the fswatch process.');
                 }
 
-                $basePath ??= base_path();
-                $watchPaths ??= $this->option->getWatchPaths();
+                if ($result === '') {
+                    if (feof($pipe)) {
+                        $this->processOutput($buffer, '', $channel, $basePath, $watchPaths, final: true);
 
-                Coroutine::create(function () use ($result, $channel, $basePath, $watchPaths) {
-                    $files = array_filter(explode("\n", $result));
-                    foreach ($files as $file) {
-                        $relativePath = substr($file, strlen($basePath) + 1);
-                        foreach ($watchPaths as $watchPath) {
-                            if ($watchPath->matches($relativePath)) {
-                                $channel->push($file);
-                                break;
-                            }
-                        }
+                        throw new RuntimeException('The fswatch process exited unexpectedly.');
                     }
-                });
+
+                    throw new RuntimeException('Unable to read output from the fswatch process.');
+                }
+
+                $this->processOutput($buffer, $result, $channel, $basePath, $watchPaths);
             }
         } finally {
             $this->stop();
+        }
+    }
+
+    /**
+     * Process complete newline-delimited paths while retaining a partial tail.
+     *
+     * @param list<WatchPath> $watchPaths
+     */
+    protected function processOutput(
+        string &$buffer,
+        string $chunk,
+        Channel $channel,
+        string $basePath,
+        array $watchPaths,
+        bool $final = false,
+    ): void {
+        $lines = explode("\n", $buffer . $chunk);
+        $buffer = array_pop($lines);
+
+        if ($final && $buffer !== '') {
+            $lines[] = $buffer;
+            $buffer = '';
+        }
+
+        foreach ($lines as $file) {
+            if ($file === '') {
+                continue;
+            }
+
+            $relativePath = substr($file, strlen($basePath) + 1);
+
+            foreach ($watchPaths as $watchPath) {
+                if ($watchPath->matches($relativePath)) {
+                    $channel->push($file);
+                    break;
+                }
+            }
         }
     }
 
@@ -135,7 +168,7 @@ class FswatchDriver extends AbstractDriver
      */
     protected function shouldStopWatching(Channel $channel): bool
     {
-        return $channel->isClosing() || $this->process === null;
+        return $this->stopping || $channel->isClosing() || $this->process === null;
     }
 
     /**

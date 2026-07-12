@@ -10,6 +10,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Redis\Subscriber\Message;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
+use Redis as PhpRedis;
 use RuntimeException;
 
 use function Hypervel\Coroutine\go;
@@ -33,21 +34,25 @@ class RedisSubscribeIntegrationTest extends TestCase
         $app->make('config')->set('database.redis.default.options.prefix', '');
     }
 
-    public function testSubscribeExitsCleanlyWithNoMessages()
+    public function testSubscribeExitsCleanlyWithNoMessages(): void
     {
         $channelName = 'test_redis_noop_' . uniqid();
         $subscriber = Redis::connection()->subscriber();
 
-        $subscriber->subscribe($channelName);
+        try {
+            $subscriber->subscribe($channelName);
 
-        usleep(100_000);
+            usleep(100_000);
 
-        $subscriber->close();
+            $subscriber->close();
 
-        $this->assertTrue($subscriber->closed);
+            $this->assertTrue($subscriber->closed);
+        } finally {
+            $subscriber->close();
+        }
     }
 
-    public function testSubscribeReceivesMessageViaCallback()
+    public function testSubscribeReceivesMessageViaCallback(): void
     {
         $channelName = 'test_redis_sub_' . uniqid();
         $resultChannel = new Channel(1);
@@ -76,7 +81,7 @@ class RedisSubscribeIntegrationTest extends TestCase
         $this->assertTrue($doneChannel->pop(5.0));
     }
 
-    public function testPsubscribeReceivesMessageViaCallback()
+    public function testPsubscribeReceivesMessageViaCallback(): void
     {
         $pattern = 'test_redis_psub_' . uniqid() . ':*';
         $publishChannel = str_replace('*', 'specific', $pattern);
@@ -106,7 +111,7 @@ class RedisSubscribeIntegrationTest extends TestCase
         $this->assertTrue($doneChannel->pop(5.0));
     }
 
-    public function testSubscribeAcceptsStringChannel()
+    public function testSubscribeAcceptsStringChannel(): void
     {
         $channelName = 'test_redis_string_' . uniqid();
         $resultChannel = new Channel(1);
@@ -134,49 +139,53 @@ class RedisSubscribeIntegrationTest extends TestCase
         $this->assertTrue($doneChannel->pop(5.0));
     }
 
-    public function testSubscriberReturnsChannelBasedApi()
+    public function testSubscriberReturnsChannelBasedApi(): void
     {
         $channelName = 'test_redis_subscriber_' . uniqid();
         $subscriber = Redis::connection()->subscriber();
 
-        $subscriber->subscribe($channelName);
+        try {
+            $subscriber->subscribe($channelName);
 
-        go(function () use ($channelName) {
-            usleep(50_000);
-            $this->publishViaRawClient($channelName, 'channel_api');
-        });
+            go(function () use ($channelName) {
+                usleep(50_000);
+                $this->publishViaRawClient($channelName, 'channel_api');
+            });
 
-        $message = $subscriber->channel()->pop(5.0);
+            $message = $subscriber->channel()->pop(5.0);
 
-        $this->assertInstanceOf(Message::class, $message);
-        $this->assertSame($channelName, $message->channel);
-        $this->assertSame('channel_api', $message->payload);
-
-        $subscriber->close();
+            $this->assertInstanceOf(Message::class, $message);
+            $this->assertSame($channelName, $message->channel);
+            $this->assertSame('channel_api', $message->payload);
+        } finally {
+            $subscriber->close();
+        }
     }
 
-    public function testSubscriberWithPrefix()
+    public function testSubscriberWithPrefix(): void
     {
         $prefix = 'myprefix:';
         $connectionName = $this->createRedisConnectionWithPrefix($prefix);
         $channelName = 'test_redis_prefixed_' . uniqid();
         $subscriber = Redis::connection($connectionName)->subscriber();
 
-        $subscriber->subscribe($channelName);
+        try {
+            $subscriber->subscribe($channelName);
 
-        go(function () use ($channelName, $prefix) {
-            usleep(50_000);
-            // Publish to the full prefixed channel name
-            $this->publishViaRawClient($prefix . $channelName, 'prefixed_data');
-        });
+            go(function () use ($channelName, $prefix) {
+                usleep(50_000);
+                // Publish to the full prefixed channel name
+                $this->publishViaRawClient($prefix . $channelName, 'prefixed_data');
+            });
 
-        $message = $subscriber->channel()->pop(5.0);
+            $message = $subscriber->channel()->pop(5.0);
 
-        $this->assertInstanceOf(Message::class, $message);
-        $this->assertSame($prefix . $channelName, $message->channel);
-        $this->assertSame('prefixed_data', $message->payload);
-
-        $subscriber->close();
+            $this->assertInstanceOf(Message::class, $message);
+            $this->assertSame($prefix . $channelName, $message->channel);
+            $this->assertSame('prefixed_data', $message->payload);
+        } finally {
+            $subscriber->close();
+        }
     }
 
     /**
@@ -184,19 +193,22 @@ class RedisSubscribeIntegrationTest extends TestCase
      */
     private function publishViaRawClient(string $channel, string $message): void
     {
-        $client = new \Redis;
+        $client = new PhpRedis;
         $client->connect(
             env('REDIS_HOST', '127.0.0.1'),
             (int) env('REDIS_PORT', 6379)
         );
 
-        $auth = env('REDIS_PASSWORD');
-        if ($auth) {
-            $client->auth($auth);
-        }
+        try {
+            $auth = env('REDIS_PASSWORD');
+            if ($auth) {
+                $client->auth($auth);
+            }
 
-        $client->publish($channel, $message);
-        $client->close();
+            $client->publish($channel, $message);
+        } finally {
+            $client->close();
+        }
     }
 }
 

@@ -37,15 +37,20 @@ class CoroutineDriver implements Driver
         $waitGroup = new WaitGroup(count($tasks));
 
         foreach ($tasks as $key => $task) {
-            Coroutine::fork(function () use ($task, $key, &$results, &$exceptions, $waitGroup) {
-                try {
-                    $results[$key] = $task();
-                } catch (Throwable $e) {
-                    $exceptions[$key] = $e;
-                } finally {
-                    $waitGroup->done();
-                }
-            });
+            try {
+                Coroutine::fork(function () use ($task, $key, &$results, &$exceptions, $waitGroup): void {
+                    try {
+                        $results[$key] = $task();
+                    } catch (Throwable $exception) {
+                        $exceptions[$key] = $exception;
+                    } finally {
+                        $waitGroup->done();
+                    }
+                });
+            } catch (Throwable $exception) {
+                $exceptions[$key] = $exception;
+                $waitGroup->done();
+            }
         }
 
         $waitGroup->wait();

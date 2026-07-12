@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Watcher\Driver;
 
+use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use Hypervel\Tests\Watcher\Fixtures\ContainerStub;
@@ -30,13 +32,21 @@ class ScanFileDriverTest extends TestCase
 
         $channel = new Channel(10);
         $driver = new ScanFileDriverStub($option, ContainerStub::getLogger());
+        $finished = new WaitGroup(1);
 
-        $driver->watch($channel);
+        Coroutine::create(function () use ($channel, $driver, $finished): void {
+            try {
+                $driver->watch($channel);
+            } finally {
+                $finished->done();
+            }
+        });
 
         try {
-            $this->assertStringEndsWith('.env', $channel->pop($option->getScanIntervalSeconds() + 0.1));
+            $this->assertStringEndsWith('.env', $channel->pop(($option->getScanIntervalSeconds() * 2) + 0.1));
         } finally {
             $driver->stop();
+            $this->assertTrue($finished->wait(0.1));
             $channel->close();
         }
     }
@@ -70,7 +80,14 @@ class ScanFileDriverTest extends TestCase
         };
 
         $channel = new Channel(10);
-        $driver->watch($channel);
+        $finished = new WaitGroup(1);
+        Coroutine::create(function () use ($channel, $driver, $finished): void {
+            try {
+                $driver->watch($channel);
+            } finally {
+                $finished->done();
+            }
+        });
 
         try {
             // Wait for two ticks to fire (baseline + detection).
@@ -88,6 +105,7 @@ class ScanFileDriverTest extends TestCase
             $this->assertCount(2, $pushed);
         } finally {
             $driver->stop();
+            $this->assertTrue($finished->wait(0.1));
             $channel->close();
         }
     }

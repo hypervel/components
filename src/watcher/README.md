@@ -63,8 +63,8 @@ php artisan watch --no-restart
 The watcher separates three concerns:
 
 - **`Option`** — Parses watch configuration into typed `WatchPath` objects
-- **Drivers** (`DriverInterface`) — Detect file changes and push paths to a Channel
-- **Restart Strategies** (`RestartStrategy`) — Define what happens when changes are detected
+- **Drivers** (`DriverInterface`) — Own one blocking watch lifecycle, push changed paths to a channel, and unblock when stopped
+- **Restart Strategies** (`RestartStrategy`) — Own the managed process lifecycle around detected changes
 
 ### Restart Strategies
 
@@ -75,6 +75,7 @@ interface RestartStrategy
 {
     public function start(): void;
     public function restart(): void;
+    public function stop(): void;
 }
 ```
 

@@ -121,6 +121,7 @@ class RouteCacheCommand extends Command
                 ],
                 $this->hypervel->basePath(),
                 [
+                    'APP_ROUTES_CACHE' => $this->hypervel->getCachedRoutesPath(),
                     'HYPERVEL_AUTOLOAD_PATH' => $this->resolveSubprocessAutoloadPath(),
                 ],
             );

@@ -8,6 +8,8 @@ use Symfony\Component\Finder\Glob;
 
 readonly class WatchPath
 {
+    private ?string $regex;
+
     /**
      * @param string $path Relative base path (e.g., 'app', 'config', '.env')
      * @param WatchPathType $type Whether this entry represents a directory or a file
@@ -18,6 +20,9 @@ readonly class WatchPath
         public WatchPathType $type,
         public ?string $pattern = null,
     ) {
+        $this->regex = $type === WatchPathType::Directory && $pattern !== null
+            ? Glob::toRegex($pattern, strictLeadingDot: false)
+            : null;
     }
 
     /**
@@ -37,7 +42,8 @@ readonly class WatchPath
             return str_starts_with($relativePath, $this->path . '/');
         }
 
-        $regex = Glob::toRegex($this->pattern, strictLeadingDot: false);
+        /** @var string $regex */
+        $regex = $this->regex;
 
         return (bool) preg_match($regex, $relativePath);
     }

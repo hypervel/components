@@ -8,8 +8,11 @@ use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Signal\SignalHandlerInterface as SignalHandler;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Signal as EngineSignal;
 use Hypervel\Support\SplPriorityQueue;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 class SignalManager
 {
@@ -67,21 +70,39 @@ class SignalManager
             return;
         }
 
-        foreach ($this->handlers[$process] ?? [] as $signal => $handlers) {
-            Coroutine::create(function () use ($signal, $handlers) {
-                while (true) {
-                    $ret = EngineSignal::wait($signal, $this->config->float('signal.timeout', 5.0));
-                    if ($ret) {
-                        foreach ($handlers as $handler) {
-                            $handler->handle($signal);
-                        }
-                    }
+        $coroutineIds = [];
 
-                    if ($this->isStopped()) {
-                        break;
+        try {
+            foreach ($this->handlers[$process] ?? [] as $signal => $handlers) {
+                $coroutineIds[] = Coroutine::create(function () use ($signal, $handlers): void {
+                    try {
+                        while (true) {
+                            $ret = EngineSignal::wait($signal, $this->config->float('signal.timeout', 5.0));
+
+                            if ($ret) {
+                                foreach ($handlers as $handler) {
+                                    $handler->handle($signal);
+                                }
+                            }
+
+                            if ($this->isStopped()) {
+                                break;
+                            }
+                        }
+                    } catch (CanceledException) {
+                        // Intentional cancellation; the manager owns watcher cleanup.
                     }
-                }
-            });
+                });
+            }
+        } catch (Throwable $exception) {
+            foreach ($coroutineIds as $coroutineId) {
+                EngineCoroutine::cancelById(
+                    $coroutineId,
+                    throwException: true,
+                );
+            }
+
+            throw $exception;
         }
     }
 

@@ -6,6 +6,7 @@ namespace Hypervel\Engine\Http;
 
 use Hypervel\Contracts\Engine\Http\ServerInterface;
 use Hypervel\Engine\Coroutine;
+use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\HttpServer\RequestBridge;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\Http\Server as HttpServer;
@@ -57,8 +58,18 @@ class Server implements ServerInterface
      */
     public function start(): void
     {
-        $this->server->handle('/', function ($request, $response) {
-            Coroutine::create(function () use ($request, $response) {
+        $this->server->handle('/', $this->dispatchRequest(...));
+
+        $this->server->start();
+    }
+
+    /**
+     * Dispatch a native request without letting overload escape its callback.
+     */
+    protected function dispatchRequest(mixed $request, mixed $response): void
+    {
+        try {
+            Coroutine::create(function () use ($request, $response): void {
                 try {
                     $handler = $this->handler;
 
@@ -67,9 +78,11 @@ class Server implements ServerInterface
                     $this->logger->critical((string) $exception);
                 }
             });
-        });
-
-        $this->server->start();
+        } catch (CoroutineCreateException $exception) {
+            $this->logger->critical((string) $exception);
+            $response->status(503);
+            $response->end('Service Unavailable');
+        }
     }
 
     /**

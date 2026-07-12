@@ -4,8 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
+use RuntimeException;
+
 trait ListensForSignals
 {
+    protected const HANDLED_SIGNALS = [
+        SIGTERM,
+        SIGUSR1,
+        SIGUSR2,
+        SIGCONT,
+    ];
+
     /**
      * The pending signals that need to be processed.
      */
@@ -33,6 +42,10 @@ trait ListensForSignals
         pcntl_signal(SIGCONT, function () {
             $this->pendingSignals['continue'] = 'continue';
         });
+
+        if (! pcntl_sigprocmask(SIG_UNBLOCK, self::HANDLED_SIGNALS)) {
+            throw new RuntimeException('Unable to unblock Horizon process signals.');
+        }
     }
 
     /**

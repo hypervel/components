@@ -81,12 +81,18 @@ class SafeSocket implements SocketInterface
     public function recvAll(int $length = 65536, float $timeout = 0): false|string
     {
         $res = $this->socket->recvAll($length, $timeout);
-        if (! $res) {
+        if ($res === false || $res === '') {
             if ($this->socket->errCode === SOCKET_ETIMEDOUT) {
-                $this->throw && throw new SocketTimeoutException('Recv timeout');
+                $this->throw && throw new SocketTimeoutException(
+                    $this->socket->errMsg ?: 'Recv timeout',
+                    $this->socket->errCode,
+                );
             }
 
-            $this->throw && throw new SocketClosedException('The socket is closed.');
+            $this->throw && throw new SocketClosedException(
+                $this->socket->errMsg ?: 'The socket is closed.',
+                $this->socket->errCode,
+            );
         }
 
         return $res;
@@ -101,12 +107,18 @@ class SafeSocket implements SocketInterface
     public function recvPacket(float $timeout = 0): false|string
     {
         $res = $this->socket->recvPacket($timeout);
-        if (! $res) {
+        if ($res === false || $res === '') {
             if ($this->socket->errCode === SOCKET_ETIMEDOUT) {
-                $this->throw && throw new SocketTimeoutException('Recv timeout');
+                $this->throw && throw new SocketTimeoutException(
+                    $this->socket->errMsg ?: 'Recv timeout',
+                    $this->socket->errCode,
+                );
             }
 
-            $this->throw && throw new SocketClosedException('The socket is closed.');
+            $this->throw && throw new SocketClosedException(
+                $this->socket->errMsg ?: 'The socket is closed.',
+                $this->socket->errCode,
+            );
         }
 
         return $res;
@@ -136,27 +148,54 @@ class SafeSocket implements SocketInterface
      */
     protected function loop(): void
     {
-        if ($this->loop) {
+        if ($this->loop || $this->channel->isClosing()) {
             return;
         }
 
         $this->loop = true;
 
-        Coroutine::create(function () {
-            try {
-                while (true) {
-                    $data = $this->channel->pop(-1);
-                    if ($this->channel->isClosing()) {
-                        return;
+        try {
+            Coroutine::create(function (): void {
+                try {
+                    while (true) {
+                        $data = $this->channel->pop(-1);
+
+                        if ($this->channel->isClosing()) {
+                            return;
+                        }
+
+                        [$data, $timeout] = $data;
+
+                        if ($this->socket->sendAll($data, $timeout) === false) {
+                            if ($this->socket->errCode === SOCKET_ETIMEDOUT) {
+                                throw new SocketTimeoutException(
+                                    $this->socket->errMsg ?: 'Send timeout',
+                                    $this->socket->errCode,
+                                );
+                            }
+
+                            throw new SocketClosedException(
+                                $this->socket->errMsg ?: 'The socket is closed.',
+                                $this->socket->errCode,
+                            );
+                        }
+                    }
+                } catch (Throwable $exception) {
+                    if (! $exception instanceof SocketClosedException
+                        && ! $exception instanceof SocketTimeoutException
+                    ) {
+                        $this->logger?->critical((string) $exception);
                     }
 
-                    [$data, $timeout] = $data;
-
-                    $this->socket->sendAll($data, $timeout);
+                    $this->close();
+                } finally {
+                    $this->loop = false;
                 }
-            } catch (Throwable $exception) {
-                $this->logger?->critical((string) $exception);
-            }
-        });
+            });
+        } catch (Throwable $exception) {
+            $this->loop = false;
+
+            throw $exception;
+        }
     }
 }

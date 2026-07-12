@@ -4,6 +4,7 @@
 - [Environment](#environment)
 - [Creating Tests](#creating-tests)
     - [Running Tests in Coroutines](#running-tests-in-coroutines)
+    - [Owning Asynchronous Test Resources](#owning-asynchronous-test-resources)
     - [Test State Cleanup](#test-state-cleanup)
     - [Macro State](#macro-state)
     - [Using Pest](#using-pest)
@@ -170,10 +171,19 @@ By default, Hypervel copies coroutine context values prepared outside the test m
 protected bool $copyNonCoroutineContext = false;
 ```
 
+<a name="owning-asynchronous-test-resources"></a>
+### Owning Asynchronous Test Resources
+
+Tests that create child coroutines, subscribers, processes, servers, or other asynchronous resources must close or join those resources in a `finally` block. This ensures that assertion failures and other exceptions cannot leave work running after the test has finished.
+
+When a test needs results or exceptions from child coroutines, prefer the `parallel` helper instead of coordinating them with unbounded channel reads. Use channels directly when channel behavior is what the test is exercising.
+
 <a name="test-state-cleanup"></a>
 ### Test State Cleanup
 
 Hypervel applications keep framework objects, static caches, macros, and manager state in memory for the life of the PHP process. During tests, Hypervel's PHPUnit extension flushes framework-owned state after every test method.
+
+Hypervel also verifies and closes Mockery automatically. Framework base test cases perform verification during teardown so unmet expectations are attributed to the test that created them, while the PHPUnit extension provides fallback verification for tests using another base case. Individual tests should not call `Mockery::close()` themselves.
 
 If your application has its own worker-lifetime state, add its cleanup to `tests/Support/TestState.php`. Use this class as one application-level entry point that aggregates the cleanup for any stateful classes your app owns:
 

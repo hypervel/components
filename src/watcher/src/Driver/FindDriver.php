@@ -44,7 +44,7 @@ class FindDriver extends AbstractDriver
         $this->startTime = time();
         $seconds = $this->option->getScanIntervalSeconds();
 
-        $this->timerId = $this->timer->tick($seconds, function () use ($channel) {
+        $this->watchAtInterval($seconds, function () use ($channel): void {
             [$this->fileModifyTimes, $changedFiles] = $this->scan($this->fileModifyTimes, $this->getScanIntervalMinutes());
 
             foreach ($changedFiles as $file) {

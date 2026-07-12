@@ -580,7 +580,7 @@ Examples: `tests/Inertia/CoroutineIsolationTest.php`, `tests/Container/Coroutine
 
 #### Static State and Test Cleanup
 
-`AfterEachTestSubscriber` handles global cleanup between tests. It calls `flushState()` on framework classes that hold static state, and resets the container itself — `Container::flushState()` + `setInstance(null)` — plus `CoroutineContext::flush()`, with each test in a fresh coroutine. So container singleton/auto-singleton instance state and coroutine context don't leak between tests; only `static`/process-global state and live external resources need package cleanup, not mutable state on a container-cached instance. **Never add cleanup in `tearDown()`** — it's handled. `AfterEachTestSubscriber` is the one authoritative registry; don't register cleanup elsewhere.
+`AfterEachTestSubscriber` handles framework-global cleanup between tests. It calls `flushState()` on framework classes that hold static state, and resets the container itself — `Container::flushState()` + `setInstance(null)` — plus `CoroutineContext::flush()`, with each test in a fresh coroutine. So container singleton/auto-singleton instance state and coroutine context don't leak between tests; only `static`/process-global state and live external resources need package cleanup, not mutable state on a container-cached instance. Do not duplicate framework-static resets in `tearDown()`; `AfterEachTestSubscriber` is their one authoritative registry. Tests still own resources they create, such as child coroutines, subscribers, processes, sockets, and temporary files, and must close or join them through exception-safe cleanup.
 
 When porting source classes that use static properties for caching (e.g., `$booted`, `$globalScopes`, resolved config values, compiled formats):
 1. Add a `public static function flushState(): void` method that resets the static properties to their initial values
@@ -627,7 +627,11 @@ A per-package base class is only justified when there is shared setUp logic — 
 
 **Always import as `m`:** Use `use Mockery as m;` and call `m::mock()`, `m::spy()`, etc. Never use the full `Mockery::` prefix.
 
-**Never add `Mockery::close()` to tearDown.** It's handled globally by `AfterEachTestSubscriber` for all tests.
+Framework base test cases own Mockery verification in `tearDown()` so unmet
+expectations are attributed to the test that created them. The global
+`AfterEachTestSubscriber` remains a fallback for tests using another base case
+and always resets framework state even when Mockery verification fails. Tests
+must not add their own `Mockery::close()` calls.
 
 #### Docblocks and Types
 

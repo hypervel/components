@@ -11,9 +11,8 @@ interface DriverInterface
     /**
      * Run the watch loop, pushing changed file paths into the channel.
      *
-     * Deterministic shutdown is stop(): it releases the driver's resources and
-     * unblocks suspended I/O. A closing channel is observed opportunistically
-     * and is not guaranteed to interrupt blocked I/O.
+     * This method blocks for one driver lifecycle. It returns only after
+     * terminal completion or stop() releases the driver's suspended work.
      */
     public function watch(Channel $channel): void;
 

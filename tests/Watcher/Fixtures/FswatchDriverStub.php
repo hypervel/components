@@ -11,9 +11,8 @@ class FswatchDriverStub extends FswatchDriver
 {
     public function watch(Channel $channel): void
     {
-        $seconds = $this->option->getScanIntervalSeconds();
-        $this->timerId = $this->timer->tick($seconds, function () use ($channel) {
-            $channel->push('.env');
+        $channel->push('.env');
+        $this->watchAtInterval(60, static function (): void {
         });
     }
 }

@@ -1,10 +1,8 @@
 # Testing After Each Cleanup Registrars Plan
 
-Date: 2026-07-04
+## Scope
 
-Author: Codex
-
-Scope: make Hypervel's after-each test cleanup extensible for apps and packages while keeping framework cleanup centralized, deterministic, and independent of application boot.
+Make Hypervel's after-each test cleanup extensible for apps and packages while keeping framework cleanup centralized, deterministic, and independent of application boot.
 
 ## Goal
 

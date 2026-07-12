@@ -192,6 +192,50 @@ class RoutePortTest extends RoutingTestCase
         $this->assertSame(8080, $route->getPort());
     }
 
+    public function testCompiledRouteNameCacheBelongsToItsCollection(): void
+    {
+        [$firstRouter, $firstContainer] = $this->getRouter();
+        $firstRouter->domain('first.test')->port(8080)->get('/first', [
+            'uses' => 'FirstController@show',
+            'as' => 'shared',
+        ]);
+        $firstCompiled = $firstRouter->getRoutes()->compile();
+        $firstCollection = (new CompiledRouteCollection(
+            $firstCompiled['compiled'],
+            $firstCompiled['attributes'],
+        ))->setRouter($firstRouter)->setContainer($firstContainer);
+
+        [$secondRouter, $secondContainer] = $this->getRouter();
+        $secondRouter->domain('second.test')->port(9090)->get('/second', [
+            'uses' => 'SecondController@show',
+            'as' => 'shared',
+        ]);
+        $secondCompiled = $secondRouter->getRoutes()->compile();
+        $secondCollection = (new CompiledRouteCollection(
+            $secondCompiled['compiled'],
+            $secondCompiled['attributes'],
+        ))->setRouter($secondRouter)->setContainer($secondContainer);
+
+        $first = $firstCollection->getByName('shared');
+        $second = $secondCollection->getByName('shared');
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($first, $firstCollection->getByName('shared'));
+        $this->assertSame($second, $secondCollection->getByName('shared'));
+        $this->assertSame(['first.test', 8080, 'first', 'FirstController@show'], [
+            $first->getDomain(),
+            $first->getPort(),
+            $first->uri(),
+            $first->getActionName(),
+        ]);
+        $this->assertSame(['second.test', 9090, 'second', 'SecondController@show'], [
+            $second->getDomain(),
+            $second->getPort(),
+            $second->uri(),
+            $second->getActionName(),
+        ]);
+    }
+
     public function testCompiledRouteCollectionRespectsPort()
     {
         [$router, $container] = $this->getRouter();

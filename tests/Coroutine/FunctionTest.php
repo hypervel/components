@@ -15,15 +15,20 @@ use function Hypervel\Coroutine\parallel;
 
 class FunctionTest extends TestCase
 {
-    public function testReturnOfGo()
+    public function testReturnOfGo(): void
     {
         $uniqid = uniqid();
         $id = go(function () use (&$uniqid) {
             $uniqid = 'Hypervel';
         });
 
-        $this->assertTrue(is_int($id));
+        $this->assertGreaterThan(0, $id);
         $this->assertSame('Hypervel', $uniqid);
+    }
+
+    public function testCoReturnsAPositiveCoroutineId(): void
+    {
+        $this->assertGreaterThan(0, co(static fn (): null => null));
     }
 
     public function testDefer()

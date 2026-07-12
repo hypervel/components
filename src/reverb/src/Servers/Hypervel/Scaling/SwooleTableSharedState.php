@@ -18,6 +18,10 @@ class SwooleTableSharedState implements SharedState
      */
     protected const STRIPE_COUNT = 64;
 
+    protected const SPINS_BEFORE_BACKOFF = 64;
+
+    protected const LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 1_000_000_000;
+
     /**
      * Striped Atomic locks for inter-worker row lifecycle operations.
      *
@@ -232,11 +236,16 @@ class SwooleTableSharedState implements SharedState
         $key = "smoothing:{$appId}:{$channel}";
         $lock = $this->lockFor($key);
         $this->acquire($lock);
+        $stored = false;
 
         try {
-            $this->setLockRow($key, microtime(true));
+            $stored = $this->setLockRow($key, microtime(true));
         } finally {
             $this->release($lock);
+        }
+
+        if (! $stored) {
+            $this->reportFullLockTable($key);
         }
     }
 
@@ -256,11 +265,16 @@ class SwooleTableSharedState implements SharedState
         $key = "smoothing:{$appId}:{$channel}:{$userId}";
         $lock = $this->lockFor($key);
         $this->acquire($lock);
+        $stored = false;
 
         try {
-            $this->setLockRow($key, microtime(true));
+            $stored = $this->setLockRow($key, microtime(true));
         } finally {
             $this->release($lock);
+        }
+
+        if (! $stored) {
+            $this->reportFullLockTable($key);
         }
     }
 
@@ -283,6 +297,7 @@ class SwooleTableSharedState implements SharedState
     {
         $lock = $this->lockFor($key);
         $this->acquire($lock);
+        $stored = false;
 
         try {
             $row = $this->lockTable->get($key, 'locked_at');
@@ -292,10 +307,16 @@ class SwooleTableSharedState implements SharedState
                 return false;
             }
 
-            return $this->setLockRow($key, $now);
+            $stored = $this->setLockRow($key, $now);
         } finally {
             $this->release($lock);
         }
+
+        if (! $stored) {
+            $this->reportFullLockTable($key);
+        }
+
+        return $stored;
     }
 
     /**
@@ -307,26 +328,21 @@ class SwooleTableSharedState implements SharedState
     protected function setLockRow(string $key, float $timestamp): bool
     {
         try {
-            $result = $this->lockTable->set($key, ['locked_at' => $timestamp]);
-        } catch (ErrorException $e) {
-            Log::error(
-                "Reverb webhook lock table is full — increase 'reverb.swoole_shared_state.lock_rows' in config. "
-                . "Webhook suppressed due to full lock table for key [{$key}]."
-            );
-
+            return $this->lockTable->set($key, ['locked_at' => $timestamp]);
+        } catch (ErrorException) {
             return false;
         }
+    }
 
-        if ($result === false) {
-            Log::error(
-                "Reverb webhook lock table is full — increase 'reverb.swoole_shared_state.lock_rows' in config. "
-                . "Webhook suppressed due to full lock table for key [{$key}]."
-            );
-
-            return false;
-        }
-
-        return true;
+    /**
+     * Report a failed write after releasing its stripe lock.
+     */
+    protected function reportFullLockTable(string $key): void
+    {
+        Log::error(
+            "Reverb webhook lock table is full — increase 'reverb.swoole_shared_state.lock_rows' in config. "
+            . "Webhook suppressed due to full lock table for key [{$key}]."
+        );
     }
 
     /**
@@ -422,8 +438,22 @@ class SwooleTableSharedState implements SharedState
      */
     protected function acquire(Atomic $lock): void
     {
+        $deadline = null;
+        $spins = 0;
+
         while (! $lock->cmpset(0, 1)) {
-            // Spin — lock is held for nanoseconds (C-level table operations only)
+            $deadline ??= hrtime(true) + static::LOCK_ACQUIRE_TIMEOUT_NANOSECONDS;
+
+            if (++$spins < static::SPINS_BEFORE_BACKOFF) {
+                continue;
+            }
+
+            if (hrtime(true) >= $deadline) {
+                throw new RuntimeException('Timed out acquiring a Swoole table shared-state lock.');
+            }
+
+            $spins = 0;
+            usleep(1);
         }
     }
 

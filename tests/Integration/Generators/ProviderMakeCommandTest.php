@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Generators;
 
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use RuntimeException;
+
 class ProviderMakeCommandTest extends TestCase
 {
     protected $files = [
@@ -17,22 +21,35 @@ class ProviderMakeCommandTest extends TestCase
         parent::setUp();
 
         $path = $this->app->getBootstrapProvidersPath();
+        $files = new Filesystem;
 
-        if (file_exists($path)) {
-            $this->originalProvidersContents = file_get_contents($path);
+        if ($files->isFile($path)) {
+            $this->originalProvidersContents = $files->get($path);
         }
     }
 
     protected function tearDown(): void
     {
+        $files = new Filesystem;
+        $providersPath = $this->app->getBootstrapProvidersPath();
+
         if ($this->originalProvidersContents !== null) {
-            file_put_contents(
-                $this->app->getBootstrapProvidersPath(),
-                $this->originalProvidersContents
+            $restore = fn () => $files->replace(
+                $providersPath,
+                $this->originalProvidersContents,
             );
+        } else {
+            $restore = static function () use ($files, $providersPath): void {
+                if ($files->isFile($providersPath) && ! $files->delete($providersPath)) {
+                    throw new RuntimeException("Unable to delete the owned generated providers file [{$providersPath}].");
+                }
+            };
         }
 
-        parent::tearDown();
+        CleanupActions::run(
+            $restore,
+            fn () => parent::tearDown(),
+        );
     }
 
     public function testItCanGenerateServiceProviderFile()

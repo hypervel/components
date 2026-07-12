@@ -21,14 +21,27 @@ class CommandInvoker
 
     private Timer $timer;
 
+    private ?int $shutdownTimerId = null;
+
     public function __construct(protected Connection $connection, protected ?StdoutLoggerInterface $logger = null)
     {
         $this->resultChannel = new Channel;
         $this->pingChannel = new Channel;
         $this->messageChannel = new Channel(100);
         $this->timer = new Timer;
-        $this->loop();
-        $this->watchForShutdown();
+
+        try {
+            $this->loop();
+            $this->watchForShutdown();
+        } catch (Throwable $exception) {
+            try {
+                $this->interrupt();
+            } catch (Throwable) {
+                // Construction failure remains primary after exhaustive cleanup.
+            }
+
+            throw $exception;
+        }
     }
 
     public function invoke(int|string|array|null $command, int $number): array
@@ -56,9 +69,18 @@ class CommandInvoker
 
     public function interrupt(): bool
     {
-        $this->connection->close();
-        $this->resultChannel->close();
-        $this->messageChannel->close();
+        if ($this->shutdownTimerId !== null) {
+            $this->timer->clear($this->shutdownTimerId);
+            $this->shutdownTimerId = null;
+        }
+
+        try {
+            $this->connection->close();
+        } finally {
+            $this->resultChannel->close();
+            $this->pingChannel->close();
+            $this->messageChannel->close();
+        }
 
         return true;
     }
@@ -170,14 +192,14 @@ class CommandInvoker
      */
     protected function watchForShutdown(): void
     {
-        $this->timer->until(function () {
+        $this->shutdownTimerId = $this->timer->until(function (): void {
             $this->interrupt();
         });
     }
 
     protected function loop(): void
     {
-        Coroutine::create(function () {
+        Coroutine::create(function (): void {
             $this->receive($this->connection);
         });
     }

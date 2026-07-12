@@ -4,25 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Watcher\Driver;
 
-use Hypervel\Coordinator\Timer;
+use Hypervel\Engine\Channel;
 use Hypervel\Watcher\Option;
 use RuntimeException;
 use Swoole\Coroutine\System;
 
 abstract class AbstractDriver implements DriverInterface
 {
-    protected Timer $timer;
+    protected ?Channel $stopSignal = null;
 
-    protected ?int $timerId = null;
+    protected bool $stopping = false;
 
     public function __construct(protected Option $option)
     {
-        $this->timer = new Timer;
-    }
-
-    public function __destruct()
-    {
-        $this->stop();
     }
 
     /**
@@ -34,13 +28,45 @@ abstract class AbstractDriver implements DriverInterface
     }
 
     /**
-     * Stop the file watcher timer.
+     * Stop the active watch lifecycle.
      */
     public function stop(): void
     {
-        if ($this->timerId) {
-            $this->timer->clear($this->timerId);
-            $this->timerId = null;
+        if ($this->stopping) {
+            return;
+        }
+
+        $this->stopping = true;
+        $this->stopSignal?->close();
+    }
+
+    /**
+     * Run a polling scan until the driver is stopped.
+     */
+    protected function watchAtInterval(float $seconds, callable $scan): void
+    {
+        if ($this->stopping) {
+            return;
+        }
+
+        $stopSignal = $this->stopSignal = new Channel(1);
+
+        try {
+            while (true) {
+                $signal = $stopSignal->pop($seconds);
+
+                if ($signal !== false || ! $stopSignal->isTimeout()) {
+                    return;
+                }
+
+                $scan();
+            }
+        } finally {
+            if (! $stopSignal->isClosing()) {
+                $stopSignal->close();
+            }
+
+            $this->stopSignal = null;
         }
     }
 

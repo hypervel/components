@@ -6,16 +6,30 @@ namespace Hypervel\Horizon;
 
 use Carbon\CarbonImmutable;
 use Closure;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Events\UnableToLaunchProcess;
 use Hypervel\Horizon\Events\WorkerProcessRestarting;
+use RuntimeException;
 use Symfony\Component\Process\Exception\ExceptionInterface;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 /**
  * @mixin Process
  */
 class WorkerProcess
 {
+    /**
+     * Signals handled by a queue worker after its application boots.
+     */
+    protected const STARTUP_SIGNALS = [
+        SIGQUIT,
+        SIGTERM,
+        SIGINT,
+        SIGUSR2,
+        SIGCONT,
+    ];
+
     /**
      * The output handler callback.
      */
@@ -45,7 +59,30 @@ class WorkerProcess
 
         $this->cooldown();
 
-        $this->process->start($callback);
+        $previousMask = [];
+
+        // Symfony's setIgnoredSignals() also suppresses Process::signal() on
+        // SIGCHLD builds. Horizon must still send these control signals, so
+        // only the fork-inherited process mask is changed here.
+        if (! pcntl_sigprocmask(SIG_BLOCK, static::STARTUP_SIGNALS, $previousMask)) {
+            throw new RuntimeException('Unable to block Horizon child startup signals.');
+        }
+
+        $exception = null;
+
+        try {
+            $this->process->start($callback);
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        if (! pcntl_sigprocmask(SIG_SETMASK, $previousMask)) {
+            $exception ??= new RuntimeException('Unable to restore the Horizon parent signal mask.');
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
 
         return $this;
     }
@@ -84,7 +121,12 @@ class WorkerProcess
     protected function restart(): void
     {
         if ($this->process->isStarted()) {
-            event(new WorkerProcessRestarting($this));
+            /** @var Dispatcher $events */
+            $events = app('events');
+
+            if ($events->hasListeners(WorkerProcessRestarting::class)) {
+                $events->dispatch(new WorkerProcessRestarting($this));
+            }
         }
 
         $this->start($this->output);
@@ -105,6 +147,16 @@ class WorkerProcess
     {
         if ($this->process->isRunning()) {
             $this->process->stop();
+        }
+    }
+
+    /**
+     * Stop the underlying process immediately.
+     */
+    public function kill(): void
+    {
+        if ($this->process->isRunning()) {
+            $this->process->stop(0);
         }
     }
 
@@ -137,7 +189,12 @@ class WorkerProcess
                             : null;
 
             if (! $this->process->isRunning()) {
-                event(new UnableToLaunchProcess($this));
+                /** @var Dispatcher $events */
+                $events = app('events');
+
+                if ($events->hasListeners(UnableToLaunchProcess::class)) {
+                    $events->dispatch(new UnableToLaunchProcess($this));
+                }
             }
         } else {
             $this->restartAgainAt = CarbonImmutable::now()->addSecond();

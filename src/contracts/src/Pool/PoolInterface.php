@@ -22,6 +22,11 @@ interface PoolInterface
     public function release(ConnectionInterface $connection): void;
 
     /**
+     * Discard a borrowed connection from the connection pool.
+     */
+    public function discard(ConnectionInterface $connection): void;
+
+    /**
      * Close idle connections in excess of the minimum pool size.
      */
     public function flush(): void;

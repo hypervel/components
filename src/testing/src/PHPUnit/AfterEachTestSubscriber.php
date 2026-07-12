@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing\PHPUnit;
 
+use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Mockery;
 use PHPUnit\Event\Test\Finished;
 use PHPUnit\Event\Test\FinishedSubscriber;
+use Throwable;
 
 /**
  * Global cleanup after every test method.
@@ -30,10 +32,34 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     public function flushStateAfterTest(): void
     {
+        $exception = null;
+
         try {
             AfterEachTestCleanup::runCallbacks();
-        } finally {
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
+
+        try {
+            Mockery::close();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        try {
+            DatabaseConnectionResolver::flushCachedConnections();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        try {
             $this->flushFrameworkState();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 
@@ -42,8 +68,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
      */
     protected function flushFrameworkState(): void
     {
-        Mockery::close();
-
         \Carbon\Carbon::resetMacros();
         \Carbon\Carbon::resetToStringFormat();
         \Carbon\Carbon::serializeUsing(null);
@@ -136,7 +160,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Foundation\PackageManifest::flushState();
         \Hypervel\Foundation\Support\Providers\EventServiceProvider::flushState();
         \Hypervel\Foundation\Support\Providers\RouteServiceProvider::flushState();
-        \Hypervel\Foundation\Testing\DatabaseConnectionResolver::flushCachedConnections();
         \Hypervel\Foundation\Vite::flush();
         \Hypervel\Foundation\WorkerCachedMaintenanceMode::flushCache();
         \Hypervel\Http\Client\Request::flushState();
@@ -167,7 +190,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Queue\Queue::flushState();
         \Hypervel\Queue\Worker::flushState();
         \Hypervel\Routing\CallableDispatcher::flushState();
-        \Hypervel\Routing\CompiledRouteCollection::flushCache();
         \Hypervel\Routing\ControllerDispatcher::flushState();
         \Hypervel\Routing\ImplicitRouteBinding::flushCache();
         \Hypervel\Routing\Middleware\ThrottleRequests::flushState();
