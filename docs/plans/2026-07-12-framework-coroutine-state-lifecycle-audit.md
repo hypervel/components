@@ -974,8 +974,8 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** none; contracts work is complete and awaiting integration
-- **Ledger entries required for the active work:** none
+- **Active package or work unit:** `conditionable`
+- **Ledger entries required for the active work:** `Restore Conditionable proxy truthiness`
 - **Pending revalidation carried into the active work:** none
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
@@ -990,6 +990,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `view-01` | `view` | `contracts`, `foundation`; later full `view` and `foundation` audits | `Harden framework contracts and request-scoped state`; shared finding `view-01` |
 | `filesystem-01` | `filesystem` | `contracts`; later full `filesystem` audit | `Harden framework contracts and request-scoped state`; shared finding `filesystem-01` |
 | `queue-01` | `queue` | `contracts`; later full `queue` audit | `Harden framework contracts and request-scoped state`; shared finding `queue-01` |
+| `testbench-01` | `testbench` | `foundation`; later full `testbench` and `foundation` audits | `Restore Conditionable proxy truthiness`; shared finding `testbench-01` |
 
 ## Package checklist
 
