@@ -12,6 +12,7 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
+use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Pool\Connection as BaseConnection;
 use Hypervel\Pool\Exceptions\ConnectionException;
 use Hypervel\Pool\PoolOption;
@@ -651,14 +652,14 @@ abstract class RedisConnection extends BaseConnection
 
         $result = new Channel(1);
 
-        $started = go(function () use ($result) {
-            try {
-                $result->push($this->pingForHeartbeat(), 0.0);
-            } catch (CanceledException) {
-            }
-        });
-
-        if ($started === false) {
+        try {
+            $started = go(function () use ($result): void {
+                try {
+                    $result->push($this->pingForHeartbeat(), 0.0);
+                } catch (CanceledException) {
+                }
+            });
+        } catch (CoroutineCreateException) {
             return false;
         }
 

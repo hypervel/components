@@ -13,6 +13,7 @@ use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
+use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Pool\Events\ReleaseConnection;
 use Hypervel\Pool\PoolOption;
 use PDO;
@@ -212,14 +213,14 @@ class PooledConnection implements PoolConnectionInterface
 
         $result = new Channel(1);
 
-        $started = go(static function () use ($pdos, $result) {
-            try {
-                $result->push(self::pingPdos($pdos), 0.0);
-            } catch (CanceledException) {
-            }
-        });
-
-        if ($started === false) {
+        try {
+            $started = go(static function () use ($pdos, $result): void {
+                try {
+                    $result->push(self::pingPdos($pdos), 0.0);
+                } catch (CanceledException) {
+                }
+            });
+        } catch (CoroutineCreateException) {
             return false;
         }
 
