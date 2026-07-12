@@ -13,6 +13,11 @@ use Mockery as m;
 
 class FrequencyTest extends TestCase
 {
+    public function testFrequencyIsZeroBeforeTheFirstSample(): void
+    {
+        $this->assertSame(0.0, (new FrequencyStub)->frequency());
+    }
+
     public function testFrequencyHit(): void
     {
         $frequency = new FrequencyStub;
