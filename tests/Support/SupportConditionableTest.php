@@ -137,6 +137,19 @@ class SupportConditionableTest extends TestCase
         $this->assertSame(['init', 'one', 'three', 'six'], $logger->values);
     }
 
+    public function testWhenProxyUsesNonBooleanTruthiness(): void
+    {
+        $logger = (new ConditionableLogger)
+            ->when(1)->log('direct truthy')
+            ->when(0)->log('direct falsy')
+            ->when()->truthyProperty->log('property truthy')
+            ->when()->falsyProperty->log('property falsy')
+            ->when()->truthyMethod()->log('method truthy')
+            ->when()->falsyMethod()->log('method falsy');
+
+        $this->assertSame(['direct truthy', 'property truthy', 'method truthy'], $logger->values);
+    }
+
     public function testUnlessProxy()
     {
         // With static condition
@@ -164,6 +177,15 @@ class SupportConditionableTest extends TestCase
 
         $this->assertSame(['init', 'two', 'four', 'five'], $logger->values);
     }
+
+    public function testUnlessProxyUsesNonBooleanTruthiness(): void
+    {
+        $logger = (new ConditionableLogger)
+            ->unless()->truthyProperty->log('truthy')
+            ->unless()->falsyProperty->log('falsy');
+
+        $this->assertSame(['falsy'], $logger->values);
+    }
 }
 
 class ConditionableLogger
@@ -173,6 +195,10 @@ class ConditionableLogger
     public array $values = [];
 
     public bool $toggle = false;
+
+    public int $truthyProperty = 1;
+
+    public int $falsyProperty = 0;
 
     public function log(mixed ...$values): static
     {
@@ -184,6 +210,16 @@ class ConditionableLogger
     public function has(mixed $value): bool
     {
         return in_array($value, $this->values);
+    }
+
+    public function truthyMethod(): int
+    {
+        return 1;
+    }
+
+    public function falsyMethod(): int
+    {
+        return 0;
     }
 
     public function toggle(): static
