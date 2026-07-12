@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Hypervel\Contracts\Database\ModelIdentifier;
-use Hypervel\Contracts\Queue\QueueableCollection;
-use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -21,7 +19,9 @@ trait SerializesAndRestoresModelIdentifiers
      */
     protected function getSerializedPropertyValue(mixed $value, bool $withRelations = true): mixed
     {
-        if ($value instanceof QueueableCollection) {
+        // Laravel checks the generic queue contract here, but this trait's
+        // restoration path can only reconstruct Eloquent collections.
+        if ($value instanceof EloquentCollection) {
             return (new ModelIdentifier(
                 $value->getQueueableClass(),
                 $value->getQueueableIds(),
@@ -34,7 +34,9 @@ trait SerializesAndRestoresModelIdentifiers
             );
         }
 
-        if ($value instanceof QueueableEntity) {
+        // Laravel checks the generic queue contract here, but ModelIdentifier
+        // restoration requires the Eloquent Model API.
+        if ($value instanceof Model) {
             return new ModelIdentifier(
                 get_class($value),
                 $value->getQueueableId(),
@@ -65,7 +67,9 @@ trait SerializesAndRestoresModelIdentifiers
      */
     protected function restoreCollection(ModelIdentifier $value): EloquentCollection
     {
-        if (! $value->class || count($value->id) === 0) {
+        $class = $value->getClass();
+
+        if (! $class || count($value->id) === 0) {
             return ! is_null($value->collectionClass ?? null)
                 ? new $value->collectionClass
                 : new EloquentCollection;
@@ -73,12 +77,12 @@ trait SerializesAndRestoresModelIdentifiers
 
         /** @var EloquentCollection<int, Model> $collection */
         $collection = $this->getQueryForModelRestoration(
-            (new $value->class)->setConnection($value->connection),
+            (new $class)->setConnection($value->connection),
             $value->id
         )->useWritePdo()->get();
 
-        if (is_a($value->class, Pivot::class, true)
-            || in_array(AsPivot::class, class_uses($value->class))
+        if (is_a($class, Pivot::class, true)
+            || in_array(AsPivot::class, class_uses($class))
         ) {
             return $collection;
         }

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Contracts\Database\ModelIdentifier;
+use Hypervel\Contracts\Queue\QueueableCollection;
 use Hypervel\Contracts\Queue\QueueableEntity;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Queue\Attributes\WithoutRelations;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Tests\TestCase;
@@ -43,6 +45,27 @@ class SerializesModelsTest extends TestCase
         $this->assertInstanceOf(ModelIdentifier::class, $payload['other']);
         $this->assertSame([], $payload['entity']->relations);
         $this->assertSame(['roles'], $payload['other']->relations);
+    }
+
+    public function testNonEloquentQueueContractsUseOrdinaryObjectSerialization(): void
+    {
+        $fixture = new NonEloquentQueueablesSerializationFixture(
+            new NonEloquentQueueableEntitySerializationFixture('entity'),
+            new NonEloquentQueueableCollectionSerializationFixture(['collection']),
+        );
+
+        $payload = $fixture->__serialize();
+
+        $this->assertInstanceOf(NonEloquentQueueableEntitySerializationFixture::class, $payload['entity']);
+        $this->assertInstanceOf(NonEloquentQueueableCollectionSerializationFixture::class, $payload['collection']);
+
+        $restored = unserialize(serialize($fixture));
+
+        $this->assertInstanceOf(NonEloquentQueueablesSerializationFixture::class, $restored);
+        $this->assertNotSame($fixture->entity, $restored->entity);
+        $this->assertNotSame($fixture->collection, $restored->collection);
+        $this->assertSame('entity', $restored->entity->value);
+        $this->assertSame(['collection'], $restored->collection->items);
     }
 }
 
@@ -84,7 +107,7 @@ class PropertyWithoutRelationsSerializationFixture
     }
 }
 
-class QueueableEntitySerializationFixture implements QueueableEntity
+class QueueableEntitySerializationFixture extends Model
 {
     public function getQueueableId(): int
     {
@@ -99,5 +122,67 @@ class QueueableEntitySerializationFixture implements QueueableEntity
     public function getQueueableConnection(): ?string
     {
         return 'testing';
+    }
+}
+
+class NonEloquentQueueablesSerializationFixture
+{
+    use SerializesModels;
+
+    public function __construct(
+        public NonEloquentQueueableEntitySerializationFixture $entity,
+        public NonEloquentQueueableCollectionSerializationFixture $collection,
+    ) {
+    }
+}
+
+class NonEloquentQueueableEntitySerializationFixture implements QueueableEntity
+{
+    public function __construct(
+        public string $value,
+    ) {
+    }
+
+    public function getQueueableId(): string
+    {
+        return $this->value;
+    }
+
+    public function getQueueableRelations(): array
+    {
+        return [];
+    }
+
+    public function getQueueableConnection(): ?string
+    {
+        return null;
+    }
+}
+
+class NonEloquentQueueableCollectionSerializationFixture implements QueueableCollection
+{
+    public function __construct(
+        public array $items,
+    ) {
+    }
+
+    public function getQueueableClass(): ?string
+    {
+        return NonEloquentQueueableEntitySerializationFixture::class;
+    }
+
+    public function getQueueableIds(): array
+    {
+        return array_keys($this->items);
+    }
+
+    public function getQueueableRelations(): array
+    {
+        return [];
+    }
+
+    public function getQueueableConnection(): ?string
+    {
+        return null;
     }
 }

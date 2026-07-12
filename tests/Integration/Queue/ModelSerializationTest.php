@@ -487,7 +487,7 @@ class ModelSerializationTest extends TestCase
     }
 
     #[WithConfig('database.default', 'testing')]
-    public function testItUsersMorphmapForSerialization()
+    public function testItUsesMorphMapForSerialization(): void
     {
         Relation::morphMap([
             'user' => User::class,
@@ -509,6 +509,35 @@ class ModelSerializationTest extends TestCase
         $unserialized = unserialize($serialized);
 
         $this->assertTrue($unserialized->user->is($user));
+    }
+
+    #[WithConfig('database.default', 'testing')]
+    public function testItUsesMorphMapForCollectionSerialization(): void
+    {
+        Relation::morphMap([
+            'user' => User::class,
+        ]);
+        ModelIdentifier::useMorphMap();
+
+        $first = User::create([
+            'email' => 'taylor@laravel.com',
+        ]);
+        $second = User::create([
+            'email' => 'mohamed@laravel.com',
+        ]);
+
+        $serialized = serialize(new CollectionSerializationTestClass(
+            User::query()->orderBy('id')->get()
+        ));
+
+        /** @var CollectionSerializationTestClass $unserialized */
+        $unserialized = unserialize($serialized);
+
+        $this->assertCount(2, $unserialized->users);
+        $this->assertTrue($unserialized->users[0]->is($first));
+        $this->assertTrue($unserialized->users[1]->is($second));
+        $this->assertSame('taylor@laravel.com', $unserialized->users[0]->email);
+        $this->assertSame('mohamed@laravel.com', $unserialized->users[1]->email);
     }
 
     private function expectedParentAccessibleSerialization(): string

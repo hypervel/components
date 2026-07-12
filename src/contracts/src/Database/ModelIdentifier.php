@@ -25,9 +25,7 @@ class ModelIdentifier
     protected static bool $useMorphMap = false;
 
     /**
-     * The class name of the model.
-     *
-     * @var null|class-string
+     * The class name of the model, or its morph-map alias when enabled.
      */
     public ?string $class;
 
@@ -53,14 +51,14 @@ class ModelIdentifier
     /**
      * The class name of the model collection.
      *
-     * @var null|class-string
+     * @var null|class-string<\Hypervel\Database\Eloquent\Collection>
      */
     public ?string $collectionClass = null;
 
     /**
      * Create a new model identifier.
      *
-     * @param class-string $class
+     * @param null|class-string $class
      * @param mixed $id this may be either a single ID or an array of IDs
      * @param array $relations the relationships loaded on the model
      * @param null|string $connection the connection name of the model
