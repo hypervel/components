@@ -10,6 +10,8 @@ use Hypervel\Testbench\Foundation\Config;
 use Hypervel\Testbench\Foundation\Env;
 use Hypervel\Testbench\Foundation\EnvironmentFile;
 use JsonException;
+use RuntimeException;
+use Throwable;
 use UnexpectedValueException;
 
 class Bootstrapper
@@ -159,23 +161,35 @@ class Bootstrapper
             static::deleteRuntimeDirectory($staleDir);
         }
 
-        $filesystem->copyDirectory($sourcePath, $runtimePath);
+        try {
+            if (! $filesystem->copyDirectory($sourcePath, $runtimePath)) {
+                throw new RuntimeException("Unable to create the Testbench runtime copy at [{$runtimePath}].");
+            }
 
-        if (Env::has('TESTBENCH_PACKAGE_TESTER')) {
-            static::copyPackageEnvironmentFile($filesystem, $runtimePath, $workingPath);
-        }
+            if (Env::has('TESTBENCH_PACKAGE_TESTER')) {
+                static::copyPackageEnvironmentFile($filesystem, $runtimePath, $workingPath);
+            }
 
-        $startIdentity = static::processStartIdentity($pid);
+            $startIdentity = static::processStartIdentity($pid);
 
-        if ($startIdentity !== null) {
-            $filesystem->replace(
-                join_paths($runtimePath, static::RUNTIME_PROCESS_MARKER),
-                json_encode([
-                    'pid' => $pid,
-                    'started_at' => $startIdentity,
-                ], JSON_THROW_ON_ERROR),
-                0600,
-            );
+            if ($startIdentity !== null) {
+                $filesystem->replace(
+                    join_paths($runtimePath, static::RUNTIME_PROCESS_MARKER),
+                    json_encode([
+                        'pid' => $pid,
+                        'started_at' => $startIdentity,
+                    ], JSON_THROW_ON_ERROR),
+                    0600,
+                );
+            }
+        } catch (Throwable $exception) {
+            try {
+                static::deleteRuntimeDirectory($runtimePath);
+            } catch (Throwable) {
+                // Preserve the runtime-creation failure when rollback also fails.
+            }
+
+            throw $exception;
         }
 
         static::$runtimePath = $runtimePath;

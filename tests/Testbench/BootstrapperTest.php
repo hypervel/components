@@ -12,6 +12,7 @@ use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
 use ReflectionMethod;
+use RuntimeException;
 use UnexpectedValueException;
 
 class BootstrapperTest extends TestCase
@@ -60,6 +61,80 @@ class BootstrapperTest extends TestCase
             $this->deleteRuntimeDirectoryWithFilesystem($filesystem);
         } finally {
             $this->assertSame(2, $filesystem->deleteAttempts);
+        }
+    }
+
+    #[Test]
+    public function itRollsBackAPartialRuntimeCopyWhenDirectoryCopyingFails(): void
+    {
+        $packagePath = $this->temporaryDirectory('failed-copy-package');
+        $sourcePath = $this->temporaryDirectory('failed-copy-source');
+        $filesystem = new FailedRuntimeCopyFilesystem;
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-failed-copy', false, function () use ($filesystem, $sourcePath, $packagePath): void {
+                $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath): void {
+                    $reflection = new ReflectionClass(Bootstrapper::class);
+                    $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+
+                    try {
+                        $this->createRuntimeCopy($sourcePath, $packagePath);
+                        $this->fail('Expected runtime copy creation to fail.');
+                    } catch (RuntimeException $exception) {
+                        $this->assertStringContainsString('Unable to create the Testbench runtime copy', $exception->getMessage());
+                    }
+
+                    $this->assertNotNull($filesystem->runtimePath);
+                    $this->assertDirectoryDoesNotExist($filesystem->runtimePath);
+                    $this->assertSame($previousRuntimePath, $reflection->getStaticPropertyValue('runtimePath'));
+                });
+            });
+        } finally {
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($filesystem->runtimePath);
+        }
+    }
+
+    #[Test]
+    public function itRollsBackTheRuntimeCopyWhenProcessMarkerCreationFails(): void
+    {
+        $packagePath = $this->temporaryDirectory('failed-marker-package');
+        $sourcePath = $this->temporaryDirectory('failed-marker-source');
+        $failure = new RuntimeException('marker creation failed');
+        $filesystem = new FailedRuntimeMarkerFilesystem($failure);
+
+        mkdir($packagePath, 0777, true);
+        mkdir($sourcePath, 0777, true);
+
+        BootstrapperIdentityProbe::setProcessIdentity(null, 'start-identity');
+
+        try {
+            $this->withRuntimeCopyEnvironment('bootstrapper-failed-marker', false, function () use ($filesystem, $sourcePath, $packagePath, $failure): void {
+                $this->withBootstrapperFilesystem($filesystem, function () use ($filesystem, $sourcePath, $packagePath, $failure): void {
+                    $reflection = new ReflectionClass(Bootstrapper::class);
+                    $previousRuntimePath = $reflection->getStaticPropertyValue('runtimePath');
+
+                    try {
+                        $this->createRuntimeCopy($sourcePath, $packagePath, BootstrapperIdentityProbe::class);
+                        $this->fail('Expected process marker creation to fail.');
+                    } catch (RuntimeException $exception) {
+                        $this->assertSame($failure, $exception);
+                    }
+
+                    $this->assertNotNull($filesystem->runtimePath);
+                    $this->assertDirectoryDoesNotExist($filesystem->runtimePath);
+                    $this->assertSame($previousRuntimePath, $reflection->getStaticPropertyValue('runtimePath'));
+                });
+            });
+        } finally {
+            BootstrapperIdentityProbe::resetProcessIdentity();
+            $this->deleteDirectory($packagePath);
+            $this->deleteDirectory($sourcePath);
+            $this->deleteDirectory($filesystem->runtimePath);
         }
     }
 
@@ -339,12 +414,31 @@ class BootstrapperTest extends TestCase
     /**
      * Create a runtime copy through Bootstrapper's protected method.
      */
-    private function createRuntimeCopy(string $sourcePath, string $workingPath): string
-    {
-        $method = new ReflectionMethod(Bootstrapper::class, 'createRuntimeCopy');
+    private function createRuntimeCopy(
+        string $sourcePath,
+        string $workingPath,
+        string $bootstrapper = Bootstrapper::class,
+    ): string {
+        $method = new ReflectionMethod($bootstrapper, 'createRuntimeCopy');
         $method->setAccessible(true);
 
         return $method->invoke(null, $sourcePath, $workingPath);
+    }
+
+    /**
+     * Run a callback with a specific Bootstrapper filesystem.
+     */
+    private function withBootstrapperFilesystem(Filesystem $filesystem, callable $callback): void
+    {
+        $reflection = new ReflectionClass(Bootstrapper::class);
+        $previousFilesystem = $reflection->getStaticPropertyValue('filesystem');
+
+        try {
+            $reflection->setStaticPropertyValue('filesystem', $filesystem);
+            $callback();
+        } finally {
+            $reflection->setStaticPropertyValue('filesystem', $previousFilesystem);
+        }
     }
 
     /**
@@ -589,5 +683,48 @@ class RuntimeDirectoryStillPresentFilesystem extends Filesystem
         ++$this->deleteAttempts;
 
         throw new UnexpectedValueException('runtime directory still present');
+    }
+}
+
+class FailedRuntimeCopyFilesystem extends Filesystem
+{
+    public ?string $runtimePath = null;
+
+    /**
+     * Create a partial destination before reporting copy failure.
+     */
+    public function copyDirectory(string $directory, string $destination, ?int $options = null): bool
+    {
+        $this->runtimePath = $destination;
+        mkdir($destination, 0777, true);
+
+        return false;
+    }
+}
+
+class FailedRuntimeMarkerFilesystem extends Filesystem
+{
+    public ?string $runtimePath = null;
+
+    public function __construct(private RuntimeException $failure)
+    {
+    }
+
+    /**
+     * Capture the runtime destination while copying it normally.
+     */
+    public function copyDirectory(string $directory, string $destination, ?int $options = null): bool
+    {
+        $this->runtimePath = $destination;
+
+        return parent::copyDirectory($directory, $destination, $options);
+    }
+
+    /**
+     * Simulate process-marker creation failure.
+     */
+    public function replace(string $path, string $content, ?int $mode = null): void
+    {
+        throw $this->failure;
     }
 }
