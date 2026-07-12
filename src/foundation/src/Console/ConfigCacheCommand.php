@@ -117,6 +117,7 @@ class ConfigCacheCommand extends Command
                 ],
                 $this->hypervel->basePath(),
                 [
+                    'APP_CONFIG_CACHE' => $this->hypervel->getCachedConfigPath(),
                     'HYPERVEL_AUTOLOAD_PATH' => $this->resolveSubprocessAutoloadPath(),
                 ],
             );

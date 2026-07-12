@@ -7,6 +7,10 @@ namespace Hypervel\Tests\Integration\Foundation\Console;
 use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Routing\CompiledRouteCollection;
+use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use RuntimeException;
+
+use function Hypervel\Testbench\testbench_path;
 
 class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
 {
@@ -20,23 +24,46 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
      */
     protected array $routeFiles = [];
 
+    /** @var array<int, string> */
+    protected array $cacheFiles = [];
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->files = new Filesystem;
-        $this->assertNoLeakedTestbenchRouteFiles();
+        $this->assertCleanTestbenchRouteSources();
     }
 
     protected function tearDown(): void
     {
+        $actions = [];
+
         foreach ($this->routeFiles as $routeFile) {
-            $this->files->delete($routeFile);
+            $actions[] = function () use ($routeFile): void {
+                if ($this->files->isFile($routeFile) && ! $this->files->delete($routeFile)) {
+                    throw new RuntimeException("Unable to delete owned route cache test file [{$routeFile}].");
+                }
+            };
         }
 
-        $this->files->delete($this->app->getCachedRoutesPath());
+        foreach ($this->cacheFiles as $cacheFile) {
+            $actions[] = function () use ($cacheFile): void {
+                if ($this->files->isFile($cacheFile) && ! $this->files->delete($cacheFile)) {
+                    throw new RuntimeException("Unable to delete owned route cache test file [{$cacheFile}].");
+                }
+            };
+        }
 
-        parent::tearDown();
+        $cachePath = $this->app->getCachedRoutesPath();
+        $actions[] = function () use ($cachePath): void {
+            if ($this->files->isFile($cachePath) && ! $this->files->delete($cachePath)) {
+                throw new RuntimeException("Unable to delete owned route cache file [{$cachePath}].");
+            }
+        };
+        $actions[] = fn () => parent::tearDown();
+
+        CleanupActions::run(...$actions);
     }
 
     public function testRouteCacheSucceedsWithSourceRoutes()
@@ -183,6 +210,39 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame('beta', $route->uri());
     }
 
+    public function testRouteCacheSubprocessUsesTheParentsResolvedCachePath(): void
+    {
+        $previousCachePath = $_SERVER['APP_ROUTES_CACHE'] ?? null;
+        $hadCachePath = array_key_exists('APP_ROUTES_CACHE', $_SERVER);
+        $defaultCachePath = $this->app->bootstrapPath('cache/routes-v7.php');
+        $alternateCachePath = $this->app->bootstrapPath('cache/routes-alternate.php');
+        $this->cacheFiles[] = $defaultCachePath;
+        $this->cacheFiles[] = $alternateCachePath;
+        $this->files->put(
+            $defaultCachePath,
+            '<?php throw new RuntimeException("The route subprocess loaded the stale default cache.");',
+        );
+        $_SERVER['APP_ROUTES_CACHE'] = $alternateCachePath;
+
+        try {
+            $this->defineTestbenchRoutes(
+                <<<'PHP'
+                Route::get('/alternate', fn () => 'alternate')->name('alternate.index');
+                PHP
+            );
+
+            $this->artisan('route:cache')->assertSuccessful();
+
+            $this->assertFileExists($alternateCachePath);
+        } finally {
+            if ($hadCachePath) {
+                $_SERVER['APP_ROUTES_CACHE'] = $previousCachePath;
+            } else {
+                unset($_SERVER['APP_ROUTES_CACHE']);
+            }
+        }
+    }
+
     /**
      * Write a testbench route file into the cloned skeleton's routes dir.
      *
@@ -216,16 +276,27 @@ class RouteCacheCommandTest extends \Hypervel\Testbench\TestCase
     }
 
     /**
-     * Assert no testbench route files leaked from an earlier test in this worker.
+     * Assert route-producing skeleton state is pristine for this worker.
      */
-    protected function assertNoLeakedTestbenchRouteFiles(): void
+    protected function assertCleanTestbenchRouteSources(): void
     {
-        $leakedRouteFiles = glob($this->app->basePath('routes/testbench-*.php')) ?: [];
+        foreach (['bootstrap/app.php', 'bootstrap/providers.php'] as $relativePath) {
+            $runtimePath = $this->app->basePath($relativePath);
+            $pristinePath = testbench_path('hypervel/' . $relativePath);
+
+            $this->assertSame(
+                $this->files->get($pristinePath),
+                $this->files->get($runtimePath),
+                "Testbench runtime file [{$runtimePath}] differs from its pristine skeleton source.",
+            );
+        }
+
+        $routeFiles = $this->files->glob($this->app->basePath('routes/*.php'));
 
         $this->assertSame(
             [],
-            $leakedRouteFiles,
-            'Leaked testbench route files found: ' . implode(', ', $leakedRouteFiles)
+            $routeFiles,
+            'Unexpected Testbench runtime route files found: ' . implode(', ', $routeFiles),
         );
     }
 }
