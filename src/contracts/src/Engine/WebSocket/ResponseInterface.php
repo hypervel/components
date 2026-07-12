@@ -6,6 +6,9 @@ namespace Hypervel\Contracts\Engine\WebSocket;
 
 interface ResponseInterface
 {
+    /**
+     * Push a frame to the client.
+     */
     public function push(FrameInterface $frame): bool;
 
     /**
@@ -14,7 +17,13 @@ interface ResponseInterface
      */
     public function init(mixed $frame): static;
 
+    /**
+     * Get the connection file descriptor.
+     */
     public function getFd(): int;
 
+    /**
+     * Close the connection.
+     */
     public function close(): bool;
 }

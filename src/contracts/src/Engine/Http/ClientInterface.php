@@ -6,6 +6,9 @@ namespace Hypervel\Contracts\Engine\Http;
 
 interface ClientInterface
 {
+    /**
+     * Configure the client.
+     */
     public function set(array $settings): bool;
 
     /**

@@ -6,6 +6,9 @@ namespace Hypervel\Contracts\Engine\Http;
 
 interface RawResponseInterface
 {
+    /**
+     * Get the response status code.
+     */
     public function getStatusCode(): int;
 
     /**
@@ -13,7 +16,13 @@ interface RawResponseInterface
      */
     public function getHeaders(): array;
 
+    /**
+     * Get the response body.
+     */
     public function getBody(): string;
 
+    /**
+     * Get the HTTP protocol version.
+     */
     public function getVersion(): string;
 }

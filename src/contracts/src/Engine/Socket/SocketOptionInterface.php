@@ -6,8 +6,14 @@ namespace Hypervel\Contracts\Engine\Socket;
 
 interface SocketOptionInterface
 {
+    /**
+     * Get the socket host.
+     */
     public function getHost(): string;
 
+    /**
+     * Get the socket port.
+     */
     public function getPort(): int;
 
     /**
