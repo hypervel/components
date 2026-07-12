@@ -135,6 +135,7 @@ class QueueWorkerTest extends TestCase
     {
         $workerOptions = new WorkerOptions;
         $workerOptions->stopWhenEmpty = true;
+        $workerOptions->monitorInterval = 5;
 
         $timer = new QueueWorkerTimer;
         $worker = $this->getWorker('default', ['queue' => [
@@ -144,6 +145,7 @@ class QueueWorkerTest extends TestCase
         $status = $worker->daemon('default', 'queue', $workerOptions);
 
         $this->assertSame([1], $timer->registered);
+        $this->assertSame([5.0], $timer->timeouts);
         $this->assertSame([1], $timer->cleared);
 
         $this->assertTrue($firstJob->fired);
@@ -826,7 +828,6 @@ class QueueWorkerTest extends TestCase
             $isInMaintenanceMode ?? function () {
                 return false;
             },
-            1,
             $timer,
         ];
     }
@@ -963,6 +964,9 @@ class LoopAwareWorker extends Worker
 
 class QueueWorkerTimer extends Timer
 {
+    /** @var float[] */
+    public array $timeouts = [];
+
     /** @var array<int, callable> */
     public array $callbacks = [];
 
@@ -979,6 +983,7 @@ class QueueWorkerTimer extends Timer
     ): int {
         $id = count($this->registered) + 1;
         $this->registered[] = $id;
+        $this->timeouts[] = $timeout;
         $this->callbacks[$id] = $closure;
 
         return $id;

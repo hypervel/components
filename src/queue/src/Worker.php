@@ -153,14 +153,12 @@ class Worker
      * @param Dispatcher $events the event dispatcher instance
      * @param ExceptionHandlerContract $exceptions the exception handler instance
      * @param callable $isDownForMaintenance the callback used to determine if the application is in maintenance mode
-     * @param int $monitorInterval the monitor interval
      */
     public function __construct(
         protected QueueManager $manager,
         protected Dispatcher $events,
         protected ExceptionHandlerContract $exceptions,
         callable $isDownForMaintenance,
-        protected int $monitorInterval = 1,
         ?Timer $timer = null,
     ) {
         $this->isDownForMaintenance = $isDownForMaintenance;
@@ -286,7 +284,7 @@ class Worker
             return;
         }
 
-        $this->monitorId = $this->timer->tick($this->monitorInterval, function () use ($options): void {
+        $this->monitorId = $this->timer->tick($options->monitorInterval, function () use ($options): void {
             $this->withCoroutineContext($options, function () use ($options): void {
                 if ($this->monitorLocked) {
                     return;

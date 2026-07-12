@@ -105,6 +105,7 @@ The exact scheduler interleaving that made an otherwise inline fake job park in 
 24. Child-reaping tests treat every `waitpid()` error as success or fall back to an unbounded blocking wait, so interruption can hide or create an owned-process leak.
 25. Reverb commits a live Redis subscriber before spawning its consumer. A failed spawn leaks that subscriber, and resetting the retry counter before the subscription handshake makes its retry limit unreachable.
 26. Horizon can signal a newly forked worker or supervisor before that child installs its handlers. An early SIGUSR2 keeps its default terminating disposition, producing the intermittent paused-supervisor failure that strict child reaping exposes.
+27. The queue worker accepts `--monitor-interval` and stores it on `WorkerOptions`, but the timeout monitor reads a separate constructor property that always retains its one-second default, so the documented option has no effect.
 
 ## Design principles
 
@@ -583,7 +584,7 @@ Queue worker tests install real signal handlers and detached timers through dupl
 
 #### Decision
 
-Inject one optional `Coordinator\Timer` dependency into `Worker`; default it to a real timer. Remove both monitor callables: the constructor `$monitorTimeoutJobs` and `daemon()`'s optional callback. Store the timer and its returned ID.
+Inject one optional `Coordinator\Timer` dependency into `Worker`; default it to a real timer. Remove both monitor callables: the constructor `$monitorTimeoutJobs` and `daemon()`'s optional callback. Store the timer and its returned ID. The monitor interval has one source of truth: use `WorkerOptions::$monitorInterval`, which is populated by the documented `--monitor-interval` command option, and remove the redundant Worker constructor interval.
 
 ```php
 public function __construct(
@@ -1557,6 +1558,7 @@ Keep one isolated test per distinct bookkeeping or boundary invariant. Consolida
 - run a daemon with a deliberately yielding fake job and concurrency one using `InsomniacWorker`; assert it completes and the fake records sleeps;
 - assert the fake does not install process signal handlers;
 - inject a fake Timer and verify its exact monitor ID is cleared on every daemon return and throw path;
+- set a non-default monitor interval through `WorkerOptions` and assert the owned Timer receives it;
 - make timeout scanning throw once and assert `monitorLocked` is reset so the next tick can run;
 - assert `kill()` dispatches the stopping event and reaches the kill seam without waiting for unrelated active jobs;
 - with concurrency greater than one, assert a hard timeout terminates immediately rather than waiting for a healthy sibling job;
