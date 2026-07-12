@@ -4,7 +4,7 @@
 
 Audit every package under `src/` for coroutine safety, worker-lifetime state correctness, resource ownership, liveness, deterministic cleanup, test isolation, API correctness, and hot-path performance. Work package by package, but fix shared defects at their lowest owning boundary and update every affected consumer in the same coherent change.
 
-This is the reusable operating plan and compact routing index. The stable sections define how to run this audit now and in the future, while the package checklist tracks completion. Detailed package findings, changes, validation, reviews, and commits live in the companion [`2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md`](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
+This is the reusable operating plan and compact routing index. The stable sections define how to run this audit now and in the future, while the package checklist tracks completion. Detailed package findings, changes, validation, and reviews live in the companion [`2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md`](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
 The superseded `docs/ai/package-coroutine-safety-review.md` is removed after its useful bug taxonomy, remediation patterns, and conventions are incorporated here. This plan and its companion ledger together become the only repository source of truth for the audit.
 
@@ -38,6 +38,8 @@ Complexity must pay for itself with at least one of:
 - deletion of greater or riskier complexity elsewhere.
 
 Do not treat an upstream difference as a bug without tracing it. Do not treat upstream parity as proof of correctness. A real Hypervel defect remains a defect when Laravel, Hyperf, Symfony, or an SDK has the same hole.
+
+The audit categories are discovery lenses, not boundaries around what may be corrected. Any genuine issue discovered while auditing, implementing, testing, or reviewing must be investigated, assigned to its lowest owning boundary, and taken through the same consensus, owner-approval, implementation, validation, and review workflow—even when it is outside the current package, initial taxonomy, or changed diff. Do not dismiss a verified issue as unrelated or defer it merely to preserve package order. This rule applies only after the evidence threshold is met; it does not turn speculative concerns into work.
 
 ## Backing research and current runtime facts
 
@@ -150,6 +152,8 @@ Use local sources rather than online lookup when available. In particular, inspe
 - previous Hypervel behavior when useful: `examples/hypervel/components/`.
 
 Inspect a package README only for an upstream reference, a `Differences From Laravel` section, architecture notes, or package-specific constraints. Do not spend audit time reading badges, installation boilerplate, license text, or empty descriptions.
+
+When the audit finds an upstream feature that Hypervel has not yet ported, use the originating pull request only to identify the complete changed-file surface and the reason for the change. Inspect every source file, test, fixture, configuration file, and documentation file named by that pull request, then port from the current checked-out upstream default/development branch rather than from the historical pull-request diff. Later upstream corrections may have changed the implementation or coverage. Search the corresponding current upstream documentation repository as part of the same work and port the user-facing documentation; if upstream has no documentation, add proportionate Hypervel documentation at the natural public surface.
 
 ### Inherited upstream internals
 
@@ -515,6 +519,7 @@ Inspect package facades and contracts as part of the public surface. Verify:
 - fluent/static return types return the advertised receiver;
 - Laravel-facing config keys and method names stay intact where intended;
 - Hypervel-specific differences are necessary for Swoole and documented where the repository rules require it;
+- before removing a deprecated API, verify that the package's direct upstream explicitly deprecates it; a deprecation in an underlying dependency does not count when the direct upstream retains the wrapper;
 - a bug is fixed even when upstream shares it;
 - optional observational events use `hasListeners()`;
 - dynamic container results are narrowed so static analysis checks method calls;
@@ -852,9 +857,9 @@ A package checkbox means the entire cycle below is finished, not merely that fil
 
 ### Branch and authorization model
 
-This audit targets the repository's `0.4` integration branch. Before auditing the first package, create or resume the long-lived `audit/framework-coroutine-state-lifecycle` branch from the latest owner-approved `0.4` state. Do not perform audit work directly on `0.4`.
+This audit targets the repository's `0.4` integration branch. Each completed package or cross-package work unit uses a dedicated branch from the latest owner-approved `0.4` state and is reviewed as its own pull request. Name the branch for the work unit, such as `audit/contracts-coroutine-state-lifecycle`. Do not perform audit work directly on `0.4`.
 
-The owner has explicitly authorized coherent commits and pushes after each completed package or cross-package work unit for this audit. That authorization does not include opening, merging, or closing pull requests, and it does not automatically carry into a future audit run. The owner decides whether the long-lived branch is reviewed as one pull request or whether a later run changes to per-work-unit branches; record any such decision in the companion ledger before changing the model.
+The owner has explicitly authorized coherent commits and pushes after each completed package or cross-package work unit for this audit. That authorization does not include opening, merging, or closing pull requests, and it does not automatically carry into a future audit run. Do not begin the next work unit until the preceding pull request has been integrated into `0.4` and the next branch includes that integrated state, unless the owner explicitly authorizes a stacked branch.
 
 A resumed session verifies the active branch, the last pushed package, and whether newer base-branch changes affect audited assumptions before editing. Never infer a different target branch from a hosting service's default branch.
 
@@ -931,7 +936,7 @@ Request an independent review of the complete diff and validation. Continue unti
 
 ### 9. Prepare final audit records
 
-Update the companion-ledger package block with implemented changes, cross-package revalidation, tests/gates, and review sign-off. Prepare the routing index, cross-package dependency index, and package-checklist changes in this plan. Remove wording that describes abandoned designs. Leave commit references pending until the implementation commits exist.
+Update the companion-ledger work-unit block with implemented changes, cross-package revalidation, tests/gates, and review sign-off. Its heading must match the pull-request title so the corresponding repository history is easy to locate without duplicating branch, pull-request, or commit references. Prepare the routing index, cross-package dependency index, and package-checklist changes in this plan. Remove wording that describes abandoned designs.
 
 ### 10. Owner pre-commit checkpoint
 
@@ -946,7 +951,7 @@ Do not create any source, test, documentation, ledger, or bookkeeping commit bef
 
 ### 11. Commit and push
 
-Commit source, tests, and documentation in as many coherent commits as useful, with detailed bodies. Add those hashes and subjects to the companion ledger, then make one final audit-bookkeeping commit containing the ledger entry and this plan's checklist/index updates. The bookkeeping commit is identified by its subject because a commit cannot contain its own final hash. A clean audit with no executable or documentation correction has only this bookkeeping commit.
+Commit source, tests, and documentation in as many coherent commits as useful, with detailed bodies. Make one final audit-bookkeeping commit containing the ledger entry and this plan's checklist/index updates. Do not duplicate branch, pull-request, commit, or merge references in the audit documents; repository history already owns that information. A clean audit with no executable or documentation correction has only this bookkeeping commit.
 
 Push the complete commit set only after the package is green and signed off. The checked box becomes authoritative when that push succeeds. If the push fails, do not begin the next package; repair the push or revert the unpushed completion bookkeeping so the branch does not claim externally completed work.
 
@@ -969,12 +974,11 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** none
-- **Most recently pushed package or work unit:** none
+- **Active package or work unit:** none; contracts work is complete and awaiting integration
 - **Ledger entries required for the active work:** none
 - **Pending revalidation carried into the active work:** none
 
-Update these four lines when a package starts, completes, or gains a cross-package dependency. Name exact package headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
+Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
 ### Cross-package dependency index
 
@@ -982,7 +986,10 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 
 | Finding | Owning package | Affected or revalidation packages | Ledger entry |
 |---|---|---|---|
-| None | — | — | — |
+| `validation-01` | `validation` | `contracts`; later full `validation` audit | `Harden framework contracts and request-scoped state`; shared finding `validation-01` |
+| `view-01` | `view` | `contracts`, `foundation`; later full `view` and `foundation` audits | `Harden framework contracts and request-scoped state`; shared finding `view-01` |
+| `filesystem-01` | `filesystem` | `contracts`; later full `filesystem` audit | `Harden framework contracts and request-scoped state`; shared finding `filesystem-01` |
+| `queue-01` | `queue` | `contracts`; later full `queue` audit | `Harden framework contracts and request-scoped state`; shared finding `queue-01` |
 
 ## Package checklist
 
@@ -1005,7 +1012,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 ### Core semantics and long-lived state
 
-- [ ] `contracts`
+- [x] `contracts`
 - [ ] `conditionable`
 - [ ] `macroable`
 - [ ] `collections`
@@ -1099,7 +1106,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 ### Before each package
 
-- confirm the previous package’s branch state is clean and pushed;
+- confirm the previous work-unit pull request is integrated into `0.4`, then create the current work-unit branch from that latest integrated state unless the owner explicitly authorized stacking;
 - set the active-package routing fields and list every exact ledger entry required for the work;
 - read the current package's existing companion-ledger entry, if any, plus only the cross-referenced entries named by the routing/dependency indexes;
 - check whether a completed lower-level package changed assumptions used here;
@@ -1121,7 +1128,6 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - code review is signed off;
 - every accepted hot-path regression, if any, received explicit owner approval before implementation;
 - the owner reviewed the post-sign-off summary and explicitly approved committing;
-- companion ledger contains final validation and implementation commit hashes;
 - commits were pushed;
 - routing and dependency indexes reflect the next active work and every pending revalidation;
 - any affected completed package was revalidated and its companion-ledger entry amended.
