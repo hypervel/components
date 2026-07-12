@@ -9,7 +9,7 @@ use Hypervel\Tests\TestCase;
 
 class SupportConditionableTest extends TestCase
 {
-    public function testWhenConditionCallback()
+    public function testWhenConditionCallback(): void
     {
         // With static condition
         $logger = (new ConditionableLogger)
@@ -34,7 +34,7 @@ class SupportConditionableTest extends TestCase
         $this->assertSame(['init', 'when', true], $logger->values);
     }
 
-    public function testWhenDefaultCallback()
+    public function testWhenDefaultCallback(): void
     {
         // With static condition
         $logger = (new ConditionableLogger)
@@ -59,7 +59,7 @@ class SupportConditionableTest extends TestCase
         $this->assertSame(['default', false], $logger->values);
     }
 
-    public function testUnlessConditionCallback()
+    public function testUnlessConditionCallback(): void
     {
         // With static condition
         $logger = (new ConditionableLogger)
@@ -84,7 +84,7 @@ class SupportConditionableTest extends TestCase
         $this->assertSame(['unless', false], $logger->values);
     }
 
-    public function testUnlessDefaultCallback()
+    public function testUnlessDefaultCallback(): void
     {
         // With static condition
         $logger = (new ConditionableLogger)
@@ -109,7 +109,7 @@ class SupportConditionableTest extends TestCase
         $this->assertSame(['init', 'default', true], $logger->values);
     }
 
-    public function testWhenProxy()
+    public function testWhenProxy(): void
     {
         // With static condition
         $logger = (new ConditionableLogger)
@@ -150,7 +150,7 @@ class SupportConditionableTest extends TestCase
         $this->assertSame(['direct truthy', 'property truthy', 'method truthy'], $logger->values);
     }
 
-    public function testUnlessProxy()
+    public function testUnlessProxy(): void
     {
         // With static condition
         $logger = (new ConditionableLogger)
