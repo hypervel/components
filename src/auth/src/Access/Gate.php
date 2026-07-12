@@ -172,6 +172,9 @@ class Gate implements GateContract
     /**
      * Define a new ability.
      *
+     * Boot-only. The definition persists on the singleton Gate for the worker
+     * lifetime and affects authorization in every subsequent request.
+     *
      * @throws InvalidArgumentException
      */
     public function define(UnitEnum|string $ability, array|callable|string $callback): static
@@ -197,6 +200,9 @@ class Gate implements GateContract
 
     /**
      * Define abilities for a resource.
+     *
+     * Boot-only. The definitions persist on the singleton Gate for the worker
+     * lifetime and affect authorization in every subsequent request.
      */
     public function resource(string $name, string $class, ?array $abilities = null): static
     {
@@ -252,6 +258,9 @@ class Gate implements GateContract
 
     /**
      * Define a policy class for a given class type.
+     *
+     * Boot-only. The policy persists on the singleton Gate for the worker
+     * lifetime and affects authorization in every subsequent request.
      */
     public function policy(string $class, string $policy): static
     {
@@ -262,6 +271,9 @@ class Gate implements GateContract
 
     /**
      * Register a callback to run before all Gate checks.
+     *
+     * Boot-only. The callback persists on the singleton Gate for the worker
+     * lifetime and runs during authorization in every subsequent request.
      */
     public function before(callable $callback): static
     {
@@ -272,6 +284,9 @@ class Gate implements GateContract
 
     /**
      * Register a callback to run after all Gate checks.
+     *
+     * Boot-only. The callback persists on the singleton Gate for the worker
+     * lifetime and runs during authorization in every subsequent request.
      */
     public function after(callable $callback): static
     {
@@ -672,6 +687,9 @@ class Gate implements GateContract
 
     /**
      * Specify a callback to be used to guess policy names.
+     *
+     * Boot-only. The callback persists on the singleton Gate for the worker
+     * lifetime and affects policy discovery in every subsequent request.
      */
     public function guessPolicyNamesUsing(callable $callback): static
     {
@@ -815,6 +833,9 @@ class Gate implements GateContract
 
     /**
      * Set the default denial response for gates and policies.
+     *
+     * Boot-only. The response persists on the singleton Gate for the worker
+     * lifetime and affects authorization failures in every subsequent request.
      */
     public function defaultDenialResponse(Response $response): static
     {
