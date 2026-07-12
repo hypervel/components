@@ -62,7 +62,7 @@ class HorizonRestartStrategy implements RestartStrategy
     /**
      * Stop the currently running Horizon process.
      */
-    protected function stop(): void
+    public function stop(): void
     {
         if ($this->horizonProcess?->isRunning()) {
             $this->horizonProcess->stop();

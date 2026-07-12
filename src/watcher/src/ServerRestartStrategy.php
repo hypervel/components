@@ -6,11 +6,12 @@ namespace Hypervel\Watcher;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
-use Hypervel\Engine\Coroutine;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Watcher\Events\BeforeServerRestart;
 use InvalidArgumentException;
+use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
@@ -78,27 +79,37 @@ class ServerRestartStrategy implements RestartStrategy
      */
     public function restart(): void
     {
-        $this->stopServer();
+        $this->stop();
         $this->launchServer();
     }
 
     /**
      * Stop the currently running server process.
      */
-    protected function stopServer(): void
+    public function stop(): void
     {
         if (! $this->filesystem->exists($this->pidFile)) {
             return;
         }
 
-        $pid = $this->filesystem->get($this->pidFile);
+        $pidContents = trim($this->filesystem->get($this->pidFile));
+
+        if ($pidContents === '' || ! ctype_digit($pidContents)) {
+            return;
+        }
+
+        $pid = (int) $pidContents;
+
+        if ($pid <= 0) {
+            return;
+        }
 
         try {
             $this->output->writeln('Stop server...');
             $this->container->make('events')
                 ->dispatch(new BeforeServerRestart($pid));
-            if (posix_kill((int) $pid, 0)) {
-                posix_kill((int) $pid, SIGTERM);
+            if ($this->signalProcess($pid, 0)) {
+                $this->signalProcess($pid, SIGTERM);
             }
         } catch (Throwable) {
             $this->output->writeln('<error>Stop server failed.</error>');
@@ -110,28 +121,30 @@ class ServerRestartStrategy implements RestartStrategy
      */
     protected function launchServer(): void
     {
-        Coroutine::create(function () {
+        Coroutine::create(function (): void {
             $this->channel->pop();
-            $this->output->writeln('Start server ...');
 
-            $descriptorSpec = [
-                0 => STDIN,
-                1 => STDOUT,
-                2 => STDERR,
-            ];
+            try {
+                $this->output->writeln('Start server ...');
 
-            $process = proc_open(
-                command: $this->serverCommand(),
-                descriptor_spec: $descriptorSpec,
-                pipes: $pipes
-            );
+                $descriptorSpec = [
+                    0 => STDIN,
+                    1 => STDOUT,
+                    2 => STDERR,
+                ];
+                $pipes = [];
 
-            if (is_resource($process)) {
-                proc_close($process);
+                $process = $this->openProcess($descriptorSpec, $pipes);
+
+                if (! is_resource($process)) {
+                    throw new RuntimeException('Unable to launch the watched server process.');
+                }
+
+                $this->closeProcess($process);
+                $this->output->writeln('Server exited.');
+            } finally {
+                $this->channel->push(1);
             }
-
-            $this->output->writeln('Server exited.');
-            $this->channel->push(1);
         });
     }
 
@@ -146,5 +159,39 @@ class ServerRestartStrategy implements RestartStrategy
         $arguments = array_slice($this->command, 1);
 
         return [$this->bin, base_path($script), ...$arguments];
+    }
+
+    /**
+     * Open the watched server process.
+     *
+     * @param array<int, resource> $descriptorSpec
+     * @param array<int, resource> $pipes
+     * @return false|resource
+     */
+    protected function openProcess(array $descriptorSpec, array &$pipes): mixed
+    {
+        return proc_open(
+            command: $this->serverCommand(),
+            descriptor_spec: $descriptorSpec,
+            pipes: $pipes,
+        );
+    }
+
+    /**
+     * Close the watched server process.
+     *
+     * @param resource $process
+     */
+    protected function closeProcess(mixed $process): int
+    {
+        return proc_close($process);
+    }
+
+    /**
+     * Send a signal to a server process.
+     */
+    protected function signalProcess(int $pid, int $signal): bool
+    {
+        return posix_kill($pid, $signal);
     }
 }

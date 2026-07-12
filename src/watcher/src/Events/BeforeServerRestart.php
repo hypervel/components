@@ -6,7 +6,7 @@ namespace Hypervel\Watcher\Events;
 
 class BeforeServerRestart
 {
-    public function __construct(public readonly string $pid)
+    public function __construct(public readonly int $pid)
     {
     }
 }
