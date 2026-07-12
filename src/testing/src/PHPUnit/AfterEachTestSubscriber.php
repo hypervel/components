@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testing\PHPUnit;
 
+use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Mockery;
 use PHPUnit\Event\Test\Finished;
 use PHPUnit\Event\Test\FinishedSubscriber;
@@ -46,12 +47,16 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         }
 
         try {
-            \Hypervel\Foundation\Testing\DatabaseConnectionResolver::flushCachedConnections();
+            DatabaseConnectionResolver::flushCachedConnections();
         } catch (Throwable $throwable) {
             $exception ??= $throwable;
         }
 
-        $this->flushFrameworkState();
+        try {
+            $this->flushFrameworkState();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
 
         if ($exception !== null) {
             throw $exception;

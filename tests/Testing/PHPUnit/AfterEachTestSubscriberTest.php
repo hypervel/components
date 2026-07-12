@@ -144,6 +144,41 @@ class AfterEachTestSubscriberTest extends TestCase
         $this->assertTrue($subscriber->frameworkStateFlushed);
     }
 
+    public function testEarlierCleanupFailureRemainsPrimaryWhenFrameworkCleanupAlsoFails(): void
+    {
+        $frameworkFailure = new RuntimeException('framework cleanup failed');
+        $subscriber = new class($frameworkFailure) extends AfterEachTestSubscriber {
+            public bool $frameworkStateFlushed = false;
+
+            public function __construct(private RuntimeException $failure)
+            {
+            }
+
+            /**
+             * Flush framework-owned static state.
+             */
+            protected function flushFrameworkState(): void
+            {
+                $this->frameworkStateFlushed = true;
+
+                throw $this->failure;
+            }
+        };
+        $expectedException = new RuntimeException('custom cleanup failed');
+        AfterEachTestCleanup::flushUsing('vendor/package', static function () use ($expectedException): never {
+            throw $expectedException;
+        });
+
+        try {
+            $subscriber->flushStateAfterTest();
+            $this->fail('Expected cleanup to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($expectedException, $exception);
+        }
+
+        $this->assertTrue($subscriber->frameworkStateFlushed);
+    }
+
     public function testDatabaseCleanupFailureDoesNotSkipFrameworkStateReset(): void
     {
         $expectedException = new RuntimeException('database cleanup failed');

@@ -64,6 +64,9 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
      * connections are flushed since they hold references to the old container's
      * services. A rebinding hook is registered so Event::fake() automatically
      * updates cached connections with the new dispatcher.
+     *
+     * Tests only. The cached connections are process-global, so runtime use can
+     * reset or discard a connection borrowed by another coroutine.
      */
     public static function resetCachedConnections(): void
     {
@@ -87,6 +90,9 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
 
     /**
      * Discard all cached connections and clear resolver lifecycle state.
+     *
+     * Tests only. The cached connections are process-global, so runtime use can
+     * discard a connection borrowed by another coroutine.
      */
     public static function flushCachedConnections(): void
     {

@@ -41,16 +41,18 @@ class DatabaseConnectionResolverTest extends TestCase
         // Simulate a container change by creating a new container with a different object ID.
         // resetCachedConnections() detects this via spl_object_id and should disconnect
         // all cached connections before clearing them.
-        $newContainer = new Container;
-        Container::setInstance($newContainer);
+        $originalContainer = Container::getInstance();
 
-        DatabaseConnectionResolver::resetCachedConnections();
+        try {
+            Container::setInstance(new Container);
 
-        // The old connection should have been disconnected
-        $this->assertNull($connection->getRawPdo());
+            DatabaseConnectionResolver::resetCachedConnections();
 
-        // Restore original container
-        Container::setInstance($this->app);
+            // The old connection should have been disconnected
+            $this->assertNull($connection->getRawPdo());
+        } finally {
+            Container::setInstance($originalContainer);
+        }
     }
 
     public function testCachedWriteConnectionReappliesWriteReadRoutingAfterReset(): void
