@@ -102,7 +102,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function drive(UnitEnum|string|null $name = null): mixed
+    public function drive(UnitEnum|string|null $name = null): Filesystem
     {
         return $this->disk($name);
     }
@@ -110,7 +110,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function disk(UnitEnum|string|null $name = null): mixed
+    public function disk(UnitEnum|string|null $name = null): Filesystem
     {
         $name = enum_value($name);
         $name = $name === null ? $this->getDefaultDriver() : (string) $name;
@@ -124,7 +124,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Build an on-demand disk.
      */
-    public function build(array|string $config): mixed
+    public function build(array|string $config): Filesystem
     {
         return $this->resolve(self::ON_DEMAND_DISK_NAME, is_array($config) ? $config : [
             'driver' => 'local',
@@ -135,7 +135,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Attempt to get the disk from the local cache.
      */
-    protected function get(string $name): mixed
+    protected function get(string $name): Filesystem
     {
         return $this->disks[$name] ?? $this->resolve($name);
     }
@@ -145,7 +145,7 @@ class FilesystemManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name, ?array $config = null): mixed
+    protected function resolve(string $name, ?array $config = null): Filesystem
     {
         $config ??= $this->getConfig($name);
 
@@ -193,9 +193,17 @@ class FilesystemManager implements FactoryContract
     /**
      * Call a custom driver creator.
      */
-    protected function callCustomCreator(array $config): mixed
+    protected function callCustomCreator(array $config): Filesystem
     {
-        return $this->customCreators[$config['driver']]($this->app, $config);
+        $filesystem = $this->customCreators[$config['driver']]($this->app, $config);
+
+        if (! $filesystem instanceof Filesystem) {
+            throw new InvalidArgumentException(
+                "Custom filesystem driver [{$config['driver']}] must return an instance of [" . Filesystem::class . '].'
+            );
+        }
+
+        return $filesystem;
     }
 
     /**

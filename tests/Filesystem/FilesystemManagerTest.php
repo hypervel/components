@@ -295,8 +295,34 @@ class FilesystemManagerTest extends TestCase
             ],
         ]);
         $manager = new FilesystemManager($container);
-        $manager->extend(__CLASS__, fn () => $this);
-        $this->assertSame($manager, $manager->disk(__CLASS__));
+        $boundObject = null;
+        $root = $this->tempDir;
+        $manager->extend(__CLASS__, function () use (&$boundObject, $root): Filesystem {
+            $boundObject = $this;
+            $adapter = new LocalFilesystemAdapter($root);
+
+            return new FilesystemAdapter(new Flysystem($adapter), $adapter);
+        });
+
+        $this->assertInstanceOf(Filesystem::class, $manager->disk(__CLASS__));
+        $this->assertSame($manager, $boundObject);
+    }
+
+    public function testCustomDriversMustReturnFilesystemImplementations(): void
+    {
+        $manager = new FilesystemManager($this->getContainer([
+            'disks' => [
+                'invalid' => ['driver' => 'invalid'],
+            ],
+        ]));
+        $manager->extend('invalid', fn (): stdClass => new stdClass);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Custom filesystem driver [invalid] must return an instance of [' . Filesystem::class . '].'
+        );
+
+        $manager->disk('invalid');
     }
 
     public function testPoolableDriver(): void
