@@ -241,11 +241,9 @@ class PooledConnection implements PoolConnectionInterface
     public function close(): bool
     {
         if ($this->connection instanceof Connection) {
-            // Only disconnect if NOT using shared in-memory SQLite PDO.
-            // Shared PDO is owned by the pool, not individual connections.
-            if ($this->pool->getSharedInMemorySqlitePdo() === null) {
-                $this->connection->disconnect();
-            }
+            // This drops only the wrapper's reference. The pool retains a shared
+            // in-memory SQLite PDO, while wrapper-owned transactions still roll back.
+            $this->connection->disconnect();
         }
 
         $this->connection = null;
@@ -293,6 +291,14 @@ class PooledConnection implements PoolConnectionInterface
             $this->availableForReuse = true;
             $this->pool->release($this);
         }
+    }
+
+    /**
+     * Discard the connection from its pool.
+     */
+    public function discard(): void
+    {
+        $this->pool->discard($this);
     }
 
     /**
