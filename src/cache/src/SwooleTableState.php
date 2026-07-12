@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use RuntimeException;
 use Swoole\Atomic;
 
 /**
@@ -23,6 +24,8 @@ class SwooleTableState
     protected const STRIPE_COUNT = 64;
 
     protected const SPINS_BEFORE_BACKOFF = 64;
+
+    protected const LOCK_ACQUIRE_TIMEOUT_NANOSECONDS = 1_000_000_000;
 
     /**
      * Striped locks for row lifecycle operations.
@@ -92,12 +95,12 @@ class SwooleTableState
     {
         $acquired = [];
 
-        foreach ($this->rowLocks as $lock) {
-            $this->acquire($lock);
-            $acquired[] = $lock;
-        }
-
         try {
+            foreach ($this->rowLocks as $lock) {
+                $this->acquire($lock);
+                $acquired[] = $lock;
+            }
+
             return $callback();
         } finally {
             while ($lock = array_pop($acquired)) {
@@ -119,16 +122,22 @@ class SwooleTableState
      */
     protected function acquire(Atomic $lock): void
     {
+        $deadline = null;
         $spins = 0;
 
         while (! $lock->cmpset(0, 1)) {
-            // Critical sections must stay short, non-yielding, and fatal-free so finally can release the stripe.
-            // A hard process death while holding a stripe leaves it locked until the Swoole table state is recreated.
-            if (++$spins >= self::SPINS_BEFORE_BACKOFF) {
-                // Stay hot for short waits, then yield with raw usleep; lock internals must not use fakeable sleep.
-                $spins = 0;
-                usleep(1);
+            $deadline ??= hrtime(true) + static::LOCK_ACQUIRE_TIMEOUT_NANOSECONDS;
+
+            if (++$spins < static::SPINS_BEFORE_BACKOFF) {
+                continue;
             }
+
+            if (hrtime(true) >= $deadline) {
+                throw new RuntimeException('Timed out acquiring a Swoole table state lock.');
+            }
+
+            $spins = 0;
+            usleep(1);
         }
     }
 
