@@ -289,6 +289,8 @@ class MiddlewareTest extends TestCase
         $this->assertTrue($method->invoke($middleware, $request));
     }
 
+    // REMOVED: validateCsrfTokens() is a deprecated alias for
+    // preventRequestForgery().
     public function testPreventRequestForgery()
     {
         $configuration = new Middleware;
