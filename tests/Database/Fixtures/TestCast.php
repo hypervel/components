@@ -12,7 +12,7 @@ class TestCast implements CastsAttributes
     /**
      * @return null|TestValueObject
      */
-    public function get(Model $model, string $key, mixed $value, array $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         if (! json_validate($value)) {
             return null;
@@ -28,7 +28,7 @@ class TestCast implements CastsAttributes
     /**
      * @return array
      */
-    public function set(Model $model, string $key, mixed $value, array $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         if (! $value instanceof TestValueObject) {
             return [
