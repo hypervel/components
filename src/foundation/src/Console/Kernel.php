@@ -149,7 +149,7 @@ class Kernel implements KernelContract
     /**
      * Run the console application.
      */
-    public function handle(InputInterface $input, ?OutputInterface $output = null): mixed
+    public function handle(InputInterface $input, ?OutputInterface $output = null): int
     {
         $this->commandStartedAt = Carbon::now();
 
@@ -352,7 +352,7 @@ class Kernel implements KernelContract
      */
     public function registerCommand(SymfonyCommand $command): void
     {
-        $this->getArtisan()->add($command); // @phpstan-ignore argument.type (interface narrower than parent)
+        $this->getArtisan()->add($command);
     }
 
     /**
@@ -360,7 +360,7 @@ class Kernel implements KernelContract
      *
      * @throws \Symfony\Component\Console\Exception\CommandNotFoundException
      */
-    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null)
+    public function call(string $command, array $parameters = [], ?OutputInterface $outputBuffer = null): int
     {
         if (in_array($command, ['env:encrypt', 'env:decrypt'], true)) {
             $this->bootstrapWithoutBootingProviders();

@@ -946,7 +946,7 @@ class Container implements ArrayAccess, ContainerContract
      * @param class-string<TClass>|string $id
      * @return ($id is class-string<TClass> ? TClass : mixed)
      */
-    public function get(string $id)
+    public function get(string $id): mixed
     {
         try {
             return $this->resolve($id);

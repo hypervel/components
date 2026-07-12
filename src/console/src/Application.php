@@ -447,15 +447,15 @@ class Application extends SymfonyApplication implements ConsoleApplicationContra
     /**
      * Resolve an array of commands through the application.
      *
-     * @param array|mixed $commands
+     * @param array<string|SymfonyCommand>|string|SymfonyCommand ...$commands
      * @return $this
      */
-    public function resolveCommands($commands): static
+    public function resolveCommands(array|SymfonyCommand|string ...$commands): static
     {
-        $commands = is_array($commands) ? $commands : func_get_args();
-
         foreach ($commands as $command) {
-            $this->resolve($command);
+            foreach (is_array($command) ? $command : [$command] as $resolvable) {
+                $this->resolve($resolvable);
+            }
         }
 
         return $this;
