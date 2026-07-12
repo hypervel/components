@@ -17,11 +17,6 @@ interface PubSubProvider
     public function disconnect(): void;
 
     /**
-     * Subscribe to messages.
-     */
-    public function subscribe(): void;
-
-    /**
      * Listen for a given event type.
      */
     public function on(string $event, callable $callback): void;
