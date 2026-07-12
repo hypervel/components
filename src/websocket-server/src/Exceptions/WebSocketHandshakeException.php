@@ -6,6 +6,6 @@ namespace Hypervel\WebSocketServer\Exceptions;
 
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
-class WebSocketHandShakeException extends BadRequestHttpException
+class WebSocketHandshakeException extends BadRequestHttpException
 {
 }

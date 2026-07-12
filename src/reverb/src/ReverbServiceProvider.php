@@ -121,7 +121,7 @@ class ReverbServiceProvider extends ServiceProvider
             'sock_type' => $this->resolveSocketType($reverbServer),
             'callbacks' => [
                 Event::ON_REQUEST => [HttpServer::class, 'onRequest'],
-                Event::ON_HAND_SHAKE => [WebSocketServer::class, 'onHandShake'],
+                Event::ON_HANDSHAKE => [WebSocketServer::class, 'onHandshake'],
                 Event::ON_MESSAGE => [WebSocketServer::class, 'onMessage'],
                 Event::ON_CLOSE => [WebSocketServer::class, 'onClose'],
             ],

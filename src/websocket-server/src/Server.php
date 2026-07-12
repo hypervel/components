@@ -12,7 +12,7 @@ use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Contracts\Server\OnCloseInterface;
-use Hypervel\Contracts\Server\OnHandShakeInterface;
+use Hypervel\Contracts\Server\OnHandshakeInterface;
 use Hypervel\Contracts\Server\OnMessageInterface;
 use Hypervel\Contracts\Server\OnOpenInterface;
 use Hypervel\Coordinator\Constants;
@@ -30,7 +30,7 @@ use Hypervel\WebSocketServer\Events\ConnectionClosed;
 use Hypervel\WebSocketServer\Events\ConnectionOpened;
 use Hypervel\WebSocketServer\Events\MessageReceived;
 use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
-use Hypervel\WebSocketServer\Exceptions\WebSocketHandShakeException;
+use Hypervel\WebSocketServer\Exceptions\WebSocketHandshakeException;
 use Swoole\Http\Request;
 use Swoole\Http\Response as SwooleResponse;
 use Swoole\Server as SwooleServer;
@@ -39,7 +39,7 @@ use Swoole\WebSocket\Server as WebSocketServer;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
-class Server implements BootstrapsForServer, OnHandShakeInterface, OnCloseInterface, OnMessageInterface
+class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterface, OnMessageInterface
 {
     protected ?KernelContract $kernel = null;
 
@@ -92,7 +92,7 @@ class Server implements BootstrapsForServer, OnHandShakeInterface, OnCloseInterf
      * security key, dispatches through the Router for route matching and
      * middleware execution, then builds the 101 Switching Protocols response.
      */
-    public function onHandShake(Request $request, SwooleResponse $response): void
+    public function onHandshake(Request $request, SwooleResponse $response): void
     {
         $httpResponse = null;
 
@@ -112,7 +112,7 @@ class Server implements BootstrapsForServer, OnHandShakeInterface, OnCloseInterf
             $key = $httpRequest->headers->get(Security::SEC_WEBSOCKET_KEY);
             $security = $this->container->make(Security::class);
             if (! $key || $security->isInvalidSecurityKey($key)) {
-                throw new WebSocketHandShakeException('sec-websocket-key is invalid!');
+                throw new WebSocketHandshakeException('sec-websocket-key is invalid!');
             }
 
             // Route matching + middleware via Router.

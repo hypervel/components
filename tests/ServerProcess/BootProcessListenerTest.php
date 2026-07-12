@@ -89,7 +89,7 @@ class BootProcessListenerTest extends TestCase
         $this->assertTrue(ProcessManager::isRunning());
     }
 
-    public function testSkipsProcessWhereIsEnableReturnsFalse()
+    public function testSkipsProcessWhereIsEnabledReturnsFalse()
     {
         $server = m::mock(Server::class);
         $process = new BootProcessListenerFakeProcess(enabled: false);
@@ -205,7 +205,7 @@ class BootProcessListenerFakeProcess implements ProcessInterface
     /**
      * Determine if the process should start.
      */
-    public function isEnable(Server $server): bool
+    public function isEnabled(Server $server): bool
     {
         ++$this->enableChecks;
 
