@@ -9,5 +9,5 @@ interface ValidatesWhenResolved
     /**
      * Validate the given class instance.
      */
-    public function validateResolved();
+    public function validateResolved(): void;
 }
