@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Watcher\Driver;
 
+use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Testbench\TestCase;
@@ -33,7 +34,14 @@ class FswatchDriverTest extends TestCase
 
         try {
             $driver = new FswatchDriverStub($option);
-            $driver->watch($channel);
+            $finished = new WaitGroup(1);
+            Coroutine::create(function () use ($channel, $driver, $finished): void {
+                try {
+                    $driver->watch($channel);
+                } finally {
+                    $finished->done();
+                }
+            });
 
             $this->assertSame('.env', $channel->pop($option->getScanIntervalSeconds() + 0.1));
         } catch (InvalidArgumentException $e) {
@@ -44,6 +52,9 @@ class FswatchDriverTest extends TestCase
         } finally {
             if (isset($driver)) {
                 $driver->stop();
+            }
+            if (isset($finished)) {
+                $this->assertTrue($finished->wait(0.1));
             }
             $channel->close();
         }
@@ -284,6 +295,114 @@ class FswatchDriverTest extends TestCase
         $this->assertSame($expected, $driver->commandForTest());
     }
 
+    public function testWatchDeliversEachBatchInOrderWithoutDetachedChildren(): void
+    {
+        $option = new Option(
+            driver: FswatchDriver::class,
+            watchPaths: [
+                new WatchPath('first.php', WatchPathType::File),
+                new WatchPath('second.php', WatchPathType::File),
+            ],
+            scanInterval: 1,
+        );
+        $driver = new OutputFswatchDriver(
+            $option,
+            base_path('first.php') . "\n" . base_path('second.php') . "\n",
+        );
+        $channel = new Channel(2);
+
+        try {
+            $driver->watch($channel);
+            $this->fail('Expected the completed fswatch process to exit.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('The fswatch process exited unexpectedly.', $exception->getMessage());
+        } finally {
+            $driver->stop();
+        }
+
+        $this->assertSame(base_path('first.php'), $channel->pop());
+        $this->assertSame(base_path('second.php'), $channel->pop());
+        $this->assertSame(0, $channel->getLength());
+        $this->assertTrue($driver->resourcesAreClosed());
+
+        $channel->close();
+    }
+
+    public function testWatchPreservesPathsSplitAcrossReads(): void
+    {
+        $option = new Option(
+            driver: FswatchDriver::class,
+            watchPaths: [
+                new WatchPath('first.php', WatchPathType::File),
+                new WatchPath('second.php', WatchPathType::File),
+                new WatchPath('third.php', WatchPathType::File),
+            ],
+            scanInterval: 1,
+        );
+        $driver = new class($option) extends FswatchDriver {
+            protected function exec(string $command): array
+            {
+                return ['code' => 0, 'output' => '/usr/bin/fswatch'];
+            }
+
+            public function processChunks(Channel $channel, array $chunks): void
+            {
+                $buffer = '';
+                $watchPaths = $this->option->getWatchPaths();
+
+                foreach ($chunks as $chunk) {
+                    $this->processOutput($buffer, $chunk, $channel, base_path(), $watchPaths);
+                }
+
+                $this->processOutput($buffer, '', $channel, base_path(), $watchPaths, final: true);
+            }
+        };
+        $channel = new Channel(3);
+        $second = base_path('second.php');
+
+        try {
+            $driver->processChunks($channel, [
+                base_path('first.php') . "\n" . substr($second, 0, -3),
+                substr($second, -3) . "\n" . base_path('third.php'),
+            ]);
+
+            $this->assertSame(base_path('first.php'), $channel->pop());
+            $this->assertSame(base_path('second.php'), $channel->pop());
+            $this->assertSame(base_path('third.php'), $channel->pop());
+            $this->assertSame(0, $channel->getLength());
+        } finally {
+            $driver->stop();
+            $channel->close();
+        }
+    }
+
+    public function testWatchPathFailureEscapesThroughTheOwnedDriverCoroutine(): void
+    {
+        $failure = new RuntimeException('expected match failure');
+        $option = new Option(
+            driver: FswatchDriver::class,
+            watchPaths: [new ThrowingWatchPath($failure)],
+            scanInterval: 1,
+        );
+        $driver = new OutputFswatchDriver(
+            $option,
+            base_path('throw.php') . "\n",
+        );
+        $channel = new Channel(1);
+
+        try {
+            $driver->watch($channel);
+            $this->fail('Expected path matching to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        } finally {
+            $driver->stop();
+            $channel->close();
+        }
+
+        $this->assertTrue($driver->resourcesAreClosed());
+    }
+
     /**
      * Create the standard fswatch test options.
      */
@@ -296,6 +415,48 @@ class FswatchDriverTest extends TestCase
             ],
             scanInterval: 1,
         );
+    }
+}
+
+class OutputFswatchDriver extends FswatchDriver
+{
+    public function __construct(
+        Option $option,
+        protected string $output,
+    ) {
+        parent::__construct($option);
+    }
+
+    protected function exec(string $command): array
+    {
+        return ['code' => 0, 'output' => '/usr/bin/fswatch'];
+    }
+
+    protected function getCommand(): array
+    {
+        return [
+            PHP_BINARY,
+            '-r',
+            'fwrite(STDOUT, ' . var_export($this->output, true) . ');',
+        ];
+    }
+
+    public function resourcesAreClosed(): bool
+    {
+        return ! is_resource($this->process) && $this->pipes === [];
+    }
+}
+
+readonly class ThrowingWatchPath extends WatchPath
+{
+    public function __construct(public RuntimeException $failure)
+    {
+        parent::__construct('', WatchPathType::Directory);
+    }
+
+    public function matches(string $relativePath): bool
+    {
+        throw $this->failure;
     }
 }
 
