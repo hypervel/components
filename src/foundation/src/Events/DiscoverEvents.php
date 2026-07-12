@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Events;
 
+use Hypervel\Contracts\Events\ShouldBeDiscovered;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Reflector;
@@ -74,6 +75,13 @@ class DiscoverEvents
             }
 
             if (! $listener->isInstantiable()) {
+                continue;
+            }
+
+            $listenerClass = $listener->getName();
+
+            if (is_subclass_of($listenerClass, ShouldBeDiscovered::class)
+                && $listenerClass::shouldBeDiscovered() === false) {
                 continue;
             }
 

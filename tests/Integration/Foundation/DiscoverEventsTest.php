@@ -12,12 +12,14 @@ use Hypervel\Tests\Integration\Foundation\Fixtures\EventDiscovery\Events\EventTw
 use Hypervel\Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\AbstractListener;
 use Hypervel\Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\Listener;
 use Hypervel\Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\ListenerInterface;
+use Hypervel\Tests\Integration\Foundation\Fixtures\EventDiscovery\ShouldBeDiscoveredListeners\RegisteredListener;
+use Hypervel\Tests\Integration\Foundation\Fixtures\EventDiscovery\ShouldBeDiscoveredListeners\SkippedListener;
 use Hypervel\Tests\Integration\Foundation\Fixtures\EventDiscovery\UnionListeners\UnionListener;
 use SplFileInfo;
 
 class DiscoverEventsTest extends TestCase
 {
-    public function testEventsCanBeDiscovered()
+    public function testEventsCanBeDiscovered(): void
     {
         if (! class_exists('Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\Listener', false)) {
             class_alias(Listener::class, 'Tests\Integration\Foundation\Fixtures\EventDiscovery\Listeners\Listener');
@@ -44,7 +46,7 @@ class DiscoverEventsTest extends TestCase
         ], $events);
     }
 
-    public function testUnionEventsCanBeDiscovered()
+    public function testUnionEventsCanBeDiscovered(): void
     {
         if (! class_exists('Tests\Integration\Foundation\Fixtures\EventDiscovery\UnionListeners\UnionListener', false)) {
             class_alias(UnionListener::class, 'Tests\Integration\Foundation\Fixtures\EventDiscovery\UnionListeners\UnionListener');
@@ -62,7 +64,7 @@ class DiscoverEventsTest extends TestCase
         ], $events);
     }
 
-    public function testMultipleDirectoriesCanBeDiscovered()
+    public function testMultipleDirectoriesCanBeDiscovered(): void
     {
         $events = DiscoverEvents::within([
             __DIR__ . '/Fixtures/EventDiscovery/Listeners',
@@ -82,14 +84,33 @@ class DiscoverEventsTest extends TestCase
         ], $events);
     }
 
-    public function testNoExceptionForEmptyDirectories()
+    public function testListenersCanOptOutOfDiscovery(): void
+    {
+        if (! class_exists('Tests\Integration\Foundation\Fixtures\EventDiscovery\ShouldBeDiscoveredListeners\RegisteredListener', false)) {
+            class_alias(RegisteredListener::class, 'Tests\Integration\Foundation\Fixtures\EventDiscovery\ShouldBeDiscoveredListeners\RegisteredListener');
+        }
+
+        if (! class_exists('Tests\Integration\Foundation\Fixtures\EventDiscovery\ShouldBeDiscoveredListeners\SkippedListener', false)) {
+            class_alias(SkippedListener::class, 'Tests\Integration\Foundation\Fixtures\EventDiscovery\ShouldBeDiscoveredListeners\SkippedListener');
+        }
+
+        $events = DiscoverEvents::within(__DIR__ . '/Fixtures/EventDiscovery/ShouldBeDiscoveredListeners', getcwd());
+
+        $this->assertSame([
+            EventOne::class => [
+                RegisteredListener::class . '@handle',
+            ],
+        ], $events);
+    }
+
+    public function testNoExceptionForEmptyDirectories(): void
     {
         $events = DiscoverEvents::within([], getcwd());
 
         $this->assertEquals([], $events);
     }
 
-    public function testEventsCanBeDiscoveredUsingCustomClassNameGuessing()
+    public function testEventsCanBeDiscoveredUsingCustomClassNameGuessing(): void
     {
         DiscoverEvents::guessClassNamesUsing(function (SplFileInfo $file, $basePath) {
             return (new Stringable($file->getRealPath()))
