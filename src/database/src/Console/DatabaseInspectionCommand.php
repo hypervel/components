@@ -5,30 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Database\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Database\ConnectionInterface;
 use Hypervel\Support\Arr;
 
 abstract class DatabaseInspectionCommand extends Command
 {
-    /**
-     * Get a human-readable name for the given connection.
-     *
-     * @deprecated
-     */
-    protected function getConnectionName(ConnectionInterface $connection, string $database): string
-    {
-        return $connection->getDriverTitle();
-    }
-
-    /**
-     * Get the number of open connections for a database.
-     *
-     * @deprecated
-     */
-    protected function getConnectionCount(ConnectionInterface $connection): ?int
-    {
-        return $connection->threadCount();
-    }
+    // Laravel's deprecated connection-name and connection-count forwarding
+    // helpers are intentionally not ported. Use the connection APIs directly.
 
     /**
      * Get the connection configuration details for the given connection.
