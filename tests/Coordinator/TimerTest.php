@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Coordinator;
 use Closure;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coordinator\Timer;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
+use Hypervel\Engine\Channel;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -50,6 +52,34 @@ class TimerTest extends TestCase
             CoordinatorManager::until($identifier)->resume();
             $this->assertSame(1, $id);
         });
+    }
+
+    public function testAfterUsesTheCoordinatorCapturedBeforeTheChildStarts(): void
+    {
+        $identifier = uniqid();
+        $resumed = false;
+        $result = new Channel(1);
+
+        Coroutine::afterCreated(function () use ($identifier, &$resumed): void {
+            if ($resumed) {
+                return;
+            }
+
+            $resumed = true;
+            CoordinatorManager::until($identifier)->resume();
+            CoordinatorManager::clear($identifier);
+        });
+
+        try {
+            (new Timer)->after(-1.0, static function (bool $isClosing) use ($result): void {
+                $result->push($isClosing);
+            }, $identifier);
+
+            $this->assertTrue($result->pop(0.1));
+        } finally {
+            Coroutine::flushState();
+            CoordinatorManager::clear($identifier);
+        }
     }
 
     public function testAfterWhenClear(): void
@@ -97,6 +127,22 @@ class TimerTest extends TestCase
             usleep(20000);
             $this->assertSame(10, $id);
         });
+    }
+
+    public function testTickClearedFromItsCallbackDoesNotWaitAnotherInterval(): void
+    {
+        $timer = new Timer;
+        $called = new Channel(1);
+        $id = null;
+
+        $id = $timer->tick(0.1, function () use ($timer, &$id, $called): void {
+            $timer->clear($id);
+            $called->push(true);
+        }, uniqid());
+
+        $this->assertTrue($called->pop(0.2));
+        usleep(10_000);
+        $this->assertSame(['num' => 0, 'round' => 0], Timer::stats());
     }
 
     public function testTickReportsThroughTheConfiguredLoggerAndContinues(): void
