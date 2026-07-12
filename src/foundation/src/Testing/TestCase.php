@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Attributes\UnitTest;
@@ -12,7 +13,9 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithDatabase;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithDeprecationHandling;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithEnvironment;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithRouteMiddleware;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithSession;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTestCaseLifecycle;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
@@ -20,6 +23,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithViews;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Testing\Concerns\InteractsWithMockery;
 use ReflectionMethod;
 use Throwable;
 
@@ -31,13 +35,16 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     use InteractsWithConsole;
     use InteractsWithDatabase;
     use InteractsWithDeprecationHandling;
+    use InteractsWithEnvironment;
     use InteractsWithExceptionHandling;
+    use InteractsWithRouteMiddleware;
     use InteractsWithSession;
     use InteractsWithTime;
     use InteractsWithTestCaseLifecycle;
     use InteractsWithViews;
     use MocksApplicationServices;
     use RunTestsInCoroutine;
+    use InteractsWithMockery;
     use WithFaker;
 
     /**
@@ -70,7 +77,11 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function createApplication(): ApplicationContract
     {
-        return require Application::inferBasePath() . '/bootstrap/app.php';
+        $app = require Application::inferBasePath() . '/bootstrap/app.php';
+
+        $app->make(KernelContract::class)->bootstrap();
+
+        return $app;
     }
 
     /**
@@ -80,11 +91,25 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function tearDown(): void
     {
-        if ($this->withoutBootingFramework()) {
-            return;
+        $exception = null;
+
+        try {
+            if (! $this->withoutBootingFramework()) {
+                $this->tearDownTheTestEnvironment();
+            }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
         }
 
-        $this->tearDownTheTestEnvironment();
+        try {
+            $this->tearDownTheTestEnvironmentUsingMockery();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**

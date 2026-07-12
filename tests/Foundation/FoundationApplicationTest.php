@@ -11,9 +11,13 @@ use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
 use Hypervel\Foundation\Events\LocaleUpdated;
+use Hypervel\Foundation\PackageManifest;
+use Hypervel\Log\LogManager;
+use Hypervel\Support\Facades\Log;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 use stdClass;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -47,6 +51,30 @@ class FoundationApplicationTest extends TestCase
         $app->singleton('translator', fn () => $trans);
 
         $app->setFallbackLocale('fr');
+    }
+
+    public function testLoggerInterfaceResolvesAfterFacadesAreRegisteredBeforeConfiguredProviders()
+    {
+        $app = new Application;
+        $app->singleton('config', fn () => new Repository([
+            'app' => [
+                'aliases' => [
+                    'Log' => Log::class,
+                ],
+            ],
+        ]));
+
+        $manifest = m::mock(PackageManifest::class);
+        $manifest->shouldReceive('aliases')->once()->andReturn([]);
+        $app->singleton(PackageManifest::class, fn () => $manifest);
+
+        (new RegisterFacades)->bootstrap($app);
+
+        $logger = $app->make(LoggerInterface::class);
+
+        $this->assertInstanceOf(LoggerInterface::class, $logger);
+        $this->assertInstanceOf(LogManager::class, $logger);
+        $this->assertNotInstanceOf(Log::class, $logger);
     }
 
     public function testGetFallbackLocaleReadsFromTranslator()

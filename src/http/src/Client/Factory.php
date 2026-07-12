@@ -7,6 +7,7 @@ namespace Hypervel\Http\Client;
 use Closure;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
@@ -14,8 +15,9 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
+use GuzzleHttp\Utils;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
@@ -23,14 +25,12 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use JsonException;
 use PHPUnit\Framework\Assert as PHPUnit;
-use Throwable;
 
 /**
  * @mixin \Hypervel\Http\Client\PendingRequest
  */
 class Factory
 {
-    use HasPoolProxy;
     use Macroable {
         __call as macroCall;
     }
@@ -75,22 +75,17 @@ class Factory
      */
     protected array $allowedStrayRequestUrls = [];
 
-    protected string $poolProxyClass = ClientPoolProxy::class;
-
-    /**
-     * The array of connections which will be wrapped as pool proxies.
-     */
-    protected array $poolables = [];
-
-    /**
-     * The array of resolved client connections.
-     */
-    protected array $connections = [];
-
     /**
      * The configuration for all registered connections.
      */
     protected array $connectionConfigs = [];
+
+    /**
+     * The resolved low-level transport handlers for registered connections.
+     *
+     * @var array<string, callable>
+     */
+    protected array $connectionHandlers = [];
 
     /**
      * Create a new factory instance.
@@ -132,6 +127,9 @@ class Factory
 
     /**
      * Set the options to apply to every request.
+     *
+     * Boot-only. The options persist on the factory for the worker lifetime
+     * and affect every subsequently created pending request.
      */
     public function globalOptions(array|Closure $options): static
     {
@@ -523,7 +521,13 @@ class Factory
      */
     protected function newPendingRequest(): PendingRequest
     {
-        return (new PendingRequest($this, $this->globalMiddleware))->withOptions(value($this->globalOptions));
+        $options = value($this->globalOptions);
+
+        if (! is_array($options)) {
+            throw new InvalidArgumentException('The global HTTP client options callback must return an array.');
+        }
+
+        return new PendingRequest($this, $this->globalMiddleware, $options);
     }
 
     /**
@@ -544,55 +548,51 @@ class Factory
 
     /**
      * Register a connection with the given name and configuration.
+     *
+     * Boot-only. The connection preset and shared transport handler registry
+     * persist on the factory for the worker lifetime.
      */
     public function registerConnection(string $name, array $config = []): static
     {
-        $this->addPoolable($name);
-        $this->setConnectionConfig($name, $config);
-
-        return $this;
+        return $this->setConnectionConfig($name, $config);
     }
 
     /**
-     * Get the HTTP client for the specified connection.
-     *
-     * @throws Throwable
+     * Determine if the given HTTP client connection is registered.
      */
-    public function getClient(?string $connection, HandlerStack $handlerStack, ?array $config = null): ClientInterface
+    public function hasConnection(string $name): bool
     {
-        return $this->resolve($connection, $handlerStack, $config);
+        return array_key_exists($name, $this->connectionConfigs);
     }
 
     /**
-     * Resolve the HTTP client for the specified connection.
-     *
-     * @throws Throwable
+     * Get the shared low-level transport handler for a connection.
      */
-    protected function resolve(?string $name, HandlerStack $handlerStack, ?array $config = null): ClientInterface
+    public function getConnectionHandler(string $name): callable
     {
-        if (is_null($name)) {
-            return $this->createClient($handlerStack);
-        }
+        $this->ensureConnectionIsRegistered($name);
 
-        if (! in_array($name, $this->poolables)) {
-            throw new InvalidArgumentException("Connection [{$name}] is not registered.");
-        }
-
-        return $this->connections[$name] ??= $this->createPoolProxy(
-            $name,
-            fn () => $this->createClient($handlerStack),
-            $config ?? $this->getConnectionConfig($name)
+        return $this->connectionHandlers[$name] ??= $this->createConnectionHandler(
+            Arr::only($this->connectionConfigs[$name], ['transport_sharing'])
         );
+    }
+
+    /**
+     * Create a low-level transport handler for a connection.
+     */
+    protected function createConnectionHandler(array $options): callable
+    {
+        return Utils::chooseHandler($options);
     }
 
     /**
      * Create new Guzzle client.
      */
-    public function createClient(HandlerStack $handlerStack): ClientInterface
+    public function createClient(HandlerStack $handlerStack, CookieJar $cookies): ClientInterface
     {
         return new Client([
             'handler' => $handlerStack,
-            'cookies' => true,
+            'cookies' => $cookies,
         ]);
     }
 
@@ -613,13 +613,47 @@ class Factory
     }
 
     /**
+     * Get the request-option preset for a registered connection.
+     */
+    public function getConnectionOptions(string $name): array
+    {
+        $this->ensureConnectionIsRegistered($name);
+
+        return Arr::except($this->connectionConfigs[$name], ['transport_sharing']);
+    }
+
+    /**
      * Set the configuration for a specific connection.
+     *
+     * Boot-only. Reconfiguration replaces the worker-lifetime preset and
+     * invalidates its shared transport handler for subsequent requests.
      */
     public function setConnectionConfig(string $name, array $config): static
     {
+        $this->validateConnectionConfig($config);
+
         $this->connectionConfigs[$name] = $config;
+        unset($this->connectionHandlers[$name]);
 
         return $this;
+    }
+
+    /**
+     * Ensure the given HTTP client connection is registered.
+     */
+    protected function ensureConnectionIsRegistered(string $name): void
+    {
+        if (! $this->hasConnection($name)) {
+            throw new InvalidArgumentException("Connection [{$name}] is not registered.");
+        }
+    }
+
+    /**
+     * Validate a registered connection configuration.
+     */
+    protected function validateConnectionConfig(array $config): void
+    {
+        ReservedOptions::reject($config, true, 'registered connection configuration');
     }
 
     /**

@@ -10,7 +10,9 @@ use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
@@ -18,13 +20,7 @@ use ReflectionMethod;
 use function Hypervel\Coroutine\run;
 
 /**
- * Tests for in-memory SQLite shared PDO functionality.
- *
- * Verifies that:
- * - DbPool correctly detects in-memory SQLite databases
- * - All pool slots share the same PDO for in-memory SQLite
- * - ConnectionFactory::makeSqliteFromSharedPdo() works correctly
- * - PooledConnection handles shared PDO in reconnect/close/refresh
+ * Test shared PDO ownership for pooled in-memory SQLite connections.
  */
 class InMemorySqliteSharedPdoTest extends TestCase
 {
@@ -162,8 +158,10 @@ class InMemorySqliteSharedPdoTest extends TestCase
     {
         $config = $this->app->make('config');
 
-        $tempFile = sys_get_temp_dir() . '/test_no_shared_pdo.db';
-        @touch($tempFile);
+        $tempDirectory = ParallelTesting::tempDir('InMemorySqliteSharedPdoTest');
+        (new Filesystem)->ensureDirectoryExists($tempDirectory);
+        $tempFile = $tempDirectory . '/database.sqlite';
+        touch($tempFile);
 
         try {
             $connectionConfig = [
@@ -185,7 +183,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
             $factory->flushPool('file_sqlite_test');
         } finally {
-            @unlink($tempFile);
+            (new Filesystem)->deleteDirectory($tempDirectory);
         }
     }
 
@@ -241,7 +239,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
         });
     }
 
-    public function testFlushAllClearsSharedPdo(): void
+    public function testCloseClearsSharedPdo(): void
     {
         $factory = $this->getPoolFactory();
         $pool = $factory->getPool('memory_test');
@@ -249,8 +247,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
         // Verify shared PDO exists
         $this->assertInstanceOf(PDO::class, $pool->getSharedInMemorySqlitePdo());
 
-        // Flush the pool
-        $pool->flushAll();
+        $pool->close();
 
         // Shared PDO should be cleared
         $this->assertNull($pool->getSharedInMemorySqlitePdo());

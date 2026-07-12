@@ -7,9 +7,17 @@ namespace Hypervel\Testbench;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Contracts\Config as ConfigContract;
 use Hypervel\Testbench\Foundation\Config;
+use Hypervel\Testbench\Foundation\Env;
+use Hypervel\Testbench\Foundation\EnvironmentFile;
+use JsonException;
+use RuntimeException;
+use Throwable;
+use UnexpectedValueException;
 
 class Bootstrapper
 {
+    protected const RUNTIME_PROCESS_MARKER = '.testbench-process';
+
     protected static ?ConfigContract $configuration = null;
 
     protected static ?Filesystem $filesystem = null;
@@ -39,7 +47,7 @@ class Bootstrapper
             $sourcePath = static::$configuration['hypervel'];
         }
 
-        $basePath = static::resolveRuntimeBasePath($sourcePath);
+        $basePath = static::resolveRuntimeBasePath($sourcePath, $workingPath);
 
         ! defined('BASE_PATH') && define('BASE_PATH', $basePath);
         ! defined('SWOOLE_HOOK_FLAGS') && define('SWOOLE_HOOK_FLAGS', SWOOLE_HOOK_ALL);
@@ -116,7 +124,7 @@ class Bootstrapper
      * to a temp directory and using that as BASE_PATH, the committed skeleton
      * stays clean. The copy is deleted on shutdown.
      */
-    protected static function createRuntimeCopy(string $sourcePath): string
+    protected static function createRuntimeCopy(string $sourcePath, string $workingPath): string
     {
         $token = $_SERVER['TEST_TOKEN'] ?? $_ENV['TEST_TOKEN'] ?? 'default';
         $pid = getmypid();
@@ -132,8 +140,8 @@ class Bootstrapper
         // Purge stale dirs for this worker token from previous crashed runs.
         // A dir is stale when its owning PID is either dead or orphaned
         // (PPID=1, meaning the test process that spawned it exited). Orphaned
-        // serve processes (confirmed via hypervel.pid) are killed before their
-        // dirs are removed.
+        // serve processes (confirmed by PID, command, and process incarnation)
+        // are killed before their dirs are removed.
         foreach (glob($tempDir . "/hypervel-components-testbench-{$token}-*") as $staleDir) {
             if (! $filesystem->isDirectory($staleDir)) {
                 continue;
@@ -150,10 +158,39 @@ class Bootstrapper
                 }
             }
 
-            $filesystem->deleteDirectory($staleDir);
+            static::deleteRuntimeDirectory($staleDir);
         }
 
-        $filesystem->copyDirectory($sourcePath, $runtimePath);
+        try {
+            if (! $filesystem->copyDirectory($sourcePath, $runtimePath)) {
+                throw new RuntimeException("Unable to create the Testbench runtime copy at [{$runtimePath}].");
+            }
+
+            if (Env::has('TESTBENCH_PACKAGE_TESTER')) {
+                static::copyPackageEnvironmentFile($filesystem, $runtimePath, $workingPath);
+            }
+
+            $startIdentity = static::processStartIdentity($pid);
+
+            if ($startIdentity !== null) {
+                $filesystem->replace(
+                    join_paths($runtimePath, static::RUNTIME_PROCESS_MARKER),
+                    json_encode([
+                        'pid' => $pid,
+                        'started_at' => $startIdentity,
+                    ], JSON_THROW_ON_ERROR),
+                    0600,
+                );
+            }
+        } catch (Throwable $exception) {
+            try {
+                static::deleteRuntimeDirectory($runtimePath);
+            } catch (Throwable) {
+                // Preserve the runtime-creation failure when rollback also fails.
+            }
+
+            throw $exception;
+        }
 
         static::$runtimePath = $runtimePath;
 
@@ -165,9 +202,37 @@ class Bootstrapper
     }
 
     /**
+     * Copy the package or workbench environment file into the runtime copy.
+     */
+    protected static function copyPackageEnvironmentFile(Filesystem $filesystem, string $runtimePath, string $workingPath): void
+    {
+        $environmentFile = (new EnvironmentFile($filesystem))->packageOrSkeletonFallback(
+            workingPath: $workingPath,
+            appBasePath: $runtimePath,
+            filename: static::testbenchEnvironmentFile(),
+        );
+
+        if ($environmentFile !== null) {
+            $filesystem->copy($environmentFile, join_paths($runtimePath, '.env'));
+        }
+    }
+
+    /**
+     * Determine the active Testbench environment file name.
+     */
+    protected static function testbenchEnvironmentFile(): string
+    {
+        $environmentFile = Env::get('TESTBENCH_ENVIRONMENT_FILENAME', '.env');
+
+        return is_string($environmentFile) && $environmentFile !== ''
+            ? $environmentFile
+            : '.env';
+    }
+
+    /**
      * Resolve the runtime base path for the current process.
      */
-    protected static function resolveRuntimeBasePath(string $sourcePath): string
+    protected static function resolveRuntimeBasePath(string $sourcePath, string $workingPath): string
     {
         $existingRuntimePath = $_SERVER['TESTBENCH_BASE_PATH'] ?? $_ENV['TESTBENCH_BASE_PATH'] ?? null;
         $isRemoteProcess = ($_SERVER['TESTBENCH_PACKAGE_REMOTE'] ?? $_ENV['TESTBENCH_PACKAGE_REMOTE'] ?? null) === '(true)';
@@ -176,7 +241,7 @@ class Bootstrapper
             return $existingRuntimePath;
         }
 
-        return static::createRuntimeCopy($sourcePath);
+        return static::createRuntimeCopy($sourcePath, $workingPath);
     }
 
     /**
@@ -188,25 +253,73 @@ class Bootstrapper
             return;
         }
 
-        $filesystem = static::getFilesystem();
-
-        if ($filesystem->isDirectory(static::$runtimePath)) {
-            $filesystem->deleteDirectory(static::$runtimePath);
-        }
+        static::deleteRuntimeDirectory(static::$runtimePath);
 
         static::$runtimePath = null;
     }
 
     /**
+     * Delete a runtime copy while tolerating sibling cleanup races.
+     *
+     * Multiple same-token Testbench children can bootstrap at once and purge
+     * the same stale runtime copy. If another child wins the race, the missing
+     * directory is the desired postcondition; if the directory remains, the
+     * original filesystem failure is still surfaced.
+     */
+    protected static function deleteRuntimeDirectory(string $directory): void
+    {
+        $filesystem = static::getFilesystem();
+
+        if (! static::runtimeDirectoryExists($filesystem, $directory)) {
+            return;
+        }
+
+        try {
+            $filesystem->deleteDirectory($directory);
+
+            return;
+        } catch (UnexpectedValueException) {
+            clearstatcache(true, $directory);
+
+            if (! static::runtimeDirectoryExists($filesystem, $directory)) {
+                return;
+            }
+        }
+
+        try {
+            $filesystem->deleteDirectory($directory);
+        } catch (UnexpectedValueException $retryException) {
+            clearstatcache(true, $directory);
+
+            if (static::runtimeDirectoryExists($filesystem, $directory)) {
+                throw $retryException;
+            }
+        }
+    }
+
+    /**
+     * Determine if a runtime directory exists.
+     *
+     * @phpstan-impure
+     */
+    protected static function runtimeDirectoryExists(Filesystem $filesystem, string $directory): bool
+    {
+        return $filesystem->isDirectory($directory);
+    }
+
+    /**
      * Determine if the given PID is an orphaned serve process.
      *
-     * A process is considered an orphaned serve process when its parent is
-     * PID 1 (re-parented by init after the original parent exited) and the
-     * runtime directory contains a Swoole PID file, confirming it was a
-     * serve command that started a server.
+     * A process is considered an orphaned serve process only when its parent
+     * is init and its PID, command, and process incarnation all match the
+     * runtime directory.
      */
     protected static function isOrphanedServeProcess(int $pid, string $runtimeDir): bool
     {
+        if ($pid <= 0 || ! posix_kill($pid, 0)) {
+            return false;
+        }
+
         // Check PPID = 1 (orphaned) via /proc on Linux.
         $statusFile = "/proc/{$pid}/status";
 
@@ -230,8 +343,118 @@ class Bootstrapper
             }
         }
 
-        // Confirm this was a serve process by checking for the PID file.
-        return is_file("{$runtimeDir}/storage/framework/hypervel.pid");
+        return static::matchesServeProcessIdentity($pid, $runtimeDir);
+    }
+
+    /**
+     * Determine whether a process identity matches a Testbench serve runtime.
+     */
+    protected static function matchesServeProcessIdentity(int $pid, string $runtimeDir): bool
+    {
+        $pidFile = join_paths($runtimeDir, 'storage/framework/hypervel.pid');
+        $pidContents = @file_get_contents($pidFile);
+
+        if ($pidContents === false
+            || ! ctype_digit($pidContents = trim($pidContents))
+            || (int) $pidContents !== $pid
+        ) {
+            return false;
+        }
+
+        $command = static::processCommand($pid);
+
+        if ($command === null
+            || preg_match(
+                '/(?:^|\s)\S*(?:testbench|hypervel)(?:\.php)?\s+serve(?:\s|$)/i',
+                $command,
+            ) !== 1
+        ) {
+            return false;
+        }
+
+        $marker = @file_get_contents(join_paths($runtimeDir, static::RUNTIME_PROCESS_MARKER));
+
+        if ($marker === false) {
+            return false;
+        }
+
+        try {
+            $identity = json_decode($marker, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return false;
+        }
+
+        if (! is_array($identity)
+            || count($identity) !== 2
+            || ($identity['pid'] ?? null) !== $pid
+            || ! is_string($startedAt = $identity['started_at'] ?? null)
+            || $startedAt === ''
+        ) {
+            return false;
+        }
+
+        $currentStartIdentity = static::processStartIdentity($pid);
+
+        return $currentStartIdentity !== null
+            && hash_equals($startedAt, $currentStartIdentity);
+    }
+
+    /**
+     * Read the command line for a process.
+     */
+    protected static function processCommand(int $pid): ?string
+    {
+        if (is_dir('/proc')) {
+            $path = "/proc/{$pid}/cmdline";
+
+            if (! is_readable($path)
+                || ($contents = @file_get_contents($path)) === false
+                || $contents === ''
+            ) {
+                return null;
+            }
+
+            return trim(str_replace("\0", ' ', $contents));
+        }
+
+        $output = [];
+        exec("ps -ww -p {$pid} -o command= 2>/dev/null", $output);
+        $command = trim(implode("\n", $output));
+
+        return $command !== '' ? $command : null;
+    }
+
+    /**
+     * Read the OS identity of the process incarnation.
+     *
+     * Linux exposes the start clock tick exactly. macOS `lstart` has one-second
+     * resolution, which is sufficient alongside the PID and validated command.
+     */
+    protected static function processStartIdentity(int $pid): ?string
+    {
+        if (is_dir('/proc')) {
+            $path = "/proc/{$pid}/stat";
+
+            if (! is_readable($path)
+                || ($contents = @file_get_contents($path)) === false
+                || ($commandEnd = strrpos($contents, ')')) === false
+            ) {
+                return null;
+            }
+
+            $fields = preg_split('/\s+/', trim(substr($contents, $commandEnd + 1)));
+            $startedAt = $fields[19] ?? null;
+
+            return is_string($startedAt) && ctype_digit($startedAt)
+                ? $startedAt
+                : null;
+        }
+
+        $output = [];
+        exec("ps -p {$pid} -o lstart= 2>/dev/null", $output);
+        $startedAt = trim(implode(' ', $output));
+
+        return $startedAt !== '' ? $startedAt : null;
     }
 
     /**

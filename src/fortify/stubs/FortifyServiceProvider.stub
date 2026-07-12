@@ -1,0 +1,55 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Providers;
+
+use App\Actions\Fortify\CreateNewUser;
+use App\Actions\Fortify\ResetUserPassword;
+use App\Actions\Fortify\UpdateUserPassword;
+use App\Actions\Fortify\UpdateUserProfileInformation;
+use Hypervel\Cache\RateLimiting\Limit;
+use Hypervel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
+use Hypervel\Fortify\Fortify;
+use Hypervel\Http\Request;
+use Hypervel\Support\Facades\RateLimiter;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Support\Str;
+
+class FortifyServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        //
+    }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        Fortify::createUsersUsing(CreateNewUser::class);
+        Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
+        Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
+        Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
+        Fortify::redirectUserForTwoFactorAuthenticationUsing(RedirectIfTwoFactorAuthenticatable::class);
+
+        RateLimiter::for('login', function (Request $request): Limit {
+            $throttleKey = Str::transliterate(Str::lower((string) $request->input(Fortify::username())) . '|' . $request->ip());
+
+            return Limit::perMinute(5)->by($throttleKey);
+        });
+
+        RateLimiter::for('passkeys', function (Request $request): Limit {
+            $credentialId = $request->input('credential.id');
+            $credentialKey = is_scalar($credentialId) ? (string) $credentialId : $request->session()->getId();
+
+            return Limit::perMinute(10)->by(
+                $credentialKey . '|' . $request->ip()
+            );
+        });
+    }
+}

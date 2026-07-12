@@ -23,7 +23,7 @@ class RedisJob extends Job
         protected string $job,
         protected string $reserved,
         protected string $connectionName,
-        protected ?string $queue
+        protected string $queue
     ) {
         // The $job variable is the original job JSON as it existed in the ready queue while
         // the $reserved variable is the raw JSON in the reserved queue. The exact format

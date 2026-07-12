@@ -35,6 +35,7 @@ errors.md
 events.md
 facades.md
 filesystem.md
+fortify.md
 frontend.md
 hashing.md
 helpers.md
@@ -52,6 +53,7 @@ migrations.md
 mocking.md
 nested-set.md
 notifications.md
+object-pools.md
 packages.md
 pagination.md
 passwords.md

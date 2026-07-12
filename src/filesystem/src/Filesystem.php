@@ -18,6 +18,7 @@ use Symfony\Component\Filesystem\Filesystem as SymfonyFilesystem;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 use Symfony\Component\Mime\MimeTypes;
+use Throwable;
 
 class Filesystem
 {
@@ -48,7 +49,13 @@ class Filesystem
     public function get(string $path, bool $lock = false): string
     {
         if ($this->isFile($path)) {
-            return $lock ? $this->sharedGet($path) : file_get_contents($path);
+            $contents = $lock ? $this->sharedGet($path) : @file_get_contents($path);
+
+            if ($contents === false) {
+                throw new FileNotFoundException("Unable to read file at path {$path}.");
+            }
+
+            return $contents;
         }
 
         throw new FileNotFoundException("File does not exist at path {$path}.");
@@ -70,23 +77,31 @@ class Filesystem
     public function sharedGet(string $path): string
     {
         return $this->atomic($path, function ($path) {
-            $contents = '';
-            $handle = fopen($path, 'rb');
-            if ($handle) {
-                $wouldBlock = false;
-                flock($handle, LOCK_SH | LOCK_NB, $wouldBlock);
-                while ($wouldBlock) {
-                    usleep(1000);
-                    flock($handle, LOCK_SH | LOCK_NB, $wouldBlock);
-                }
-                try {
-                    clearstatcache(true, $path);
-                    $contents = stream_get_contents($handle);
-                } finally {
-                    flock($handle, LOCK_UN);
-                    fclose($handle);
-                }
+            $handle = @fopen($path, 'rb');
+
+            if ($handle === false) {
+                throw new FileNotFoundException("Unable to read file at path {$path}.");
             }
+
+            $wouldBlock = false;
+            flock($handle, LOCK_SH | LOCK_NB, $wouldBlock);
+            while ($wouldBlock) {
+                usleep(1000);
+                flock($handle, LOCK_SH | LOCK_NB, $wouldBlock);
+            }
+
+            try {
+                clearstatcache(true, $path);
+                $contents = @stream_get_contents($handle);
+            } finally {
+                flock($handle, LOCK_UN);
+                fclose($handle);
+            }
+
+            if ($contents === false) {
+                throw new FileNotFoundException("Unable to read file at path {$path}.");
+            }
+
             return $contents;
         });
     }
@@ -213,18 +228,30 @@ class Filesystem
 
         $path = realpath($path) ?: $path;
 
-        $tempPath = tempnam(dirname($path), basename($path));
+        $tempPath = @tempnam(dirname($path), basename($path));
 
-        // Fix permissions of tempPath because `tempnam()` creates it with permissions set to 0600...
-        if (! is_null($mode)) {
-            chmod($tempPath, $mode);
-        } else {
-            chmod($tempPath, 0777 - umask());
+        if ($tempPath === false) {
+            throw new RuntimeException("Unable to create a temporary file for replacing [{$path}].");
         }
 
-        file_put_contents($tempPath, $content);
+        try {
+            if (@file_put_contents($tempPath, $content) !== strlen($content)) {
+                throw new RuntimeException("Unable to write the complete replacement contents for [{$path}].");
+            }
 
-        rename($tempPath, $path);
+            // Keep the temporary file private until its complete contents are written.
+            if (! @chmod($tempPath, $mode ?? 0777 - umask())) {
+                throw new RuntimeException("Unable to set permissions on the replacement file for [{$path}].");
+            }
+
+            if (! @rename($tempPath, $path)) {
+                throw new RuntimeException("Unable to replace [{$path}] with temporary file [{$tempPath}].");
+            }
+        } catch (Throwable $exception) {
+            @unlink($tempPath);
+
+            throw $exception;
+        }
     }
 
     /**

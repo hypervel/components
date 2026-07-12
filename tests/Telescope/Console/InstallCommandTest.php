@@ -6,9 +6,12 @@ namespace Hypervel\Tests\Telescope\Console;
 
 use Hypervel\Console\Command as HypervelCommand;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Telescope\Console\InstallCommand;
 use Hypervel\Telescope\TelescopeServiceProvider;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
 class InstallCommandTest extends TestCase
@@ -20,32 +23,43 @@ class InstallCommandTest extends TestCase
         parent::setUp();
 
         $path = $this->app->getBootstrapProvidersPath();
+        $files = new Filesystem;
 
-        if (file_exists($path)) {
-            $contents = file_get_contents($path);
-
-            if ($contents !== false) {
-                $this->originalProvidersContents = $contents;
-            }
+        if ($files->isFile($path)) {
+            $this->originalProvidersContents = $files->get($path);
         }
     }
 
     protected function tearDown(): void
     {
+        $files = new Filesystem;
+        $providersPath = $this->app->getBootstrapProvidersPath();
+        $actions = [];
+
         if ($this->originalProvidersContents !== null) {
-            file_put_contents(
-                $this->app->getBootstrapProvidersPath(),
-                $this->originalProvidersContents
+            $actions[] = fn () => $files->replace(
+                $providersPath,
+                $this->originalProvidersContents,
             );
+        } else {
+            $actions[] = static function () use ($files, $providersPath): void {
+                if ($files->isFile($providersPath) && ! $files->delete($providersPath)) {
+                    throw new RuntimeException("Unable to delete the owned Telescope providers file [{$providersPath}].");
+                }
+            };
         }
 
         foreach ($this->publishedFiles() as $file) {
-            if (is_file($file)) {
-                unlink($file);
-            }
+            $actions[] = static function () use ($file, $files): void {
+                if ($files->isFile($file) && ! $files->delete($file)) {
+                    throw new RuntimeException("Unable to delete owned Telescope install test file [{$file}].");
+                }
+            };
         }
 
-        parent::tearDown();
+        $actions[] = fn () => parent::tearDown();
+
+        CleanupActions::run(...$actions);
     }
 
     protected function getPackageProviders(ApplicationContract $app): array

@@ -11,6 +11,7 @@ use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 use Hypervel\Http\Request;
 use Hypervel\ObjectPool\PoolProxy;
 use Hypervel\Support\Collection;
+use RuntimeException;
 
 class BroadcastPoolProxy extends PoolProxy implements Broadcaster
 {
@@ -24,23 +25,7 @@ class BroadcastPoolProxy extends PoolProxy implements Broadcaster
      */
     public function resolveAuthenticatedUser(Request $request): ?array
     {
-        /** @var BaseBroadcaster $driver */
-        $driver = $this->pool->get();
-
-        try {
-            // The resolver must be applied to the borrowed broadcaster before forwarding the call.
-            if ($this->authenticatedUserCallback) {
-                $driver->resolveAuthenticatedUserUsing($this->authenticatedUserCallback);
-            }
-
-            return $driver->resolveAuthenticatedUser($request);
-        } finally {
-            if ($this->releaseCallback) {
-                ($this->releaseCallback)($driver);
-            }
-
-            $this->pool->release($driver);
-        }
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -49,7 +34,7 @@ class BroadcastPoolProxy extends PoolProxy implements Broadcaster
      * Boot-only. The callback persists in instance state on the cached pool
      * proxy for the worker lifetime; per-request use races across coroutines.
      */
-    public function resolveAuthenticatedUserUsing(Closure $callback): void
+    public function resolveAuthenticatedUserUsing(?Closure $callback): void
     {
         $this->authenticatedUserCallback = $callback;
     }
@@ -63,14 +48,14 @@ class BroadcastPoolProxy extends PoolProxy implements Broadcaster
      */
     public function channel(HasBroadcastChannel|string $channel, callable|string $callback, array $options = []): static
     {
-        $this->__call(__FUNCTION__, func_get_args());
+        $this->invoke(__FUNCTION__, func_get_args());
 
         return $this;
     }
 
     public function auth(Request $request): mixed
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -78,7 +63,7 @@ class BroadcastPoolProxy extends PoolProxy implements Broadcaster
      */
     public function validAuthenticationResponse(Request $request, mixed $result): mixed
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -86,7 +71,7 @@ class BroadcastPoolProxy extends PoolProxy implements Broadcaster
      */
     public function broadcast(array $channels, string $event, array $payload = []): void
     {
-        $this->__call(__FUNCTION__, func_get_args());
+        $this->invoke(__FUNCTION__, func_get_args());
     }
 
     /**
@@ -94,6 +79,25 @@ class BroadcastPoolProxy extends PoolProxy implements Broadcaster
      */
     public function getChannels(): Collection
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Apply this proxy's authenticated-user callback to a borrowed broadcaster.
+     */
+    protected function configureBorrowed(object $object): void
+    {
+        if ($object instanceof BaseBroadcaster) {
+            $object->resolveAuthenticatedUserUsing($this->authenticatedUserCallback);
+
+            return;
+        }
+
+        if ($this->authenticatedUserCallback !== null) {
+            throw new RuntimeException(
+                'Authenticated-user resolver callbacks on pooled broadcasters require an instance of '
+                . BaseBroadcaster::class . '; [' . $object::class . '] was returned.'
+            );
+        }
     }
 }

@@ -581,6 +581,36 @@ class HasPermissionsTest extends TestCase
         $this->assertTrue($user->fresh()->hasPermissionTo('edit-articles'));
     }
 
+    public function testQueuedSyncPermissionsReplacesEarlierQueuedPermissionAssignments(): void
+    {
+        $user = new User(['email' => 'queued-sync@example.com']);
+
+        $user->givePermissionTo('edit-news');
+        $user->syncPermissions('edit-articles');
+        $user->save();
+
+        $user->refresh();
+
+        $this->assertSame(1, $user->permissions()->count());
+        $this->assertTrue($user->hasPermissionTo('edit-articles'));
+        $this->assertFalse($user->hasPermissionTo('edit-news'));
+    }
+
+    public function testQueuedSyncPermissionsReplacesEarlierQueuedForbiddenPermissionAssignment(): void
+    {
+        $user = new User(['email' => 'queued-sync-forbidden@example.com']);
+
+        $user->giveForbiddenTo('edit-articles');
+        $user->syncPermissions('edit-articles');
+        $user->save();
+
+        $user->refresh();
+
+        $this->assertSame(1, $user->permissions()->count());
+        $this->assertTrue($user->hasPermissionTo('edit-articles'));
+        $this->assertFalse($user->hasForbiddenPermission('edit-articles'));
+    }
+
     public function testItDoesNotRunUnnecessarySqlWhenAssigningNewPermissions(): void
     {
         $permission2 = app(Permission::class)->where('name', 'edit-news')->first();

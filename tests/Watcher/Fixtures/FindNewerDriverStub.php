@@ -14,6 +14,9 @@ class FindNewerDriverStub extends FindNewerDriver
         foreach ($this->scan() as $file) {
             $channel->push($file);
         }
+
+        $this->watchAtInterval(60, static function (): void {
+        });
     }
 
     protected function scan(): array

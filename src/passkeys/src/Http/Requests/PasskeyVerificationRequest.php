@@ -1,0 +1,100 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Passkeys\Http\Requests;
+
+use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\Passkeys\Support\WebAuthn;
+use Hypervel\Validation\ValidationException;
+use Throwable;
+use Webauthn\PublicKeyCredential;
+use Webauthn\PublicKeyCredentialRequestOptions;
+
+class PasskeyVerificationRequest extends FormRequest
+{
+    /**
+     * The deserialized public key credential.
+     */
+    protected PublicKeyCredential $publicKeyCredential;
+
+    /**
+     * Determine if the user is authorized to make this request.
+     */
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            'credential' => ['required', 'array'],
+            'credential.id' => ['required', 'string'],
+            'credential.rawId' => ['required', 'string'],
+            'credential.type' => ['required', 'string', 'in:public-key'],
+            'credential.response' => ['required', 'array'],
+            'remember' => ['boolean'],
+        ];
+    }
+
+    /**
+     * Handle a passed validation attempt.
+     */
+    protected function passedValidation(): void
+    {
+        try {
+            /** @var PublicKeyCredential $credential */
+            $credential = WebAuthn::fromJson(
+                json_encode($this->input('credential'), JSON_THROW_ON_ERROR),
+                PublicKeyCredential::class
+            );
+
+            $this->publicKeyCredential = $credential;
+        } catch (Throwable) {
+            throw ValidationException::withMessages([
+                'credential' => __('Invalid credential format.'),
+            ]);
+        }
+    }
+
+    /**
+     * Get the public key credential.
+     */
+    public function credential(): PublicKeyCredential
+    {
+        return $this->publicKeyCredential;
+    }
+
+    /**
+     * Determine if the user wants to be remembered.
+     */
+    public function remember(): bool
+    {
+        return $this->boolean('remember', false);
+    }
+
+    /**
+     * Get the verification options from the session.
+     *
+     * @throws ValidationException
+     */
+    public function verificationOptions(string $sessionKey): PublicKeyCredentialRequestOptions
+    {
+        /** @var null|string $serialized */
+        $serialized = $this->session()->pull($sessionKey);
+
+        if (! is_string($serialized) || $serialized === '') {
+            throw ValidationException::withMessages([
+                'credential' => __('Passkey verification session expired. Please try again.'),
+            ]);
+        }
+
+        return WebAuthn::fromJson($serialized, PublicKeyCredentialRequestOptions::class);
+    }
+}

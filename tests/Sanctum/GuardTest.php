@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -14,6 +16,8 @@ use Hypervel\Sanctum\TransientToken;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Fixtures\TestUser;
+use Hypervel\Tests\Sanctum\Fixtures\User as SanctumTestUser;
+use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class GuardTest extends TestCase
@@ -43,6 +47,7 @@ class GuardTest extends TestCase
             'auth.guards.sanctum' => [
                 'driver' => 'sanctum',
                 'provider' => 'users',
+                'session_guards' => ['web'],
             ],
             'auth.guards.web' => [
                 'driver' => 'session',
@@ -50,7 +55,6 @@ class GuardTest extends TestCase
             ],
             'auth.providers.users.model' => TestUser::class,
             'auth.providers.users.driver' => 'eloquent',
-            'sanctum.guard' => ['web'],
         ]);
     }
 
@@ -73,6 +77,20 @@ class GuardTest extends TestCase
     protected function createUsersTable(): void
     {
         $this->app->make('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
+            $table->increments('id');
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Create the alternate users table for provider matching tests.
+     */
+    protected function createSanctumTestUsersTable(): void
+    {
+        $this->app->make('db')->connection()->getSchemaBuilder()->create('sanctum_test_users', function ($table) {
             $table->increments('id');
             $table->string('name');
             $table->string('email')->unique();
@@ -136,6 +154,18 @@ class GuardTest extends TestCase
         return [$user, $token, $token->id . '|' . $plainTextToken];
     }
 
+    /**
+     * Expect the invalid session guards configuration exception.
+     */
+    protected function expectInvalidSessionGuardsConfiguration(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(
+            'Auth guard [sanctum] uses the sanctum driver but does not declare a valid session guards list. '
+            . 'Set auth.guards.sanctum.session_guards to an array of session guard names, or [] to disable stateful session authentication.'
+        );
+    }
+
     public function testAuthenticationIsAttemptedWithWebMiddleware(): void
     {
         // Create a user in the database
@@ -175,6 +205,212 @@ class GuardTest extends TestCase
                 'authenticated' => true,
                 'user_id' => $user->id,
                 'user_email' => $user->email,
+                'token_id' => $token->id,
+            ]);
+    }
+
+    public function testEmptySessionGuardsIsTokenOnly(): void
+    {
+        $this->app->make('config')->set('auth.guards.sanctum.session_guards', []);
+
+        $sessionUser = TestUser::create([
+            'name' => 'Session User',
+            'email' => 'session@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+
+        $this->app->make('auth')->guard('web')->setUser($sessionUser);
+
+        $this->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
+
+        [$tokenUser, $token, $plainToken] = $this->createUserWithToken(plainTextToken: 'token-only');
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $tokenUser->id,
+                'token_id' => $token->id,
+            ]);
+    }
+
+    public function testMissingSessionGuardsThrowsInstructiveError(): void
+    {
+        $this->app->make('config')->set('auth.guards.sanctum', [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ]);
+        $this->app->make('auth')->forgetGuards();
+
+        $this->expectInvalidSessionGuardsConfiguration();
+
+        $this->app->make('auth')->guard('sanctum');
+    }
+
+    public function testNonArraySessionGuardsThrowsInstructiveError(): void
+    {
+        $this->app->make('config')->set('auth.guards.sanctum.session_guards', 'web');
+        $this->app->make('auth')->forgetGuards();
+
+        $this->expectInvalidSessionGuardsConfiguration();
+
+        $this->app->make('auth')->guard('sanctum');
+    }
+
+    #[DataProvider('invalidSessionGuardsDataProvider')]
+    public function testInvalidSessionGuardEntriesThrowInstructiveError(array $sessionGuards): void
+    {
+        $this->app->make('config')->set('auth.guards.sanctum.session_guards', $sessionGuards);
+        $this->app->make('auth')->forgetGuards();
+
+        $this->expectInvalidSessionGuardsConfiguration();
+
+        $this->app->make('auth')->guard('sanctum');
+    }
+
+    public static function invalidSessionGuardsDataProvider(): array
+    {
+        return [
+            [[123]],
+            [['']],
+        ];
+    }
+
+    public function testNonStatefulSessionGuardThrows(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('auth.guards.sanctum.session_guards', ['other-sanctum']);
+        $config->set('auth.guards.other-sanctum', [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+            'session_guards' => [],
+        ]);
+        $this->app->make('auth')->forgetGuards();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Auth guard [sanctum] lists [other-sanctum] in session_guards, but that guard is not a stateful guard.');
+
+        $this->withoutExceptionHandling()->getJson('/test/user');
+    }
+
+    public function testStatefulUserMustMatchProvider(): void
+    {
+        $this->createSanctumTestUsersTable();
+
+        $config = $this->app->make('config');
+        $config->set('auth.providers.admins', [
+            'driver' => 'eloquent',
+            'model' => SanctumTestUser::class,
+        ]);
+        $config->set('auth.guards.web.provider', 'admins');
+        $this->app->make('auth')->forgetGuards();
+
+        $sessionUser = SanctumTestUser::create([
+            'name' => 'Session User',
+            'email' => 'session@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+        $this->app->make('auth')->guard('web')->setUser($sessionUser);
+
+        [$tokenUser, $token, $plainToken] = $this->createUserWithToken(plainTextToken: 'provider-match');
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $tokenUser->id,
+                'token_id' => $token->id,
+            ]);
+    }
+
+    public function testSecondListedSessionGuardIsTried(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('auth.guards.admin', [
+            'driver' => 'session',
+            'provider' => 'users',
+        ]);
+        $config->set('auth.guards.sanctum.session_guards', ['admin', 'web']);
+        $this->app->make('auth')->forgetGuards();
+
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'test-second@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+
+        $this->app->make('auth')->guard('web')->setUser($user);
+
+        $this->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'token_class' => TransientToken::class,
+            ]);
+    }
+
+    public function testNullUserFromStatefulGuardFallsThroughToLaterSessionGuard(): void
+    {
+        $auth = $this->app->make('auth');
+        $auth->extend('null-stateful', fn () => new NullUserStatefulGuard);
+
+        $config = $this->app->make('config');
+        $config->set('auth.guards.null-stateful', [
+            'driver' => 'null-stateful',
+            'provider' => 'users',
+        ]);
+        $config->set('auth.guards.sanctum.session_guards', ['null-stateful', 'web']);
+        $auth->forgetGuards();
+
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'test-null-stateful@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+
+        $auth->guard('web')->setUser($user);
+
+        $this->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'token_class' => TransientToken::class,
+            ]);
+    }
+
+    public function testNullUserFromStatefulGuardFallsThroughToBearerToken(): void
+    {
+        $auth = $this->app->make('auth');
+        $auth->extend('null-stateful', fn () => new NullUserStatefulGuard);
+
+        $config = $this->app->make('config');
+        $config->set('auth.guards.null-stateful', [
+            'driver' => 'null-stateful',
+            'provider' => 'users',
+        ]);
+        $config->set('auth.guards.sanctum.session_guards', ['null-stateful']);
+        $auth->forgetGuards();
+
+        [$user, $token, $plainToken] = $this->createUserWithToken(plainTextToken: 'null-stateful-token');
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
                 'token_id' => $token->id,
             ]);
     }
@@ -411,5 +647,76 @@ class GuardTest extends TestCase
                 'can_write' => true,
                 'can_delete' => false,
             ]);
+    }
+}
+
+class NullUserStatefulGuard implements StatefulGuard
+{
+    public function attempt(array $credentials = [], bool $remember = false): bool
+    {
+        return false;
+    }
+
+    public function once(array $credentials = []): bool
+    {
+        return false;
+    }
+
+    public function login(Authenticatable $user, bool $remember = false): void
+    {
+    }
+
+    public function loginUsingId(mixed $id, bool $remember = false): Authenticatable|false
+    {
+        return false;
+    }
+
+    public function onceUsingId(mixed $id): Authenticatable|false
+    {
+        return false;
+    }
+
+    public function viaRemember(): bool
+    {
+        return false;
+    }
+
+    public function logout(): void
+    {
+    }
+
+    public function check(): bool
+    {
+        return true;
+    }
+
+    public function guest(): bool
+    {
+        return false;
+    }
+
+    public function user(): ?Authenticatable
+    {
+        return null;
+    }
+
+    public function id(): int|string|null
+    {
+        return null;
+    }
+
+    public function validate(array $credentials = []): bool
+    {
+        return false;
+    }
+
+    public function hasUser(): bool
+    {
+        return false;
+    }
+
+    public function setUser(Authenticatable $user): static
+    {
+        return $this;
     }
 }

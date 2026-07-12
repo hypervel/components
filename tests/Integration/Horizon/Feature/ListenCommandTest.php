@@ -65,6 +65,10 @@ class ListenCommandTest extends IntegrationTestCase
                 public function restart(): void
                 {
                 }
+
+                public function stop(): void
+                {
+                }
             };
         });
 
@@ -89,6 +93,10 @@ class ListenCommandTest extends IntegrationTestCase
                 public function restart(): void
                 {
                 }
+
+                public function stop(): void
+                {
+                }
             };
         });
 
@@ -111,6 +119,10 @@ class ListenCommandTest extends IntegrationTestCase
                 }
 
                 public function restart(): void
+                {
+                }
+
+                public function stop(): void
                 {
                 }
             };

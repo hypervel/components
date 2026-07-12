@@ -86,15 +86,21 @@ class Concurrent
     {
         $this->channel->push(true);
 
-        Coroutine::create(function () use ($callable) {
-            try {
-                $callable();
-            } catch (Throwable $exception) {
-                $this->reportException($exception);
-            } finally {
-                $this->channel->pop();
-            }
-        });
+        try {
+            Coroutine::create(function () use ($callable): void {
+                try {
+                    $callable();
+                } catch (Throwable $exception) {
+                    $this->reportException($exception);
+                } finally {
+                    $this->channel->pop();
+                }
+            });
+        } catch (Throwable $exception) {
+            $this->channel->pop();
+
+            throw $exception;
+        }
     }
 
     /**
@@ -106,15 +112,21 @@ class Concurrent
     {
         $this->channel->push(true);
 
-        Coroutine::fork(function () use ($callable) {
-            try {
-                $callable();
-            } catch (Throwable $exception) {
-                $this->reportException($exception);
-            } finally {
-                $this->channel->pop();
-            }
-        }, $keys);
+        try {
+            Coroutine::fork(function () use ($callable): void {
+                try {
+                    $callable();
+                } catch (Throwable $exception) {
+                    $this->reportException($exception);
+                } finally {
+                    $this->channel->pop();
+                }
+            }, $keys);
+        } catch (Throwable $exception) {
+            $this->channel->pop();
+
+            throw $exception;
+        }
     }
 
     /**

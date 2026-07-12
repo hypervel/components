@@ -73,7 +73,7 @@ trait InteractsWithTestCaseLifecycle
 
         // Reset after Application exists so container-change detection works correctly
         // and rebinding hooks are registered on the current container.
-        DatabaseConnectionResolver::flushCachedConnections();
+        DatabaseConnectionResolver::resetCachedConnections();
 
         $this->runInCoroutine(function () {
             $this->setUpTraits();
@@ -106,12 +106,16 @@ trait InteractsWithTestCaseLifecycle
                 fn () => $this->callBeforeApplicationDestroyedCallbacks()
             );
 
+            $this->runInCoroutine(
+                fn () => DatabaseConnectionResolver::flushCachedConnections()
+            );
+
             // Flush the DB connection pool in a separate coroutine so the
             // pooled connections checked out during the destroyed callbacks
             // (e.g. migrate:rollback) are first released by their Coroutine::defer
-            // when the previous coroutine ends. flushAll() can only drain
-            // connections already in the channel. Without the second coroutine,
-            // the flush runs while connections are still pinned and is a no-op.
+            // when the previous coroutine ends. This lets close() drain them
+            // immediately; any genuinely late release is still destroyed by
+            // the closed pool rather than returned to circulation.
             // The resolved() gate skips the work for tests that never touched
             // the DB pool factory.
             if ($this->app->resolved(PoolFactory::class)) {

@@ -32,7 +32,7 @@ class WithWorkbenchTest extends TestCase
             'env' => ["APP_NAME='Testbench'"],
             'bootstrappers' => [],
             'providers' => ['Workbench\App\Providers\WorkbenchServiceProvider'],
-            'dont-discover' => [],
+            'dont-discover' => ['hypervel/components'],
         ], $cachedConfig->getExtraAttributes());
     }
 
@@ -73,6 +73,38 @@ class WithWorkbenchTest extends TestCase
         $loadedProviders = collect($this->app->getLoadedProviders())->keys()->all();
 
         $this->assertContains('Workbench\App\Providers\AppServiceProvider', $loadedProviders);
+    }
+
+    #[Test]
+    public function itIgnoresStrayTestbenchAppBasePathEnvironmentValues()
+    {
+        $previousAppBasePathExists = array_key_exists('APP_BASE_PATH', $_ENV);
+        $previousAppBasePath = $_ENV['APP_BASE_PATH'] ?? null;
+        $previousTestbenchAppBasePathExists = array_key_exists('TESTBENCH_APP_BASE_PATH', $_ENV);
+        $previousTestbenchAppBasePath = $_ENV['TESTBENCH_APP_BASE_PATH'] ?? null;
+
+        try {
+            unset($_ENV['APP_BASE_PATH']);
+            $_ENV['TESTBENCH_APP_BASE_PATH'] = '/tmp/parent-runtime-clone';
+
+            $this->assertNull(static::applicationBasePathUsingWorkbench());
+
+            $_ENV['APP_BASE_PATH'] = '/tmp/user-override';
+
+            $this->assertSame('/tmp/user-override', static::applicationBasePathUsingWorkbench());
+        } finally {
+            if ($previousAppBasePathExists) {
+                $_ENV['APP_BASE_PATH'] = $previousAppBasePath;
+            } else {
+                unset($_ENV['APP_BASE_PATH']);
+            }
+
+            if ($previousTestbenchAppBasePathExists) {
+                $_ENV['TESTBENCH_APP_BASE_PATH'] = $previousTestbenchAppBasePath;
+            } else {
+                unset($_ENV['TESTBENCH_APP_BASE_PATH']);
+            }
+        }
     }
 
     #[Test]

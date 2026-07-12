@@ -425,6 +425,16 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $this->assertTrue($provider->isCacheEnabled());
     }
 
+    public function testEnableCacheAcceptsTagsWithAnyModeStackStore()
+    {
+        $this->stubCache(StackStore::class, tagMode: TagMode::Any);
+
+        $provider = $this->providerWithoutDbFetch();
+        $provider->enableCache(null, tags: ['auth_users']);
+
+        $this->assertTrue($provider->isCacheEnabled());
+    }
+
     public function testEnableCacheRejectsTagsWithAllModeStore()
     {
         $this->stubCache(RedisStore::class, tagMode: TagMode::All);
@@ -445,7 +455,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $provider = $this->providerWithoutDbFetch();
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/require a TaggableStore/');
+        $this->expectExceptionMessageMatches('/require a store that supports tags/');
 
         $provider->enableCache(null, tags: ['auth_users']);
     }
@@ -455,7 +465,24 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         yield 'File' => [FileStore::class];
         yield 'Database' => [DatabaseStore::class];
         yield 'Swoole' => [SwooleStore::class];
-        yield 'Stack' => [StackStore::class];
+    }
+
+    public function testEnableCacheRejectsTagsWithInvalidStackWithoutReadingMode()
+    {
+        $store = m::mock(StackStore::class);
+        $store->shouldReceive('supportsTags')->once()->andReturnFalse();
+        $store->shouldNotReceive('getTagMode');
+
+        $repo = m::mock(CacheRepository::class);
+        $repo->shouldReceive('getStore')->andReturn($store);
+        $this->cacheManager->shouldReceive('store')->with(null)->andReturn($repo);
+
+        $provider = $this->providerWithoutDbFetch();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/require a store that supports tags/');
+
+        $provider->enableCache(null, tags: ['auth_users']);
     }
 
     public function testRetrieveByIdMissUsesTaggedRepoForPutWhenTagsConfigured()
@@ -672,6 +699,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         // call uses a plain Redis store (no tags). Set up both upfront so
         // the cache manager returns them in sequence from store(null).
         $store1 = m::mock(RedisStore::class);
+        $store1->shouldReceive('supportsTags')->andReturnTrue();
         $store1->shouldReceive('getTagMode')->andReturn(TagMode::Any);
         $repo1 = m::mock(CacheRepository::class);
         $repo1->shouldReceive('getStore')->andReturn($store1);
@@ -754,6 +782,7 @@ class AuthEloquentUserProviderCacheTest extends TestCase
         $store = m::mock($storeClass);
 
         if ($tagMode !== null) {
+            $store->shouldReceive('supportsTags')->andReturnTrue();
             $store->shouldReceive('getTagMode')->andReturn($tagMode);
         }
 

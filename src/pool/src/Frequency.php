@@ -74,15 +74,13 @@ class Frequency implements FrequencyInterface, LowFrequencyInterface
     {
         $this->flush();
 
-        $hits = 0;
-        $count = 0;
+        $sampleCount = count($this->hits);
 
-        foreach ($this->hits as $hit) {
-            ++$count;
-            $hits += $hit;
+        if ($sampleCount === 0) {
+            return 0.0;
         }
 
-        return floatval($hits / $count);
+        return array_sum($this->hits) / $sampleCount;
     }
 
     /**

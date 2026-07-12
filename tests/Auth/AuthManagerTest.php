@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Closure;
+use Hypervel\Auth\AuthenticationException;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\DatabaseUserProvider;
 use Hypervel\Auth\EloquentUserProvider;
+use Hypervel\Auth\Middleware\Authenticate;
+use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Auth\RequestGuard;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\RedisStore;
@@ -16,6 +19,7 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
@@ -24,6 +28,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Foundation\Auth\User as FoundationUser;
 use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Auth as AuthFacade;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -53,6 +58,17 @@ class AuthManagerTest extends TestCase
         });
 
         $this->assertSame('foo', $manager->getDefaultDriver());
+    }
+
+    public function testGetDefaultDriverAcceptsFalseyContextValue(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')
+            ->set('auth.defaults.guard', 'foo');
+
+        CoroutineContext::set(AuthManager::DEFAULT_GUARD_CONTEXT_KEY, '0');
+
+        $this->assertSame('0', $manager->getDefaultDriver());
     }
 
     public function testSetDefaultDriverUsesContext()
@@ -85,6 +101,17 @@ class AuthManagerTest extends TestCase
         $this->assertInstanceOf(Closure::class, $manager->userResolver());
     }
 
+    public function testShouldUseAcceptsFalseyGuardName(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')
+            ->set('auth.defaults.guard', 'foo');
+
+        $manager->shouldUse('0');
+
+        $this->assertSame('0', $manager->getDefaultDriver());
+    }
+
     public function testExtendDriver()
     {
         $manager = new AuthManager($container = $this->getContainer());
@@ -97,6 +124,27 @@ class AuthManagerTest extends TestCase
         });
 
         $this->assertSame($guard, $manager->guard('foo'));
+    }
+
+    public function testGuardWithExplicitFalseyNameDoesNotFallBackToDefaultDriver(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')
+            ->set('auth.defaults.guard', 'foo');
+        $container->make('config')
+            ->set('auth.guards.0', ['driver' => 'bar']);
+        $container->make('config')
+            ->set('auth.guards.foo', ['driver' => 'bar']);
+
+        $guard = m::mock(Guard::class);
+        $test = $this;
+        $manager->extend('bar', function ($app, string $name) use ($guard, $test): Guard {
+            $test->assertSame('0', $name);
+
+            return $guard;
+        });
+
+        $this->assertSame($guard, $manager->guard('0'));
     }
 
     public function testExtendCallbackIsBoundToManager()
@@ -117,21 +165,35 @@ class AuthManagerTest extends TestCase
         $this->assertSame($manager, $boundTo);
     }
 
-    public function testGetDefaultUserProvider()
-    {
-        $manager = new AuthManager($container = $this->getContainer());
-        $container->make('config')
-            ->set('auth.defaults.provider', 'foo');
-
-        $this->assertSame('foo', $manager->getDefaultUserProvider());
-    }
-
     public function testCreateUserProviderReturnsNullWhenNoProviderIsConfigured(): void
     {
         $manager = new AuthManager($this->getContainer());
 
-        $this->assertNull($manager->getDefaultUserProvider());
         $this->assertNull($manager->createUserProvider());
+    }
+
+    public function testGetDefaultUserProviderUsesCurrentDefaultGuard(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $config = $container->make('config');
+        $config->set('auth.defaults.guard', 'web');
+        $config->set('auth.guards.web.provider', 'users');
+        $config->set('auth.guards.admin.provider', 'admins');
+
+        $this->assertSame('users', $manager->getDefaultUserProvider());
+
+        $manager->shouldUse('admin');
+
+        $this->assertSame('admins', $manager->getDefaultUserProvider());
+    }
+
+    public function testGetDefaultUserProviderReturnsNullWhenCurrentGuardHasNoProvider(): void
+    {
+        $manager = new AuthManager($container = $this->getContainer());
+        $container->make('config')->set('auth.defaults.guard', 'api');
+        $container->make('config')->set('auth.guards.api', ['driver' => 'token']);
+
+        $this->assertNull($manager->getDefaultUserProvider());
     }
 
     public function testCreateNullUserProvider()
@@ -197,7 +259,7 @@ class AuthManagerTest extends TestCase
         $this->assertSame('foo', $manager->userResolver()());
     }
 
-    public function testViaRequest()
+    public function testViaRequest(): void
     {
         $manager = new AuthManager($this->app);
         RequestContext::set(Request::create('/'));
@@ -209,18 +271,165 @@ class AuthManagerTest extends TestCase
         $this->app->make('config')
             ->set('auth.guards.foo', [
                 'driver' => 'custom',
+                'provider' => 'foo',
             ]);
-        $this->app->make('config')
-            ->set('auth.defaults.provider', 'foo');
 
         $provider = m::mock(UserProvider::class);
         $manager->provider('foo', fn () => $provider);
 
         $user = m::mock(Authenticatable::class);
-        $manager->viaRequest('custom', fn () => $user);
+        $manager->viaRequest('custom', function (Request $request, ?UserProvider $requestProvider) use ($provider, $user) {
+            $this->assertSame($provider, $requestProvider);
+
+            return $user;
+        });
 
         $this->assertInstanceOf(RequestGuard::class, $guard = $manager->guard('foo'));
+        $this->assertSame($provider, $guard->getProvider());
         $this->assertSame($user, $guard->user());
+    }
+
+    public function testViaRequestGuardWithoutProviderKeyGetsNullProvider(): void
+    {
+        $manager = new AuthManager($this->app);
+        RequestContext::set(Request::create('/'));
+
+        $this->app->make('config')
+            ->set('auth.guards.foo', [
+                'driver' => 'custom',
+            ]);
+
+        $user = m::mock(Authenticatable::class);
+        $manager->viaRequest('custom', function (Request $request, ?UserProvider $requestProvider) use ($user) {
+            $this->assertNull($requestProvider);
+
+            return $user;
+        });
+
+        $this->assertInstanceOf(RequestGuard::class, $guard = $manager->guard('foo'));
+        $this->assertNull($guard->getProvider());
+        $this->assertSame($user, $guard->user());
+    }
+
+    public function testRedirectGuestsToConfiguresAuthenticateMiddleware(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $guard = m::mock(Guard::class);
+        $guard->shouldReceive('check')->andReturnFalse();
+
+        $factory = m::mock(AuthFactory::class);
+        $factory->shouldReceive('guard')->with(null)->andReturn($guard);
+
+        $manager->redirectGuestsTo('/login');
+
+        // Isolate Authenticate's own slot so this test fails if the aggregate
+        // stops configuring the auth-middleware redirect directly.
+        AuthenticationException::flushState();
+
+        try {
+            (new Authenticate($factory))->handle(Request::create('/secret'), fn () => null);
+        } catch (AuthenticationException $exception) {
+            $this->assertSame('/login', $exception->redirectTo(Request::create('/secret')));
+
+            return;
+        }
+
+        $this->fail('AuthenticationException was not thrown.');
+    }
+
+    public function testRedirectGuestsToConfiguresAuthenticationExceptionFallbackPerRequest(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $manager->redirectGuestsTo(fn (Request $request) => $request->headers->get('X-Tenant') === 'admin'
+            ? '/admin/login'
+            : '/login');
+
+        $this->assertSame(
+            '/admin/login',
+            (new AuthenticationException)->redirectTo(Request::create('/', server: ['HTTP_X_TENANT' => 'admin']))
+        );
+
+        $this->assertSame(
+            '/login',
+            (new AuthenticationException)->redirectTo(Request::create('/'))
+        );
+    }
+
+    public function testRedirectGuestsToCanBeConfiguredThroughFacade(): void
+    {
+        AuthFacade::swap(new AuthManager($this->getContainer()));
+
+        AuthFacade::redirectGuestsTo('/facade-login');
+
+        $this->assertSame('/facade-login', (new AuthenticationException)->redirectTo(Request::create('/')));
+    }
+
+    public function testRedirectUsersToConfiguresRedirectIfAuthenticatedMiddlewarePerRequest(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+        $manager->redirectUsersTo(fn (Request $request) => $request->headers->get('X-Tenant') === 'admin'
+            ? '/admin'
+            : '/dashboard');
+
+        $guard = m::mock(Guard::class);
+        $guard->shouldReceive('check')->andReturnTrue();
+
+        $factory = m::mock(AuthFactory::class);
+        $factory->shouldReceive('guard')->andReturn($guard);
+        AuthFacade::swap($factory);
+
+        $response = (new RedirectIfAuthenticated)->handle(
+            Request::create('/login', server: ['HTTP_X_TENANT' => 'admin']),
+            fn () => null
+        );
+
+        $this->assertStringContainsString('/admin', $response->headers->get('Location'));
+    }
+
+    public function testRedirectToConfiguresBothRedirectSides(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $manager->redirectTo(guests: '/login', users: '/dashboard');
+
+        $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
+
+        $guard = m::mock(Guard::class);
+        $guard->shouldReceive('check')->andReturnTrue();
+
+        $factory = m::mock(AuthFactory::class);
+        $factory->shouldReceive('guard')->andReturn($guard);
+        AuthFacade::swap($factory);
+
+        $response = (new RedirectIfAuthenticated)->handle(Request::create('/login'), fn () => null);
+
+        $this->assertStringContainsString('/dashboard', $response->headers->get('Location'));
+    }
+
+    public function testRedirectConfigurationUsesMostRecentHighLevelRegistration(): void
+    {
+        $manager = new AuthManager($this->getContainer());
+
+        $manager->redirectGuestsTo('/first-login');
+        $manager->redirectGuestsTo('/second-login');
+
+        $this->assertSame('/second-login', (new AuthenticationException)->redirectTo(Request::create('/')));
+
+        $manager->redirectUsersTo('/first-dashboard');
+        $manager->redirectUsersTo('/second-dashboard');
+
+        $guard = m::mock(Guard::class);
+        $guard->shouldReceive('check')->andReturnTrue();
+
+        $factory = m::mock(AuthFactory::class);
+        $factory->shouldReceive('guard')->andReturn($guard);
+        AuthFacade::swap($factory);
+
+        $response = (new RedirectIfAuthenticated)->handle(Request::create('/login'), fn () => null);
+
+        $this->assertStringContainsString('/second-dashboard', $response->headers->get('Location'));
     }
 
     public function testGuardCachesResolvedInstances()

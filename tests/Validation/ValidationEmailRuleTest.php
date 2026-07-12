@@ -615,25 +615,8 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
-    public function testNativeValidationVsRfcCompliant()
-    {
-        $emailsThatPassNativeFailRfc = [
-            // none I could find
-        ];
-
-        foreach ($emailsThatPassNativeFailRfc as $email) {
-            $this->passes(
-                Rule::email()->withNativeValidation(),
-                $email
-            );
-
-            $this->fails(
-                Rule::email()->rfcCompliant(),
-                $email,
-                ['The ' . self::ATTRIBUTE_REPLACED . ' must be a valid email address.']
-            );
-        }
-    }
+    // REMOVED: testNativeValidationVsRfcCompliant — upstream no-op placeholder
+    // with an empty data set, zero assertions, and risky PHPUnit result.
 
     #[TestWith(['abc."test"@example.com'])] // Mixed quotes in local part
     #[TestWith(['name@[127.0.0.1]'])] // Local-part with domain-literal IPv4 address

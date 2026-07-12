@@ -4,16 +4,33 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Horizon\Feature\Fixtures;
 
-class EternalSupervisor
-{
-    public $name = 'eternal';
+use Hypervel\Horizon\SupervisorOptions;
+use Hypervel\Horizon\SupervisorProcess;
+use Symfony\Component\Process\Process;
 
-    public function terminate()
+class EternalSupervisor extends SupervisorProcess
+{
+    public bool $killed = false;
+
+    public function __construct()
+    {
+        parent::__construct(
+            new SupervisorOptions('eternal', 'redis'),
+            new Process(['true']),
+        );
+    }
+
+    public function terminate(): void
     {
     }
 
-    public function isRunning()
+    public function isRunning(): bool
     {
         return true;
+    }
+
+    public function kill(): void
+    {
+        $this->killed = true;
     }
 }

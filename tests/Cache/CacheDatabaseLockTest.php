@@ -18,7 +18,7 @@ use Mockery as m;
 
 class CacheDatabaseLockTest extends TestCase
 {
-    public function testLockCanBeAcquired()
+    public function testLockCanBeAcquired(): void
     {
         [$lock, $table] = $this->getLock();
 
@@ -32,7 +32,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
-    public function testLockCanBeAcquiredIfAlreadyOwnedBySameOwner()
+    public function testLockCanBeAcquiredIfAlreadyOwnedBySameOwner(): void
     {
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
@@ -58,7 +58,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
-    public function testLockCannotBeAcquiredIfAlreadyHeld()
+    public function testLockCannotBeAcquiredIfAlreadyHeld(): void
     {
         [$lock, $table] = $this->getLock();
 
@@ -85,7 +85,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertFalse($lock->acquire());
     }
 
-    public function testExpiredLocksAreDeletedDuringAcquisition()
+    public function testExpiredLocksAreDeletedDuringAcquisition(): void
     {
         [$lock, $table] = $this->getLock(lockLottery: [1, 1]); // Always hit lottery
 
@@ -98,13 +98,14 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
-    public function testLockCanBeReleased()
+    public function testLockCanBeReleased(): void
     {
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
 
         // Check ownership
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn((object) ['owner' => $owner]);
 
         // Delete
@@ -115,27 +116,41 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->release());
     }
 
-    public function testLockCannotBeReleasedIfNotOwned()
+    public function testLockCannotBeReleasedIfNotOwned(): void
     {
         [$lock, $table] = $this->getLock();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn((object) ['owner' => 'different-owner']);
 
         $this->assertFalse($lock->release());
     }
 
-    public function testLockCannotBeReleasedIfNotExists()
+    public function testLockCannotBeReleasedIfNotExists(): void
     {
         [$lock, $table] = $this->getLock();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn(null);
 
         $this->assertFalse($lock->release());
     }
 
-    public function testLockCanBeForceReleased()
+    public function testExpiredLockIsNotLockedOrOwned(): void
+    {
+        [$lock, $table] = $this->getLock();
+
+        $table->shouldReceive('where')->twice()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->twice()->with('expiration', '>', m::type('int'))->andReturn($table);
+        $table->shouldReceive('first')->twice()->andReturn(null);
+
+        $this->assertFalse($lock->isLocked());
+        $this->assertFalse($lock->isOwnedByCurrentProcess());
+    }
+
+    public function testLockCanBeForceReleased(): void
     {
         [$lock, $table] = $this->getLock();
 
@@ -146,7 +161,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue(true); // Just verify no exceptions
     }
 
-    public function testLockWithDefaultTimeout()
+    public function testLockWithDefaultTimeout(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
@@ -162,14 +177,14 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
-    public function testLockImplementsRefreshableLock()
+    public function testLockImplementsRefreshableLock(): void
     {
         [$lock] = $this->getLock();
 
         $this->assertInstanceOf(RefreshableLock::class, $lock);
     }
 
-    public function testRefreshExtendsLockExpiration()
+    public function testRefreshExtendsLockExpiration(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
@@ -178,6 +193,7 @@ class CacheDatabaseLockTest extends TestCase
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
         $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
         $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($now) {
             return is_array($arg)
                 && $arg['expiration'] === $now->getTimestamp() + 10;
@@ -186,7 +202,7 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->refresh());
     }
 
-    public function testRefreshWithCustomTtl()
+    public function testRefreshWithCustomTtl(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
@@ -195,6 +211,7 @@ class CacheDatabaseLockTest extends TestCase
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
         $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
         $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($now) {
             return is_array($arg)
                 && $arg['expiration'] === $now->getTimestamp() + 30;
@@ -203,27 +220,51 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertTrue($lock->refresh(30));
     }
 
-    public function testRefreshReturnsFalseWhenNotOwned()
+    public function testRefreshReturnsFalseWhenNotOwned(): void
     {
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
         $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
         $table->shouldReceive('update')->once()->andReturn(0);
 
         $this->assertFalse($lock->refresh());
     }
 
-    public function testRefreshOnPermanentLockReturnsTrue()
+    public function testRefreshOnDefaultTimeoutLockReappliesDefaultTimeout(): void
     {
-        [$lock] = $this->getLock(seconds: 0);
+        Carbon::setTestNow($now = Carbon::now());
 
-        // No database call should be made - it's a no-op for permanent locks
+        [$lock, $table] = $this->getLock(seconds: 0);
+        $owner = $lock->owner();
+
+        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
+        $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($now) {
+            return is_array($arg)
+                && $arg['expiration'] === $now->getTimestamp() + 86400;
+        }))->andReturn(1);
+
         $this->assertTrue($lock->refresh());
     }
 
-    public function testRefreshWithExplicitZeroThrowsException()
+    public function testRefreshReturnsFalseWhenExpired(): void
+    {
+        [$lock, $table] = $this->getLock();
+        $owner = $lock->owner();
+
+        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
+        $table->shouldReceive('update')->once()->andReturn(0);
+
+        $this->assertFalse($lock->refresh());
+    }
+
+    public function testRefreshWithExplicitZeroThrowsException(): void
     {
         [$lock] = $this->getLock(seconds: 10);
 
@@ -233,7 +274,7 @@ class CacheDatabaseLockTest extends TestCase
         $lock->refresh(0);
     }
 
-    public function testRefreshWithNegativeSecondsThrowsException()
+    public function testRefreshWithNegativeSecondsThrowsException(): void
     {
         [$lock] = $this->getLock(seconds: 10);
 
@@ -243,13 +284,14 @@ class CacheDatabaseLockTest extends TestCase
         $lock->refresh(-5);
     }
 
-    public function testGetRemainingLifetimeReturnsSeconds()
+    public function testGetRemainingLifetimeReturnsSeconds(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
         [$lock, $table] = $this->getLock();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', $now->getTimestamp())->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn((object) [
             'expiration' => $now->getTimestamp() + 5,
         ]);
@@ -257,52 +299,63 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertSame(5.0, $lock->getRemainingLifetime());
     }
 
-    public function testGetRemainingLifetimeReturnsNullWhenLockDoesNotExist()
+    public function testGetRemainingLifetimeReturnsNullWhenLockDoesNotExist(): void
     {
         [$lock, $table] = $this->getLock();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '>', m::type('int'))->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn(null);
 
         $this->assertNull($lock->getRemainingLifetime());
     }
 
-    public function testGetRemainingLifetimeReturnsNullWhenExpired()
+    public function testGetRemainingLifetimeReturnsNullWhenExpired(): void
     {
         Carbon::setTestNow($now = Carbon::now());
 
         [$lock, $table] = $this->getLock();
 
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('first')->once()->andReturn((object) [
-            'expiration' => $now->getTimestamp() - 1, // Already expired
-        ]);
+        $table->shouldReceive('where')->once()->with('expiration', '>', $now->getTimestamp())->andReturn($table);
+        $table->shouldReceive('first')->once()->andReturn(null);
 
         $this->assertNull($lock->getRemainingLifetime());
     }
 
-    public function testGetConnectionNameReturnsConnectionName()
+    public function testGetConnectionNameReturnsConnectionName(): void
     {
-        [$lock] = $this->getLock();
+        [$lock,, $connection] = $this->getLock();
+
+        $connection->shouldReceive('getName')->once()->andReturn('default');
 
         $this->assertSame('default', $lock->getConnectionName());
+    }
+
+    public function testGetConnectionNameCanReturnNull(): void
+    {
+        [$lock,, $connection] = $this->getLock(connectionName: null);
+
+        $connection->shouldReceive('getName')->once()->andReturn(null);
+
+        $this->assertNull($lock->getConnectionName());
     }
 
     /**
      * Get a DatabaseLock instance with mocked dependencies.
      */
-    protected function getLock(int $seconds = 10, array $lockLottery = [0, 1]): array
+    protected function getLock(int $seconds = 10, array $lockLottery = [0, 1], ?string $connectionName = 'default'): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(ConnectionInterface::class);
         $table = m::mock(Builder::class);
 
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
+        $resolver->shouldReceive('connection')->with($connectionName)->andReturn($connection);
         $connection->shouldReceive('table')->with('cache_locks')->andReturn($table);
 
         $lock = new DatabaseLock(
             $resolver,
-            'default',
+            $connectionName,
             'foo',
             'cache_locks',
             $seconds,

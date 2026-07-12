@@ -177,4 +177,34 @@ class ConfigCacheCommandTest extends TestCase
 
         $this->assertSame('beta', $cached['testconfig']['value']);
     }
+
+    public function testConfigCacheSubprocessUsesTheParentsResolvedCachePath(): void
+    {
+        $files = new Filesystem;
+        $previousCachePath = $_SERVER['APP_CONFIG_CACHE'] ?? null;
+        $hadCachePath = array_key_exists('APP_CONFIG_CACHE', $_SERVER);
+        $defaultCachePath = $this->app->bootstrapPath('cache/config.php');
+        $alternateCachePath = $this->app->bootstrapPath('cache/config-alternate.php');
+        $this->files[] = 'bootstrap/cache/config-alternate.php';
+        $files->put($defaultCachePath, "<?php return ['stale' => true];\n");
+        $files->put(
+            $this->app->configPath('testconfig.php'),
+            "<?php return ['value' => 'source'];\n",
+        );
+        $_SERVER['APP_CONFIG_CACHE'] = $alternateCachePath;
+
+        try {
+            $this->artisan('config:cache')->assertSuccessful();
+
+            $cached = require $alternateCachePath;
+            $this->assertSame('source', $cached['testconfig']['value']);
+            $this->assertArrayNotHasKey('stale', $cached);
+        } finally {
+            if ($hadCachePath) {
+                $_SERVER['APP_CONFIG_CACHE'] = $previousCachePath;
+            } else {
+                unset($_SERVER['APP_CONFIG_CACHE']);
+            }
+        }
+    }
 }

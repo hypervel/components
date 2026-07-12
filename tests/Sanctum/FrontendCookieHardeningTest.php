@@ -28,7 +28,7 @@ class FrontendCookieHardeningTest extends TestCase
             'session.driver' => 'array',
             'session.http_only' => false,
             'session.same_site' => 'strict',
-            'sanctum.stateful' => ['test.com'],
+            'sanctum.stateful_domains' => ['test.com'],
         ]);
     }
 

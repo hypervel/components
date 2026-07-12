@@ -46,6 +46,39 @@ class HasherTest extends TestCase
         $this->assertFalse($hasher->check('password', null));
     }
 
+    public function testNullOrEmptyHashedValueDoesNotNeedRehash()
+    {
+        $hasher = new BcryptHasher;
+        $this->assertFalse($hasher->needsRehash(null));
+        $this->assertFalse($hasher->needsRehash(''));
+
+        $hasher = new ArgonHasher;
+        $this->assertFalse($hasher->needsRehash(null));
+        $this->assertFalse($hasher->needsRehash(''));
+
+        $hasher = new Argon2IdHasher;
+        $this->assertFalse($hasher->needsRehash(null));
+        $this->assertFalse($hasher->needsRehash(''));
+
+        $this->assertFalse($this->hashManager->needsRehash(null));
+        $this->assertFalse($this->hashManager->needsRehash(''));
+    }
+
+    public function testVerifiedHashersReturnFalseForNullOrEmptyHash()
+    {
+        $hasher = new BcryptHasher(['verify' => true]);
+        $this->assertFalse($hasher->check('password', null));
+        $this->assertFalse($hasher->check('password', ''));
+
+        $hasher = new ArgonHasher(['verify' => true]);
+        $this->assertFalse($hasher->check('password', null));
+        $this->assertFalse($hasher->check('password', ''));
+
+        $hasher = new Argon2IdHasher(['verify' => true]);
+        $this->assertFalse($hasher->check('password', null));
+        $this->assertFalse($hasher->check('password', ''));
+    }
+
     public function testBasicBcryptHashing()
     {
         $hasher = new BcryptHasher;

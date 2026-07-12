@@ -44,7 +44,7 @@ class FindDriver extends AbstractDriver
         $this->startTime = time();
         $seconds = $this->option->getScanIntervalSeconds();
 
-        $this->timerId = $this->timer->tick($seconds, function () use ($channel) {
+        $this->watchAtInterval($seconds, function () use ($channel): void {
             [$this->fileModifyTimes, $changedFiles] = $this->scan($this->fileModifyTimes, $this->getScanIntervalMinutes());
 
             foreach ($changedFiles as $file) {
@@ -71,7 +71,7 @@ class FindDriver extends AbstractDriver
     protected function find(array $fileModifyTimes, array $targets, string $minutes): array
     {
         $changedFiles = [];
-        $dest = implode(' ', $targets);
+        $dest = $this->shellArguments($targets);
         $ret = $this->exec($this->getBin() . ' ' . $dest . ' -mmin ' . $minutes . ' -type f -print');
         if ($ret['code'] === 0 && strlen($ret['output'])) {
             $stdout = trim($ret['output']);

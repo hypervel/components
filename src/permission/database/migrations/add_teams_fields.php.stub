@@ -9,20 +9,10 @@ use Hypervel\Support\Facades\Schema;
 
 return new class extends Migration {
     /**
-     * Get the migration connection name.
-     */
-    public function getConnection(): ?string
-    {
-        return config('permission.storage.database.connection') ?: parent::getConnection();
-    }
-
-    /**
      * Run the migrations.
      */
     public function up(): void
     {
-        $schema = Schema::connection($this->getConnection());
-
         $teams = (bool) config('permission.teams');
         $tableNames = (array) config('permission.table_names');
         $columnNames = (array) config('permission.column_names');
@@ -38,8 +28,8 @@ return new class extends Migration {
         throw_if($tableNames === [], 'Error: config/permission.php not loaded. Run [php artisan config:clear] and try again.');
         throw_if($teamForeignKey === '', 'Error: team_foreign_key on config/permission.php not loaded. Run [php artisan config:clear] and try again.');
 
-        if (! $schema->hasColumn($tableNames['roles'], $teamForeignKey)) {
-            $schema->table($tableNames['roles'], static function (Blueprint $table) use ($teamForeignKey): void {
+        if (! Schema::hasColumn($tableNames['roles'], $teamForeignKey)) {
+            Schema::table($tableNames['roles'], static function (Blueprint $table) use ($teamForeignKey): void {
                 $table->unsignedBigInteger($teamForeignKey)->nullable()->after('id');
                 $table->index($teamForeignKey, 'roles_team_foreign_key_index');
 
@@ -48,8 +38,8 @@ return new class extends Migration {
             });
         }
 
-        if (! $schema->hasColumn($tableNames['model_has_permissions'], $teamForeignKey)) {
-            $schema->table($tableNames['model_has_permissions'], static function (Blueprint $table) use ($tableNames, $teamForeignKey, $modelMorphKey, $pivotPermission): void {
+        if (! Schema::hasColumn($tableNames['model_has_permissions'], $teamForeignKey)) {
+            Schema::table($tableNames['model_has_permissions'], static function (Blueprint $table) use ($tableNames, $teamForeignKey, $modelMorphKey, $pivotPermission): void {
                 $table->unsignedBigInteger($teamForeignKey)->default(1);
                 $table->index($teamForeignKey, 'model_has_permissions_team_foreign_key_index');
 
@@ -59,7 +49,7 @@ return new class extends Migration {
 
                 $table->dropPrimary();
 
-                $table->primary([$teamForeignKey, $pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'], 'model_has_permissions_permission_model_type_primary');
+                $table->primary([$teamForeignKey, $pivotPermission, $modelMorphKey, 'model_type'], 'model_has_permissions_permission_model_type_primary');
 
                 if (DB::getDriverName() !== 'sqlite') {
                     $table->foreign($pivotPermission)
@@ -70,8 +60,8 @@ return new class extends Migration {
             });
         }
 
-        if (! $schema->hasColumn($tableNames['model_has_roles'], $teamForeignKey)) {
-            $schema->table($tableNames['model_has_roles'], static function (Blueprint $table) use ($tableNames, $teamForeignKey, $modelMorphKey, $pivotRole): void {
+        if (! Schema::hasColumn($tableNames['model_has_roles'], $teamForeignKey)) {
+            Schema::table($tableNames['model_has_roles'], static function (Blueprint $table) use ($tableNames, $teamForeignKey, $modelMorphKey, $pivotRole): void {
                 $table->unsignedBigInteger($teamForeignKey)->default(1);
                 $table->index($teamForeignKey, 'model_has_roles_team_foreign_key_index');
 

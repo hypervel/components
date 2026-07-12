@@ -25,10 +25,12 @@ use Hypervel\Contracts\Foundation\CachesRoutes;
 use Hypervel\Contracts\Queue\Factory as Queue;
 use Hypervel\Foundation\Http\Middleware\PreventRequestForgery;
 use Hypervel\Http\Request;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Attributes\Connection as ConnectionAttribute;
 use Hypervel\Queue\Attributes\Queue as QueueAttribute;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
@@ -54,11 +56,6 @@ class BroadcastManager implements BroadcastingFactoryContract
      * The registered custom driver creators.
      */
     protected array $customCreators = [];
-
-    /**
-     * The pool proxy class.
-     */
-    protected string $poolProxyClass = BroadcastPoolProxy::class;
 
     /**
      * The array of drivers which will be wrapped as pool proxies.
@@ -280,13 +277,16 @@ class BroadcastManager implements BroadcastingFactoryContract
             throw new InvalidArgumentException("Broadcast connection [{$name}] is not defined.");
         }
 
-        return in_array($config['driver'], $this->poolables)
+        $constructionConfig = Arr::except($config, ['pool']);
+
+        return in_array($config['driver'], $this->poolables, true)
             ? $this->createPoolProxy(
-                $name,
-                fn () => $this->doResolve($name, $config),
-                $config['pool'] ?? []
+                $config['driver'],
+                fn () => $this->doResolve(null, $constructionConfig),
+                $this->poolDefinition($config['driver'], $config['pool'] ?? [], $constructionConfig),
+                BroadcastPoolProxy::class,
             )
-            : $this->doResolve($name, $config);
+            : $this->doResolve($name, $constructionConfig);
     }
 
     /**
@@ -295,7 +295,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      * @throws InvalidArgumentException
      * @throws RuntimeException
      */
-    protected function doResolve(string $name, array $config): Broadcaster
+    protected function doResolve(?string $name, array $config): Broadcaster
     {
         if (isset($this->customCreators[$config['driver']])) {
             return $this->callCustomCreator($config);
@@ -310,8 +310,12 @@ class BroadcastManager implements BroadcastingFactoryContract
         try {
             return $this->{$driverMethod}($config);
         } catch (Throwable $e) {
+            $resource = $name === null
+                ? "driver \"{$config['driver']}\""
+                : "connection \"{$name}\"";
+
             throw new RuntimeException(
-                "Failed to create broadcaster for connection \"{$name}\" with error: {$e->getMessage()}.",
+                "Failed to create broadcaster for {$resource} with error: {$e->getMessage()}.",
                 0,
                 $e,
             );
@@ -434,6 +438,14 @@ class BroadcastManager implements BroadcastingFactoryContract
     }
 
     /**
+     * Get the shared object-pool factory.
+     */
+    protected function poolFactory(): PoolFactory
+    {
+        return $this->app->make(PoolFactory::class);
+    }
+
+    /**
      * Get the default driver name.
      */
     public function getDefaultDriver(): string
@@ -452,17 +464,41 @@ class BroadcastManager implements BroadcastingFactoryContract
     }
 
     /**
-     * Disconnect the given driver and remove from local cache.
+     * Disconnect the given driver and close its shared resource pool.
      *
-     * Boot or tests only. Mutates the singleton's driver cache; concurrent
-     * coroutines may already hold a reference to the broadcaster and next
-     * resolution will rebuild.
+     * Boot or tests only, plus operational recovery of broken pooled
+     * resources. Other connections sharing the pool transparently acquire a
+     * fresh pool on their next operation.
      */
     public function purge(?string $name = null): void
     {
         $name ??= $this->getDefaultDriver();
+        $driver = $this->drivers[$name] ?? null;
 
         unset($this->drivers[$name]);
+
+        if ($driver !== null) {
+            if ($driver instanceof BroadcastPoolProxy) {
+                $driver->invalidatePool();
+            }
+
+            return;
+        }
+
+        $config = $this->getConfig($name);
+
+        if (is_null($config) || ! in_array($config['driver'], $this->poolables, true)) {
+            return;
+        }
+
+        $constructionConfig = Arr::except($config, ['pool']);
+        $definition = $this->poolDefinition(
+            $config['driver'],
+            $config['pool'] ?? [],
+            $constructionConfig,
+        );
+
+        $this->poolFactory()->remove($definition->identity);
     }
 
     /**
@@ -516,9 +552,8 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Forget all of the resolved driver instances.
      *
-     * Boot or tests only. Clears the singleton's driver cache; concurrent
-     * coroutines may already hold references that next resolution will not
-     * share.
+     * Boot or tests only. This is cache-only: pooled broadcasters remain
+     * shared resources until purged or reclaimed by their idle TTL.
      */
     public function forgetDrivers(): static
     {

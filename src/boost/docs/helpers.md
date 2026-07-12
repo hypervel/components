@@ -198,6 +198,8 @@ Hypervel includes a variety of global "helper" PHP functions. Many of these func
 [dump](#method-dump)
 [encrypt](#method-encrypt)
 [env](#method-env)
+[env_array](#method-env-array)
+[env_or_fail](#method-env-or-fail)
 [event](#method-event)
 [fake](#method-fake)
 [filled](#method-filled)
@@ -2662,6 +2664,30 @@ $env = env('APP_ENV', 'production');
 
 > [!WARNING]
 > If you execute the `config:cache` command during your deployment process, you should be sure that you are only calling the `env` function from within your configuration files. Once the configuration has been cached, the `.env` file will not be loaded and all calls to the `env` function will return external environment variables such as server-level or system-level environment variables or `null`.
+
+<a name="method-env-array"></a>
+#### `env_array()` {.collection-method}
+
+The `env_array` function retrieves a comma-separated environment variable as an array. Values are trimmed, empty values are removed, and the result is reindexed:
+
+```php
+$domains = env_array('APP_ALLOWED_DOMAINS', ['localhost']);
+```
+
+If the environment variable is missing, `null`, or `empty`, the default value is returned.
+
+If the value parses to a non-string, such as `true` or `false`, an `InvalidArgumentException` will be thrown.
+
+<a name="method-env-or-fail"></a>
+#### `env_or_fail()` {.collection-method}
+
+The `env_or_fail` function retrieves the value of a required environment variable:
+
+```php
+$secret = env_or_fail('STRIPE_SECRET');
+```
+
+This helper is evaluated when configuration files are loaded. If the environment variable is missing, application boot will fail.
 
 <a name="method-event"></a>
 #### `event()` {.collection-method}

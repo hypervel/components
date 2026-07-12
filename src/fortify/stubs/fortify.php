@@ -1,0 +1,109 @@
+<?php
+
+declare(strict_types=1);
+
+use Hypervel\Fortify\Features;
+
+return [
+    'middleware' => ['web'],
+
+    'guard' => null,
+
+    'auth_middleware' => 'auth',
+
+    'username' => 'email',
+
+    'email' => 'email',
+
+    'views' => true,
+
+    'home' => '/home',
+
+    'prefix' => '',
+
+    'domain' => null,
+
+    'lowercase_usernames' => false,
+
+    'limiters' => [
+        'login' => 'login',
+        'two-factor' => '5,1',
+        'passkeys' => 'passkeys',
+    ],
+
+    'paths' => [
+        'login' => null,
+        'logout' => null,
+        'password' => [
+            'request' => null,
+            'reset' => null,
+            'email' => null,
+            'update' => null,
+            'confirm' => null,
+            'confirmation' => null,
+        ],
+        'register' => null,
+        'verification' => [
+            'notice' => null,
+            'verify' => null,
+            'send' => null,
+        ],
+        'user-profile-information' => [
+            'update' => null,
+        ],
+        'user-password' => [
+            'update' => null,
+        ],
+        'two-factor' => [
+            'login' => null,
+            'enable' => null,
+            'confirm' => null,
+            'disable' => null,
+            'qr-code' => null,
+            'secret-key' => null,
+            'recovery-codes' => null,
+        ],
+        'passkey' => [
+            'login-options' => null,
+            'login' => null,
+            'confirm-options' => null,
+            'confirm' => null,
+            'registration-options' => null,
+            'store' => null,
+            'destroy' => null,
+        ],
+    ],
+
+    'redirects' => [
+        'login' => null,
+        'logout' => null,
+        'password-confirmation' => null,
+        'register' => null,
+        'email-verification' => null,
+        'password-reset' => null,
+    ],
+
+    'passkeys' => [
+        'relying_party_id' => env('PASSKEYS_RELYING_PARTY_ID', parse_url(config('app.url'), PHP_URL_HOST)),
+        'allowed_origins' => env_array('PASSKEYS_ALLOWED_ORIGINS', [config('app.url')]),
+        'user_handle_secret' => env('PASSKEYS_USER_HANDLE_SECRET', config('app.key')),
+        'timeout' => (int) env('PASSKEYS_TIMEOUT', 60000),
+    ],
+
+    'features' => [
+        Features::registration(),
+        Features::resetPasswords(),
+        Features::emailVerification(),
+        Features::updateProfileInformation(),
+        Features::updatePasswords(),
+        Features::twoFactorAuthentication([
+            'confirm' => true,
+            'confirmPassword' => true,
+            'secret-length' => 32,
+            // 'window' => 0,
+        ]),
+        Features::passkeys([
+            'confirmPassword' => true,
+        ]),
+    ],
+];

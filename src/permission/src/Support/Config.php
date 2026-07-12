@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Support;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Wildcard;
@@ -105,14 +106,6 @@ class Config
     }
 
     /**
-     * Get the configured storage connection.
-     */
-    public static function storageConnection(): ?string
-    {
-        return self::repository()->get('permission.storage.database.connection');
-    }
-
-    /**
      * Get the model morph key column.
      */
     public static function morphKey(): string
@@ -143,7 +136,7 @@ class Config
      */
     public static function defaultGuard(): string
     {
-        return self::repository()->string('auth.defaults.guard');
+        return Container::getInstance()->make(AuthFactory::class)->getDefaultDriver();
     }
 
     /**

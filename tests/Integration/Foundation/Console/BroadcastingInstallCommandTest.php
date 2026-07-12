@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\BroadcastingInstallCommand;
 use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Facades\Process;
+use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use RuntimeException;
 
 class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
 {
@@ -75,34 +78,43 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
 
     protected function tearDown(): void
     {
-        // Restore the original bootstrap/app.php.
-        file_put_contents(
+        $files = new Filesystem;
+        $actions = [fn () => $files->replace(
             $this->app->bootstrapPath('app.php'),
-            $this->originalBootstrapContent
-        );
+            $this->originalBootstrapContent,
+        )];
 
-        // Restore or remove .env.
         $envPath = $this->app->basePath('.env');
+
         if ($this->originalEnvContent === null) {
-            @unlink($envPath);
+            $actions[] = static function () use ($envPath, $files): void {
+                if ($files->isFile($envPath) && ! $files->delete($envPath)) {
+                    throw new RuntimeException("Unable to delete the owned broadcasting test environment file [{$envPath}].");
+                }
+            };
         } else {
-            file_put_contents($envPath, $this->originalEnvContent);
+            $actions[] = fn () => $files->replace($envPath, $this->originalEnvContent);
         }
 
-        // Clean up published config file (config:publish broadcasting creates this).
         $broadcastingConfig = $this->app->configPath('broadcasting.php');
-        if (is_file($broadcastingConfig)) {
-            @unlink($broadcastingConfig);
-        }
 
-        // Clean up any files created during tests.
-        foreach ($this->createdFiles as $file) {
-            if (is_file($file)) {
-                unlink($file);
+        $actions[] = static function () use ($broadcastingConfig, $files): void {
+            if ($files->isFile($broadcastingConfig) && ! $files->delete($broadcastingConfig)) {
+                throw new RuntimeException("Unable to delete the owned broadcasting config file [{$broadcastingConfig}].");
             }
+        };
+
+        foreach ($this->createdFiles as $file) {
+            $actions[] = static function () use ($file, $files): void {
+                if ($files->isFile($file) && ! $files->delete($file)) {
+                    throw new RuntimeException("Unable to delete owned broadcasting install test file [{$file}].");
+                }
+            };
         }
 
-        parent::tearDown();
+        $actions[] = fn () => parent::tearDown();
+
+        CleanupActions::run(...$actions);
     }
 
     public function testCreatesChannelsRouteFile()

@@ -31,23 +31,33 @@ class Timer
     public function after(float $timeout, callable $closure, string $identifier = Constants::WORKER_EXIT): int
     {
         $id = ++$this->id;
+        $coordinator = CoordinatorManager::until($identifier);
         $this->closures[$id] = true;
-        go(function () use ($timeout, $closure, $identifier, $id) {
-            try {
-                ++Timer::$count;
-                $isClosing = match (true) {
-                    $timeout > 0 => CoordinatorManager::until($identifier)->yield($timeout), // Run after $timeout seconds.
-                    $timeout === 0.0 => CoordinatorManager::until($identifier)->isClosing(), // Run immediately.
-                    default => CoordinatorManager::until($identifier)->yield(), // Run until $identifier resume.
-                };
-                if (isset($this->closures[$id])) {
-                    $closure($isClosing);
+
+        try {
+            go(function () use ($timeout, $closure, $coordinator, $id): void {
+                try {
+                    ++Timer::$count;
+                    $isClosing = match (true) {
+                        $timeout > 0 => $coordinator->yield($timeout), // Run after $timeout seconds.
+                        $timeout === 0.0 => $coordinator->isClosing(), // Run immediately.
+                        default => $coordinator->yield(), // Run until $identifier resume.
+                    };
+
+                    if (isset($this->closures[$id])) {
+                        $closure($isClosing);
+                    }
+                } finally {
+                    unset($this->closures[$id]);
+                    --Timer::$count;
                 }
-            } finally {
-                unset($this->closures[$id]);
-                --Timer::$count;
-            }
-        });
+            });
+        } catch (Throwable $exception) {
+            unset($this->closures[$id]);
+
+            throw $exception;
+        }
+
         return $id;
     }
 
@@ -57,38 +67,54 @@ class Timer
     public function tick(float $timeout, callable $closure, string $identifier = Constants::WORKER_EXIT): int
     {
         $id = ++$this->id;
+        $coordinator = CoordinatorManager::until($identifier);
         $this->closures[$id] = true;
-        go(function () use ($timeout, $closure, $identifier, $id) {
-            try {
+
+        try {
+            go(function () use ($timeout, $closure, $coordinator, $id): void {
                 $round = 0;
-                ++Timer::$count;
-                while (true) {
-                    $isClosing = CoordinatorManager::until($identifier)->yield(max($timeout, 0.000001));
-                    if (! isset($this->closures[$id])) {
-                        break;
+
+                try {
+                    ++Timer::$count;
+
+                    while (isset($this->closures[$id])) {
+                        $isClosing = $coordinator->yield(max($timeout, 0.000001));
+
+                        if (! isset($this->closures[$id])) {
+                            break;
+                        }
+
+                        $result = null;
+
+                        try {
+                            $result = $closure($isClosing);
+                        } catch (Throwable $exception) {
+                            if ($this->logger !== null) {
+                                $this->logger->error((string) $exception);
+                            } else {
+                                error_log((string) $exception);
+                            }
+                        }
+
+                        if ($result === self::STOP || $isClosing) {
+                            break;
+                        }
+
+                        ++$round;
+                        ++Timer::$round;
                     }
-
-                    $result = null;
-
-                    try {
-                        $result = $closure($isClosing);
-                    } catch (Throwable $exception) {
-                        $this->logger?->error((string) $exception);
-                    }
-
-                    if ($result === self::STOP || $isClosing) {
-                        break;
-                    }
-
-                    ++$round;
-                    ++Timer::$round;
+                } finally {
+                    unset($this->closures[$id]);
+                    Timer::$round -= $round;
+                    --Timer::$count;
                 }
-            } finally {
-                unset($this->closures[$id]);
-                Timer::$round -= $round;
-                --Timer::$count;
-            }
-        });
+            });
+        } catch (Throwable $exception) {
+            unset($this->closures[$id]);
+
+            throw $exception;
+        }
+
         return $id;
     }
 

@@ -13,6 +13,7 @@ use Hypervel\Sanctum\Contracts\HasAbilities;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
+use function Hypervel\Support\now;
 
 /**
  * @property int|string $id

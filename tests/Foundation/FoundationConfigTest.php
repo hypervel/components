@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Env;
@@ -11,6 +12,20 @@ use Hypervel\Tests\TestCase;
 
 class FoundationConfigTest extends TestCase
 {
+    public function testAppConfigReadsForceHttpsFromForceHttpsEnvironmentVariable(): void
+    {
+        $config = $this->appConfigWithEnvironment('FORCE_HTTPS', 'true');
+
+        $this->assertTrue($config['force_https']);
+    }
+
+    public function testAppConfigReadsStdoutLogFormatFromStdoutLogFormatEnvironmentVariable(): void
+    {
+        $config = $this->appConfigWithEnvironment('STDOUT_LOG_FORMAT', 'json');
+
+        $this->assertSame('json', $config['stdout_log']['format']);
+    }
+
     public function testViewCompiledPathFallsBackToStoragePathWhenDirectoryDoesNotExist(): void
     {
         $key = 'VIEW_COMPILED_PATH';
@@ -40,6 +55,52 @@ class FoundationConfigTest extends TestCase
         } finally {
             Container::setInstance($originalContainer);
 
+            $originalPutenv === false
+                ? putenv($key)
+                : putenv("{$key}={$originalPutenv}");
+
+            if ($originalServerExists) {
+                $_SERVER[$key] = $originalServer;
+            } else {
+                unset($_SERVER[$key]);
+            }
+
+            if ($originalEnvExists) {
+                $_ENV[$key] = $originalEnv;
+            } else {
+                unset($_ENV[$key]);
+            }
+
+            Env::flushRepository();
+        }
+    }
+
+    /**
+     * Load the application config with one environment override.
+     */
+    protected function appConfigWithEnvironment(string $key, string $value): array
+    {
+        return $this->withEnvironmentValue($key, $value, function (): array {
+            return require dirname(__DIR__, 2) . '/src/foundation/config/app.php';
+        });
+    }
+
+    /**
+     * Run a callback with a temporary environment variable value.
+     */
+    protected function withEnvironmentValue(string $key, string $value, Closure $callback): mixed
+    {
+        $originalPutenv = getenv($key);
+        $originalServerExists = array_key_exists($key, $_SERVER);
+        $originalServer = $_SERVER[$key] ?? null;
+        $originalEnvExists = array_key_exists($key, $_ENV);
+        $originalEnv = $_ENV[$key] ?? null;
+
+        try {
+            $this->setEnvironmentValue($key, $value);
+
+            return $callback();
+        } finally {
             $originalPutenv === false
                 ? putenv($key)
                 : putenv("{$key}={$originalPutenv}");

@@ -549,7 +549,7 @@ class SendShipmentNotification implements ShouldQueue, ShouldBeEncrypted
 ### Unique Event Listeners
 
 > [!WARNING]
-> Unique listeners require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). The `redis`, `database`, `file`, and `array` cache drivers support atomic locks.
+> Unique listeners require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). The `redis`, `database`, `file`, `swoole`, and `array` cache drivers support atomic locks.
 
 Sometimes, you may want to ensure that only one instance of a specific listener is on the queue at any point in time. You may do so by implementing the `ShouldBeUnique` interface on your listener class:
 
@@ -922,7 +922,11 @@ if (Event::hasListeners(OrderShipped::class)) {
 
 Hypervel's framework code uses this pattern extensively — many internal events (route matching, query execution, cache hits, queue lifecycle, view composition, etc.) are wrapped in `hasListeners()` guards so they are only constructed and dispatched when something is actually listening. This is a Hypervel-specific optimization; Laravel always constructs and dispatches events regardless of listener count.
 
+`hasListeners()` counts exact listeners, targeted wildcard listeners, and listeners registered for interfaces implemented by an event class. When interface listeners are registered, the first check for a given event class may load it so Hypervel can inspect its interfaces; the result is cached for later checks.
+
 A bare `Event::listen('*', ...)` registration is **not** counted by `hasListeners()` — it is automatically routed through [`Event::observe()`](#passive-observers) as a passive observer, so observability tooling cannot accidentally force every event to fire. Targeted wildcards (e.g. `'App\Events\*'`) registered via `listen()` *are* counted and will cause guarded events to fire.
+
+Broadcasting is not counted by `hasListeners()`. Broadcast events should be dispatched directly because broadcasting is a dispatch side effect, not a listener.
 
 <a name="dispatching-events-after-database-transactions"></a>
 ### Dispatching Events After Database Transactions

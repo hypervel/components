@@ -15,6 +15,7 @@ declare(strict_types=1);
  */
 
 use Hypervel\Contracts\Console\Kernel;
+use Hypervel\Support\Facades\URL;
 use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Foundation\Application;
 use Hypervel\Tests\Wayfinder\Fixtures\FixtureServiceProvider;
@@ -41,6 +42,10 @@ $app = Application::create(
 );
 $kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
+
+if (getenv('WAYFINDER_FORCE_HTTPS') === '1') {
+    URL::forceHttps();
+}
 
 require $fixtureRoutes;
 

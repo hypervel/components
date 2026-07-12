@@ -105,7 +105,7 @@ class RouteCacheCommand extends Command
      */
     protected function getFreshCompiledRoutesFromSubprocess(): array
     {
-        $dumpPath = tempnam(sys_get_temp_dir(), 'hypervel-routes-');
+        $dumpPath = @tempnam(sys_get_temp_dir(), 'hypervel-routes-');
 
         try {
             if ($dumpPath === false) {
@@ -121,6 +121,7 @@ class RouteCacheCommand extends Command
                 ],
                 $this->hypervel->basePath(),
                 [
+                    'APP_ROUTES_CACHE' => $this->hypervel->getCachedRoutesPath(),
                     'HYPERVEL_AUTOLOAD_PATH' => $this->resolveSubprocessAutoloadPath(),
                 ],
             );

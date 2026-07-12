@@ -12,6 +12,7 @@ use Foo\Bar\EloquentModelNamespacedStub;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
+use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
@@ -3434,7 +3435,7 @@ class DatabaseEloquentModelTest extends TestCase
         Model::handleMissingAttributeViolationUsing(static function () {
         });
         Model::$snakeAttributes = false;
-        Model::encryptUsing(new stdClass);
+        Model::encryptUsing(m::mock(Encrypter::class));
 
         $reflection->setStaticPropertyValue('booted', [ModelStub::class => true]);
         $reflection->setStaticPropertyValue('bootedCallbacks', [ModelStub::class => [static function () {

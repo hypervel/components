@@ -264,16 +264,22 @@ class RedisProxyIntegrationTest extends TestCase
         $valueKey = 'pipeline_select_value_' . uniqid();
         $redis->set($valueKey, $id = uniqid(), 'EX', 600);
 
-        $key = 'pipeline_select_' . uniqid();
-        $results = $redis->pipeline(function (PhpRedis $pipe) use ($key) {
-            $pipe->set($key, "value_{$key}");
-            $pipe->incr("{$key}_counter");
-            $pipe->get($key);
-            $pipe->get("{$key}_counter");
-        });
+        try {
+            $key = 'pipeline_select_' . uniqid();
+            $results = $redis->pipeline(function (PhpRedis $pipe) use ($key) {
+                $pipe->set($key, "value_{$key}");
+                $pipe->incr("{$key}_counter");
+                $pipe->get($key);
+                $pipe->get("{$key}_counter");
+            });
 
-        $this->assertCount(4, $results);
-        $this->assertSame($id, $redis->get($valueKey));
+            $this->assertCount(4, $results);
+            $this->assertSame($id, $redis->get($valueKey));
+        } finally {
+            $redis->select($this->getSecondaryRedisDb());
+            $redis->del($valueKey);
+            $redis->select($this->getParallelRedisDb());
+        }
     }
 
     public function testPipelineCallbackAndPipeline(): void
@@ -296,11 +302,13 @@ class RedisProxyIntegrationTest extends TestCase
 
         $secondaryDb = $this->getSecondaryRedisDb();
         $selectKey = 'pipeline_select_junk_' . uniqid();
-        go(static function () use ($redis, $secondaryDb, $selectKey) {
+        $secondaryWriteFinished = new Channel(1);
+        go(static function () use ($redis, $secondaryDb, $selectKey, $secondaryWriteFinished) {
             $redis->select($secondaryDb);
             $redis->set($selectKey, 'x');
             $redis->set($selectKey, 'x');
             $redis->set($selectKey, 'x');
+            $secondaryWriteFinished->push(true);
         });
 
         $pipelineKey = 'pipeline_junk_' . uniqid();
@@ -309,10 +317,17 @@ class RedisProxyIntegrationTest extends TestCase
         $openPipeline->set($pipelineKey, 'x');
         $openPipeline->set($pipelineKey, 'x');
 
-        $this->assertInstanceOf(PhpRedis::class, $openPipeline);
-        // The pre-callback set() is queued on the open pipeline connection, so callback exec includes 5 queued results.
-        $this->assertCount(5, $callbackResults);
-        $this->assertSame($id, $redis->get($valueKey));
+        try {
+            $this->assertTrue($secondaryWriteFinished->pop());
+            $this->assertInstanceOf(PhpRedis::class, $openPipeline);
+            // The pre-callback set() is queued on the open pipeline connection, so callback exec includes 5 queued results.
+            $this->assertCount(5, $callbackResults);
+            $this->assertSame($id, $redis->get($valueKey));
+        } finally {
+            $redis->select($secondaryDb);
+            $redis->del($selectKey);
+            $redis->select($this->getParallelRedisDb());
+        }
     }
 
     public function testOpenPipelineReshapesWrapperSetArguments(): void
@@ -597,37 +612,5 @@ class RedisProxyIntegrationTest extends TestCase
             $redis->del("concurrent_transaction_test_{$i}");
             $redis->del("concurrent_transaction_test_{$i}_counter");
         }
-    }
-
-    /**
-     * Create a Redis connection with custom options for integration assertions.
-     *
-     * @param array<string, mixed> $options
-     */
-    private function createRedisConnectionWithOptions(string $name, array $options, int $maxConnections = 10): string
-    {
-        $config = $this->app->make('config');
-
-        if ($config->get("database.redis.{$name}") !== null) {
-            return $name;
-        }
-
-        $config->set("database.redis.{$name}", [
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'password' => env('REDIS_PASSWORD', null) ?: null,
-            'port' => (int) env('REDIS_PORT', 6379),
-            'database' => $this->getParallelRedisDb(),
-            'pool' => [
-                'min_connections' => 1,
-                'max_connections' => $maxConnections,
-                'connect_timeout' => 10.0,
-                'wait_timeout' => 3.0,
-                'heartbeat' => -1,
-                'max_idle_time' => 60.0,
-            ],
-            'options' => $options,
-        ]);
-
-        return $name;
     }
 }

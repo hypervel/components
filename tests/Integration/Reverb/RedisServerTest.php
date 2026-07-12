@@ -9,7 +9,7 @@ namespace Hypervel\Tests\Integration\Reverb;
  *
  * Requires a running Redis-enabled test server:
  *   REVERB_SERVER_PORT=19511 REVERB_SCALING_ENABLED=true php tests/Integration/Reverb/server.php
- * Tests auto-skip when Redis or the server is unavailable.
+ * Tests skip unless TEST_SERVER_HOST is set.
  */
 class RedisServerTest extends ReverbRedisIntegrationTestCase
 {
@@ -31,12 +31,9 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
             ['foo' => 'bar'],
         );
 
-        $msg = $this->recv($client);
-        $this->assertNotNull($msg, 'Expected broadcast via Redis pub/sub');
-
-        $data = json_decode($msg, associative: true);
-        $this->assertSame('App\Events\TestEvent', $data['event']);
-        $this->assertSame('presence-redis-broadcast-channel', $data['channel']);
+        $message = $this->receiveEvent($client, 'App\Events\TestEvent');
+        $this->assertNotNull($message, 'Expected broadcast via Redis pub/sub');
+        $this->assertSame('presence-redis-broadcast-channel', $message['channel']);
 
         $this->disconnect($client);
     }
@@ -55,16 +52,13 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
             'data' => ['user' => 'Joe'],
         ]));
 
-        $msg = $this->recv($receiver);
-        $this->assertNotNull($msg, 'Expected whisper via Redis pub/sub');
-
-        $data = json_decode($msg, associative: true);
-        $this->assertSame('client-typing', $data['event']);
-        $this->assertSame('private-redis-whisper-channel', $data['channel']);
+        $message = $this->receiveEvent($receiver, 'client-typing');
+        $this->assertNotNull($message, 'Expected whisper via Redis pub/sub');
+        $this->assertSame('private-redis-whisper-channel', $message['channel']);
 
         // Sender should NOT receive their own whisper
-        $senderMsg = $this->recv($sender, 0.5);
-        $this->assertNull($senderMsg);
+        $messages = $this->receiveMatchingEvents($sender, 'client-typing', 0.5);
+        $this->assertCount(0, $messages);
 
         $this->disconnect($sender);
         $this->disconnect($receiver);
@@ -86,33 +80,25 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
             'user_info' => ['name' => 'User 987'],
         ]);
 
-        // Drain member_added on client one
-        $this->recv($clientOne, 0.1);
+        // Drain member_added on client one.
+        $message = $this->receiveMemberAdded($clientOne, '987');
+        $this->assertNotNull($message, 'Client one did not receive member_added for user 987');
 
         // Terminate user 987 via HTTP API
         $result = $this->signedServerPostRequest('users/987/terminate_connections');
         $this->assertSame(200, $result['status']);
         $this->assertSame('{}', $result['body']);
 
-        // Verify client one still connected (can receive).
-        // Drain any member_removed notification first — it may arrive
-        // before the triggered event depending on processing order.
+        // Verify client one still connected; member_removed may arrive before
+        // the triggered event depending on processing order.
         $this->triggerEvent(
             'presence-redis-terminate-channel',
             'StillAlive',
             ['check' => true],
         );
 
-        $messages = $this->recvAll($clientOne, 2);
-        $found = false;
-        foreach ($messages as $msg) {
-            $decoded = json_decode($msg, associative: true);
-            if (($decoded['event'] ?? '') === 'StillAlive') {
-                $found = true;
-                break;
-            }
-        }
-        $this->assertTrue($found, 'Client one should still be connected and receive events');
+        $message = $this->receiveEvent($clientOne, 'StillAlive');
+        $this->assertNotNull($message, 'Client one should still be connected and receive events');
 
         $this->disconnect($clientOne);
         $this->disconnect($clientTwo);
@@ -174,11 +160,9 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
         ]);
 
         // Client one should receive member_added for user 2
-        $msg = $this->recv($clientOne);
-        $this->assertNotNull($msg);
-        $data = json_decode($msg, associative: true);
-        $this->assertSame('pusher_internal:member_added', $data['event']);
-        $this->assertStringContainsString('User 2', $data['data']);
+        $message = $this->receiveMemberAdded($clientOne, 2);
+        $this->assertNotNull($message, 'Client one did not receive member_added for user 2');
+        $this->assertSame('User 2', $this->decodeEventData($message)['user_info']['name']);
 
         $this->disconnect($clientOne);
         $this->disconnect($clientTwo);
@@ -233,12 +217,12 @@ class RedisServerTest extends ReverbRedisIntegrationTestCase
         ]);
 
         // Client two should receive it
-        $msgTwo = $this->recv($clientTwo);
-        $this->assertNotNull($msgTwo);
+        $message = $this->receiveEvent($clientTwo, 'TestEvent');
+        $this->assertNotNull($message);
 
         // Client one should NOT receive it
-        $msgOne = $this->recv($clientOne, 0.5);
-        $this->assertNull($msgOne);
+        $messages = $this->receiveMatchingEvents($clientOne, 'TestEvent', 0.5);
+        $this->assertCount(0, $messages);
 
         $this->disconnect($clientOne);
         $this->disconnect($clientTwo);

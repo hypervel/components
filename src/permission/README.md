@@ -40,9 +40,12 @@ class User extends Model
 
 ## Differences From Spatie Laravel Permission
 
-- Hypervel adds forbidden permissions. A forbidden permission explicitly denies an ability and wins over direct or role-granted allows.
+- Hypervel adds forbidden permissions. A forbidden permission explicitly denies an ability and wins over direct or role-granted allows. The deny flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge. Use `syncPermissionsWithForbidden()` to replace allowed and forbidden assignments together.
+- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. Explicit denies are exposed through `hasForbiddenPermission()` and `hasForbiddenPermissionViaRoles()`.
 - Hypervel accepts pure unit enums anywhere enum names are valid role or permission inputs. Backed enums use their values; unit enums use their case names.
-- Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-version caches can be invalidated independently.
+- Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
 - Apps where permission data depends on request context, such as multi-tenant apps with tenant-scoped permission tables, may register a runtime cache key resolver with `PermissionRegistrar::resolveCacheKeyUsing(...)` so cached permission catalogs and assignments are isolated per context.
+- Undefined `permission.cache.store` values fail fast through Hypervel's cache manager instead of silently falling back to an array store.
+- The default role and permission models do not use soft deletes. Soft deletes are not recommended for permission models; restoring a custom soft-deletable role or permission reactivates its existing assignments.
 
 Full usage docs are available in `src/boost/docs/permission.md`.

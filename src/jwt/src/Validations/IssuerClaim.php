@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Validations;
+namespace Hypervel\Jwt\Validations;
 
-use Hypervel\JWT\Exceptions\TokenInvalidException;
+use Hypervel\Jwt\Exceptions\TokenInvalidException;
 
 class IssuerClaim extends AbstractValidation
 {

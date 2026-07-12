@@ -11,7 +11,7 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Http\Request;
-use Hypervel\JWT\Contracts\ManagerContract;
+use Hypervel\Jwt\Contracts\ManagerContract;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Throwable;

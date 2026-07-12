@@ -10,37 +10,29 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Channels\MailChannel;
+use Hypervel\Notifications\Channels\SlackNotificationRouterChannel;
 use Hypervel\Notifications\Events\NotificationFailed;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
-use Hypervel\Notifications\NotificationPoolProxy;
 use Hypervel\Notifications\NotificationSender;
 use Hypervel\Notifications\SendQueuedNotifications;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
-use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\SerializesModels;
+use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 class NotificationChannelManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        Container::setInstance(null);
-
-        parent::tearDown();
-    }
-
-    public function testGetDefaultChannel()
+    public function testGetDefaultChannel(): void
     {
         $container = $this->getContainer();
         $container->instance(MailChannel::class, m::mock(MailChannel::class));
@@ -50,20 +42,28 @@ class NotificationChannelManagerTest extends TestCase
         $this->assertInstanceOf(MailChannel::class, $manager->channel());
     }
 
-    public function testGetCustomChannelWithPool()
+    public function testGetCustomChannelResolvesDirectly(): void
     {
         $container = $this->getContainer();
         $container->instance(MailChannel::class, m::mock(MailChannel::class));
 
         $manager = new ChannelManager($container);
-        $manager->extend('test', function () {
-            return m::mock('customChannel');
-        }, true);
+        $channel = m::mock('customChannel');
+        $manager->extend('test', fn () => $channel);
 
-        $this->assertInstanceOf(NotificationPoolProxy::class, $manager->channel('test'));
+        $this->assertSame($channel, $manager->channel('test'));
     }
 
-    public function testNotificationCanBeDispatchedToDriver()
+    public function testSlackChannelResolvesDirectly(): void
+    {
+        $container = $this->getContainer();
+
+        $manager = new ChannelManager($container);
+
+        $this->assertInstanceOf(SlackNotificationRouterChannel::class, $manager->channel('slack'));
+    }
+
+    public function testNotificationCanBeDispatchedToDriver(): void
     {
         $container = $this->getContainer();
 
@@ -78,7 +78,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
     }
 
-    public function testNotificationNotSentOnHalt()
+    public function testNotificationNotSentOnHalt(): void
     {
         $container = $this->getContainer();
 
@@ -93,7 +93,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestNotificationWithTwoChannels);
     }
 
-    public function testNotificationNotSentWhenCancelled()
+    public function testNotificationNotSentWhenCancelled(): void
     {
         $container = $this->getContainer();
 
@@ -106,7 +106,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestCancelledNotification);
     }
 
-    public function testNotificationSentWhenNotCancelled()
+    public function testNotificationSentWhenNotCancelled(): void
     {
         $container = $this->getContainer();
 
@@ -120,7 +120,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestNotCancelledNotification);
     }
 
-    public function testNotificationNotSentWhenFailed()
+    public function testNotificationNotSentWhenFailed(): void
     {
         $this->expectException(Exception::class);
 
@@ -137,7 +137,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
     }
 
-    public function testNotificationFailedDispatchedOnlyOnceWhenFailed()
+    public function testNotificationFailedDispatchedOnlyOnceWhenFailed(): void
     {
         $this->expectException(Exception::class);
 
@@ -160,7 +160,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
     }
 
-    public function testNotificationFailedDispatchedOnlyOnceWhenMultipleFailed()
+    public function testNotificationFailedDispatchedOnlyOnceWhenMultipleFailed(): void
     {
         $this->expectException(Exception::class);
 
@@ -198,7 +198,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send(new NotificationChannelManagerTestNotifiable, new NotificationChannelManagerTestNotification);
     }
 
-    public function testNotificationCanBeQueued()
+    public function testNotificationCanBeQueued(): void
     {
         $container = $this->getContainer();
         $container->instance(QueueRoutes::class, $queueRoutes = m::mock(QueueRoutes::class));
@@ -214,7 +214,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestQueuedNotification);
     }
 
-    public function testSendQueuedNotificationsCanBeOverrideViaContainer()
+    public function testSendQueuedNotificationsCanBeOverrideViaContainer(): void
     {
         $container = $this->getContainer();
         $container->instance(QueueRoutes::class, $queueRoutes = m::mock(QueueRoutes::class));
@@ -231,7 +231,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], new NotificationChannelManagerTestQueuedNotification);
     }
 
-    public function testQueuedNotificationForwardsMessageGroupFromMethodToQueueJob()
+    public function testQueuedNotificationForwardsMessageGroupFromMethodToQueueJob(): void
     {
         $mockedMessageGroupId = 'group-1';
 
@@ -256,7 +256,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
     }
 
-    public function testQueuedNotificationForwardsMessageGroupFromPropertyOverridingMethodToQueueJob()
+    public function testQueuedNotificationForwardsMessageGroupFromPropertyOverridingMethodToQueueJob(): void
     {
         $mockedMessageGroupId = 'group-1';
 
@@ -283,7 +283,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
     }
 
-    public function testQueuedNotificationForwardsMessageGroupSetToQueueJob()
+    public function testQueuedNotificationForwardsMessageGroupSetToQueueJob(): void
     {
         $mockedMessageGroupSet = [
             'test' => 'group-1',
@@ -309,7 +309,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
     }
 
-    public function testQueuedNotificationForwardsMessageGroupSetFromClassToQueueJob()
+    public function testQueuedNotificationForwardsMessageGroupSetFromClassToQueueJob(): void
     {
         $mockedMessageGroupSet = [
             'test' => 'group-1',
@@ -334,7 +334,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
     }
 
-    public function testQueuedNotificationForwardsDeduplicatorToQueueJob()
+    public function testQueuedNotificationForwardsDeduplicatorToQueueJob(): void
     {
         $mockedDeduplicator = fn ($payload, $queue) => 'deduplication-id-1';
 
@@ -357,7 +357,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
     }
 
-    public function testQueuedNotificationForwardsDeduplicatorSetToQueueJob()
+    public function testQueuedNotificationForwardsDeduplicatorSetToQueueJob(): void
     {
         $mockedDeduplicatorSet = [
             'test' => fn ($payload, $queue) => 'deduplication-id-1',
@@ -383,7 +383,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
     }
 
-    public function testQueuedNotificationForwardsDeduplicatorSetFromClassToQueueJob()
+    public function testQueuedNotificationForwardsDeduplicatorSetFromClassToQueueJob(): void
     {
         $container = $this->getContainer();
         $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
@@ -403,7 +403,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
     }
 
-    public function testQueuedNotificationForwardsDeduplicationIdMethodToQueueJob()
+    public function testQueuedNotificationForwardsDeduplicationIdMethodToQueueJob(): void
     {
         $container = $this->getContainer();
         $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
@@ -429,7 +429,7 @@ class NotificationChannelManagerTest extends TestCase
         $manager->send([new NotificationChannelManagerTestNotifiable], $notification);
     }
 
-    public function testAfterSendingMethodAfterSendingNotification()
+    public function testAfterSendingMethodAfterSendingNotification(): void
     {
         $container = $this->getContainer();
 
@@ -450,11 +450,10 @@ class NotificationChannelManagerTest extends TestCase
     protected function getContainer(): Container
     {
         $container = new Container;
-        $container->instance(\Hypervel\Contracts\Container\Container::class, $container);
+        $container->instance(ContainerContract::class, $container);
         $container->instance('config', new ConfigRepository([]));
         $container->instance(BusDispatcherContract::class, m::mock(BusDispatcherContract::class));
         $container->instance(Dispatcher::class, $this->mockEventDispatcher());
-        $container->singleton(PoolFactory::class, PoolManager::class);
 
         Container::setInstance($container);
 

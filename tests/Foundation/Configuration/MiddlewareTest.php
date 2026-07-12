@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Configuration;
 
+use Hypervel\Auth\AuthenticationException;
+use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Foundation\MaintenanceMode;
@@ -245,6 +247,23 @@ class MiddlewareTest extends TestCase
         $this->assertTrue($middleware->isDisabled('bbb'));
     }
 
+    public function testRedirectGuestsToConfiguresAuthenticationRedirects(): void
+    {
+        (new Middleware)->redirectGuestsTo('/login');
+
+        $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
+    }
+
+    public function testRedirectUsersToConfiguresAuthenticationRedirects(): void
+    {
+        (new Middleware)->redirectUsersTo('/panel');
+
+        $reflection = new ReflectionClass(RedirectIfAuthenticated::class);
+        $method = $reflection->getMethod('redirectTo');
+
+        $this->assertSame('/panel', $method->invoke(new RedirectIfAuthenticated, Request::create('/login')));
+    }
+
     public function testPreventRequestsDuringMaintenance()
     {
         $configuration = new Middleware;
@@ -350,6 +369,7 @@ class MiddlewareTest extends TestCase
         $this->assertSame([
             'auth' => \Hypervel\Auth\Middleware\Authenticate::class,
             'auth.basic' => \Hypervel\Auth\Middleware\AuthenticateWithBasicAuth::class,
+            'auth.guard' => \Hypervel\Auth\Middleware\UseGuard::class,
             'auth.session' => \Hypervel\Session\Middleware\AuthenticateSession::class,
             'cache.headers' => \Hypervel\Http\Middleware\SetCacheHeaders::class,
             'can' => \Hypervel\Auth\Middleware\Authorize::class,
@@ -418,6 +438,7 @@ class MiddlewareTest extends TestCase
             \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Hypervel\Session\Middleware\StartSession::class,
             \Hypervel\View\Middleware\ShareErrorsFromSession::class,
+            \Hypervel\Auth\Middleware\UseGuard::class,
             \Hypervel\Contracts\Auth\Middleware\AuthenticatesRequests::class,
             \Hypervel\Routing\Middleware\ThrottleRequests::class,
             \Hypervel\Routing\Middleware\ThrottleRequestsWithRedis::class,

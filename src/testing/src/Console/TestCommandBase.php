@@ -396,11 +396,11 @@ abstract class TestCommandBase extends Command
         }
 
         $variables = self::getEnvironmentVariables($path, $this->hypervel->environmentFile());
-        $repository = Env::getRepository();
 
-        foreach ($variables as $name) {
-            $repository->clear($name);
-        }
+        // The immutable dotenv writer refuses to clear keys it did not load, so
+        // delete directly from every adapter after rebuilding the adapter list.
+        Env::getRepository();
+        Env::deleteMany($variables);
     }
 
     /**

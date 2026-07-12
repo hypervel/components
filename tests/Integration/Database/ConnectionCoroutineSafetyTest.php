@@ -11,12 +11,15 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Engine\Channel;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testing\ParallelTesting;
 use RuntimeException;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
+use function Hypervel\Coroutine\parallel;
 
 /**
  * Tests coroutine safety of database components.
@@ -26,6 +29,53 @@ use function Hypervel\Coroutine\go;
  */
 class ConnectionCoroutineSafetyTest extends DatabaseTestCase
 {
+    protected static string $databaseDirectory;
+
+    protected static string $readPath;
+
+    protected static string $writePath;
+
+    public static function setUpBeforeClass(): void
+    {
+        parent::setUpBeforeClass();
+
+        $filesystem = new Filesystem;
+        static::$databaseDirectory = ParallelTesting::tempDir('ConnectionCoroutineSafetyTest');
+        $filesystem->ensureDirectoryExists(static::$databaseDirectory);
+
+        static::$readPath = static::$databaseDirectory . '/read.sqlite';
+        static::$writePath = static::$databaseDirectory . '/write.sqlite';
+        touch(static::$readPath);
+        touch(static::$writePath);
+    }
+
+    public static function tearDownAfterClass(): void
+    {
+        (new Filesystem)->deleteDirectory(static::$databaseDirectory);
+
+        parent::tearDownAfterClass();
+    }
+
+    protected function defineEnvironment($app): void
+    {
+        parent::defineEnvironment($app);
+
+        $app->make('config')->set('database.connections.sqlite_readwrite_pool', [
+            'driver' => 'sqlite',
+            'read' => [
+                'database' => static::$readPath,
+            ],
+            'write' => [
+                'database' => static::$writePath,
+            ],
+            'pool' => [
+                'testing_enabled' => true,
+                'max_connections' => 5,
+                'heartbeat' => -1,
+            ],
+        ]);
+    }
+
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('tmp_users', function (Blueprint $table) {
@@ -338,6 +388,71 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
 
         $manager = $connection->getTransactionManager();
         $this->assertNotNull($manager, 'Pooled connection should have transaction manager configured');
+    }
+
+    public function testWriteSuffixDoesNotForcePlainConnectionReadsInAnotherCoroutine(): void
+    {
+        $this->seedReadWritePoolMarkers();
+
+        [$writeValue, $plainValue] = parallel([
+            function () {
+                $value = DB::connection('sqlite_readwrite_pool::write')
+                    ->selectOne('select value from markers')
+                    ->value;
+
+                usleep(5000);
+
+                return $value;
+            },
+            function () {
+                usleep(1000);
+
+                return DB::connection('sqlite_readwrite_pool')
+                    ->selectOne('select value from markers')
+                    ->value;
+            },
+        ]);
+
+        $this->assertSame('write', $writeValue);
+        $this->assertSame('read', $plainValue);
+    }
+
+    public function testWriteSuffixAndPlainConnectionUseSeparateCoroutineContextEntries(): void
+    {
+        $this->seedReadWritePoolMarkers();
+
+        $write = DB::connection('sqlite_readwrite_pool::write');
+        $plain = DB::connection('sqlite_readwrite_pool');
+
+        $this->assertNotSame($write, $plain);
+        $this->assertSame($write, DB::connection('sqlite_readwrite_pool::write'));
+        $this->assertSame($plain, DB::connection('sqlite_readwrite_pool'));
+        $this->assertSame('write', $write->selectOne('select value from markers')->value);
+        $this->assertSame('read', $plain->selectOne('select value from markers')->value);
+    }
+
+    public function testReadSuffixAndPlainConnectionUseSeparateCoroutineContextEntries(): void
+    {
+        $this->seedReadWritePoolMarkers();
+
+        $read = DB::connection('sqlite_readwrite_pool::read');
+        $plain = DB::connection('sqlite_readwrite_pool');
+
+        $this->assertNotSame($read, $plain);
+        $this->assertSame($read, DB::connection('sqlite_readwrite_pool::read'));
+        $this->assertSame($plain, DB::connection('sqlite_readwrite_pool'));
+        $this->assertSame('read', $read->selectOne('select value from markers')->value);
+        $this->assertSame('read', $plain->selectOne('select value from markers')->value);
+    }
+
+    protected function seedReadWritePoolMarkers(): void
+    {
+        foreach (['sqlite_readwrite_pool::read' => 'read', 'sqlite_readwrite_pool::write' => 'write'] as $connectionName => $value) {
+            $connection = DB::connection($connectionName);
+            $connection->statement('drop table if exists markers');
+            $connection->statement('create table markers (value varchar not null)');
+            $connection->insert('insert into markers (value) values (?)', [$value]);
+        }
     }
 }
 

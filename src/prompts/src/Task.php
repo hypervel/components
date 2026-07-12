@@ -456,18 +456,18 @@ class Task extends Prompt
      */
     protected function renderInCoroutine(Closure $callback): mixed
     {
-        $this->hideCursor();
-        $this->render();
-
-        Coroutine::fork(function () {
-            while (! $this->finished) {
-                $this->render();
-                ++$this->count;
-                usleep($this->interval * 1000);
-            }
-        });
-
         try {
+            $this->hideCursor();
+            $this->render();
+
+            Coroutine::fork(function (): void {
+                while (! $this->finished) {
+                    $this->render();
+                    ++$this->count;
+                    usleep($this->interval * 1000);
+                }
+            });
+
             $logger = new CoroutineLogger($this);
 
             return $callback($logger);

@@ -19,10 +19,18 @@ abstract class AbstractHasher
      */
     public function check(string $value, ?string $hashedValue, array $options = []): bool
     {
-        if (is_null($hashedValue) || strlen($hashedValue) === 0) {
+        if (! $this->hasHash($hashedValue)) {
             return false;
         }
 
         return password_verify($value, $hashedValue);
+    }
+
+    /**
+     * Determine whether a hash value is present.
+     */
+    protected function hasHash(?string $hashedValue): bool
+    {
+        return ! is_null($hashedValue) && strlen($hashedValue) > 0;
     }
 }

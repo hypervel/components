@@ -18,13 +18,13 @@ The final codebase reads as if it was designed this way from the start:
 Current Hypervel package:
 
 - `src/jwt/src/JwtGuard.php`
-- `src/jwt/src/JWTManager.php`
-- `src/jwt/src/JWTServiceProvider.php`
+- `src/jwt/src/JwtManager.php`
+- `src/jwt/src/JwtServiceProvider.php`
 - `src/jwt/src/Providers/Lcobucci.php`
 - `src/jwt/src/Validations/*`
 - `src/jwt/config/jwt.php`
 - `src/jwt/README.md`
-- `tests/JWT/*`
+- `tests/Jwt/*`
 
 Current Hypervel auth patterns:
 
@@ -60,11 +60,11 @@ Important upstream files:
 The current Hypervel package is a slim reimplementation, not a direct port. It uses:
 
 - array payloads instead of upstream `Payload`, `Token`, `Claim`, and `Collection` objects
-- `JWTManager` for encode/decode/refresh/invalidate
+- `JwtManager` for encode/decode/refresh/invalidate
 - `JwtGuard` with `CoroutineContext` for per-coroutine user and payload caches
 - a simple validation pipeline under `src/jwt/src/Validations`
 
-That core design is correct for Hypervel. Upstream stores mutable request/token/custom-claim/last-attempted state on objects such as `JWT`, `JWTAuth`, `JWTGuard`, and `Parser`. In Laravel those instances are request-scoped or refreshed with the request. In Hypervel they would be worker-lifetime singletons, so copying them directly would leak state between coroutines.
+That core design is correct for Hypervel. Upstream stores mutable request/token/custom-claim/last-attempted state on objects such as `JWT`, `JwtAuth`, `JWTGuard`, and `Parser`. In Laravel those instances are request-scoped or refreshed with the request. In Hypervel they would be worker-lifetime singletons, so copying them directly would leak state between coroutines.
 
 The missing pieces are useful behavior, not a reason to restore the upstream object graph.
 
@@ -83,12 +83,12 @@ Why:
 
 How:
 
-- Keep `JWTManager::encode(array $payload): string`.
-- Keep `JWTManager::decode(...): array`.
+- Keep `JwtManager::encode(array $payload): string`.
+- Keep `JwtManager::decode(...): array`.
 - Keep `JwtGuard::getPayload(): array`.
 - Add a small array-based claim builder so default claim construction is centralized without restoring claim objects.
 
-`JWTManager` receives the claim factory explicitly because refresh claim construction moves there:
+`JwtManager` receives the claim factory explicitly because refresh claim construction moves there:
 
 ```php
 public function __construct(
@@ -111,15 +111,15 @@ public function encode(array $payload): string
 }
 ```
 
-`JWTManager::encode()` owns blacklist `jti` stamping so the public `JWT::encode([...])` path still produces invalidatable tokens when blacklist is enabled. It preserves caller-provided `jti` values and adds none when blacklist is disabled.
+`JwtManager::encode()` owns blacklist `jti` stamping so the public `Jwt::encode([...])` path still produces invalidatable tokens when blacklist is enabled. It preserves caller-provided `jti` values and adds none when blacklist is disabled.
 
 ### Add Central Claim Building, Not Claim Objects
 
 Current Hypervel claim construction is split across:
 
 - `JwtGuard::login()`
-- `JWTManager::encode()`
-- `JWTManager::buildRefreshClaims()`
+- `JwtManager::encode()`
+- `JwtManager::buildRefreshClaims()`
 
 This causes drift and made refresh behavior incomplete. Add a dedicated array-based builder.
 
@@ -134,12 +134,12 @@ Shape:
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT;
+namespace Hypervel\Jwt;
 
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
-use Hypervel\JWT\Contracts\JWTSubject;
+use Hypervel\Jwt\Contracts\JwtSubject;
 use Hypervel\Support\Facades\Date;
 
 class ClaimFactory
@@ -179,8 +179,8 @@ class ClaimFactory
             $claims['prv'] = $this->subjectModelHash($provider->getModel());
         }
 
-        if ($user instanceof JWTSubject) {
-            $claims = array_merge($claims, $user->getJWTCustomClaims());
+        if ($user instanceof JwtSubject) {
+            $claims = array_merge($claims, $user->getJwtCustomClaims());
         }
 
         return $this->withDefaults(array_merge($claims, $customClaims), $ttl);
@@ -250,8 +250,8 @@ class ClaimFactory
      */
     public function subjectIdentifier(Authenticatable $user): mixed
     {
-        return $user instanceof JWTSubject
-            ? $user->getJWTIdentifier()
+        return $user instanceof JwtSubject
+            ? $user->getJwtIdentifier()
             : $user->getAuthIdentifier();
     }
 
@@ -297,13 +297,13 @@ Implementation notes:
 - Static `$subjectModelHashes` is safe because model class strings are immutable worker-lifetime metadata.
 - Add `ClaimFactory::flushState()` to `tests/AfterEachTestSubscriber.php`.
 - `jwt.issuer` is config-driven. Do not use upstream's request URL issuer because JWTs can be issued from CLI/jobs and request URL issuer adds request-dependent behavior.
-- `jti` remains owned by `JWTManager::encode()` so direct `JWT::encode([...])` callers still get invalidatable tokens when blacklist is enabled.
+- `jti` remains owned by `JwtManager::encode()` so direct `Jwt::encode([...])` callers still get invalidatable tokens when blacklist is enabled.
 
-### Add JWTSubject as an Optional Contract
+### Add JwtSubject as an Optional Contract
 
 New file:
 
-- `src/jwt/src/Contracts/JWTSubject.php`
+- `src/jwt/src/Contracts/JwtSubject.php`
 
 Shape:
 
@@ -312,19 +312,19 @@ Shape:
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Contracts;
+namespace Hypervel\Jwt\Contracts;
 
-interface JWTSubject
+interface JwtSubject
 {
     /**
      * Get the identifier that will be stored in the subject claim.
      */
-    public function getJWTIdentifier(): mixed;
+    public function getJwtIdentifier(): mixed;
 
     /**
      * Return custom claims to add to the token.
      */
-    public function getJWTCustomClaims(): array;
+    public function getJwtCustomClaims(): array;
 }
 ```
 
@@ -335,8 +335,8 @@ Why:
 
 How:
 
-- `ClaimFactory::subjectIdentifier()` uses `JWTSubject::getJWTIdentifier()` when implemented.
-- `ClaimFactory::make()` merges `JWTSubject::getJWTCustomClaims()` before inline claims.
+- `ClaimFactory::subjectIdentifier()` uses `JwtSubject::getJwtIdentifier()` when implemented.
+- `ClaimFactory::make()` merges `JwtSubject::getJwtCustomClaims()` before inline claims.
 - Inline claims passed through `claims()` still win.
 
 ### Keep Auth Events Inline in JwtGuard
@@ -363,7 +363,7 @@ use Hypervel\Auth\Events\Login;
 use Hypervel\Auth\Events\Logout;
 use Hypervel\Auth\Events\Validated;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\JWT\Http\Parser\Parser;
+use Hypervel\Jwt\Http\Parser\Parser;
 
 public function __construct(
     protected string $name,
@@ -613,7 +613,7 @@ public function getToken(): ?string
 protected function requireToken(): string
 {
     if (! $token = $this->getToken()) {
-        throw new JWTException('Token could not be parsed from the request.');
+        throw new JwtException('Token could not be parsed from the request.');
     }
 
     return $token;
@@ -678,7 +678,7 @@ protected function pullCustomClaims(): array
 
 Current bug:
 
-- `JWTServiceProvider` ignores `auth.guards.*.ttl`.
+- `JwtServiceProvider` ignores `auth.guards.*.ttl`.
 
 Final service provider behavior:
 
@@ -771,7 +771,7 @@ public function user(): ?AuthenticatableContract
 
     try {
         $payload = $this->decodeToken($token);
-    } catch (JWTException) {
+    } catch (JwtException) {
         CoroutineContext::set($contextKey, self::$nullUserSentinel);
 
         return null;
@@ -817,7 +817,7 @@ public function getUserId(): int|string|null
 
     try {
         $payload = $this->getPayload();
-    } catch (JWTException) {
+    } catch (JwtException) {
         return null;
     }
 
@@ -895,12 +895,12 @@ protected function makeTokenForUser(AuthenticatableContract $user): string
 Current bug:
 
 - `jwt.blacklist_enabled` defaults to false.
-- `JwtGuard::logout()` always calls `JWTManager::invalidate()`.
-- `JWTManager::invalidate()` throws when blacklist is disabled.
+- `JwtGuard::logout()` always calls `JwtManager::invalidate()`.
+- `JwtManager::invalidate()` throws when blacklist is disabled.
 
 Do not catch and swallow all JWT exceptions like upstream. Hypervel's fail-fast rule is better.
 
-Add this to `ManagerContract` and `JWTManager`:
+Add this to `ManagerContract` and `JwtManager`:
 
 ```php
 public function hasBlacklistEnabled(): bool;
@@ -947,13 +947,13 @@ Why:
 
 Current bug:
 
-- `JWTManager::refresh()` calls `decode($token)` through the normal validation pipeline.
+- `JwtManager::refresh()` calls `decode($token)` through the normal validation pipeline.
 - If `ExpiredClaim` validation is enabled, expired tokens cannot be refreshed even when they are inside `refresh_ttl`.
 
 Final behavior:
 
-- Add `Hypervel\JWT\Contracts\TemporalValidation` as a marker contract for timestamp/lifetime checks.
-- Add a refresh validation mode to `JWTManager`.
+- Add `Hypervel\Jwt\Contracts\TemporalValidation` as a marker contract for timestamp/lifetime checks.
+- Add a refresh validation mode to `JwtManager`.
 - Required-claims validation still runs.
 - Temporal validations are skipped for refresh.
 - Refresh window validation uses original `iat`.
@@ -1001,7 +1001,7 @@ Validation behavior:
 - `ExpiredClaim`, `IssuedAtClaim`, and `NotBeforeClaim` implement `TemporalValidation`, so they are skipped only during refresh.
 - `ValidationContract` stays simple: `public function validate(array $payload): void;`.
 
-`JWTManager::refresh()`:
+`JwtManager::refresh()`:
 
 ```php
 public function refresh(
@@ -1071,12 +1071,12 @@ public function refresh(bool $forceForever = false, bool $resetClaims = false): 
 Rename:
 
 - `src/jwt/src/Validations/NotBeforeCliam.php`
-- `tests/JWT/Validations/NotBeforeCliamTest.php`
+- `tests/Jwt/Validations/NotBeforeCliamTest.php`
 
 To:
 
 - `src/jwt/src/Validations/NotBeforeClaim.php`
-- `tests/JWT/Validations/NotBeforeClaimTest.php`
+- `tests/Jwt/Validations/NotBeforeClaimTest.php`
 
 Update:
 
@@ -1097,9 +1097,9 @@ New file:
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Exceptions;
+namespace Hypervel\Jwt\Exceptions;
 
-class SecretMissingException extends JWTException
+class SecretMissingException extends JwtException
 {
 }
 ```
@@ -1132,7 +1132,7 @@ Contract:
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Contracts;
+namespace Hypervel\Jwt\Contracts;
 
 use Hypervel\Http\Request;
 
@@ -1271,7 +1271,7 @@ Port only the useful missing sliding-token middleware to Hypervel style:
 
 Do not add `jwt.auth` or `jwt.check`. Normal authentication is already covered by Hypervel's `auth:jwt` middleware, and optional JWT auth is handled by reading the guard lazily.
 
-Register aliases in `JWTServiceProvider::boot()`:
+Register aliases in `JwtServiceProvider::boot()`:
 
 ```php
 $router = $this->app->make('router');
@@ -1280,7 +1280,7 @@ $router->aliasMiddleware('jwt.refresh', RefreshToken::class);
 $router->aliasMiddleware('jwt.renew', AuthenticateAndRenew::class);
 ```
 
-Middleware uses the auth manager / guard, not upstream `JWTAuth`.
+Middleware uses the auth manager / guard, not upstream `JwtAuth`.
 
 Base behavior:
 
@@ -1319,7 +1319,7 @@ Use Hypervel command patterns:
 - `Hypervel\Support\Env::writeVariable()` / `writeVariables()`
 - `$this->hypervel->environmentFilePath()`
 
-Register in `JWTServiceProvider::register()`:
+Register in `JwtServiceProvider::register()`:
 
 ```php
 if ($this->app->runningInConsole()) {
@@ -1348,7 +1348,7 @@ if ($this->app->runningInConsole()) {
 
 ### Service Provider Wiring
 
-Update `JWTServiceProvider`:
+Update `JwtServiceProvider`:
 
 - inject config via `$app->make('config')`
 - use `->make()`, not array access
@@ -1362,7 +1362,7 @@ Update `JWTServiceProvider`:
 Manager and parser bindings:
 
 ```php
-$this->app->singleton('jwt', fn ($app) => new JWTManager(
+$this->app->singleton('jwt', fn ($app) => new JwtManager(
     $app,
     $app->make(ClaimFactory::class),
 ));
@@ -1412,10 +1412,10 @@ $guard->setDispatcher($app->make('events'));
 Delete stale code after the new shape is in place:
 
 - `JwtGuard::getContextKeyForToken()`; user caching is still token-keyed, but now through `getUserContextKey()` based on `getToken()`.
-- `JWTManager::buildRefreshClaims()`; refresh claim construction belongs to `ClaimFactory::refresh()`.
+- `JwtManager::buildRefreshClaims()`; refresh claim construction belongs to `ClaimFactory::refresh()`.
 - `Date` and `Str` imports from `JwtGuard`; claim stamping and parsing move to `ClaimFactory` / parser classes.
-- `Collection` import from `JWTManager`; refresh claim construction moves to `ClaimFactory`.
-- `Str` import and `$blacklistEnabled` property from `ClaimFactory`; blacklist-gated `jti` generation stays in `JWTManager::encode()`.
+- `Collection` import from `JwtManager`; refresh claim construction moves to `ClaimFactory`.
+- `Str` import and `$blacklistEnabled` property from `ClaimFactory`; blacklist-gated `jti` generation stays in `JwtManager::encode()`.
 
 Do not leave compatibility wrappers or comments for these removed internals.
 
@@ -1454,8 +1454,8 @@ Config shape:
 'token' => env('JWT_TOKEN', 'token'),
 
 'parser' => [
-    \Hypervel\JWT\Http\Parser\AuthHeaders::class,
-    \Hypervel\JWT\Http\Parser\InputSource::class,
+    \Hypervel\Jwt\Http\Parser\AuthHeaders::class,
+    \Hypervel\Jwt\Http\Parser\InputSource::class,
 ],
 ```
 
@@ -1487,7 +1487,7 @@ It must cover:
 - `jwt:secret`
 - `jwt:generate-certs`
 - configuring the jwt guard
-- user model requirements and optional `JWTSubject`
+- user model requirements and optional `JwtSubject`
 - signing keys and algorithms
 - token lifetime and per-call TTL
 - subject locking
@@ -1508,7 +1508,7 @@ It must cover:
 Differences section:
 
 - Hypervel uses arrays, not `Payload`, `Token`, or claim DTO objects.
-- Hypervel keeps the existing `JWT` facade mapped to the array-based `JWTManager`, but does not ship upstream `JWTAuth`, `JWTFactory`, or `JWTProvider` facades.
+- Hypervel keeps the existing `Jwt` facade mapped to the array-based `JwtManager`, but does not ship upstream `JwtAuth`, `JwtFactory`, or `JwtProvider` facades.
 - Hypervel does not include Namshi or Lumen integration.
 - Hypervel parser is stateless and request is passed per parse.
 - Hypervel does not enable cookie token parsing by default; upstream enables it in Laravel. The `Cookie` parser is available and can be added to `jwt.parser` when an application explicitly wants cookie-based JWT auth.
@@ -1525,7 +1525,7 @@ Also update the Boost docs index and authentication docs:
 
 Add only concise comments where future porting will naturally look.
 
-`JWTServiceProvider` near omitted upstream object/facade binding surface:
+`JwtServiceProvider` near omitted upstream object/facade binding surface:
 
 ```php
 // Hypervel intentionally keeps JWT as an array-based manager/guard package.
@@ -1544,13 +1544,13 @@ Do not add noisy comments to routine methods.
 
 ### Tests
 
-Keep existing `tests/JWT` tests and update them to the new behavior. Add new tests in the same package directory. No external service tests are needed for this package.
+Keep existing `tests/Jwt` tests and update them to the new behavior. Add new tests in the same package directory. No external service tests are needed for this package.
 
 #### Guard API Tests
 
 File:
 
-- `tests/JWT/JwtGuardTest.php`
+- `tests/Jwt/JwtGuardTest.php`
 
 Add/replace tests:
 
@@ -1586,7 +1586,7 @@ Add/replace tests:
 
 File:
 
-- `tests/JWT/JwtGuardEventTest.php` or merge into `JwtGuardTest.php` if size stays readable.
+- `tests/Jwt/JwtGuardEventTest.php` or merge into `JwtGuardTest.php` if size stays readable.
 
 Tests:
 
@@ -1599,21 +1599,21 @@ Tests:
 - `Logout` fires on logout.
 - `attempting()` registers listener through dispatcher.
 
-#### Subject Locking and JWTSubject Tests
+#### Subject Locking and JwtSubject Tests
 
 File:
 
-- `tests/JWT/JWTSubjectTest.php`
+- `tests/Jwt/JwtSubjectTest.php`
 
 Fixtures:
 
-- `tests/JWT/Fixtures/JWTSubjectUser.php`
-- `tests/JWT/Fixtures/JWTSubjectAdmin.php`
+- `tests/Jwt/Fixtures/JwtSubjectUser.php`
+- `tests/Jwt/Fixtures/JwtSubjectAdmin.php`
 
 Tests:
 
-- `JWTSubject::getJWTIdentifier()` is used for `sub`.
-- `JWTSubject::getJWTCustomClaims()` are merged.
+- `JwtSubject::getJwtIdentifier()` is used for `sub`.
+- `JwtSubject::getJwtCustomClaims()` are merged.
 - inline `claims()` override model claims.
 - `prv` is included when `jwt.lock_subject` is true and provider has `getModel()`.
 - `prv` is omitted when lock subject is false.
@@ -1627,7 +1627,7 @@ Tests:
 
 File:
 
-- `tests/JWT/JwtGuardCoroutineSafetyTest.php`
+- `tests/Jwt/JwtGuardCoroutineSafetyTest.php`
 
 Use `parallel()` and `usleep()`:
 
@@ -1642,7 +1642,7 @@ Use `parallel()` and `usleep()`:
 
 File:
 
-- `tests/JWT/JWTManagerTest.php`
+- `tests/Jwt/JwtManagerTest.php`
 
 Add/update:
 
@@ -1659,13 +1659,13 @@ Add/update:
 - guard `refresh()` consumes the effective TTL, including explicit `null` for no expiry.
 - refresh invalidates old token only when blacklist enabled.
 - `hasBlacklistEnabled()` returns config-derived value.
-- `JWTManager::encode()` adds `jti` when blacklist is enabled and preserves caller-provided `jti`.
+- `JwtManager::encode()` adds `jti` when blacklist is enabled and preserves caller-provided `jti`.
 
 #### Claim Factory Tests
 
 File:
 
-- `tests/JWT/ClaimFactoryTest.php`
+- `tests/Jwt/ClaimFactoryTest.php`
 
 Tests:
 
@@ -1681,7 +1681,7 @@ Tests:
 
 File:
 
-- `tests/JWT/Http/ParserTest.php`
+- `tests/Jwt/Http/ParserTest.php`
 
 Tests:
 
@@ -1696,8 +1696,8 @@ Tests:
 
 Files:
 
-- `tests/JWT/Http/Middleware/RefreshTokenTest.php`
-- `tests/JWT/Http/Middleware/AuthenticateAndRenewTest.php`
+- `tests/Jwt/Http/Middleware/RefreshTokenTest.php`
+- `tests/Jwt/Http/Middleware/AuthenticateAndRenewTest.php`
 
 Tests:
 
@@ -1711,7 +1711,7 @@ Tests:
 
 File:
 
-- `tests/JWT/Providers/LcobucciTest.php`
+- `tests/Jwt/Providers/LcobucciTest.php`
 
 Tests:
 
@@ -1723,8 +1723,8 @@ Tests:
 
 Files:
 
-- `tests/JWT/Console/JwtSecretCommandTest.php`
-- `tests/JWT/Console/JwtGenerateCertsCommandTest.php`
+- `tests/Jwt/Console/JwtSecretCommandTest.php`
+- `tests/Jwt/Console/JwtGenerateCertsCommandTest.php`
 
 Use `Hypervel\Testbench\TestCase` because commands write `.env` and cert files under the runtime skeleton.
 
@@ -1743,7 +1743,7 @@ Tests:
 
 File:
 
-- `tests/JWT/JWTServiceProviderTest.php` or existing `JwtGuardTest` provider section.
+- `tests/Jwt/JwtServiceProviderTest.php` or existing `JwtGuardTest` provider section.
 
 Tests:
 
@@ -1759,7 +1759,7 @@ Tests:
 
 Rename and update:
 
-- `tests/JWT/Validations/NotBeforeClaimTest.php`
+- `tests/Jwt/Validations/NotBeforeClaimTest.php`
 
 Tests:
 
@@ -1772,7 +1772,7 @@ After each test file or logical group:
 
 ```bash
 cd /home/binaryfire/workspace/monorepo/contrib/hypervel/components
-./vendor/bin/phpunit --no-progress tests/JWT/JwtGuardTest.php
+./vendor/bin/phpunit --no-progress tests/Jwt/JwtGuardTest.php
 ```
 
 After source changes:
@@ -1797,11 +1797,11 @@ After green checks:
 
 ## Implementation Order
 
-1. Add `JWTSubject`, `TemporalValidation`, `ClaimFactory`, `SecretMissingException`, parser contract/classes, middleware classes, and command classes.
-2. Update `JWTManager` and `ManagerContract` for claim factory, refresh-aware decode, resetClaims, refresh_iat, blacklist state, and `SecretMissingException`.
+1. Add `JwtSubject`, `TemporalValidation`, `ClaimFactory`, `SecretMissingException`, parser contract/classes, middleware classes, and command classes.
+2. Update `JwtManager` and `ManagerContract` for claim factory, refresh-aware decode, resetClaims, refresh_iat, blacklist state, and `SecretMissingException`.
 3. Update validations, including `NotBeforeClaim` rename and `TemporalValidation` support.
 4. Update `JwtGuard` for events, token override, fixed attempt/once/login/logout behavior, per-call TTL, subject matching, and added methods.
-5. Update `JWTServiceProvider` registration, middleware aliases, parser registration, command registration, per-guard TTL, and dispatcher wiring.
+5. Update `JwtServiceProvider` registration, middleware aliases, parser registration, command registration, per-guard TTL, and dispatcher wiring.
 6. Update config.
 7. Update README.
 8. Update and add tests in the groups above, running each file as it is completed.
@@ -1817,7 +1817,7 @@ Hot path additions:
 - `JwtGuard::user()` checks subject hash only when `lock_subject` is enabled and provider has `getModel()`.
 - Auth events use `hasListeners()` before constructing events.
 - Parser chain loops over a small list of stateless parsers.
-- `JWTSubject` check is a cheap `instanceof`.
+- `JwtSubject` check is a cheap `instanceof`.
 
 Avoided overhead:
 
@@ -1831,7 +1831,7 @@ Avoided overhead:
 Worker-lifetime caching:
 
 - subject model hash map in `ClaimFactory`
-- existing validation instances in `JWTManager`
+- existing validation instances in `JwtManager`
 - existing provider signer/config caching in `Lcobucci`
 
 Coroutine state:
@@ -1855,7 +1855,7 @@ This is the cleanest performance shape: immutable metadata is cached for the wor
 - per-guard TTL works, including explicit null.
 - per-call TTL is coroutine-local.
 - subject locking prevents cross-provider id collisions.
-- `JWTSubject` works but is not required.
+- `JwtSubject` works but is not required.
 - refresh works for expired tokens inside refresh window.
 - `refresh_iat` works.
 - `resetClaims` works.
@@ -1884,8 +1884,8 @@ Delete the sliding-token middleware and do not register `jwt.refresh` or `jwt.re
 
 - `src/jwt/src/Http/Middleware/RefreshToken.php`
 - `src/jwt/src/Http/Middleware/AuthenticateAndRenew.php`
-- `tests/JWT/Http/Middleware/RefreshTokenTest.php`
-- `tests/JWT/Http/Middleware/AuthenticateAndRenewTest.php`
+- `tests/Jwt/Http/Middleware/RefreshTokenTest.php`
+- `tests/Jwt/Http/Middleware/AuthenticateAndRenewTest.php`
 
 Why:
 
@@ -1896,13 +1896,13 @@ Why:
 Document the explicit refresh endpoint pattern in `src/boost/docs/jwt.md` instead. The refresh route must not be protected with `auth:api`, because normal auth validation rejects expired access tokens before `JwtGuard::refresh()` can run its refresh-window validation.
 
 ```php
-use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Support\Facades\Auth;
 
 Route::post('/token/refresh', function () {
     try {
         $token = Auth::guard('api')->refresh();
-    } catch (JWTException) {
+    } catch (JwtException) {
         abort(401, 'Token cannot be refreshed.');
     }
 
@@ -1916,7 +1916,7 @@ Keep `blacklist_grace_period`; explicit refresh can still race when clients subm
 
 ### Lazily Resolve Blacklist Storage and Fail Fast When Enabled
 
-`jwt.blacklist_enabled` defaults to `false`. When it is disabled, `JWTManager` should not resolve `BlacklistContract` at all:
+`jwt.blacklist_enabled` defaults to `false`. When it is disabled, `JwtManager` should not resolve `BlacklistContract` at all:
 
 ```php
 $this->blacklistEnabled = $this->config->boolean('jwt.blacklist_enabled', false);
@@ -1927,7 +1927,7 @@ $this->blacklist = $this->blacklistEnabled
 
 Keep the existing nullable blacklist property and the existing `$this->blacklistEnabled &&` guards before blacklist use.
 
-The default blacklist storage remains `Hypervel\JWT\Storage\TaggedCache`. This matches the old Hypervel 0.3 package and gives blacklist entries an isolated tag so `clear()` flushes only JWT blacklist entries.
+The default blacklist storage remains `Hypervel\Jwt\Storage\TaggedCache`. This matches the old Hypervel 0.3 package and gives blacklist entries an isolated tag so `clear()` flushes only JWT blacklist entries.
 
 Add a fail-fast check in the `BlacklistContract` binding, not inside `TaggedCache`, so disabled-blacklist applications with non-taggable default cache stores do not fail during manager construction:
 
@@ -1983,11 +1983,11 @@ Why:
 
 Add or update tests for:
 
-- `JWTManager` does not resolve `BlacklistContract` when `jwt.blacklist_enabled` is false.
+- `JwtManager` does not resolve `BlacklistContract` when `jwt.blacklist_enabled` is false.
 - disabled blacklist with a non-taggable default cache store does not throw.
 - enabled blacklist with `TaggedCache` and a non-taggable cache store throws a clear exception.
 - enabled blacklist with `TaggedCache` and a taggable cache store works.
 - custom blacklist storage bypasses the tag-support check.
 - blacklist TTL uses ceiling rounding for fractional minute differences.
 - Lcobucci signed-token validation still works after switching to `withValidationConstraints()`.
-- `JWTServiceProvider` no longer registers `jwt.refresh` or `jwt.renew` aliases.
+- `JwtServiceProvider` no longer registers `jwt.refresh` or `jwt.renew` aliases.

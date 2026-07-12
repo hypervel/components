@@ -15,7 +15,6 @@ use Hypervel\Support\Facades\URL;
 use Hypervel\Support\Str;
 use Hypervel\View\Factory;
 use ReflectionClass;
-use ReflectionProperty;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Filesystem\join_paths;
@@ -27,8 +26,6 @@ class GenerateCommand extends Command
     protected ?string $signature = 'wayfinder:generate {--path=} {--skip-actions} {--skip-routes} {--with-form}';
 
     private ?string $forcedScheme = null;
-
-    private ?string $forcedRoot = null;
 
     private array $urlDefaults = [];
 
@@ -69,8 +66,7 @@ class GenerateCommand extends Command
         $this->view->addNamespace('wayfinder', __DIR__ . '/../resources');
         $this->view->addExtension('blade.ts', 'blade');
 
-        $this->forcedScheme = (new ReflectionProperty($this->url, 'forceScheme'))->getValue($this->url);
-        $this->forcedRoot = (new ReflectionProperty($this->url, 'forcedRoot'))->getValue($this->url);
+        $this->forcedScheme = $this->url->getForcedScheme();
 
         $globalUrlDefaults = collect(URL::getDefaultParameters())->map(fn (mixed $v) => is_scalar($v) || is_null($v) ? $v : '');
 
@@ -85,7 +81,7 @@ class GenerateCommand extends Command
                 return $this->urlDefaults[$middleware];
             })->flatMap(fn (array $r) => $r);
 
-            return new Route($route, $globalUrlDefaults->merge($defaults), $this->forcedScheme, $this->forcedRoot);
+            return new Route($route, $globalUrlDefaults->merge($defaults), $this->forcedScheme);
         });
 
         $this->writeWayfinderHelperFile();

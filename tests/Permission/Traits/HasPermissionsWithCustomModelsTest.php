@@ -31,6 +31,25 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $this->assertSame(Permission::class, $this->testUserPermission::class);
     }
 
+    public function testFindOrCreateRestoresSoftDeletedPermission(): void
+    {
+        $permission = Permission::create(['name' => 'restorable-permission']);
+        $permissionId = $permission->getKey();
+        $this->testUserRole->givePermissionTo($permission);
+        $this->testUser->givePermissionTo($permission);
+
+        $permission->delete();
+
+        $restoredPermission = Permission::findOrCreate('restorable-permission');
+
+        $this->assertSame($permissionId, $restoredPermission->getKey());
+        $this->assertFalse($restoredPermission->trashed());
+        $this->assertNull($restoredPermission->deleted_at);
+        $this->assertSame(1, Permission::withTrashed()->where('name', 'restorable-permission')->count());
+        $this->assertTrue($this->testUserRole->hasPermissionTo($restoredPermission));
+        $this->assertTrue($this->testUser->fresh()->hasPermissionTo($restoredPermission));
+    }
+
     public function testItCanUseCustomFieldsFromCache(): void
     {
         DB::connection()->getSchemaBuilder()->table(config('permission.table_names.roles'), function ($table): void {

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Cache\Redis;
 use BadMethodCallException;
 use Generator;
 use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\Redis\AnyTaggedCache;
@@ -71,6 +72,21 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     /**
      * @test
      */
+    public function testGetMultipleThrowsBadMethodCallException(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+        $cache = $store->setTagMode('any')->tags(['users', 'posts']);
+
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('Cannot get items via tags in any mode');
+
+        $cache->getMultiple(['key1', 'key2']);
+    }
+
+    /**
+     * @test
+     */
     public function testHasThrowsBadMethodCallException(): void
     {
         $connection = $this->mockConnection();
@@ -116,6 +132,90 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     /**
      * @test
      */
+    public function testTouchThrowsBadMethodCallException(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+        $cache = $store->setTagMode('any')->tags(['users', 'posts']);
+
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('Cannot touch items via tags in any mode');
+
+        $cache->touch('key', 60);
+    }
+
+    /**
+     * @test
+     */
+    public function testDeleteThrowsBadMethodCallException(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+        $cache = $store->setTagMode('any')->tags(['users', 'posts']);
+
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('Cannot forget items via tags in any mode');
+
+        $cache->delete('key');
+    }
+
+    /**
+     * @test
+     */
+    public function testDeleteMultipleThrowsBadMethodCallException(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+        $cache = $store->setTagMode('any')->tags(['users', 'posts']);
+
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('Cannot forget items via tags in any mode');
+
+        $cache->deleteMultiple(['key1', 'key2']);
+    }
+
+    /**
+     * @test
+     */
+    public function testArrayAccessReadOperationsThrowBadMethodCallException(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+        $cache = $store->setTagMode('any')->tags(['users', 'posts']);
+
+        try {
+            $cache['key'];
+            $this->fail('ArrayAccess get should throw.');
+        } catch (BadMethodCallException $e) {
+            $this->assertStringContainsString('Cannot get items via tags in any mode', $e->getMessage());
+        }
+
+        try {
+            isset($cache['key']);
+            $this->fail('ArrayAccess exists should throw.');
+        } catch (BadMethodCallException $e) {
+            $this->assertStringContainsString('Cannot check existence via tags in any mode', $e->getMessage());
+        }
+    }
+
+    /**
+     * @test
+     */
+    public function testArrayAccessUnsetThrowsBadMethodCallException(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+        $cache = $store->setTagMode('any')->tags(['users', 'posts']);
+
+        $this->expectException(BadMethodCallException::class);
+        $this->expectExceptionMessage('Cannot forget items via tags in any mode');
+
+        unset($cache['key']);
+    }
+
+    /**
+     * @test
+     */
     public function testPutStoresValueWithTags(): void
     {
         $connection = $this->mockConnection();
@@ -152,15 +252,19 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testPutWithZeroTtlReturnsFalse(): void
+    public function testPutWithZeroTtlDeletesPlainKey(): void
     {
         $connection = $this->mockConnection();
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->andReturn(1);
+
         $store = $this->createStore($connection);
         $cache = $store->setTagMode('any')->tags(['users', 'posts']);
 
         $result = $cache->put('mykey', 'myvalue', 0);
 
-        $this->assertFalse($result);
+        $this->assertTrue($result);
     }
 
     /**
@@ -234,15 +338,61 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testPutManyWithZeroTtlReturnsFalse(): void
+    public function testPutManyWithZeroTtlDeletesPlainKeys(): void
     {
         $connection = $this->mockConnection();
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->andReturn(1);
+
         $store = $this->createStore($connection);
         $cache = $store->setTagMode('any')->tags(['users']);
 
         $result = $cache->putMany(['key1' => 'value1'], 0);
 
-        $this->assertFalse($result);
+        $this->assertTrue($result);
+    }
+
+    /**
+     * @test
+     */
+    public function testSetMultipleWritesThroughTaggedPath(): void
+    {
+        $connection = $this->mockConnection();
+
+        $connection->shouldReceive('pipeline')->andReturn($connection);
+        $connection->shouldReceive('smembers')->andReturn($connection);
+        $connection->shouldReceive('exec')->andReturn([[], []]);
+        $connection->shouldReceive('setex')->andReturn($connection);
+        $connection->shouldReceive('del')->andReturn($connection);
+        $connection->shouldReceive('sadd')->andReturn($connection);
+        $connection->shouldReceive('expire')->andReturn($connection);
+        $connection->shouldReceive('hSet')->andReturn($connection);
+        $connection->shouldReceive('hexpire')->andReturn($connection);
+        $connection->shouldReceive('zadd')->andReturn($connection);
+
+        $store = $this->createStore($connection);
+        $cache = $store->setTagMode('any')->tags(['users']);
+
+        $this->assertTrue($cache->setMultiple(['key1' => 'value1', 'key2' => 'value2'], 60));
+    }
+
+    /**
+     * @test
+     */
+    public function testArrayAccessSetWritesThroughTaggedPath(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->andReturn(true);
+
+        $store = $this->createStore($connection);
+        $cache = $store->setTagMode('any')->tags(['users']);
+
+        $cache['mykey'] = 'myvalue';
+
+        $this->assertTrue(true);
     }
 
     /**
@@ -420,6 +570,30 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     /**
      * @test
      */
+    public function testClearFlushesTaggedItems(): void
+    {
+        $connection = $this->mockConnection();
+
+        $connection->shouldReceive('hlen')
+            ->andReturn(2);
+        $connection->shouldReceive('hkeys')
+            ->once()
+            ->andReturn(['key1', 'key2']);
+        $connection->shouldReceive('pipeline')->andReturn($connection);
+        $connection->shouldReceive('del')->andReturn($connection);
+        $connection->shouldReceive('unlink')->andReturn($connection);
+        $connection->shouldReceive('zrem')->andReturn($connection);
+        $connection->shouldReceive('exec')->andReturn([2, 1]);
+
+        $store = $this->createStore($connection);
+        $result = $store->setTagMode('any')->tags(['users'])->clear();
+
+        $this->assertTrue($result);
+    }
+
+    /**
+     * @test
+     */
     public function testRememberRetrievesExistingValueFromStore(): void
     {
         $connection = $this->mockConnection();
@@ -464,6 +638,49 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
         $this->assertSame('computed_value', $result);
         $this->assertSame(1, $callCount);
+    }
+
+    public function testRememberNormalizesEnumKeyForRedisAndEvents(): void
+    {
+        $connection = $this->mockConnection();
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with('prefix:profile')
+            ->andReturnNull();
+
+        $connection->shouldReceive('evalWithShaCache')
+            ->once()
+            ->withArgs(function (string $script, array $keys, array $args): bool {
+                $this->assertSame('prefix:profile', $keys[0]);
+                $this->assertSame('profile', $args[5]);
+
+                return true;
+            })
+            ->andReturn(true);
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function (object $event) use (&$captured): void {
+                $captured[] = $event;
+            });
+
+        $tagged = $this->createStore($connection)->setTagMode('any')->tags(['users']);
+        $tagged->setEventDispatcher($events);
+
+        $result = $tagged->remember(AnyTaggedCacheTestKey::Profile, 60, fn () => 'computed_value');
+
+        $this->assertSame('computed_value', $result);
+
+        $cacheMissed = array_values(array_filter($captured, fn (object $event) => $event instanceof CacheMissed))[0] ?? null;
+        $keyWritten = array_values(array_filter($captured, fn (object $event) => $event instanceof KeyWritten))[0] ?? null;
+
+        $this->assertNotNull($cacheMissed);
+        $this->assertSame('profile', $cacheMissed->key);
+        $this->assertNotNull($keyWritten);
+        $this->assertSame('profile', $keyWritten->key);
     }
 
     public function testRememberNullableStoresAndReturnsNonNullValue(): void
@@ -621,6 +838,36 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $result = $store->setTagMode('any')->tags(['users'])->rememberForever('mykey', fn () => 'new_value');
 
         $this->assertSame('cached_value', $result);
+    }
+
+    public function testRememberForeverNormalizesEnumKeyForRedisAndEvents(): void
+    {
+        $connection = $this->mockConnection();
+
+        $connection->shouldReceive('get')
+            ->once()
+            ->with('prefix:settings')
+            ->andReturn(serialize('cached_settings'));
+
+        $captured = [];
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->withAnyArgs()->andReturn(true);
+        $events->shouldReceive('dispatch')
+            ->andReturnUsing(function (object $event) use (&$captured): void {
+                $captured[] = $event;
+            });
+
+        $tagged = $this->createStore($connection)->setTagMode('any')->tags(['users']);
+        $tagged->setEventDispatcher($events);
+
+        $result = $tagged->rememberForever(AnyTaggedCacheTestKey::Settings, fn () => 'new_settings');
+
+        $this->assertSame('cached_settings', $result);
+
+        $cacheHit = array_values(array_filter($captured, fn (object $event) => $event instanceof CacheHit))[0] ?? null;
+
+        $this->assertNotNull($cacheHit);
+        $this->assertSame('settings', $cacheHit->key);
     }
 
     /**
@@ -880,4 +1127,10 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
         $cache->flexibleNullable('mykey', [60, 120], fn () => 'v');
     }
+}
+
+enum AnyTaggedCacheTestKey: string
+{
+    case Profile = 'profile';
+    case Settings = 'settings';
 }

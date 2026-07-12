@@ -38,7 +38,7 @@
         "hypervel/foundation": "^0.4",
         "hypervel/support": "^0.4",
         "psy/psysh": "^0.12.22",
-        "symfony/var-dumper": "^8.0"
+        "symfony/var-dumper": "^8.1"
     },
     "suggest": {
         "hypervel/database": "Required for Eloquent model casting in Tinker (^0.4)."

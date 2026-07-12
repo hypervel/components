@@ -228,7 +228,7 @@ Below you will find many of Hypervel's facades and their underlying classes. Thi
 | Gate | [Hypervel\Contracts\Auth\Access\Gate](https://api.hypervel.org/docs/{{version}}/Hypervel/Contracts/Auth/Access/Gate.html) | &nbsp; |
 | Hash | [Hypervel\Contracts\Hashing\Hasher](https://api.hypervel.org/docs/{{version}}/Hypervel/Contracts/Hashing/Hasher.html) | `hash` |
 | Http | [Hypervel\Http\Client\Factory](https://api.hypervel.org/docs/{{version}}/Hypervel/Http/Client/Factory.html) | &nbsp; |
-| JWT | [Hypervel\JWT\JWTManager](https://api.hypervel.org/docs/{{version}}/Hypervel/JWT/JWTManager.html) | `jwt` |
+| Jwt | [Hypervel\Jwt\JwtManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Jwt/JwtManager.html) | `jwt` |
 | Lang | [Hypervel\Translation\Translator](https://api.hypervel.org/docs/{{version}}/Hypervel/Translation/Translator.html) | `translator` |
 | Log | [Hypervel\Log\LogManager](https://api.hypervel.org/docs/{{version}}/Hypervel/Log/LogManager.html) | `log` |
 | Mail | [Hypervel\Mail\Mailer](https://api.hypervel.org/docs/{{version}}/Hypervel/Mail/Mailer.html) | `mailer` |

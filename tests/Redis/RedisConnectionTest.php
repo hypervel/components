@@ -19,6 +19,7 @@ use Hypervel\Tests\Redis\Fixtures\PhpRedisClusterConnectionStub;
 use Hypervel\Tests\Redis\Fixtures\PhpRedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
@@ -1330,6 +1331,24 @@ class RedisConnectionTest extends TestCase
         $this->assertTrue($connection->isCluster());
     }
 
+    #[DataProvider('redisClusterHashTagProvider')]
+    public function testHasHashTag(string $key, bool $expected): void
+    {
+        $this->assertSame($expected, RedisConnection::hasHashTag($key));
+    }
+
+    public static function redisClusterHashTagProvider(): array
+    {
+        return [
+            ['plain-key', false],
+            ['{}', false],
+            ['prefix{}suffix', false],
+            ['{queue}', true],
+            ['prefix{queue}suffix', true],
+            ['{queue}:reserved', true],
+        ];
+    }
+
     public function testPackReturnsEmptyArrayForEmptyInput(): void
     {
         $connection = $this->mockRedisConnection();
@@ -2245,6 +2264,47 @@ class RedisConnectionTest extends TestCase
         $connection->setLastReleaseTimeForTest(microtime(true));
 
         $this->assertFalse($connection->check());
+    }
+
+    public function testCheckDoesNotResetActivityTimestamp(): void
+    {
+        $pool = m::mock(PoolInterface::class);
+        $pool->shouldReceive('getOption')->andReturn(new PoolOption(maxIdleTime: 60.0));
+        $redis = m::mock(Redis::class);
+
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends PhpRedisConnection {
+            public function __construct(
+                ContainerContract $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis,
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+
+            public function prepareForIdleCheck(): float
+            {
+                $this->availableForReuse = true;
+                $this->lastReleaseTime = microtime(true);
+
+                return $this->lastUseTime;
+            }
+
+            public function getLastUseTimeForTest(): float
+            {
+                return $this->lastUseTime;
+            }
+        };
+
+        $lastUseTime = $connection->prepareForIdleCheck();
+
+        $this->assertTrue($connection->check());
+        $this->assertSame($lastUseTime, $connection->getLastUseTimeForTest());
     }
 
     public function testScanWithArrayOptions(): void

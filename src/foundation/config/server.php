@@ -25,8 +25,8 @@ return [
         [
             'name' => 'http',
             'type' => Server::SERVER_HTTP,
-            'host' => env('HTTP_SERVER_HOST', '0.0.0.0'),
-            'port' => (int) env('HTTP_SERVER_PORT', 9501),
+            'host' => env('SERVER_HOST', '0.0.0.0'),
+            'port' => (int) env('SERVER_PORT', 8000),
             'sock_type' => SWOOLE_SOCK_TCP,
             'callbacks' => [
                 Event::ON_REQUEST => [Hypervel\HttpServer\Server::class, 'onRequest'],

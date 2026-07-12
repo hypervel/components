@@ -56,7 +56,7 @@ class LocalFilesystemAdapter extends FilesystemAdapter
     public function temporaryUrl(string $path, DateTimeInterface $expiration, array $options = []): string
     {
         if ($this->temporaryUrlCallback) {
-            return $this->temporaryUrlCallback->bindTo($this, static::class)(
+            return ($this->temporaryUrlCallback)(
                 $path,
                 $expiration,
                 $options
@@ -85,7 +85,7 @@ class LocalFilesystemAdapter extends FilesystemAdapter
     public function temporaryUploadUrl(string $path, DateTimeInterface $expiration, array $options = []): array|string
     {
         if ($this->temporaryUploadUrlCallback) {
-            return $this->temporaryUploadUrlCallback->bindTo($this, static::class)(
+            return ($this->temporaryUploadUrlCallback)(
                 $path,
                 $expiration,
                 $options

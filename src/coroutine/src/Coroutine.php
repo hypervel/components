@@ -87,8 +87,6 @@ class Coroutine
 
     /**
      * Create a new coroutine.
-     *
-     * @return int The coroutine ID, or -1 if creation failed
      */
     public static function create(callable $callable): int
     {
@@ -108,11 +106,7 @@ class Coroutine
             }
         });
 
-        try {
-            return $coroutine->getId();
-        } catch (Throwable) {
-            return -1;
-        }
+        return $coroutine->getId();
     }
 
     /**

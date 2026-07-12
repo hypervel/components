@@ -5,12 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Pool\ConnectionInterface as PoolConnectionInterface;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionName;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\FlushableConnectionResolver;
+use LogicException;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -18,21 +23,9 @@ use function Hypervel\Support\enum_value;
 /**
  * Database connection resolver for the testing environment.
  *
- * Uses a hybrid lifecycle model: connections are created through the real
- * pool infrastructure (same factory, config, and connection path as production)
- * but cached statically instead of using the pool's checkout/release cycle.
- *
- * This is intentional — tests don't run in coroutines with defer(), so the
- * normal pool lifecycle (checkout → defer release → coroutine ends) doesn't
- * apply. Instead, connections are cached per-name and reused across test
- * methods within the same worker process.
- *
- * The PooledConnection wrapper is discarded after extracting the bare
- * Connection. This means pool release() never runs on the wrapper, but
- * that's acceptable because:
- * - flushCachedConnections() handles per-test state reset (resetForPool)
- * - flush() / flushCachedConnections() disconnect PDOs to prevent leaks
- * - DB::purge() flushes the entire pool when connection config changes
+ * Testbench needs stable bare connections across its setup, transaction, and
+ * assertion helpers. The resolver therefore retains each borrowed wrapper
+ * alongside its bare connection and explicitly discards both at teardown.
  */
 class DatabaseConnectionResolver extends ConnectionResolver implements FlushableConnectionResolver
 {
@@ -42,6 +35,13 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
      * @var array<string, ConnectionInterface>
      */
     protected static array $connections = [];
+
+    /**
+     * Borrowed pooled wrappers that own the cached bare connections.
+     *
+     * @var array<string, PoolConnectionInterface>
+     */
+    protected static array $pooledConnections = [];
 
     /**
      * The object ID of the container when connections were cached.
@@ -55,7 +55,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
     protected static bool $rebindingRegistered = false;
 
     /**
-     * Flush all cached connections to clean state.
+     * Reset all cached connections to clean state for another setup phase.
      *
      * Called after Application is created to prevent test pollution (query logs,
      * event listeners, transaction state, etc.) from leaking between tests.
@@ -64,36 +64,41 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
      * connections are flushed since they hold references to the old container's
      * services. A rebinding hook is registered so Event::fake() automatically
      * updates cached connections with the new dispatcher.
+     *
+     * Tests only. The cached connections are process-global, so runtime use can
+     * reset or discard a connection borrowed by another coroutine.
      */
-    public static function flushCachedConnections(): void
+    public static function resetCachedConnections(): void
     {
         $container = Container::getInstance();
         $currentContainerId = spl_object_id($container);
 
-        // If container changed, disconnect and flush all cached connections since
-        // they hold stale references to the old container's dispatcher and other services
         if (static::$containerId !== $currentContainerId) {
+            static::discardCachedConnections();
             static::$containerId = $currentContainerId;
-
-            foreach (static::$connections as $connection) {
-                if ($connection instanceof Connection) {
-                    $connection->disconnect();
-                }
-            }
-
-            static::$connections = [];
             static::$rebindingRegistered = false;
         }
 
-        // Reset per-request state on remaining connections
         foreach (static::$connections as $connection) {
             if ($connection instanceof Connection) {
                 $connection->resetForPool();
             }
         }
 
-        // Register rebinding hook so Event::fake() updates cached connections
         static::registerDispatcherRebinding($container);
+    }
+
+    /**
+     * Discard all cached connections and clear resolver lifecycle state.
+     *
+     * Tests only. The cached connections are process-global, so runtime use can
+     * discard a connection borrowed by another coroutine.
+     */
+    public static function flushCachedConnections(): void
+    {
+        static::discardCachedConnections();
+        static::$containerId = null;
+        static::$rebindingRegistered = false;
     }
 
     /**
@@ -126,47 +131,89 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
     /**
      * Flush a cached connection.
      *
-     * Disconnects the underlying PDO before clearing the cache, ensuring
-     * the database connection is properly closed rather than orphaned.
+     * Discard the owning pooled wrapper before clearing the bare connection.
      */
     public function flush(string $name): void
     {
-        if (isset(static::$connections[$name]) && static::$connections[$name] instanceof Connection) {
-            static::$connections[$name]->disconnect();
+        try {
+            if (isset(static::$pooledConnections[$name])) {
+                static::$pooledConnections[$name]->discard();
+            }
+        } finally {
+            unset(static::$pooledConnections[$name], static::$connections[$name]);
         }
-
-        unset(static::$connections[$name]);
     }
 
     /**
      * Get a database connection instance.
      *
-     * Creates connections through the pool factory so they use the same
-     * configuration and creation path as production, then caches the bare
-     * Connection statically. The PooledConnection wrapper is intentionally
-     * discarded — see the class docblock for the reasoning.
+     * Creates connections through the pool factory and retains their owning
+     * wrappers until terminal test teardown.
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        $name = enum_value($name) ?: $this->getDefaultConnection();
+        $connectionName = ConnectionName::parse(enum_value($name) ?: $this->getDefaultConnection());
 
         // If the pool is enabled, we should use the default connection resolver.
-        $poolEnabled = $this->container
-            ->get('config')
-            ->get("database.connections.{$name}.pool.testing_enabled", false);
+        /** @var ConfigRepository $config */
+        $config = $this->container->make('config');
+        $poolEnabled = $config->boolean("database.connections.{$connectionName->base}.pool.testing_enabled", false);
         if ($poolEnabled) {
-            return parent::connection($name);
+            return parent::connection($connectionName->requested);
         }
 
-        if ($connection = static::$connections[$name] ?? null) {
+        if ($connection = static::$connections[$connectionName->requested] ?? null) {
+            if ($connectionName->isWrite() && $connection instanceof Connection) {
+                // resetCachedConnections() runs resetForPool() between tests and clears this flag.
+                $connection->useWriteConnectionWhenReading();
+            }
+
             return $connection;
         }
 
-        // Check out from pool, extract bare Connection, discard the wrapper.
-        // The wrapper's release() is not needed — see class docblock.
-        return static::$connections[$name] = $this->factory
-            ->getPool($name)
-            ->get()
-            ->getConnection();
+        $pooled = $this->factory->getPool($connectionName->requested)->get();
+
+        try {
+            $connection = $pooled->getConnection();
+
+            if (! $connection instanceof ConnectionInterface) {
+                throw new LogicException('The database pool returned an invalid connection.');
+            }
+        } catch (Throwable $exception) {
+            $pooled->discard();
+
+            throw $exception;
+        }
+
+        if ($connectionName->isWrite() && $connection instanceof Connection) {
+            $connection->useWriteConnectionWhenReading();
+        }
+
+        static::$pooledConnections[$connectionName->requested] = $pooled;
+
+        return static::$connections[$connectionName->requested] = $connection;
+    }
+
+    /**
+     * Discard every cached pooled wrapper.
+     */
+    protected static function discardCachedConnections(): void
+    {
+        $exception = null;
+
+        foreach (static::$pooledConnections as $pooled) {
+            try {
+                $pooled->discard();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        static::$pooledConnections = [];
+        static::$connections = [];
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 }

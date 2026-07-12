@@ -45,6 +45,13 @@ class BroadcastedEventsTest extends TestCase
         $this->assertSame($e, $_SERVER['__event.test']);
     }
 
+    public function testHasListenersReturnsFalseForBroadcastEventsWithoutNormalListeners(): void
+    {
+        $d = new Dispatcher;
+
+        $this->assertFalse($d->hasListeners(AlwaysBroadcastEvent::class));
+    }
+
     public function testShouldBroadcastFail()
     {
         $d = m::mock(Dispatcher::class);

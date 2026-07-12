@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\ApiInstallCommand;
 use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Facades\Process;
+use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use RuntimeException;
 
 class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
 {
@@ -54,20 +57,23 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
 
     protected function tearDown(): void
     {
-        // Restore the original bootstrap/app.php.
-        file_put_contents(
+        $files = new Filesystem;
+        $actions = [fn () => $files->replace(
             $this->app->bootstrapPath('app.php'),
-            $this->originalBootstrapContent
-        );
+            $this->originalBootstrapContent,
+        )];
 
-        // Clean up any files created during tests.
         foreach ($this->createdFiles as $file) {
-            if (is_file($file)) {
-                unlink($file);
-            }
+            $actions[] = static function () use ($file, $files): void {
+                if ($files->isFile($file) && ! $files->delete($file)) {
+                    throw new RuntimeException("Unable to delete owned API install test file [{$file}].");
+                }
+            };
         }
 
-        parent::tearDown();
+        $actions[] = fn () => parent::tearDown();
+
+        CleanupActions::run(...$actions);
     }
 
     public function testCreatesApiRoutesFile()

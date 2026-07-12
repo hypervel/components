@@ -10,6 +10,8 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Limiters\Lease;
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Support\InteractsWithTime;
 
 class ConcurrencyLimiterBuilder
@@ -89,6 +91,16 @@ class ConcurrencyLimiterBuilder
     }
 
     /**
+     * Acquire a lease on one of the limiter's slots, waiting up to the configured timeout.
+     *
+     * @throws LimiterTimeoutException
+     */
+    public function acquire(): Lease
+    {
+        return $this->createLimiter()->acquire($this->timeout, $this->sleep);
+    }
+
+    /**
      * Execute the given callback if a lock is obtained, otherwise call the failure callback.
      *
      * @throws LimiterTimeoutException
@@ -96,13 +108,19 @@ class ConcurrencyLimiterBuilder
     public function then(callable $callback, ?callable $failure = null): mixed
     {
         try {
-            return $this->createLimiter()->block($this->timeout, $callback, $this->sleep);
+            $lease = $this->acquire();
         } catch (LimiterTimeoutException $e) {
             if ($failure !== null) {
                 return $failure($e);
             }
 
             throw $e;
+        }
+
+        try {
+            return $callback();
+        } finally {
+            $lease->release();
         }
     }
 

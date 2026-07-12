@@ -38,7 +38,7 @@ trait HasAssignedModels
         }
 
         $this->unsetRelation('users');
-        $registrar->bumpModelAssignmentCacheVersion();
+        $registrar->bumpModelAssignmentCacheToken();
 
         return $this;
     }
@@ -58,7 +58,7 @@ trait HasAssignedModels
         }
 
         $this->unsetRelation('users');
-        $registrar->bumpModelAssignmentCacheVersion();
+        $registrar->bumpModelAssignmentCacheToken();
 
         return $this;
     }
@@ -84,7 +84,7 @@ trait HasAssignedModels
         }
 
         $this->unsetRelation('users');
-        $registrar->bumpModelAssignmentCacheVersion();
+        $registrar->bumpModelAssignmentCacheToken();
 
         return $this;
     }
@@ -94,13 +94,19 @@ trait HasAssignedModels
      */
     protected function relationForModel(string $modelClass): MorphToMany
     {
-        return $this->morphedByMany(
+        $relation = $this->morphedByMany(
             $modelClass,
             'model',
             Config::modelHasRolesTable(),
             Container::getInstance()->make(PermissionRegistrar::class)->pivotRole,
             Config::morphKey(),
         );
+
+        if (! Config::teamsEnabled()) {
+            return $relation;
+        }
+
+        return $relation->wherePivot(Config::teamForeignKey(), getPermissionsTeamId());
     }
 
     /**
@@ -155,8 +161,14 @@ trait HasAssignedModels
 
     private function newPivotQueryForRole(): Builder
     {
-        return $this->getConnection()
+        $query = $this->getConnection()
             ->table(Config::modelHasRolesTable())
             ->where(Container::getInstance()->make(PermissionRegistrar::class)->pivotRole, $this->getKey());
+
+        if (Config::teamsEnabled()) {
+            $query->where(Config::teamForeignKey(), getPermissionsTeamId());
+        }
+
+        return $query;
     }
 }

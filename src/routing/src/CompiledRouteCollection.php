@@ -43,14 +43,11 @@ class CompiledRouteCollection extends AbstractRouteCollection
     protected Container $container;
 
     /**
-     * Pre-built Route objects keyed by name.
-     *
-     * Cached for the worker lifetime — routes are built once, reused forever.
-     * Bounded by route count (known at boot), no per-request growth.
+     * Pre-built Route objects keyed by name for this collection.
      *
      * @var array<string, Route>
      */
-    protected static array $cachedRoutesByName = [];
+    protected array $cachedRoutesByName = [];
 
     /**
      * Port lookup map for compiled routes, keyed by "METHOD domain+uri".
@@ -235,13 +232,12 @@ class CompiledRouteCollection extends AbstractRouteCollection
     /**
      * Get a route instance by its name.
      *
-     * Returns cached Route objects — routes are built once and reused for the
-     * worker lifetime. No per-request Route reconstruction.
+     * Returns cached Route objects for the lifetime of this collection.
      */
     public function getByName(string $name): ?Route
     {
         if (isset($this->attributes[$name])) {
-            return static::$cachedRoutesByName[$name]
+            return $this->cachedRoutesByName[$name]
                 ??= $this->newRoute($this->attributes[$name]);
         }
 
@@ -287,7 +283,7 @@ class CompiledRouteCollection extends AbstractRouteCollection
     /**
      * Get the route instances that should be pre-warmed.
      *
-     * Returns the cached Route instances from $cachedRoutesByName — these
+     * Returns the collection's cached Route instances — these
      * are the objects actually used during request matching. Unlike
      * getRoutes() which creates fresh throwaway objects every call.
      *
@@ -363,17 +359,6 @@ class CompiledRouteCollection extends AbstractRouteCollection
             ->setBindingFields($attributes['bindingFields'])
             ->block($attributes['lockSeconds'] ?? null, $attributes['waitSeconds'] ?? null)
             ->withTrashed($attributes['withTrashed'] ?? false);
-    }
-
-    /**
-     * Flush the static route cache.
-     *
-     * Boot or tests only. Clears the process-wide name → Route cache shared by
-     * every coroutine; next named-route lookup rebuilds.
-     */
-    public static function flushCache(): void
-    {
-        static::$cachedRoutesByName = [];
     }
 
     /**

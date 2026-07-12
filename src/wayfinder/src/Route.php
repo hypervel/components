@@ -25,8 +25,7 @@ class Route
     public function __construct(
         private BaseRoute $base,
         private Collection $paramDefaults,
-        private ?string $forcedScheme,
-        private ?string $forcedRoot
+        private ?string $forcedScheme
     ) {
     }
 
@@ -171,14 +170,6 @@ class Route
             return 'https://';
         }
 
-        if ($this->forcedRoot) {
-            $parts = $this->getParsedRoot();
-
-            if (isset($parts['scheme'])) {
-                return $parts['scheme'] . '://';
-            }
-        }
-
         return $this->forcedScheme;
     }
 
@@ -189,16 +180,6 @@ class Route
     {
         if ($this->base->getDomain()) {
             return $this->base->getDomain();
-        }
-
-        if ($this->forcedRoot) {
-            $parts = $this->getParsedRoot();
-
-            if (isset($parts['host'])) {
-                $port = isset($parts['port']) ? ':' . $parts['port'] : '';
-
-                return $parts['host'] . $port;
-            }
         }
 
         return null;
@@ -279,7 +260,7 @@ class Route
     }
 
     /**
-     * Return the path component of the forced/base URL, prefixed with '/'.
+     * Return the path component of the configured app URL, prefixed with '/'.
      */
     private function basePath(): string
     {
@@ -295,7 +276,7 @@ class Route
     }
 
     /**
-     * Parse and memoise the components of the forced root URL (or app.url fallback).
+     * Parse and memoise the components of the configured app URL.
      */
     private function getParsedRoot(): array
     {
@@ -303,7 +284,9 @@ class Route
             return $this->parsedRoot;
         }
 
-        $url = $this->forcedRoot ?: config('app.url');
+        // Forced root support is intentionally omitted because URL::useOrigin()
+        // is request-scoped in Hypervel.
+        $url = config('app.url');
 
         if (! is_string($url) || $url === '') {
             return $this->parsedRoot = [];

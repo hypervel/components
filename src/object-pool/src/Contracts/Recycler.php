@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool\Contracts;
 
-use DateTime;
 use Hypervel\Coordinator\Timer;
-use RuntimeException;
+use InvalidArgumentException;
 
 interface Recycler
 {
@@ -18,7 +17,7 @@ interface Recycler
     /**
      * Set the time interval for recycling operations.
      *
-     * @throws RuntimeException if the interval is less than or equal to 0
+     * @throws InvalidArgumentException when the interval is not finite and positive
      */
     public function setInterval(float $interval): void;
 
@@ -43,12 +42,7 @@ interface Recycler
     public function start(): void;
 
     /**
-     * Stops automatic recycling of objects in managed pools.
+     * Stop automatic maintenance of objects in managed pools.
      */
     public function stop(): void;
-
-    /**
-     * Gets the timestamp of the last recycling operation for a specific pool.
-     */
-    public function getLastRecycledAt(string $name): DateTime|int|null;
 }

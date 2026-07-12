@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Pool;
 
 use Hypervel\Contracts\Pool\PoolOptionInterface;
+use InvalidArgumentException;
 
 /**
  * Configuration options for a connection pool.
@@ -43,6 +44,14 @@ class PoolOption implements PoolOptionInterface
         private float $maxLifetime = -1.0,
         private array $events = [],
     ) {
+        self::validateConnectionCounts($this->minConnections, $this->maxConnections);
+        self::validatePositiveDuration($this->connectTimeout, 'connect_timeout');
+        self::validatePositiveDuration($this->waitTimeout, 'wait_timeout');
+        self::validateDisabledOrPositiveDuration($this->heartbeat, 'heartbeat');
+        self::validatePositiveDuration($this->heartbeatTimeout, 'heartbeat_timeout');
+        self::validatePositiveDuration($this->maxIdleTime, 'max_idle_time');
+        self::validateDisabledOrPositiveDuration($this->maxLifetime, 'max_lifetime');
+        self::validateEvents($this->events);
     }
 
     public function getMaxConnections(): int
@@ -59,6 +68,7 @@ class PoolOption implements PoolOptionInterface
      */
     public function setMaxConnections(int $maxConnections): static
     {
+        self::validateConnectionCounts($this->minConnections, $maxConnections);
         $this->maxConnections = $maxConnections;
 
         return $this;
@@ -78,6 +88,7 @@ class PoolOption implements PoolOptionInterface
      */
     public function setMinConnections(int $minConnections): static
     {
+        self::validateConnectionCounts($minConnections, $this->maxConnections);
         $this->minConnections = $minConnections;
 
         return $this;
@@ -97,6 +108,7 @@ class PoolOption implements PoolOptionInterface
      */
     public function setConnectTimeout(float $connectTimeout): static
     {
+        self::validatePositiveDuration($connectTimeout, 'connect_timeout');
         $this->connectTimeout = $connectTimeout;
 
         return $this;
@@ -121,6 +133,7 @@ class PoolOption implements PoolOptionInterface
      */
     public function setHeartbeat(float $heartbeat): static
     {
+        self::validateDisabledOrPositiveDuration($heartbeat, 'heartbeat');
         $this->heartbeat = $heartbeat;
 
         return $this;
@@ -135,6 +148,7 @@ class PoolOption implements PoolOptionInterface
      */
     public function setHeartbeatTimeout(float $heartbeatTimeout): static
     {
+        self::validatePositiveDuration($heartbeatTimeout, 'heartbeat_timeout');
         $this->heartbeatTimeout = $heartbeatTimeout;
 
         return $this;
@@ -154,6 +168,7 @@ class PoolOption implements PoolOptionInterface
      */
     public function setWaitTimeout(float $waitTimeout): static
     {
+        self::validatePositiveDuration($waitTimeout, 'wait_timeout');
         $this->waitTimeout = $waitTimeout;
 
         return $this;
@@ -173,6 +188,7 @@ class PoolOption implements PoolOptionInterface
      */
     public function setMaxIdleTime(float $maxIdleTime): static
     {
+        self::validatePositiveDuration($maxIdleTime, 'max_idle_time');
         $this->maxIdleTime = $maxIdleTime;
 
         return $this;
@@ -191,7 +207,9 @@ class PoolOption implements PoolOptionInterface
      */
     public static function jitteredLifetimeDeadline(float $createdAt, float $maxLifetime): float
     {
-        if ($maxLifetime <= 0) {
+        self::validateDisabledOrPositiveDuration($maxLifetime, 'max_lifetime');
+
+        if ($maxLifetime === -1.0) {
             return 0.0;
         }
 
@@ -209,6 +227,7 @@ class PoolOption implements PoolOptionInterface
      */
     public function setMaxLifetime(float $maxLifetime): static
     {
+        self::validateDisabledOrPositiveDuration($maxLifetime, 'max_lifetime');
         $this->maxLifetime = $maxLifetime;
 
         return $this;
@@ -228,8 +247,67 @@ class PoolOption implements PoolOptionInterface
      */
     public function setEvents(array $events): static
     {
+        self::validateEvents($events);
         $this->events = $events;
 
         return $this;
+    }
+
+    /**
+     * Validate the connection-count relationship.
+     */
+    private static function validateConnectionCounts(int $minConnections, int $maxConnections): void
+    {
+        if ($minConnections < 0) {
+            throw new InvalidArgumentException('Pool option [min_connections] must be at least 0.');
+        }
+
+        if ($maxConnections < 1) {
+            throw new InvalidArgumentException('Pool option [max_connections] must be at least 1.');
+        }
+
+        if ($minConnections > $maxConnections) {
+            throw new InvalidArgumentException(
+                'Pool option [min_connections] must not exceed [max_connections].',
+            );
+        }
+    }
+
+    /**
+     * Validate a finite, positive duration.
+     */
+    private static function validatePositiveDuration(float $duration, string $name): void
+    {
+        if (! is_finite($duration) || $duration <= 0.0) {
+            throw new InvalidArgumentException("Pool option [{$name}] must be a finite number greater than 0.");
+        }
+    }
+
+    /**
+     * Validate a duration that uses -1 as its disabled sentinel.
+     */
+    private static function validateDisabledOrPositiveDuration(float $duration, string $name): void
+    {
+        if ($duration !== -1.0 && (! is_finite($duration) || $duration <= 0.0)) {
+            throw new InvalidArgumentException(
+                "Pool option [{$name}] must be -1 to disable it or a finite number greater than 0.",
+            );
+        }
+    }
+
+    /**
+     * Validate lifecycle event names.
+     */
+    private static function validateEvents(array $events): void
+    {
+        if (! array_is_list($events)) {
+            throw new InvalidArgumentException('Pool option [events] must be a list of non-empty strings.');
+        }
+
+        foreach ($events as $event) {
+            if (! is_string($event) || trim($event) === '') {
+                throw new InvalidArgumentException('Pool option [events] must be a list of non-empty strings.');
+            }
+        }
     }
 }

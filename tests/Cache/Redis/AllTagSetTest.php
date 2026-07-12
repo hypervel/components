@@ -12,10 +12,56 @@ use Hypervel\Cache\Redis\AllTagSet;
  * Note: Operation-specific tests (addEntry, entries, flushStaleEntries) have been
  * moved to dedicated test classes in tests/Cache/Redis/Operations/AllTag/.
  *
- * This file tests the TagSet-specific API methods: tagId, tagKey, flushTag, resetTag.
+ * This file tests the TagSet-specific API methods: reset, flush, tagId, tagKey, flushTag, resetTag.
  */
 class AllTagSetTest extends RedisCacheTestCase
 {
+    /**
+     * @test
+     */
+    public function testResetWalksAllTags(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+        $tagSet = new AllTagSet($store, ['users', 'posts']);
+
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:users:entries')
+            ->andReturn(1);
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:posts:entries')
+            ->andReturn(1);
+
+        $tagSet->reset();
+
+        $this->assertTrue(true);
+    }
+
+    /**
+     * @test
+     */
+    public function testFlushWalksAllTags(): void
+    {
+        $connection = $this->mockConnection();
+        $store = $this->createStore($connection);
+        $tagSet = new AllTagSet($store, ['users', 'posts']);
+
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:users:entries')
+            ->andReturn(1);
+        $connection->shouldReceive('del')
+            ->once()
+            ->with('prefix:_all:tag:posts:entries')
+            ->andReturn(1);
+
+        $tagSet->flush();
+
+        $this->assertTrue(true);
+    }
+
     /**
      * @test
      */

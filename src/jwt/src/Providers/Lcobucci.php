@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Providers;
+namespace Hypervel\Jwt\Providers;
 
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
-use Hypervel\JWT\Contracts\ProviderContract;
-use Hypervel\JWT\Exceptions\JWTException;
-use Hypervel\JWT\Exceptions\SecretMissingException;
-use Hypervel\JWT\Exceptions\TokenInvalidException;
+use Hypervel\Jwt\Contracts\ProviderContract;
+use Hypervel\Jwt\Exceptions\JwtException;
+use Hypervel\Jwt\Exceptions\SecretMissingException;
+use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Support\Collection;
 use Lcobucci\JWT\Builder;
 use Lcobucci\JWT\Configuration;
@@ -63,7 +63,7 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Create a JSON Web Token.
      *
-     * @throws \Hypervel\JWT\Exceptions\JWTException
+     * @throws \Hypervel\Jwt\Exceptions\JwtException
      */
     public function encode(array $payload): string
     {
@@ -74,14 +74,14 @@ class Lcobucci extends Provider implements ProviderContract
                 ->getToken($this->config->signer(), $this->config->signingKey())
                 ->toString();
         } catch (Exception $e) {
-            throw new JWTException('Could not create token: ' . $e->getMessage(), $e->getCode(), $e);
+            throw new JwtException('Could not create token: ' . $e->getMessage(), $e->getCode(), $e);
         }
     }
 
     /**
      * Decode a JSON Web Token.
      *
-     * @throws \Hypervel\JWT\Exceptions\JWTException
+     * @throws \Hypervel\Jwt\Exceptions\JwtException
      */
     public function decode(string $token): array
     {
@@ -172,7 +172,7 @@ class Lcobucci extends Provider implements ProviderContract
      *
      * Signer is rebuilt before config because buildConfig() reads $this->signer.
      *
-     * @throws \Hypervel\JWT\Exceptions\JWTException
+     * @throws \Hypervel\Jwt\Exceptions\JwtException
      */
     protected function onConfigurationChanged(): void
     {
@@ -183,12 +183,12 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Get the signer instance.
      *
-     * @throws \Hypervel\JWT\Exceptions\JWTException
+     * @throws \Hypervel\Jwt\Exceptions\JwtException
      */
     protected function getSigner(): Signer
     {
         if (! array_key_exists($this->algo, $this->signers)) {
-            throw new JWTException('The given algorithm could not be found');
+            throw new JwtException('The given algorithm could not be found');
         }
 
         $signer = $this->signers[$this->algo];
@@ -208,13 +208,13 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
-     * @throws \Hypervel\JWT\Exceptions\JWTException
+     * @throws \Hypervel\Jwt\Exceptions\JwtException
      */
     protected function getSigningKey(): mixed
     {
         if ($this->isAsymmetric()) {
             if (! $privateKey = $this->getPrivateKey()) {
-                throw new JWTException('Private key is not set.');
+                throw new JwtException('Private key is not set.');
             }
 
             return $this->getKey($privateKey, $this->getPassphrase() ?? '');
@@ -228,13 +228,13 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
-     * @throws \Hypervel\JWT\Exceptions\JWTException
+     * @throws \Hypervel\Jwt\Exceptions\JwtException
      */
     protected function getVerificationKey(): mixed
     {
         if ($this->isAsymmetric()) {
             if (! $public = $this->getPublicKey()) {
-                throw new JWTException('Public key is not set.');
+                throw new JwtException('Public key is not set.');
             }
 
             return $this->getKey($public);

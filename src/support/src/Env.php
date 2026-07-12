@@ -11,6 +11,7 @@ use Dotenv\Repository\RepositoryBuilder;
 use Dotenv\Repository\RepositoryInterface;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use InvalidArgumentException;
 use PhpOption\Option;
 use RuntimeException;
 
@@ -188,6 +189,32 @@ class Env
     public static function get(string $key, mixed $default = null): mixed
     {
         return self::getOption($key)->getOrCall(fn () => value($default));
+    }
+
+    /**
+     * Get a comma-separated environment variable as an array.
+     *
+     * @param array<int, string> $default
+     * @return array<int, string>
+     *
+     * @throws InvalidArgumentException
+     */
+    public static function getArray(string $key, array $default = []): array
+    {
+        $value = static::get($key);
+
+        if (! filled($value)) {
+            return $default;
+        }
+
+        if (! is_string($value)) {
+            throw new InvalidArgumentException("Environment variable [{$key}] cannot be read as an array.");
+        }
+
+        return array_values(array_filter(
+            array_map('trim', explode(',', $value)),
+            static fn (string $item): bool => $item !== '',
+        ));
     }
 
     /**

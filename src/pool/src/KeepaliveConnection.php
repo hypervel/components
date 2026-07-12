@@ -56,6 +56,14 @@ abstract class KeepaliveConnection implements ConnectionInterface
     }
 
     /**
+     * Discard the connection from its pool.
+     */
+    public function discard(): void
+    {
+        $this->pool->discard($this);
+    }
+
+    /**
      * @throws InvalidArgumentException
      */
     public function getConnection(): mixed
@@ -192,9 +200,12 @@ abstract class KeepaliveConnection implements ConnectionInterface
                 $this->heartbeat();
             } catch (Throwable $throwable) {
                 $this->clear();
+                $message = sprintf('Socket of %s heartbeat failed, %s', $this->name, $throwable);
+
                 if ($logger = $this->getLogger()) {
-                    $message = sprintf('Socket of %s heartbeat failed, %s', $this->name, $throwable);
                     $logger->error($message);
+                } else {
+                    error_log($message);
                 }
             }
         });

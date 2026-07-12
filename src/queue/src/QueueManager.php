@@ -11,8 +11,10 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use InvalidArgumentException;
 
@@ -33,11 +35,6 @@ class QueueManager implements FactoryContract, MonitorContract
      * The array of resolved queue connectors.
      */
     protected array $connectors = [];
-
-    /**
-     * The pool proxy class.
-     */
-    protected string $poolProxyClass = QueuePoolProxy::class;
 
     /**
      * The array of drivers which will be wrapped as pool proxies.
@@ -255,21 +252,25 @@ class QueueManager implements FactoryContract, MonitorContract
             throw new InvalidArgumentException("The [{$name}] queue connection has not been configured.");
         }
 
+        $constructionConfig = Arr::except($config, ['pool']);
         $resolver = fn () => $this->getConnector($config['driver'])
-            ->connect($config)
-            ->setConnectionName($name)
+            ->connect($constructionConfig)
             ->setContainer($this->app) // @phpstan-ignore method.notFound (setContainer is on concrete Queue, not contract)
-            ->setConfig($config);
+            ->setConfig($constructionConfig);
 
-        if (in_array($config['driver'], $this->poolables)) {
-            return $this->createPoolProxy(
-                $name,
+        if (in_array($config['driver'], $this->poolables, true)) {
+            /** @var QueuePoolProxy $proxy */
+            $proxy = $this->createPoolProxy(
+                $config['driver'],
                 $resolver,
-                $config['pool'] ?? []
+                $this->poolDefinition($config['driver'], $config['pool'] ?? [], $constructionConfig),
+                QueuePoolProxy::class,
             );
+
+            return $proxy->setConnectionName($name);
         }
 
-        return $resolver();
+        return $resolver()->setConnectionName($name);
     }
 
     /**
@@ -321,6 +322,14 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
+     * Get the shared object-pool factory.
+     */
+    protected function poolFactory(): PoolFactory
+    {
+        return $this->app->make(PoolFactory::class);
+    }
+
+    /**
      * Get the name of the default queue connection.
      */
     public function getDefaultDriver(): string
@@ -347,6 +356,44 @@ class QueueManager implements FactoryContract, MonitorContract
     }
 
     /**
+     * Disconnect a queue connection and close its shared resource pool.
+     *
+     * Boot or tests only, plus operational recovery of broken pooled
+     * resources. Other connections sharing the pool transparently acquire a
+     * fresh pool on their next operation.
+     */
+    public function purge(?string $name = null): void
+    {
+        $name = $name ?: $this->getDefaultDriver();
+        $connection = $this->connections[$name] ?? null;
+
+        unset($this->connections[$name]);
+
+        if ($connection !== null) {
+            if ($connection instanceof QueuePoolProxy) {
+                $connection->invalidatePool();
+            }
+
+            return;
+        }
+
+        $config = $this->getConfig($name);
+
+        if (is_null($config) || ! in_array($config['driver'], $this->poolables, true)) {
+            return;
+        }
+
+        $constructionConfig = Arr::except($config, ['pool']);
+        $definition = $this->poolDefinition(
+            $config['driver'],
+            $config['pool'] ?? [],
+            $constructionConfig,
+        );
+
+        $this->poolFactory()->remove($definition->identity);
+    }
+
+    /**
      * Get the application instance used by the manager.
      */
     public function getApplication(): Container
@@ -365,7 +412,14 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $this->app = $app;
 
-        foreach ($this->connections as $connection) {
+        foreach ($this->connections as $name => $connection) {
+            if ($connection instanceof QueuePoolProxy) {
+                $connection->invalidatePool();
+                unset($this->connections[$name]);
+
+                continue;
+            }
+
             $connection->setContainer($app);
         }
 

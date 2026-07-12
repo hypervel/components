@@ -18,9 +18,10 @@ class SyncTestbenchCachedRoutes
     {
         /** @var \Hypervel\Routing\Router $router */
         $router = $app->make('router');
+        $routeFiles = glob($app->basePath(join_paths('routes', 'testbench-*.php'))) ?: [];
 
         /* @phpstan-ignore argument.type */
-        (new Collection(glob($app->basePath(join_paths('routes', 'testbench-*.php')))))
+        (new Collection($routeFiles))
             ->each(static function ($routeFile) use ($app, $router) { // @phpstan-ignore closure.unusedUse, closure.unusedUse
                 require $routeFile;
             });

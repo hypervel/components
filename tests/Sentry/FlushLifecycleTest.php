@@ -17,7 +17,7 @@ use Sentry\Transport\ResultStatus;
 
 class FlushLifecycleTest extends TestCase
 {
-    public function testFlushReleasesAllTransportsCheckedOutDuringRequest()
+    public function testFlushReleasesAllTransportsCheckedOutDuringRequest(): void
     {
         // Simulate: two events sent during a request, then flush releases both
         $httpTransport1 = m::mock(HttpTransport::class);
@@ -59,7 +59,7 @@ class FlushLifecycleTest extends TestCase
         $this->assertCount(0, $tracked);
     }
 
-    public function testTransportCloseReleasesCheckedOutTransport()
+    public function testTransportCloseReleasesCheckedOutTransport(): void
     {
         // Verify that close() releases a single checked-out transport back to the pool
         $httpTransport = m::mock(HttpTransport::class);

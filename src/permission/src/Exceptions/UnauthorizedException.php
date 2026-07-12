@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Exceptions;
 
-use Hypervel\Contracts\Auth\Access\Authorizable;
 use Hypervel\Permission\Support\Config;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -84,9 +83,9 @@ class UnauthorizedException extends HttpException
     /**
      * Create an exception for a user missing the HasRoles trait.
      */
-    public static function missingTraitHasRoles(Authorizable $user): static
+    public static function missingTraitHasRoles(object $user): static
     {
-        return new static(403, __('Authorizable class `:class` must use Hypervel\Permission\Traits\HasRoles trait.', [
+        return new static(403, __('Authenticated class `:class` must use Hypervel\Permission\Traits\HasRoles trait.', [
             'class' => $user::class,
         ]), null, []);
     }

@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Server\Commands;
 
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Foundation\Application;
 use Hypervel\Server\ServerFactory;
+use Hypervel\Server\ServerInterface;
 use InvalidArgumentException;
 use Override;
 use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hypervel\Support\swoole_hook_flags;
@@ -39,13 +42,24 @@ class ServerStartCommand extends SymfonyCommand
     #[Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        return $this->startServer();
+        return $this->startServer($input);
+    }
+
+    /**
+     * Configure the server start command.
+     */
+    #[Override]
+    protected function configure(): void
+    {
+        $this
+            ->addOption('host', null, InputOption::VALUE_REQUIRED, 'The host address to serve the application on')
+            ->addOption('port', null, InputOption::VALUE_REQUIRED, 'The port to serve the application on');
     }
 
     /**
      * Start the configured Swoole servers.
      */
-    protected function startServer(): int
+    protected function startServer(InputInterface $input): int
     {
         if (Application::getInstance()->runningInConsole()) {
             throw new RuntimeException(
@@ -57,9 +71,50 @@ class ServerStartCommand extends SymfonyCommand
             ->setEventDispatcher($this->container->make('events'))
             ->setLogger($this->container->make(StdoutLoggerInterface::class));
 
-        $serverConfig = $this->container->make('config')->array('server', []);
+        /** @var ConfigRepository $config */
+        $config = $this->container->make('config');
+        $serverConfig = $config->array('server', []);
         if (! $serverConfig) {
             throw new InvalidArgumentException('At least one server should be defined.');
+        }
+
+        $host = $input->getOption('host');
+        $port = $input->getOption('port');
+
+        if ($host !== null || $port !== null) {
+            if ($port !== null && filter_var($port, FILTER_VALIDATE_INT, [
+                'options' => ['min_range' => 1, 'max_range' => 65535],
+            ]) === false) {
+                throw new InvalidArgumentException('The serve port must be an integer between 1 and 65535.');
+            }
+
+            $servers = $serverConfig['servers'] ?? [];
+            $httpServerIndex = null;
+
+            foreach ($servers as $index => $server) {
+                if (($server['type'] ?? null) === ServerInterface::SERVER_HTTP) {
+                    $httpServerIndex = $index;
+                    break;
+                }
+            }
+
+            if ($httpServerIndex === null) {
+                throw new InvalidArgumentException('Cannot override server host or port because no HTTP server is configured.');
+            }
+
+            if ($host !== null) {
+                $servers[$httpServerIndex]['host'] = (string) $host;
+            }
+
+            if ($port !== null) {
+                $servers[$httpServerIndex]['port'] = (int) $port;
+            }
+
+            $serverConfig['servers'] = $servers;
+
+            // Command options are applied before workers start so ServerFactory
+            // and later config readers agree on the bound HTTP address.
+            $config->set('server.servers', $servers);
         }
 
         $serverFactory->configure($serverConfig);

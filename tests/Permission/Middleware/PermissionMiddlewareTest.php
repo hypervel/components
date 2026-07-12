@@ -11,6 +11,7 @@ use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middleware\PermissionMiddleware;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Gate;
+use Hypervel\Tests\Permission\Fixtures\Models\PlainAuthenticatableUser;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
 use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
 use Hypervel\Tests\Permission\TestCase;
@@ -108,6 +109,13 @@ class PermissionMiddlewareTest extends TestCase
         $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-news'));
     }
 
+    public function testPlainAuthenticatableUserWithoutAuthorizableCannotAccessRoute(): void
+    {
+        Auth::login(PlainAuthenticatableUser::create(['email' => 'plain_authenticatable@user.com']));
+
+        $this->assertSame(403, $this->runMiddleware($this->permissionMiddleware, 'edit-news'));
+    }
+
     public function testGuardSpecificPermissionIsUsed(): void
     {
         $this->app->make(Permission::class)->create(['name' => 'admin-permission2', 'guard_name' => 'web']);
@@ -137,6 +145,14 @@ class PermissionMiddlewareTest extends TestCase
         $this->testAdmin->givePermissionTo('admin-permission');
 
         $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'admin-permission', 'admin'));
+    }
+
+    public function testEmptyGuardUsesDefaultGuard(): void
+    {
+        Auth::login($this->testUser);
+        $this->testUser->givePermissionTo('edit-articles');
+
+        $this->assertSame(200, $this->runMiddleware($this->permissionMiddleware, 'edit-articles', ''));
     }
 
     public function testItCanBeCreatedWithStaticUsingMethod(): void

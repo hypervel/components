@@ -1,0 +1,40 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Jwt\Providers;
+
+use Hypervel\Tests\Jwt\Fixtures\ProviderStub;
+use Hypervel\Tests\TestCase;
+
+class ProviderTest extends TestCase
+{
+    protected $provider;
+
+    public function testSetTheAlgo()
+    {
+        $provider = new ProviderStub('secret', 'HS256', []);
+
+        $provider->setAlgo('HS512');
+
+        $this->assertSame('HS512', $provider->getAlgo());
+    }
+
+    public function testSetTheSecret()
+    {
+        $provider = new ProviderStub('secret', 'HS256', []);
+
+        $provider->setSecret('foo');
+
+        $this->assertSame('foo', $provider->getSecret());
+    }
+
+    public function testSetTheKeys()
+    {
+        $provider = new ProviderStub('secret', 'HS256', []);
+
+        $provider->setKeys($keys = ['private' => 'priv', 'public' => 'pub']);
+
+        $this->assertSame($keys, $provider->getKeys());
+    }
+}

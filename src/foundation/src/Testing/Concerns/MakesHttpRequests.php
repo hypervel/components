@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use BackedEnum;
-use Hypervel\Context\ParentCoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Cookie\CookieValuePrefix;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;
+use Hypervel\Foundation\Testing\RequestContextSynchronizer;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
@@ -514,20 +514,7 @@ trait MakesHttpRequests
 
             RequestContext::set($request, \Hypervel\Coroutine\Coroutine::parentId());
 
-            if ($request->hasSession()) {
-                /** @var SessionStore $session */
-                $session = $request->session();
-
-                ParentCoroutineContext::set(SessionStore::CONTEXT_KEY, $session);
-                ParentCoroutineContext::set(SessionStore::STARTED_CONTEXT_KEY, $session->isStarted());
-                ParentCoroutineContext::set(SessionStore::ID_CONTEXT_KEY, $session->getId());
-                ParentCoroutineContext::set(SessionStore::ATTRIBUTES_CONTEXT_KEY, $session->all());
-            } else {
-                ParentCoroutineContext::forget(SessionStore::CONTEXT_KEY);
-                ParentCoroutineContext::forget(SessionStore::STARTED_CONTEXT_KEY);
-                ParentCoroutineContext::forget(SessionStore::ID_CONTEXT_KEY);
-                ParentCoroutineContext::forget(SessionStore::ATTRIBUTES_CONTEXT_KEY);
-            }
+            $this->syncRequestContextToParent($request);
 
             $response = $this->createTestResponse($response, $request);
 
@@ -551,6 +538,78 @@ trait MakesHttpRequests
         }
 
         return trim(url($uri), '/');
+    }
+
+    /**
+     * Sync durable request Context state to the test coroutine.
+     */
+    protected function syncRequestContextToParent(Request $request): void
+    {
+        $synchronizer = new RequestContextSynchronizer;
+
+        $synchronizer->syncSnapshotToParent(
+            $this->sessionContextSnapshot($request),
+            $this->sessionContextKeys()
+        );
+
+        $synchronizer->syncContextKeysToParent($this->authenticationContextKeys());
+    }
+
+    /**
+     * Get a snapshot of durable session Context state for the completed request.
+     *
+     * @return array<string, mixed>
+     */
+    protected function sessionContextSnapshot(Request $request): array
+    {
+        if (! $request->hasSession()) {
+            return [];
+        }
+
+        /** @var SessionStore $session */
+        $session = $request->session();
+
+        return [
+            SessionStore::CONTEXT_KEY => $session,
+            SessionStore::STARTED_CONTEXT_KEY => $session->isStarted(),
+            SessionStore::ID_CONTEXT_KEY => $session->getId(),
+            SessionStore::ATTRIBUTES_CONTEXT_KEY => $session->all(),
+        ];
+    }
+
+    /**
+     * Get durable session Context keys.
+     *
+     * @return array<int, string>
+     */
+    protected function sessionContextKeys(): array
+    {
+        return [
+            SessionStore::CONTEXT_KEY,
+            SessionStore::STARTED_CONTEXT_KEY,
+            SessionStore::ID_CONTEXT_KEY,
+            SessionStore::ATTRIBUTES_CONTEXT_KEY,
+        ];
+    }
+
+    /**
+     * Get durable authentication Context keys.
+     *
+     * @return array<int, string>
+     */
+    protected function authenticationContextKeys(): array
+    {
+        if (! $this->app->bound('auth')) {
+            return [];
+        }
+
+        $auth = $this->app->make('auth');
+
+        if (! method_exists($auth, 'getAuthContextKeys')) {
+            return [];
+        }
+
+        return $auth->getAuthContextKeys(); /* @phpstan-ignore method.notFound */
     }
 
     /**

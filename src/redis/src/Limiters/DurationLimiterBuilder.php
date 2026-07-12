@@ -6,7 +6,7 @@ namespace Hypervel\Redis\Limiters;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Contracts\Redis\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\InteractsWithTime;
 

@@ -42,4 +42,9 @@ interface PasswordBroker
      * Reset the password for the given token.
      */
     public function reset(array $credentials, Closure $callback): mixed;
+
+    /**
+     * Delete password reset tokens of the given user.
+     */
+    public function deleteToken(CanResetPassword $user): void;
 }

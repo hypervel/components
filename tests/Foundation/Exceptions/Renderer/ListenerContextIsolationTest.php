@@ -9,8 +9,8 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Foundation\Exceptions\Renderer\Listener;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Swoole\Coroutine;
-use Swoole\Coroutine\Channel;
+
+use function Hypervel\Coroutine\parallel;
 
 class ListenerContextIsolationTest extends TestCase
 {
@@ -31,60 +31,41 @@ class ListenerContextIsolationTest extends TestCase
         $this->assertCount(101, $listener->queries());
     }
 
-    public function testQueriesAreIsolatedBetweenCoroutines()
+    public function testQueriesAreIsolatedBetweenCoroutines(): void
     {
-        $channel = new Channel(2);
+        $results = parallel([
+            'a' => fn (): array => $this->recordQueries('conn-a', ['SELECT a1', 'SELECT a2']),
+            'b' => fn (): array => $this->recordQueries('conn-b', ['SELECT b1']),
+        ]);
 
-        Coroutine::create(function () use ($channel) {
-            $listener = new Listener;
+        $this->assertSame(2, $results['a']['count']);
+        $this->assertSame(['SELECT a1', 'SELECT a2'], $results['a']['sqls']);
+        $this->assertSame(1, $results['b']['count']);
+        $this->assertSame(['SELECT b1'], $results['b']['sqls']);
+    }
 
-            $connection = m::mock(Connection::class);
-            $connection->shouldReceive('getName')->andReturn('conn-a');
-            $connection->shouldReceive('prepareBindings')->andReturn([]);
+    /**
+     * Record queries in the current coroutine context.
+     *
+     * @param string[] $queries
+     * @return array{count: int, sqls: string[]}
+     */
+    private function recordQueries(string $connectionName, array $queries): array
+    {
+        $listener = new Listener;
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('getName')->andReturn($connectionName);
+        $connection->shouldReceive('prepareBindings')->andReturn([]);
 
+        foreach ($queries as $index => $query) {
             $listener->onQueryExecuted(
-                new QueryExecuted('SELECT a1', [], 1.0, $connection)
+                new QueryExecuted($query, [], (float) ($index + 1), $connection),
             );
-            $listener->onQueryExecuted(
-                new QueryExecuted('SELECT a2', [], 2.0, $connection)
-            );
+        }
 
-            $channel->push([
-                'count' => count($listener->queries()),
-                'sqls' => array_column($listener->queries(), 'sql'),
-            ]);
-        });
-
-        Coroutine::create(function () use ($channel) {
-            $listener = new Listener;
-
-            $connection = m::mock(Connection::class);
-            $connection->shouldReceive('getName')->andReturn('conn-b');
-            $connection->shouldReceive('prepareBindings')->andReturn([]);
-
-            $listener->onQueryExecuted(
-                new QueryExecuted('SELECT b1', [], 3.0, $connection)
-            );
-
-            $channel->push([
-                'count' => count($listener->queries()),
-                'sqls' => array_column($listener->queries(), 'sql'),
-            ]);
-        });
-
-        $results = [];
-        $results[] = $channel->pop();
-        $results[] = $channel->pop();
-
-        // Sort by count so assertions are deterministic
-        usort($results, fn ($a, $b) => $a['count'] <=> $b['count']);
-
-        // Coroutine B: 1 query, only its own
-        $this->assertSame(1, $results[0]['count']);
-        $this->assertSame(['SELECT b1'], $results[0]['sqls']);
-
-        // Coroutine A: 2 queries, only its own
-        $this->assertSame(2, $results[1]['count']);
-        $this->assertSame(['SELECT a1', 'SELECT a2'], $results[1]['sqls']);
+        return [
+            'count' => count($listener->queries()),
+            'sqls' => array_column($listener->queries(), 'sql'),
+        ];
     }
 }

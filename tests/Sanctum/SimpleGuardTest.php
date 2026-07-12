@@ -55,6 +55,7 @@ class SimpleGuardTest extends TestCase
             'auth.guards.sanctum' => [
                 'driver' => 'sanctum',
                 'provider' => 'users',
+                'session_guards' => ['web'],
             ],
             'auth.providers.users.model' => TestUser::class,
             'auth.providers.users.driver' => 'eloquent',

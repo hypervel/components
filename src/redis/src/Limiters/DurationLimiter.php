@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Limiters;
 
-use Hypervel\Contracts\Redis\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Sleep;
+
+use function Hypervel\Support\now;
 
 class DurationLimiter
 {
@@ -43,10 +45,14 @@ class DurationLimiter
      */
     public function block(int $timeout, ?callable $callback = null, int $sleep = 750): mixed
     {
-        $starting = time();
+        $starting = ((int) now()->format('Uu')) / 1000;
+
+        $milliseconds = $timeout * 1000;
 
         while (! $this->acquire()) {
-            if (time() - $timeout >= $starting) {
+            $now = ((int) now()->format('Uu')) / 1000;
+
+            if (($now + $sleep - $milliseconds) >= $starting) {
                 throw new LimiterTimeoutException;
             }
 

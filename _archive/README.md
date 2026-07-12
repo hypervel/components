@@ -1,1 +1,1 @@
-Temporary archive of removed Hypervel packages. This directory will be deleted after the refactoring is complete.
+Temporary archive of removed Hypervel packages. This directory will be deleted after 0.4 is released.

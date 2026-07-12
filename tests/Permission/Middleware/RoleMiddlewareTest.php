@@ -10,6 +10,7 @@ use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middleware\RoleMiddleware;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Tests\Permission\Fixtures\Models\PlainAuthenticatableUser;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
 use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
 use Hypervel\Tests\Permission\TestCase;
@@ -89,6 +90,13 @@ class RoleMiddlewareTest extends TestCase
         $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole'));
     }
 
+    public function testPlainAuthenticatableUserWithoutAuthorizableCannotAccessRoute(): void
+    {
+        Auth::login(PlainAuthenticatableUser::create(['email' => 'plain_authenticatable@user.com']));
+
+        $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole'));
+    }
+
     public function testUserCanAccessRoleWithMatchingGuard(): void
     {
         Auth::guard('admin')->login($this->testAdmin);
@@ -97,6 +105,14 @@ class RoleMiddlewareTest extends TestCase
 
         $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, 'testAdminRole', 'admin'));
         $this->assertSame(403, $this->runMiddleware($this->roleMiddleware, 'testRole', 'admin'));
+    }
+
+    public function testEmptyGuardUsesDefaultGuard(): void
+    {
+        Auth::login($this->testUser);
+        $this->testUser->assignRole('testRole');
+
+        $this->assertSame(200, $this->runMiddleware($this->roleMiddleware, 'testRole', ''));
     }
 
     public function testUserCannotAccessRoleWithAdminGuardWhileLoggedInUsingDefaultGuard(): void

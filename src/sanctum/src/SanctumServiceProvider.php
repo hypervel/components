@@ -10,6 +10,7 @@ use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Session\Middleware\StartSession;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
+use InvalidArgumentException;
 
 class SanctumServiceProvider extends ServiceProvider
 {
@@ -47,12 +48,23 @@ class SanctumServiceProvider extends ServiceProvider
     {
         $this->callAfterResolving(AuthManager::class, function (AuthManager $authManager) {
             $authManager->extend('sanctum', function ($app, $name, $config) use ($authManager) {
+                $sessionGuards = $config['session_guards'] ?? null;
+                $isSessionGuardName = static fn (mixed $guard): bool => is_string($guard) && $guard !== '';
+
+                if (! is_array($sessionGuards) || array_filter($sessionGuards, $isSessionGuardName) !== $sessionGuards) {
+                    throw new InvalidArgumentException(
+                        "Auth guard [{$name}] uses the sanctum driver but does not declare a valid session guards list. "
+                        . "Set auth.guards.{$name}.session_guards to an array of session guard names, or [] to disable stateful session authentication."
+                    );
+                }
+
                 return new SanctumGuard(
                     name: $name,
                     provider: $authManager->createUserProvider($config['provider'] ?? null),
                     app: $app,
-                    events: $app->has('events') ? $app['events'] : null,
-                    expiration: $app['config']->get('sanctum.expiration'),
+                    sessionGuards: $sessionGuards,
+                    events: $app->bound('events') ? $app->make('events') : null,
+                    expiration: $app->make('config')->get('sanctum.expiration'),
                 );
             });
         });

@@ -8,6 +8,8 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Route;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\InputBag;
+use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 class HttpRequestTest extends TestCase
 {
@@ -63,5 +65,55 @@ class HttpRequestTest extends TestCase
         $this->expectExceptionMessage('Unable to generate fingerprint. Route unavailable.');
 
         $request->fingerprint();
+    }
+
+    public function testJsonRequestFillsRequestBodyParams(): void
+    {
+        $body = [
+            'foo' => 'bar',
+            'baz' => ['qux'],
+        ];
+
+        $server = [
+            'CONTENT_TYPE' => 'application/json',
+        ];
+
+        $base = SymfonyRequest::create('/', 'GET', [], [], [], $server, json_encode($body));
+
+        $request = Request::createFromBase($base);
+
+        $this->assertEquals($request->request->all(), $body);
+    }
+
+    public function testGeneratingJsonRequestFromParentRequestUsesCorrectType(): void
+    {
+        $base = SymfonyRequest::create('/', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: '{"hello":"world"}');
+
+        $request = Request::createFromBase($base);
+
+        $this->assertInstanceOf(InputBag::class, $request->getPayload());
+        $this->assertSame('world', $request->getPayload()->get('hello'));
+    }
+
+    public function testCreatingJsonRequestFromBaseDoesNotTriggerRequestPropertyDeprecation(): void
+    {
+        $request = Request::createFromBase(
+            SymfonyRequest::create('/', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: '{"hello":"world"}')
+        );
+
+        $this->assertTrue($request->isJson());
+        $this->assertSame('world', $request->input('hello'));
+    }
+
+    public function testJsonRequestsCanMergeDataIntoJsonRequest(): void
+    {
+        $base = SymfonyRequest::create('/', 'POST', server: ['CONTENT_TYPE' => 'application/json'], content: '{"first":"Taylor","last":"Otwell"}');
+        $request = Request::createFromBase($base);
+
+        $request->merge([
+            'name' => $request->get('first') . ' ' . $request->get('last'),
+        ]);
+
+        $this->assertSame('Taylor Otwell', $request->get('name'));
     }
 }

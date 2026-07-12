@@ -17,6 +17,7 @@ use Hypervel\Cache\Redis\Operations\AllTag\Put;
 use Hypervel\Cache\Redis\Operations\AllTag\PutMany;
 use Hypervel\Cache\Redis\Operations\AllTag\Remember;
 use Hypervel\Cache\Redis\Operations\AllTag\RememberForever;
+use Hypervel\Cache\Redis\Operations\AllTag\Touch;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 
@@ -38,6 +39,8 @@ class AllTagOperations
     private ?Add $add = null;
 
     private ?Forever $forever = null;
+
+    private ?Touch $touch = null;
 
     private ?Increment $increment = null;
 
@@ -94,6 +97,14 @@ class AllTagOperations
     public function forever(): Forever
     {
         return $this->forever ??= new Forever($this->context, $this->serialization);
+    }
+
+    /**
+     * Get the Touch operation for adjusting tagged item expiration.
+     */
+    public function touch(): Touch
+    {
+        return $this->touch ??= new Touch($this->context);
     }
 
     /**
@@ -193,6 +204,7 @@ class AllTagOperations
         $this->putMany = null;
         $this->add = null;
         $this->forever = null;
+        $this->touch = null;
         $this->increment = null;
         $this->decrement = null;
         $this->addEntry = null;

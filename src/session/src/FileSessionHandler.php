@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Carbon;
 use SessionHandlerInterface;
@@ -40,7 +41,11 @@ class FileSessionHandler implements SessionHandlerInterface
         if ($this->files->isFile($path = $this->path . '/' . $sessionId)
             && $this->files->lastModified($path) >= Carbon::now()->subMinutes($this->minutes)->getTimestamp()
         ) {
-            return $this->files->sharedGet($path);
+            try {
+                return $this->files->sharedGet($path);
+            } catch (FileNotFoundException) {
+                return '';
+            }
         }
 
         return '';

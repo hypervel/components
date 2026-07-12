@@ -6,6 +6,7 @@ namespace Hypervel\Auth\Passwords;
 
 use Closure;
 use Hypervel\Auth\Events\PasswordResetLinkSent;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Hypervel\Contracts\Auth\PasswordBroker as PasswordBrokerContract;
 use Hypervel\Contracts\Auth\UserProvider;
@@ -17,6 +18,11 @@ use UnexpectedValueException;
 
 class PasswordBroker implements PasswordBrokerContract
 {
+    /**
+     * The coroutine context key holding the broker name currently sending a reset link.
+     */
+    public const string SENDING_BROKER_CONTEXT_KEY = '__auth.passwords.sending_broker';
+
     /**
      * The timebox instance.
      */
@@ -31,6 +37,7 @@ class PasswordBroker implements PasswordBrokerContract
         #[SensitiveParameter]
         protected TokenRepositoryInterface $tokens,
         protected UserProvider $users,
+        protected string $name,
         protected ?Dispatcher $events = null,
         ?Timebox $timebox = null,
         protected int $timeboxDuration = 200000,
@@ -59,14 +66,24 @@ class PasswordBroker implements PasswordBrokerContract
 
             $token = $this->tokens->create($user);
 
-            if ($callback) {
-                return $callback($user, $token) ?? static::RESET_LINK_SENT;
-            }
+            $hadPrevious = CoroutineContext::has(self::SENDING_BROKER_CONTEXT_KEY);
+            $previous = CoroutineContext::get(self::SENDING_BROKER_CONTEXT_KEY);
+            CoroutineContext::set(self::SENDING_BROKER_CONTEXT_KEY, $this->name);
 
-            // Once we have the reset token, we are ready to send the message out to this
-            // user with a link to reset their password. We will then redirect back to
-            // the current URI having nothing set in the session to indicate errors.
-            $user->sendPasswordResetNotification($token);
+            try {
+                if ($callback) {
+                    return $callback($user, $token) ?? static::RESET_LINK_SENT;
+                }
+
+                // Once we have the reset token, we are ready to send the message out to this
+                // user with a link to reset their password. We will then redirect back to
+                // the current URI having nothing set in the session to indicate errors.
+                $user->sendPasswordResetNotification($token);
+            } finally {
+                $hadPrevious
+                    ? CoroutineContext::set(self::SENDING_BROKER_CONTEXT_KEY, $previous)
+                    : CoroutineContext::forget(self::SENDING_BROKER_CONTEXT_KEY);
+            }
 
             $this->events?->dispatch(new PasswordResetLinkSent($user));
 

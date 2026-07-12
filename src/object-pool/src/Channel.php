@@ -6,53 +6,54 @@ namespace Hypervel\ObjectPool;
 
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel as EngineChannel;
+use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use SplQueue;
 
+/**
+ * Store idle objects independently of execution mode and signal coroutine waiters.
+ *
+ * Keep this in sync with the connection-pool channel in `hypervel/pool`.
+ */
 class Channel
 {
-    /**
-     * Coroutine channel for handling objects in coroutine mode.
-     */
-    protected EngineChannel $channel;
-
-    /**
-     * Queue for handling objects in non-coroutine mode.
-     */
+    /** @var SplQueue<object> */
     protected SplQueue $queue;
 
-    /**
-     * Constructor for Channel.
-     *
-     * @param int $size The maximum size of the channel
-     */
-    public function __construct(
-        protected int $size
-    ) {
-        $this->channel = new EngineChannel($size);
-        $this->queue = new SplQueue;
-    }
+    /** @var EngineChannel<bool> */
+    protected EngineChannel $signal;
+
+    protected int $waiters = 0;
+
+    protected bool $closed = false;
 
     /**
-     * Retrieve an object from the channel.
+     * Create a pool channel.
      */
-    public function pop(float $timeout): false|object
+    public function __construct(int $size)
     {
-        if ($this->isCoroutine()) {
-            return $this->channel->pop($timeout);
-        }
-
-        return $this->queue->shift();
+        $this->queue = new SplQueue;
+        $this->signal = new EngineChannel($size);
     }
 
     /**
-     * Push an object to the channel.
+     * Retrieve an idle object without waiting.
+     */
+    public function pop(): false|object
+    {
+        return $this->queue->isEmpty() ? false : $this->queue->dequeue();
+    }
+
+    /**
+     * Push an idle object and wake one waiter.
      */
     public function push(object $data): bool
     {
-        if ($this->isCoroutine()) {
-            return $this->channel->push($data);
+        if ($this->closed) {
+            return false;
         }
-        $this->queue->push($data);
+
+        $this->queue->enqueue($data);
+        $this->signal();
 
         return true;
     }
@@ -62,18 +63,75 @@ class Channel
      */
     public function length(): int
     {
-        if ($this->isCoroutine()) {
-            return $this->channel->getLength();
-        }
-
         return $this->queue->count();
     }
 
     /**
-     * Determine if the code is running in a coroutine context.
+     * Wait for pool state to change.
      */
-    protected function isCoroutine(): bool
+    public function wait(float $timeout): bool
     {
-        return Coroutine::id() > 0;
+        if ($this->closed) {
+            return true;
+        }
+
+        if (! Coroutine::inCoroutine() || $timeout <= 0.0) {
+            return false;
+        }
+
+        ++$this->waiters;
+
+        try {
+            $result = $this->signal->pop($timeout);
+
+            return $result !== false || ! $this->signal->isTimeout();
+        } finally {
+            --$this->waiters;
+        }
+    }
+
+    /**
+     * Wake one waiter after a capacity-relevant state change.
+     */
+    public function signal(): void
+    {
+        if ($this->closed || $this->waiters === 0) {
+            return;
+        }
+
+        if (Coroutine::inCoroutine()) {
+            $this->pushSignal();
+
+            return;
+        }
+
+        try {
+            Coroutine::create($this->pushSignal(...));
+        } catch (CoroutineCreateException) {
+            // The state change is already committed; checkout performs a final state pass.
+        }
+    }
+
+    /**
+     * Push a coalesced wake signal without blocking on a full channel.
+     */
+    protected function pushSignal(): void
+    {
+        if (! $this->closed && ! $this->signal->isFull()) {
+            $this->signal->push(true);
+        }
+    }
+
+    /**
+     * Close the signal channel and wake every waiter.
+     */
+    public function close(): void
+    {
+        if ($this->closed) {
+            return;
+        }
+
+        $this->closed = true;
+        $this->signal->close();
     }
 }

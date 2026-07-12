@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Pool;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Pool\Pool;
@@ -15,7 +14,6 @@ use Hypervel\Redis\PhpRedisConnection;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Arr;
-use Psr\Log\LoggerInterface;
 use Throwable;
 
 class RedisPool extends Pool
@@ -25,8 +23,6 @@ class RedisPool extends Pool
     protected ?Timer $heartbeatTimer = null;
 
     protected ?int $heartbeatTimerId = null;
-
-    protected int $heartbeatGeneration = 0;
 
     /**
      * Create a new Redis pool instance.
@@ -74,13 +70,17 @@ class RedisPool extends Pool
     }
 
     /**
-     * Flush all connections from the pool.
+     * Close the Redis pool and clear its shared resources.
      */
-    public function flushAll(): void
+    public function close(): void
     {
+        if ($this->isClosed()) {
+            return;
+        }
+
         $this->clearHeartbeat();
 
-        parent::flushAll();
+        parent::close();
     }
 
     /**
@@ -95,7 +95,7 @@ class RedisPool extends Pool
         $this->heartbeatTimerId = $this->heartbeatTimer->tick(
             $this->option->getHeartbeat(),
             function (bool $isClosing): ?string {
-                if ($isClosing) {
+                if ($isClosing || $this->isClosed()) {
                     return Timer::STOP;
                 }
 
@@ -111,8 +111,6 @@ class RedisPool extends Pool
      */
     protected function clearHeartbeat(): void
     {
-        ++$this->heartbeatGeneration;
-
         if ($this->heartbeatTimer === null || $this->heartbeatTimerId === null) {
             return;
         }
@@ -128,10 +126,11 @@ class RedisPool extends Pool
     {
         $connectionsToInspect = $this->getConnectionsInChannel();
 
-        for ($i = 0; $i < $connectionsToInspect; ++$i) {
-            $connection = $this->channel->pop(0.001);
+        for ($index = 0; $index < $connectionsToInspect; ++$index) {
+            /** @var false|RedisConnection $connection */
+            $connection = $this->popIdleConnection();
 
-            if (! $connection instanceof RedisConnection) {
+            if ($connection === false) {
                 break;
             }
 
@@ -153,27 +152,29 @@ class RedisPool extends Pool
                 return;
             }
 
-            if ($connection->isIdleExpired($now) && $this->currentConnections > $this->option->getMinConnections()) {
+            if ($connection->isIdleExpired($now)
+                && $this->getCurrentConnections() > $this->option->getMinConnections()
+            ) {
                 $this->discardHeartbeatConnection($connection);
 
                 return;
             }
 
-            $heartbeatGeneration = $this->heartbeatGeneration;
-
             if ($connection->heartbeatCheck($this->option->getHeartbeatTimeout())) {
-                if ($heartbeatGeneration === $this->heartbeatGeneration) {
-                    $this->release($connection);
-                } else {
+                if ($this->isClosed()) {
                     $this->discardHeartbeatConnection($connection);
+
+                    return;
                 }
+
+                $this->requeueConnection($connection);
 
                 return;
             }
 
             $this->discardHeartbeatConnection($connection);
         } catch (Throwable $exception) {
-            $this->logHeartbeatError('Redis heartbeat failed: ' . $exception);
+            $this->report('Redis heartbeat failed: ' . $exception);
             $this->discardHeartbeatConnection($connection);
         }
     }
@@ -183,35 +184,6 @@ class RedisPool extends Pool
      */
     protected function discardHeartbeatConnection(RedisConnection $connection): void
     {
-        --$this->currentConnections;
-
-        try {
-            $connection->close();
-        } catch (Throwable $exception) {
-            $this->logHeartbeatError('Redis heartbeat close failed: ' . $exception);
-        }
-    }
-
-    /**
-     * Log a heartbeat error without breaking pool cleanup.
-     */
-    protected function logHeartbeatError(string $message): void
-    {
-        try {
-            $this->getLogger()?->error($message);
-        } catch (Throwable) {
-        }
-    }
-
-    /**
-     * Get the logger instance if available.
-     */
-    private function getLogger(): ?LoggerInterface
-    {
-        if (! $this->container->has(StdoutLoggerInterface::class)) {
-            return null;
-        }
-
-        return $this->container->make(StdoutLoggerInterface::class);
+        $this->destroyConnection($connection);
     }
 }

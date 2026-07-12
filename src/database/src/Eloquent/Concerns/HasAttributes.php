@@ -14,6 +14,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
+use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Attributes\Appends;
 use Hypervel\Database\Eloquent\Attributes\DateFormat;
@@ -197,10 +198,8 @@ trait HasAttributes
 
     /**
      * The encrypter instance that is used to encrypt attributes.
-     *
-     * @var null|\Hypervel\Contracts\Encryption\Encrypter
      */
-    public static mixed $encrypter = null;
+    public static ?EncrypterContract $encrypter = null;
 
     /**
      * Initialize the trait.
@@ -1336,20 +1335,16 @@ trait HasAttributes
      *
      * Boot-only. The encrypter persists in a static property for the worker
      * lifetime and is used by every encrypted attribute across all coroutines.
-     *
-     * @param null|\Hypervel\Contracts\Encryption\Encrypter $encrypter
      */
-    public static function encryptUsing(mixed $encrypter): void
+    public static function encryptUsing(?EncrypterContract $encrypter): void
     {
         static::$encrypter = $encrypter;
     }
 
     /**
      * Get the current encrypter being used by the model.
-     *
-     * @return \Hypervel\Contracts\Encryption\Encrypter
      */
-    public static function currentEncrypter(): mixed
+    public static function currentEncrypter(): EncrypterContract
     {
         return static::$encrypter ?? Crypt::getFacadeRoot();
     }

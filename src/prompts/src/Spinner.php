@@ -49,20 +49,20 @@ class Spinner extends Prompt
     {
         $this->capturePreviousNewLines();
 
-        $this->hideCursor();
-        $this->render();
-
-        Coroutine::fork(function () {
-            while (! $this->hasFinished) {
-                $this->render();
-
-                ++$this->count;
-
-                usleep($this->interval * 1000);
-            }
-        });
-
         try {
+            $this->hideCursor();
+            $this->render();
+
+            Coroutine::fork(function (): void {
+                while (! $this->hasFinished) {
+                    $this->render();
+
+                    ++$this->count;
+
+                    usleep($this->interval * 1000);
+                }
+            });
+
             return $callback();
         } finally {
             $this->hasFinished = true;

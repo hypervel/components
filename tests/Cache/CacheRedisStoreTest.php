@@ -171,6 +171,17 @@ class CacheRedisStoreTest extends RedisCacheTestCase
         $this->assertTrue($result);
     }
 
+    public function testSupportsFlushingLocksRequiresSeparateLockConnection()
+    {
+        $store = $this->createStore($this->mockConnection());
+
+        $this->assertFalse($store->supportsFlushingLocks());
+
+        $store->setLockConnection('locks');
+
+        $this->assertTrue($store->supportsFlushingLocks());
+    }
+
     public function testGetAndSetPrefix()
     {
         $store = $this->createStore($this->mockConnection());

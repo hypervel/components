@@ -22,6 +22,13 @@ use Hypervel\Support\Composer;
 class GenerateProxies
 {
     /**
+     * The source class map used for proxy generation.
+     *
+     * @var null|array<string, string>
+     */
+    protected static ?array $sourceClassMap = null;
+
+    /**
      * Bootstrap the AOP proxy generation.
      */
     public function bootstrap(ApplicationContract $app): void
@@ -58,7 +65,7 @@ class GenerateProxies
     protected function buildClassMap(): array
     {
         $loader = Composer::getLoader();
-        $classMap = $loader->getClassMap();
+        $classMap = $this->mergeSourceClassMap($loader->getClassMap());
 
         foreach (AspectCollector::getRules() as $rule) {
             foreach ($rule['classes'] as $classRule) {
@@ -72,7 +79,9 @@ class GenerateProxies
 
                 if (! isset($classMap[$className])) {
                     $file = $loader->findFile($className);
-                    if ($file !== false) {
+                    if ($file !== false && ! str_ends_with($file, '.proxy.php')) {
+                        // A flushed source map can leave a proxied PSR-4 class visible only through Composer's proxy entry.
+                        static::$sourceClassMap[$className] = $file;
                         $classMap[$className] = $file;
                     }
                 }
@@ -80,5 +89,44 @@ class GenerateProxies
         }
 
         return $classMap;
+    }
+
+    /**
+     * Merge Composer's current class map into the proxy source map.
+     *
+     * Runtime class-map overrides are legitimate source entries and may be
+     * registered after the first application boot. Generated proxy paths are
+     * excluded because they point at boot artifacts, not source files.
+     *
+     * @param array<string, string> $classMap
+     * @return array<string, string>
+     */
+    protected function mergeSourceClassMap(array $classMap): array
+    {
+        static::$sourceClassMap ??= [];
+
+        foreach ($classMap as $class => $path) {
+            if (! str_ends_with($path, '.proxy.php')) {
+                static::$sourceClassMap[$class] = $path;
+            }
+        }
+
+        return static::$sourceClassMap;
+    }
+
+    /**
+     * Flush the captured source class map.
+     *
+     * Tests only. This is for tests that swap Composer's loader before
+     * proxy generation; do not register it with the global after-test
+     * subscriber because normal test cleanup runs after proxy paths have
+     * already been added to the loader. Flushing mid-worker loses accumulated
+     * findFile() resolutions for already-proxied PSR-4 classes, so those
+     * classes are skipped from regeneration until the loader is swapped or the
+     * process restarts.
+     */
+    public static function flushState(): void
+    {
+        static::$sourceClassMap = null;
     }
 }

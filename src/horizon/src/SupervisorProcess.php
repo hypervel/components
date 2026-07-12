@@ -15,6 +15,16 @@ use Symfony\Component\Process\Process;
 class SupervisorProcess extends WorkerProcess
 {
     /**
+     * Signals handled by a supervisor after its application boots.
+     */
+    protected const STARTUP_SIGNALS = [
+        SIGTERM,
+        SIGUSR1,
+        SIGUSR2,
+        SIGCONT,
+    ];
+
+    /**
      * The name of the supervisor.
      */
     public string $name;

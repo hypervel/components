@@ -97,7 +97,7 @@ Transfer/sec:      1.69MB
 Hypervel:
 
 ```text
-Running 10s test @ http://127.0.0.1:9501/api
+Running 10s test @ http://127.0.0.1:8000/api
   4 threads and 100 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
     Latency     7.66ms   17.85ms 249.92ms   90.25%
@@ -132,7 +132,7 @@ Transfer/sec:      1.66KB
 Hypervel:
 
 ```text
-Running 10s test @ http://10.10.4.12:9501/api
+Running 10s test @ http://10.10.4.12:8000/api
   16 threads and 15000 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
     Latency     1.02s    64.72ms   1.87s    93.62%

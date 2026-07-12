@@ -39,14 +39,13 @@ trait RetrievesMultipleKeys
      */
     public function putMany(array $values, int $seconds): bool
     {
-        $manyResult = null;
+        $result = true;
 
         foreach ($values as $key => $value) {
-            $result = $this->put((string) $key, $value, $seconds);
-
-            $manyResult = is_null($manyResult) ? $result : $result && $manyResult;
+            // Call put() first so every key is attempted even after an earlier write fails.
+            $result = $this->put((string) $key, $value, $seconds) && $result;
         }
 
-        return $manyResult ?: false;
+        return $result;
     }
 }

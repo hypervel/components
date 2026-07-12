@@ -40,8 +40,16 @@ trait RunTestsInCoroutine
         $testResult = null;
         $exception = null;
 
+        $capture = static function (callable $callback) use (&$exception): void {
+            try {
+                $callback();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        };
+
         /* @phpstan-ignore-next-line */
-        run(function () use (&$testResult, &$exception, $methodName, $testArguments) {
+        run(function () use (&$testResult, &$exception, $capture, $methodName, $testArguments): void {
             $this->clearNonCoroutineTransactionContext();
 
             if ($this->copyNonCoroutineContext) {
@@ -60,17 +68,17 @@ trait RunTestsInCoroutine
                 $exception = $e;
             } finally {
                 if ($shouldBootFramework) {
-                    $this->invokeTearDownInCoroutine();
+                    $this->invokeTearDownInCoroutine($capture);
                 }
 
-                $this->cleanupTestContext();
-                Timer::clearAll();
-                CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
-                CoordinatorManager::clear(Constants::WORKER_EXIT);
+                $capture(fn () => $this->cleanupTestContext());
+                $capture(fn () => Timer::clearAll());
+                $capture(fn () => CoordinatorManager::until(Constants::WORKER_EXIT)->resume());
+                $capture(fn () => CoordinatorManager::clear(Constants::WORKER_EXIT));
             }
         });
 
-        if ($exception) {
+        if ($exception !== null) {
             throw $exception;
         }
 
@@ -100,17 +108,17 @@ trait RunTestsInCoroutine
         }
     }
 
-    protected function invokeTearDownInCoroutine(): void
+    protected function invokeTearDownInCoroutine(callable $capture): void
     {
         if (method_exists($this, 'tearDownInCoroutine')) {
-            call_user_func([$this, 'tearDownInCoroutine']);
+            $capture(fn () => $this->tearDownInCoroutine());
         }
 
         // Call trait-specific coroutine teardown methods (e.g., tearDownDatabaseTransactionsInCoroutine)
         foreach (class_uses_recursive(static::class) as $trait) {
             $method = 'tearDown' . class_basename($trait) . 'InCoroutine';
             if (method_exists($this, $method)) {
-                $this->{$method}();
+                $capture(fn () => $this->{$method}());
             }
         }
     }

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Watcher\Driver;
 
 use Hypervel\Engine\Channel;
-use Hypervel\Engine\Coroutine;
 use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use InvalidArgumentException;
@@ -15,11 +14,14 @@ class FswatchDriver extends AbstractDriver
 {
     protected mixed $process = null;
 
+    /** @var array<int, resource> */
+    protected array $pipes = [];
+
     public function __construct(protected Option $option)
     {
         parent::__construct($option);
-        $ret = $this->exec('which fswatch');
-        if (empty($ret['output'])) {
+        $result = $this->exec('which fswatch');
+        if (empty($result['output'])) {
             throw new InvalidArgumentException('fswatch not exists. You can `brew install fswatch` to install it.');
         }
     }
@@ -29,30 +31,88 @@ class FswatchDriver extends AbstractDriver
      */
     public function watch(Channel $channel): void
     {
-        $cmd = $this->getCmd();
-        $this->process = proc_open($cmd, [['pipe', 'r'], ['pipe', 'w']], $pipes);
-        if (! is_resource($this->process)) {
-            throw new RuntimeException('fswatch failed.');
+        if ($this->stopping) {
+            return;
         }
 
-        $basePath = base_path();
-        $watchPaths = $this->option->getWatchPaths();
+        $this->openProcess();
 
-        while (! $channel->isClosing()) {
-            $ret = fread($pipes[1], 8192);
-            if (is_string($ret) && $ret !== '') {
-                Coroutine::create(function () use ($ret, $channel, $basePath, $watchPaths) {
-                    $files = array_filter(explode("\n", $ret));
-                    foreach ($files as $file) {
-                        $relativePath = substr($file, strlen($basePath) + 1);
-                        foreach ($watchPaths as $watchPath) {
-                            if ($watchPath->matches($relativePath)) {
-                                $channel->push($file);
-                                break;
-                            }
-                        }
+        try {
+            $pipe = $this->pipes[1] ?? null;
+
+            if (! is_resource($pipe)) {
+                throw new RuntimeException('The fswatch process did not provide an output pipe.');
+            }
+
+            $basePath = base_path();
+            $watchPaths = $this->option->getWatchPaths();
+            $buffer = '';
+
+            while (true) {
+                if ($this->shouldStopWatching($channel)) {
+                    return;
+                }
+
+                $result = fread($pipe, 8192);
+
+                if ($this->shouldStopWatching($channel)) {
+                    return;
+                }
+
+                if ($result === false) {
+                    throw new RuntimeException('Unable to read output from the fswatch process.');
+                }
+
+                if ($result === '') {
+                    if (feof($pipe)) {
+                        $this->processOutput($buffer, '', $channel, $basePath, $watchPaths, final: true);
+
+                        throw new RuntimeException('The fswatch process exited unexpectedly.');
                     }
-                });
+
+                    throw new RuntimeException('Unable to read output from the fswatch process.');
+                }
+
+                $this->processOutput($buffer, $result, $channel, $basePath, $watchPaths);
+            }
+        } finally {
+            $this->stop();
+        }
+    }
+
+    /**
+     * Process complete newline-delimited paths while retaining a partial tail.
+     *
+     * @param list<WatchPath> $watchPaths
+     */
+    protected function processOutput(
+        string &$buffer,
+        string $chunk,
+        Channel $channel,
+        string $basePath,
+        array $watchPaths,
+        bool $final = false,
+    ): void {
+        $lines = explode("\n", $buffer . $chunk);
+        $buffer = array_pop($lines);
+
+        if ($final && $buffer !== '') {
+            $lines[] = $buffer;
+            $buffer = '';
+        }
+
+        foreach ($lines as $file) {
+            if ($file === '') {
+                continue;
+            }
+
+            $relativePath = substr($file, strlen($basePath) + 1);
+
+            foreach ($watchPaths as $watchPath) {
+                if ($watchPath->matches($relativePath)) {
+                    $channel->push($file);
+                    break;
+                }
             }
         }
     }
@@ -64,31 +124,86 @@ class FswatchDriver extends AbstractDriver
     {
         parent::stop();
 
-        if (is_resource($this->process)) {
-            if (proc_get_status($this->process)['running']) {
-                proc_terminate($this->process, SIGKILL);
+        $process = $this->process;
+        $this->process = null;
+
+        if (is_resource($process) && proc_get_status($process)['running']) {
+            proc_terminate($process, SIGKILL);
+        }
+
+        foreach ($this->pipes as $pipe) {
+            if (is_resource($pipe)) {
+                fclose($pipe);
             }
-            proc_close($this->process);
+        }
+
+        $this->pipes = [];
+
+        if (is_resource($process)) {
+            proc_close($process);
         }
     }
 
     /**
-     * Build the fswatch command string.
+     * Open the fswatch subprocess and retain its pipes.
      */
-    protected function getCmd(): string
+    protected function openProcess(): void
+    {
+        $process = proc_open($this->getCommand(), [['pipe', 'r'], ['pipe', 'w']], $pipes);
+
+        if (! is_resource($process)) {
+            throw new RuntimeException('fswatch failed.');
+        }
+
+        $this->process = $process;
+        $this->pipes = $pipes;
+    }
+
+    /**
+     * Determine whether the active watch loop should stop.
+     *
+     * The state may change while hooked I/O yields to another coroutine.
+     *
+     * @phpstan-impure
+     */
+    protected function shouldStopWatching(Channel $channel): bool
+    {
+        return $this->stopping || $channel->isClosing() || $this->process === null;
+    }
+
+    /**
+     * Build the fswatch command arguments.
+     *
+     * @return list<string>
+     */
+    protected function getCommand(): array
     {
         $paths = array_map(
             fn (WatchPath $p) => base_path($p->path),
             $this->option->getWatchPaths(),
         );
 
-        $cmd = 'fswatch ';
-        if (! $this->isDarwin()) {
-            $cmd .= ' -m inotify_monitor';
-            $cmd .= " -E --format '%p' -r ";
-            $cmd .= ' --event Created --event Updated --event Removed --event Renamed ';
+        if ($this->isDarwin()) {
+            return ['fswatch', ...$paths];
         }
 
-        return $cmd . implode(' ', $paths);
+        return [
+            'fswatch',
+            '-m',
+            'inotify_monitor',
+            '-E',
+            '--format',
+            '%p',
+            '-r',
+            '--event',
+            'Created',
+            '--event',
+            'Updated',
+            '--event',
+            'Removed',
+            '--event',
+            'Renamed',
+            ...$paths,
+        ];
     }
 }

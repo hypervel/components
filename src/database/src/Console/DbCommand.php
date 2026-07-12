@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Database\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Support\ConfigurationUrlParser;
+use Hypervel\Database\ConfigurationUrlParser;
+use Hypervel\Support\Arr;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
@@ -67,12 +68,12 @@ class DbCommand extends Command
      */
     public function getConnection(): array
     {
-        $connection = $this->hypervel['config']['database.connections.'
-            . (($db = $this->argument('connection')) ?? $this->hypervel['config']['database.default'])
-        ];
+        $config = $this->hypervel->make('config');
+        $connectionName = $this->argument('connection') ?? $config->string('database.default', 'default');
+        $connection = $config->array("database.connections.{$connectionName}", []);
 
         if (empty($connection)) {
-            throw new UnexpectedValueException("Invalid database connection [{$db}].");
+            throw new UnexpectedValueException("Invalid database connection [{$connectionName}].");
         }
 
         if (! empty($connection['url'])) {
@@ -80,20 +81,40 @@ class DbCommand extends Command
         }
 
         if ($this->option('read')) {
-            if (is_array($connection['read']['host'])) {
-                $connection['read']['host'] = $connection['read']['host'][0];
-            }
-
-            $connection = array_merge($connection, $connection['read']);
+            $connection = $this->mergeConnectionConfiguration($connection, 'read');
         } elseif ($this->option('write')) {
-            if (is_array($connection['write']['host'])) {
-                $connection['write']['host'] = $connection['write']['host'][0];
-            }
-
-            $connection = array_merge($connection, $connection['write']);
+            $connection = $this->mergeConnectionConfiguration($connection, 'write');
         }
 
         return $connection;
+    }
+
+    /**
+     * Merge a read / write connection configuration for the CLI client.
+     */
+    protected function mergeConnectionConfiguration(array $connection, string $type): array
+    {
+        if (empty($connection[$type])) {
+            return Arr::except($connection, ['read', 'write']);
+        }
+
+        $merge = $connection[$type];
+
+        if (isset($merge[0]) && is_array($merge[0])) {
+            $merge = $merge[0];
+        }
+
+        if (is_array($merge['host'] ?? null)) {
+            $merge['host'] = $merge['host'][0];
+        }
+
+        $connection = array_merge($connection, $merge);
+
+        if (is_array($connection['host'] ?? null)) {
+            $connection['host'] = $connection['host'][0];
+        }
+
+        return Arr::except($connection, ['read', 'write']);
     }
 
     /**

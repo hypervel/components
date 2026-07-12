@@ -811,7 +811,7 @@ defer(function () {
 <a name="connections"></a>
 ## Connections
 
-Hypervel's HTTP client can maintain named, pooled Guzzle clients for the services your application talks to most often. Connections let Hypervel reuse the same HTTP client for repeated calls to the same service, reducing per-request setup work and improving performance. This means Hypervel does not need to rebuild the client and its request pipeline every time your application calls that API, and repeated calls can also reuse an existing keep-alive connection instead of opening a new TCP / TLS connection each time if the remote server supports it.
+Hypervel's HTTP client supports named connection presets for services your application calls frequently. Each registered connection owns one low-level Guzzle transport handler, which retains reusable cURL handles and keep-alive connection state. Every pending request still receives a fresh Guzzle client and middleware stack, so request-specific middleware, callbacks, and options never become frozen onto the first request.
 
 To register a connection, typically in the `boot` method of your application's `AppServiceProvider`, call the `registerConnection` method:
 
@@ -824,23 +824,47 @@ use Hypervel\Support\Facades\Http;
 public function boot(): void
 {
     Http::registerConnection('github', [
-        'min_objects' => 1,
-        'max_objects' => 10,
+        'base_uri' => 'https://api.github.com',
+        'timeout' => 10,
+        'headers' => [
+            'Accept' => 'application/vnd.github+json',
+        ],
     ]);
 }
 ```
 
-The second argument accepts pool options such as `min_objects`, `max_objects`, `wait_timeout`, and `max_lifetime`. Defaults are sensible, so the array may be omitted entirely. See the [object pool documentation](/docs/{{version}}/object-pool) for the full list of options.
+The second argument is a request-option preset. It accepts normal Guzzle request options except for options whose ownership belongs to a dedicated Hypervel API:
+
+- `cookies` is rejected. Every pending request owns an isolated cookie jar; seed it with `withCookies()`.
+- `handler` is rejected. Use `setHandler()` for a request-specific handler.
+- `pool` is rejected. HTTP clients are not object-pooled.
+- `transport_sharing` is consumed only while registering the connection's low-level handler. It accepts Guzzle's `TransportSharing` modes and is never passed into request options.
+
+The same four keys are rejected from global options, per-call connection overrides, fluent `withOptions()` calls, and raw `send()` options. This keeps cookie and handler ownership consistent regardless of which option layer supplied a value.
 
 Once registered, select a connection for a request by chaining the `connection` method:
 
 ```php
 $response = Http::connection('github')
     ->withToken($token)
-    ->get('https://api.github.com/user');
+    ->get('/user');
 ```
 
-Requests made without `connection(...)` continue to use a fresh, non-pooled Guzzle client — there is no pooling unless you opt in by registering and selecting a connection.
+Option precedence is deterministic and does not depend on chaining order: factory global options are the lowest layer, followed by the registered connection preset, an optional per-call connection override, and finally fluent request options. Passing an empty per-call array intentionally clears the registered preset for that request:
+
+```php
+// Uses the registered GitHub preset...
+Http::connection('github')->get('/user');
+
+// Replaces the preset with an empty option layer for this request...
+Http::connection('github', [])->get('https://example.com');
+```
+
+`setHandler()` replaces only the low-level handler beneath that request's fresh middleware stack; its global, connection, and fluent options still apply. `setClient()` gives the caller complete ownership of the client and bypasses the connection preset. Global and fluent request options still apply to the request sent through that client.
+
+Each pending request constructs one cookie jar and reuses it only across that request's redirects and retry attempts. Concurrent requests never share cookies. Requests made without `connection()` use their own default low-level handler and the same per-request cookie behavior.
+
+Calling `registerConnection()` or `setConnectionConfig()` again invalidates the connection's cached low-level handler. Subsequent requests lazily create a handler from the new configuration, while in-flight requests safely finish on their existing handler reference.
 
 <a name="macros"></a>
 ## Macros

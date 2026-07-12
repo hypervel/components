@@ -12,6 +12,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use RuntimeException;
 use SplFileInfo;
 
 use function Hypervel\Coroutine\go;
@@ -81,7 +82,7 @@ class FilesystemTest extends TestCase
         (new Filesystem)->lines(__DIR__ . '/unknown-file.txt');
     }
 
-    public function testReplaceCreatesFile()
+    public function testReplaceCreatesFile(): void
     {
         $tempFile = $this->tempDir . '/file.txt';
 
@@ -89,6 +90,62 @@ class FilesystemTest extends TestCase
 
         $filesystem->replace($tempFile, 'Hello World');
         $this->assertStringEqualsFile($tempFile, 'Hello World');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testReplaceWritesContentsBeforeApplyingARestrictiveMode(): void
+    {
+        $path = $this->tempDir . '/read-only.txt';
+
+        (new Filesystem)->replace($path, 'protected contents', 0444);
+
+        $this->assertStringEqualsFile($path, 'protected contents');
+        $this->assertSame(0444, $this->getFilePermissions($path));
+    }
+
+    public function testReplaceRejectsAMissingTargetDirectoryAndRemovesTheFallbackTempFile(): void
+    {
+        $prefix = 'hypervel-replace-' . getmypid() . '-missing-';
+        $path = $this->tempDir . '/missing/' . $prefix;
+        $before = $this->temporaryFilesWithPrefix($prefix);
+
+        try {
+            (new Filesystem)->replace($path, 'contents');
+            $this->fail('Expected replacement into a missing directory to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString("Unable to replace [{$path}] with temporary file", $exception->getMessage());
+        }
+
+        $this->assertFileDoesNotExist($path);
+        $this->assertSame($before, $this->temporaryFilesWithPrefix($prefix));
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testReplaceRejectsAnUnwritableTargetDirectoryAndRemovesTheFallbackTempFile(): void
+    {
+        $directory = $this->tempDir . '/unwritable';
+        mkdir($directory, 0555);
+
+        if (is_writable($directory)) {
+            chmod($directory, 0755);
+            $this->markTestSkipped('The current user can write to directories without write permission.');
+        }
+
+        $prefix = 'hypervel-replace-' . getmypid() . '-unwritable-';
+        $path = $directory . '/' . $prefix;
+        $before = $this->temporaryFilesWithPrefix($prefix);
+
+        try {
+            (new Filesystem)->replace($path, 'contents');
+            $this->fail('Expected replacement into an unwritable directory to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString("Unable to replace [{$path}] with temporary file", $exception->getMessage());
+        } finally {
+            chmod($directory, 0755);
+        }
+
+        $this->assertFileDoesNotExist($path);
+        $this->assertSame($before, $this->temporaryFilesWithPrefix($prefix));
     }
 
     public function testReplaceInFileCorrectlyReplaces()
@@ -332,6 +389,26 @@ class FilesystemTest extends TestCase
         $this->expectExceptionMessage('File does not exist at path ' . $this->tempDir . '/unknown-file.txt.');
 
         (new Filesystem)->get($this->tempDir . '/unknown-file.txt');
+    }
+
+    public function testGetThrowsAFrameworkExceptionWhenTheFileDisappearsBeforeReading(): void
+    {
+        $path = $this->tempDir . '/vanished.txt';
+
+        $this->expectException(FileNotFoundException::class);
+        $this->expectExceptionMessage("Unable to read file at path {$path}.");
+
+        (new VanishingReadFilesystem)->get($path);
+    }
+
+    public function testSharedGetThrowsAFrameworkExceptionWhenTheFileDisappearsBeforeOpening(): void
+    {
+        $path = $this->tempDir . '/vanished.txt';
+
+        $this->expectException(FileNotFoundException::class);
+        $this->expectExceptionMessage("Unable to read file at path {$path}.");
+
+        (new VanishingReadFilesystem)->get($path, true);
     }
 
     public function testGetRequireReturnsProperly()
@@ -724,5 +801,29 @@ class FilesystemTest extends TestCase
         $filePerms = substr(sprintf('%o', $filePerms), -3);
 
         return (int) base_convert($filePerms, 8, 10);
+    }
+
+    /**
+     * Get system temporary files beginning with the given prefix.
+     *
+     * @return list<string>
+     */
+    private function temporaryFilesWithPrefix(string $prefix): array
+    {
+        $files = glob(sys_get_temp_dir() . '/' . $prefix . '*') ?: [];
+        sort($files);
+
+        return $files;
+    }
+}
+
+class VanishingReadFilesystem extends Filesystem
+{
+    /**
+     * Simulate a file disappearing after the initial metadata check.
+     */
+    public function isFile(string $file): bool
+    {
+        return true;
     }
 }

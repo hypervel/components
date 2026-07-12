@@ -19,11 +19,11 @@ class TransportPoolProxy extends PoolProxy implements Stringable, TransportInter
      */
     public function send(RawMessage $message, ?Envelope $envelope = null): ?SentMessage
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 
     public function __toString(): string
     {
-        return $this->__call(__FUNCTION__, func_get_args());
+        return $this->invoke(__FUNCTION__, func_get_args());
     }
 }

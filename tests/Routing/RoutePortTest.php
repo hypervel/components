@@ -71,7 +71,7 @@ class RoutePortTest extends RoutingTestCase
         $router->port(8080)->group(function ($router) {
             $router->get('/foo', fn () => 'outer');
 
-            $router->port(9501)->group(function ($router) {
+            $router->port(8000)->group(function ($router) {
                 $router->get('/bar', fn () => 'inner');
             });
         });
@@ -79,15 +79,15 @@ class RoutePortTest extends RoutingTestCase
         $routes = $router->getRoutes()->getRoutes();
 
         $this->assertSame(8080, $routes[0]->getPort());
-        $this->assertSame(9501, $routes[1]->getPort());
+        $this->assertSame(8000, $routes[1]->getPort());
     }
 
     public function testPortGroupMergeInnerOverridesOuter()
     {
         $old = ['port' => 8080];
-        $result = RouteGroup::merge(['port' => 9501], $old);
+        $result = RouteGroup::merge(['port' => 8000], $old);
 
-        $this->assertSame(9501, $result['port']);
+        $this->assertSame(8000, $result['port']);
     }
 
     public function testPortGroupMergeInheritsFromOuter()
@@ -106,7 +106,7 @@ class RoutePortTest extends RoutingTestCase
         $response = $router->dispatch(Request::create('http://localhost:8080/foo', 'GET'));
         $this->assertSame('ok', $response->getContent());
 
-        $response = $router->dispatch(Request::create('http://localhost:9501/foo', 'GET'));
+        $response = $router->dispatch(Request::create('http://localhost:8000/foo', 'GET'));
         $this->assertSame('ok', $response->getContent());
     }
 
@@ -126,7 +126,7 @@ class RoutePortTest extends RoutingTestCase
 
         $this->expectException(NotFoundHttpException::class);
 
-        $router->dispatch(Request::create('http://localhost:9501/foo', 'GET'));
+        $router->dispatch(Request::create('http://localhost:8000/foo', 'GET'));
     }
 
     public function testSamePathDifferentPortThrowsLogicException()
@@ -137,7 +137,7 @@ class RoutePortTest extends RoutingTestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Cannot register [GET foo] for multiple ports');
 
-        $collection->add((new Route('GET', '/foo', fn () => 'b'))->port(9501));
+        $collection->add((new Route('GET', '/foo', fn () => 'b'))->port(8000));
     }
 
     public function testSamePathNullVsPortThrowsLogicException()
@@ -192,6 +192,50 @@ class RoutePortTest extends RoutingTestCase
         $this->assertSame(8080, $route->getPort());
     }
 
+    public function testCompiledRouteNameCacheBelongsToItsCollection(): void
+    {
+        [$firstRouter, $firstContainer] = $this->getRouter();
+        $firstRouter->domain('first.test')->port(8080)->get('/first', [
+            'uses' => 'FirstController@show',
+            'as' => 'shared',
+        ]);
+        $firstCompiled = $firstRouter->getRoutes()->compile();
+        $firstCollection = (new CompiledRouteCollection(
+            $firstCompiled['compiled'],
+            $firstCompiled['attributes'],
+        ))->setRouter($firstRouter)->setContainer($firstContainer);
+
+        [$secondRouter, $secondContainer] = $this->getRouter();
+        $secondRouter->domain('second.test')->port(9090)->get('/second', [
+            'uses' => 'SecondController@show',
+            'as' => 'shared',
+        ]);
+        $secondCompiled = $secondRouter->getRoutes()->compile();
+        $secondCollection = (new CompiledRouteCollection(
+            $secondCompiled['compiled'],
+            $secondCompiled['attributes'],
+        ))->setRouter($secondRouter)->setContainer($secondContainer);
+
+        $first = $firstCollection->getByName('shared');
+        $second = $secondCollection->getByName('shared');
+
+        $this->assertNotSame($first, $second);
+        $this->assertSame($first, $firstCollection->getByName('shared'));
+        $this->assertSame($second, $secondCollection->getByName('shared'));
+        $this->assertSame(['first.test', 8080, 'first', 'FirstController@show'], [
+            $first->getDomain(),
+            $first->getPort(),
+            $first->uri(),
+            $first->getActionName(),
+        ]);
+        $this->assertSame(['second.test', 9090, 'second', 'SecondController@show'], [
+            $second->getDomain(),
+            $second->getPort(),
+            $second->uri(),
+            $second->getActionName(),
+        ]);
+    }
+
     public function testCompiledRouteCollectionRespectsPort()
     {
         [$router, $container] = $this->getRouter();
@@ -213,7 +257,7 @@ class RoutePortTest extends RoutingTestCase
 
         // Wrong port — 404
         $this->expectException(NotFoundHttpException::class);
-        $compiledCollection->match(Request::create('http://localhost:9501/foo', 'GET'));
+        $compiledCollection->match(Request::create('http://localhost:8000/foo', 'GET'));
     }
 
     public function testRouteUrlGenerationUsesRoutePort()
@@ -222,10 +266,10 @@ class RoutePortTest extends RoutingTestCase
         $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(8080);
         $routes->add($route);
 
-        // Current request is on port 9501
-        $url = new UrlGenerator($routes, Request::create('http://localhost:9501/'));
+        // Current request is on port 8000
+        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
 
-        // Absolute URL should use route's port (8080), not request's port (9501)
+        // Absolute URL should use route's port (8080), not request's port (8000)
         $this->assertSame('http://localhost:8080/foo', $url->route('portRoute'));
     }
 
@@ -235,7 +279,7 @@ class RoutePortTest extends RoutingTestCase
         $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(80);
         $routes->add($route);
 
-        $url = new UrlGenerator($routes, Request::create('http://localhost:9501/'));
+        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
 
         // Port 80 on HTTP should be omitted
         $this->assertSame('http://localhost/foo', $url->route('portRoute'));
@@ -248,7 +292,7 @@ class RoutePortTest extends RoutingTestCase
         $route->port(443);
         $routes->add($route);
 
-        $url = new UrlGenerator($routes, Request::create('http://localhost:9501/'));
+        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
 
         // Port 443 on HTTPS should be omitted
         $this->assertSame('https://localhost/foo', $url->route('secureRoute'));
@@ -260,11 +304,11 @@ class RoutePortTest extends RoutingTestCase
         $route = new Route(['GET'], 'foo', ['as' => 'noPort']);
         $routes->add($route);
 
-        // Current request is on port 9501
-        $url = new UrlGenerator($routes, Request::create('http://localhost:9501/'));
+        // Current request is on port 8000
+        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
 
         // No port on route — should use request port
-        $this->assertSame('http://localhost:9501/foo', $url->route('noPort'));
+        $this->assertSame('http://localhost:8000/foo', $url->route('noPort'));
     }
 
     public function testRelativeUrlIgnoresPort()
@@ -273,7 +317,7 @@ class RoutePortTest extends RoutingTestCase
         $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(8080);
         $routes->add($route);
 
-        $url = new UrlGenerator($routes, Request::create('http://localhost:9501/'));
+        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
 
         // Relative URL has no host/port
         $this->assertSame('/foo', $url->route('portRoute', [], false));
@@ -286,7 +330,7 @@ class RoutePortTest extends RoutingTestCase
         $routes->add($route);
 
         // Forced root with a path component (e.g., reverse proxy path prefix)
-        $url = new UrlGenerator($routes, Request::create('http://localhost:9501/'));
+        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
         $url->useOrigin('http://www.foo.com/subfolder');
 
         $this->assertSame('http://www.foo.com:8080/subfolder/foo', $url->route('portRoute'));
@@ -298,14 +342,14 @@ class RoutePortTest extends RoutingTestCase
         $route = (new Route(['GET'], 'foo', ['as' => 'portRoute']))->port(8080);
         $routes->add($route);
 
-        $url = new UrlGenerator($routes, Request::create('http://localhost:9501/'));
+        $url = new UrlGenerator($routes, Request::create('http://localhost:8000/'));
         $url->setKeyResolver(fn () => 'test-signing-key');
 
         $signed = $url->signedRoute('portRoute');
 
         // Signed URL should use route port, not request port
         $this->assertStringContainsString('localhost:8080', $signed);
-        $this->assertStringNotContainsString('9501', $signed);
+        $this->assertStringNotContainsString('8000', $signed);
 
         // Signature should be valid when verified against the correct URL
         $this->assertTrue($url->hasValidSignature(
@@ -331,7 +375,7 @@ class RoutePortTest extends RoutingTestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Cannot register [GET foo] for multiple ports');
 
-        $compiledCollection->add((new Route('GET', 'foo', ['uses' => fn () => 'other', 'as' => 'foo2']))->port(9501));
+        $compiledCollection->add((new Route('GET', 'foo', ['uses' => fn () => 'other', 'as' => 'foo2']))->port(8000));
     }
 
     public function testCompiledRouteDynamicAddWithSamePortAllowed()

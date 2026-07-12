@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Foundation\Console;
 
+use Dotenv\Parser\Parser;
+use Dotenv\Store\StringStore;
 use Hypervel\Support\Collection;
+use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Testbench\Features\ParallelRunner;
 use Hypervel\Testing\Console\TestCommandBase;
 use Override;
 use Symfony\Component\Console\Attribute\AsCommand;
 
-use function Hypervel\Testbench\defined_environment_variables;
 use function Hypervel\Testbench\is_testbench_cli;
 use function Hypervel\Testbench\package_path;
 
@@ -57,11 +59,36 @@ class TestCommand extends TestCommandBase
     #[Override]
     protected function baseEnvironmentVariables(): Collection
     {
-        return (new Collection(defined_environment_variables()))->merge(parent::baseEnvironmentVariables())->merge([
+        return (new Collection($this->configurationEnvironmentVariables()))->merge(parent::baseEnvironmentVariables())->merge([
             'TESTBENCH_PACKAGE_TESTER' => '(true)',
             'TESTBENCH_WORKING_PATH' => package_path(),
-            'TESTBENCH_APP_BASE_PATH' => $this->hypervel->basePath(),
         ]);
+    }
+
+    /**
+     * Get configured Testbench environment variables.
+     *
+     * @return array<string, string>
+     */
+    protected function configurationEnvironmentVariables(): array
+    {
+        $environmentVariables = Bootstrapper::getConfig()['env'] ?? [];
+
+        if (! is_array($environmentVariables) || $environmentVariables === []) {
+            return [];
+        }
+
+        $store = new StringStore(implode(PHP_EOL, $environmentVariables));
+        $parser = new Parser;
+        $variables = [];
+
+        foreach ($parser->parse($store->read()) as $entry) {
+            if ($entry->getValue()->isDefined()) {
+                $variables[$entry->getName()] = $entry->getValue()->get()->getChars();
+            }
+        }
+
+        return $variables;
     }
 
     /**

@@ -30,4 +30,9 @@ interface ConnectionInterface
      * Release the connection to pool.
      */
     public function release(): void;
+
+    /**
+     * Discard the connection from its pool.
+     */
+    public function discard(): void;
 }

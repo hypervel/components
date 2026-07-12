@@ -43,13 +43,11 @@ function wait(Closure $closure, ?float $timeout = null)
  *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
  *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
  */
-function co(callable $callable, bool|array $copyContext = false): bool|int
+function co(callable $callable, bool|array $copyContext = false): int
 {
-    $id = $copyContext === false
+    return $copyContext === false
         ? Coroutine::create($callable)
         : Coroutine::fork($callable, is_array($copyContext) ? $copyContext : []);
-
-    return $id > 0 ? $id : false;
 }
 
 // defer() wrapper was removed intentionally. Use Coroutine::defer() directly for
@@ -62,13 +60,11 @@ function co(callable $callable, bool|array $copyContext = false): bool|int
  *                                        false = fresh context (default), true or empty array = copy all keys, non-empty array = copy listed keys only.
  *                                        Object values are shared by reference unless they implement Hypervel\Context\ReplicableContext.
  */
-function go(callable $callable, bool|array $copyContext = false): bool|int
+function go(callable $callable, bool|array $copyContext = false): int
 {
-    $id = $copyContext === false
+    return $copyContext === false
         ? Coroutine::create($callable)
         : Coroutine::fork($callable, is_array($copyContext) ? $copyContext : []);
-
-    return $id > 0 ? $id : false;
 }
 
 /**

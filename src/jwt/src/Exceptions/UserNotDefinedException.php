@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Exceptions;
+namespace Hypervel\Jwt\Exceptions;
 
-class UserNotDefinedException extends JWTException
+class UserNotDefinedException extends JwtException
 {
 }

@@ -63,6 +63,14 @@ abstract class Connection implements ConnectionInterface
     }
 
     /**
+     * Discard the connection from its pool.
+     */
+    public function discard(): void
+    {
+        $this->pool->discard($this);
+    }
+
+    /**
      * Get the underlying connection, with retry on failure.
      */
     public function getConnection(): mixed
@@ -91,8 +99,6 @@ abstract class Connection implements ConnectionInterface
         if ($now > $maxIdleTime + max($this->lastReleaseTime, $this->lastUseTime)) {
             return false;
         }
-
-        $this->lastUseTime = $now;
 
         return true;
     }

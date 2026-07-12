@@ -9,6 +9,7 @@ use DateTime;
 use DateTimeImmutable;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Cache\TaggedCache;
 use Hypervel\Tests\TestCase;
 use TypeError;
 
@@ -76,6 +77,13 @@ class CacheTaggedCacheTest extends TestCase
         $this->assertSame('qux', $store->tags(['bop', 'zap'])->get('baz'));
     }
 
+    public function testPutManyReturnsTrueForEmptyInput(): void
+    {
+        $store = new ArrayStore;
+
+        $this->assertTrue($store->tags(['bop', 'zap'])->putMany([], 60));
+    }
+
     public function testCacheSavedWithMultipleTagsCanBeFlushed()
     {
         $store = new ArrayStore;
@@ -86,6 +94,21 @@ class CacheTaggedCacheTest extends TestCase
         $store->tags('zap')->flush();
         $this->assertNull($store->tags($tags1)->get('foo'));
         $this->assertSame('bar', $store->tags($tags2)->get('foo'));
+    }
+
+    public function testClearFlushesOnlyTaggedNamespace(): void
+    {
+        $store = new ArrayStore;
+
+        $store->put('foo', 'plain', 10);
+        $store->tags(['bop'])->put('foo', 'tagged', 10);
+
+        $tagged = $store->tags(['bop']);
+
+        $this->assertInstanceOf(TaggedCache::class, $tagged);
+        $this->assertTrue($tagged->clear());
+        $this->assertSame('plain', $store->get('foo'));
+        $this->assertNull($store->tags(['bop'])->get('foo'));
     }
 
     public function testTagFlushRemovesSentinelAndReRunsCallbackOnRememberNullable()

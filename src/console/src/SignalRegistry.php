@@ -7,6 +7,8 @@ namespace Hypervel\Console;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Signal;
+use Swoole\Coroutine\CanceledException;
+use Throwable;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -37,12 +39,43 @@ class SignalRegistry
     public function register(int|array $signo, callable $signalHandler): void
     {
         if (is_array($signo)) {
-            array_map(fn ($s) => $this->register((int) $s, $signalHandler), $signo);
+            $registered = [];
+
+            try {
+                foreach ($signo as $signal) {
+                    $signal = (int) $signal;
+                    $this->register($signal, $signalHandler);
+                    $registered[] = $signal;
+                }
+            } catch (Throwable $exception) {
+                foreach (array_reverse($registered) as $signal) {
+                    array_pop($this->signalHandlers[$signal]);
+
+                    if ($this->signalHandlers[$signal] === []) {
+                        unset($this->signalHandlers[$signal]);
+                        $this->cancelSignal($signal);
+                    }
+                }
+
+                throw $exception;
+            }
+
             return;
         }
 
         $this->pushSignalHandler($signo, $signalHandler);
-        $this->waitSignal($signo);
+
+        try {
+            $this->waitSignal($signo);
+        } catch (Throwable $exception) {
+            array_pop($this->signalHandlers[$signo]);
+
+            if ($this->signalHandlers[$signo] === []) {
+                unset($this->signalHandlers[$signo]);
+            }
+
+            throw $exception;
+        }
     }
 
     /**
@@ -94,19 +127,26 @@ class SignalRegistry
             return;
         }
 
-        $this->handling[$signo] = Coroutine::create(function () use ($signo) {
-            while (true) {
-                if (Signal::wait($signo, $this->timeout)) {
+        $this->handling[$signo] = Coroutine::create(function () use ($signo): void {
+            try {
+                while (true) {
+                    if (! Signal::wait($signo, $this->timeout)) {
+                        continue;
+                    }
+
                     unset($this->handling[$signo]);
 
                     $callbacks = array_map(fn ($callback) => fn () => $callback($signo), $this->signalHandlers[$signo] ?? []);
 
                     try {
-                        return parallel($callbacks, $this->concurrentLimit);
+                        parallel($callbacks, $this->concurrentLimit);
+                        return;
                     } finally {
                         posix_kill(posix_getpid(), $signo);
                     }
                 }
+            } catch (CanceledException) {
+                // Intentional cancellation; the canceller owns the registry slot.
             }
         });
     }
@@ -120,7 +160,10 @@ class SignalRegistry
             return;
         }
 
-        EngineCoroutine::cancelById($this->handling[$signo]);
+        EngineCoroutine::cancelById(
+            $this->handling[$signo],
+            throwException: true,
+        );
 
         unset($this->handling[$signo]);
     }

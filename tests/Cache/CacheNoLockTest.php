@@ -11,14 +11,14 @@ use InvalidArgumentException;
 
 class CacheNoLockTest extends TestCase
 {
-    public function testLockImplementsRefreshableLock()
+    public function testLockImplementsRefreshableLock(): void
     {
         $lock = new NoLock('foo', 10);
 
         $this->assertInstanceOf(RefreshableLock::class, $lock);
     }
 
-    public function testAcquireAlwaysReturnsTrue()
+    public function testAcquireAlwaysReturnsTrue(): void
     {
         $lock = new NoLock('foo', 10);
 
@@ -26,14 +26,14 @@ class CacheNoLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
-    public function testReleaseAlwaysReturnsTrue()
+    public function testReleaseAlwaysReturnsTrue(): void
     {
         $lock = new NoLock('foo', 10);
 
         $this->assertTrue($lock->release());
     }
 
-    public function testRefreshReturnsTrue()
+    public function testRefreshReturnsTrue(): void
     {
         $lock = new NoLock('foo', 10);
 
@@ -41,14 +41,14 @@ class CacheNoLockTest extends TestCase
         $this->assertTrue($lock->refresh(30));
     }
 
-    public function testRefreshOnPermanentLockReturnsTrue()
+    public function testRefreshOnPermanentLockReturnsTrue(): void
     {
         $lock = new NoLock('foo', 0);
 
         $this->assertTrue($lock->refresh());
     }
 
-    public function testRefreshWithExplicitZeroThrowsException()
+    public function testRefreshWithExplicitZeroThrowsException(): void
     {
         $lock = new NoLock('foo', 10);
 
@@ -58,7 +58,7 @@ class CacheNoLockTest extends TestCase
         $lock->refresh(0);
     }
 
-    public function testRefreshWithNegativeSecondsThrowsException()
+    public function testRefreshWithNegativeSecondsThrowsException(): void
     {
         $lock = new NoLock('foo', 10);
 
@@ -68,21 +68,28 @@ class CacheNoLockTest extends TestCase
         $lock->refresh(-5);
     }
 
-    public function testGetRemainingLifetimeAlwaysReturnsNull()
+    public function testGetRemainingLifetimeAlwaysReturnsNull(): void
     {
         $lock = new NoLock('foo', 10);
 
         $this->assertNull($lock->getRemainingLifetime());
     }
 
-    public function testOwnerReturnsOwner()
+    public function testIsLockedAlwaysReturnsFalse(): void
+    {
+        $lock = new NoLock('foo', 10);
+
+        $this->assertFalse($lock->isLocked());
+    }
+
+    public function testOwnerReturnsOwner(): void
     {
         $lock = new NoLock('foo', 10, 'custom-owner');
 
         $this->assertSame('custom-owner', $lock->owner());
     }
 
-    public function testForceReleaseDoesNothing()
+    public function testForceReleaseDoesNothing(): void
     {
         $lock = new NoLock('foo', 10);
 

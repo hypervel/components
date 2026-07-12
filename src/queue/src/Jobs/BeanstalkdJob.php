@@ -8,9 +8,20 @@ use Hypervel\Contracts\Container\Container;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Pheanstalk;
+use RuntimeException;
+use Throwable;
 
+/**
+ * Keep the reserving Pheanstalk connection pinned until the backend's terminal
+ * release, bury, or delete command has completed.
+ */
 class BeanstalkdJob extends Job
 {
+    /**
+     * The last attempt count read while the backend connection was pinned.
+     */
+    protected ?int $attempts = null;
+
     /**
      * Create a new job instance.
      */
@@ -19,7 +30,7 @@ class BeanstalkdJob extends Job
         protected PheanstalkManagerInterface $pheanstalk,
         protected JobIdInterface $job,
         protected string $connectionName,
-        protected ?string $queue
+        protected string $queue
     ) {
     }
 
@@ -32,8 +43,14 @@ class BeanstalkdJob extends Job
 
         $priority = Pheanstalk::DEFAULT_PRIORITY;
 
-        /* @phpstan-ignore-next-line */
-        $this->pheanstalk->release($this->job, $priority, $delay);
+        try {
+            /* @phpstan-ignore-next-line */
+            $this->getPheanstalk()->release($this->job, $priority, $delay);
+        } catch (Throwable $exception) {
+            $this->discardPoolLeaseAfterFailure($exception);
+        }
+
+        $this->releasePoolLease();
     }
 
     /**
@@ -43,8 +60,14 @@ class BeanstalkdJob extends Job
     {
         parent::release();
 
-        /* @phpstan-ignore-next-line */
-        $this->pheanstalk->bury($this->job);
+        try {
+            /* @phpstan-ignore-next-line */
+            $this->getPheanstalk()->bury($this->job);
+        } catch (Throwable $exception) {
+            $this->discardPoolLeaseAfterFailure($exception);
+        }
+
+        $this->releasePoolLease();
     }
 
     /**
@@ -54,8 +77,14 @@ class BeanstalkdJob extends Job
     {
         parent::delete();
 
-        /* @phpstan-ignore-next-line */
-        $this->pheanstalk->delete($this->job);
+        try {
+            /* @phpstan-ignore-next-line */
+            $this->getPheanstalk()->delete($this->job);
+        } catch (Throwable $exception) {
+            $this->discardPoolLeaseAfterFailure($exception);
+        }
+
+        $this->releasePoolLease();
     }
 
     /**
@@ -63,10 +92,18 @@ class BeanstalkdJob extends Job
      */
     public function attempts(): int
     {
-        /* @phpstan-ignore-next-line */
-        $stats = $this->pheanstalk->statsJob($this->job);
+        if ($this->poolLeaseIsFinalized()) {
+            if ($this->attempts === null) {
+                throw new RuntimeException('The pooled Beanstalkd job attempt count was not initialized before its backend lease was finalized.');
+            }
 
-        return (int) $stats->reserves;
+            return $this->attempts;
+        }
+
+        /* @phpstan-ignore-next-line */
+        $stats = $this->getPheanstalk()->statsJob($this->job);
+
+        return $this->attempts = (int) $stats->reserves;
     }
 
     /**
@@ -91,6 +128,10 @@ class BeanstalkdJob extends Job
      */
     public function getPheanstalk(): PheanstalkManagerInterface
     {
+        if ($this->poolLeaseIsFinalized()) {
+            throw new RuntimeException('The pooled Beanstalkd job backend is no longer available after a terminal operation.');
+        }
+
         return $this->pheanstalk;
     }
 
@@ -100,5 +141,13 @@ class BeanstalkdJob extends Job
     public function getPheanstalkJob(): JobIdInterface
     {
         return $this->job;
+    }
+
+    /**
+     * Prime state needed after the pooled backend lease is finalized.
+     */
+    protected function onPoolLeaseAttached(): void
+    {
+        $this->attempts();
     }
 }

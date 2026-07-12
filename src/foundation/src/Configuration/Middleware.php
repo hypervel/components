@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Configuration;
 
 use Closure;
-use Hypervel\Auth\AuthenticationException;
-use Hypervel\Auth\Middleware\Authenticate;
-use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
+use Hypervel\Auth\AuthenticationRedirects;
 use Hypervel\Cookie\Middleware\EncryptCookies;
 use Hypervel\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Hypervel\Foundation\Http\Middleware\InvokeDeferredCallbacks;
@@ -17,7 +15,6 @@ use Hypervel\Foundation\Http\Middleware\TrimStrings;
 use Hypervel\Http\Middleware\TrustHosts;
 use Hypervel\Http\Middleware\TrustProxies;
 use Hypervel\Routing\Middleware\ValidateSignature;
-use Hypervel\Session\Middleware\AuthenticateSession;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 
@@ -404,6 +401,10 @@ class Middleware
 
     /**
      * Configure where guests are redirected by the "auth" middleware.
+     *
+     * Boot-only. The callback persists in authentication middleware and
+     * exception static properties for the worker lifetime and affects every
+     * subsequent unauthenticated or session-mismatch request.
      */
     public function redirectGuestsTo(callable|string $redirect): static
     {
@@ -412,6 +413,10 @@ class Middleware
 
     /**
      * Configure where users are redirected by the "guest" middleware.
+     *
+     * Boot-only. The callback persists in the guest middleware static property
+     * for the worker lifetime and affects every subsequent already-authenticated
+     * guest-route request.
      */
     public function redirectUsersTo(callable|string $redirect): static
     {
@@ -420,21 +425,14 @@ class Middleware
 
     /**
      * Configure where users are redirected by the authentication and guest middleware.
+     *
+     * Boot-only. The callbacks persist in authentication middleware and
+     * exception static properties for the worker lifetime and affect every
+     * subsequent matching request.
      */
     public function redirectTo(callable|string|null $guests = null, callable|string|null $users = null): static
     {
-        $guests = is_string($guests) ? fn () => $guests : $guests;
-        $users = is_string($users) ? fn () => $users : $users;
-
-        if ($guests) {
-            Authenticate::redirectUsing($guests);
-            AuthenticateSession::redirectUsing($guests);
-            AuthenticationException::redirectUsing($guests);
-        }
-
-        if ($users) {
-            RedirectIfAuthenticated::redirectUsing($users);
-        }
+        AuthenticationRedirects::redirectTo(guests: $guests, users: $users);
 
         return $this;
     }
@@ -629,6 +627,7 @@ class Middleware
         return [
             'auth' => \Hypervel\Auth\Middleware\Authenticate::class,
             'auth.basic' => \Hypervel\Auth\Middleware\AuthenticateWithBasicAuth::class,
+            'auth.guard' => \Hypervel\Auth\Middleware\UseGuard::class,
             'auth.session' => \Hypervel\Session\Middleware\AuthenticateSession::class,
             'cache.headers' => \Hypervel\Http\Middleware\SetCacheHeaders::class,
             'can' => \Hypervel\Auth\Middleware\Authorize::class,

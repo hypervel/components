@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
+use Throwable;
+
 /**
  * @method bool isFull()
  * @method bool isEmpty()
@@ -26,7 +28,7 @@ class WaitConcurrent extends Concurrent
     {
         $this->wg->add();
 
-        $callable = function () use ($callable) {
+        $callable = function () use ($callable): void {
             try {
                 $callable();
             } finally {
@@ -34,7 +36,13 @@ class WaitConcurrent extends Concurrent
             }
         };
 
-        parent::create($callable);
+        try {
+            parent::create($callable);
+        } catch (Throwable $exception) {
+            $this->wg->done();
+
+            throw $exception;
+        }
     }
 
     /**

@@ -70,7 +70,6 @@ abstract class TestCase extends TestbenchTestCase
 
         $app->make('config')->set([
             'database.default' => 'testing',
-            'permission.storage.database.connection' => 'testing',
             'permission.register_permission_check_method' => true,
             'permission.teams' => false,
             'permission.column_names.model_morph_key' => 'model_test_id',
@@ -354,7 +353,7 @@ abstract class TestCase extends TestbenchTestCase
                 ->on($tableNames['permissions'])
                 ->cascadeOnDelete();
 
-            $table->primary([$pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'], 'model_has_permissions_permission_model_type_primary');
+            $table->primary([$pivotPermission, $modelMorphKey, 'model_type'], 'model_has_permissions_permission_model_type_primary');
         });
 
         Schema::create($tableNames['model_has_roles'], static function (Blueprint $table) use ($modelMorphKey, $pivotRole, $tableNames): void {
@@ -386,7 +385,7 @@ abstract class TestCase extends TestbenchTestCase
                 ->on($tableNames['roles'])
                 ->cascadeOnDelete();
 
-            $table->primary([$pivotPermission, $pivotRole, 'is_forbidden'], 'role_has_permissions_permission_id_role_id_primary');
+            $table->primary([$pivotPermission, $pivotRole], 'role_has_permissions_permission_id_role_id_primary');
         });
     }
 }

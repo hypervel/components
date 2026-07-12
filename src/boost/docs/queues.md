@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
     - [Connections vs. Queues](#connections-vs-queues)
+    - [Connection Pools](#connection-pools)
     - [Driver Notes and Prerequisites](#driver-prerequisites)
     - [Laravel Job Interoperability](#laravel-job-interoperability)
 - [Creating Jobs](#creating-jobs)
@@ -96,6 +97,38 @@ Some applications may not need to ever push jobs onto multiple queues, instead p
 php artisan queue:work --queue=high,default
 ```
 
+<a name="connection-pools"></a>
+### Connection Pools
+
+Hypervel pools `sqs` and `beanstalkd` queue connections by default so concurrent coroutines never share a mutable backend client. Pool identity is derived from the complete connector configuration except for the `pool` control block. Equivalent named connections converge automatically; differences such as the default queue, endpoint, credentials, or connector options produce distinct pools.
+
+Configure a connection pool inside its queue connection definition:
+
+```php
+'sqs' => [
+    'driver' => 'sqs',
+    'key' => env('AWS_ACCESS_KEY_ID'),
+    'secret' => env('AWS_SECRET_ACCESS_KEY'),
+    'prefix' => env('SQS_PREFIX'),
+    'queue' => env('SQS_QUEUE', 'default'),
+    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    'pool' => [
+        'min_retained_objects' => 1,
+        'max_objects' => 10,
+        'wait_timeout' => 3.0,
+        'max_lifetime' => 60.0,
+        'max_idle_time' => 0.0,
+        'idle_ttl' => 300.0,
+    ],
+],
+```
+
+`min_retained_objects` is an idle-trimming floor and does not eagerly connect. `max_objects` should be at least the maximum number of jobs a worker may process concurrently: a popped SQS or Beanstalkd job keeps its connection leased until `delete()`, `release()`, or `bury()` finishes. Backend failures discard the leased connection so a potentially desynchronized client is never returned to the pool.
+
+Automatic identities are sufficient for scalar and array connector configuration. Use `pool.name` for an explicit readable identity and `pool.fingerprint` when custom connector input contains an object, closure, or resource. Reusing an explicit name with a different driver, fingerprint, or normalized options fails immediately.
+
+`Queue::purge($name)` evicts the cached connection wrapper and closes its current pool. Existing jobs retain their old connection lease through their terminal backend operation; the connection is destroyed when that lease finishes. The next manager resolution creates a fresh pool.
+
 <a name="driver-prerequisites"></a>
 ### Driver Notes and Prerequisites
 
@@ -118,18 +151,20 @@ In order to use the `redis` queue driver, you should configure a Redis database 
 <a name="redis-cluster"></a>
 ##### Redis Cluster
 
-If your Redis queue connection uses a [Redis Cluster](https://redis.io/docs/latest/operate/rs/databases/durability-ha/clustering), your queue names must contain a [key hash tag](https://redis.io/docs/latest/develop/using-commands/keyspace/#hashtags). This is required in order to ensure all of the Redis keys for a given queue are placed into the same hash slot:
+If your Redis queue connection uses a [Redis Cluster](https://redis.io/docs/latest/operate/rs/databases/durability-ha/clustering), Hypervel automatically wraps queue storage keys in a [key hash tag](https://redis.io/docs/latest/develop/using-commands/keyspace/#hashtags) when the configured queue name does not already contain one. This keeps the queue, delayed, reserved, and notification keys on the same hash slot for the Redis queue driver's Lua scripts:
 
 ```php
 'redis' => [
     'driver' => 'redis',
     'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
-    'queue' => env('REDIS_QUEUE', '{default}'),
+    'queue' => env('REDIS_QUEUE', 'default'),
     'retry_after' => env('REDIS_QUEUE_RETRY_AFTER', 90),
     'block_for' => null,
     'after_commit' => false,
 ],
 ```
+
+You may still include your own hash tag, such as `{mail}:high`, when you need several queue names to share a specific Redis Cluster slot. Hypervel leaves explicit hash tags unchanged.
 
 <a name="blocking"></a>
 ##### Blocking
@@ -321,7 +356,7 @@ If a job receives a collection or array of Eloquent models instead of a single m
 ### Unique Jobs
 
 > [!WARNING]
-> Unique jobs require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, and `array` cache drivers support atomic locks.
+> Unique jobs require a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, and `array` cache drivers support atomic locks.
 
 > [!WARNING]
 > Unique job constraints do not apply to jobs within batches.
@@ -749,7 +784,7 @@ public function middleware(): array
 ```
 
 > [!WARNING]
-> The `WithoutOverlapping` middleware requires a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, and `array` cache drivers support atomic locks.
+> The `WithoutOverlapping` middleware requires a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks). Currently, the `redis`, `database`, `file`, `swoole`, and `array` cache drivers support atomic locks.
 
 <a name="sharing-lock-keys"></a>
 #### Sharing Lock Keys Across Job Classes

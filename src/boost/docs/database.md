@@ -124,6 +124,15 @@ Note that three keys have been added to the configuration array: `read`, `write`
 
 You only need to place items in the `read` and `write` arrays if you wish to override the values from the main `mysql` array. So, in this case, `192.168.1.1` will be used as the host for the "read" connection, while `192.168.1.3` will be used for the "write" connection. The database credentials, prefix, character set, pool configuration, and all other options in the main `mysql` array will be shared across both connections. When multiple values exist in the `host` configuration array, a database host will be randomly chosen when a new connection is established.
 
+You may also resolve a specific side of a configured read / write connection by appending `::read` or `::write` to the connection name:
+
+```php
+$users = DB::connection('mysql::read')->select('select * from users');
+$count = DB::connection('mysql::write')->table('users')->count();
+```
+
+Use these suffixes when you need to explicitly inspect a replica or force reads through the write connection. Normal application queries do not need them; Hypervel routes reads, writes, transactions, and sticky reads automatically.
+
 <a name="the-sticky-option"></a>
 #### The `sticky` Option
 
@@ -155,11 +164,17 @@ Each connection may define its own `pool` configuration:
 
 The `min_connections` option determines the minimum number of connections kept warm in the pool, while the `max_connections` option determines the maximum number of connections that may be opened for the worker. The `connect_timeout` option controls how long Hypervel will wait while opening a new database connection. The `wait_timeout` option controls how long a coroutine may wait for an available connection when the pool is exhausted. The `heartbeat` option controls how often Hypervel validates idle connections in the worker pool; set this value to `-1` to disable heartbeats. When heartbeats are enabled, Hypervel keeps the minimum idle connection set alive with a raw `SELECT 1` ping that does not fire query events, query logs, or query duration handlers. The `heartbeat_timeout` option controls how long a heartbeat ping may run before the connection is discarded. The `max_idle_time` option controls how long idle connections above the minimum pool size may remain in the pool before they are closed. The `max_lifetime` option controls the upper bound for how long a pooled connection generation may live before it is recycled while idle or before it is reused; Hypervel assigns each generation an effective lifetime between 90-100% of this value to avoid synchronized reconnects. Set this value to `-1` to disable lifetime recycling.
 
+For a connection with separate read and write hosts, each base pool slot may lazily open one write PDO and one read PDO. It does not open one PDO per configured host. If `max_connections` is `10`, a worker may therefore hold up to roughly 20 server-side database connections for that configured connection once both sides have been used. Size your database server, PgBouncer, PgDog, or other pooler capacity with that in mind. Increase `max_connections` for more concurrent database work per worker, not simply because you configured more read hosts.
+
+Explicit `::read` connections use a separate read-side pool built from the merged read configuration, including the base `pool` settings unless the read configuration overrides them. Explicit `::write` connections do not create a separate pool, but a coroutine that uses both `mysql` and `mysql::write` at the same time may borrow two slots from the base pool. Most applications do not need these suffixes in normal query paths because Hypervel already routes reads, writes, transactions, and sticky reads automatically.
+
 Heartbeat and max lifetime recycling apply to Hypervel's worker pool whether the connection points directly at the database or through a proxy / pooler. They help long-running workers avoid stale sockets and rotate old idle connection generations before those connections are used by a request.
 
 Hypervel's default database configuration also includes a `pgsql-pooled` connection. This connection is intended for PostgreSQL transaction poolers such as PgBouncer and uses separate `DB_POOLED_*` environment variables. It also sets `migrations_connection` to `pgsql`, allowing your application to use the pooled connection at runtime while migration commands use the direct PostgreSQL connection.
 
 You may use `migrations_connection` on any database connection to instruct migration commands to run against another configured connection. This is useful when a runtime connection points at a database pooler that does not support every operation required by migrations.
+
+When you need a direct connection for migrations or schema operations, configure it as a normal connection and reference it with `migrations_connection`. Hypervel does not use Laravel's `::direct` connection suffix.
 
 <a name="running-queries"></a>
 ## Running SQL Queries
@@ -477,6 +492,8 @@ If the connection has separate read and write hosts, you may connect to either h
 ```shell
 php artisan db mysql --read
 ```
+
+The `--read` and `--write` options understand list-style read / write configuration and host arrays. When a side contains multiple hosts, the command connects to the first configured host for that side.
 
 <a name="inspecting-your-databases"></a>
 ## Inspecting Your Databases

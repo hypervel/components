@@ -31,10 +31,11 @@
     "require": {
         "php": "^8.4",
         "ext-dom": "*",
+        "composer-runtime-api": "^2.2",
         "mockery/mockery": "1.6.x-dev",
-        "symfony/console": "^8.0",
-        "symfony/http-foundation": "^8.0",
-        "symfony/process": "^8.0.5",
+        "symfony/console": "^8.1",
+        "symfony/http-foundation": "^8.1",
+        "symfony/process": "^8.1",
         "vlucas/phpdotenv": "^5.6.1",
         "hypervel/collections": "^0.4",
         "hypervel/conditionable": "^0.4",
@@ -43,12 +44,16 @@
         "hypervel/contracts": "^0.4",
         "hypervel/cookie": "^0.4",
         "hypervel/database": "^0.4",
+        "hypervel/filesystem": "^0.4",
         "hypervel/foundation": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/macroable": "^0.4",
         "hypervel/prompts": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/view": "^0.4"
+    },
+    "suggest": {
+        "phpunit/phpunit": "Required to use Hypervel\\Testing\\PHPUnit\\AfterEachTestExtension (^13.0)."
     },
     "config": {
         "sort-packages": true

@@ -146,7 +146,7 @@ go(function () {
 echo 'Hello world!' . PHP_EOL;
 ```
 
-The `go` function returns the created coroutine ID, or `false` if the coroutine could not be created. The `co` function is an alias of `go`:
+The `go` function returns the positive ID of the created coroutine. If the native runtime cannot create the coroutine, Hypervel throws a `CoroutineCreateException`. The `co` function is an alias of `go`:
 
 ```php
 use function Hypervel\Coroutine\co;
@@ -156,7 +156,7 @@ $id = co(function () {
 });
 ```
 
-You may also create a coroutine directly through the `Coroutine` class. This method returns the coroutine ID, or `-1` if creation failed:
+You may also create a coroutine directly through the `Coroutine` class. The `create` and `fork` methods follow the same contract: they return a positive coroutine ID on success and throw `CoroutineCreateException` when creation fails:
 
 ```php
 use Hypervel\Coroutine\Coroutine;

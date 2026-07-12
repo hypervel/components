@@ -24,6 +24,7 @@ use Hypervel\Cache\Redis\Operations\Put;
 use Hypervel\Cache\Redis\Operations\PutMany;
 use Hypervel\Cache\Redis\Operations\Remember;
 use Hypervel\Cache\Redis\Operations\RememberForever;
+use Hypervel\Cache\Redis\Operations\Touch;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Container\Container;
@@ -31,7 +32,6 @@ use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Redis\Factory as Redis;
 use Hypervel\Redis\Pool\PoolFactory;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisProxy;
 use RuntimeException;
 
@@ -90,6 +90,8 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     private ?Forever $foreverOperation = null;
 
     private ?Forget $forgetOperation = null;
+
+    private ?Touch $touchOperation = null;
 
     private ?Increment $incrementOperation = null;
 
@@ -216,12 +218,11 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function touch(string $key, int $seconds): bool
     {
-        return $this->getContext()->withConnection(
-            fn (RedisConnection $connection) => (bool) $connection->expire(
-                $this->prefix . $key,
-                (int) max(1, $seconds)
-            )
-        );
+        if ($this->tagMode === TagMode::Any) {
+            return $this->anyTagOps()->touch()->execute($key, $seconds);
+        }
+
+        return $this->getTouchOperation()->execute($key, $seconds);
     }
 
     /**
@@ -229,6 +230,10 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
      */
     public function forget(string $key): bool
     {
+        if ($this->tagMode === TagMode::Any) {
+            return $this->anyTagOps()->forget()->execute($key);
+        }
+
         return $this->getForgetOperation()->execute($key);
     }
 
@@ -238,6 +243,14 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     public function flush(): bool
     {
         return $this->getFlushOperation()->execute();
+    }
+
+    /**
+     * Determine if the store can currently flush locks.
+     */
+    public function supportsFlushingLocks(): bool
+    {
+        return $this->hasSeparateLockStore();
     }
 
     /**
@@ -549,6 +562,7 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
         $this->addOperation = null;
         $this->foreverOperation = null;
         $this->forgetOperation = null;
+        $this->touchOperation = null;
         $this->incrementOperation = null;
         $this->decrementOperation = null;
         $this->flushOperation = null;
@@ -611,6 +625,11 @@ class RedisStore extends TaggableStore implements CanFlushLocks, LockProvider
     private function getForgetOperation(): Forget
     {
         return $this->forgetOperation ??= new Forget($this->getContext());
+    }
+
+    private function getTouchOperation(): Touch
+    {
+        return $this->touchOperation ??= new Touch($this->getContext());
     }
 
     private function getIncrementOperation(): Increment

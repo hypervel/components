@@ -112,7 +112,7 @@ return [
         |
         */
 
-        'format' => env('APP_STDOUT_LOG_FORMAT', 'line'),
+        'format' => env('STDOUT_LOG_FORMAT', 'line'),
     ],
 
     /*
@@ -127,6 +127,8 @@ return [
     */
 
     'url' => env('APP_URL', 'http://localhost'),
+
+    'force_https' => (bool) env('FORCE_HTTPS', false),
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
 

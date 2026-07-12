@@ -18,10 +18,9 @@ use Throwable;
  * - tearDownInteractsWithAlgolia() runs via beforeApplicationDestroyed()
  *
  * Features:
- * - Auto-skip: Skips tests if ALGOLIA_APP_ID/ALGOLIA_SECRET are unset
- * - Explicit-fail: If credentials ARE set but the probe fails, exceptions
- *   propagate (matches InteractsWithTypesense's "explicit config + failure
- *   → rethrow" pattern — we never hide misconfigured credentials)
+ * - Opt-in skip: Skips unless ALGOLIA_APP_ID and ALGOLIA_SECRET are set
+ * - Explicit-fail: If credentials are set but the probe fails, exceptions
+ *   propagate so misconfigured credentials are never hidden
  * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
  * - Auto-cleanup: Removes test indexes in teardown
  *
@@ -35,11 +34,6 @@ use Throwable;
 trait InteractsWithAlgolia
 {
     /**
-     * Indicates if credentials were unavailable once, skip all subsequent tests.
-     */
-    private static bool $algoliaConnectionFailed = false;
-
-    /**
      * The test prefix for index isolation.
      */
     protected string $algoliaTestPrefix = '';
@@ -52,26 +46,16 @@ trait InteractsWithAlgolia
     /**
      * Set up Algolia for testing (auto-called by setUpTraits).
      *
-     * Skip conditions (credentials unavailable):
-     * - No ALGOLIA_APP_ID / ALGOLIA_SECRET env vars set (or empty)
-     *
-     * If credentials ARE set but the probe fails, the exception propagates
-     * so the test fails loudly. This matches the Typesense trait's
-     * "explicit-config-but-failing → rethrow" discipline.
+     * Algolia integration tests are opt-in via ALGOLIA_APP_ID and
+     * ALGOLIA_SECRET. If credentials are set but the probe fails, the
+     * exception propagates so the test fails loudly.
      */
     protected function setUpInteractsWithAlgolia(): void
     {
-        if (static::$algoliaConnectionFailed) {
-            $this->markTestSkipped(
-                'Algolia credentials unavailable. Set ALGOLIA_APP_ID & ALGOLIA_SECRET to enable ' . static::class
-            );
-        }
-
         $appId = env('ALGOLIA_APP_ID');
         $secret = env('ALGOLIA_SECRET');
 
         if ($appId === null || $secret === null || $appId === '' || $secret === '') {
-            static::$algoliaConnectionFailed = true;
             $this->markTestSkipped(
                 'Algolia credentials unavailable. Set ALGOLIA_APP_ID & ALGOLIA_SECRET to enable ' . static::class
             );
@@ -90,7 +74,7 @@ trait InteractsWithAlgolia
      */
     protected function tearDownInteractsWithAlgolia(): void
     {
-        if (static::$algoliaConnectionFailed || $this->algolia === null) {
+        if ($this->algolia === null) {
             return;
         }
 

@@ -14,14 +14,14 @@ use Mockery as m;
 
 class CacheRedisLockTest extends TestCase
 {
-    public function testLockImplementsRefreshableLock()
+    public function testLockImplementsRefreshableLock(): void
     {
         [$lock] = $this->getLock();
 
         $this->assertInstanceOf(RefreshableLock::class, $lock);
     }
 
-    public function testLockCanBeAcquired()
+    public function testLockCanBeAcquired(): void
     {
         [$lock, $redis] = $this->getLock();
 
@@ -33,19 +33,19 @@ class CacheRedisLockTest extends TestCase
         $this->assertTrue($lock->acquire());
     }
 
-    public function testLockCanBeAcquiredWithoutExpiration()
+    public function testLockCanBeAcquiredWithoutExpiration(): void
     {
         [$lock, $redis] = $this->getLock(seconds: 0);
 
         $redis->shouldReceive('setnx')
             ->once()
             ->with('foo', m::type('string'))
-            ->andReturn(true);
+            ->andReturn(1);
 
         $this->assertTrue($lock->acquire());
     }
 
-    public function testLockCanBeReleased()
+    public function testLockCanBeReleased(): void
     {
         [$lock, $redis] = $this->getLock();
 
@@ -66,7 +66,7 @@ class CacheRedisLockTest extends TestCase
         $this->assertTrue($lock->release());
     }
 
-    public function testLockCanBeForceReleased()
+    public function testLockCanBeForceReleased(): void
     {
         [$lock, $redis] = $this->getLock();
 
@@ -78,7 +78,7 @@ class CacheRedisLockTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testRefreshExtendsLockTtl()
+    public function testRefreshExtendsLockTtl(): void
     {
         [$lock, $redis] = $this->getLock();
 
@@ -99,7 +99,7 @@ class CacheRedisLockTest extends TestCase
         $this->assertTrue($lock->refresh());
     }
 
-    public function testRefreshWithCustomTtl()
+    public function testRefreshWithCustomTtl(): void
     {
         [$lock, $redis] = $this->getLock();
 
@@ -120,7 +120,7 @@ class CacheRedisLockTest extends TestCase
         $this->assertTrue($lock->refresh(30));
     }
 
-    public function testRefreshReturnsFalseWhenNotOwned()
+    public function testRefreshReturnsFalseWhenNotOwned(): void
     {
         [$lock, $redis] = $this->getLock();
 
@@ -141,15 +141,55 @@ class CacheRedisLockTest extends TestCase
         $this->assertFalse($lock->refresh());
     }
 
-    public function testRefreshOnPermanentLockReturnsTrue()
+    public function testRefreshOnPermanentLockReturnsTrueWhenStillOwned(): void
     {
-        [$lock] = $this->getLock(seconds: 0);
+        [$lock, $redis] = $this->getLock(seconds: 0);
 
-        // No Redis call should be made - it's a no-op for permanent locks
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('foo')
+            ->andReturn($lock->owner());
+
         $this->assertTrue($lock->refresh());
     }
 
-    public function testRefreshWithExplicitZeroThrowsException()
+    public function testRefreshOnPermanentLockReturnsFalseWhenNotOwned(): void
+    {
+        [$lock, $redis] = $this->getLock(seconds: 0);
+
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('foo')
+            ->andReturn('other-owner');
+
+        $this->assertFalse($lock->refresh());
+    }
+
+    public function testIsLockedReturnsTrueWhenLockExists(): void
+    {
+        [$lock, $redis] = $this->getLock();
+
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('foo')
+            ->andReturn('owner');
+
+        $this->assertTrue($lock->isLocked());
+    }
+
+    public function testIsLockedReturnsFalseWhenLockDoesNotExist(): void
+    {
+        [$lock, $redis] = $this->getLock();
+
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('foo')
+            ->andReturn(null);
+
+        $this->assertFalse($lock->isLocked());
+    }
+
+    public function testRefreshWithExplicitZeroThrowsException(): void
     {
         [$lock] = $this->getLock(seconds: 10);
 
@@ -159,7 +199,7 @@ class CacheRedisLockTest extends TestCase
         $lock->refresh(0);
     }
 
-    public function testRefreshWithNegativeSecondsThrowsException()
+    public function testRefreshWithNegativeSecondsThrowsException(): void
     {
         [$lock] = $this->getLock(seconds: 10);
 
@@ -169,7 +209,7 @@ class CacheRedisLockTest extends TestCase
         $lock->refresh(-5);
     }
 
-    public function testGetRemainingLifetimeReturnsSeconds()
+    public function testGetRemainingLifetimeReturnsSeconds(): void
     {
         [$lock, $redis] = $this->getLock();
 
@@ -181,7 +221,7 @@ class CacheRedisLockTest extends TestCase
         $this->assertSame(5.0, $lock->getRemainingLifetime());
     }
 
-    public function testGetRemainingLifetimeReturnsNullWhenKeyDoesNotExist()
+    public function testGetRemainingLifetimeReturnsNullWhenKeyDoesNotExist(): void
     {
         [$lock, $redis] = $this->getLock();
 
@@ -193,7 +233,7 @@ class CacheRedisLockTest extends TestCase
         $this->assertNull($lock->getRemainingLifetime());
     }
 
-    public function testGetRemainingLifetimeReturnsNullWhenNoExpiry()
+    public function testGetRemainingLifetimeReturnsNullWhenNoExpiry(): void
     {
         [$lock, $redis] = $this->getLock();
 
@@ -205,7 +245,7 @@ class CacheRedisLockTest extends TestCase
         $this->assertNull($lock->getRemainingLifetime());
     }
 
-    public function testGetRemainingLifetimeReturnsZeroWhenExpired()
+    public function testGetRemainingLifetimeReturnsZeroWhenExpired(): void
     {
         [$lock, $redis] = $this->getLock();
 

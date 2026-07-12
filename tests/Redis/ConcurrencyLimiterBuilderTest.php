@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hypervel\Contracts\Redis\LimiterTimeoutException;
+use Hypervel\Contracts\Limiters\LimiterTimeoutException;
+use Hypervel\Redis\Limiters\ConcurrencyLease;
 use Hypervel\Redis\Limiters\ConcurrencyLimiterBuilder;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
@@ -18,7 +19,7 @@ use Mockery as m;
  */
 class ConcurrencyLimiterBuilderTest extends TestCase
 {
-    public function testLimitSetsMaxLocks()
+    public function testLimitSetsMaxLocks(): void
     {
         $builder = $this->createBuilder();
 
@@ -28,7 +29,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $this->assertSame(10, $builder->maxLocks);
     }
 
-    public function testReleaseAfterSetsReleaseAfterInSeconds()
+    public function testReleaseAfterSetsReleaseAfterInSeconds(): void
     {
         $builder = $this->createBuilder();
 
@@ -38,7 +39,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $this->assertSame(120, $builder->releaseAfter);
     }
 
-    public function testBlockSetsTimeout()
+    public function testBlockSetsTimeout(): void
     {
         $builder = $this->createBuilder();
 
@@ -48,7 +49,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $this->assertSame(10, $builder->timeout);
     }
 
-    public function testSleepSetsSleepDuration()
+    public function testSleepSetsSleepDuration(): void
     {
         $builder = $this->createBuilder();
 
@@ -58,28 +59,28 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $this->assertSame(500, $builder->sleep);
     }
 
-    public function testDefaultReleaseAfterIs60Seconds()
+    public function testDefaultReleaseAfterIs60Seconds(): void
     {
         $builder = $this->createBuilder();
 
         $this->assertSame(60, $builder->releaseAfter);
     }
 
-    public function testDefaultTimeoutIsThreeSeconds()
+    public function testDefaultTimeoutIsThreeSeconds(): void
     {
         $builder = $this->createBuilder();
 
         $this->assertSame(3, $builder->timeout);
     }
 
-    public function testDefaultSleepIs250Milliseconds()
+    public function testDefaultSleepIs250Milliseconds(): void
     {
         $builder = $this->createBuilder();
 
         $this->assertSame(250, $builder->sleep);
     }
 
-    public function testThenExecutesCallbackWhenLockAcquired()
+    public function testThenExecutesCallbackWhenLockAcquired(): void
     {
         $redis = $this->mockRedis();
         // ConcurrencyLimiter::acquire() Lua script returns a slot name
@@ -108,7 +109,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $this->assertSame('success', $result);
     }
 
-    public function testThenCallsFailureCallbackOnTimeout()
+    public function testThenCallsFailureCallbackOnTimeout(): void
     {
         $redis = $this->mockRedis();
         // ConcurrencyLimiter::acquire() always fails
@@ -133,7 +134,7 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         $this->assertSame('fallback', $result);
     }
 
-    public function testThenThrowsExceptionWithoutFailureCallback()
+    public function testThenThrowsExceptionWithoutFailureCallback(): void
     {
         $redis = $this->mockRedis();
         // ConcurrencyLimiter::acquire() always fails
@@ -150,7 +151,52 @@ class ConcurrencyLimiterBuilderTest extends TestCase
         });
     }
 
-    public function testFluentChaining()
+    public function testAcquireReturnsLease(): void
+    {
+        $redis = $this->mockRedis();
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andReturn('test-key1');
+
+        $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
+        $builder->limit(5)->block(0);
+
+        $this->assertInstanceOf(ConcurrencyLease::class, $builder->acquire());
+    }
+
+    public function testThenDoesNotRouteCallbackTimeoutExceptionToFailureCallback(): void
+    {
+        $redis = $this->mockRedis();
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andReturn('test-key1');
+        $redis->shouldReceive('eval')
+            ->once()
+            ->andReturn(1);
+
+        $builder = new ConcurrencyLimiterBuilder($redis, 'test-key');
+        $builder->limit(5)->block(0);
+
+        $failureCalled = false;
+
+        try {
+            $builder->then(
+                function () {
+                    throw new LimiterTimeoutException;
+                },
+                function () use (&$failureCalled) {
+                    $failureCalled = true;
+                }
+            );
+
+            $this->fail('Expected LimiterTimeoutException was not thrown.');
+        } catch (LimiterTimeoutException) {
+        }
+
+        $this->assertFalse($failureCalled);
+    }
+
+    public function testFluentChaining(): void
     {
         $builder = $this->createBuilder();
 
@@ -176,6 +222,9 @@ class ConcurrencyLimiterBuilderTest extends TestCase
      */
     private function mockRedis(): m\MockInterface|RedisProxy
     {
-        return m::mock(RedisProxy::class);
+        $redis = m::mock(RedisProxy::class);
+        $redis->shouldReceive('isCluster')->byDefault()->andReturnFalse();
+
+        return $redis;
     }
 }

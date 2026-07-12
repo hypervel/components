@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\JWT\Exceptions;
+namespace Hypervel\Jwt\Exceptions;
 
-class TokenInvalidException extends JWTException
+class TokenInvalidException extends JwtException
 {
 }

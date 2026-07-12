@@ -59,8 +59,11 @@ class RemoteCommandTest extends TestCase
             $serveProcess = remote('serve --help');
             $aboutProcess = remote('about --json');
 
-            $this->assertArrayNotHasKey('TESTBENCH_BASE_PATH', $this->processEnvironment($serveProcess));
-            $this->assertSame(BASE_PATH, $this->processEnvironment($aboutProcess)['TESTBENCH_BASE_PATH'] ?? null);
+            $serveEnvironment = $this->processEnvironment($serveProcess);
+            $aboutEnvironment = $this->processEnvironment($aboutProcess);
+
+            $this->assertArrayNotHasKey('TESTBENCH_BASE_PATH', $serveEnvironment);
+            $this->assertSame(BASE_PATH, $aboutEnvironment['TESTBENCH_BASE_PATH'] ?? null);
         });
     }
 

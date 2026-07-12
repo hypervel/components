@@ -140,6 +140,24 @@ class FailoverStoreTest extends TestCase
         $this->assertSame('fallback', $store->get('test'));
     }
 
+    public function testPutManyWithEmptyInputReturnsSelectedStoreResult(): void
+    {
+        $events = m::mock(Dispatcher::class);
+
+        $repository = m::mock(CacheRepository::class);
+        $repository->shouldReceive('putMany')->once()->with([], 60)->andReturn(false);
+
+        $cacheManager = m::mock(CacheManager::class);
+        $cacheManager->shouldReceive('store')
+            ->with('primary')
+            ->once()
+            ->andReturn($repository);
+
+        $store = new FailoverStore($cacheManager, $events, ['primary']);
+
+        $this->assertFalse($store->putMany([], 60));
+    }
+
     public function testNullSentinelRoundTripsThroughFailoverStorePrimary()
     {
         $primaryRepo = new Repository(new ArrayStore(serializesValues: true));
