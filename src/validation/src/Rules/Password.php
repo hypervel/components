@@ -16,6 +16,7 @@ use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Validation\Rules\Concerns\ClonesCustomRules;
 use InvalidArgumentException;
 use IteratorAggregate;
 use Traversable;
@@ -23,6 +24,7 @@ use Traversable;
 class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, ValidatorAwareRule
 {
     use Conditionable;
+    use ClonesCustomRules;
 
     /**
      * The validator performing the validation.
@@ -138,13 +140,21 @@ class Password implements DataAwareRule, ImplicitRule, IteratorAggregate, Rule, 
     /**
      * Get the default configuration of the password rule.
      */
-    public static function default(): mixed
+    public static function default(): static
     {
+        if (static::$defaultCallback === null) {
+            return static::min(8);
+        }
+
         $password = is_callable(static::$defaultCallback)
             ? call_user_func(static::$defaultCallback)
             : static::$defaultCallback;
 
-        return $password instanceof Rule ? $password : static::min(8);
+        if (! $password instanceof static) {
+            throw new InvalidArgumentException('The default callback must return an instance of ' . static::class . '.');
+        }
+
+        return clone $password;
     }
 
     /**
