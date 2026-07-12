@@ -326,6 +326,8 @@ abstract class ObjectPool implements ObjectPoolContract
      */
     private function getObject(int $deadline): object
     {
+        $timedOut = false;
+
         while (true) {
             if ($this->closed) {
                 throw new RuntimeException('Cannot borrow from a closed pool.');
@@ -377,9 +379,11 @@ abstract class ObjectPool implements ObjectPoolContract
                 return $object;
             }
 
-            if (! $this->waitForStateChange($deadline)) {
+            if ($timedOut) {
                 throw new RuntimeException('Object pool exhausted. Cannot create new object before wait_timeout.');
             }
+
+            $timedOut = ! $this->waitForStateChange($deadline);
         }
     }
 

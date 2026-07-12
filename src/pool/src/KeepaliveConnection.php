@@ -56,6 +56,14 @@ abstract class KeepaliveConnection implements ConnectionInterface
     }
 
     /**
+     * Discard the connection from its pool.
+     */
+    public function discard(): void
+    {
+        $this->pool->discard($this);
+    }
+
+    /**
      * @throws InvalidArgumentException
      */
     public function getConnection(): mixed

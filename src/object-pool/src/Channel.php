@@ -6,6 +6,7 @@ namespace Hypervel\ObjectPool;
 
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel as EngineChannel;
+use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use SplQueue;
 
 /**
@@ -104,7 +105,11 @@ class Channel
             return;
         }
 
-        Coroutine::create($this->pushSignal(...));
+        try {
+            Coroutine::create($this->pushSignal(...));
+        } catch (CoroutineCreateException) {
+            // The state change is already committed; checkout performs a final state pass.
+        }
     }
 
     /**

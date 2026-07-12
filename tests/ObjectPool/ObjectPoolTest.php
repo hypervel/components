@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\ObjectPool\Channel as ObjectPoolChannel;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Tests\TestCase;
@@ -359,6 +360,38 @@ class ObjectPoolTest extends TestCase
         $pool->get();
     }
 
+    public function testCheckoutPerformsOneFinalPassAfterADeadlineRelease(): void
+    {
+        $pool = $this->pool(['max_objects' => 1, 'wait_timeout' => 0.001]);
+        $borrowed = $pool->get();
+        $channel = new DeadlineObjectPoolChannel(function () use ($borrowed, $pool): void {
+            $pool->release($borrowed);
+        });
+        $pool->replaceChannel($channel);
+
+        $this->assertSame($borrowed, $returned = $pool->get());
+        $this->assertSame(1, $channel->waitCount);
+
+        $pool->release($returned);
+        $pool->close();
+    }
+
+    public function testCheckoutPerformsOneFinalPassAfterADeadlineDiscard(): void
+    {
+        $pool = $this->pool(['max_objects' => 1, 'wait_timeout' => 0.001]);
+        $borrowed = $pool->get();
+        $channel = new DeadlineObjectPoolChannel(function () use ($borrowed, $pool): void {
+            $pool->discard($borrowed);
+        });
+        $pool->replaceChannel($channel);
+
+        $this->assertNotSame($borrowed, $replacement = $pool->get());
+        $this->assertSame(1, $channel->waitCount);
+
+        $pool->release($replacement);
+        $pool->close();
+    }
+
     public function testSweepExpiredDestroysBelowTheRetentionFloor(): void
     {
         $pool = $this->pool([
@@ -679,8 +712,31 @@ class InspectableObjectPool extends ObjectPool
         $this->lastUsedAt = hrtime(true) - (int) ($seconds * 1e9);
     }
 
+    public function replaceChannel(ObjectPoolChannel $channel): void
+    {
+        $this->channel = $channel;
+    }
+
     protected function createObject(): object
     {
         return ($this->factory)();
+    }
+}
+
+class DeadlineObjectPoolChannel extends ObjectPoolChannel
+{
+    public int $waitCount = 0;
+
+    public function __construct(protected Closure $onWait)
+    {
+        parent::__construct(1);
+    }
+
+    public function wait(float $timeout): bool
+    {
+        ++$this->waitCount;
+        ($this->onWait)();
+
+        return false;
     }
 }

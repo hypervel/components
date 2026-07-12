@@ -68,6 +68,18 @@ class HeartbeatConnectionTest extends TestCase
         $this->assertSame($result, str_repeat($str, 2));
     }
 
+    public function testDiscardDelegatesToOwningPool(): void
+    {
+        $container = $this->getContainer();
+        $pool = $container->make(HeartbeatPoolStub::class);
+        $connection = $pool->get();
+
+        $connection->discard();
+
+        $this->assertSame(0, $pool->getCurrentConnections());
+        $this->assertSame(0, $pool->getConnectionsInChannel());
+    }
+
     public function testConnectionHeartbeat(): void
     {
         $container = $this->getContainer(['heartbeat' => 0.001]);

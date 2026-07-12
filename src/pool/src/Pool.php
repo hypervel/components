@@ -91,7 +91,7 @@ abstract class Pool implements PoolInterface
      */
     public function release(ConnectionInterface $connection): void
     {
-        $connectionId = $this->assertBorrowed($connection);
+        $connectionId = $this->assertBorrowed($connection, 'release');
         unset($this->borrowedConnections[$connectionId]);
 
         if ($this->closed) {
@@ -101,6 +101,15 @@ abstract class Pool implements PoolInterface
         }
 
         $this->requeueConnection($connection);
+    }
+
+    /**
+     * Discard a borrowed connection from the pool.
+     */
+    public function discard(ConnectionInterface $connection): void
+    {
+        $this->assertBorrowed($connection, 'discard');
+        $this->destroyConnection($connection);
     }
 
     /**
@@ -337,6 +346,8 @@ abstract class Pool implements PoolInterface
      */
     private function getConnection(int $deadline): ConnectionInterface
     {
+        $timedOut = false;
+
         while (true) {
             if ($this->closed) {
                 throw new RuntimeException('Cannot borrow from a closed connection pool.');
@@ -381,11 +392,13 @@ abstract class Pool implements PoolInterface
                 return $connection;
             }
 
-            if (! $this->waitForStateChange($deadline)) {
+            if ($timedOut) {
                 throw new RuntimeException(
                     'Connection pool exhausted. Cannot establish new connection before wait_timeout.'
                 );
             }
+
+            $timedOut = ! $this->waitForStateChange($deadline);
         }
     }
 
@@ -429,16 +442,22 @@ abstract class Pool implements PoolInterface
     /**
      * Assert that a connection is currently borrowed from this pool.
      */
-    private function assertBorrowed(ConnectionInterface $connection): int
+    private function assertBorrowed(ConnectionInterface $connection, string $operation): int
     {
         $connectionId = spl_object_id($connection);
 
         if (! isset($this->managedConnections[$connectionId])) {
-            throw new RuntimeException('Cannot release a connection this pool does not manage.');
+            throw new RuntimeException(sprintf(
+                'Cannot %s a connection this pool does not manage.',
+                $operation,
+            ));
         }
 
         if (! isset($this->borrowedConnections[$connectionId])) {
-            throw new RuntimeException('Cannot release a connection that is not checked out (double release?).');
+            throw new RuntimeException(sprintf(
+                'Cannot %s a connection that is not checked out.',
+                $operation,
+            ));
         }
 
         return $connectionId;

@@ -65,6 +65,20 @@ class ConnectionTest extends TestCase
         $this->assertTrue(true);
     }
 
+    public function testDiscardDelegatesToOwningPool(): void
+    {
+        $container = m::mock(ContainerContract::class);
+        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->once()->andReturnFalse();
+        $container->shouldReceive('bound')->with('events')->andReturnFalse();
+        $pool = m::mock(Pool::class);
+        $connection = new ActiveConnectionStub($container, $pool);
+        $pool->shouldReceive('discard')->once()->with($connection);
+
+        $connection->discard();
+
+        $this->addToAssertionCount(1);
+    }
+
     public function testCheckDoesNotResetActivityTimestamp(): void
     {
         $container = m::mock(ContainerContract::class);

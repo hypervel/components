@@ -9,6 +9,9 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Pool\Channel;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use Swoole\Coroutine as SwooleCoroutine;
+use Swoole\Event;
 
 use function Hypervel\Coroutine\run;
 
@@ -128,6 +131,27 @@ class ChannelTest extends TestCase
         $this->assertFalse($channel->push(m::mock(ConnectionInterface::class)));
         $this->assertSame(0, $channel->length());
         $this->assertFalse($channel->pop());
+    }
+
+    #[RunInSeparateProcess]
+    public function testOutsideCoroutinePushCommitsWhenAWakeCoroutineCannotBeCreated(): void
+    {
+        SwooleCoroutine::set(['max_coroutine' => 1]);
+        $channel = new Channel(1);
+        $waitResult = null;
+        $connection = m::mock(ConnectionInterface::class);
+
+        SwooleCoroutine::create(function () use ($channel, &$waitResult): void {
+            $waitResult = $channel->wait(1.0);
+        });
+
+        $this->assertTrue($channel->push($connection));
+        $this->assertSame($connection, $channel->pop());
+
+        $channel->close();
+        Event::wait();
+
+        $this->assertTrue($waitResult);
     }
 }
 

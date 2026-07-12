@@ -11,6 +11,7 @@ use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\FrequencyInterface;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Pool\Channel as PoolChannel;
 use Hypervel\Pool\LowFrequencyInterface;
 use Hypervel\Pool\Pool;
 use Hypervel\Tests\TestCase;
@@ -207,6 +208,59 @@ class PoolTest extends TestCase
         $pool->release(new PoolConnectionStub);
     }
 
+    public function testDiscardDestroysBorrowedConnectionAndRestoresCapacity(): void
+    {
+        $connections = [];
+        $pool = $this->createPool(
+            ['max_connections' => 1],
+            function () use (&$connections): ConnectionInterface {
+                return $connections[] = new PoolConnectionStub;
+            },
+        );
+        $connection = $pool->get();
+
+        $pool->discard($connection);
+
+        $this->assertSame(1, $connection->closeCount);
+        $this->assertSame(0, $pool->getCurrentConnections());
+        $this->assertSame(0, $pool->getConnectionsInChannel());
+        $this->assertNotSame($connection, $replacement = $pool->get());
+        $this->assertSame(1, $pool->getCurrentConnections());
+        $pool->release($replacement);
+    }
+
+    public function testForeignIdleAndAlreadyDiscardedConnectionsAreRejected(): void
+    {
+        $pool = $this->createPool();
+
+        try {
+            $pool->discard(new PoolConnectionStub);
+            $this->fail('Discarding a foreign connection must throw.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('does not manage', $exception->getMessage());
+        }
+
+        $idle = $pool->get();
+        $pool->release($idle);
+
+        try {
+            $pool->discard($idle);
+            $this->fail('Discarding an idle connection must throw.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('not checked out', $exception->getMessage());
+        }
+
+        $discarded = $pool->get();
+        $pool->discard($discarded);
+
+        try {
+            $pool->discard($discarded);
+            $this->fail('Discarding a destroyed connection must throw.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('does not manage', $exception->getMessage());
+        }
+    }
+
     public function testDuplicateFactoryConnectionIsRejected(): void
     {
         $connection = new PoolConnectionStub;
@@ -300,6 +354,36 @@ class PoolTest extends TestCase
         );
 
         $pool->get();
+    }
+
+    public function testCheckoutPerformsOneFinalPassAfterADeadlineRelease(): void
+    {
+        $pool = $this->createPool(['max_connections' => 1, 'wait_timeout' => 0.001]);
+        $borrowed = $pool->get();
+        $channel = new DeadlinePoolChannel(function () use ($borrowed, $pool): void {
+            $pool->release($borrowed);
+        });
+        $pool->replaceChannel($channel);
+
+        $this->assertSame($borrowed, $returned = $pool->get());
+        $this->assertSame(1, $channel->waitCount);
+
+        $pool->release($returned);
+    }
+
+    public function testCheckoutPerformsOneFinalPassAfterADeadlineDiscard(): void
+    {
+        $pool = $this->createPool(['max_connections' => 1, 'wait_timeout' => 0.001]);
+        $borrowed = $pool->get();
+        $channel = new DeadlinePoolChannel(function () use ($borrowed, $pool): void {
+            $pool->discard($borrowed);
+        });
+        $pool->replaceChannel($channel);
+
+        $this->assertNotSame($borrowed, $replacement = $pool->get());
+        $this->assertSame(1, $channel->waitCount);
+
+        $pool->release($replacement);
     }
 
     public function testUnhealthyIdleConnectionIsDestroyed(): void
@@ -433,9 +517,32 @@ class CallbackPool extends Pool
         return $this->deadline($seconds);
     }
 
+    public function replaceChannel(PoolChannel $channel): void
+    {
+        $this->channel = $channel;
+    }
+
     protected function createConnection(): ConnectionInterface
     {
         return ($this->connectionFactory)();
+    }
+}
+
+class DeadlinePoolChannel extends PoolChannel
+{
+    public int $waitCount = 0;
+
+    public function __construct(protected Closure $onWait)
+    {
+        parent::__construct(1);
+    }
+
+    public function wait(float $timeout): bool
+    {
+        ++$this->waitCount;
+        ($this->onWait)();
+
+        return false;
     }
 }
 
@@ -476,6 +583,10 @@ class PoolConnectionStub implements ConnectionInterface
     }
 
     public function release(): void
+    {
+    }
+
+    public function discard(): void
     {
     }
 }
