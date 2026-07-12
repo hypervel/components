@@ -131,7 +131,7 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
     }
 
-    public function testWorkerCanMonitorTimeoutJobs()
+    public function testWorkerCanMonitorTimeoutJobs(): void
     {
         $workerOptions = new WorkerOptions;
         $workerOptions->stopWhenEmpty = true;

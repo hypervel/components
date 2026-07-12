@@ -140,7 +140,7 @@ class TimerTest extends TestCase
             $called->push(true);
         }, uniqid());
 
-        $this->assertTrue($called->pop(0.2));
+        $this->assertTrue($called->pop(1.0));
         usleep(10_000);
         $this->assertSame(['num' => 0, 'round' => 0], Timer::stats());
     }

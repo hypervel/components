@@ -31,7 +31,7 @@ class ListenerContextIsolationTest extends TestCase
         $this->assertCount(101, $listener->queries());
     }
 
-    public function testQueriesAreIsolatedBetweenCoroutines()
+    public function testQueriesAreIsolatedBetweenCoroutines(): void
     {
         $results = parallel([
             'a' => fn (): array => $this->recordQueries('conn-a', ['SELECT a1', 'SELECT a2']),
