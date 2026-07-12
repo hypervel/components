@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Foundation\Process;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\Database\InteractsWithSqliteDatabaseFile;
@@ -64,6 +65,39 @@ class RemoteCommandTest extends TestCase
 
             $this->assertArrayNotHasKey('TESTBENCH_BASE_PATH', $serveEnvironment);
             $this->assertSame(BASE_PATH, $aboutEnvironment['TESTBENCH_BASE_PATH'] ?? null);
+        });
+    }
+
+    #[Test]
+    public function itRestoresThePackageManifestAfterRemoteCommands(): void
+    {
+        $this->withoutSqliteDatabase(function (): void {
+            $files = new Filesystem;
+            $path = $this->app->getCachedPackagesPath();
+            // This must match the baseline captured by the base TestCase earlier in setUp.
+            $existed = $files->isFile($path);
+            $contents = $existed ? $files->get($path) : '';
+
+            // The base TestCase registered its restoration callback during setUp,
+            // so this later callback observes the already-restored manifest.
+            $this->beforeApplicationDestroyed(function () use ($files, $path, $existed, $contents): void {
+                if ($existed) {
+                    $this->assertFileExists($path);
+                    $this->assertSame($contents, $files->get($path));
+                } else {
+                    $this->assertFileDoesNotExist($path);
+                }
+            });
+
+            // Force the child to build the manifest instead of reusing the baseline cache.
+            if ($files->isFile($path)) {
+                $this->assertTrue($files->delete($path));
+            }
+
+            remote('about --json')->mustRun();
+
+            $this->assertFileExists($path);
+            $this->assertNotSame($contents, $files->get($path));
         });
     }
 
