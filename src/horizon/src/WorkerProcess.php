@@ -6,6 +6,7 @@ namespace Hypervel\Horizon;
 
 use Carbon\CarbonImmutable;
 use Closure;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Events\UnableToLaunchProcess;
 use Hypervel\Horizon\Events\WorkerProcessRestarting;
 use RuntimeException;
@@ -120,7 +121,12 @@ class WorkerProcess
     protected function restart(): void
     {
         if ($this->process->isStarted()) {
-            event(new WorkerProcessRestarting($this));
+            /** @var Dispatcher $events */
+            $events = app('events');
+
+            if ($events->hasListeners(WorkerProcessRestarting::class)) {
+                $events->dispatch(new WorkerProcessRestarting($this));
+            }
         }
 
         $this->start($this->output);
@@ -183,7 +189,12 @@ class WorkerProcess
                             : null;
 
             if (! $this->process->isRunning()) {
-                event(new UnableToLaunchProcess($this));
+                /** @var Dispatcher $events */
+                $events = app('events');
+
+                if ($events->hasListeners(UnableToLaunchProcess::class)) {
+                    $events->dispatch(new UnableToLaunchProcess($this));
+                }
             }
         } else {
             $this->restartAgainAt = CarbonImmutable::now()->addSecond();

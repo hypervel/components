@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Watcher;
 
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
@@ -88,11 +89,11 @@ class ServerRestartStrategy implements RestartStrategy
      */
     public function stop(): void
     {
-        if (! $this->filesystem->exists($this->pidFile)) {
+        try {
+            $pidContents = trim($this->filesystem->get($this->pidFile));
+        } catch (FileNotFoundException) {
             return;
         }
-
-        $pidContents = trim($this->filesystem->get($this->pidFile));
 
         if ($pidContents === '' || ! ctype_digit($pidContents)) {
             return;
@@ -106,8 +107,13 @@ class ServerRestartStrategy implements RestartStrategy
 
         try {
             $this->output->writeln('Stop server...');
-            $this->container->make('events')
-                ->dispatch(new BeforeServerRestart($pid));
+            /** @var Dispatcher $events */
+            $events = $this->container->make('events');
+
+            if ($events->hasListeners(BeforeServerRestart::class)) {
+                $events->dispatch(new BeforeServerRestart($pid));
+            }
+
             if ($this->signalProcess($pid, 0)) {
                 $this->signalProcess($pid, SIGTERM);
             }

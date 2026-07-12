@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Horizon\Feature;
 
 use Carbon\CarbonImmutable;
 use Closure;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Events\UnableToLaunchProcess;
 use Hypervel\Horizon\Events\WorkerProcessRestarting;
 use Hypervel\Horizon\MasterSupervisor;
@@ -17,11 +18,37 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;
 use ReflectionClass;
+use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
 class WorkerProcessTest extends IntegrationTestCase
 {
+    public function testWorkerProcessSkipsOptionalEventsWhenTheyHaveNoListeners(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(WorkerProcessRestarting::class)->andReturnFalse();
+        $events->shouldReceive('hasListeners')->once()->with(UnableToLaunchProcess::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+        $this->app->instance('events', $events);
+
+        $restartProcess = m::mock(Process::class);
+        $restartProcess->shouldReceive('isStarted')->once()->andReturnTrue();
+        $restartProcess->shouldReceive('start')->once();
+        $restartWorker = new WorkerProcess($restartProcess);
+        $restartWorker->handleOutputUsing(static function (): void {
+        });
+        (new ReflectionMethod(WorkerProcess::class, 'restart'))->invoke($restartWorker);
+
+        $failedProcess = m::mock(Process::class);
+        $failedProcess->shouldReceive('isRunning')->twice()->andReturnFalse();
+        $failedWorker = new WorkerProcess($failedProcess);
+        $failedWorker->restartAgainAt = CarbonImmutable::now()->subSecond();
+        (new ReflectionMethod(WorkerProcess::class, 'cooldown'))->invoke($failedWorker);
+
+        $this->addToAssertionCount(1);
+    }
+
     public function testControlSignalSentDuringBootstrapIsDeliveredAfterHandlerInstallation(): void
     {
         $script = <<<'PHP'

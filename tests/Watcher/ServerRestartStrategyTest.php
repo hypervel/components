@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Watcher;
 
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\TestCase;
@@ -168,6 +169,30 @@ class ServerRestartStrategyTest extends TestCase
         $this->assertSame(123, $events[0]->pid);
     }
 
+    public function testStopSkipsTheRestartEventWhenItHasNoListeners(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $events->shouldReceive('hasListeners')->once()->with(BeforeServerRestart::class)->andReturnFalse();
+        $events->shouldNotReceive('dispatch');
+        $this->app->instance('events', $events);
+        $strategy = $this->createProbeStrategy();
+        $strategy->useFilesystem(new PidFileFilesystem(true, '123'));
+
+        $strategy->stop();
+
+        $this->assertSame([[123, 0], [123, SIGTERM]], $strategy->signals);
+    }
+
+    public function testStopToleratesThePidFileDisappearingBeforeItIsRead(): void
+    {
+        $strategy = $this->createProbeStrategy();
+        $strategy->useFilesystem(new DisappearingPidFileFilesystem);
+
+        $strategy->stop();
+
+        $this->assertSame([], $strategy->signals);
+    }
+
     public function testStopIsIdempotentWhenThePidFileDoesNotExist(): void
     {
         $strategy = $this->createProbeStrategy();
@@ -311,6 +336,23 @@ class PidFileFilesystem extends Filesystem
 
     public function get(string $path, bool $lock = false): string
     {
+        if (! $this->pidFileExists) {
+            throw new FileNotFoundException("File does not exist at path {$path}.");
+        }
+
         return $this->contents;
+    }
+}
+
+class DisappearingPidFileFilesystem extends Filesystem
+{
+    public function exists(string $path): bool
+    {
+        return true;
+    }
+
+    public function get(string $path, bool $lock = false): string
+    {
+        throw new FileNotFoundException("File does not exist at path {$path}.");
     }
 }
