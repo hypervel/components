@@ -21,108 +21,116 @@ class SubscriberIntegrationTest extends TestCase
 {
     use InteractsWithRedis;
 
-    public function testSubscribeReceivesMessage()
+    public function testSubscribeReceivesMessage(): void
     {
         $channelName = 'test_sub_' . uniqid();
         $subscriber = $this->createTestSubscriber();
 
-        $subscriber->subscribe($channelName);
+        try {
+            $subscriber->subscribe($channelName);
 
-        go(function () use ($channelName) {
-            usleep(50_000);
-            $this->publishViaRawClient($channelName, 'hello');
-        });
+            go(function () use ($channelName) {
+                usleep(50_000);
+                $this->publishViaRawClient($channelName, 'hello');
+            });
 
-        $message = $subscriber->channel()->pop(5.0);
+            $message = $subscriber->channel()->pop(5.0);
 
-        $this->assertNotFalse($message, 'Timed out waiting for message');
-        $this->assertSame($channelName, $message->channel);
-        $this->assertSame('hello', $message->payload);
-        $this->assertNull($message->pattern);
-
-        $subscriber->close();
+            $this->assertNotFalse($message, 'Timed out waiting for message');
+            $this->assertSame($channelName, $message->channel);
+            $this->assertSame('hello', $message->payload);
+            $this->assertNull($message->pattern);
+        } finally {
+            $subscriber->close();
+        }
     }
 
-    public function testSubscribeToMultipleChannels()
+    public function testSubscribeToMultipleChannels(): void
     {
         $channel1 = 'test_multi_a_' . uniqid();
         $channel2 = 'test_multi_b_' . uniqid();
         $subscriber = $this->createTestSubscriber();
 
-        $subscriber->subscribe($channel1, $channel2);
+        try {
+            $subscriber->subscribe($channel1, $channel2);
 
-        go(function () use ($channel1, $channel2) {
-            usleep(50_000);
-            $this->publishViaRawClient($channel1, 'msg1');
-            $this->publishViaRawClient($channel2, 'msg2');
-        });
+            go(function () use ($channel1, $channel2) {
+                usleep(50_000);
+                $this->publishViaRawClient($channel1, 'msg1');
+                $this->publishViaRawClient($channel2, 'msg2');
+            });
 
-        $message1 = $subscriber->channel()->pop(5.0);
-        $this->assertNotFalse($message1, 'Timed out waiting for message 1');
+            $message1 = $subscriber->channel()->pop(5.0);
+            $this->assertNotFalse($message1, 'Timed out waiting for message 1');
 
-        $message2 = $subscriber->channel()->pop(5.0);
-        $this->assertNotFalse($message2, 'Timed out waiting for message 2');
+            $message2 = $subscriber->channel()->pop(5.0);
+            $this->assertNotFalse($message2, 'Timed out waiting for message 2');
 
-        $channels = [$message1->channel, $message2->channel];
-        $payloads = [$message1->payload, $message2->payload];
+            $channels = [$message1->channel, $message2->channel];
+            $payloads = [$message1->payload, $message2->payload];
 
-        $this->assertContains($channel1, $channels);
-        $this->assertContains($channel2, $channels);
-        $this->assertContains('msg1', $payloads);
-        $this->assertContains('msg2', $payloads);
-
-        $subscriber->close();
+            $this->assertContains($channel1, $channels);
+            $this->assertContains($channel2, $channels);
+            $this->assertContains('msg1', $payloads);
+            $this->assertContains('msg2', $payloads);
+        } finally {
+            $subscriber->close();
+        }
     }
 
-    public function testUnsubscribeStopsReceivingFromChannel()
+    public function testUnsubscribeStopsReceivingFromChannel(): void
     {
         $channel1 = 'test_unsub_keep_' . uniqid();
         $channel2 = 'test_unsub_drop_' . uniqid();
         $subscriber = $this->createTestSubscriber();
 
-        $subscriber->subscribe($channel1, $channel2);
-        $subscriber->unsubscribe($channel2);
+        try {
+            $subscriber->subscribe($channel1, $channel2);
+            $subscriber->unsubscribe($channel2);
 
-        go(function () use ($channel1, $channel2) {
-            usleep(50_000);
-            // Publish to unsubscribed channel first — should be ignored
-            $this->publishViaRawClient($channel2, 'dropped');
-            // Then publish to subscribed channel
-            $this->publishViaRawClient($channel1, 'kept');
-        });
+            go(function () use ($channel1, $channel2) {
+                usleep(50_000);
+                // Publish to unsubscribed channel first — should be ignored
+                $this->publishViaRawClient($channel2, 'dropped');
+                // Then publish to subscribed channel
+                $this->publishViaRawClient($channel1, 'kept');
+            });
 
-        $message = $subscriber->channel()->pop(5.0);
-        $this->assertNotFalse($message, 'Timed out waiting for message');
-        $this->assertSame($channel1, $message->channel);
-        $this->assertSame('kept', $message->payload);
-
-        $subscriber->close();
+            $message = $subscriber->channel()->pop(5.0);
+            $this->assertNotFalse($message, 'Timed out waiting for message');
+            $this->assertSame($channel1, $message->channel);
+            $this->assertSame('kept', $message->payload);
+        } finally {
+            $subscriber->close();
+        }
     }
 
-    public function testPsubscribeReceivesMatchingMessage()
+    public function testPsubscribeReceivesMatchingMessage(): void
     {
         $pattern = 'test_psub_' . uniqid() . ':*';
         $publishChannel = str_replace('*', 'specific', $pattern);
         $subscriber = $this->createTestSubscriber();
 
-        $subscriber->psubscribe($pattern);
+        try {
+            $subscriber->psubscribe($pattern);
 
-        go(function () use ($publishChannel) {
-            usleep(50_000);
-            $this->publishViaRawClient($publishChannel, 'pattern_data');
-        });
+            go(function () use ($publishChannel) {
+                usleep(50_000);
+                $this->publishViaRawClient($publishChannel, 'pattern_data');
+            });
 
-        $message = $subscriber->channel()->pop(5.0);
+            $message = $subscriber->channel()->pop(5.0);
 
-        $this->assertNotFalse($message, 'Timed out waiting for pmessage');
-        $this->assertSame($publishChannel, $message->channel);
-        $this->assertSame('pattern_data', $message->payload);
-        $this->assertSame($pattern, $message->pattern);
-
-        $subscriber->close();
+            $this->assertNotFalse($message, 'Timed out waiting for pmessage');
+            $this->assertSame($publishChannel, $message->channel);
+            $this->assertSame('pattern_data', $message->payload);
+            $this->assertSame($pattern, $message->pattern);
+        } finally {
+            $subscriber->close();
+        }
     }
 
-    public function testPunsubscribeStopsReceivingFromPattern()
+    public function testPunsubscribeStopsReceivingFromPattern(): void
     {
         $pattern1 = 'test_punsub_keep_' . uniqid() . ':*';
         $pattern2 = 'test_punsub_drop_' . uniqid() . ':*';
@@ -130,48 +138,52 @@ class SubscriberIntegrationTest extends TestCase
         $channel2 = str_replace('*', 'event', $pattern2);
         $subscriber = $this->createTestSubscriber();
 
-        $subscriber->psubscribe($pattern1, $pattern2);
-        $subscriber->punsubscribe($pattern2);
+        try {
+            $subscriber->psubscribe($pattern1, $pattern2);
+            $subscriber->punsubscribe($pattern2);
 
-        go(function () use ($channel1, $channel2) {
-            usleep(50_000);
-            $this->publishViaRawClient($channel2, 'dropped');
-            $this->publishViaRawClient($channel1, 'kept');
-        });
+            go(function () use ($channel1, $channel2) {
+                usleep(50_000);
+                $this->publishViaRawClient($channel2, 'dropped');
+                $this->publishViaRawClient($channel1, 'kept');
+            });
 
-        $message = $subscriber->channel()->pop(5.0);
-        $this->assertNotFalse($message, 'Timed out waiting for pmessage');
-        $this->assertSame($channel1, $message->channel);
-        $this->assertSame('kept', $message->payload);
-        $this->assertSame($pattern1, $message->pattern);
-
-        $subscriber->close();
+            $message = $subscriber->channel()->pop(5.0);
+            $this->assertNotFalse($message, 'Timed out waiting for pmessage');
+            $this->assertSame($channel1, $message->channel);
+            $this->assertSame('kept', $message->payload);
+            $this->assertSame($pattern1, $message->pattern);
+        } finally {
+            $subscriber->close();
+        }
     }
 
-    public function testSubscribeWithPrefixPrependsToChannels()
+    public function testSubscribeWithPrefixPrependsToChannels(): void
     {
         $rawChannel = 'test_prefix_' . uniqid();
         $prefix = 'myapp:';
         $subscriber = $this->createTestSubscriber(prefix: $prefix);
 
-        $subscriber->subscribe($rawChannel);
+        try {
+            $subscriber->subscribe($rawChannel);
 
-        go(function () use ($rawChannel, $prefix) {
-            usleep(50_000);
-            // Publish to the full prefixed channel name
-            $this->publishViaRawClient($prefix . $rawChannel, 'prefixed');
-        });
+            go(function () use ($rawChannel, $prefix) {
+                usleep(50_000);
+                // Publish to the full prefixed channel name
+                $this->publishViaRawClient($prefix . $rawChannel, 'prefixed');
+            });
 
-        $message = $subscriber->channel()->pop(5.0);
+            $message = $subscriber->channel()->pop(5.0);
 
-        $this->assertNotFalse($message, 'Timed out waiting for prefixed message');
-        $this->assertSame($prefix . $rawChannel, $message->channel);
-        $this->assertSame('prefixed', $message->payload);
-
-        $subscriber->close();
+            $this->assertNotFalse($message, 'Timed out waiting for prefixed message');
+            $this->assertSame($prefix . $rawChannel, $message->channel);
+            $this->assertSame('prefixed', $message->payload);
+        } finally {
+            $subscriber->close();
+        }
     }
 
-    public function testPingReturnsPongWhileSubscribed()
+    public function testPingReturnsPongWhileSubscribed(): void
     {
         $channelName = 'test_ping_' . uniqid();
         $subscriber = $this->createTestSubscriber();
@@ -179,28 +191,32 @@ class SubscriberIntegrationTest extends TestCase
         // Must subscribe first — Redis only responds to PING with a multi-bulk
         // pong in subscribe mode. In normal mode it sends +PONG which the
         // RESP parser doesn't handle.
-        $subscriber->subscribe($channelName);
+        try {
+            $subscriber->subscribe($channelName);
 
-        $result = $subscriber->ping(5.0);
-
-        $this->assertSame('pong', $result);
-
-        $subscriber->close();
+            $this->assertSame('pong', $subscriber->ping(5.0));
+        } finally {
+            $subscriber->close();
+        }
     }
 
-    public function testCloseStopsReceivingMessages()
+    public function testCloseStopsReceivingMessages(): void
     {
         $channelName = 'test_close_' . uniqid();
         $subscriber = $this->createTestSubscriber();
 
-        $subscriber->subscribe($channelName);
+        try {
+            $subscriber->subscribe($channelName);
 
-        $this->assertFalse($subscriber->closed);
+            $this->assertFalse($subscriber->closed);
 
-        $subscriber->close();
+            $subscriber->close();
 
-        $this->assertTrue($subscriber->closed);
-        $this->assertFalse($subscriber->channel()->pop(0.1));
+            $this->assertTrue($subscriber->closed);
+            $this->assertFalse($subscriber->channel()->pop(0.1));
+        } finally {
+            $subscriber->close();
+        }
     }
 
     /**
@@ -228,12 +244,15 @@ class SubscriberIntegrationTest extends TestCase
             (int) env('REDIS_PORT', 6379)
         );
 
-        $auth = env('REDIS_PASSWORD');
-        if ($auth) {
-            $client->auth($auth);
-        }
+        try {
+            $auth = env('REDIS_PASSWORD');
+            if ($auth) {
+                $client->auth($auth);
+            }
 
-        $client->publish($channel, $message);
-        $client->close();
+            $client->publish($channel, $message);
+        } finally {
+            $client->close();
+        }
     }
 }
