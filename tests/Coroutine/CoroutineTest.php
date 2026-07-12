@@ -18,6 +18,12 @@ use function Hypervel\Coroutine\go;
 
 class CoroutineTest extends TestCase
 {
+    public function testCreateAndForkReturnPositiveCoroutineIds(): void
+    {
+        $this->assertGreaterThan(0, Coroutine::create(static fn (): null => null));
+        $this->assertGreaterThan(0, Coroutine::fork(static fn (): null => null));
+    }
+
     public function testCoroutineParentId()
     {
         $pid = Coroutine::id();

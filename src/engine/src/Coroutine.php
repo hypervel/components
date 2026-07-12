@@ -6,6 +6,7 @@ namespace Hypervel\Engine;
 
 use ArrayObject;
 use Hypervel\Contracts\Engine\CoroutineInterface;
+use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Engine\Exceptions\RunningInNonCoroutineException;
 use Hypervel\Engine\Exceptions\RuntimeException;
@@ -43,7 +44,16 @@ class Coroutine implements CoroutineInterface
      */
     public function execute(...$data): static
     {
-        $this->id = SwooleCo::create($this->callable, ...$data);
+        // Swoole warns when its coroutine limit is exceeded; expose that native
+        // failure through the typed framework exception instead of two signals.
+        $id = @SwooleCo::create($this->callable, ...$data);
+
+        if ($id === false) {
+            throw CoroutineCreateException::fromLastError();
+        }
+
+        $this->id = $id;
+
         return $this;
     }
 
