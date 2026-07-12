@@ -41,17 +41,21 @@ class SwooleTableSharedStateLockTest extends TestCase
     {
         $state = $this->createState(LockTestSharedState::class);
         $process = new Process(function (Process $process) use ($state): void {
-            $state->holdLockFor('key');
-
             try {
-                $state->withLockFor('key', fn (): bool => true);
-                $message = 'lock unexpectedly acquired';
-            } catch (RuntimeException $exception) {
-                $message = $exception->getMessage();
-            }
+                $state->holdLockFor('key');
 
-            $process->write($message);
-            posix_kill(getmypid(), SIGKILL);
+                try {
+                    $state->withLockFor('key', fn (): bool => true);
+                    $message = 'lock unexpectedly acquired';
+                } catch (RuntimeException $exception) {
+                    $message = $exception->getMessage();
+                }
+
+                $process->write($message);
+            } finally {
+                // Never run PHPUnit/Testbench shutdown handlers inherited from the parent.
+                posix_kill(getmypid(), SIGKILL);
+            }
         }, false, SOCK_STREAM);
 
         $pid = $process->start();

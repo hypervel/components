@@ -246,32 +246,33 @@ class CacheSwooleStoreConcurrencyTest extends TestCase
                 $beforeReady,
                 $i,
             ): void {
-                $store = $this->createStore($state);
-
-                $beforeReady?->__invoke($i, $store, $state);
-                $ready->add(1);
-
-                while ($start->get() === 0) {
-                    usleep(100);
-                }
-
                 try {
-                    $payload = [
-                        'ok' => true,
-                        'result' => $callback($i, $store, $state),
-                    ];
-                } catch (Throwable $exception) {
-                    $payload = [
-                        'ok' => false,
-                        'error' => $exception->getMessage(),
-                    ];
+                    $store = $this->createStore($state);
+
+                    $beforeReady?->__invoke($i, $store, $state);
+                    $ready->add(1);
+
+                    while ($start->get() === 0) {
+                        usleep(100);
+                    }
+
+                    try {
+                        $payload = [
+                            'ok' => true,
+                            'result' => $callback($i, $store, $state),
+                        ];
+                    } catch (Throwable $exception) {
+                        $payload = [
+                            'ok' => false,
+                            'error' => $exception->getMessage(),
+                        ];
+                    }
+
+                    $this->writeChildPayload($process, $payload);
+                } finally {
+                    // Never run PHPUnit/Testbench shutdown handlers inherited from the parent.
+                    posix_kill(getmypid(), SIGKILL);
                 }
-
-                $this->writeChildPayload($process, $payload);
-
-                // The fork inherits PHPUnit/Testbench shutdown handlers from the parent process.
-                // Exiting normally would let a child delete the parent's disposable runtime app.
-                posix_kill(getmypid(), SIGKILL);
             }, false, SOCK_STREAM);
         }
 
