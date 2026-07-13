@@ -997,6 +997,7 @@ abstract class Factory
         static::$namespace = 'Database\Factories\\';
         static::$expandRelationshipsByDefault = true;
         static::$cachedModelAttributes = [];
+        static::flushMacros();
     }
 
     /**

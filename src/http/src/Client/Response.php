@@ -543,6 +543,7 @@ class Response implements ArrayAccess, Stringable
     public static function flushState(): void
     {
         self::$defaultJsonDecodingFlags = 0;
+        static::flushMacros();
     }
 
     /**
