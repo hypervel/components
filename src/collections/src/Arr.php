@@ -31,6 +31,20 @@ class Arr
 
     /**
      * Determine whether the given value is arrayable.
+     *
+     * @return ($value is array
+     *     ? true
+     *     : ($value is Arrayable
+     *         ? true
+     *         : ($value is Traversable
+     *             ? true
+     *             : ($value is Jsonable
+     *                 ? true
+     *                 : ($value is JsonSerializable ? true : false)
+     *             )
+     *         )
+     *     )
+     * )
      */
     public static function arrayable(mixed $value): bool
     {
@@ -109,6 +123,11 @@ class Arr
 
     /**
      * Cross join the given arrays, returning all possible permutations.
+     *
+     * @template TValue
+     *
+     * @param iterable<TValue> ...$arrays
+     * @return array<int, array<array-key, TValue>>
      */
     public static function crossJoin(iterable ...$arrays): array
     {
@@ -133,6 +152,12 @@ class Arr
 
     /**
      * Divide an array into two arrays. One with keys and the other with values.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param array<TKey, TValue> $array
+     * @return array{TKey[], TValue[]}
      */
     public static function divide(array $array): array
     {
@@ -252,7 +277,15 @@ class Arr
             return value($default);
         }
 
-        $array = static::from($array);
+        if (! is_array($array)) {
+            foreach ($array as $key => $value) {
+                if ($callback($value, $key)) {
+                    return $value;
+                }
+            }
+
+            return value($default);
+        }
 
         $key = array_find_key($array, $callback);
 
@@ -260,7 +293,7 @@ class Arr
     }
 
     /**
-     * Return the last element in an array passing a given truth test.
+     * Return the last element in an iterable passing a given truth test.
      *
      * @template TKey
      * @template TValue
@@ -273,6 +306,37 @@ class Arr
      */
     public static function last(iterable $array, ?callable $callback = null, mixed $default = null): mixed
     {
+        if (! is_array($array)) {
+            if (is_null($callback)) {
+                $found = false;
+                $last = null;
+
+                foreach ($array as $value) {
+                    $found = true;
+                    $last = $value;
+                }
+
+                return $found ? $last : value($default);
+            }
+
+            // Preserve the array path's reverse callback order without collapsing duplicate iterator keys.
+            $items = [];
+
+            foreach ($array as $key => $value) {
+                $items[] = [$key, $value];
+            }
+
+            for ($index = count($items) - 1; $index >= 0; --$index) {
+                [$key, $value] = $items[$index];
+
+                if ($callback($value, $key)) {
+                    return $value;
+                }
+            }
+
+            return value($default);
+        }
+
         if (is_null($callback)) {
             return empty($array) ? value($default) : array_last($array);
         }
@@ -517,7 +581,17 @@ class Arr
      */
     public static function every(iterable $array, callable $callback): bool
     {
-        return array_all($array, $callback);
+        if (is_array($array)) {
+            return array_all($array, $callback);
+        }
+
+        foreach ($array as $key => $value) {
+            if (! $callback($value, $key)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -525,7 +599,17 @@ class Arr
      */
     public static function some(iterable $array, callable $callback): bool
     {
-        return array_any($array, $callback);
+        if (is_array($array)) {
+            return array_any($array, $callback);
+        }
+
+        foreach ($array as $key => $value) {
+            if ($callback($value, $key)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -550,6 +634,8 @@ class Arr
      * Determines if an array is associative.
      *
      * An array is "associative" if it doesn't have sequential numerical keys beginning with zero.
+     *
+     * @return ($array is list ? false : true)
      */
     public static function isAssoc(array $array): bool
     {
@@ -560,6 +646,8 @@ class Arr
      * Determines if an array is a list.
      *
      * An array is a "list" if all array keys are sequential integers starting from 0 with no gaps in between.
+     *
+     * @return ($array is list ? true : false)
      */
     public static function isList(array $array): bool
     {
@@ -797,6 +885,8 @@ class Arr
     /**
      * Get one or a specified number of random values from an array.
      *
+     * @return ($number is null ? mixed : array)
+     *
      * @throws InvalidArgumentException
      */
     public static function random(array $array, int|string|null $number = null, bool $preserveKeys = false): mixed
@@ -881,8 +971,10 @@ class Arr
 
     /**
      * Push an item into an array using "dot" notation.
+     *
+     * ArrayAccess cannot support the nested by-reference mutation required by dot notation.
      */
-    public static function push(ArrayAccess|array &$array, string|int|null $key, mixed ...$values): array
+    public static function push(array &$array, string|int|null $key, mixed ...$values): array
     {
         $target = static::array($array, $key, []);
 
@@ -926,6 +1018,13 @@ class Arr
 
     /**
      * Sort the array using the given callback or "dot" notation.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param iterable<TKey, TValue> $array
+     * @param null|array<int, (0|1|callable(TValue, TValue): -1)|array{string, 'asc'|'desc'|SortDirection}>|callable|int|string $callback
+     * @return array<TKey, TValue>
      */
     public static function sort(iterable $array, callable|array|int|string|null $callback = null): array
     {
@@ -940,6 +1039,13 @@ class Arr
 
     /**
      * Sort the array in descending order using the given callback or "dot" notation.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param iterable<TKey, TValue> $array
+     * @param null|array<int, (0|1|callable(TValue, TValue): -1)|array{string, 'asc'|'desc'|SortDirection}>|callable|int|string $callback
+     * @return array<TKey, TValue>
      */
     public static function sortDesc(iterable $array, callable|array|int|string|null $callback = null): array
     {
@@ -954,6 +1060,13 @@ class Arr
 
     /**
      * Recursively sort an array by keys and values.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param array<TKey, TValue> $array
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
+     * @return array<TKey, TValue>
      */
     public static function sortRecursive(array $array, int $options = SORT_REGULAR, SortDirection|bool $descending = false): array
     {
@@ -980,6 +1093,13 @@ class Arr
 
     /**
      * Recursively sort an array by keys and values in descending order.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param array<TKey, TValue> $array
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
+     * @return array<TKey, TValue>
      */
     public static function sortRecursiveDesc(array $array, int $options = SORT_REGULAR): array
     {
@@ -1006,6 +1126,9 @@ class Arr
 
     /**
      * Conditionally compile classes from an array into a CSS class list.
+     *
+     * @param array<int, int|string>|array<string, bool>|string $array
+     * @return ($array is array<string, false> ? '' : ($array is '' ? '' : ($array is array{} ? '' : non-empty-string)))
      */
     public static function toCssClasses(array|string $array): string
     {
@@ -1026,6 +1149,9 @@ class Arr
 
     /**
      * Conditionally compile styles from an array into a style list.
+     *
+     * @param array<int, int|string>|array<string, bool>|string $array
+     * @return ($array is array<string, false> ? '' : ($array is '' ? '' : ($array is array{} ? '' : non-empty-string)))
      */
     public static function toCssStyles(array|string $array): string
     {
@@ -1046,6 +1172,13 @@ class Arr
 
     /**
      * Filter the array using the given callback.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param array<TKey, TValue> $array
+     * @param callable(TValue, TKey): bool $callback
+     * @return array<TKey, TValue>
      */
     public static function where(array $array, callable $callback): array
     {
@@ -1054,6 +1187,13 @@ class Arr
 
     /**
      * Filter the array using the negation of the given callback.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param array<TKey, TValue> $array
+     * @param callable(TValue, TKey): bool $callback
+     * @return array<TKey, TValue>
      */
     public static function reject(array $array, callable $callback): array
     {
@@ -1088,6 +1228,12 @@ class Arr
 
     /**
      * Filter items where the value is not null.
+     *
+     * @template TKey of array-key
+     * @template TValue
+     *
+     * @param array<TKey, null|TValue> $array
+     * @return array<TKey, TValue>
      */
     public static function whereNotNull(array $array): array
     {
@@ -1096,6 +1242,12 @@ class Arr
 
     /**
      * If the given value is not an array and not null, wrap it in one.
+     *
+     * @template TKey of array-key = array-key
+     * @template TValue = mixed
+     *
+     * @param null|array<TKey, TValue>|TValue $value
+     * @return ($value is null ? array{} : ($value is array ? array<TKey, TValue> : array{TValue}))
      */
     public static function wrap(mixed $value): array
     {
