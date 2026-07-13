@@ -28,6 +28,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
 use InvalidArgumentException;
 use ReflectionClass;
+use ReflectionException;
 use ReflectionMethod;
 use SortDirection;
 
@@ -1995,6 +1996,8 @@ class Builder implements BuilderContract
 
     /**
      * Register the given mixin with the builder.
+     *
+     * @throws ReflectionException
      */
     protected static function registerMixin(object $mixin, bool $replace): void
     {
