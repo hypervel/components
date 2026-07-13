@@ -43,14 +43,16 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * The source from which to generate items.
      *
-     * @var array<TKey, TValue>|(Closure(): Generator<TKey, TValue, mixed, void>)|static
+     * @var array<TKey, TValue>|(Closure(): iterable<TKey, TValue>)|static
      */
     public Closure|self|array $source;
 
     /**
      * Create a new lazy collection instance.
      *
-     * @param null|array<TKey, TValue>|Arrayable<TKey, TValue>|(Closure(): Generator<TKey, TValue, mixed, void>)|iterable<TKey, TValue>|self<TKey, TValue> $source
+     * @param null|array<TKey, TValue>|Arrayable<TKey, TValue>|(Closure(): iterable<TKey, TValue>)|iterable<TKey, TValue>|self<TKey, TValue> $source
+     *
+     * @throws InvalidArgumentException
      */
     public function __construct(mixed $source = null)
     {
@@ -70,10 +72,10 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Create a new instance of the collection.
      *
-     * @template TNewKey of array-key
-     * @template TNewValue
+     * @template TNewKey of array-key = int
+     * @template TNewValue = mixed
      *
-     * @param null|array<TNewKey, TNewValue>|Arrayable<TNewKey, TNewValue>|(Closure(): Generator<TNewKey, TNewValue, mixed, void>)|iterable<TNewKey, TNewValue>|self<TNewKey, TNewValue> $items
+     * @param null|array<TNewKey, TNewValue>|Arrayable<TNewKey, TNewValue>|(Closure(): iterable<TNewKey, TNewValue>)|iterable<TNewKey, TNewValue>|self<TNewKey, TNewValue> $items
      * @return static<TNewKey, TNewValue>
      */
     protected function newInstance(mixed $items = []): static
@@ -84,10 +86,10 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Create a new collection instance if the value isn't one already.
      *
-     * @template TMakeKey of array-key
-     * @template TMakeValue
+     * @template TMakeKey of array-key = int
+     * @template TMakeValue = mixed
      *
-     * @param null|array<TMakeKey, TMakeValue>|Arrayable<TMakeKey, TMakeValue>|(Closure(): Generator<TMakeKey, TMakeValue, mixed, void>)|iterable<TMakeKey, TMakeValue>|self<TMakeKey, TMakeValue> $items
+     * @param null|array<TMakeKey, TMakeValue>|Arrayable<TMakeKey, TMakeValue>|(Closure(): iterable<TMakeKey, TMakeValue>)|iterable<TMakeKey, TMakeValue>|self<TMakeKey, TMakeValue> $items
      * @return static<TMakeKey, TMakeValue>
      */
     public static function make(mixed $items = [], mixed ...$args): static
@@ -98,11 +100,13 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Create a collection with the given range.
      *
-     * @return static<int, int>
+     * @return ($step is 0 ? never : static<int, int>)
+     *
+     * @throws InvalidArgumentException
      */
     public static function range(int $from, int $to, int $step = 1, mixed ...$args): static
     {
-        if ($step == 0) {
+        if ($step === 0) {
             throw new InvalidArgumentException('Step value cannot be zero.');
         }
 
@@ -125,7 +129,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @template TTimesValue
      *
      * @param null|(callable(int): TTimesValue) $callback
-     * @return static<int, TTimesValue>
+     * @return ($callback is null ? static<int, int> : static<int, TTimesValue>)
      */
     public static function times(int|float $number, ?callable $callback = null, mixed ...$args): static
     {
@@ -577,7 +581,9 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
                 $resolvedKey = $keyBy($item, $key);
 
                 if (is_object($resolvedKey)) {
-                    $resolvedKey = (string) $resolvedKey;
+                    $resolvedKey = $resolvedKey instanceof UnitEnum
+                        ? enum_value($resolvedKey)
+                        : (string) $resolvedKey;
                 }
 
                 yield $resolvedKey => $item;
@@ -591,10 +597,15 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     public function has(mixed $key): bool
     {
         $keys = array_flip(is_array($key) ? $key : func_get_args());
-        $count = count($keys);
+
+        if ($keys === []) {
+            return true;
+        }
 
         foreach ($this as $key => $value) {
-            if (array_key_exists($key, $keys) && --$count == 0) {
+            unset($keys[$key]);
+
+            if ($keys === []) {
                 return true;
             }
         }
@@ -666,21 +677,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
         return ! $this->getIterator()->valid();
     }
 
-    /**
-     * Determine if the collection contains a single item.
-     */
-    public function containsOneItem(?callable $callback = null): bool
-    {
-        return $this->hasSole($callback);
-    }
-
-    /**
-     * Determine if the collection contains multiple items.
-     */
-    public function containsManyItems(): bool
-    {
-        return $this->hasMany();
-    }
+    // REMOVED: Laravel's deprecated containsOneItem() and containsManyItems(); use hasSole() and hasMany().
 
     /**
      * Join all items from the collection using a string. The final items can use a separate glue string.
@@ -828,9 +825,9 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Create a collection by using this collection for keys and another for its values.
      *
-     * @template TCombineValue
+     * @template TCombineValue = mixed
      *
-     * @param Arrayable<array-key, TCombineValue>|(callable(): Generator<array-key, TCombineValue>)|iterable<array-key, TCombineValue> $values
+     * @param Arrayable<array-key, TCombineValue>|(callable(): iterable<array-key, TCombineValue>)|iterable<array-key, TCombineValue> $values
      * @return static<TValue, TCombineValue>
      * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
@@ -871,6 +868,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
 
     /**
      * Create a new collection consisting of every n-th element.
+     *
+     * @return ($step is positive-int ? static : never)
      *
      * @throws InvalidArgumentException
      */
@@ -985,11 +984,11 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Get one or a specified number of items randomly from the collection.
      *
-     * @return static<int, TValue>|TValue
+     * @return ($number is null ? TValue : static<($preserveKeys is true ? TKey : int), TValue>)
      *
      * @throws InvalidArgumentException
      */
-    public function random(callable|int|string|null $number = null): mixed
+    public function random(callable|int|string|null $number = null, bool $preserveKeys = false): mixed
     {
         $result = $this->collect()->random(...func_get_args());
 
@@ -1359,7 +1358,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Split a collection into a certain number of groups, and fill the first groups completely.
      *
-     * @return static<int, static>
+     * @return ($numberOfGroups is positive-int ? static<int, static> : never)
      *
      * @throws InvalidArgumentException
      */
@@ -1768,10 +1767,10 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @template TIteratorKey of array-key
      * @template TIteratorValue
      *
-     * @param array<TIteratorKey, TIteratorValue>|(callable(): Generator<TIteratorKey, TIteratorValue>)|IteratorAggregate<TIteratorKey, TIteratorValue> $source
+     * @param array<TIteratorKey, TIteratorValue>|(callable(): mixed)|Iterator<TIteratorKey, TIteratorValue>|IteratorAggregate<TIteratorKey, TIteratorValue> $source
      * @return Iterator<TIteratorKey, TIteratorValue>
      */
-    protected function makeIterator(IteratorAggregate|array|callable $source): Iterator
+    protected function makeIterator(IteratorAggregate|Iterator|array|callable $source): Iterator
     {
         if ($source instanceof IteratorAggregate) {
             $iterator = $source->getIterator();
@@ -1781,6 +1780,10 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
 
         if (is_array($source)) {
             return new ArrayIterator($source);
+        }
+
+        if ($source instanceof Iterator) {
+            return $source;
         }
 
         // Only callable remains at this point
@@ -1828,7 +1831,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     protected function now(): int
     {
         return class_exists(Carbon::class)
-            ? Carbon::now()->timestamp
+            ? Carbon::now()->getTimestamp()
             : time();
     }
 
