@@ -14,12 +14,12 @@ include_once __DIR__ . '/Enums.php';
 class SupportEnumValueFunctionTest extends TestCase
 {
     #[DataProvider('scalarDataProvider')]
-    public function testItCanHandleEnumValue($given, $expected)
+    public function testItCanHandleEnumValue($given, $expected): void
     {
         $this->assertSame($expected, enum_value($given));
     }
 
-    public static function scalarDataProvider()
+    public static function scalarDataProvider(): iterable
     {
         yield [TestEnum::A, 'A'];
         yield [TestBackedEnum::A, 1];
@@ -42,7 +42,7 @@ class SupportEnumValueFunctionTest extends TestCase
         yield [$collect = collect(), $collect];
     }
 
-    public function testItCanFallbackToUseDefaultIfValueIsNull()
+    public function testItCanFallbackToUseDefaultIfValueIsNull(): void
     {
         $this->assertSame('laravel', enum_value(null, 'laravel'));
         $this->assertSame('laravel', enum_value(null, fn () => 'laravel'));
