@@ -9,6 +9,8 @@ use Closure;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionMethod;
+use RuntimeException;
+use Throwable;
 
 trait Macroable
 {
@@ -52,7 +54,7 @@ trait Macroable
     }
 
     /**
-     * Checks if macro is registered.
+     * Check if macro is registered.
      */
     public static function hasMacro(string $name): bool
     {
@@ -88,7 +90,12 @@ trait Macroable
         $macro = static::$macros[$method];
 
         if ($macro instanceof Closure) {
-            $macro = $macro->bindTo(null, static::class);
+            try {
+                // PHP warns when a valid first-class callable cannot be rebound; inspect the nullable result instead.
+                $macro = @$macro->bindTo(null, static::class) ?? $macro;
+            } catch (Throwable) {
+                // Keep the original first-class callable when PHP does not permit rebinding it.
+            }
         }
 
         return $macro(...$parameters);
@@ -112,7 +119,16 @@ trait Macroable
         $macro = static::$macros[$method];
 
         if ($macro instanceof Closure) {
-            $macro = $macro->bindTo($this, static::class);
+            try {
+                // PHP warns when this binding is unsupported; the checked fallbacks select the next valid form.
+                $macro = @$macro->bindTo($this, static::class) ?? throw new RuntimeException;
+            } catch (Throwable) {
+                try {
+                    $macro = @$macro->bindTo(null, static::class) ?? $macro;
+                } catch (Throwable) {
+                    // Keep the original first-class callable when PHP does not permit rebinding it.
+                }
+            }
         }
 
         return $macro(...$parameters);
