@@ -16,7 +16,7 @@ class ClassInvoker
     public function __construct(
         protected object $instance
     ) {
-        $this->reflection = new ReflectionClass($instance);
+        $this->reflection = ClassMetadataCache::reflectClass($instance);
     }
 
     /**

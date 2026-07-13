@@ -6,6 +6,7 @@ namespace Hypervel\Container;
 
 use Closure;
 use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Support\ClassMetadataCache;
 use InvalidArgumentException;
 use ReflectionException;
 use ReflectionFunction;
@@ -136,7 +137,7 @@ class BoundMethod
      */
     protected static function computeMethodRecipe(string $className, string $methodName): array
     {
-        $reflector = ReflectionManager::reflectMethod($className, $methodName);
+        $reflector = ClassMetadataCache::reflectMethod($className, $methodName);
         $recipes = [];
 
         foreach ($reflector->getParameters() as $index => $param) {

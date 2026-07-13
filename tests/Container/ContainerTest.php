@@ -10,7 +10,6 @@ use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Attributes\Singleton;
 use Hypervel\Container\Container;
 use Hypervel\Container\EntryNotFoundException;
-use Hypervel\Container\ReflectionManager;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\ContextualAttribute;
@@ -564,20 +563,6 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->isAlias('ContainerConcreteStub'));
         $this->assertEmpty($container->getBindings());
         $this->assertFalse($container->isShared('ConcreteStub'));
-    }
-
-    public function testFlushClearsReflectionCache(): void
-    {
-        $container = new Container;
-        $container->make(ContainerConcreteStub::class);
-
-        $before = ReflectionManager::reflectClass(ContainerConcreteStub::class);
-
-        $container->flush();
-
-        $after = ReflectionManager::reflectClass(ContainerConcreteStub::class);
-
-        $this->assertNotSame($before, $after);
     }
 
     public function testFlushStateClearsBuildRecipeCache()

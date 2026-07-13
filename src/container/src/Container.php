@@ -17,6 +17,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Container\ContextualBindingBuilder as ContextualBindingBuilderContract;
 use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Traits\ReflectsClosures;
 use InvalidArgumentException;
 use LogicException;
@@ -375,7 +376,7 @@ class Container implements ArrayAccess, ContainerContract
         try {
             $reflection = $reflection instanceof ReflectionClass
                 ? $reflection
-                : ReflectionManager::reflectClass($reflection);
+                : ClassMetadataCache::reflectClass($reflection);
         } catch (ReflectionException) {
             return $this->checkedForSingletonOrScopedAttributes[$className] = null;
         }
@@ -1155,8 +1156,8 @@ class Container implements ArrayAccess, ContainerContract
         $this->checkedForAttributeBindings[$abstract] = true;
 
         try {
-            $reflected = ReflectionManager::reflectClass($abstract);
-        } catch (ReflectionException) { // @phpstan-ignore catch.neverThrown
+            $reflected = ClassMetadataCache::reflectClass($abstract);
+        } catch (ReflectionException) {
             return $abstract;
         }
 
@@ -1390,7 +1391,7 @@ class Container implements ArrayAccess, ContainerContract
             );
         }
 
-        $reflector = ReflectionManager::reflectClass($concrete);
+        $reflector = ClassMetadataCache::reflectClass($concrete);
         $constructor = $reflector->getConstructor();
         $classAttributes = $reflector->getAttributes();
 
@@ -2107,7 +2108,6 @@ class Container implements ArrayAccess, ContainerContract
         $this->checkedForSingletonOrScopedAttributes = [];
 
         static::flushState();
-        ReflectionManager::flushState();
         BoundMethod::flushState();
     }
 

@@ -6,6 +6,8 @@ namespace Hypervel\Support;
 
 use Exception;
 use ReflectionClass;
+use ReflectionException;
+use ReflectionMethod;
 use ReflectionProperty;
 
 class ClassMetadataCache
@@ -14,6 +16,11 @@ class ClassMetadataCache
      * @var array<class-string, ReflectionClass<object>>
      */
     protected static array $classes = [];
+
+    /**
+     * @var array<class-string, array<string, ReflectionMethod>>
+     */
+    protected static array $methods = [];
 
     /**
      * @var array<class-string, array<string, mixed>>
@@ -45,6 +52,8 @@ class ClassMetadataCache
      *
      * @param class-string|object $target
      * @return ReflectionClass<object>
+     *
+     * @throws ReflectionException
      */
     public static function reflectClass(object|string $target): ReflectionClass
     {
@@ -54,10 +63,27 @@ class ClassMetadataCache
     }
 
     /**
+     * Get the cached reflection method for the given class and method.
+     *
+     * @param class-string|object $target
+     *
+     * @throws ReflectionException
+     */
+    public static function reflectMethod(object|string $target, string $method): ReflectionMethod
+    {
+        $class = static::className($target);
+
+        return static::$methods[$class][$method]
+            ??= static::reflectClass($class)->getMethod($method);
+    }
+
+    /**
      * Get the cached default properties for the given class.
      *
      * @param class-string|object $target
      * @return array<string, mixed>
+     *
+     * @throws ReflectionException
      */
     public static function defaultProperties(object|string $target): array
     {
@@ -72,6 +98,8 @@ class ClassMetadataCache
      *
      * @param class-string|object $target
      * @return list<ReflectionProperty>
+     *
+     * @throws ReflectionException
      */
     public static function properties(object|string $target): array
     {
@@ -86,6 +114,8 @@ class ClassMetadataCache
      *
      * @param class-string|object $target
      * @param class-string $attributeClass
+     *
+     * @throws ReflectionException
      */
     public static function getAttribute(object|string $target, string $attributeClass): ?CachedClassAttribute
     {
@@ -107,6 +137,8 @@ class ClassMetadataCache
      *
      * @param class-string|object $target
      * @param class-string $attributeClass
+     *
+     * @throws ReflectionException
      */
     public static function hasClassAttribute(object|string $target, string $attributeClass): bool
     {
@@ -179,6 +211,9 @@ class ClassMetadataCache
                 $reflection = $reflection->getParentClass();
             } while ($reflection !== false);
         } catch (Exception) {
+            // Attribute configuration is optional, so constructor exceptions fall
+            // back to the property/default. Programming Errors must still surface
+            // and remain uncached, which is why this deliberately catches Exception.
         }
 
         return null;
@@ -201,6 +236,7 @@ class ClassMetadataCache
     public static function flushState(): void
     {
         static::$classes = [];
+        static::$methods = [];
         static::$defaultProperties = [];
         static::$properties = [];
         static::$attributes = [];

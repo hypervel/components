@@ -37,6 +37,7 @@
         "hypervel/container": "^0.4",
         "hypervel/filesystem": "^0.4",
         "hypervel/pipeline": "^0.4",
+        "hypervel/reflection": "^0.4",
         "hypervel/support": "^0.4",
         "nikic/php-parser": "^5.7"
     },
