@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use ReflectionAttribute;
-use ReflectionClass;
 use ReflectionEnum;
+use ReflectionException;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
@@ -23,13 +23,15 @@ class Reflector
             return is_callable($var, $syntaxOnly);
         }
 
-        if ((! isset($var[0]) || ! isset($var[1]))
+        if (count($var) !== 2
+            || ! array_key_exists(0, $var)
+            || ! array_key_exists(1, $var)
+            || (! is_string($var[0]) && ! is_object($var[0]))
             || ! is_string($var[1])) {
             return false;
         }
 
-        if ($syntaxOnly
-            && (is_string($var[0]) || is_object($var[0]))) {
+        if ($syntaxOnly) {
             return true;
         }
 
@@ -65,7 +67,7 @@ class Reflector
      * @param class-string<TAttribute> $attribute
      * @return null|TAttribute
      */
-    public static function getClassAttribute(mixed $objectOrClass, string $attribute, bool $ascend = false): ?object
+    public static function getClassAttribute(object|string $objectOrClass, string $attribute, bool $ascend = false): ?object
     {
         return static::getClassAttributes($objectOrClass, $attribute, $ascend)->flatten()->first();
     }
@@ -78,11 +80,13 @@ class Reflector
      *
      * @param class-string<TTarget>|TTarget $objectOrClass
      * @param class-string<TAttribute> $attribute
-     * @return Collection<class-string<contravariant TTarget>, Collection<int, TAttribute>>|Collection<int, TAttribute>
+     * @return ($includeParents is true ? Collection<class-string<contravariant TTarget>, Collection<int, TAttribute>> : Collection<int, TAttribute>)
+     *
+     * @throws ReflectionException
      */
-    public static function getClassAttributes(mixed $objectOrClass, string $attribute, bool $includeParents = false): Collection
+    public static function getClassAttributes(object|string $objectOrClass, string $attribute, bool $includeParents = false): Collection
     {
-        $reflectionClass = new ReflectionClass($objectOrClass);
+        $reflectionClass = ClassMetadataCache::reflectClass($objectOrClass);
 
         $attributes = [];
 
@@ -137,7 +141,7 @@ class Reflector
     /**
      * Get the given type's class name.
      */
-    protected static function getTypeName(ReflectionParameter $parameter, ReflectionNamedType $type): ?string
+    protected static function getTypeName(ReflectionParameter $parameter, ReflectionNamedType $type): string
     {
         $name = $type->getName();
 
@@ -163,7 +167,7 @@ class Reflector
 
         return $paramClassName
             && (class_exists($paramClassName) || interface_exists($paramClassName))
-            && (new ReflectionClass($paramClassName))->isSubclassOf($className);
+            && ClassMetadataCache::reflectClass($paramClassName)->isSubclassOf($className);
     }
 
     /**

@@ -15,56 +15,56 @@ use ReflectionClass;
 
 class SupportReflectorTest extends TestCase
 {
-    public function testGetClassName()
+    public function testGetClassName(): void
     {
         $method = (new ReflectionClass(PendingMailFake::class))->getMethod('send');
 
         $this->assertSame(Mailable::class, Reflector::getParameterClassName($method->getParameters()[0]));
     }
 
-    public function testEmptyClassName()
+    public function testEmptyClassName(): void
     {
         $method = (new ReflectionClass(MailFake::class))->getMethod('assertSent');
 
         $this->assertNull(Reflector::getParameterClassName($method->getParameters()[0]));
     }
 
-    public function testStringTypeName()
+    public function testStringTypeName(): void
     {
         $method = (new ReflectionClass(BusFake::class))->getMethod('dispatchedAfterResponse');
 
         $this->assertNull(Reflector::getParameterClassName($method->getParameters()[0]));
     }
 
-    public function testSelfClassName()
+    public function testSelfClassName(): void
     {
         $method = (new ReflectionClass(Model::class))->getMethod('newPivot');
 
         $this->assertSame(Model::class, Reflector::getParameterClassName($method->getParameters()[0]));
     }
 
-    public function testParentClassName()
+    public function testParentClassName(): void
     {
         $method = (new ReflectionClass(B::class))->getMethod('f');
 
         $this->assertSame(A::class, Reflector::getParameterClassName($method->getParameters()[0]));
     }
 
-    public function testParameterSubclassOfInterface()
+    public function testParameterSubclassOfInterface(): void
     {
         $method = (new ReflectionClass(TestClassWithInterfaceSubclassParameter::class))->getMethod('f');
 
         $this->assertTrue(Reflector::isParameterSubclassOf($method->getParameters()[0], IA::class));
     }
 
-    public function testUnionTypeName()
+    public function testUnionTypeName(): void
     {
         $method = (new ReflectionClass(C::class))->getMethod('f');
 
         $this->assertNull(Reflector::getParameterClassName($method->getParameters()[0]));
     }
 
-    public function testIsCallable()
+    public function testIsCallable(): void
     {
         $this->assertTrue(Reflector::isCallable(function () {
         }));
@@ -78,7 +78,17 @@ class SupportReflectorTest extends TestCase
         $this->assertTrue(Reflector::isCallable(['TotallyMissingClass', 'foo'], true));
     }
 
-    public function testGetClassAttributes()
+    public function testIsCallableRejectsMalformedCallableArrays(): void
+    {
+        $this->assertFalse(Reflector::isCallable([true, 'f']));
+        $this->assertFalse(Reflector::isCallable([123, 'f']));
+        $this->assertFalse(Reflector::isCallable([[], 'f']));
+        $this->assertFalse(Reflector::isCallable([true, 'f'], true));
+        $this->assertFalse(Reflector::isCallable([B::class, 'f', 'extra']));
+        $this->assertFalse(Reflector::isCallable(['class' => B::class, 'method' => 'f']));
+    }
+
+    public function testGetClassAttributes(): void
     {
         require_once __DIR__ . '/Fixtures/ClassesWithAttributes.php';
 
@@ -120,7 +130,7 @@ class SupportReflectorTest extends TestCase
         );
     }
 
-    public function testGetClassAttribute()
+    public function testGetClassAttribute(): void
     {
         require_once __DIR__ . '/Fixtures/ClassesWithAttributes.php';
 
