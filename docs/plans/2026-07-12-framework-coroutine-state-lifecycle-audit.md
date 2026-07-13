@@ -974,7 +974,7 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `reflection`
+- **Active package or work unit:** `config`
 - **Ledger entries required for the active work:** none
 - **Pending revalidation carried into the active work:** none
 
@@ -993,6 +993,10 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `testbench-01` | `testbench` | `foundation`; later full `testbench` and `foundation` audits | `Restore Conditionable proxy truthiness`; shared finding `testbench-01` |
 | `http-01` | `http` | `macroable`, `testing`; later full `http` and `testing` audits | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
 | `console-01` | `console` | `contracts`; later full `console` audit | `Preserve typed console contracts during Composer scripts`; shared finding `console-01` |
+| `reflection-01` | `reflection` | `events`, `foundation`; later full `events` and `foundation` audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-01` |
+| `reflection-02` | `reflection` | `console`, `routing`, `view`, `foundation`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
+| `reflection-03` | `reflection` | `container`; later full `container` audit | `Consolidate reflection metadata and correct callable inference`; finding `reflection-03` |
+| `reflection-04` | `reflection` | `container`, `di`, `support`, `queue`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
 
 ## Package checklist
 
@@ -1019,7 +1023,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `conditionable`
 - [x] `macroable`
 - [x] `collections`
-- [ ] `reflection`
+- [x] `reflection`
 - [ ] `config`
 - [ ] `container`
 - [ ] `context`
