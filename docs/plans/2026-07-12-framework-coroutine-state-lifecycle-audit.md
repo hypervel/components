@@ -992,6 +992,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-01` | `queue` | `contracts`; later full `queue` audit | `Harden framework contracts and request-scoped state`; shared finding `queue-01` |
 | `testbench-01` | `testbench` | `foundation`; later full `testbench` and `foundation` audits | `Restore Conditionable proxy truthiness`; shared finding `testbench-01` |
 | `http-01` | `http` | `macroable`, `testing`; later full `http` and `testing` audits | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
+| `console-01` | `console` | `contracts`; later full `console` audit | `Preserve typed console contracts during Composer scripts`; shared finding `console-01` |
 
 ## Package checklist
 

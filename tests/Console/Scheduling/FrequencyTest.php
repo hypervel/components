@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Console\Scheduling;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
 use Hypervel\Support\Carbon;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 class FrequencyTest extends TestCase
 {
@@ -17,6 +17,8 @@ class FrequencyTest extends TestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
+
         $this->event = new Event(
             m::mock(EventMutex::class),
             'php foo'

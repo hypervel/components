@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Console;
 
 use Hypervel\Console\ContainerCommandLoader;
 use Hypervel\Contracts\Container\Container;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 

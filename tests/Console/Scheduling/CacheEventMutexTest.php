@@ -10,8 +10,8 @@ use Hypervel\Console\Scheduling\Event;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 class CacheEventMutexTest extends TestCase
 {
