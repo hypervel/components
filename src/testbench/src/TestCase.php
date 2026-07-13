@@ -6,11 +6,13 @@ namespace Hypervel\Testbench;
 
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
 use Hypervel\Testbench\Pest\WithPest;
+use RuntimeException;
 use Swoole\Timer;
 
 /**
@@ -70,11 +72,42 @@ class TestCase extends BaseTestCase implements Contracts\TestCase
 
         parent::setUp();
 
+        $this->preservePackageManifestCache();
+
         $this->baseUrl = config('app.url', 'http://localhost');
 
         // Execute BeforeEach attributes INSIDE coroutine context
         // (matches where setUpTraits runs in Foundation TestCase)
         $this->runInCoroutine(fn () => $this->setUpTheTestEnvironmentUsingTestCase());
+    }
+
+    /**
+     * Preserve the package manifest cache for the duration of the test.
+     */
+    protected function preservePackageManifestCache(): void
+    {
+        $files = new Filesystem;
+        $path = $this->app->getCachedPackagesPath();
+        $existed = $files->isFile($path);
+        $contents = $existed ? $files->get($path) : '';
+
+        $this->beforeApplicationDestroyed(static function () use ($files, $path, $existed, $contents): void {
+            $exists = $files->isFile($path);
+
+            if (! $existed) {
+                if ($exists && ! $files->delete($path) && $files->isFile($path)) {
+                    throw new RuntimeException("Unable to delete the test-owned package manifest cache [{$path}].");
+                }
+
+                return;
+            }
+
+            if ($exists && $files->get($path) === $contents) {
+                return;
+            }
+
+            $files->replace($path, $contents);
+        });
     }
 
     /**

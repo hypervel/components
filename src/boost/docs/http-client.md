@@ -893,7 +893,7 @@ Once your macro has been configured, you may invoke it from anywhere in your app
 $response = Http::github()->get('/');
 ```
 
-Macros are stored globally for the life of the PHP process. If you register a macro inside a test, flush the macro state before the test finishes.
+Macros are stored globally for the life of the PHP process. Hypervel automatically flushes framework-owned HTTP client macros after every test. If your application or package defines its own macroable class, add it to your [test-state cleanup](/docs/{{version}}/testing#macro-state).
 
 <a name="testing"></a>
 ## Testing

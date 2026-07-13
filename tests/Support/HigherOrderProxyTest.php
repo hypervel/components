@@ -11,7 +11,7 @@ use Hypervel\Tests\TestCase;
 
 class HigherOrderProxyTest extends TestCase
 {
-    public function testGetProxiesPropertyAccessToItems()
+    public function testGetProxiesPropertyAccessToItems(): void
     {
         $items = new Collection([
             (object) ['name' => 'Alice'],
@@ -25,7 +25,7 @@ class HigherOrderProxyTest extends TestCase
         $this->assertEquals(['Alice', 'Bob'], $proxy->name->all());
     }
 
-    public function testCallProxiesMethodCallToItems()
+    public function testCallProxiesMethodCallToItems(): void
     {
         $items = new Collection([
             new class {
@@ -49,7 +49,7 @@ class HigherOrderProxyTest extends TestCase
         $this->assertEquals(['HEY', 'HEY!'], $result->all());
     }
 
-    public function testCallForwardsAndReturnsTarget()
+    public function testCallForwardsAndReturnsTarget(): void
     {
         $target = new class {
             public $count = 0;

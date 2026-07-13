@@ -5,7 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testing\PHPUnit;
 
 use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Database\Eloquent\Factories\Factory as EloquentFactory;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
+use Hypervel\Http\Client\Factory as HttpFactory;
+use Hypervel\Http\Client\PendingRequest;
+use Hypervel\Http\Client\Response as HttpClientResponse;
+use Hypervel\Http\JsonResponse;
+use Hypervel\Http\RedirectResponse;
+use Hypervel\Http\Request;
+use Hypervel\Http\Resources\Json\JsonResource;
+use Hypervel\Http\Resources\JsonApi\JsonApiResource;
+use Hypervel\Http\Response as HttpResponse;
+use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\AfterEachTestSubscriber;
 use Hypervel\Tests\TestCase;
@@ -23,6 +35,81 @@ class AfterEachTestSubscriberTest extends TestCase
         AfterEachTestCleanup::forgetCallbacks();
 
         parent::tearDown();
+    }
+
+    public function testFrameworkCleanupFlushesEveryMacroableRegistry(): void
+    {
+        $classes = [
+            EloquentFactory::class,
+            HttpFactory::class,
+            PendingRequest::class,
+            HttpClientResponse::class,
+            JsonResponse::class,
+            RedirectResponse::class,
+            Request::class,
+            JsonResource::class,
+            JsonApiResource::class,
+            HttpResponse::class,
+            UploadedFile::class,
+            NotificationFake::class,
+        ];
+        $macro = 'testingStaticStateProbe';
+
+        foreach ($classes as $class) {
+            $class::macro($macro, static fn (): string => 'ok');
+            $this->assertTrue($class::hasMacro($macro));
+        }
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        try {
+            $subscriber->flushFrameworkStateForTest();
+
+            foreach ($classes as $class) {
+                $this->assertFalse($class::hasMacro($macro));
+            }
+        } finally {
+            foreach ($classes as $class) {
+                $class::flushMacros();
+            }
+        }
+    }
+
+    public function testFrameworkCleanupFlushesInheritedRequestStaticState(): void
+    {
+        $request = new Request;
+        $request->setFormat('testing', 'application/x-testing');
+        Request::enableHttpMethodParameterOverride();
+        Request::setAllowedHttpMethodOverride(['PATCH']);
+        Request::setFactory(static fn (): Request => new Request(attributes: ['from_factory' => true]));
+
+        $this->assertSame(['application/x-testing'], Request::getMimeTypes('testing'));
+        $this->assertTrue(Request::getHttpMethodParameterOverride());
+        $this->assertSame(['PATCH'], Request::getAllowedHttpMethodOverride());
+        $this->assertTrue(Request::create('/')->attributes->get('from_factory'));
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        try {
+            $subscriber->flushFrameworkStateForTest();
+
+            $this->assertSame([], Request::getMimeTypes('testing'));
+            $this->assertFalse(Request::getHttpMethodParameterOverride());
+            $this->assertNull(Request::getAllowedHttpMethodOverride());
+            $this->assertNull(Request::create('/')->attributes->get('from_factory'));
+        } finally {
+            Request::flushState();
+        }
     }
 
     public function testFlushStateAfterTestRunsCustomCallbacksBeforeFrameworkCleanup(): void

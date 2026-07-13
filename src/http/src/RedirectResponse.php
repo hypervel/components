@@ -220,6 +220,14 @@ class RedirectResponse extends BaseRedirectResponse
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
+
+    /**
      * Dynamically bind flash data in the session.
      *
      * @throws BadMethodCallException

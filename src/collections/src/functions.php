@@ -16,7 +16,7 @@ use UnitEnum;
  * @template TDefault
  *
  * @param TValue $value
- * @param callable(TValue): TDefault|TDefault $default
+ * @param (callable(): TDefault)|TDefault $default
  * @return ($value is empty ? TDefault : mixed)
  */
 function enum_value(mixed $value, mixed $default = null): mixed

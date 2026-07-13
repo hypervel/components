@@ -334,4 +334,12 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
     {
         return $this->notifications;
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

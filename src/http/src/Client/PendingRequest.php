@@ -1854,4 +1854,12 @@ class PendingRequest
     {
         ReservedOptions::reject($options, false, $source);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }

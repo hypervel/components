@@ -402,7 +402,7 @@ $flattened = Arr::dot($array);
 <a name="method-array-every"></a>
 #### `Arr::every()` {.collection-method}
 
-The `Arr::every` method ensures that all values in the array pass a given truth test:
+The `Arr::every` method ensures that all values in an iterable pass a given truth test:
 
 ```php
 use Hypervel\Support\Arr;
@@ -416,6 +416,20 @@ Arr::every($array, fn ($i) => $i > 0);
 Arr::every($array, fn ($i) => $i > 2);
 
 // false
+```
+
+The method also accepts any iterable, including generators:
+
+```php
+$values = function () {
+    yield 1;
+    yield 2;
+    yield 3;
+};
+
+Arr::every($values(), fn (int $value) => $value > 0);
+
+// true
 ```
 
 <a name="method-array-except"></a>
@@ -482,7 +496,7 @@ $exists = Arr::exists($array, 'salary');
 <a name="method-array-first"></a>
 #### `Arr::first()` {.collection-method}
 
-The `Arr::first` method returns the first element of an array passing a given truth test:
+The `Arr::first` method returns the first element of an iterable passing a given truth test:
 
 ```php
 use Hypervel\Support\Arr;
@@ -495,6 +509,8 @@ $first = Arr::first($array, function (int $value, int $key) {
 
 // 200
 ```
+
+The first argument may be any iterable, including a generator.
 
 A default value may also be passed as the third parameter to the method. This value will be returned if no value passes the truth test:
 
@@ -754,7 +770,7 @@ $keyed = Arr::keyBy($array, 'product_id');
 <a name="method-array-last"></a>
 #### `Arr::last()` {.collection-method}
 
-The `Arr::last` method returns the last element of an array passing a given truth test:
+The `Arr::last` method returns the last element of an iterable passing a given truth test:
 
 ```php
 use Hypervel\Support\Arr;
@@ -775,6 +791,8 @@ use Hypervel\Support\Arr;
 
 $last = Arr::last($array, $callback, $default);
 ```
+
+The first argument may be any iterable, including a generator.
 
 <a name="method-array-map"></a>
 #### `Arr::map()` {.collection-method}
@@ -1164,7 +1182,7 @@ $value = Arr::sole($array, fn (string $value) => $value === 'Desk');
 <a name="method-array-some"></a>
 #### `Arr::some()` {.collection-method}
 
-The `Arr::some` method ensures that at least one of the values in the array passes a given truth test:
+The `Arr::some` method ensures that at least one of the values in an iterable passes a given truth test:
 
 ```php
 use Hypervel\Support\Arr;
@@ -1175,6 +1193,8 @@ Arr::some($array, fn ($i) => $i > 2);
 
 // true
 ```
+
+The first argument may be any iterable, including a generator.
 
 <a name="method-array-sort"></a>
 #### `Arr::sort()` {.collection-method}

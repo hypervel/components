@@ -1121,4 +1121,4 @@ return response()->caps('foo');
 ```
 
 > [!NOTE]
-> Macros register on a static property and persist for the life of the Swoole worker. If you register a macro inside a test, call `Hypervel\Routing\ResponseFactory::flushState()` or `Response::flushMacros()` before the next test runs so the macro doesn't leak into other tests.
+> Macros register on a static property and persist for the life of the Swoole worker. Hypervel automatically flushes framework-owned response macros after every test. If your application or package defines its own macroable class, add it to your [test-state cleanup](/docs/{{version}}/testing#macro-state).

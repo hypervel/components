@@ -35,6 +35,7 @@
         "hypervel/context": "^0.4",
         "hypervel/contracts": "^0.4",
         "hypervel/http": "^0.4",
+        "hypervel/macroable": "^0.4",
         "hypervel/support": "^0.4"
     },
     "autoload": {

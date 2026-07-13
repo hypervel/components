@@ -64,7 +64,7 @@ $upper = $collection->toUpper();
 
 Typically, you should declare collection macros in the `boot` method of a [service provider](/docs/{{version}}/providers).
 
-If you register a macro inside a test, flush the macro state before the test finishes. Macros are stored globally for the life of the PHP process.
+Macros are stored globally for the life of the PHP process. Hypervel automatically flushes framework-owned collection macros after every test. If your application or package defines its own macroable class, add it to your [test-state cleanup](/docs/{{version}}/testing#macro-state).
 
 <a name="macro-arguments"></a>
 #### Macro Arguments
@@ -122,8 +122,6 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [combine](#method-combine)
 [concat](#method-concat)
 [contains](#method-contains)
-[containsManyItems](#method-containsmanyitems)
-[containsOneItem](#method-containsoneitem)
 [containsStrict](#method-containsstrict)
 [count](#method-count)
 [countBy](#method-countBy)
@@ -209,6 +207,7 @@ For the majority of the remaining collection documentation, we'll discuss each m
 [random](#method-random)
 [range](#method-range)
 [reduce](#method-reduce)
+[reduceInto](#method-reduce-into)
 [reduceSpread](#method-reduce-spread)
 [reduceWithKeys](#method-reduce-with-keys)
 [reject](#method-reject)
@@ -604,68 +603,6 @@ $collection->contains('product', 'Bookcase');
 The `contains` method uses "loose" comparisons when checking item values, meaning a string with an integer value will be considered equal to an integer of the same value. Use the [containsStrict](#method-containsstrict) method to filter using "strict" comparisons.
 
 For the inverse of `contains`, see the [doesntContain](#method-doesntcontain) method.
-
-<a name="method-containsmanyitems"></a>
-#### `containsManyItems()` {.collection-method}
-
-The `containsManyItems` method determines whether the collection contains more than one item:
-
-```php
-collect([])->containsManyItems();
-
-// false
-
-collect(['first'])->containsManyItems();
-
-// false
-
-collect(['first', 'second'])->containsManyItems();
-
-// true
-```
-
-When using the `Collection` class, you may pass a closure to determine whether the collection contains more than one item matching a given truth test:
-
-```php
-$collection = collect(['ant', 'bear', 'cat', 'deer']);
-
-$collection->containsManyItems(function (string $value) {
-    return strlen($value) === 4;
-});
-
-// true
-```
-
-<a name="method-containsoneitem"></a>
-#### `containsOneItem()` {.collection-method}
-
-The `containsOneItem` method determines whether the collection contains exactly one item:
-
-```php
-collect([])->containsOneItem();
-
-// false
-
-collect(['first'])->containsOneItem();
-
-// true
-
-collect(['first', 'second'])->containsOneItem();
-
-// false
-```
-
-You may pass a closure to determine whether the collection contains exactly one item matching a given truth test:
-
-```php
-$collection = collect(['ant', 'bear', 'cat']);
-
-$collection->containsOneItem(function (string $value) {
-    return strlen($value) === 4;
-});
-
-// true
-```
 
 <a name="method-containsstrict"></a>
 #### `containsStrict()` {.collection-method}
@@ -2634,6 +2571,17 @@ $random->all();
 // [2, 4, 5] - (retrieved randomly)
 ```
 
+Pass `true` as the second argument to preserve the original keys when retrieving multiple items:
+
+```php
+$random = collect(['desk' => 100, 'chair' => 50, 'lamp' => 25])
+    ->random(2, preserveKeys: true);
+
+$random->keys()->all();
+
+// ['desk', 'lamp'] - (retrieved randomly)
+```
+
 If the collection instance has fewer items than requested, the `random` method will throw an `InvalidArgumentException`.
 
 The `random` method also accepts a closure, which will receive the current collection instance:
@@ -2706,6 +2654,35 @@ $collection->reduce(function (int $carry, int $value, string $key) use ($ratio) 
 }, 0);
 
 // 4264
+```
+
+<a name="method-reduce-into"></a>
+#### `reduceInto()` {.collection-method}
+
+The `reduceInto` method reduces the collection to a single value by mutating the given initial value. Unlike the `reduce` method, the given callback does not need to return the accumulated value:
+
+```php
+class OrderStats
+{
+    public int $total = 0;
+
+    public int $count = 0;
+}
+
+$orders = collect([
+    ['amount' => 100],
+    ['amount' => 250],
+    ['amount' => 50],
+]);
+
+$stats = $orders->reduceInto(new OrderStats, function (OrderStats $stats, array $order) {
+    $stats->total += $order['amount'];
+    $stats->count++;
+});
+
+$stats->total;
+
+// 400
 ```
 
 <a name="method-reduce-spread"></a>
@@ -3450,6 +3427,15 @@ $collection->sum(function (array $product) {
 });
 
 // 6
+```
+
+The callback receives the item key as its second argument:
+
+```php
+$total = collect(['standard' => 100, 'priority' => 200])
+    ->sum(fn (int $price, string $type) => $type === 'priority' ? $price + 25 : $price);
+
+// 325
 ```
 
 <a name="method-take"></a>
@@ -4425,8 +4411,6 @@ Almost all methods available on the `Collection` class are also available on the
 [combine](#method-combine)
 [concat](#method-concat)
 [contains](#method-contains)
-[containsManyItems](#method-containsmanyitems)
-[containsOneItem](#method-containsoneitem)
 [containsStrict](#method-containsstrict)
 [count](#method-count)
 [countBy](#method-countBy)
@@ -4504,6 +4488,7 @@ Almost all methods available on the `Collection` class are also available on the
 [random](#method-random)
 [range](#method-range)
 [reduce](#method-reduce)
+[reduceInto](#method-reduce-into)
 [reduceSpread](#method-reduce-spread)
 [reduceWithKeys](#method-reduce-with-keys)
 [reject](#method-reject)
