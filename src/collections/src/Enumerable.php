@@ -40,11 +40,18 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Create a new instance by invoking the callback a given amount of times.
+     *
+     * @template TTimesValue
+     *
+     * @param null|(callable(int): TTimesValue) $callback
+     * @return ($callback is null ? static<int, int> : static<int, TTimesValue>)
      */
     public static function times(int $number, ?callable $callback = null): static;
 
     /**
      * Create a collection with the given range.
+     *
+     * @return static<int, int>
      */
     public static function range(int $from, int $to, int $step = 1): static;
 
@@ -70,6 +77,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Get all items in the enumerable.
+     *
+     * @return array<TKey, TValue>
      */
     public function all(): array;
 
@@ -395,6 +404,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Get a flattened array of the items in the collection.
+     *
+     * @return static<int, mixed>
      */
     public function flatten(int|float $depth = INF);
 
@@ -503,15 +514,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      */
     public function isNotEmpty(): bool;
 
-    /**
-     * Determine if the collection contains a single item.
-     */
-    public function containsOneItem(): bool;
-
-    /**
-     * Determine if the collection contains multiple items.
-     */
-    public function containsManyItems(): bool;
+    // REMOVED: Laravel's deprecated containsOneItem() and containsManyItems(); use hasSole() and hasMany().
 
     /**
      * Determine if the collection contains a single item, optionally matching the given criteria.
@@ -669,14 +672,20 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Get the min value of a given key.
      *
-     * @param null|(callable(TValue):mixed)|string $callback
+     * @template TMinResult = mixed
+     *
+     * @param null|(callable(TValue): TMinResult)|string $callback
+     * @return ($callback is callable ? ?TMinResult : ($callback is null ? ?TValue : mixed))
      */
     public function min(callable|int|string|null $callback = null): mixed;
 
     /**
      * Get the max value of a given key.
      *
-     * @param null|(callable(TValue):mixed)|string $callback
+     * @template TMaxResult = mixed
+     *
+     * @param null|(callable(TValue): TMaxResult)|string $callback
+     * @return ($callback is callable ? ?TMaxResult : ($callback is null ? ?TValue : mixed))
      */
     public function max(callable|int|string|null $callback = null): mixed;
 
@@ -719,11 +728,12 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Get one or a specified number of items randomly from the collection.
      *
-     * @return static<int, TValue>|TValue
+     * @return ($number is null ? TValue : static<($preserveKeys is true ? TKey : int), TValue>)
      *
      * @throws InvalidArgumentException
      */
-    public function random(callable|int|string|null $number = null): mixed;
+    // Hypervel exposes key preservation through the contract because every implementation supports it.
+    public function random(callable|int|string|null $number = null, bool $preserveKeys = false): mixed;
 
     /**
      * Reduce the collection to a single value.
@@ -736,6 +746,17 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @return TReduceInitial|TReduceReturnType
      */
     public function reduce(callable $callback, mixed $initial = null): mixed;
+
+    /**
+     * Reduce the collection to a single value by mutating an initial value.
+     *
+     * @template TReduceIntoInitial
+     *
+     * @param TReduceIntoInitial $initial
+     * @param callable(TReduceIntoInitial, TValue, TKey): void $callback
+     * @return TReduceIntoInitial
+     */
+    public function reduceInto(mixed $initial, callable $callback): mixed;
 
     /**
      * Reduce the collection to multiple aggregate values.
@@ -882,6 +903,8 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Sort items in descending order.
+     *
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortDesc(int $options = SORT_REGULAR): static;
 
@@ -889,6 +912,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * Sort the collection using the given callback.
      *
      * @param array<array-key, array{int|string, 'asc'|'desc'|SortDirection}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortBy(array|callable|int|string $callback, int $options = SORT_REGULAR, SortDirection|bool $descending = false): static;
 
@@ -896,16 +920,21 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * Sort the collection in descending order using the given callback.
      *
      * @param array<array-key, array{int|string, 'asc'|'desc'|SortDirection}|(callable(TValue, TKey): mixed)|(callable(TValue, TValue): mixed)|int|string>|(callable(TValue, TKey): mixed)|int|string $callback
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortByDesc(array|callable|int|string $callback, int $options = SORT_REGULAR): static;
 
     /**
      * Sort the collection keys.
+     *
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortKeys(int $options = SORT_REGULAR, SortDirection|bool $descending = false): static;
 
     /**
      * Sort the collection keys in descending order.
+     *
+     * @param int-mask-of<SORT_FLAG_CASE|SORT_LOCALE_STRING|SORT_NATURAL|SORT_NUMERIC|SORT_REGULAR|SORT_STRING> $options
      */
     public function sortKeysDesc(int $options = SORT_REGULAR): static;
 
@@ -919,7 +948,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Get the sum of the given values.
      *
-     * @param null|(callable(TValue): mixed)|string $callback
+     * @template TReturnType
+     *
+     * @param null|(callable(TValue, TKey): TReturnType)|string $callback
+     * @return ($callback is callable ? float|int|TReturnType : mixed)
      */
     public function sum(callable|int|string|null $callback = null): mixed;
 
