@@ -57,7 +57,6 @@ assertType('Hypervel\Support\LazyCollection<string, int>', LazyCollection::make(
  */
 function assertEnumerableTypes(Enumerable $enumerable): void
 {
-    // Hypervel exposes preserveKeys on the contract because both concrete collections support it.
     assertType('Hypervel\Support\Enumerable<int, int>', $enumerable->random(2));
     assertType('Hypervel\Support\Enumerable<string, int>', $enumerable->random(2, true));
     assertType('float|int', $enumerable->sum(static fn (int $value): int => $value));

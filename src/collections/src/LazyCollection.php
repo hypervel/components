@@ -990,7 +990,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      */
     public function random(callable|int|string|null $number = null, bool $preserveKeys = false): mixed
     {
-        $result = $this->collect()->random(...func_get_args());
+        $result = $this->collect()->random($number, $preserveKeys);
 
         return is_null($number) ? $result : $this->newInstance($result);
     }

@@ -732,7 +732,6 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @throws InvalidArgumentException
      */
-    // Hypervel exposes key preservation through the contract because every implementation supports it.
     public function random(callable|int|string|null $number = null, bool $preserveKeys = false): mixed;
 
     /**

@@ -9,8 +9,6 @@ use Closure;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionMethod;
-use RuntimeException;
-use Throwable;
 
 trait Macroable
 {
@@ -90,12 +88,8 @@ trait Macroable
         $macro = static::$macros[$method];
 
         if ($macro instanceof Closure) {
-            try {
-                // PHP warns when a valid first-class callable cannot be rebound; inspect the nullable result instead.
-                $macro = @$macro->bindTo(null, static::class) ?? $macro;
-            } catch (Throwable) {
-                // Keep the original first-class callable when PHP does not permit rebinding it.
-            }
+            // PHP warns when a valid first-class callable cannot be rebound; retain the original callable.
+            $macro = @$macro->bindTo(null, static::class) ?? $macro;
         }
 
         return $macro(...$parameters);
@@ -119,16 +113,10 @@ trait Macroable
         $macro = static::$macros[$method];
 
         if ($macro instanceof Closure) {
-            try {
-                // PHP warns when this binding is unsupported; the checked fallbacks select the next valid form.
-                $macro = @$macro->bindTo($this, static::class) ?? throw new RuntimeException;
-            } catch (Throwable) {
-                try {
-                    $macro = @$macro->bindTo(null, static::class) ?? $macro;
-                } catch (Throwable) {
-                    // Keep the original first-class callable when PHP does not permit rebinding it.
-                }
-            }
+            // PHP warns when a valid callable cannot use a binding form; select the first form it accepts.
+            $macro = @$macro->bindTo($this, static::class)
+                ?? @$macro->bindTo(null, static::class)
+                ?? $macro;
         }
 
         return $macro(...$parameters);
