@@ -1181,6 +1181,20 @@ class Request extends SymfonyRequest implements Arrayable, ArrayAccess
     }
 
     /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::$formats = null;
+        static::$httpMethodParameterOverride = false;
+        static::$allowedHttpMethodOverride = null;
+
+        // Symfony keeps the factory slot private, so reset it through the inherited setter.
+        static::setFactory(null);
+        static::flushMacros();
+    }
+
+    /**
      * Check if an input element is set on the request.
      */
     public function __isset(string $key): bool
