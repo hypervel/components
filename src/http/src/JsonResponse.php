@@ -115,4 +115,12 @@ class JsonResponse extends BaseJsonResponse
     {
         return (bool) ($this->encodingOptions & $option);
     }
+
+    /**
+     * Flush all static state.
+     */
+    public static function flushState(): void
+    {
+        static::flushMacros();
+    }
 }
