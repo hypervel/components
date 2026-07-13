@@ -204,6 +204,7 @@ Hypervel includes a variety of global "helper" PHP functions. Many of these func
 [fake](#method-fake)
 [filled](#method-filled)
 [info](#method-info)
+[lazy](#method-lazy)
 [literal](#method-literal)
 [logger](#method-logger)
 [method_field](#method-method-field)
@@ -212,6 +213,7 @@ Hypervel includes a variety of global "helper" PHP functions. Many of these func
 [once](#method-once)
 [optional](#method-optional)
 [policy](#method-policy)
+[proxy](#method-proxy)
 [redirect](#method-redirect)
 [report](#method-report)
 [report_if](#method-report-if)
@@ -2778,6 +2780,58 @@ An array of contextual data may also be passed to the function:
 info('User login attempt failed.', ['id' => $user->id]);
 ```
 
+<a name="method-lazy"></a>
+#### `lazy()` {.collection-method}
+
+The `lazy` function creates a lazy ghost object. The object has the requested class immediately, but its initializer does not run until a non-eager property is first accessed:
+
+```php
+class Report
+{
+    public function __construct(
+        public string $path,
+        public string $format = 'csv',
+    ) {
+    }
+}
+
+$report = lazy(Report::class, fn () => [
+    'path' => storage_path('reports/monthly.csv'),
+    'format' => 'csv',
+]);
+
+// The initializer runs when the property is first accessed...
+$path = $report->path;
+```
+
+When the initializer returns an array, its values are passed to the class constructor as positional or named arguments. Alternatively, the initializer may construct the lazy instance directly:
+
+```php
+$report = lazy(Report::class, function (Report $report) {
+    $report->__construct(storage_path('reports/monthly.csv'));
+});
+```
+
+The class name may be inferred from the initializer's first parameter type:
+
+```php
+$report = lazy(fn (Report $report) => [
+    storage_path('reports/monthly.csv'),
+]);
+```
+
+Properties passed through the `eager` argument are available without triggering initialization:
+
+```php
+$report = lazy(
+    Report::class,
+    fn () => [storage_path('reports/monthly.csv')],
+    eager: ['format' => 'csv'],
+);
+
+$format = $report->format; // Does not initialize the object...
+```
+
 <a name="method-literal"></a>
 #### `literal()` {.collection-method}
 
@@ -2922,6 +2976,39 @@ The `policy` method retrieves a [policy](/docs/{{version}}/authorization#creatin
 
 ```php
 $policy = policy(App\Models\User::class);
+```
+
+<a name="method-proxy"></a>
+#### `proxy()` {.collection-method}
+
+The `proxy` function creates a lazy proxy. Unlike a [lazy ghost](#method-lazy), which initializes the same object, a proxy's factory returns the real object that replaces the proxy when it is first used:
+
+```php
+$report = proxy(Report::class, function (Report $proxy) {
+    return new Report(storage_path('reports/monthly.csv'));
+});
+
+// The factory runs and returns the real Report instance...
+$path = $report->path;
+```
+
+The class may be inferred from the callback's return type or, when no usable return type is declared, its first parameter type:
+
+```php
+$report = proxy(fn (): Report => new Report(
+    storage_path('reports/monthly.csv'),
+));
+```
+
+As with `lazy`, the optional `eager` argument makes selected proxy properties available before initialization. The factory receives those values as its second argument so it may copy them to the real object when required:
+
+```php
+$report = proxy(Report::class, function (Report $proxy, array $eager) {
+    return new Report(
+        storage_path('reports/monthly.csv'),
+        $eager['format'],
+    );
+}, eager: ['format' => 'csv']);
 ```
 
 <a name="method-redirect"></a>
