@@ -13,7 +13,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 class CollectionStaticStateTest extends TestCase
 {
     #[DataProvider('collectionClassProvider')]
-    public function testFlushStateClearsMacrosAndProxies(string $collection)
+    public function testFlushStateClearsMacrosAndProxies(string $collection): void
     {
         $collection::macro('adults', function (callable $callback) {
             return $this->filter(fn (array $item): bool => $callback($item) >= 18);
