@@ -47,32 +47,29 @@ trait ReflectsClosures
      */
     protected function firstClosureParameterTypes(Closure $closure): array
     {
-        $reflection = new ReflectionFunction($closure);
+        $parameters = (new ReflectionFunction($closure))->getParameters();
 
-        /** @var list<array<class-string>> $types */
-        $types = Collection::make($reflection->getParameters())->mapWithKeys(function ($parameter) {
-            if ($parameter->isVariadic()) {
-                return [$parameter->getName() => null];
-            }
-
-            return [$parameter->getName() => Reflector::getParameterClassNames($parameter)];
-        })->filter()->values()->all();
-
-        if (empty($types)) {
+        if ($parameters === []) {
             throw new RuntimeException('The given Closure has no parameters.');
         }
 
-        if (empty($types[0])) {
+        $types = $parameters[0]->isVariadic()
+            ? []
+            : Reflector::getParameterClassNames($parameters[0]);
+
+        if ($types === []) {
             throw new RuntimeException('The first parameter of the given Closure is missing a type hint.');
         }
 
-        return $types[0];
+        return array_values($types);
     }
 
     /**
      * Get the class names / types of the parameters of the given Closure.
      *
      * @return array<string, null|string>
+     *
+     * @throws ReflectionException
      */
     protected function closureParameterTypes(Closure $closure): array
     {
@@ -91,6 +88,8 @@ trait ReflectsClosures
      * Get the class names / types of the return type of the given Closure.
      *
      * @return list<class-string>
+     *
+     * @throws ReflectionException
      */
     protected function closureReturnTypes(Closure $closure): array
     {
@@ -111,7 +110,7 @@ trait ReflectsClosures
 
         return $namedTypes
             ->reject(fn (ReflectionNamedType $type) => $type->isBuiltin())
-            ->reject(fn (ReflectionNamedType $type) => in_array($type->getName(), ['static', 'self']))
+            ->reject(fn (ReflectionNamedType $type) => in_array($type->getName(), ['static', 'self', 'parent']))
             ->map(fn (ReflectionNamedType $type) => $type->getName())
             ->values()
             ->all();

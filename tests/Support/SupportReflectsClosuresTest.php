@@ -7,11 +7,12 @@ namespace Hypervel\Tests\Support;
 use Closure;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 class SupportReflectsClosuresTest extends TestCase
 {
-    public function testReflectsClosures()
+    public function testReflectsClosures(): void
     {
         $this->assertParameterTypes([ExampleParameter::class], function (ExampleParameter $one) {
             // assert the Closure isn't actually executed
@@ -35,7 +36,7 @@ class SupportReflectsClosuresTest extends TestCase
         });
     }
 
-    public function testItReturnsTheFirstParameterType()
+    public function testItReturnsTheFirstParameterType(): void
     {
         $type = ReflectsClosuresClass::reflectFirst(function (ExampleParameter $a) {
         });
@@ -43,7 +44,7 @@ class SupportReflectsClosuresTest extends TestCase
         $this->assertInstanceOf($type, new ExampleParameter);
     }
 
-    public function testItThrowsWhenNoParameters()
+    public function testItThrowsWhenNoParameters(): void
     {
         $this->expectException(RuntimeException::class);
 
@@ -51,7 +52,7 @@ class SupportReflectsClosuresTest extends TestCase
         });
     }
 
-    public function testItThrowsWhenNoFirstParameterType()
+    public function testItThrowsWhenNoFirstParameterType(): void
     {
         $this->expectException(RuntimeException::class);
 
@@ -59,7 +60,7 @@ class SupportReflectsClosuresTest extends TestCase
         });
     }
 
-    public function testItWorksWithUnionTypes()
+    public function testItWorksWithUnionTypes(): void
     {
         $types = ReflectsClosuresClass::reflectFirstAll(function (ExampleParameter $a, $b) {
         });
@@ -78,20 +79,49 @@ class SupportReflectsClosuresTest extends TestCase
         ], $types);
     }
 
-    public function testItWorksWithUnionTypesWithNoTypeHints()
+    public function testItWorksWithUnionTypesWithNoTypeHints(): void
     {
         $this->expectException(RuntimeException::class);
 
-        $types = ReflectsClosuresClass::reflectFirstAll(function ($a, $b) {
+        ReflectsClosuresClass::reflectFirstAll(function ($a, $b) {
         });
     }
 
-    public function testItWorksWithUnionTypesWithNoArguments()
+    public function testItWorksWithUnionTypesWithNoArguments(): void
     {
         $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('The given Closure has no parameters.');
 
-        $types = ReflectsClosuresClass::reflectFirstAll(function () {
+        ReflectsClosuresClass::reflectFirstAll(function () {
         });
+    }
+
+    #[DataProvider('invalidFirstParameterProvider')]
+    public function testFirstParameterTypesRejectInvalidActualFirstParameter(Closure $closure): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('The first parameter of the given Closure is missing a type hint.');
+
+        ReflectsClosuresClass::reflectFirstAll($closure);
+    }
+
+    public static function invalidFirstParameterProvider(): array
+    {
+        return [
+            'untyped' => [function ($first, ExampleParameter $second) {
+            }],
+            'builtin' => [function (string $first, ExampleParameter $second) {
+            }],
+            'variadic' => [function (ExampleParameter ...$first) {
+            }],
+        ];
+    }
+
+    public function testClosureReturnTypesRejectRelativeClassNames(): void
+    {
+        $this->assertSame([], ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsParent(...)));
+        $this->assertSame([], ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsSelf(...)));
+        $this->assertSame([], ReflectsClosuresClass::reflectReturns(RelativeReturnTypeClosures::returnsStatic(...)));
     }
 
     private function assertParameterTypes(array $expected, Closure $closure): void
@@ -120,6 +150,11 @@ class ReflectsClosuresClass
     {
         return (new static)->firstClosureParameterTypes($closure);
     }
+
+    public static function reflectReturns(Closure $closure): array
+    {
+        return (new static)->closureReturnTypes($closure);
+    }
 }
 
 class ExampleParameter
@@ -128,4 +163,26 @@ class ExampleParameter
 
 class AnotherExampleParameter
 {
+}
+
+class RelativeReturnTypeParent
+{
+}
+
+class RelativeReturnTypeClosures extends RelativeReturnTypeParent
+{
+    public static function returnsParent(): parent
+    {
+        return new parent;
+    }
+
+    public static function returnsSelf(): self
+    {
+        return new self;
+    }
+
+    public static function returnsStatic(): static
+    {
+        return new static;
+    }
 }
