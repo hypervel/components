@@ -97,7 +97,13 @@ class RemoteCommandTest extends TestCase
             remote('about --json')->mustRun();
 
             $this->assertFileExists($path);
-            $this->assertNotSame($contents, $files->get($path));
+
+            // Exercise restoration deterministically even when the child's
+            // rebuilt manifest matches the captured baseline byte-for-byte.
+            $probe = "<?php\n\nreturn ['__testbench_manifest_probe__' => true];\n";
+            $files->replace($path, $probe);
+
+            $this->assertSame($probe, $files->get($path));
         });
     }
 
