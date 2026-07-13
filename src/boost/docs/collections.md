@@ -64,7 +64,7 @@ $upper = $collection->toUpper();
 
 Typically, you should declare collection macros in the `boot` method of a [service provider](/docs/{{version}}/providers).
 
-If you register a macro inside a test, flush the macro state before the test finishes. Macros are stored globally for the life of the PHP process.
+Macros are stored globally for the life of the PHP process. Hypervel automatically flushes framework-owned collection macros after every test. If your application or package defines its own macroable class, add it to your [test-state cleanup](/docs/{{version}}/testing#macro-state).
 
 <a name="macro-arguments"></a>
 #### Macro Arguments
