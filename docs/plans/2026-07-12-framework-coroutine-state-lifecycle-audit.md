@@ -974,8 +974,8 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `collections`
-- **Ledger entries required for the active work:** `Restore Conditionable proxy truthiness`; `Complete Macroable callable and test-state handling`
+- **Active package or work unit:** `reflection`
+- **Ledger entries required for the active work:** none
 - **Pending revalidation carried into the active work:** none
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
@@ -1017,7 +1017,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `contracts`
 - [x] `conditionable`
 - [x] `macroable`
-- [ ] `collections`
+- [x] `collections`
 - [ ] `reflection`
 - [ ] `config`
 - [ ] `container`
