@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use ArrayIterator;
 use Carbon\CarbonInterval as Duration;
+use Generator;
 use Hypervel\Foundation\Testing\Wormhole;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
@@ -16,13 +18,13 @@ use Mockery as m;
 
 class SupportLazyCollectionTest extends TestCase
 {
-    public function testCanCreateEmptyCollection()
+    public function testCanCreateEmptyCollection(): void
     {
         $this->assertSame([], LazyCollection::make()->all());
         $this->assertSame([], LazyCollection::empty()->all());
     }
 
-    public function testCanCreateCollectionFromArray()
+    public function testCanCreateCollectionFromArray(): void
     {
         $array = [1, 2, 3];
 
@@ -37,7 +39,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame($array, $data->all());
     }
 
-    public function testCanCreateCollectionFromArrayable()
+    public function testCanCreateCollectionFromArrayable(): void
     {
         $array = [1, 2, 3];
 
@@ -52,7 +54,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame($array, $data->all());
     }
 
-    public function testCanCreateCollectionFromGeneratorFunction()
+    public function testCanCreateCollectionFromGeneratorFunction(): void
     {
         $data = LazyCollection::make(function () {
             yield 1;
@@ -75,7 +77,7 @@ class SupportLazyCollectionTest extends TestCase
         ], $data->all());
     }
 
-    public function testCanCreateCollectionFromNonGeneratorFunction()
+    public function testCanCreateCollectionFromNonGeneratorFunction(): void
     {
         $data = LazyCollection::make(function () {
             return 'laravel';
@@ -84,7 +86,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame(['laravel'], $data->all());
     }
 
-    public function testDoesNotCreateCollectionFromGenerator()
+    public function testDoesNotCreateCollectionFromGenerator(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
@@ -95,7 +97,47 @@ class SupportLazyCollectionTest extends TestCase
         LazyCollection::make($generateNumber());
     }
 
-    public function testEager()
+    public function testCombineAcceptsPlainIterators(): void
+    {
+        $keys = new LazyCollection(['first', 'second']);
+
+        $this->assertSame(
+            ['first' => 1, 'second' => 2],
+            $keys->combine(new ArrayIterator([1, 2]))->all()
+        );
+
+        $values = (function (): Generator {
+            yield 3;
+            yield 4;
+        })();
+
+        $this->assertSame(
+            ['first' => 3, 'second' => 4],
+            $keys->combine($values)->all()
+        );
+    }
+
+    public function testZipAcceptsPlainIterators(): void
+    {
+        $values = new LazyCollection([1, 2]);
+
+        $this->assertSame(
+            [[1, 3], [2, 4]],
+            $values->zip(new ArrayIterator([3, 4]))->map->all()->all()
+        );
+
+        $items = (function (): Generator {
+            yield 5;
+            yield 6;
+        })();
+
+        $this->assertSame(
+            [[1, 5], [2, 6]],
+            $values->zip($items)->map->all()->all()
+        );
+    }
+
+    public function testEager(): void
     {
         $source = [1, 2, 3, 4, 5];
 
@@ -108,7 +150,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame([1, 2, 3, 4, 5], $data->all());
     }
 
-    public function testRemember()
+    public function testRemember(): void
     {
         $source = [1, 2, 3, 4];
 
@@ -123,7 +165,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame([1, 2, 3, 4], $collection->all());
     }
 
-    public function testRememberWithTwoRunners()
+    public function testRememberWithTwoRunners(): void
     {
         $source = [1, 2, 3, 4];
 
@@ -168,7 +210,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertEquals(4, $b->current());
     }
 
-    public function testRememberWithDuplicateKeys()
+    public function testRememberWithDuplicateKeys(): void
     {
         $collection = LazyCollection::make(function () {
             yield 'key' => 1;
@@ -182,7 +224,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame([['key', 1], ['key', 2]], $results);
     }
 
-    public function testTakeUntilTimeout()
+    public function testTakeUntilTimeout(): void
     {
         $timeout = Carbon::now();
 
@@ -213,7 +255,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame([2, 1], $timedOutWith);
     }
 
-    public function testTapEach()
+    public function testTapEach(): void
     {
         $data = LazyCollection::times(10);
 
@@ -231,7 +273,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame([1, 2, 3, 4, 5], $tapped);
     }
 
-    public function testThrottle()
+    public function testThrottle(): void
     {
         Sleep::fake();
 
@@ -254,7 +296,7 @@ class SupportLazyCollectionTest extends TestCase
         Sleep::fake(false);
     }
 
-    public function testThrottleAccountsForTimePassed()
+    public function testThrottleAccountsForTimePassed(): void
     {
         Sleep::fake();
         Carbon::setTestNow(now());
@@ -287,7 +329,7 @@ class SupportLazyCollectionTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function testUniqueDoubleEnumeration()
+    public function testUniqueDoubleEnumeration(): void
     {
         $data = LazyCollection::times(2)->unique();
 
@@ -296,7 +338,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame([1, 2], $data->all());
     }
 
-    public function testAfter()
+    public function testAfter(): void
     {
         $data = new LazyCollection([1, '2', 3, 4]);
 
@@ -322,7 +364,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame(['name' => 'Mohamed', 'age' => 35], $result);
     }
 
-    public function testBefore()
+    public function testBefore(): void
     {
         // Test finding item before value with non-strict comparison
         $data = new LazyCollection([1, 2, '3', 4]);
@@ -345,7 +387,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertSame(['name' => 'Taylor', 'age' => 35], $result);
     }
 
-    public function testShuffle()
+    public function testShuffle(): void
     {
         $data = new LazyCollection([1, 2, 3, 4, 5]);
         $shuffled = $data->shuffle();
@@ -365,7 +407,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertTrue($shuffled->contains('name', 'Jeffrey'));
     }
 
-    public function testCollapseWithKeys()
+    public function testCollapseWithKeys(): void
     {
         $collection = new LazyCollection([
             ['a' => 1, 'b' => 2],
@@ -384,34 +426,9 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertEquals(['a' => 1, 'b' => 2], $collapsed->all());
     }
 
-    public function testContainsOneItem()
-    {
-        $collection = new LazyCollection([5]);
-        $this->assertTrue($collection->containsOneItem());
+    // REMOVED: Tests for Laravel's deprecated containsOneItem() and containsManyItems(); use hasSole() and hasMany().
 
-        $emptyCollection = new LazyCollection([]);
-        $this->assertFalse($emptyCollection->containsOneItem());
-
-        $multipleCollection = new LazyCollection([1, 2, 3]);
-        $this->assertFalse($multipleCollection->containsOneItem());
-    }
-
-    public function testContainsManyItems()
-    {
-        $emptyCollection = new LazyCollection([]);
-        $this->assertFalse($emptyCollection->containsManyItems());
-
-        $singleCollection = new LazyCollection([1]);
-        $this->assertFalse($singleCollection->containsManyItems());
-
-        $multipleCollection = new LazyCollection([1, 2]);
-        $this->assertTrue($multipleCollection->containsManyItems());
-
-        $manyCollection = new LazyCollection([1, 2, 3]);
-        $this->assertTrue($manyCollection->containsManyItems());
-    }
-
-    public function testDoesntContain()
+    public function testDoesntContain(): void
     {
         $collection = new LazyCollection([1, 2, 3, 4, 5]);
 
@@ -437,7 +454,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertFalse($users->doesntContain('name', 'Taylor'));
     }
 
-    public function testDot()
+    public function testDot(): void
     {
         $collection = new LazyCollection([
             'foo' => [
@@ -472,7 +489,7 @@ class SupportLazyCollectionTest extends TestCase
         $this->assertEquals($expected, $dotted->all());
     }
 
-    public function testWithHeartbeat()
+    public function testWithHeartbeat(): void
     {
         $start = Carbon::create(2000, 1, 1);
         $after2Minutes = $start->copy()->addMinutes(2);
@@ -517,5 +534,39 @@ class SupportLazyCollectionTest extends TestCase
         );
 
         Carbon::setTestNow();
+    }
+
+    public function testRandomPreservesKeys(): void
+    {
+        $collection = new LazyCollection([
+            'first' => 1,
+            'second' => 2,
+            'third' => 3,
+        ]);
+
+        $this->assertSame([0, 1], array_keys($collection->random(2)->all()));
+
+        foreach (array_keys($collection->random(2, true)->all()) as $key) {
+            $this->assertContains($key, ['first', 'second', 'third']);
+        }
+    }
+
+    public function testHasDoesNotCountDuplicateKeys(): void
+    {
+        $collection = LazyCollection::make(function (): iterable {
+            yield 'a' => 1;
+            yield 'a' => 2;
+            yield 'c' => 3;
+        });
+
+        $this->assertFalse($collection->has('a', 'b'));
+        $this->assertFalse($collection->has(['a', 'b']));
+        $this->assertTrue($collection->has('a'));
+    }
+
+    public function testHasTreatsAnEmptyKeySetAsSatisfied(): void
+    {
+        $this->assertTrue(LazyCollection::empty()->has([]));
+        $this->assertTrue((new LazyCollection([1, 2, 3]))->has([]));
     }
 }
