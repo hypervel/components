@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hypervel\Support\Collection;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use Stringable;
 
 class CollectionTest extends TestCase
