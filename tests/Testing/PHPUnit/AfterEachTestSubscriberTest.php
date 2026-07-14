@@ -29,10 +29,12 @@ use RuntimeException;
 
 class AfterEachTestSubscriberTest extends TestCase
 {
+    private const string CALLBACK_NAME = self::class;
+
     #[Override]
     protected function tearDown(): void
     {
-        AfterEachTestCleanup::forgetCallbacks();
+        AfterEachTestCleanup::forget(self::CALLBACK_NAME);
 
         parent::tearDown();
     }
@@ -131,7 +133,7 @@ class AfterEachTestSubscriberTest extends TestCase
             }
         };
 
-        AfterEachTestCleanup::flushUsing('vendor/package', function () use ($subscriber): void {
+        AfterEachTestCleanup::flushUsing(self::CALLBACK_NAME, function () use ($subscriber): void {
             $subscriber->order[] = 'custom';
         });
 
@@ -160,7 +162,7 @@ class AfterEachTestSubscriberTest extends TestCase
         };
         $expectedException = new RuntimeException('custom cleanup failed');
 
-        AfterEachTestCleanup::flushUsing('vendor/package', function () use ($subscriber, $expectedException): void {
+        AfterEachTestCleanup::flushUsing(self::CALLBACK_NAME, function () use ($subscriber, $expectedException): void {
             $subscriber->order[] = 'custom';
 
             throw $expectedException;
@@ -216,7 +218,7 @@ class AfterEachTestSubscriberTest extends TestCase
             }
         };
         $expectedException = new RuntimeException('custom cleanup failed');
-        AfterEachTestCleanup::flushUsing('vendor/package', static function () use ($expectedException): never {
+        AfterEachTestCleanup::flushUsing(self::CALLBACK_NAME, static function () use ($expectedException): never {
             throw $expectedException;
         });
         m::mock()->shouldReceive('expected')->once();
@@ -252,7 +254,7 @@ class AfterEachTestSubscriberTest extends TestCase
             }
         };
         $expectedException = new RuntimeException('custom cleanup failed');
-        AfterEachTestCleanup::flushUsing('vendor/package', static function () use ($expectedException): never {
+        AfterEachTestCleanup::flushUsing(self::CALLBACK_NAME, static function () use ($expectedException): never {
             throw $expectedException;
         });
 
@@ -323,5 +325,138 @@ class AfterEachTestSubscriberTest extends TestCase
         }
 
         $this->assertTrue($subscriber->frameworkStateFlushed);
+    }
+
+    public function testFirstPreparationTracksCleanupWithoutFlushing(): void
+    {
+        $subscriber = new AfterEachTestSubscriberStateStub;
+
+        $subscriber->handlePreparationStarted();
+
+        $this->assertTrue($subscriber->cleanupIsPending());
+        $this->assertSame(0, $subscriber->cleanupCount);
+    }
+
+    public function testPreparedTestCleansOnceWithoutExecutionFinishedRetry(): void
+    {
+        $subscriber = new AfterEachTestSubscriberStateStub;
+
+        $subscriber->handlePreparationStarted();
+        $subscriber->finishTest();
+        $subscriber->handleExecutionFinished();
+
+        $this->assertFalse($subscriber->cleanupIsPending());
+        $this->assertSame(1, $subscriber->cleanupCount);
+    }
+
+    public function testNextPreparationCleansUnpreparedTestAndTracksCurrentTest(): void
+    {
+        $subscriber = new AfterEachTestSubscriberStateStub;
+
+        $subscriber->handlePreparationStarted();
+        $subscriber->handlePreparationStarted();
+
+        $this->assertTrue($subscriber->cleanupIsPending());
+        $this->assertSame(1, $subscriber->cleanupCount);
+
+        $subscriber->finishTest();
+
+        $this->assertFalse($subscriber->cleanupIsPending());
+        $this->assertSame(2, $subscriber->cleanupCount);
+    }
+
+    public function testExecutionFinishedCleansLastUnpreparedTest(): void
+    {
+        $subscriber = new AfterEachTestSubscriberStateStub;
+
+        $subscriber->handlePreparationStarted();
+        $subscriber->handleExecutionFinished();
+
+        $this->assertFalse($subscriber->cleanupIsPending());
+        $this->assertSame(1, $subscriber->cleanupCount);
+    }
+
+    public function testThrowingDeferredCleanupIsNotRetriedAndCurrentTestRemainsTracked(): void
+    {
+        $subscriber = new AfterEachTestSubscriberStateStub;
+        $expectedException = new RuntimeException('cleanup failed');
+
+        $subscriber->handlePreparationStarted();
+        $subscriber->cleanupFailure = $expectedException;
+
+        try {
+            $subscriber->handlePreparationStarted();
+            $this->fail('Expected deferred cleanup to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($expectedException, $exception);
+        }
+
+        $this->assertTrue($subscriber->cleanupIsPending());
+        $this->assertSame(1, $subscriber->cleanupCount);
+
+        $subscriber->cleanupFailure = null;
+        $subscriber->finishTest();
+        $subscriber->handleExecutionFinished();
+
+        $this->assertFalse($subscriber->cleanupIsPending());
+        $this->assertSame(2, $subscriber->cleanupCount);
+    }
+
+    public function testThrowingFinishedCleanupIsNotRetried(): void
+    {
+        $subscriber = new AfterEachTestSubscriberStateStub;
+        $expectedException = new RuntimeException('cleanup failed');
+
+        $subscriber->handlePreparationStarted();
+        $subscriber->cleanupFailure = $expectedException;
+
+        try {
+            $subscriber->finishTest();
+            $this->fail('Expected finished cleanup to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($expectedException, $exception);
+        }
+
+        $subscriber->cleanupFailure = null;
+        $subscriber->handleExecutionFinished();
+
+        $this->assertFalse($subscriber->cleanupIsPending());
+        $this->assertSame(1, $subscriber->cleanupCount);
+    }
+}
+
+class AfterEachTestSubscriberStateStub extends AfterEachTestSubscriber
+{
+    public int $cleanupCount = 0;
+
+    public ?RuntimeException $cleanupFailure = null;
+
+    /**
+     * Flush test state or throw the configured failure.
+     */
+    #[Override]
+    public function flushStateAfterTest(): void
+    {
+        ++$this->cleanupCount;
+
+        if ($this->cleanupFailure !== null) {
+            throw $this->cleanupFailure;
+        }
+    }
+
+    /**
+     * Finish a prepared test through the pending-cleanup path.
+     */
+    public function finishTest(): void
+    {
+        $this->flushPendingCleanup();
+    }
+
+    /**
+     * Determine whether cleanup remains pending.
+     */
+    public function cleanupIsPending(): bool
+    {
+        return $this->cleanupPending;
     }
 }
