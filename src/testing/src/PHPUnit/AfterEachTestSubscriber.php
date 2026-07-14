@@ -11,19 +11,57 @@ use PHPUnit\Event\Test\FinishedSubscriber;
 use Throwable;
 
 /**
- * Global cleanup after every test method.
+ * Coordinates exactly one global cleanup after every test method.
  *
- * Runs after tearDown() completes, for ALL tests regardless of base class.
- * Centralizes static state resets so individual tests don't need to remember
- * them, and prevents state leaks even when a test forgets to clean up.
+ * Prepared tests clean after PHPUnit finishes them. Tests that never become
+ * prepared clean before the next test captures global state, or when the test
+ * runner finishes if there is no next test.
  */
 class AfterEachTestSubscriber implements FinishedSubscriber
 {
+    /**
+     * Whether the current or most recent test still needs global cleanup.
+     */
+    protected bool $cleanupPending = false;
+
     /**
      * Clean up static state after a test finishes.
      */
     public function notify(Finished $event): void
     {
+        $this->flushPendingCleanup();
+    }
+
+    /**
+     * Handle internal preparation-started coordination for the PHPUnit extension.
+     */
+    public function handlePreparationStarted(): void
+    {
+        try {
+            $this->flushPendingCleanup();
+        } finally {
+            $this->cleanupPending = true;
+        }
+    }
+
+    /**
+     * Handle internal execution-finished coordination for the PHPUnit extension.
+     */
+    public function handleExecutionFinished(): void
+    {
+        $this->flushPendingCleanup();
+    }
+
+    /**
+     * Flush pending cleanup at most once.
+     */
+    protected function flushPendingCleanup(): void
+    {
+        if (! $this->cleanupPending) {
+            return;
+        }
+
+        $this->cleanupPending = false;
         $this->flushStateAfterTest();
     }
 

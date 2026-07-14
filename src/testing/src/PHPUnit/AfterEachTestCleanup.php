@@ -59,6 +59,17 @@ class AfterEachTestCleanup
     }
 
     /**
+     * Forget a registered callback by name.
+     *
+     * Boot or tests only. This removes one process-local cleanup registration
+     * from the current PHPUnit worker.
+     */
+    public static function forget(string $name): void
+    {
+        unset(static::$callbacks[$name]);
+    }
+
+    /**
      * Forget all registered callbacks.
      *
      * Boot or tests only. This removes process-local cleanup registrations

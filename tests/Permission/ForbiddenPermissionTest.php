@@ -226,9 +226,7 @@ class ForbiddenPermissionTest extends TestCase
         $this->assertEqualsCanonicalizing([
             $this->app->make(PermissionContract::class)::findByName('delete-articles')->getKey(),
         ], $changes['attached']);
-        $this->assertEqualsCanonicalizing([
-            $this->app->make(PermissionContract::class)::findByName('edit-news')->getKey(),
-        ], $changes['updated']);
+        $this->assertSame([], $changes['updated']);
         $this->assertFalse($this->testUser->hasDirectPermission('edit-articles'));
         $this->assertTrue($this->testUser->hasDirectPermission('edit-news'));
         $this->assertTrue($this->testUser->hasForbiddenPermission('delete-articles'));

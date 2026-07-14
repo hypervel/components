@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission\Traits;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 
 class TeamHasPermissionsTest extends HasPermissionsTest
@@ -61,6 +62,44 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         setPermissionsTeamId(2);
         $this->testUser->load('roles', 'permissions');
         $this->assertSame(['edit-articles', 'edit-blog'], $this->testUser->getAllPermissions()->pluck('name')->sort()->values()->all());
+    }
+
+    public function testWarmAuthorizationReusesHydratedCatalogRelationsAcrossTeams(): void
+    {
+        $this->testUserRole->givePermissionTo($this->testUserPermission);
+
+        setPermissionsTeamId(1);
+        $this->testUser->assignRole($this->testUserRole);
+
+        setPermissionsTeamId(2);
+        $this->testUser->assignRole($this->testUserRole);
+
+        setPermissionsTeamId(1);
+        $this->assertTrue($this->testUser->hasPermissionTo($this->testUserPermission));
+        $this->assertSame(
+            [$this->testUserPermission->name],
+            $this->testUser->getAllPermissions()->pluck('name')->all(),
+        );
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        $this->assertTrue($this->testUser->hasPermissionTo($this->testUserPermission));
+        $this->testUser->getAllPermissions();
+        $this->assertSame([], DB::getQueryLog());
+
+        setPermissionsTeamId(2);
+        DB::flushQueryLog();
+
+        $this->assertTrue($this->testUser->hasPermissionTo($this->testUserPermission));
+        $this->testUser->getAllPermissions();
+        $this->assertCount(2, DB::getQueryLog());
+
+        DB::flushQueryLog();
+
+        $this->assertTrue($this->testUser->hasPermissionTo($this->testUserPermission));
+        $this->testUser->getAllPermissions();
+        $this->assertSame([], DB::getQueryLog());
     }
 
     public function testItCanSyncOrRemovePermissionsWithoutDetachingDifferentTeams(): void

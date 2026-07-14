@@ -191,6 +191,18 @@ class CacheTest extends TestCase
         $this->assertQueryCount(0);
     }
 
+    public function testColdAuthorizationUsesFiveQueries(): void
+    {
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->testUser->assignRole('testRole');
+        $this->registrar->forgetCachedPermissions();
+        $this->resetQueryCount();
+
+        $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
+
+        $this->assertQueryCount($this->cacheRunCount + 2);
+    }
+
     public function testItDifferentiatesTheCacheByGuardName(): void
     {
         $this->app->make(Permission::class)->create(['name' => 'web']);

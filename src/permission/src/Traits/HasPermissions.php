@@ -17,25 +17,31 @@ use Hypervel\Permission\Events\PermissionAttachedEvent;
 use Hypervel\Permission\Events\PermissionDetachedEvent;
 use Hypervel\Permission\Exceptions\GuardDoesNotMatch;
 use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
+use Hypervel\Permission\Exceptions\PermissionPartitionViolation;
 use Hypervel\Permission\Exceptions\WildcardPermissionInvalidArgument;
 use Hypervel\Permission\Exceptions\WildcardPermissionNotImplementsContract;
 use Hypervel\Permission\Guard;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
+use Hypervel\Permission\Support\PermissionPartition;
+use Hypervel\Permission\Support\PermissionRelationContext;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use UnexpectedValueException;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 trait HasPermissions
 {
+    use BuildsPermissionRelations;
+
     private ?string $permissionClass = null;
 
     private ?string $wildcardClass = null;
 
     /**
-     * @var array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>}>
+     * @var array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}>
      */
     private array $queuedPermissionAssignments = [];
 
@@ -56,7 +62,7 @@ trait HasPermissions
     }
 
     /**
-     * Boot the permission relation cleanup callback.
+     * Boot permission cleanup and queued assignment handling.
      */
     public static function bootHasPermissions(): void
     {
@@ -65,35 +71,189 @@ trait HasPermissions
                 return;
             }
 
-            if (! $model instanceof Permission && ! $model instanceof Role) {
-                $model->getConnection()
-                    ->table(Config::modelHasPermissionsTable())
-                    ->where(Config::morphKey(), $model->getKey())
-                    ->where('model_type', $model->getMorphClass())
-                    ->delete();
-
-                Container::getInstance()->make(PermissionRegistrar::class)->forgetModelAssignmentCache($model);
+            if ($model instanceof Permission) {
+                return;
             }
+
+            $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
             if ($model instanceof Role) {
-                $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+                static::deletePermissionRecordAssignments(
+                    $model,
+                    Config::modelHasRolesTable(),
+                    $registrar->pivotRole,
+                );
 
-                $model->getConnection()
-                    ->table(Config::modelHasRolesTable())
-                    ->where($registrar->pivotRole, $model->getKey())
-                    ->delete();
-
-                $model->getConnection()
-                    ->table(Config::roleHasPermissionsTable())
-                    ->where($registrar->pivotRole, $model->getKey())
-                    ->delete();
+                return;
             }
+
+            $contexts = static::deleteSubjectAssignments(
+                $model,
+                Config::modelHasPermissionsTable(),
+            );
+
+            if ($contexts === null) {
+                $registrar->forgetModelPermissionCache($model);
+            } else {
+                foreach ($contexts as $context) {
+                    $registrar->forgetModelPermissionCacheFor(
+                        $model,
+                        $context->partition,
+                        $context->team,
+                    );
+                }
+            }
+
+            $registrar->forgetLoadedRelationProvenance($model, 'permissions');
         });
 
         static::saved(function (Model $model): void {
-            if (method_exists($model, 'attachQueuedPermissionAssignments')) {
-                $model->attachQueuedPermissionAssignments();
+            if (method_exists($model, 'flushQueuedPermissionAssignments')) {
+                $model->flushQueuedPermissionAssignments();
             }
+        });
+    }
+
+    /**
+     * Delete one kind of assignment for a hard-deleted subject.
+     *
+     * @return null|array<int, PermissionRelationContext>
+     */
+    protected static function deleteSubjectAssignments(Model $model, string $table): ?array
+    {
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+        $connection = $model->getConnection();
+        $morphKey = Config::morphKey();
+        $morphType = $model->getMorphClass();
+        $modelKey = $model->getKey();
+        $partitionColumn = PermissionRegistrar::partitionColumn();
+
+        if ($partitionColumn === null && ! $registrar->teams) {
+            $connection->table($table)
+                ->where($morphKey, $modelKey)
+                ->where('model_type', $morphType)
+                ->delete();
+
+            return null;
+        }
+
+        return $connection->transaction(function () use (
+            $connection,
+            $modelKey,
+            $morphKey,
+            $morphType,
+            $partitionColumn,
+            $registrar,
+            $table,
+        ): array {
+            $columns = [];
+
+            if ($partitionColumn !== null) {
+                $columns[] = $partitionColumn;
+            }
+
+            if ($registrar->teams) {
+                $columns[] = $registrar->teamsKey;
+            }
+
+            $scopes = $connection->table($table)
+                ->select($columns)
+                ->where($morphKey, $modelKey)
+                ->where('model_type', $morphType)
+                ->distinct()
+                ->get();
+            $contexts = [];
+
+            foreach ($scopes as $scope) {
+                $partition = null;
+
+                if ($partitionColumn !== null) {
+                    $partitionValue = $scope->{$partitionColumn};
+
+                    if (! is_int($partitionValue) && ! is_string($partitionValue)) {
+                        throw new UnexpectedValueException(sprintf(
+                            'Permission assignment partition column "%s" contained %s; expected int or string.',
+                            $partitionColumn,
+                            get_debug_type($partitionValue),
+                        ));
+                    }
+
+                    $partition = new PermissionPartition($partitionColumn, $partitionValue);
+                }
+
+                $team = $registrar->teams ? $scope->{$registrar->teamsKey} : null;
+
+                if ($team !== null && ! is_int($team) && ! is_string($team)) {
+                    throw new UnexpectedValueException(sprintf(
+                        'Permission assignment team column "%s" contained %s; expected int, string, or null.',
+                        $registrar->teamsKey,
+                        get_debug_type($team),
+                    ));
+                }
+
+                $contexts[] = new PermissionRelationContext(
+                    $partition,
+                    $registrar->teams,
+                    $team,
+                );
+            }
+
+            $connection->table($table)
+                ->where($morphKey, $modelKey)
+                ->where('model_type', $morphType)
+                ->delete();
+
+            return $contexts;
+        });
+    }
+
+    /**
+     * Delete assignment pivots owned by a Role or Permission record.
+     */
+    protected static function deletePermissionRecordAssignments(
+        Model $model,
+        string $modelAssignmentsTable,
+        string $pivotKey,
+    ): void {
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+        $partition = PermissionRegistrar::partitioningEnabled()
+            ? $registrar->partitionFromRecord($model)
+            : null;
+
+        if ($partition) {
+            /** @var PermissionPartition $current */
+            $current = $registrar->resolvePartition();
+
+            if ($current->column !== $partition->column
+                || ! $current->matches($partition->value)) {
+                throw PermissionPartitionViolation::forModel(
+                    $model,
+                    $current,
+                    $partition->value,
+                );
+            }
+        }
+
+        $model->getConnection()->transaction(function () use (
+            $model,
+            $modelAssignmentsTable,
+            $partition,
+            $pivotKey,
+        ): void {
+            $modelAssignments = $model->getConnection()
+                ->table($modelAssignmentsTable)
+                ->where($pivotKey, $model->getKey());
+            $rolePermissions = $model->getConnection()
+                ->table(Config::roleHasPermissionsTable())
+                ->where($pivotKey, $model->getKey());
+
+            if ($partition) {
+                $modelAssignments->where($partition->column, $partition->value);
+                $rolePermissions->where($partition->column, $partition->value);
+            }
+
+            $modelAssignments->delete();
+            $rolePermissions->delete();
         });
     }
 
@@ -136,22 +296,27 @@ trait HasPermissions
      */
     public function permissions(): BelongsToMany
     {
-        $relation = $this->morphToMany(
+        return $this->permissionAssignmentRelation();
+    }
+
+    /**
+     * Build the direct permission assignment relation for a captured context.
+     */
+    protected function permissionAssignmentRelation(
+        ?PermissionRelationContext $context = null,
+    ): BelongsToMany {
+        $registrar = $this->permissionRegistrar();
+        $teamScoped = $registrar->teams && ! $this instanceof Role;
+
+        return $this->permissionMorphToMany(
             Config::permissionModel(),
-            'model',
             Config::modelHasPermissionsTable(),
             Config::morphKey(),
-            $this->permissionRegistrar()->pivotPermission
+            $registrar->pivotPermission,
+            'permissions',
+            teamScoped: $teamScoped,
+            context: $context,
         )->withPivot('is_forbidden');
-
-        if (! Config::teamsEnabled()) {
-            return $relation;
-        }
-
-        $teamsKey = Config::teamForeignKey();
-        $relation->withPivot($teamsKey);
-
-        return $relation->wherePivot($teamsKey, getPermissionsTeamId());
     }
 
     /**
@@ -160,18 +325,22 @@ trait HasPermissions
     protected function getCachedDirectPermissions(): Collection
     {
         $model = $this;
+        $registrar = $this->permissionRegistrar();
+        $context = $this->permissionAssignmentContext($registrar);
+
+        if ($model->relationLoaded('permissions')
+            && ! $registrar->loadedRelationIsCurrent($model, 'permissions')) {
+            $model->unsetRelation('permissions');
+        }
 
         if ($this instanceof Role || $this instanceof Permission || ! $model->exists || $this->relationLoaded('permissions')) {
-            $this->loadMissing('permissions');
-
             return $this->relationCollection($this, 'permissions');
         }
 
-        $registrar = $this->permissionRegistrar();
         $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
         $assignments = $registrar->rememberModelPermissionAssignments(
             $model,
-            fn (): array => $this->permissions()
+            fn (): array => $this->permissionAssignmentRelation($context)
                 ->get()
                 ->map(fn (Model $permission): array => [
                     $permissionKey => $permission->getKey(),
@@ -188,7 +357,7 @@ trait HasPermissions
         )->keyBy(fn (Model $permission): string => (string) $permission->getKey());
 
         return Collection::make($assignments)
-            ->map(function (array $assignment) use ($permissions, $model, $permissionKey, $registrar): ?Model {
+            ->map(function (array $assignment) use ($permissions, $model, $permissionKey, $registrar, $context): ?Model {
                 $permission = $permissions->get((string) $assignment[$permissionKey]);
 
                 if (! $permission instanceof Model) {
@@ -203,7 +372,11 @@ trait HasPermissions
                 ];
 
                 if ($registrar->teams) {
-                    $pivot[$registrar->teamsKey] = getPermissionsTeamId();
+                    $pivot[$registrar->teamsKey] = $context->team;
+                }
+
+                if ($context->partition) {
+                    $pivot[$context->partition->column] = $context->partition->value;
                 }
 
                 $permission = clone $permission;
@@ -346,8 +519,12 @@ trait HasPermissions
             $permissions = $permissions->all();
         }
 
-        return array_map(function ($permission) {
+        $partition = $this->permissionRegistrar()->resolvePartition();
+
+        return array_map(function ($permission) use ($partition) {
             if ($permission instanceof Permission) {
+                $this->ensurePermissionMatchesPartition($permission, $partition);
+
                 return $permission;
             }
 
@@ -355,7 +532,10 @@ trait HasPermissions
 
             $method = is_int($permission) || PermissionRegistrar::isUid($permission) ? 'findById' : 'findByName';
 
-            return $this->getPermissionClass()::{$method}($permission, $this->getDefaultGuardName());
+            $permission = $this->getPermissionClass()::{$method}($permission, $this->getDefaultGuardName());
+            $this->ensurePermissionMatchesPartition($permission, $partition);
+
+            return $permission;
         }, Arr::wrap($permissions));
     }
 
@@ -387,6 +567,11 @@ trait HasPermissions
         if (! $permission instanceof Permission) {
             throw new PermissionDoesNotExist;
         }
+
+        $this->ensurePermissionMatchesPartition(
+            $permission,
+            $this->permissionRegistrar()->resolvePartition(),
+        );
 
         return $permission;
     }
@@ -582,16 +767,18 @@ trait HasPermissions
      *
      * @param array|Collection|int|Permission|string|UnitEnum $permissions
      */
-    private function collectPermissions(...$permissions): array
-    {
-        return collect($permissions)
+    private function collectPermissions(
+        mixed $permissions,
+        ?PermissionPartition $partition,
+    ): array {
+        return collect(Arr::wrap($permissions))
             ->flatten()
-            ->reduce(function ($array, $permission) {
+            ->reduce(function ($array, $permission) use ($partition) {
                 if ($permission === null || $permission === '') {
                     return $array;
                 }
 
-                $permission = $this->getStoredPermission($permission);
+                $permission = $this->getStoredPermission($permission, $partition);
                 if (! $permission instanceof Permission) {
                     return $array;
                 }
@@ -632,29 +819,48 @@ trait HasPermissions
      */
     private function attachPermissions(array $permissions, bool $isForbidden): static
     {
-        $permissions = $this->collectPermissions($permissions);
         $model = $this;
         $registrar = $this->permissionRegistrar();
-        $pivot = $this->permissionAssignmentPivot($isForbidden);
-        $cacheCleared = false;
+        $context = $this->permissionAssignmentContext($registrar);
+        $permissions = $this->collectPermissions($permissions, $context->partition);
 
-        if ($model->exists) {
-            $this->upsertPermissionAssignments($permissions, $pivot);
-            $model->unsetRelation('permissions');
-        } else {
-            $this->queuePermissionAssignments($permissions, $pivot);
+        if ($permissions === []) {
+            $this->dispatchPermissionAttachedEvent($permissions);
+
+            return $this;
         }
+
+        $pivot = $this->permissionAssignmentPivot($isForbidden, $context);
+
+        if (! $model->exists) {
+            $this->queuePermissionAssignments($permissions, $pivot, $context);
+            $this->dispatchPermissionAttachedEvent($permissions);
+
+            return $this;
+        }
+
+        $changes = $this->synchronizePermissionAssignments(
+            $isForbidden ? [] : $permissions,
+            $isForbidden ? $permissions : [],
+            $context,
+            false,
+        );
+        if ($changes['attached'] === [] && $changes['updated'] === []) {
+            $this->dispatchPermissionAttachedEvent($permissions);
+
+            return $this;
+        }
+
+        $model->unsetRelation('permissions');
 
         if ($this instanceof Role) {
-            $this->forgetCachedPermissions();
-            $cacheCleared = true;
-        } elseif ($model->exists) {
-            $registrar->forgetModelPermissionCache($model);
-            $cacheCleared = true;
-        }
-
-        if (! $cacheCleared) {
-            $this->forgetWildcardPermissionIndex();
+            $registrar->forgetCachedPermissionsFor($context->partition);
+        } else {
+            $registrar->forgetModelPermissionCacheFor(
+                $model,
+                $context->partition,
+                $context->team,
+            );
         }
 
         $this->dispatchPermissionAttachedEvent($permissions);
@@ -667,58 +873,213 @@ trait HasPermissions
      *
      * @return array<string, mixed>
      */
-    private function permissionAssignmentPivot(bool $isForbidden): array
-    {
+    private function permissionAssignmentPivot(
+        bool $isForbidden,
+        PermissionRelationContext $context,
+    ): array {
         $registrar = $this->permissionRegistrar();
 
-        $teamPivot = $registrar->teams && ! $this instanceof Role
-            ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
+        $pivot = ['is_forbidden' => $isForbidden];
 
-        return $teamPivot + ['is_forbidden' => $isForbidden];
+        if ($context->partition) {
+            $pivot[$context->partition->column] = $context->partition->value;
+        }
+
+        if ($context->teamScoped) {
+            $pivot[$registrar->teamsKey] = $context->team;
+        }
+
+        return $pivot;
     }
 
     /**
-     * Insert missing permission assignments and update existing effects.
-     *
-     * @param array<int, int|string> $permissions
-     * @param array<string, mixed> $pivot
+     * Build a collision-safe assignment ID identity.
      */
-    private function upsertPermissionAssignments(array $permissions, array $pivot): void
+    protected function assignmentIdIdentity(int|string $id): string
     {
-        if ($permissions === []) {
-            return;
+        return PermissionPartition::encodeCacheSegment($id);
+    }
+
+    /**
+     * Index assignment IDs by their collision-safe identities.
+     *
+     * @param array<int, int|string> $ids
+     * @return array<string, int|string>
+     */
+    protected function indexAssignmentIds(array $ids): array
+    {
+        $indexed = [];
+
+        foreach ($ids as $id) {
+            $indexed[$this->assignmentIdIdentity($id)] = $id;
         }
 
-        $relation = $this->permissions();
-        $currentPermissions = $relation->get()
-            ->keyBy(fn (Model $permission): string => (string) $permission->getKey());
-        $effect = ['is_forbidden' => (bool) $pivot['is_forbidden']];
+        return $indexed;
+    }
 
-        $attach = [];
-        $updated = false;
+    /**
+     * Normalize an ID read directly from an assignment pivot.
+     */
+    protected function normalizeRelatedPivotId(BelongsToMany $relation, mixed $id): int|string
+    {
+        return $relation->getRelated()->getKeyType() === 'int'
+            ? (int) $id
+            : (string) $id;
+    }
 
-        foreach ($permissions as $permission) {
-            $key = (string) $permission;
-            $currentPermission = $currentPermissions->get($key);
+    /**
+     * Read current assignment pivots through their captured relation constraints.
+     *
+     * @param array<int, string> $columns
+     * @param null|array<int, int|string> $ids
+     */
+    protected function readCurrentAssignmentPivots(
+        BelongsToMany $relation,
+        array $columns,
+        ?array $ids = null,
+    ): Collection {
+        $query = $relation->newPivotQuery()->select($columns);
 
-            if (! $currentPermission instanceof Model) {
-                $attach[] = $permission;
-                continue;
+        if ($ids !== null) {
+            $query->whereIn($relation->getRelatedPivotKeyName(), $ids);
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Synchronize direct permission assignment presence and effects.
+     *
+     * @param array<int, int|string> $allowed
+     * @param array<int, int|string> $forbidden
+     * @return array{attached: array<int, int|string>, detached: array<int, int|string>, updated: array<int, int|string>}
+     */
+    private function synchronizePermissionAssignments(
+        array $allowed,
+        array $forbidden,
+        PermissionRelationContext $context,
+        bool $detaching,
+    ): array {
+        $desired = [];
+
+        foreach ($this->indexAssignmentIds($allowed) as $identity => $permission) {
+            $desired[$identity] = [
+                'id' => $permission,
+                'is_forbidden' => false,
+            ];
+        }
+
+        foreach ($this->indexAssignmentIds($forbidden) as $identity => $permission) {
+            $desired[$identity] = [
+                'id' => $permission,
+                'is_forbidden' => true,
+            ];
+        }
+
+        return $this->getConnection()->transaction(function () use ($context, $desired, $detaching): array {
+            $relation = $this->permissionAssignmentRelation($context);
+            $relatedPivotKey = $relation->getRelatedPivotKeyName();
+            $pivots = $this->readCurrentAssignmentPivots(
+                $relation,
+                [$relatedPivotKey, 'is_forbidden'],
+                $detaching ? null : array_column($desired, 'id'),
+            );
+
+            $current = [];
+
+            foreach ($pivots as $pivot) {
+                $id = $this->normalizeRelatedPivotId($relation, $pivot->{$relatedPivotKey});
+
+                $current[$this->assignmentIdIdentity($id)] = [
+                    'id' => $id,
+                    'is_forbidden' => $this->permissionEffectIsForbidden($pivot->is_forbidden),
+                ];
             }
 
-            if ($this->pivotIsForbidden($currentPermission) !== $effect['is_forbidden']) {
-                $updated = $relation->updateExistingPivot($permission, $effect, false) > 0 || $updated;
+            $changes = [
+                'attached' => [],
+                'detached' => [],
+                'updated' => [],
+            ];
+            $attachAllowed = [];
+            $attachForbidden = [];
+            $updateAllowed = [];
+            $updateForbidden = [];
+
+            if ($detaching) {
+                foreach (array_diff_key($current, $desired) as $assignment) {
+                    $changes['detached'][] = $assignment['id'];
+                }
             }
-        }
 
-        if ($attach !== []) {
-            $relation->attach($attach, $pivot, false);
-            $updated = true;
-        }
+            foreach ($desired as $identity => $assignment) {
+                $currentAssignment = $current[$identity] ?? null;
 
-        if ($updated) {
-            $relation->touchIfTouching();
-        }
+                if ($currentAssignment === null) {
+                    $changes['attached'][] = $assignment['id'];
+
+                    if ($assignment['is_forbidden']) {
+                        $attachForbidden[] = $assignment['id'];
+                    } else {
+                        $attachAllowed[] = $assignment['id'];
+                    }
+
+                    continue;
+                }
+
+                if ($currentAssignment['is_forbidden'] !== $assignment['is_forbidden']) {
+                    $changes['updated'][] = $assignment['id'];
+
+                    if ($assignment['is_forbidden']) {
+                        $updateForbidden[] = $assignment['id'];
+                    } else {
+                        $updateAllowed[] = $assignment['id'];
+                    }
+                }
+            }
+
+            if ($changes['detached'] !== []) {
+                $relation->detach($changes['detached'], false);
+            }
+
+            if ($attachAllowed !== []) {
+                $relation->attach(
+                    $attachAllowed,
+                    $this->permissionAssignmentPivot(false, $context),
+                    false,
+                );
+            }
+
+            if ($attachForbidden !== []) {
+                $relation->attach(
+                    $attachForbidden,
+                    $this->permissionAssignmentPivot(true, $context),
+                    false,
+                );
+            }
+
+            // Permission assignment pivots have no timestamps or custom pivot class,
+            // so effect changes can be written in two scoped batches.
+            if ($updateAllowed !== []) {
+                $relation->newPivotQuery()
+                    ->whereIn($relatedPivotKey, $updateAllowed)
+                    ->update(['is_forbidden' => false]);
+            }
+
+            if ($updateForbidden !== []) {
+                $relation->newPivotQuery()
+                    ->whereIn($relatedPivotKey, $updateForbidden)
+                    ->update(['is_forbidden' => true]);
+            }
+
+            if ($changes['attached'] !== []
+                || $changes['detached'] !== []
+                || $changes['updated'] !== []) {
+                $relation->touchIfTouching();
+            }
+
+            return $changes;
+        });
     }
 
     /**
@@ -727,13 +1088,16 @@ trait HasPermissions
      * @param array<int, int|string> $permissions
      * @param array<string, mixed> $pivot
      */
-    private function attachPermissionAssignments(array $permissions, array $pivot): void
-    {
+    protected function attachPermissionAssignments(
+        array $permissions,
+        array $pivot,
+        ?PermissionRelationContext $context = null,
+    ): void {
         if ($permissions === []) {
             return;
         }
 
-        $relation = $this->permissions();
+        $relation = $this->permissionAssignmentRelation($context);
 
         $relation->attach($permissions, $pivot, false);
         $relation->touchIfTouching();
@@ -745,26 +1109,57 @@ trait HasPermissions
      * @param array<int, int|string> $permissions
      * @param array<string, mixed> $pivot
      */
-    protected function queuePermissionAssignments(array $permissions, array $pivot): void
-    {
+    protected function queuePermissionAssignments(
+        array $permissions,
+        array $pivot,
+        PermissionRelationContext $context,
+    ): void {
         $this->queuedPermissionAssignments[] = [
             'permissions' => $permissions,
             'pivot' => $pivot,
+            'context' => $context,
         ];
     }
 
     /**
      * Replace queued permission assignments for the given scope.
      *
-     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>}> $assignments
-     * @param array<string, mixed> $scopePivot
+     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}> $assignments
      */
-    private function replaceQueuedPermissionAssignments(array $assignments, array $scopePivot): void
-    {
-        $teamKey = $this->queuedPermissionAssignmentTeamKey($scopePivot);
+    private function replaceQueuedPermissionAssignments(
+        array $assignments,
+        PermissionRelationContext $context,
+    ): bool {
+        $scopeKey = $context->identity();
+        $current = [];
+
+        foreach ($this->queuedPermissionAssignments as $assignment) {
+            if ($assignment['context']->identity() === $scopeKey) {
+                $current[] = [
+                    'permissions' => $assignment['permissions'],
+                    'pivot' => $assignment['pivot'],
+                ];
+            }
+        }
+
+        $replacement = [];
+
+        foreach ($assignments as $assignment) {
+            if ($assignment['permissions'] !== []) {
+                $replacement[] = [
+                    'permissions' => $assignment['permissions'],
+                    'pivot' => $assignment['pivot'],
+                ];
+            }
+        }
+
+        if ($current === $replacement) {
+            return false;
+        }
+
         $this->queuedPermissionAssignments = array_values(array_filter(
             $this->queuedPermissionAssignments,
-            fn (array $assignment): bool => $this->queuedPermissionAssignmentTeamKey($assignment['pivot']) !== $teamKey,
+            fn (array $assignment): bool => $assignment['context']->identity() !== $scopeKey,
         ));
 
         foreach ($assignments as $assignment) {
@@ -772,55 +1167,150 @@ trait HasPermissions
                 continue;
             }
 
-            $this->queuePermissionAssignments($assignment['permissions'], $assignment['pivot']);
+            $this->queuePermissionAssignments(
+                $assignment['permissions'],
+                $assignment['pivot'],
+                $assignment['context'],
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * Remove permission assignments queued for a captured context.
+     *
+     * @param array<int, int|string> $permissions
+     */
+    protected function removeQueuedPermissionAssignments(
+        array $permissions,
+        PermissionRelationContext $context,
+    ): bool {
+        $identity = $context->identity();
+        $changed = false;
+        $assignments = [];
+
+        foreach ($this->queuedPermissionAssignments as $assignment) {
+            if ($assignment['context']->identity() !== $identity) {
+                $assignments[] = $assignment;
+                continue;
+            }
+
+            $remainingPermissions = array_values(array_filter(
+                $assignment['permissions'],
+                fn (int|string $permission): bool => ! in_array($permission, $permissions, true),
+            ));
+
+            if ($remainingPermissions === $assignment['permissions']) {
+                $assignments[] = $assignment;
+                continue;
+            }
+
+            $changed = true;
+
+            if ($remainingPermissions !== []) {
+                $assignment['permissions'] = $remainingPermissions;
+                $assignments[] = $assignment;
+            }
+        }
+
+        if ($changed) {
+            $this->queuedPermissionAssignments = $assignments;
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Flush permission assignments queued before the model was saved.
+     */
+    protected function flushQueuedPermissionAssignments(): void
+    {
+        $assignments = $this->collapseQueuedPermissionAssignments();
+
+        if ($assignments === []) {
+            return;
+        }
+
+        $this->getConnection()->transaction(
+            fn () => $this->attachQueuedPermissionAssignmentBatches($assignments),
+        );
+
+        $this->clearQueuedPermissionAssignments();
+        $this->unsetRelation('permissions');
+        $this->invalidateQueuedPermissionAssignmentContexts($assignments);
+    }
+
+    /**
+     * Attach collapsed queued permission assignment batches.
+     *
+     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}> $assignments
+     */
+    protected function attachQueuedPermissionAssignmentBatches(array $assignments): void
+    {
+        foreach ($assignments as $assignment) {
+            $this->attachPermissionAssignments(
+                $assignment['permissions'],
+                $assignment['pivot'],
+                $assignment['context'],
+            );
         }
     }
 
     /**
-     * Attach permission assignments queued before the model was saved.
+     * Clear queued permission assignments after their transaction commits.
      */
-    protected function attachQueuedPermissionAssignments(): void
+    protected function clearQueuedPermissionAssignments(): void
     {
-        if ($this->queuedPermissionAssignments === []) {
-            return;
-        }
-
-        $registrar = $this->permissionRegistrar();
-
-        foreach ($this->collapseQueuedPermissionAssignments() as $assignment) {
-            $this->attachPermissionAssignments(
-                $assignment['permissions'],
-                $assignment['pivot'],
-            );
-        }
-
         $this->queuedPermissionAssignments = [];
-        $this->unsetRelation('permissions');
+    }
 
-        if ($this instanceof Role) {
-            $this->forgetCachedPermissions();
-        } else {
-            $registrar->forgetModelPermissionCache($this);
+    /**
+     * Invalidate the captured contexts of committed permission assignments.
+     *
+     * @param array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}> $assignments
+     */
+    protected function invalidateQueuedPermissionAssignmentContexts(array $assignments): void
+    {
+        $registrar = $this->permissionRegistrar();
+        $contexts = [];
+
+        foreach ($assignments as $assignment) {
+            $contexts[$assignment['context']->identity()] = $assignment['context'];
+        }
+
+        foreach ($contexts as $context) {
+            if ($this instanceof Role) {
+                $registrar->forgetCachedPermissionsFor($context->partition);
+            } else {
+                $registrar->forgetModelPermissionCacheFor(
+                    $this,
+                    $context->partition,
+                    $context->team,
+                );
+            }
         }
     }
 
     /**
      * Collapse queued permission assignments to their final edge state.
      *
-     * @return array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>}>
+     * @return array<int, array{permissions: array<int, int|string>, pivot: array<string, mixed>, context: PermissionRelationContext}>
      */
-    private function collapseQueuedPermissionAssignments(): array
+    protected function collapseQueuedPermissionAssignments(): array
     {
         $collapsed = [];
 
         // Collapse by edge first so the last queued effect wins for each permission and team.
         foreach ($this->queuedPermissionAssignments as $assignment) {
             foreach ($assignment['permissions'] as $permission) {
-                $key = $permission . '|' . $this->queuedPermissionAssignmentTeamKey($assignment['pivot']);
+                $key = PermissionPartition::encodeCacheSegment($permission)
+                    . ':' . $assignment['context']->identity();
 
                 $collapsed[$key] = [
                     'permission' => $permission,
                     'pivot' => $assignment['pivot'],
+                    'context' => $assignment['context'],
                 ];
             }
         }
@@ -830,33 +1320,18 @@ trait HasPermissions
         // Then batch by pivot so each distinct team and effect can be inserted together.
         foreach ($collapsed as $assignment) {
             $pivot = $assignment['pivot'];
-            $batchKey = $this->queuedPermissionAssignmentTeamKey($pivot) . '|'
+            $batchKey = $assignment['context']->identity() . ':'
                 . ((bool) $pivot['is_forbidden'] ? 'forbidden' : 'allowed');
 
             $batches[$batchKey] ??= [
                 'permissions' => [],
                 'pivot' => $pivot,
+                'context' => $assignment['context'],
             ];
             $batches[$batchKey]['permissions'][] = $assignment['permission'];
         }
 
         return array_values($batches);
-    }
-
-    /**
-     * Build the queued assignment team key.
-     *
-     * @param array<string, mixed> $pivot
-     */
-    private function queuedPermissionAssignmentTeamKey(array $pivot): string
-    {
-        $registrar = $this->permissionRegistrar();
-
-        if (! $registrar->teams || $this instanceof Role) {
-            return 'none';
-        }
-
-        return (string) ($pivot[$registrar->teamsKey] ?? 'global');
     }
 
     /**
@@ -866,17 +1341,25 @@ trait HasPermissions
      */
     protected function dispatchPermissionAttachedEvent(array $permissions): void
     {
-        if (! Config::eventsEnabled()) {
+        if (! $this->permissionAttachedEventIsListenedFor()) {
             return;
         }
 
-        $events = $this->eventDispatcher();
-
-        if ($events->hasListeners(PermissionAttachedEvent::class)) {
-            $events->dispatch(new PermissionAttachedEvent($this, $permissions));
-        }
+        $this->eventDispatcher()->dispatch(new PermissionAttachedEvent($this, $permissions));
     }
 
+    /**
+     * Determine whether the permission attached event has listeners.
+     */
+    protected function permissionAttachedEventIsListenedFor(): bool
+    {
+        return Config::eventsEnabled()
+            && $this->eventDispatcher()->hasListeners(PermissionAttachedEvent::class);
+    }
+
+    /**
+     * Forget the wildcard permission index.
+     */
     public function forgetWildcardPermissionIndex(): void
     {
         $this->permissionRegistrar()->forgetWildcardPermissionIndex(
@@ -891,45 +1374,52 @@ trait HasPermissions
      */
     public function syncPermissions(...$permissions): static
     {
-        $permissions = $this->collectPermissions($permissions);
-        $model = $this;
-        $cacheCleared = false;
+        $registrar = $this->permissionRegistrar();
+        $context = $this->permissionAssignmentContext($registrar);
+        $permissions = $this->collectPermissions($permissions, $context->partition);
+        $pivot = $this->permissionAssignmentPivot(false, $context);
 
-        if ($this->exists) {
-            $pivot = $this->permissionAssignmentPivot(false);
-
-            $this->permissions()->detach();
-            $this->attachPermissionAssignments(
-                $permissions,
-                $pivot,
-            );
-            $model->unsetRelation('permissions');
-        } else {
-            $pivot = $this->permissionAssignmentPivot(false);
-
+        if (! $this->exists) {
             $this->replaceQueuedPermissionAssignments(
                 [
                     [
                         'permissions' => $permissions,
                         'pivot' => $pivot,
+                        'context' => $context,
                     ],
                 ],
-                $pivot,
+                $context,
             );
+            $this->dispatchPermissionAttachedEvent($permissions);
+
+            return $this;
         }
 
-        if ($model->exists) {
-            if ($this instanceof Role) {
-                $this->forgetCachedPermissions();
-                $cacheCleared = true;
-            } else {
-                $this->permissionRegistrar()->forgetModelPermissionCache($model);
-                $cacheCleared = true;
-            }
+        $changes = $this->synchronizePermissionAssignments(
+            $permissions,
+            [],
+            $context,
+            true,
+        );
+
+        if ($changes['attached'] === []
+            && $changes['detached'] === []
+            && $changes['updated'] === []) {
+            $this->dispatchPermissionAttachedEvent($permissions);
+
+            return $this;
         }
 
-        if (! $cacheCleared) {
-            $this->forgetWildcardPermissionIndex();
+        $this->unsetRelation('permissions');
+
+        if ($this instanceof Role) {
+            $registrar->forgetCachedPermissionsFor($context->partition);
+        } else {
+            $registrar->forgetModelPermissionCacheFor(
+                $this,
+                $context->partition,
+                $context->team,
+            );
         }
 
         $this->dispatchPermissionAttachedEvent($permissions);
@@ -949,58 +1439,65 @@ trait HasPermissions
      */
     public function syncPermissionsWithForbidden(array|Collection $allowed = [], array|Collection $forbidden = []): array
     {
-        $model = $this;
+        $registrar = $this->permissionRegistrar();
+        $context = $this->permissionAssignmentContext($registrar);
 
-        $allowedIds = $this->collectPermissions($allowed);
-        $forbiddenIds = $this->collectPermissions($forbidden);
+        $allowedIds = $this->collectPermissions($allowed, $context->partition);
+        $forbiddenIds = $this->collectPermissions($forbidden, $context->partition);
         $allowedIds = array_values(array_filter(
             $allowedIds,
             fn (int|string $allowedId): bool => ! in_array($allowedId, $forbiddenIds, true),
         ));
         $permissions = array_merge($allowedIds, $forbiddenIds);
-        $allowedPivot = $this->permissionAssignmentPivot(false);
-        $forbiddenPivot = $this->permissionAssignmentPivot(true);
+        $allowedPivot = $this->permissionAssignmentPivot(false, $context);
+        $forbiddenPivot = $this->permissionAssignmentPivot(true, $context);
 
-        if (! $model->exists) {
+        if (! $this->exists) {
             $this->replaceQueuedPermissionAssignments(
                 [
                     [
                         'permissions' => $allowedIds,
                         'pivot' => $allowedPivot,
+                        'context' => $context,
                     ],
                     [
                         'permissions' => $forbiddenIds,
                         'pivot' => $forbiddenPivot,
+                        'context' => $context,
                     ],
                 ],
-                $allowedPivot,
+                $context,
             );
-
-            $this->forgetWildcardPermissionIndex();
             $this->dispatchPermissionAttachedEvent($permissions);
 
             return ['attached' => [], 'detached' => [], 'updated' => []];
         }
 
-        $syncData = [];
+        $changes = $this->synchronizePermissionAssignments(
+            $allowedIds,
+            $forbiddenIds,
+            $context,
+            true,
+        );
 
-        foreach ($allowedIds as $permissionId) {
-            $syncData[$permissionId] = $allowedPivot;
+        if ($changes['attached'] === []
+            && $changes['detached'] === []
+            && $changes['updated'] === []) {
+            $this->dispatchPermissionAttachedEvent($permissions);
+
+            return $changes;
         }
-
-        foreach ($forbiddenIds as $permissionId) {
-            $syncData[$permissionId] = $forbiddenPivot;
-        }
-
-        /** @var array{attached: array<int, int|string>, detached: array<int, int|string>, updated: array<int, int|string>} $changes */
-        $changes = $this->permissions()->sync($syncData);
 
         $this->unsetRelation('permissions');
 
         if ($this instanceof Role) {
-            $this->forgetCachedPermissions();
+            $registrar->forgetCachedPermissionsFor($context->partition);
         } else {
-            $this->permissionRegistrar()->forgetModelPermissionCache($model);
+            $registrar->forgetModelPermissionCacheFor(
+                $this,
+                $context->partition,
+                $context->team,
+            );
         }
 
         $this->dispatchPermissionAttachedEvent($permissions);
@@ -1015,19 +1512,42 @@ trait HasPermissions
      */
     public function revokePermissionTo($permission): static
     {
-        $storedPermission = $this->getStoredPermission($permission);
+        $registrar = $this->permissionRegistrar();
+        $context = $this->permissionAssignmentContext($registrar);
+        $storedPermission = $this->getStoredPermission($permission, $context->partition);
+        $permissions = $this->collectPermissions($storedPermission, $context->partition);
 
-        $this->permissions()->detach($storedPermission);
+        if ($permissions === []) {
+            $this->dispatchPermissionDetachedEvent($storedPermission);
 
-        if ($this instanceof Role) {
-            $this->forgetCachedPermissions();
-        } else {
-            $this->permissionRegistrar()->forgetModelPermissionCache($this);
+            return $this;
+        }
+
+        if (! $this->exists) {
+            $this->removeQueuedPermissionAssignments($permissions, $context);
+            $this->dispatchPermissionDetachedEvent($storedPermission);
+
+            return $this;
+        }
+
+        $relation = $this->permissionAssignmentRelation($context);
+        $detached = $relation->detach($storedPermission);
+
+        if ($detached > 0) {
+            if ($this instanceof Role) {
+                $registrar->forgetCachedPermissionsFor($context->partition);
+            } else {
+                $registrar->forgetModelPermissionCacheFor(
+                    $this,
+                    $context->partition,
+                    $context->team,
+                );
+            }
+
+            $this->unsetRelation('permissions');
         }
 
         $this->dispatchPermissionDetachedEvent($storedPermission);
-
-        $this->unsetRelation('permissions');
 
         return $this;
     }
@@ -1037,15 +1557,20 @@ trait HasPermissions
      */
     protected function dispatchPermissionDetachedEvent(mixed $permission): void
     {
-        if (! Config::eventsEnabled()) {
+        if (! $this->permissionDetachedEventIsListenedFor()) {
             return;
         }
 
-        $events = $this->eventDispatcher();
+        $this->eventDispatcher()->dispatch(new PermissionDetachedEvent($this, $permission));
+    }
 
-        if ($events->hasListeners(PermissionDetachedEvent::class)) {
-            $events->dispatch(new PermissionDetachedEvent($this, $permission));
-        }
+    /**
+     * Determine whether the permission detached event has listeners.
+     */
+    protected function permissionDetachedEventIsListenedFor(): bool
+    {
+        return Config::eventsEnabled()
+            && $this->eventDispatcher()->hasListeners(PermissionDetachedEvent::class);
     }
 
     /**
@@ -1228,7 +1753,17 @@ trait HasPermissions
 
         $pivot = $model->getRelation('pivot');
 
-        return $pivot instanceof Pivot && (bool) $pivot->getAttribute('is_forbidden');
+        return $pivot instanceof Pivot
+            && $this->permissionEffectIsForbidden($pivot->getAttribute('is_forbidden'));
+    }
+
+    /**
+     * Normalize a permission assignment effect.
+     */
+    protected function permissionEffectIsForbidden(mixed $value): bool
+    {
+        // Framework connectors disable stringified fetches, so booleans arrive as bool or 0/1.
+        return (bool) $value;
     }
 
     /**
@@ -1236,6 +1771,13 @@ trait HasPermissions
      */
     protected function relationCollection(Model $model, string $relation): Collection
     {
+        $registrar = $this->permissionRegistrar();
+
+        if ($model->relationLoaded($relation)
+            && ! $registrar->loadedRelationIsCurrent($model, $relation)) {
+            $model->unsetRelation($relation);
+        }
+
         if (! $model->relationLoaded($relation)) {
             $model->loadMissing($relation);
         }
@@ -1273,6 +1815,13 @@ trait HasPermissions
      */
     protected function guardNameForPermissionMatch(mixed $permission, ?string $guardName = null): string
     {
+        if ($permission instanceof Permission) {
+            $this->ensurePermissionMatchesPartition(
+                $permission,
+                $this->permissionRegistrar()->resolvePartition(),
+            );
+        }
+
         if ($guardName !== null) {
             return $guardName;
         }
@@ -1300,27 +1849,87 @@ trait HasPermissions
      * @param array|Collection|int|Permission|string|UnitEnum $permissions
      * @return Collection|Permission|Permission[]
      */
-    protected function getStoredPermission($permissions)
-    {
+    protected function getStoredPermission(
+        $permissions,
+        ?PermissionPartition $partition = null,
+    ) {
+        $partition ??= $this->permissionRegistrar()->resolvePartition();
         $permissions = enum_value($permissions);
 
         if (is_int($permissions) || PermissionRegistrar::isUid($permissions)) {
-            return $this->getPermissionClass()::findById($permissions, $this->getDefaultGuardName());
+            $permission = $this->getPermissionClass()::findById($permissions, $this->getDefaultGuardName());
+            $this->ensurePermissionMatchesPartition($permission, $partition);
+
+            return $permission;
         }
 
         if (is_string($permissions)) {
-            return $this->getPermissionClass()::findByName($permissions, $this->getDefaultGuardName());
+            $permission = $this->getPermissionClass()::findByName($permissions, $this->getDefaultGuardName());
+            $this->ensurePermissionMatchesPartition($permission, $partition);
+
+            return $permission;
         }
 
         if (is_array($permissions)) {
-            $permissions = array_map(fn ($permission) => $permission instanceof Permission ? $permission->name : enum_value($permission), $permissions);
+            $permissions = array_map(function ($permission) use ($partition) {
+                if ($permission instanceof Permission) {
+                    $this->ensurePermissionMatchesPartition($permission, $partition);
+
+                    return $permission->name;
+                }
+
+                return enum_value($permission);
+            }, $permissions);
 
             return $this->getPermissionClass()::whereIn('name', $permissions)
                 ->whereIn('guard_name', $this->getGuardNames())
                 ->get();
         }
 
+        if ($permissions instanceof Permission) {
+            $this->ensurePermissionMatchesPartition($permissions, $partition);
+        }
+
         return $permissions;
+    }
+
+    /**
+     * Capture the partition and team for a direct permission operation.
+     */
+    private function permissionAssignmentContext(PermissionRegistrar $registrar): PermissionRelationContext
+    {
+        $partition = $registrar->resolvePartition();
+
+        if ($partition) {
+            $attributes = $this->getAttributes();
+
+            if ($this instanceof Role
+                || $this instanceof Permission
+                || (array_key_exists($partition->column, $attributes)
+                    && $attributes[$partition->column] !== null)) {
+                $registrar->ensureModelMatchesPartition($this, $partition);
+            }
+        }
+
+        $teamScoped = $registrar->teams && ! $this instanceof Role;
+
+        return new PermissionRelationContext(
+            $partition,
+            $teamScoped,
+            $teamScoped ? $registrar->getPermissionsTeamId() : null,
+        );
+    }
+
+    /**
+     * Ensure a supplied permission belongs to the captured partition.
+     */
+    private function ensurePermissionMatchesPartition(
+        Permission $permission,
+        ?PermissionPartition $partition,
+    ): void {
+        if ($partition && $permission instanceof Model) {
+            $this->permissionRegistrar()->ensureModelMatchesPartition($permission, $partition);
+        }
     }
 
     /**
@@ -1335,11 +1944,17 @@ trait HasPermissions
         }
     }
 
+    /**
+     * Get the guard names for the model.
+     */
     protected function getGuardNames(): Collection
     {
         return Guard::getNames($this);
     }
 
+    /**
+     * Get the default guard name for the model.
+     */
     protected function getDefaultGuardName(): string
     {
         return Guard::getDefaultName($this);

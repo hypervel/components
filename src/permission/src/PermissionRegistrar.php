@@ -20,12 +20,22 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Permission\Contracts\Permission as PermissionContract;
 use Hypervel\Permission\Contracts\PermissionsTeamResolver;
 use Hypervel\Permission\Contracts\Role as RoleContract;
+use Hypervel\Permission\Exceptions\PermissionPartitionAlreadyConfigured;
+use Hypervel\Permission\Exceptions\PermissionPartitionModelNotSupported;
+use Hypervel\Permission\Exceptions\PermissionPartitionNotResolved;
+use Hypervel\Permission\Exceptions\PermissionPartitionViolation;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
+use Hypervel\Permission\Support\PermissionPartition;
+use Hypervel\Permission\Support\PermissionRelationContext;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
+use LogicException;
+use UnexpectedValueException;
+use WeakMap;
+use WeakReference;
 
 use function Hypervel\Support\enum_value;
 
@@ -43,10 +53,12 @@ class PermissionRegistrar
 
     public const MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY = '__permission.model_via_role_permissions';
 
-    /**
-     * The callback used to scope permission cache keys.
-     */
-    protected static ?Closure $cacheKeyResolver = null;
+    protected static ?string $partitionColumn = null;
+
+    /** @var null|Closure(): (null|int|string) */
+    protected static ?Closure $partitionResolver = null;
+
+    protected static bool $initialized = false;
 
     protected string $permissionClass;
 
@@ -77,6 +89,11 @@ class PermissionRegistrar
     protected ?string $cacheStoreName = null;
 
     /**
+     * @var WeakMap<Model, array<string, array{collection: WeakReference, context: PermissionRelationContext}>>
+     */
+    protected WeakMap $loadedRelationProvenance;
+
+    /**
      * Create a new permission registrar.
      */
     public function __construct(
@@ -84,7 +101,123 @@ class PermissionRegistrar
         protected ConfigRepository $config,
         protected Container $app,
     ) {
+        static::$initialized = true;
+        $this->loadedRelationProvenance = new WeakMap;
         $this->initializeCache();
+    }
+
+    /**
+     * Configure the permission row partition resolver.
+     *
+     * Register before resolving the Permission registrar or Gate.
+     *
+     * Boot-only. The column and callback persist in static properties for the
+     * worker lifetime and affect every subsequent permission operation.
+     *
+     * @param Closure(): (null|int|string) $resolver
+     */
+    public static function resolvePartitionUsing(string $column, Closure $resolver): void
+    {
+        if (static::$initialized || static::$partitionResolver !== null) {
+            throw PermissionPartitionAlreadyConfigured::create();
+        }
+
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/D', $column) !== 1) {
+            throw new InvalidArgumentException(sprintf(
+                'Permission partition column "%s" must be a simple SQL identifier.',
+                $column,
+            ));
+        }
+
+        static::$partitionColumn = $column;
+        static::$partitionResolver = $resolver;
+    }
+
+    /**
+     * Determine whether permission row partitioning is configured.
+     */
+    public static function partitioningEnabled(): bool
+    {
+        return static::$partitionResolver !== null;
+    }
+
+    /**
+     * Get the configured permission partition column.
+     */
+    public static function partitionColumn(): ?string
+    {
+        return static::$partitionColumn;
+    }
+
+    /**
+     * Resolve the current permission partition.
+     */
+    public function resolvePartition(): ?PermissionPartition
+    {
+        if (! static::$partitionResolver || ! static::$partitionColumn) {
+            return null;
+        }
+
+        $value = (static::$partitionResolver)();
+
+        if ($value === null || $value === '') {
+            throw PermissionPartitionNotResolved::forColumn(static::$partitionColumn);
+        }
+
+        if (! is_int($value) && ! is_string($value)) {
+            throw new UnexpectedValueException(sprintf(
+                'Permission partition resolver for column "%s" returned %s; expected int, string, or null.',
+                static::$partitionColumn,
+                get_debug_type($value),
+            ));
+        }
+
+        return new PermissionPartition(static::$partitionColumn, $value);
+    }
+
+    /**
+     * Resolve a permission partition from a persisted record.
+     */
+    public function partitionFromRecord(Model $model): PermissionPartition
+    {
+        $column = static::$partitionColumn;
+
+        if ($column === null) {
+            throw new LogicException('Permission row partitioning is not configured.');
+        }
+
+        $original = $model->getRawOriginal();
+
+        if (array_key_exists($column, $original)) {
+            $value = $original[$column];
+        } elseif ($model->wasRecentlyCreated) {
+            // Eloquent fires "saved" before synchronizing a newly inserted model's original attributes.
+            $attributes = $model->getAttributes();
+            $value = array_key_exists($column, $attributes) ? $attributes[$column] : null;
+        } else {
+            $value = null;
+        }
+
+        if ((! is_int($value) && ! is_string($value)) || $value === '') {
+            throw PermissionPartitionViolation::forMissingRecordPartition($model, $column, $value);
+        }
+
+        return new PermissionPartition($column, $value);
+    }
+
+    /**
+     * Ensure a model belongs to the captured permission partition.
+     */
+    public function ensureModelMatchesPartition(Model $model, PermissionPartition $partition): void
+    {
+        $attributes = $model->getAttributes();
+        $actual = array_key_exists($partition->column, $attributes)
+            ? $attributes[$partition->column]
+            : null;
+
+        if (! $partition->matches($actual)) {
+            throw PermissionPartitionViolation::forModel($model, $partition, $actual);
+        }
     }
 
     /**
@@ -126,7 +259,7 @@ class PermissionRegistrar
         $cacheStore = $this->config->string('permission.cache.store', 'default');
         $this->cacheStoreName = $cacheStore === 'default' ? null : $cacheStore;
 
-        $this->clearPermissionsCollection();
+        $this->clearAllPermissionRuntimeState();
         $this->validateModelClasses();
     }
 
@@ -135,20 +268,47 @@ class PermissionRegistrar
      */
     protected function validateModelClasses(): void
     {
-        if (! is_a($this->roleClass, RoleContract::class, true)) {
+        $this->validateRoleClass($this->roleClass);
+        $this->validatePermissionClass($this->permissionClass);
+    }
+
+    /**
+     * Validate a configured role model class.
+     *
+     * @param class-string $roleClass
+     */
+    protected function validateRoleClass(string $roleClass): void
+    {
+        if (! is_a($roleClass, RoleContract::class, true)) {
             throw new InvalidArgumentException(sprintf(
                 'Role class "%s" must implement "%s" interface.',
-                $this->roleClass,
+                $roleClass,
                 RoleContract::class,
             ));
         }
 
-        if (! is_a($this->permissionClass, PermissionContract::class, true)) {
+        if (static::partitioningEnabled() && ! is_a($roleClass, Role::class, true)) {
+            throw PermissionPartitionModelNotSupported::forModel($roleClass, Role::class);
+        }
+    }
+
+    /**
+     * Validate a configured permission model class.
+     *
+     * @param class-string $permissionClass
+     */
+    protected function validatePermissionClass(string $permissionClass): void
+    {
+        if (! is_a($permissionClass, PermissionContract::class, true)) {
             throw new InvalidArgumentException(sprintf(
                 'Permission class "%s" must implement "%s" interface.',
-                $this->permissionClass,
+                $permissionClass,
                 PermissionContract::class,
             ));
+        }
+
+        if (static::partitioningEnabled() && ! is_a($permissionClass, Permission::class, true)) {
+            throw PermissionPartitionModelNotSupported::forModel($permissionClass, Permission::class);
         }
     }
 
@@ -211,10 +371,20 @@ class PermissionRegistrar
      */
     public function forgetCachedPermissions(): bool
     {
-        $this->clearPermissionsCollection();
-        $this->bumpModelAssignmentCacheToken();
+        return $this->forgetCachedPermissionsFor($this->resolvePartition());
+    }
 
-        return $this->cacheRepository()->forget($this->getCacheKey());
+    /**
+     * Flush the permission cache for an explicit partition.
+     */
+    public function forgetCachedPermissionsFor(?PermissionPartition $partition): bool
+    {
+        $this->clearPermissionRuntimeStateFor($partition);
+        $this->bumpModelAssignmentCacheTokenFor($partition);
+
+        return $this->cacheRepository()->forget(
+            $this->partitionedCacheKey($this->cacheKey, $partition),
+        );
     }
 
     /**
@@ -222,13 +392,64 @@ class PermissionRegistrar
      */
     public function forgetModelAssignmentCache(Model $model): void
     {
+        $this->forgetModelAssignmentCacheFor(
+            $model,
+            $this->resolvePartition(),
+            $this->teams ? $this->getPermissionsTeamId() : null,
+        );
+    }
+
+    /**
+     * Forget a model's assignment caches for an explicit partition and team.
+     */
+    public function forgetModelAssignmentCacheFor(
+        Model $model,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): void {
+        $this->forgetModelAssignmentCacheForIdentity(
+            $model->getMorphClass(),
+            (string) $model->getKey(),
+            $partition,
+            $team,
+        );
+    }
+
+    /**
+     * Forget assignment caches for an explicit morph identity, partition, and team.
+     */
+    public function forgetModelAssignmentCacheForIdentity(
+        string $morphType,
+        int|string $modelKey,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): void {
         $cache = $this->cacheRepository();
 
-        $cache->forget($this->modelCacheKey($this->modelRolesCacheKeyPrefix, $model));
-        $cache->forget($this->modelCacheKey($this->modelPermissionsCacheKeyPrefix, $model));
+        $cache->forget($this->modelCacheKeyForIdentity(
+            $this->modelRolesCacheKeyPrefix,
+            $morphType,
+            $modelKey,
+            $partition,
+            $team,
+        ));
+        $cache->forget($this->modelCacheKeyForIdentity(
+            $this->modelPermissionsCacheKeyPrefix,
+            $morphType,
+            $modelKey,
+            $partition,
+            $team,
+        ));
 
-        $this->forgetModelViaRolePermissions($model);
-        $this->forgetWildcardPermissionIndex($model);
+        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
+            $morphType,
+            $modelKey,
+            $partition,
+            $team,
+        );
+
+        $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
+        $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
     }
 
     /**
@@ -236,12 +457,38 @@ class PermissionRegistrar
      */
     public function forgetModelRoleCache(Model $model): void
     {
-        $this->cacheRepository()->forget(
-            $this->modelCacheKey($this->modelRolesCacheKeyPrefix, $model)
+        $this->forgetModelRoleCacheFor(
+            $model,
+            $this->resolvePartition(),
+            $this->teams ? $this->getPermissionsTeamId() : null,
+        );
+    }
+
+    /**
+     * Forget a model's role assignment cache for an explicit partition and team.
+     */
+    public function forgetModelRoleCacheFor(
+        Model $model,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): void {
+        $this->cacheRepository()->forget($this->modelCacheKeyForIdentity(
+            $this->modelRolesCacheKeyPrefix,
+            $model->getMorphClass(),
+            $model->getKey(),
+            $partition,
+            $team,
+        ));
+
+        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
+            $model->getMorphClass(),
+            $model->getKey(),
+            $partition,
+            $team,
         );
 
-        $this->forgetModelViaRolePermissions($model);
-        $this->forgetWildcardPermissionIndex($model);
+        $this->forgetRuntimeCacheItem(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $runtimeKey);
+        $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
     }
 
     /**
@@ -249,11 +496,37 @@ class PermissionRegistrar
      */
     public function forgetModelPermissionCache(Model $model): void
     {
-        $this->cacheRepository()->forget(
-            $this->modelCacheKey($this->modelPermissionsCacheKeyPrefix, $model)
+        $this->forgetModelPermissionCacheFor(
+            $model,
+            $this->resolvePartition(),
+            $this->teams ? $this->getPermissionsTeamId() : null,
+        );
+    }
+
+    /**
+     * Forget a model's permission assignment cache for an explicit partition and team.
+     */
+    public function forgetModelPermissionCacheFor(
+        Model $model,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): void {
+        $this->cacheRepository()->forget($this->modelCacheKeyForIdentity(
+            $this->modelPermissionsCacheKeyPrefix,
+            $model->getMorphClass(),
+            $model->getKey(),
+            $partition,
+            $team,
+        ));
+
+        $runtimeKey = $this->modelRuntimeCacheKeyForIdentity(
+            $model->getMorphClass(),
+            $model->getKey(),
+            $partition,
+            $team,
         );
 
-        $this->forgetWildcardPermissionIndex($model);
+        $this->forgetRuntimeCacheItem(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $runtimeKey);
     }
 
     /**
@@ -281,9 +554,10 @@ class PermissionRegistrar
      */
     public function forgetModelViaRolePermissions(Model $model): void
     {
-        $items = CoroutineContext::get(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, []);
-        unset($items[$this->modelRuntimeCacheKey($model)]);
-        CoroutineContext::set(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY, $items);
+        $this->forgetRuntimeCacheItem(
+            self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY,
+            $this->modelRuntimeCacheKey($model),
+        );
     }
 
     /**
@@ -321,14 +595,31 @@ class PermissionRegistrar
      */
     protected function modelCacheKey(string $prefix, Model $model): string
     {
-        $teamId = $this->teams ? (string) ($this->getPermissionsTeamId() ?? 'global') : 'none';
-
-        return implode(':', [
-            $this->scopedCacheKey($prefix),
-            $this->modelAssignmentCacheToken(),
+        return $this->modelCacheKeyForIdentity(
+            $prefix,
             $model->getMorphClass(),
-            $model->getKey(),
-            $teamId,
+            (string) $model->getKey(),
+            $this->resolvePartition(),
+            $this->teams ? $this->getPermissionsTeamId() : null,
+        );
+    }
+
+    /**
+     * Build an assignment cache key for an explicit identity and context.
+     */
+    protected function modelCacheKeyForIdentity(
+        string $prefix,
+        string $morphType,
+        int|string $modelKey,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): string {
+        return implode(':', [
+            $this->partitionedCacheKey($prefix, $partition),
+            PermissionPartition::encodeCacheSegment($this->modelAssignmentCacheToken($partition)),
+            PermissionPartition::encodeCacheSegment($morphType),
+            PermissionPartition::encodeCacheSegment($modelKey),
+            PermissionPartition::encodeCacheSegment($this->teams ? $team : null),
         ]);
     }
 
@@ -337,30 +628,41 @@ class PermissionRegistrar
      */
     protected function modelRuntimeCacheKey(Model $model): string
     {
-        $teamId = $this->teams ? (string) ($this->getPermissionsTeamId() ?? 'global') : 'none';
-        $segments = [
-            $this->modelAssignmentCacheToken(),
+        return $this->modelRuntimeCacheKeyForIdentity(
             $model->getMorphClass(),
-            $model->getKey(),
-            $teamId,
-        ];
+            (string) $model->getKey(),
+            $this->resolvePartition(),
+            $this->teams ? $this->getPermissionsTeamId() : null,
+        );
+    }
 
-        $scope = $this->cacheKeyScopeSegment();
-
-        if ($scope !== '') {
-            array_unshift($segments, $scope);
-        }
-
-        return implode(':', $segments);
+    /**
+     * Build a coroutine-local cache key for an explicit identity and context.
+     */
+    protected function modelRuntimeCacheKeyForIdentity(
+        string $morphType,
+        int|string $modelKey,
+        ?PermissionPartition $partition,
+        int|string|null $team,
+    ): string {
+        return implode(':', [
+            $this->partitionRuntimePrefix($partition),
+            PermissionPartition::encodeCacheSegment($this->modelAssignmentCacheToken($partition)),
+            PermissionPartition::encodeCacheSegment($morphType),
+            PermissionPartition::encodeCacheSegment($modelKey),
+            PermissionPartition::encodeCacheSegment($this->teams ? $team : null),
+        ]);
     }
 
     /**
      * Get the current model assignment cache token.
      */
-    public function modelAssignmentCacheToken(): string
+    public function modelAssignmentCacheToken(?PermissionPartition $partition = null): string
     {
+        $partition = $this->resolvedPartitionArgument($partition);
+
         return $this->cacheRepository()->rememberForever(
-            $this->scopedCacheKey($this->modelCacheTokenKey),
+            $this->partitionedCacheKey($this->modelCacheTokenKey, $partition),
             fn (): string => $this->newModelAssignmentCacheToken(),
         );
     }
@@ -370,10 +672,19 @@ class PermissionRegistrar
      */
     public function bumpModelAssignmentCacheToken(): string
     {
+        return $this->bumpModelAssignmentCacheTokenFor($this->resolvePartition());
+    }
+
+    /**
+     * Bump the model assignment cache token for an explicit partition.
+     */
+    public function bumpModelAssignmentCacheTokenFor(?PermissionPartition $partition): string
+    {
+        $partition = $this->resolvedPartitionArgument($partition);
         $token = $this->newModelAssignmentCacheToken();
 
         $this->cacheRepository()->forever(
-            $this->scopedCacheKey($this->modelCacheTokenKey),
+            $this->partitionedCacheKey($this->modelCacheTokenKey, $partition),
             $token,
         );
 
@@ -393,16 +704,25 @@ class PermissionRegistrar
      */
     public function forgetWildcardPermissionIndex(?Model $record = null): void
     {
-        $indexes = CoroutineContext::get(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, []);
-
         if ($record) {
-            unset($indexes[$this->wildcardPermissionIndexKey($record)]);
-            CoroutineContext::set(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY, $indexes);
+            $this->forgetRuntimeCacheItem(
+                self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY,
+                $this->wildcardPermissionIndexKey($record),
+            );
 
             return;
         }
 
-        CoroutineContext::forget(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY);
+        if (! static::partitioningEnabled()) {
+            CoroutineContext::forget(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY);
+
+            return;
+        }
+
+        $this->forgetRuntimeCacheItemsForPartition(
+            self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY,
+            $this->resolvePartition(),
+        );
     }
 
     /**
@@ -439,13 +759,164 @@ class PermissionRegistrar
     }
 
     /**
+     * Forget one item from a coroutine-local permission cache.
+     */
+    protected function forgetRuntimeCacheItem(string $contextKey, string $itemKey): void
+    {
+        $items = CoroutineContext::get($contextKey, []);
+        unset($items[$itemKey]);
+        CoroutineContext::set($contextKey, $items);
+    }
+
+    /**
+     * Forget coroutine-local permission cache items for a partition.
+     */
+    protected function forgetRuntimeCacheItemsForPartition(
+        string $contextKey,
+        ?PermissionPartition $partition,
+    ): void {
+        $items = CoroutineContext::get($contextKey, []);
+        $prefix = $this->partitionRuntimePrefix($partition) . ':';
+
+        foreach (array_keys($items) as $itemKey) {
+            if (is_string($itemKey) && str_starts_with($itemKey, $prefix)) {
+                unset($items[$itemKey]);
+            }
+        }
+
+        CoroutineContext::set($contextKey, $items);
+    }
+
+    /**
      * Clear already-loaded permissions collection.
      */
     public function clearPermissionsCollection(): void
     {
+        $this->clearAllPermissionRuntimeState();
+    }
+
+    /**
+     * Clear all permission runtime state in the current coroutine.
+     */
+    protected function clearAllPermissionRuntimeState(): void
+    {
         CoroutineContext::forget(self::PERMISSION_CATALOG_CONTEXT_KEY);
         CoroutineContext::forget(self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY);
         CoroutineContext::forget(self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY);
+    }
+
+    /**
+     * Clear permission runtime state for an explicit partition.
+     */
+    protected function clearPermissionRuntimeStateFor(?PermissionPartition $partition): void
+    {
+        if (! static::partitioningEnabled()) {
+            $this->clearAllPermissionRuntimeState();
+
+            return;
+        }
+
+        $catalogs = CoroutineContext::get(self::PERMISSION_CATALOG_CONTEXT_KEY, []);
+        unset($catalogs[$this->partitionedCacheKey($this->cacheKey, $partition)]);
+        CoroutineContext::set(self::PERMISSION_CATALOG_CONTEXT_KEY, $catalogs);
+
+        $this->forgetRuntimeCacheItemsForPartition(
+            self::WILDCARD_PERMISSION_INDEX_CONTEXT_KEY,
+            $partition,
+        );
+        $this->forgetRuntimeCacheItemsForPartition(
+            self::MODEL_VIA_ROLE_PERMISSIONS_CONTEXT_KEY,
+            $partition,
+        );
+    }
+
+    /**
+     * Mark the context that produced a loaded permission relation.
+     */
+    public function markLoadedRelation(
+        Model $model,
+        string $relation,
+        BaseCollection $collection,
+        PermissionRelationContext $context,
+    ): void {
+        if (! static::partitioningEnabled() && ! $this->teams) {
+            return;
+        }
+
+        $relations = $this->loadedRelationProvenance[$model] ?? [];
+        $relations[$relation] = [
+            'collection' => WeakReference::create($collection),
+            'context' => $context,
+        ];
+        $this->loadedRelationProvenance[$model] = $relations;
+    }
+
+    /**
+     * Determine whether a loaded permission relation matches current context.
+     */
+    public function loadedRelationIsCurrent(Model $model, string $relation): bool
+    {
+        if (! static::partitioningEnabled() && ! $this->teams) {
+            return true;
+        }
+
+        if (! $model->relationLoaded($relation)) {
+            return false;
+        }
+
+        $provenance = ($this->loadedRelationProvenance[$model] ?? [])[$relation] ?? null;
+
+        if ($provenance === null
+            || $provenance['collection']->get() !== $model->getRelation($relation)) {
+            return false;
+        }
+
+        $capturedPartition = $provenance['context']->partition;
+        $currentPartition = $this->resolvePartition();
+
+        if (($capturedPartition === null) !== ($currentPartition === null)) {
+            return false;
+        }
+
+        if ($capturedPartition
+            && ($currentPartition === null
+                || $capturedPartition->column !== $currentPartition->column
+                || ! $capturedPartition->matches($currentPartition->value))) {
+            return false;
+        }
+
+        return ! $provenance['context']->teamScoped
+            || self::attributeMatches(
+                $provenance['context']->team,
+                $this->getPermissionsTeamId(),
+            );
+    }
+
+    /**
+     * Forget loaded permission relation provenance for a model.
+     */
+    public function forgetLoadedRelationProvenance(Model $model, ?string $relation = null): void
+    {
+        if (! isset($this->loadedRelationProvenance[$model])) {
+            return;
+        }
+
+        if ($relation === null) {
+            unset($this->loadedRelationProvenance[$model]);
+
+            return;
+        }
+
+        $relations = $this->loadedRelationProvenance[$model];
+        unset($relations[$relation]);
+
+        if ($relations === []) {
+            unset($this->loadedRelationProvenance[$model]);
+
+            return;
+        }
+
+        $this->loadedRelationProvenance[$model] = $relations;
     }
 
     /**
@@ -509,6 +980,8 @@ class PermissionRegistrar
     public function getPermissions(array $params = [], bool $onlyOne = false, ?string $permissionClass = null): Collection
     {
         if ($permissionClass !== null && $permissionClass !== $this->permissionClass) {
+            $this->validatePermissionClass($permissionClass);
+
             return $this->filterModels(
                 $this->getPermissionsWithRoles($permissionClass),
                 $params,
@@ -533,6 +1006,8 @@ class PermissionRegistrar
     public function getRoles(array $params = [], bool $onlyOne = false, ?string $roleClass = null): Collection
     {
         if ($roleClass !== null && $roleClass !== $this->roleClass) {
+            $this->validateRoleClass($roleClass);
+
             return $this->filterModels(
                 $roleClass::select()->get(),
                 $params,
@@ -704,48 +1179,43 @@ class PermissionRegistrar
     }
 
     /**
-     * Get the scoped global permission cache key.
+     * Get the current global permission cache key.
      */
     public function getCacheKey(): string
     {
-        return $this->scopedCacheKey($this->cacheKey);
+        return $this->partitionedCacheKey($this->cacheKey);
     }
 
     /**
-     * Set the cache key resolver for permission caches.
-     *
-     * The callback receives no arguments and should return a string that
-     * identifies the current cache scope, such as a tenant id in a
-     * multi-tenant app. It is evaluated fresh on every cache-key build so
-     * coroutine-local request context is current. Keep the resolver cheap;
-     * one permission check can build keys for multiple cache surfaces.
-     *
-     * Boot-only. The resolver persists in a static property for the worker
-     * lifetime and runs on every permission cache lookup.
-     *
-     * @param Closure(): string $callback
+     * Add the permission partition to a cache key.
      */
-    public static function resolveCacheKeyUsing(Closure $callback): void
-    {
-        static::$cacheKeyResolver = $callback;
+    protected function partitionedCacheKey(
+        string $key,
+        ?PermissionPartition $partition = null,
+    ): string {
+        $partition = $this->resolvedPartitionArgument($partition);
+
+        return $partition
+            ? $key . ':partition:' . $partition->cacheSegment()
+            : $key;
     }
 
     /**
-     * Build a scoped cache key.
+     * Resolve an optional explicit partition argument.
      */
-    protected function scopedCacheKey(string $key): string
+    protected function resolvedPartitionArgument(?PermissionPartition $partition): ?PermissionPartition
     {
-        $scope = $this->cacheKeyScopeSegment();
-
-        return $scope === '' ? $key : "{$key}:{$scope}";
+        return static::partitioningEnabled()
+            ? ($partition ?? $this->resolvePartition())
+            : null;
     }
 
     /**
-     * Resolve the current cache key scope segment.
+     * Build the runtime key prefix for a partition.
      */
-    protected function cacheKeyScopeSegment(): string
+    protected function partitionRuntimePrefix(?PermissionPartition $partition): string
     {
-        return static::$cacheKeyResolver ? (static::$cacheKeyResolver)() : '';
+        return $this->partitionedCacheKey('permission-runtime', $partition);
     }
 
     /**
@@ -758,6 +1228,7 @@ class PermissionRegistrar
      */
     public function setPermissionClass(string $permissionClass): static
     {
+        $this->validatePermissionClass($permissionClass);
         $this->permissionClass = $permissionClass;
         $this->app->bind(PermissionContract::class, $permissionClass);
         $this->forgetCachedPermissions();
@@ -785,6 +1256,7 @@ class PermissionRegistrar
      */
     public function setRoleClass(string $roleClass): static
     {
+        $this->validateRoleClass($roleClass);
         $this->roleClass = $roleClass;
         $this->app->bind(RoleContract::class, $roleClass);
         $this->forgetCachedPermissions();
@@ -861,21 +1333,27 @@ class PermissionRegistrar
     {
         $except = $this->config->array('permission.cache.column_names_except', ['created_at', 'updated_at', 'deleted_at']);
         $hasForbiddenRolePermissions = false;
+        $partition = $this->resolvePartition();
 
         return [
             'permissions' => $this->getPermissionsWithRoles()
-                ->map(function (Model $permission) use ($except, &$hasForbiddenRolePermissions): array {
+                ->map(function (Model $permission) use ($except, &$hasForbiddenRolePermissions, $partition): array {
                     $roles = $this->relationCollection($permission, 'roles')
-                        ->map(function (Model $role) use ($permission, &$hasForbiddenRolePermissions): array {
+                        ->map(function (Model $role) use ($permission, &$hasForbiddenRolePermissions, $partition): array {
                             $isForbidden = $this->pivotIsForbidden($role);
                             $hasForbiddenRolePermissions = $hasForbiddenRolePermissions || $isForbidden;
+                            $pivot = [
+                                $this->pivotPermission => $permission->getKey(),
+                                $this->pivotRole => $role->getKey(),
+                                'is_forbidden' => $isForbidden,
+                            ];
+
+                            if ($partition) {
+                                $pivot[$partition->column] = $partition->value;
+                            }
 
                             return [
-                                'pivot' => [
-                                    $this->pivotPermission => $permission->getKey(),
-                                    $this->pivotRole => $role->getKey(),
-                                    'is_forbidden' => $isForbidden,
-                                ],
+                                'pivot' => $pivot,
                             ];
                         })
                         ->values()
@@ -939,15 +1417,17 @@ class PermissionRegistrar
     {
         $permissionInstance = (new ($this->getPermissionClass())())->newInstance([], true);
         $rolesByKey = $roles->keyBy(fn (Model $role): string => (string) $role->getKey());
+        $context = new PermissionRelationContext($this->resolvePartition(), false, null);
 
         return Collection::make(array_map(
-            function (array $item) use ($permissionInstance, $rolesByKey): Model {
+            function (array $item) use ($permissionInstance, $rolesByKey, $context): Model {
                 $permission = (clone $permissionInstance)->setRawAttributes((array) $item['attributes'], true);
+                $roles = $this->getHydratedPermissionRoleCollection((array) $item['roles'], $permission, $rolesByKey);
 
-                return $permission->setRelation(
-                    'roles',
-                    $this->getHydratedPermissionRoleCollection((array) $item['roles'], $permission, $rolesByKey),
-                );
+                $permission->setRelation('roles', $roles);
+                $this->markLoadedRelation($permission, 'roles', $roles, $context);
+
+                return $permission;
             },
             $permissions,
         ));
@@ -1073,7 +1553,9 @@ class PermissionRegistrar
      */
     public static function flushState(): void
     {
-        static::$cacheKeyResolver = null;
+        static::$partitionColumn = null;
+        static::$partitionResolver = null;
+        static::$initialized = false;
 
         $app = BaseContainer::getInstance();
 
