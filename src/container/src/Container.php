@@ -25,6 +25,9 @@ use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionFunction;
+use ReflectionParameter;
+use Swoole\Coroutine as SwooleCoroutine;
+use Throwable;
 use TypeError;
 
 class Container implements ArrayAccess, ContainerContract
@@ -102,7 +105,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * The container's shared instances.
      *
-     * @var object[]
+     * @var array<string, mixed>
      */
     protected $instances = [];
 
@@ -117,6 +120,20 @@ class Container implements ArrayAccess, ContainerContract
      * @var object[]
      */
     protected $autoSingletons = [];
+
+    /**
+     * Cacheable first resolutions currently owned by a coroutine.
+     *
+     * @var array<string, SharedResolution>
+     */
+    protected array $sharedResolutions = [];
+
+    /**
+     * Container waits keyed by the waiting coroutine ID.
+     *
+     * @var array<int, int>
+     */
+    protected array $sharedResolutionWaits = [];
 
     /**
      * The abstract names registered as scoped bindings.
@@ -290,6 +307,7 @@ class Container implements ArrayAccess, ContainerContract
     {
         return isset($this->bindings[$abstract])
                || isset($this->instances[$abstract])
+               || array_key_exists($abstract, $this->instances)
                || $this->isAlias($abstract);
     }
 
@@ -308,7 +326,8 @@ class Container implements ArrayAccess, ContainerContract
         }
 
         return isset($this->resolved[$abstract])
-               || isset($this->instances[$abstract]);
+               || isset($this->instances[$abstract])
+               || array_key_exists($abstract, $this->instances);
     }
 
     /**
@@ -316,12 +335,16 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function isShared(string $abstract): bool
     {
-        if (isset($this->instances[$abstract])) {
+        if (isset($this->instances[$abstract]) || array_key_exists($abstract, $this->instances)) {
             return true;
         }
 
         if (isset($this->bindings[$abstract]['shared']) && $this->bindings[$abstract]['shared'] === true) {
             return true;
+        }
+
+        if (isset($this->bindings[$abstract])) {
+            return false;
         }
 
         if (! class_exists($abstract)) {
@@ -346,6 +369,10 @@ class Container implements ArrayAccess, ContainerContract
     {
         if (isset($this->scopedInstances[$abstract])) {
             return true;
+        }
+
+        if (isset($this->bindings[$abstract])) {
+            return false;
         }
 
         if ($this->getScopedType($abstract) === 'scoped') {
@@ -416,13 +443,27 @@ class Container implements ArrayAccess, ContainerContract
             $this->bindBasedOnClosureReturnTypes(
                 $abstract,
                 $concrete,
-                $shared
+                $shared,
             );
 
             return;
         }
 
+        $this->registerBinding($abstract, $concrete, $shared, scoped: false);
+    }
+
+    /**
+     * Register one binding and its lifecycle.
+     */
+    protected function registerBinding(string $abstract, Closure|string|null $concrete, bool $shared, bool $scoped): void
+    {
         $this->dropStaleInstances($abstract);
+
+        if ($scoped) {
+            $this->scopedInstances[$abstract] = true;
+        } else {
+            unset($this->scopedInstances[$abstract]);
+        }
 
         // If no concrete type was given, we will simply set the concrete type to the
         // abstract type. After that, the concrete type to be registered as shared
@@ -512,7 +553,7 @@ class Container implements ArrayAccess, ContainerContract
      * runtime use races across coroutines and changes dependency resolution for
      * every subsequent build of the concrete.
      */
-    public function addContextualBinding(string $concrete, Closure|string $abstract, mixed $implementation): void
+    public function addContextualBinding(string $concrete, string $abstract, mixed $implementation): void
     {
         $this->contextual[$concrete][$this->getAlias($abstract)] = $implementation;
     }
@@ -520,11 +561,22 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Register a binding if it hasn't already been registered.
      *
-     * Boot-only. Delegates to bind() when the abstract is unbound, mutating the
-     * worker-lifetime container for every subsequent request.
+     * Boot-only. Conditional bindings mutate the worker-lifetime container for
+     * every subsequent request.
      */
     public function bindIf(Closure|string $abstract, Closure|string|null $concrete = null, bool $shared = false): void
     {
+        if ($abstract instanceof Closure) {
+            $this->bindBasedOnClosureReturnTypes(
+                $abstract,
+                $concrete,
+                $shared,
+                onlyIfUnbound: true,
+            );
+
+            return;
+        }
+
         if (! $this->bound($abstract)) {
             $this->bind($abstract, $concrete, $shared);
         }
@@ -545,14 +597,12 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Register a shared binding if it hasn't already been registered.
      *
-     * Boot-only. Delegates to singleton() when the abstract is unbound, mutating
-     * the worker-lifetime container for every subsequent request.
+     * Boot-only. Conditional singleton bindings mutate the worker-lifetime
+     * container for every subsequent request.
      */
     public function singletonIf(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
-        if (! $this->bound($abstract)) {
-            $this->singleton($abstract, $concrete);
-        }
+        $this->bindIf($abstract, $concrete, true);
     }
 
     /**
@@ -563,29 +613,35 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function scoped(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
-        // When $abstract is a closure, singleton() delegates to bindBasedOnClosureReturnTypes()
-        // which registers each return type as a separate binding. We must store those return
-        // type class names in $scopedInstances (not the Closure) so that isScoped() correctly
-        // identifies them and resolve() routes their instances to Context.
         if ($abstract instanceof Closure) {
-            foreach ($this->closureReturnTypes($abstract) as $type) {
-                $this->scopedInstances[$type] = true;
-            }
-        } else {
-            $this->scopedInstances[$abstract] = true;
+            $this->bindBasedOnClosureReturnTypes($abstract, $concrete, shared: true, scoped: true);
+
+            return;
         }
 
-        $this->singleton($abstract, $concrete);
+        $this->registerBinding($abstract, $concrete, shared: true, scoped: true);
     }
 
     /**
      * Register a scoped binding if it hasn't already been registered.
      *
-     * Boot-only. Delegates to scoped() when the abstract is unbound, mutating
-     * the worker-lifetime container for every subsequent request.
+     * Boot-only. Conditional scoped bindings mutate the worker-lifetime
+     * container for every subsequent request.
      */
     public function scopedIf(Closure|string $abstract, Closure|string|null $concrete = null): void
     {
+        if ($abstract instanceof Closure) {
+            $this->bindBasedOnClosureReturnTypes(
+                $abstract,
+                $concrete,
+                shared: true,
+                scoped: true,
+                onlyIfUnbound: true,
+            );
+
+            return;
+        }
+
         if (! $this->bound($abstract)) {
             $this->scoped($abstract, $concrete);
         }
@@ -594,14 +650,23 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Register a binding with the container based on the given Closure's return types.
      */
-    protected function bindBasedOnClosureReturnTypes(Closure $abstract, Closure|string|null $concrete = null, bool $shared = false): void
-    {
+    protected function bindBasedOnClosureReturnTypes(
+        Closure $abstract,
+        Closure|string|null $concrete = null,
+        bool $shared = false,
+        bool $scoped = false,
+        bool $onlyIfUnbound = false,
+    ): void {
         $abstracts = $this->closureReturnTypes($abstract);
 
         $concrete = $abstract;
 
         foreach ($abstracts as $abstract) {
-            $this->bind($abstract, $concrete, $shared);
+            if ($onlyIfUnbound && $this->bound($abstract)) {
+                continue;
+            }
+
+            $this->registerBinding($abstract, $concrete, $shared, $scoped);
         }
     }
 
@@ -617,8 +682,12 @@ class Container implements ArrayAccess, ContainerContract
     {
         $abstract = $this->getAlias($abstract);
 
-        if (isset($this->instances[$abstract])) {
+        if (isset($this->instances[$abstract]) || array_key_exists($abstract, $this->instances)) {
             $this->instances[$abstract] = $closure($this->instances[$abstract], $this);
+
+            $this->rebound($abstract);
+        } elseif (isset($this->autoSingletons[$abstract])) {
+            $this->autoSingletons[$abstract] = $closure($this->autoSingletons[$abstract], $this);
 
             $this->rebound($abstract);
         } elseif ($this->isScoped($abstract) && CoroutineContext::has(self::SCOPED_CONTEXT_PREFIX . $abstract)) {
@@ -660,6 +729,8 @@ class Container implements ArrayAccess, ContainerContract
         $isBound = $this->bound($abstract);
 
         unset($this->aliases[$abstract]);
+
+        $this->forgetCachedInstances($abstract);
 
         // We'll check to determine if this type has been bound before, and if it has
         // we will fire the rebound callbacks registered with the container and it
@@ -741,6 +812,22 @@ class Container implements ArrayAccess, ContainerContract
     {
         if ($alias === $abstract) {
             throw new LogicException("[{$abstract}] is aliased to itself.");
+        }
+
+        $target = $abstract;
+        $visited = [];
+
+        while (isset($this->aliases[$target])) {
+            if ($target === $alias || isset($visited[$target])) {
+                throw new LogicException("Alias [{$alias}] would create a circular alias chain.");
+            }
+
+            $visited[$target] = true;
+            $target = $this->aliases[$target];
+        }
+
+        if ($target === $alias) {
+            throw new LogicException("Alias [{$alias}] would create a circular alias chain.");
         }
 
         $this->removeAbstractAlias($alias);
@@ -830,7 +917,10 @@ class Container implements ArrayAccess, ContainerContract
             // don't need DI resolution. Uses getNumberOfParameters() (not
             // getNumberOfRequiredParameters()) because BoundMethod injects
             // optional typed parameters when resolvable.
-            if (empty($parameters) && $reflection->getNumberOfParameters() === 0) {
+            if ($reflection->isAnonymous()
+                && empty($parameters)
+                && $reflection->getNumberOfParameters() === 0
+            ) {
                 return $callback();
             }
 
@@ -946,6 +1036,9 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @param class-string<TClass>|string $id
      * @return ($id is class-string<TClass> ? TClass : mixed)
+     *
+     * @throws CircularDependencyException
+     * @throws EntryNotFoundException
      */
     public function get(string $id): mixed
     {
@@ -990,6 +1083,17 @@ class Container implements ArrayAccess, ContainerContract
 
         $needsContextualBuild = ! empty($parameters) || ! is_null($concrete);
 
+        // The owner may publish its provisional instance before resolving callbacks
+        // finish so same-coroutine callbacks can re-resolve it. Other coroutines must
+        // wait for the complete resolution instead of observing that partial state.
+        if (! $needsContextualBuild
+            && $this->sharedResolutions !== []
+            && isset($this->sharedResolutions[$abstract])
+            && $this->sharedResolutions[$abstract]->ownerId !== SwooleCoroutine::getCid()
+        ) {
+            return $this->awaitSharedResolution($abstract, $this->sharedResolutions[$abstract]);
+        }
+
         // For scoped bindings, check coroutine-local Context instead of process-global $instances.
         if ($this->isScoped($abstract) && ! $needsContextualBuild) {
             $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
@@ -1001,13 +1105,25 @@ class Container implements ArrayAccess, ContainerContract
         // If an instance of the type is currently being managed as a singleton we'll
         // just return an existing instance instead of instantiating new instances
         // so the developer can keep using the same objects instance every time.
-        if (isset($this->instances[$abstract]) && ! $needsContextualBuild) {
+        if ((isset($this->instances[$abstract]) || array_key_exists($abstract, $this->instances))
+            && ! $needsContextualBuild
+        ) {
             return $this->instances[$abstract];
         }
 
         // Check auto-singleton cache for unbound concrete classes.
         if (isset($this->autoSingletons[$abstract]) && ! $needsContextualBuild) {
             return $this->autoSingletons[$abstract];
+        }
+
+        // Depth guard — safety net for indirect cycles (e.g., through interfaces)
+        // where the abstract names differ from the concretes in the resolving stack.
+        $depth = CoroutineContext::get(self::DEPTH_CONTEXT_KEY, 0);
+
+        if ($depth >= static::MAX_RESOLUTION_DEPTH) {
+            throw new CircularDependencyException(
+                'Maximum resolution depth (' . static::MAX_RESOLUTION_DEPTH . ') exceeded — possible circular dependency'
+            );
         }
 
         // Check for circular dependency — if this abstract is already being
@@ -1031,18 +1147,11 @@ class Container implements ArrayAccess, ContainerContract
             $pushedToResolvingStack = true;
         }
 
-        // Depth guard — safety net for indirect cycles (e.g., through interfaces)
-        // where the abstract names differ from the concretes in the resolving stack.
-        $depth = CoroutineContext::get(self::DEPTH_CONTEXT_KEY, 0);
-
-        if ($depth > static::MAX_RESOLUTION_DEPTH) {
-            throw new CircularDependencyException(
-                'Maximum resolution depth (' . static::MAX_RESOLUTION_DEPTH . ') exceeded — possible circular dependency'
-            );
-        }
-
         $this->pushParameterOverrides($parameters);
         CoroutineContext::set(self::DEPTH_CONTEXT_KEY, $depth + 1);
+        $sharedResolution = null;
+        $publishedCache = null;
+        $publishedValue = null;
 
         // try/finally ensures Context cleanup even when resolution throws — in Swoole's
         // long-running model, exceptions don't terminate the worker, so leaked overrides
@@ -1050,6 +1159,16 @@ class Container implements ArrayAccess, ContainerContract
         try {
             if (is_null($concrete)) {
                 $concrete = $this->getConcrete($abstract);
+            }
+
+            if ($this->shouldCoordinateSharedResolution(
+                $abstract,
+                $concrete,
+                $needsContextualBuild,
+                $raiseEvents,
+            )) {
+                $sharedResolution = new SharedResolution(SwooleCoroutine::getCid());
+                $this->sharedResolutions[$abstract] = $sharedResolution;
             }
 
             // We're ready to instantiate an instance of the concrete type registered for
@@ -1075,8 +1194,12 @@ class Container implements ArrayAccess, ContainerContract
                 if ($this->isShared($abstract)) {
                     if ($this->isScoped($abstract)) {
                         CoroutineContext::set(self::SCOPED_CONTEXT_PREFIX . $abstract, $object);
+                        $publishedCache = 'scoped';
+                        $publishedValue = $object;
                     } else {
                         $this->instances[$abstract] = $object;
+                        $publishedCache = 'instance';
+                        $publishedValue = $object;
                     }
                 } elseif ($raiseEvents && ! isset($this->bindings[$abstract]) && is_string($concrete) && class_exists($concrete)
                     && ! is_a($concrete, SelfBuilding::class, true)
@@ -1097,6 +1220,8 @@ class Container implements ArrayAccess, ContainerContract
                     // Stored in $autoSingletons (not $instances) so bound() doesn't report
                     // these as explicitly registered, preserving resolveClass() default values.
                     $this->autoSingletons[$abstract] = $object;
+                    $publishedCache = 'auto-singleton';
+                    $publishedValue = $object;
                 }
             }
 
@@ -1111,11 +1236,45 @@ class Container implements ArrayAccess, ContainerContract
                 $this->resolved[$abstract] = true;
             }
 
+            if ($sharedResolution !== null) {
+                unset($this->sharedResolutions[$abstract]);
+                $sharedResolution->complete($object);
+            }
+
             return $object;
-        } catch (CircularDependencyException $e) {
-            // Enrich the exception with this level's abstract name as it bubbles up,
-            // building the full dependency chain (e.g., A -> B -> C -> A).
-            $e->addDefinitionName($abstract);
+        } catch (Throwable $e) {
+            if ($publishedCache === 'scoped') {
+                $contextKey = self::SCOPED_CONTEXT_PREFIX . $abstract;
+
+                if (CoroutineContext::has($contextKey)
+                    && CoroutineContext::get($contextKey) === $publishedValue
+                ) {
+                    CoroutineContext::forget($contextKey);
+                }
+            } elseif ($publishedCache === 'instance') {
+                if (array_key_exists($abstract, $this->instances)
+                    && $this->instances[$abstract] === $publishedValue
+                ) {
+                    unset($this->instances[$abstract]);
+                }
+            } elseif ($publishedCache === 'auto-singleton') {
+                if (array_key_exists($abstract, $this->autoSingletons)
+                    && $this->autoSingletons[$abstract] === $publishedValue
+                ) {
+                    unset($this->autoSingletons[$abstract]);
+                }
+            }
+
+            if ($sharedResolution !== null) {
+                unset($this->sharedResolutions[$abstract]);
+                $sharedResolution->fail($e);
+            }
+
+            if ($e instanceof CircularDependencyException) {
+                // Enrich the exception with this level's abstract name as it bubbles up,
+                // building the full dependency chain (e.g., A -> B -> C -> A).
+                $e->addDefinitionName($abstract);
+            }
 
             throw $e;
         } finally {
@@ -1126,6 +1285,96 @@ class Container implements ArrayAccess, ContainerContract
             $this->popParameterOverrides();
             CoroutineContext::set(self::DEPTH_CONTEXT_KEY, $depth);
         }
+    }
+
+    /**
+     * Determine whether this miss can publish a worker-shared instance.
+     */
+    protected function shouldCoordinateSharedResolution(
+        string $abstract,
+        mixed $concrete,
+        bool $needsContextualBuild,
+        bool $raiseEvents,
+    ): bool {
+        if ($needsContextualBuild || SwooleCoroutine::getCid() <= 0 || $this->isScoped($abstract)) {
+            return false;
+        }
+
+        if ($this->isShared($abstract)) {
+            return true;
+        }
+
+        return $raiseEvents
+            && ! isset($this->bindings[$abstract])
+            && is_string($concrete)
+            && class_exists($concrete)
+            && ! is_a($concrete, SelfBuilding::class, true);
+    }
+
+    /**
+     * Wait for a shared resolution without introducing a coordinator cycle.
+     */
+    protected function awaitSharedResolution(string $abstract, SharedResolution $resolution): mixed
+    {
+        $coroutineId = SwooleCoroutine::getCid();
+
+        // A parent can synchronously join its child outside the container. Letting
+        // that descendant wait back on the parent would deadlock both coroutines.
+        if ($this->sharedResolutionOwnerIsAncestor($resolution->ownerId, $coroutineId)
+            || $this->sharedResolutionWaitWouldCycle($coroutineId, $resolution->ownerId)
+        ) {
+            $exception = new CircularDependencyException;
+            $exception->addDefinitionName($abstract);
+
+            throw $exception;
+        }
+
+        // The checks and edge insertion above do not yield. The channel wait must
+        // remain the first yielding operation so another waiter cannot form a cycle
+        // between validation and publication of this edge.
+        $this->sharedResolutionWaits[$coroutineId] = $resolution->ownerId;
+
+        try {
+            return $resolution->await();
+        } finally {
+            unset($this->sharedResolutionWaits[$coroutineId]);
+        }
+    }
+
+    /**
+     * Determine whether the resolution owner is an ancestor of a coroutine.
+     */
+    protected function sharedResolutionOwnerIsAncestor(int $ownerId, int $coroutineId): bool
+    {
+        while ($coroutineId > 0) {
+            if ($coroutineId === $ownerId) {
+                return true;
+            }
+
+            $coroutineId = SwooleCoroutine::getPcid($coroutineId);
+
+            if ($coroutineId === false) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine whether adding a container wait edge would close a cycle.
+     */
+    protected function sharedResolutionWaitWouldCycle(int $waiterId, int $ownerId): bool
+    {
+        while (isset($this->sharedResolutionWaits[$ownerId])) {
+            $ownerId = $this->sharedResolutionWaits[$ownerId];
+
+            if ($ownerId === $waiterId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1382,7 +1631,6 @@ class Container implements ArrayAccess, ContainerContract
 
         if (! $classExists) {
             return new BuildRecipe(
-                className: $concrete,
                 classExists: false,
                 isInstantiable: false,
                 hasConstructor: false,
@@ -1397,7 +1645,6 @@ class Container implements ArrayAccess, ContainerContract
 
         if ($constructor === null) {
             return new BuildRecipe(
-                className: $concrete,
                 classExists: true,
                 isInstantiable: $reflector->isInstantiable(),
                 hasConstructor: false,
@@ -1408,27 +1655,11 @@ class Container implements ArrayAccess, ContainerContract
 
         $parameters = [];
 
-        foreach ($constructor->getParameters() as $index => $param) {
-            $parameters[$index] = new ParameterRecipe(
-                name: $param->getName(),
-                position: $index,
-                // Use getDeclaringClass() for accurate error messages with inherited constructors.
-                // If class B extends A and A declares the constructor, this returns A's name.
-                declaringClassName: $param->getDeclaringClass()?->getName() ?? $concrete,
-                className: Util::getParameterClassName($param),
-                hasType: $param->hasType(),
-                hasDefault: $param->isDefaultValueAvailable(),
-                default: $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null,
-                isVariadic: $param->isVariadic(),
-                isOptional: $param->isOptional(),
-                allowsNull: $param->allowsNull(),
-                attributes: $param->getAttributes(),
-                contextualAttribute: Util::getContextualAttributeFromDependency($param),
-            );
+        foreach ($constructor->getParameters() as $index => $parameter) {
+            $parameters[$index] = ParameterRecipe::fromParameter($parameter, $concrete);
         }
 
         return new BuildRecipe(
-            className: $concrete,
             classExists: true,
             isInstantiable: $reflector->isInstantiable(),
             hasConstructor: true,
@@ -1602,7 +1833,10 @@ class Container implements ArrayAccess, ContainerContract
             // Contextual attributes are checked BEFORE class/primitive resolution.
             // This is critical for #[Config], #[Give], etc. to work correctly.
             if ($paramRecipe->contextualAttribute !== null) {
-                $result = $this->resolveFromAttribute($paramRecipe->contextualAttribute);
+                $result = $this->resolveFromAttribute(
+                    $paramRecipe->contextualAttribute,
+                    $paramRecipe->getReflectionParameter(),
+                );
             }
 
             // If the class is null, it means the dependency is a string or some other
@@ -1617,7 +1851,7 @@ class Container implements ArrayAccess, ContainerContract
             }
 
             if ($paramRecipe->isVariadic) {
-                $results = array_merge($results, (array) $result);
+                $results = array_merge($results, is_array($result) ? $result : [$result]);
             } else {
                 $results[] = $result;
             }
@@ -1657,7 +1891,7 @@ class Container implements ArrayAccess, ContainerContract
         }
 
         if ($param->hasDefault) {
-            return $param->default;
+            return $param->getDefaultValue();
         }
 
         if ($param->isVariadic) {
@@ -1686,24 +1920,20 @@ class Container implements ArrayAccess, ContainerContract
         if ($param->hasDefault
             && ! $this->bound($className)
             && $this->findInContextualBindings($className) === null) {
-            return $param->default;
+            return $param->getDefaultValue();
         }
 
-        try {
-            return $param->isVariadic
-                ? $this->resolveVariadicClass($param)
-                : $this->make($className);
+        if (! $param->isVariadic) {
+            return $this->make($className);
         }
 
         // If we can not resolve the class instance, we will check to see if the value
         // is variadic. If it is, we will return an empty array as the value of the
         // dependency similarly to how we handle scalar values in this situation.
-        catch (BindingResolutionException $e) {
-            if ($param->isVariadic) { // @phpstan-ignore if.alwaysFalse
-                return [];
-            }
-
-            throw $e;
+        try {
+            return $this->resolveVariadicClass($param);
+        } catch (BindingResolutionException) {
+            return [];
         }
     }
 
@@ -1725,8 +1955,10 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Resolve a dependency based on an attribute.
+     *
+     * @throws BindingResolutionException
      */
-    public function resolveFromAttribute(ReflectionAttribute $attribute): mixed
+    public function resolveFromAttribute(ReflectionAttribute $attribute, ReflectionParameter $parameter): mixed
     {
         $handler = $this->contextualAttributes[$attribute->getName()] ?? null;
 
@@ -1740,7 +1972,7 @@ class Container implements ArrayAccess, ContainerContract
             throw new BindingResolutionException("Contextual binding attribute [{$attribute->getName()}] has no registered handler.");
         }
 
-        return $handler($instance, $this);
+        return $handler($instance, $this, $parameter);
     }
 
     /**
@@ -2013,7 +2245,18 @@ class Container implements ArrayAccess, ContainerContract
      */
     protected function dropStaleInstances(string $abstract): void
     {
-        unset($this->instances[$abstract], $this->aliases[$abstract], $this->autoSingletons[$abstract]);
+        $this->removeAbstractAlias($abstract);
+        unset($this->aliases[$abstract]);
+
+        $this->forgetCachedInstances($abstract);
+    }
+
+    /**
+     * Forget every cached instance for an abstract without changing its lifecycle.
+     */
+    protected function forgetCachedInstances(string $abstract): void
+    {
+        unset($this->instances[$abstract], $this->autoSingletons[$abstract]);
 
         CoroutineContext::forget(self::SCOPED_CONTEXT_PREFIX . $abstract);
     }
@@ -2027,9 +2270,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function forgetInstance(string $abstract): void
     {
-        unset($this->instances[$abstract], $this->autoSingletons[$abstract]);
-
-        CoroutineContext::forget(self::SCOPED_CONTEXT_PREFIX . $abstract);
+        $this->forgetCachedInstances($abstract);
     }
 
     /**
@@ -2102,6 +2343,8 @@ class Container implements ArrayAccess, ContainerContract
         $this->bindings = [];
         $this->instances = [];
         $this->autoSingletons = [];
+        $this->sharedResolutions = [];
+        $this->sharedResolutionWaits = [];
         $this->abstractAliases = [];
         $this->scopedInstances = [];
         $this->checkedForAttributeBindings = [];
@@ -2176,9 +2419,9 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function offsetUnset($key): void
     {
-        unset($this->bindings[$key], $this->instances[$key], $this->resolved[$key]);
+        unset($this->bindings[$key], $this->resolved[$key], $this->scopedInstances[$key]);
 
-        CoroutineContext::forget(self::SCOPED_CONTEXT_PREFIX . $key);
+        $this->dropStaleInstances($key);
     }
 
     /**

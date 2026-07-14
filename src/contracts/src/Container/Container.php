@@ -102,7 +102,7 @@ interface Container extends ArrayAccess, ContainerInterface
     /**
      * Add a contextual binding to the container.
      */
-    public function addContextualBinding(string $concrete, Closure|string $abstract, mixed $implementation): void;
+    public function addContextualBinding(string $concrete, string $abstract, mixed $implementation): void;
 
     /**
      * Define a contextual binding.
@@ -145,6 +145,16 @@ interface Container extends ArrayAccess, ContainerInterface
      * @throws BindingResolutionException
      */
     public function build(Closure|string $concrete): mixed;
+
+    /**
+     * Instantiate a concrete instance with the given parameter overrides.
+     *
+     * Unlike make(), this always creates a fresh instance — it bypasses
+     * bindings, aliases, and singleton/auto-singleton caching.
+     *
+     * @throws BindingResolutionException
+     */
+    public function buildWith(Closure|string $concrete, array $parameters = []): mixed;
 
     /**
      * Call the given Closure / class@method and inject its dependencies.
