@@ -34,6 +34,8 @@ use Hypervel\Foundation\Console\ConfigMakeCommand;
 use Hypervel\Foundation\Console\ConfigPublishCommand;
 use Hypervel\Foundation\Console\ConfigShowCommand;
 use Hypervel\Foundation\Console\ConsoleMakeCommand;
+use Hypervel\Foundation\Console\DevCommand;
+use Hypervel\Foundation\Console\DevListCommand;
 use Hypervel\Foundation\Console\DownCommand;
 use Hypervel\Foundation\Console\EnumMakeCommand;
 use Hypervel\Foundation\Console\EnvironmentCommand;
@@ -78,6 +80,7 @@ use Hypervel\Foundation\Console\VendorPublishCommand;
 use Hypervel\Foundation\Console\ViewCacheCommand;
 use Hypervel\Foundation\Console\ViewClearCommand;
 use Hypervel\Foundation\Console\ViewMakeCommand;
+use Hypervel\Foundation\DevCommands;
 use Hypervel\Foundation\Exceptions\Renderer\Listener;
 use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
 use Hypervel\Foundation\Exceptions\Renderer\Renderer;
@@ -114,6 +117,7 @@ class FoundationServiceProvider extends ServiceProvider
     {
         $this->setDefaultTimezone();
         $this->setInternalEncoding();
+        DevCommands::registerDefaults();
 
         $events = $this->app->make('events');
 
@@ -172,6 +176,8 @@ class FoundationServiceProvider extends ServiceProvider
             ConfigPublishCommand::class,
             ConfigShowCommand::class,
             ConsoleMakeCommand::class,
+            DevCommand::class,
+            DevListCommand::class,
             DownCommand::class,
             EnvironmentCommand::class,
             EnvironmentDecryptCommand::class,

@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Foundation\Providers;
 
 use Carbon\CarbonImmutable;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Foundation\DevCommands;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Support\Carbon;
@@ -53,6 +55,19 @@ class FoundationServiceProviderTest extends TestCase
 
         $this->assertInstanceOf(Schedule::class, $schedule);
         $this->assertSame($schedule, $this->app->make(Schedule::class));
+    }
+
+    public function testDevelopmentCommandsAreRegistered(): void
+    {
+        $artisan = $this->app->make(Kernel::class)->getArtisan();
+
+        $this->assertTrue($artisan->has('dev'));
+        $this->assertTrue($artisan->has('dev:list'));
+    }
+
+    public function testDefaultDevelopmentProcessesAreRegistered(): void
+    {
+        $this->assertSame(['server', 'queue', 'vite'], array_column(DevCommands::commands(), 'name'));
     }
 
     public function testClockSingletonIsRegistered(): void
