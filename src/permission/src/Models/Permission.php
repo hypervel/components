@@ -16,6 +16,8 @@ use Hypervel\Permission\Exceptions\PermissionDoesNotExist;
 use Hypervel\Permission\Guard;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
+use Hypervel\Permission\Support\PermissionRelationContext;
+use Hypervel\Permission\Traits\HasPermissionPartition;
 use Hypervel\Permission\Traits\HasRoles;
 use Hypervel\Permission\Traits\RefreshesPermissionCache;
 use UnitEnum;
@@ -33,6 +35,7 @@ use function Hypervel\Support\enum_value;
  */
 class Permission extends Model implements PermissionContract
 {
+    use HasPermissionPartition;
     use HasRoles;
     use RefreshesPermissionCache;
 
@@ -82,13 +85,24 @@ class Permission extends Model implements PermissionContract
      */
     public function roles(): BelongsToMany
     {
+        return $this->roleAssignmentRelation();
+    }
+
+    /**
+     * Build the permission-role relation for a captured context.
+     */
+    protected function roleAssignmentRelation(
+        ?PermissionRelationContext $context = null,
+    ): BelongsToMany {
         $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
-        return $this->belongsToMany(
+        return $this->permissionBelongsToMany(
             Config::roleModel(),
             Config::roleHasPermissionsTable(),
             $registrar->pivotPermission,
-            $registrar->pivotRole
+            $registrar->pivotRole,
+            'roles',
+            $context,
         )->withPivot('is_forbidden');
     }
 
@@ -97,12 +111,14 @@ class Permission extends Model implements PermissionContract
      */
     public function users(): BelongsToMany
     {
-        return $this->morphedByMany(
+        return $this->permissionMorphToMany(
             getModelForGuard($this->attributes['guard_name'] ?? Config::defaultGuard()),
-            'model',
             Config::modelHasPermissionsTable(),
             Container::getInstance()->make(PermissionRegistrar::class)->pivotPermission,
-            Config::morphKey()
+            Config::morphKey(),
+            'users',
+            inverse: true,
+            teamScoped: Config::teamsEnabled(),
         );
     }
 

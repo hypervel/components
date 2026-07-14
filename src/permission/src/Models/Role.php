@@ -19,7 +19,9 @@ use Hypervel\Permission\Exceptions\RoleDoesNotExist;
 use Hypervel\Permission\Guard;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
+use Hypervel\Permission\Support\PermissionRelationContext;
 use Hypervel\Permission\Traits\HasAssignedModels;
+use Hypervel\Permission\Traits\HasPermissionPartition;
 use Hypervel\Permission\Traits\HasPermissions;
 use Hypervel\Permission\Traits\RefreshesPermissionCache;
 use UnitEnum;
@@ -38,6 +40,7 @@ use function Hypervel\Support\enum_value;
 class Role extends Model implements RoleContract
 {
     use HasAssignedModels;
+    use HasPermissionPartition;
     use HasPermissions;
     use RefreshesPermissionCache;
 
@@ -98,13 +101,24 @@ class Role extends Model implements RoleContract
      */
     public function permissions(): BelongsToMany
     {
+        return $this->permissionAssignmentRelation();
+    }
+
+    /**
+     * Build the role-permission relation for a captured context.
+     */
+    protected function permissionAssignmentRelation(
+        ?PermissionRelationContext $context = null,
+    ): BelongsToMany {
         $registrar = Container::getInstance()->make(PermissionRegistrar::class);
 
-        return $this->belongsToMany(
+        return $this->permissionBelongsToMany(
             Config::permissionModel(),
             Config::roleHasPermissionsTable(),
             $registrar->pivotRole,
-            $registrar->pivotPermission
+            $registrar->pivotPermission,
+            'permissions',
+            $context,
         )->withPivot('is_forbidden');
     }
 
@@ -113,12 +127,14 @@ class Role extends Model implements RoleContract
      */
     public function users(): BelongsToMany
     {
-        return $this->morphedByMany(
+        return $this->permissionMorphToMany(
             getModelForGuard($this->attributes['guard_name'] ?? Config::defaultGuard()),
-            'model',
             Config::modelHasRolesTable(),
             Container::getInstance()->make(PermissionRegistrar::class)->pivotRole,
-            Config::morphKey()
+            Config::morphKey(),
+            'users',
+            inverse: true,
+            teamScoped: Config::teamsEnabled(),
         );
     }
 
@@ -268,8 +284,7 @@ class Role extends Model implements RoleContract
             throw GuardDoesNotMatch::create($permission->guard_name, $guardName ? collect([$guardName]) : $this->getGuardNames());
         }
 
-        $matches = $this->loadMissing('permissions')
-            ->getRelation('permissions')
+        $matches = $this->relationCollection($this, 'permissions')
             ->filter(fn (Model $rolePermission): bool => $rolePermission->getKey() === $permission->getKey());
 
         return $matches->isNotEmpty()

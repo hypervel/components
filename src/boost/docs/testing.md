@@ -214,6 +214,8 @@ Callbacks registered by your application run after package cleanup callbacks and
 
 Do not call `AfterEachTestCleanup::forgetCallbacks()` from ordinary application tests. That method clears all registered callbacks for the current PHPUnit worker, including callbacks discovered from application and package metadata.
 
+To remove a specific callback that your test registered, call `AfterEachTestCleanup::forget($name)` instead.
+
 <a name="macro-state"></a>
 ### Macro State
 

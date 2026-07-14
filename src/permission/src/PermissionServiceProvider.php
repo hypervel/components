@@ -213,15 +213,23 @@ class PermissionServiceProvider extends ServiceProvider
 
         $config = $this->app->make('config');
 
-        AboutCommand::add('Hypervel Permissions', static fn () => [
-            'Features Enabled' => Collection::make($features)
+        AboutCommand::add('Hypervel Permissions', static function () use ($features, $config): array {
+            $enabledFeatures = Collection::make($features)
                 ->filter(fn (?string $feature): bool => $feature === null || $config->boolean("permission.{$feature}", false))
-                ->keys()
-                ->whenEmpty(fn (Collection $collection) => $collection->push('Default'))
-                ->join(', '),
-            'Version' => InstalledVersions::isInstalled('hypervel/permission')
-                ? InstalledVersions::getPrettyVersion('hypervel/permission')
-                : null,
-        ]);
+                ->keys();
+
+            if (PermissionRegistrar::partitioningEnabled()) {
+                $enabledFeatures->push('Row Partitioning');
+            }
+
+            return [
+                'Features Enabled' => $enabledFeatures
+                    ->whenEmpty(fn (Collection $collection) => $collection->push('Default'))
+                    ->join(', '),
+                'Version' => InstalledVersions::isInstalled('hypervel/permission')
+                    ? InstalledVersions::getPrettyVersion('hypervel/permission')
+                    : null,
+            ];
+        });
     }
 }
