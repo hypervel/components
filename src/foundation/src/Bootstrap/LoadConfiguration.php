@@ -24,7 +24,11 @@ class LoadConfiguration
     protected static ?Closure $alwaysUseConfig = null;
 
     /**
-     * Bootstrap the given application.
+     * Bootstrap the given application while preserving its configuration repository.
+     *
+     * Reloads are evaluated against a temporary repository so a failed rebuild can
+     * restore the previous binding. Successful rebuilds copy their contents into
+     * the existing repository before boot-mutation tracking is attached.
      */
     public function bootstrap(Application $app): void
     {

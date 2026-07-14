@@ -25,6 +25,9 @@ class ConfigMutationTracker
 
     /**
      * Observe configuration mutations made during application boot.
+     *
+     * Boot-only. Calling this outside application bootstrap replaces
+     * Foundation's mutation observer and can track the wrong lifecycle.
      */
     public function observe(Repository $config): void
     {
@@ -37,6 +40,9 @@ class ConfigMutationTracker
 
     /**
      * Replay the recorded mutations and stop tracking changes in this worker.
+     *
+     * Boot-only. Calling this outside the before-worker-start boundary
+     * permanently stops recording and can omit later boot mutations.
      */
     public function replay(Repository $config): void
     {

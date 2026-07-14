@@ -1007,15 +1007,14 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `console-01` | `console` | `contracts`; later full `console` audit | `Preserve typed console contracts during Composer scripts`; shared finding `console-01` |
 | `reflection-01` | `reflection` | `events`, `foundation`; later full `events` and `foundation` audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-01` |
 | `reflection-02` | `reflection` | `console`, `routing`, `view`, `foundation`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
-| `reflection-03` | `reflection` | `container`; later full `container` audit | `Consolidate reflection metadata and correct callable inference`; finding `reflection-03` |
-| `reflection-04` | `reflection` | `container`, `di`, `support`, `queue`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
+| `reflection-04` | `reflection` | `di`, `support`, `queue`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
 | `config-01` | `config` | `foundation`; later full `foundation` audit | `Preserve configuration identity across worker reloads`; finding `config-01` |
-| `config-02` | `foundation` | `config`, `testing`, `reverb`; later full consumer audits | `Preserve configuration identity across worker reloads`; finding `config-02` |
+| `config-02` | `foundation` | `testing`, `reverb`; later full consumer audits | `Preserve configuration identity across worker reloads`; finding `config-02` |
 | `container-05` | `container` | `context`; later full `context` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-05` |
 | `container-06` | `container` | `context`; later full `context` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-06` |
-| `container-08` | `container` | `auth`, `cache`, `log`, `routing`, `contracts`, `support`; later full consumer audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-08` |
-| `container-09` | `auth`, `cache`, `log` | `container`; later full manager audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-09` |
-| `container-10` | `log` | `container`; later full `log` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
+| `container-08` | `container` | `auth`, `cache`, `log`, `routing`, `support`; later full consumer audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-08` |
+| `container-09` | `auth`, `cache`, `log` | `container` (revalidation complete); later full `auth`, `cache`, and `log` audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-09` |
+| `container-10` | `log` | `container` (revalidation complete); later full `log` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
 
 ## Package checklist
 
