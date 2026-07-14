@@ -117,6 +117,11 @@ Important verified behavior:
 30. Hypervel's per-model assignment cache includes team in its identity. Hard deletion removes a subject's rows across every team, so invalidating only the ambient team leaves stale entries even when row partitioning is disabled. Each owning trait must discover exactly the enabled cache-key dimensions in its table: partition and team, partition only, team only, or none. A partition assignment-token bump could invalidate all teams without discovery, but would invalidate every subject in that partition—or the whole application when unpartitioned. Reject that broad invalidation for a single-subject deletion. Use one indexed discovery read per owning table on this cold path and forget only the affected subject identities.
 31. The supported-database integration schema exposed two test-infrastructure defects. Its generated `model_has_permissions_workspace_id_model_type_model_test_id_index` identifier is 65 characters, while MySQL and MariaDB allow 64; the shared SQLite-backed partition fixture contains the same latent defect. Give both subject lookup indexes stable explicit names in both fixtures and in application schema guidance. The failed setup also proved that Hypervel's authoritative global cleanup was registered only for PHPUnit's `Test\Finished`, which PHPUnit does not emit when setup fails before `wasPrepared` becomes true. Keep the existing `Finished` cleanup timing for prepared tests, track one pending test from `PreparationStarted`, clean an unprepared predecessor before the next test captures globals, and add an `ExecutionFinished` backstop for the final test in a worker. This is framework-wide cleanup reliability, not a Permission-local reset. PHPUnit restores its own error and exception handlers independently; the risky handler reports from this failure disappear when the invalid index no longer aborts setup.
 32. Tests for the cleanup registry called `AfterEachTestCleanup::forgetCallbacks()` in `tearDown()`, which also removed suite-level app and package callbacks discovered once during extension bootstrap. Exercise the all-callback reset against an isolated test subclass, give temporary callbacks collision-resistant test-class names, and remove only those names through `AfterEachTestCleanup::forget()`. Worker-lifetime test-state registrations must survive every framework test that touches the registry.
+33. Loaded-relation provenance has one mismatched disabled-mode condition. `markLoadedRelation()` currently skips every relation whose captured context has no partition or team predicate, while `loadedRelationIsCurrent()` requires provenance whenever either partitioning or teams is enabled. With teams enabled and partitioning disabled, partition-independent hydrated catalog relations are therefore discarded and queried again during warm authorization. Both methods must use the same boundary: provenance is unnecessary only when both features are disabled. Pin the regression to repeated warm `hasPermissionTo()` and `getAllPermissions()` calls so the compact catalog remains zero-query.
+34. `HasAssignedModels::assignToModels()` detects existing assignments through the joined related-model query. A soft-deleted or otherwise globally scoped-out subject can retain its pivot, disappear from that read, and then cause a duplicate pivot insert. Read requested IDs through the captured relation's `newPivotQuery()` instead. That pivot query already contains the parent Role, morph type, partition, and team predicates, removes the unnecessary related-model join, and keeps the same query count. The direct-permission synchronizer already uses pivot-only reads and has no equivalent gap.
+35. Role checks validate a directly supplied Role model but not every model nested inside arrays or collections. `hasAllRoles()` and `hasExactRoles()` convert nested Role models to names before comparison, so a foreign-partition same-name Role can satisfy the current partition. `hasRole()` preserves Eloquent Collection's key-based intersection and cannot produce that false positive with globally unique Role IDs, but it still silently rejects a foreign-partition collection instead of following the direct-model fail-closed contract. Use one private collection validator from all three paths, resolve the partition only when a Role model is present, and preserve each method's existing name- or key-based comparison semantics.
+36. The partition-teams test fixture declares assignment-pivot team columns nullable and then includes them in composite primary keys. Supported databases make primary-key columns non-null, so the nullable declaration is contradictory even though current tests only write captured non-null team contexts. Match the stock Permission schema: the Role table's team column remains nullable for global Roles, while `model_has_roles` and `model_has_permissions` store a non-null active team for every assignment. Remove the two nullable modifiers, assert the portable schema metadata, and make this distinction explicit beside the teams index examples in the plan and Boost documentation. No sentinel, surrogate key, or nullable-aware pivot uniqueness design is needed.
+37. External review also found four focused clarity and regression improvements: capture `applyPermissionPartitionToRelation()`'s returned relation consistently in both builders; remove an unused Role fixture from the foreign-partition Permission test; state on `resolvePartitionUsing()` that registration precedes registrar or Gate resolution; and assert deferred assignment events both before and after save so their public call-boundary timing cannot drift. A concise trait docblock must record the immutable captured-context invariant. Do not add a warning paragraph to `flushState()` because the test-cleanup convention requires a title-only docblock, and do not add blanket docstrings to test methods for an external coverage percentage.
 
 ### Upstream references checked
 
@@ -546,6 +551,8 @@ public function forgetLoadedRelationProvenance(Model $model, ?string $relation =
 
 When neither partitioning nor teams are active, manually loaded relations retain existing behavior and need no marker.
 
+The marker and reader must share that exact boundary. When teams are enabled without partitioning, partition-independent Role-Permission catalog relations still require provenance so the reader can distinguish a package-loaded collection from manual replacement, but their captured `teamScoped === false` context keeps them valid across team changes.
+
 This provenance protects context correctness, not arbitrary cross-coroutine mutation of one Eloquent object. Like all mutable Eloquent state, one model instance and its `relations` array belong to one coroutine. Different coroutines may represent the same database subject, but each must hydrate its own model instance. Permission makes resolver/cache/provenance services coroutine-safe; it does not make a single shared mutable model object coroutine-safe.
 
 ## Role And Permission Model Protection
@@ -707,6 +714,8 @@ Before accepting supplied Role or Permission models, validate the record attribu
 When a subject model exposes the configured partition attribute with a non-null value, also reject assignment under a conflicting current partition. Global subject models without that attribute, or with an explicit null global value, remain assignable in multiple partitions.
 
 Raw subject IDs cannot be validated without an extra database query and must not add one. The globally stable morph identity schema invariant and database constraints protect those paths.
+
+Role-check APIs that accept collections must validate every supplied Role model before comparison. `hasAllRoles()` and `hasExactRoles()` retain their established name-based iterable comparison, while `hasRole(Collection)` retains Eloquent Collection's key-based intersection. The validation layer changes neither comparison semantics nor query count.
 
 ## Internal Partition-Aware Relations
 
@@ -904,6 +913,8 @@ Every operation must capture one `PermissionPartition` before it starts resolvin
 Saved simple forward assignment mutations use native `attach()` / `detach()` without adding a transaction around one package write and optional application-configured model touches. Applications that require those writes to share a transaction boundary wrap the Permission method in their normal connection transaction.
 
 Reverse Role assignment helpers group and validate all supplied subject models before writing. Assign/remove execute directly for at most one morph-class write group and use one parent Role connection transaction only when several groups must succeed together. `syncModels()` always keeps one transaction around its delete and replacement inserts. Exact cache invalidation for assign/remove, the captured-partition token bump for sync, and loaded `users` cleanup happen only after successful writes. The authorization tables and their pivots are one shared Permission schema on that connection.
+
+`assignToModels()` detects already-present requested IDs from the captured relation's pivot-only query. It must not use the joined related-model query because subject global scopes, including soft deletes, do not remove the assignment pivot and must not make an existing edge appear absent.
 
 For assignments queued on an unsaved subject, capture and retain the full `PermissionRelationContext` at the call boundary. The `saved` callback must not resolve ambient partition or team context. It groups deferred entries by the stored context, deduplicates Role IDs within each context, preserves Permission replacement/forbidden semantics within each context, and writes all Role and Permission batches in one transaction on the subject model's connection. Queues are cleared only after commit; exact per-context cache invalidation runs after commit and is deduplicated across Role and Permission batches.
 
@@ -1153,6 +1164,8 @@ $table->primary([$partition, $teamKey, 'role_id', 'model_id', 'model_type']);
 $table->primary([$partition, $teamKey, 'permission_id', 'model_id', 'model_type']);
 ```
 
+Only the Role table's team column is nullable, allowing a Role to be global. The team column on `model_has_roles` and `model_has_permissions` is non-null because every assignment belongs to the active team, including an assignment of a global Role. Those non-null pivot columns may therefore participate in the composite primary keys shown above.
+
 The SQL dimensions are:
 
 ```sql
@@ -1334,6 +1347,8 @@ Add `tests/Permission/PartitionRelationsTest.php` covering every relation from b
 - Role sync and permission synchronization roll back all earlier writes when any later batch/update fails, retain pre-operation cache state, emit no post-failure events, and retry cleanly;
 - syncing many new Roles uses one bulk insert rather than one insert per Role;
 - reverse assignment helpers use no outer transaction for zero/one write group, roll back every earlier morph-class batch when a later group fails, and `syncModels()` preserves the old graph when replacement fails; invalidation/token changes occur only after successful writes;
+- reverse `assignToModels()` recognizes an assignment retained for a soft-deleted or otherwise scoped-out subject through the pivot-only read and does not attempt a duplicate insert;
+- direct, array, and collection Role inputs plus `hasAnyRole()` forwarding all reject foreign-partition Role models consistently, while `hasRole(Collection)` keeps key comparison and `hasAllRoles()` / `hasExactRoles()` keep name comparison;
 - application transactions around simple saved assign/remove/revoke operations include the Permission pivot write and any configured model touches in the application's chosen boundary;
 
 ### Loaded relation provenance tests
@@ -1349,6 +1364,8 @@ Add `tests/Permission/PartitionRelationProvenanceTest.php` covering:
 - switching team inside one partition reloads team-scoped relations automatically;
 - partition-only catalog relations are not needlessly invalidated by a team switch;
 - WeakMap entries do not retain discarded model/collection objects.
+- with teams enabled and partitioning disabled, repeated warm `hasPermissionTo()` and `getAllPermissions()` calls reuse hydrated catalog Role relations without any database query;
+- switching teams does not invalidate a hydrated catalog relation whose captured SQL was not team-scoped.
 
 ### Cache and invalidation tests
 
@@ -1600,12 +1617,15 @@ Database CI must run `tests/Integration/Database/PermissionPartitionTest.php` un
 - [ ] Reverse model assign/remove avoids a transaction for zero/one morph-class write and is failure-atomic across several groups; `syncModels()` remains transactional, while whole subject deletion uses `deleteOrFail()` or an application transaction when both trait cleanups and the subject row need one boundary.
 - [ ] Role/Permission record pivot cleanup is failure-atomic; normal row deletion uses `deleteOrFail()` for a whole-operation boundary and soft-deleting application subclasses use an application transaction around `forceDelete()` when required.
 - [ ] Related Role/Permission queries and pivot queries use the same once-captured partition.
+- [ ] Reverse Role assignment existence checks read the captured pivot scope directly, so subject global scopes cannot hide existing edges.
+- [ ] Every Role model supplied through direct, array, or collection check APIs is validated before comparison without changing key/name semantics.
 - [ ] Native `withPivotValue()` is reused; only attach override and pivot-movement prevention are custom.
 - [ ] Laravel/Spatie relation types, assignment APIs, commands, events, contracts, Gate, middleware, and Blade surfaces remain intact.
 - [ ] Same-name roles/permissions work across partitions and collide inside one partition.
 - [ ] Partition, team, and guard compose independently.
 - [ ] Direct, inherited, forbidden, wildcard, and query-scope paths are isolated.
 - [ ] Loaded relation provenance handles lazy, eager, nested, and empty collections.
+- [ ] Teams-only warm authorization reuses partition-independent hydrated catalog relations without database queries.
 - [ ] Switching teams no longer requires manual relation unsetting.
 - [ ] Shared-cache and coroutine-local identities include collision-safe partition segments.
 - [ ] Normal invalidation changes only the affected partition.
@@ -1614,6 +1634,7 @@ Database CI must run `tests/Integration/Database/PermissionPartitionTest.php` un
 - [ ] Resolver lookup performs no database query.
 - [ ] Default migration/config remain clean and unpartitioned.
 - [ ] Application schema examples use non-null native types, partition-leading indexes, composite foreign keys, and globally stable morph IDs.
+- [ ] Team-aware schema guidance keeps only Role team columns nullable and requires non-null active-team values on assignment pivots.
 - [ ] Configurable partition subject indexes have explicit portable names in tests and documentation.
 - [ ] Framework static cleanup runs exactly once for prepared tests and for tests that fail before PHPUnit emits `Finished`, including the final test in a worker.
 - [ ] Cleanup-registry tests cannot remove suite-level app or package callbacks registered for the PHPUnit worker.
