@@ -41,6 +41,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use ReflectionClass;
+use ReflectionException;
 
 use function Hypervel\Support\enum_value;
 
@@ -886,6 +887,8 @@ class Dispatcher implements DispatcherContract
      *
      * @param class-string<TListener> $class
      * @return array{TListener, CallQueuedListener}
+     *
+     * @throws ReflectionException
      */
     protected function createListenerAndJob(string $class, string $method, array $arguments): array
     {

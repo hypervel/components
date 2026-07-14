@@ -13,6 +13,8 @@ use ReflectionAttribute;
  * is instantiable, has a constructor, its class-level attributes, and its
  * constructor parameters (as ParameterRecipe objects). Created once per class
  * per worker lifetime by Container::computeBuildRecipe().
+ *
+ * @internal
  */
 readonly class BuildRecipe
 {
@@ -21,7 +23,6 @@ readonly class BuildRecipe
      * @param ParameterRecipe[] $parameters
      */
     public function __construct(
-        public string $className,
         public bool $classExists,
         public bool $isInstantiable,
         public bool $hasConstructor,

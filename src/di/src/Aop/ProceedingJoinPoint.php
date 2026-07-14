@@ -6,7 +6,7 @@ namespace Hypervel\Di\Aop;
 
 use Closure;
 use Hypervel\Di\Exceptions\Exception;
-use Hypervel\Di\ReflectionManager;
+use Hypervel\Support\ClassMetadataCache;
 use ReflectionFunction;
 use ReflectionMethod;
 
@@ -71,7 +71,7 @@ class ProceedingJoinPoint
      */
     public function getReflectMethod(): ReflectionMethod
     {
-        return ReflectionManager::reflectMethod(
+        return ClassMetadataCache::reflectMethod(
             $this->className,
             $this->methodName
         );

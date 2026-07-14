@@ -33,10 +33,13 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\Request;
 use Hypervel\Log\Context\Repository as ContextRepository;
+use Hypervel\Log\Logger as HypervelLogger;
 use Hypervel\Log\LogManager;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
+use ReflectionParameter;
+use RuntimeException;
 
 class ContextualAttributeBindingTest extends TestCase
 {
@@ -147,6 +150,18 @@ class ContextualAttributeBindingTest extends TestCase
 
                 return $guard;
             });
+            $manager->shouldReceive('guard')->with(AuthGuardUnitEnum::unit)->andReturnUsing(function () {
+                $guard = m::mock(GuardContract::class);
+                $guard->shouldReceive('user')->andReturn(m::mock(AuthenticatableContract::class));
+
+                return $guard;
+            });
+            $manager->shouldReceive('guard')->with(AuthGuardBackedEnum::Backed)->andReturnUsing(function () {
+                $guard = m::mock(GuardContract::class);
+                $guard->shouldReceive('user')->andReturn(m::mock(AuthenticatableContract::class));
+
+                return $guard;
+            });
 
             return $manager;
         });
@@ -161,6 +176,10 @@ class ContextualAttributeBindingTest extends TestCase
             $manager = m::mock(CacheManager::class);
             $manager->shouldReceive('store')->with('foo')->andReturn(m::mock(CacheRepository::class));
             $manager->shouldReceive('store')->with('bar')->andReturn(m::mock(CacheRepository::class));
+            $manager->shouldReceive('store')->with(CacheStoreUnitEnum::unit)->andReturn(m::mock(CacheRepository::class));
+            $manager->shouldReceive('store')->with(CacheStoreBackedEnum::Backed)->andReturn(m::mock(CacheRepository::class));
+            $manager->shouldReceive('memo')->with('foo')->andReturn(m::mock(CacheRepository::class));
+            $manager->shouldReceive('memo')->with('bar')->andReturn(m::mock(CacheRepository::class));
 
             return $manager;
         });
@@ -203,6 +222,8 @@ class ContextualAttributeBindingTest extends TestCase
             $manager = m::mock(AuthManager::class);
             $manager->shouldReceive('guard')->with('foo')->andReturn(m::mock(GuardContract::class));
             $manager->shouldReceive('guard')->with('bar')->andReturn(m::mock(GuardContract::class));
+            $manager->shouldReceive('guard')->with(AuthGuardUnitEnum::unit)->andReturn(m::mock(GuardContract::class));
+            $manager->shouldReceive('guard')->with(AuthGuardBackedEnum::Backed)->andReturn(m::mock(GuardContract::class));
 
             return $manager;
         });
@@ -217,11 +238,36 @@ class ContextualAttributeBindingTest extends TestCase
             $manager = m::mock(LogManager::class);
             $manager->shouldReceive('channel')->with('foo')->andReturn(m::mock(LoggerInterface::class));
             $manager->shouldReceive('channel')->with('bar')->andReturn(m::mock(LoggerInterface::class));
+            $manager->shouldReceive('channel')->with('unit_channel')->andReturn(m::mock(LoggerInterface::class));
+            $manager->shouldReceive('channel')->with('7')->andReturn(m::mock(LoggerInterface::class));
+
+            $named = m::mock(HypervelLogger::class);
+            $named->shouldReceive('withName')->with('tenant')->andReturn(m::mock(HypervelLogger::class));
+            $manager->shouldReceive('channel')->with('named')->andReturn($named);
+
+            $integerNamed = m::mock(HypervelLogger::class);
+            $integerNamed->shouldReceive('withName')->with('9')->andReturn(m::mock(HypervelLogger::class));
+            $manager->shouldReceive('channel')->with('integer-named')->andReturn($integerNamed);
 
             return $manager;
         });
 
         $container->make(LogTest::class);
+    }
+
+    public function testNamedLogAttributeRejectsCustomNonMonologDriver(): void
+    {
+        $container = $this->app;
+        $container->make('config')->set('logging.channels.custom', ['driver' => 'custom']);
+
+        $manager = new LogManager($container);
+        $manager->extend('custom', fn () => m::mock(LoggerInterface::class));
+        $container->instance('log', $manager);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Named loggers are only supported by Monolog drivers.');
+
+        $container->make(CustomNamedLogTest::class);
     }
 
     public function testRouteParameterAttribute()
@@ -236,6 +282,20 @@ class ContextualAttributeBindingTest extends TestCase
         });
 
         $container->make(RouteParameterTest::class);
+    }
+
+    public function testRouteParameterAttributeWithoutParameterName(): void
+    {
+        $container = new Container;
+        $container->singleton('request', function () {
+            $request = m::mock(Request::class);
+            $request->shouldReceive('route')->with('foo')->andReturn(m::mock(Model::class));
+            $request->shouldReceive('route')->with('bar')->andReturn('bar');
+
+            return $request;
+        });
+
+        $container->make(RouteParameterTestWithoutParameterName::class);
     }
 
     public function testContextAttribute()
@@ -267,6 +327,8 @@ class ContextualAttributeBindingTest extends TestCase
             $manager = m::mock(FilesystemManager::class);
             $manager->shouldReceive('disk')->with('foo')->andReturn(m::mock(Filesystem::class));
             $manager->shouldReceive('disk')->with('bar')->andReturn(m::mock(Filesystem::class));
+            $manager->shouldReceive('disk')->with(StorageDiskUnitEnum::unit)->andReturn(m::mock(Filesystem::class));
+            $manager->shouldReceive('disk')->with(StorageDiskBackedEnum::Backed)->andReturn(m::mock(Filesystem::class));
 
             return $manager;
         });
@@ -344,6 +406,29 @@ class ContextualAttributeBindingTest extends TestCase
 
         $this->assertEquals([1, 2], iterator_to_array($value));
     }
+
+    public function testParameterIsPassedToContextualAttributeResolver(): void
+    {
+        $container = new Container;
+
+        $value = $container->make(HasParameterAwareAttribute::class);
+
+        $this->assertSame('name', $value->name);
+    }
+
+    public function testParameterIsPassedToContextualAttributeResolverOnAppCall(): void
+    {
+        $container = new Container;
+
+        $value = $container->call(function (
+            #[ContainerTestParameterAwareAttribute]
+            ?string $name
+        ) {
+            return $name;
+        });
+
+        $this->assertSame('name', $value);
+    }
 }
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
@@ -353,6 +438,56 @@ class ContainerTestAttributeThatResolvesContractImpl implements ContextualAttrib
         public readonly string $name
     ) {
     }
+}
+
+enum StorageDiskUnitEnum
+{
+    case unit;
+}
+
+enum StorageDiskBackedEnum: string
+{
+    case Backed = 'backed';
+}
+
+enum AuthGuardUnitEnum
+{
+    case unit;
+}
+
+enum AuthGuardBackedEnum: string
+{
+    case Backed = 'backed';
+}
+
+enum CacheStoreUnitEnum
+{
+    case unit;
+}
+
+enum CacheStoreBackedEnum: string
+{
+    case Backed = 'backed';
+}
+
+enum LogChannelUnitEnum
+{
+    case unit_channel;
+}
+
+enum LogChannelBackedEnum: int
+{
+    case Backed = 7;
+}
+
+enum LogNameUnitEnum
+{
+    case tenant;
+}
+
+enum LogNameBackedEnum: int
+{
+    case Backed = 9;
 }
 
 interface ContainerTestContract
@@ -440,6 +575,15 @@ final class ContainerTestConfigValueWithResolveAndAfter implements ContextualAtt
     }
 }
 
+#[Attribute(Attribute::TARGET_PARAMETER)]
+final class ContainerTestParameterAwareAttribute implements ContextualAttribute
+{
+    public function resolve(self $attribute, Container $container, ReflectionParameter $parameter): string
+    {
+        return $parameter->getName();
+    }
+}
+
 final class ContainerTestHasConfigValueWithResolvePropertyAndAfterCallback
 {
     public function __construct(
@@ -462,15 +606,35 @@ final class ComplexDependency implements ContainerTestContract
 
 final class AuthedTest
 {
-    public function __construct(#[Authenticated('foo')] AuthenticatableContract $foo, #[CurrentUser('bar')] AuthenticatableContract $bar)
-    {
+    public function __construct(
+        #[Authenticated('foo')]
+        AuthenticatableContract $foo,
+        #[CurrentUser('bar')]
+        AuthenticatableContract $bar,
+        #[Authenticated(AuthGuardUnitEnum::unit)]
+        AuthenticatableContract $unit,
+        #[CurrentUser(AuthGuardBackedEnum::Backed)]
+        AuthenticatableContract $backed,
+    ) {
     }
 }
 
 final class CacheTest
 {
-    public function __construct(#[Cache('foo')] CacheRepository $foo, #[Cache('bar')] CacheRepository $bar)
-    {
+    public function __construct(
+        #[Cache('foo')]
+        CacheRepository $foo,
+        #[Cache('bar')]
+        CacheRepository $bar,
+        #[Cache(CacheStoreUnitEnum::unit)]
+        CacheRepository $unit,
+        #[Cache(CacheStoreBackedEnum::Backed)]
+        CacheRepository $backed,
+        #[Cache('foo', memo: true)]
+        CacheRepository $fooMemoized,
+        #[Cache('bar', memo: true)]
+        CacheRepository $barMemoized,
+    ) {
     }
 }
 
@@ -504,14 +668,41 @@ final class DatabaseTest
 
 final class GuardTest
 {
-    public function __construct(#[Auth('foo')] GuardContract $foo, #[Auth('bar')] GuardContract $bar)
-    {
+    public function __construct(
+        #[Auth('foo')]
+        GuardContract $foo,
+        #[Auth('bar')]
+        GuardContract $bar,
+        #[Auth(AuthGuardUnitEnum::unit)]
+        GuardContract $unit,
+        #[Auth(AuthGuardBackedEnum::Backed)]
+        GuardContract $backed,
+    ) {
     }
 }
 
 final class LogTest
 {
-    public function __construct(#[Log('foo')] LoggerInterface $foo, #[Log('bar')] LoggerInterface $bar)
+    public function __construct(
+        #[Log('foo')]
+        LoggerInterface $foo,
+        #[Log('bar')]
+        LoggerInterface $bar,
+        #[Log(LogChannelUnitEnum::unit_channel)]
+        LoggerInterface $unit,
+        #[Log(LogChannelBackedEnum::Backed)]
+        LoggerInterface $backed,
+        #[Log('named', LogNameUnitEnum::tenant)]
+        LoggerInterface $named,
+        #[Log('integer-named', LogNameBackedEnum::Backed)]
+        LoggerInterface $integerNamed,
+    ) {
+    }
+}
+
+final class CustomNamedLogTest
+{
+    public function __construct(#[Log('custom', 'tenant')] LoggerInterface $logger)
     {
     }
 }
@@ -523,10 +714,25 @@ final class RouteParameterTest
     }
 }
 
+final class RouteParameterTestWithoutParameterName
+{
+    public function __construct(#[RouteParameter] Model $foo, #[RouteParameter] string $bar)
+    {
+    }
+}
+
 final class StorageTest
 {
-    public function __construct(#[Storage('foo')] Filesystem $foo, #[Storage('bar')] Filesystem $bar)
-    {
+    public function __construct(
+        #[Storage('foo')]
+        Filesystem $foo,
+        #[Storage('bar')]
+        Filesystem $bar,
+        #[Storage(StorageDiskUnitEnum::unit)]
+        Filesystem $unit,
+        #[Storage(StorageDiskBackedEnum::Backed)]
+        Filesystem $backed,
+    ) {
     }
 }
 
@@ -562,6 +768,15 @@ final class LocaleObject
     public function __construct(
         #[Config('app.locale')]
         public readonly ?string $locale
+    ) {
+    }
+}
+
+final class HasParameterAwareAttribute
+{
+    public function __construct(
+        #[ContainerTestParameterAwareAttribute]
+        public readonly ?string $name,
     ) {
     }
 }

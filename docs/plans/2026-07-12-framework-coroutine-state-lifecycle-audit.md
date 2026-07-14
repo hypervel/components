@@ -19,12 +19,14 @@ Finish with a framework that reads as if it was designed for a long-lived Swoole
 - cleanup is exhaustive and preserves the earliest failure;
 - waits for external progress are bounded when the peer or owner can disappear;
 - native false/error results cannot violate declared PHP contracts;
-- public APIs remain Laravel-shaped where intended and accurately describe Hypervel behavior;
+- Laravel public APIs, configuration, documented behavior, and conventional extension patterns remain compatible by default;
 - hot paths do not gain unnecessary allocations, container lookups, locks, retries, logging, or yields;
 - tests reproduce real failure modes deterministically and release everything they own;
 - no stale compatibility layer, workaround, dead branch, obsolete helper, misleading comment, or superseded documentation remains after a correction.
 
-Hypervel 0.4 is greenfield. Backward compatibility, churn, and blast radius do not justify retaining a flawed design. They also do not justify a rewrite without evidence. The correct result is the simplest design that fully expresses the verified ownership and state-lifetime rules.
+Hypervel 0.4 is greenfield. Backward compatibility, churn, and blast radius do not justify retaining a flawed Hypervel-specific API or internal design. This freedom also covers surfaces directly deprecated or removed by the package's actual upstream; it does not make Laravel's current public API, configuration keys and structure, documented behavior, or conventional extension patterns disposable.
+
+Any intentional divergence from that Laravel-facing contract is exceptional and requires a concrete, meaningful Hypervel benefit plus explicit owner approval. Present the reasoning, compatibility impact, alternatives, performance effect, complexity cost, and ongoing upstream-comparison burden before implementation. Code-style preference, subjective tidiness, theoretical flexibility without real consumers, or benchmark noise is not a meaningful benefit. The correct result is the simplest design that fixes the verified problem while preserving useful upstream parity.
 
 ## What this audit is not
 
@@ -37,9 +39,13 @@ Complexity must pay for itself with at least one of:
 - a clear general capability with real consumers and owner approval;
 - deletion of greater or riskier complexity elsewhere.
 
+Typical Laravel lifecycle semantics define the supported contract. A package that intentionally relies on model events, middleware, listeners, transactions, or another documented mechanism is not defective merely because userland can explicitly bypass that mechanism. Do not build a parallel enforcement path for `withoutEvents()`, raw database writes, disabled middleware, direct transport access, or comparable deliberate bypasses unless the public contract explicitly promises behavior through that bypass.
+
+Underengineering is equally a failure. Fix every verified defect completely at its lowest owning boundary, never with a partial fix or a local patch over a broken shared contract, and always surface meaningful evidence-backed improvements rather than dropping them to avoid effort. Restraint applies to speculative machinery and cosmetic change, not to complete fixes or worthwhile opportunities.
+
 Do not treat an upstream difference as a bug without tracing it. Do not treat upstream parity as proof of correctness. A real Hypervel defect remains a defect when Laravel, Hyperf, Symfony, or an SDK has the same hole.
 
-The audit categories are discovery lenses, not boundaries around what may be corrected. Any genuine issue discovered while auditing, implementing, testing, or reviewing must be investigated, assigned to its lowest owning boundary, and taken through the same consensus, owner-approval, implementation, validation, and review workflow—even when it is outside the current package, initial taxonomy, or changed diff. Do not dismiss a verified issue as unrelated or defer it merely to preserve package order. This rule applies only after the evidence threshold is met; it does not turn speculative concerns into work.
+The audit categories are discovery lenses, not boundaries around what may be corrected. Any genuine issue discovered while auditing, implementing, testing, or reviewing must be investigated, assigned to its lowest owning boundary, and taken through the applicable consensus, implementation, validation, review, and approval workflow—even when it is outside the current package, initial taxonomy, or changed diff. Do not dismiss a verified issue as unrelated or defer it merely to preserve package order. This rule applies only after the evidence threshold is met; it does not turn speculative concerns, deliberate bypasses, unsupported use, or contract violations into work.
 
 ## Backing research and current runtime facts
 
@@ -237,6 +243,8 @@ A correctness guard on a cold failure path has a different cost from a new lock 
 
 Any proposed change with a measured or source-proven hot-path regression requires explicit owner approval before implementation, even when it fixes a defect. Present the expected frequency and magnitude, the evidence, and the viable alternatives. Do not hide an unavoidable tradeoff inside a general correctness claim.
 
+Performance improvements must provide a meaningful practical benefit after accounting for code complexity and divergence from upstream. Measure representative behavior where practical. Always surface an evidence-backed opportunity to the owner, but do not implement it without approval; a micro-optimization within measurement noise is neither a reason to diverge nor an actionable finding.
+
 ### 8. Remove superseded design completely
 
 When a fix changes the owning model, delete obsolete helpers, callbacks, properties, config keys, comments, tests, and documentation. Do not leave a compatibility path or comment describing behavior that no longer exists. Preserve intentional upstream comments unless the new design makes them incorrect.
@@ -247,14 +255,14 @@ The established patterns later in this plan are a vocabulary, not a lookup table
 
 ### 10. Reject speculative complexity
 
-Record low-confidence concerns under rejected or unresolved analysis. Do not implement them. Broader non-defect improvements require the same evidence threshold and explicit owner approval before implementation.
+Record low-confidence concerns under rejected or unresolved analysis. Do not implement them. Surface every evidence-backed, meaningful non-defect improvement to the owner with its benefit, cost, and alternatives, then stop for explicit approval. This requirement exists to keep worthwhile opportunities visible, not to discourage finding them.
 
 ## Finding classification
 
 ### Category
 
 - **Defect:** current behavior can be wrong, unsafe, leaky, stuck, or observably inconsistent.
-- **Improvement:** no current defect, but a measured or clearly general simplification, performance gain, or flexibility gain exists.
+- **Improvement:** no current defect, but an evidence-backed, meaningful practical simplification, performance gain, flexibility gain, or general capability exists; style-only churn and negligible micro-optimizations do not qualify.
 - **Intentional difference:** behavior differs from upstream for a verified Hypervel reason and is safe.
 - **Userland footgun:** an API is correct within its intended boot/test boundary but can be misused without clear guidance.
 - **Rejected concern:** source tracing disproves the suspected failure or the state is not realistic enough to justify machinery.
@@ -517,17 +525,19 @@ Inspect package facades and contracts as part of the public surface. Verify:
 - native and docblock types cover every reachable value;
 - callbacks and proxies do not leak borrowed internals;
 - fluent/static return types return the advertised receiver;
-- Laravel-facing config keys and method names stay intact where intended;
-- Hypervel-specific differences are necessary for Swoole and documented where the repository rules require it;
+- Laravel's current public APIs, configuration keys and structure, documented behavior, and conventional extension patterns remain compatible by default;
+- any proposed Laravel-facing divergence has a concrete, meaningful Hypervel benefit and is presented to the owner as a stop gate before implementation;
+- Hypervel-specific differences are necessary for Swoole or provide another owner-approved meaningful benefit and are documented where the repository rules require it;
 - before removing a deprecated API, verify that the package's direct upstream explicitly deprecates it; a deprecation in an underlying dependency does not count when the direct upstream retains the wrapper;
 - a bug is fixed even when upstream shares it;
+- deliberate lifecycle bypasses and unsupported use are not treated as defects unless the public contract promises behavior through them;
 - optional observational events use `hasListeners()`;
 - dynamic container results are narrowed so static analysis checks method calls;
 - caches are keyed by every input that changes construction and by nothing that only changes presentation;
 - worker caches have bounded or intentional retention;
 - new correctness logic adds no unjustified hot-path overhead.
 
-For a possible optimization, measure or establish the cost and usage pattern before proposing it. Broader improvements that are not defect fixes require owner approval before implementation.
+For a possible optimization, measure or establish the cost and usage pattern before proposing it. Surface every meaningful evidence-backed optimization or broader improvement to the owner, including the upstream-maintenance cost and viable alternatives, then stop for approval before implementation. Do not propose style-only divergence or performance changes whose effect is merely noise.
 
 ### Stage 11 — Complete the repository trace
 
@@ -883,9 +893,9 @@ The second-opinion review thread holds proposals and discarded ideas. Add only t
 
 After second-opinion consensus:
 
-- a package-local defect fix may proceed to implementation and later code review without another owner checkpoint;
-- an Improvement-category change requires explicit owner approval before implementation;
-- a public-contract change or a shared lower-level contract change affecting multiple packages requires explicit owner approval before implementation, even when it fixes a defect;
+- a verified defect fix may proceed to implementation and later code review without another owner checkpoint when it preserves the Laravel-facing contract, adds no measured or source-proven hot-path regression, and has a settled design;
+- every Improvement-category finding must be surfaced to the owner with its meaningful practical benefit, cost, alternatives, and upstream-parity effect, and requires explicit approval before implementation;
+- changing a Laravel public API, configuration key or structure, documented behavior, or conventional extension pattern is always an exceptional stop gate requiring explicit owner approval, even when motivated by a defect or broader architectural improvement;
 - any change with a measured or source-proven hot-path performance regression requires explicit owner approval before implementation, even when it fixes a defect;
 - any choice the evidence cannot settle returns to the owner rather than being guessed.
 
@@ -938,6 +948,8 @@ Request an independent review of the complete diff and validation. Continue unti
 
 Update the companion-ledger work-unit block with implemented changes, cross-package revalidation, tests/gates, and review sign-off. Give it a concise work-unit heading; multiple ledger work units may later be included in one owner-selected pull request. Prepare the routing index, cross-package dependency index, and package-checklist changes in this plan. Remove wording that describes abandoned designs and do not duplicate branch, pull-request, or commit references in the audit documents.
 
+Record the Laravel-facing result explicitly as one of: public API and configuration unchanged; only directly upstream-deprecated surface removed; or intentional divergence approved by the owner with the meaningful reason preserved.
+
 ### 10. Owner pre-commit checkpoint
 
 After every code change is complete, all gates are green, the fresh self-review is complete, and the independent code review is signed off:
@@ -974,9 +986,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `reflection`
-- **Ledger entries required for the active work:** none
-- **Pending revalidation carried into the active work:** none
+- **Active package or work unit:** `context`
+- **Ledger entries required for the active work:** `Coordinate shared container construction and complete current contextual resolution` (`container-05`, `container-06`)
+- **Pending revalidation carried into the active work:** `container-05`, `container-06`
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -993,6 +1005,16 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `testbench-01` | `testbench` | `foundation`; later full `testbench` and `foundation` audits | `Restore Conditionable proxy truthiness`; shared finding `testbench-01` |
 | `http-01` | `http` | `macroable`, `testing`; later full `http` and `testing` audits | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
 | `console-01` | `console` | `contracts`; later full `console` audit | `Preserve typed console contracts during Composer scripts`; shared finding `console-01` |
+| `reflection-01` | `reflection` | `events`, `foundation`; later full `events` and `foundation` audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-01` |
+| `reflection-02` | `reflection` | `console`, `routing`, `view`, `foundation`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
+| `reflection-04` | `reflection` | `di`, `support`, `queue`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
+| `config-01` | `config` | `foundation`; later full `foundation` audit | `Preserve configuration identity across worker reloads`; finding `config-01` |
+| `config-02` | `foundation` | `testing`, `reverb`; later full consumer audits | `Preserve configuration identity across worker reloads`; finding `config-02` |
+| `container-05` | `container` | `context`; later full `context` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-05` |
+| `container-06` | `container` | `context`; later full `context` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-06` |
+| `container-08` | `container` | `auth`, `cache`, `log`, `routing`, `support`; later full consumer audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-08` |
+| `container-09` | `auth`, `cache`, `log` | `container` (revalidation complete); later full `auth`, `cache`, and `log` audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-09` |
+| `container-10` | `log` | `container` (revalidation complete); later full `log` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
 
 ## Package checklist
 
@@ -1019,9 +1041,9 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `conditionable`
 - [x] `macroable`
 - [x] `collections`
-- [ ] `reflection`
-- [ ] `config`
-- [ ] `container`
+- [x] `reflection`
+- [x] `config`
+- [x] `container`
 - [ ] `context`
 - [ ] `di`
 - [ ] `events`

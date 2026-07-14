@@ -525,6 +525,126 @@ class CacheManagerTest extends TestCase
         $this->assertNull($repoWithoutEvents->getEventDispatcher());
     }
 
+    public function testEnumStoreCanBeResolved(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'stores' => [
+                    'array' => ['driver' => 'array'],
+                ],
+            ],
+        ]);
+        $cacheManager = new CacheManager($app);
+
+        $store = $cacheManager->store(CacheStoreName::ArrayStore);
+
+        $this->assertInstanceOf(ArrayStore::class, $store->getStore());
+        $this->assertSame($store, $cacheManager->store(CacheStoreName::ArrayStore));
+    }
+
+    public function testZeroStoreNameCanBeResolvedFromEnumAndString(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'default' => 'array',
+                'stores' => [
+                    '0' => ['driver' => 'array'],
+                    'array' => ['driver' => 'array'],
+                ],
+            ],
+        ]);
+        $cacheManager = new CacheManager($app);
+
+        $store = $cacheManager->store(NumericCacheStoreName::Zero);
+
+        $this->assertInstanceOf(ArrayStore::class, $store->getStore());
+        $this->assertSame($store, $cacheManager->store('0'));
+        $this->assertNotSame($store, $cacheManager->store());
+    }
+
+    public function testEnumDriverCanBeResolved(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'stores' => [
+                    'array' => ['driver' => 'array'],
+                ],
+            ],
+        ]);
+        $cacheManager = new CacheManager($app);
+
+        $store = $cacheManager->driver(CacheStoreName::ArrayStore);
+
+        $this->assertInstanceOf(ArrayStore::class, $store->getStore());
+    }
+
+    public function testEnumMemoStoreCanBeResolved(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'stores' => [
+                    'array' => ['driver' => 'array'],
+                ],
+            ],
+        ]);
+        $cacheManager = new CacheManager($app);
+
+        $store = $cacheManager->memo(CacheStoreName::ArrayStore);
+
+        $this->assertSame($store, $cacheManager->memo(CacheStoreName::ArrayStore));
+    }
+
+    public function testForgetDriverAcceptsEnum(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'stores' => [
+                    'array' => ['driver' => 'array'],
+                ],
+            ],
+        ]);
+        $cacheManager = new CacheManager($app);
+
+        $repo1 = $cacheManager->store(CacheStoreName::ArrayStore);
+        $cacheManager->forgetDriver(CacheStoreName::ArrayStore);
+        $repo2 = $cacheManager->store(CacheStoreName::ArrayStore);
+
+        $this->assertNotSame($repo1, $repo2);
+    }
+
+    public function testPurgeAcceptsEnum(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'stores' => [
+                    'array' => ['driver' => 'array'],
+                ],
+            ],
+        ]);
+        $cacheManager = new CacheManager($app);
+
+        $repo1 = $cacheManager->store(CacheStoreName::ArrayStore);
+        $cacheManager->purge(CacheStoreName::ArrayStore);
+        $repo2 = $cacheManager->store(CacheStoreName::ArrayStore);
+
+        $this->assertNotSame($repo1, $repo2);
+    }
+
+    public function testSetDefaultDriverAcceptsEnum(): void
+    {
+        $app = $this->getApp([
+            'cache' => [
+                'default' => 'old',
+                'stores' => [],
+            ],
+        ]);
+        $cacheManager = new CacheManager($app);
+
+        $cacheManager->setDefaultDriver(CacheStoreName::ArrayStore);
+
+        $this->assertSame('array', $app->get('config')->get('cache.default'));
+    }
+
     protected function getApp(array $userConfig): Container
     {
         $app = new Container;
@@ -570,4 +690,14 @@ class CacheManagerTest extends TestCase
 
         return $app;
     }
+}
+
+enum CacheStoreName: string
+{
+    case ArrayStore = 'array';
+}
+
+enum NumericCacheStoreName: int
+{
+    case Zero = 0;
 }

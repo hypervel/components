@@ -135,7 +135,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Container\BoundMethod::flushState();
         \Hypervel\Container\Container::flushState();
         \Hypervel\Container\Container::setInstance(null);
-        \Hypervel\Container\ReflectionManager::flushState();
         \Hypervel\Context\CoroutineContext::flush();
         \Hypervel\Contracts\Database\ModelIdentifier::flushState();
         \Hypervel\Cookie\CookieJar::flushState();
@@ -172,7 +171,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Di\Aop\AspectManager::flushState();
         \Hypervel\Di\Aop\AstVisitorRegistry::flushState();
         \Hypervel\Di\ClassMap\ClassMapManager::flushState();
-        \Hypervel\Di\ReflectionManager::flushState();
         \Hypervel\Events\Dispatcher::flushState();
         \Hypervel\Filesystem\Filesystem::flushState();
         \Hypervel\Filesystem\FilesystemAdapter::flushState();
@@ -196,7 +194,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::flushState();
         \Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::flushState();
         \Hypervel\Foundation\Http\Middleware\TrimStrings::flushState();
-        \Hypervel\Foundation\Listeners\ReloadDotenvAndConfig::flushState();
         \Hypervel\Foundation\PackageManifest::flushState();
         \Hypervel\Foundation\Support\Providers\EventServiceProvider::flushState();
         \Hypervel\Foundation\Support\Providers\RouteServiceProvider::flushState();

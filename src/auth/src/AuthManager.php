@@ -11,6 +11,9 @@ use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Container\Container;
 use InvalidArgumentException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin Guard
@@ -59,8 +62,12 @@ class AuthManager implements FactoryContract
     /**
      * Attempt to get the guard from the local cache.
      */
-    public function guard(?string $name = null): Guard|StatefulGuard
+    public function guard(UnitEnum|string|null $name = null): Guard|StatefulGuard
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $name ??= $this->getDefaultDriver();
 
         return $this->guards[$name] ??= $this->resolve($name);
@@ -177,8 +184,12 @@ class AuthManager implements FactoryContract
     /**
      * Set the default guard driver the factory should serve.
      */
-    public function shouldUse(?string $name): void
+    public function shouldUse(UnitEnum|string|null $name): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $name ??= $this->getDefaultDriver();
 
         $this->setDefaultDriver($name);
@@ -191,8 +202,12 @@ class AuthManager implements FactoryContract
      *
      * Uses coroutine Context so one request's override doesn't affect others.
      */
-    public function setDefaultDriver(string $name): void
+    public function setDefaultDriver(UnitEnum|string $name): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         CoroutineContext::set(self::DEFAULT_GUARD_CONTEXT_KEY, $name);
     }
 

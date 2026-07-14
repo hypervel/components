@@ -6,6 +6,7 @@ namespace Hypervel\Container;
 
 use Closure;
 use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Support\ClassMetadataCache;
 use InvalidArgumentException;
 use ReflectionException;
 use ReflectionFunction;
@@ -136,24 +137,14 @@ class BoundMethod
      */
     protected static function computeMethodRecipe(string $className, string $methodName): array
     {
-        $reflector = ReflectionManager::reflectMethod($className, $methodName);
+        $reflector = ClassMetadataCache::reflectMethod($className, $methodName);
         $recipes = [];
 
-        foreach ($reflector->getParameters() as $index => $param) {
-            $recipes[$index] = new ParameterRecipe(
-                name: $param->getName(),
-                position: $index,
-                declaringClassName: $param->getDeclaringClass()?->getName() ?? $className,
-                className: Util::getParameterClassName($param),
-                hasType: $param->hasType(),
-                hasDefault: $param->isDefaultValueAvailable(),
-                default: $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null,
-                isVariadic: $param->isVariadic(),
-                isOptional: $param->isOptional(),
-                allowsNull: $param->allowsNull(),
-                attributes: $param->getAttributes(),
-                contextualAttribute: Util::getContextualAttributeFromDependency($param),
-                reflectionString: (string) $param,
+        foreach ($reflector->getParameters() as $index => $parameter) {
+            $recipes[$index] = ParameterRecipe::fromParameter(
+                $parameter,
+                $className,
+                includeReflectionString: true,
             );
         }
 
@@ -180,21 +171,11 @@ class BoundMethod
         $reflector = new ReflectionFunction($functionName);
         $recipes = [];
 
-        foreach ($reflector->getParameters() as $index => $param) {
-            $recipes[$index] = new ParameterRecipe(
-                name: $param->getName(),
-                position: $index,
-                declaringClassName: $param->getDeclaringClass()?->getName() ?? $functionName,
-                className: Util::getParameterClassName($param),
-                hasType: $param->hasType(),
-                hasDefault: $param->isDefaultValueAvailable(),
-                default: $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null,
-                isVariadic: $param->isVariadic(),
-                isOptional: $param->isOptional(),
-                allowsNull: $param->allowsNull(),
-                attributes: $param->getAttributes(),
-                contextualAttribute: Util::getContextualAttributeFromDependency($param),
-                reflectionString: (string) $param,
+        foreach ($reflector->getParameters() as $index => $parameter) {
+            $recipes[$index] = ParameterRecipe::fromParameter(
+                $parameter,
+                $functionName,
+                includeReflectionString: true,
             );
         }
 
@@ -228,7 +209,10 @@ class BoundMethod
                 $pendingDependencies[] = $parameters[$recipe->name];
                 unset($parameters[$recipe->name]);
             } elseif ($recipe->contextualAttribute !== null) {
-                $pendingDependencies[] = $container->resolveFromAttribute($recipe->contextualAttribute);
+                $pendingDependencies[] = $container->resolveFromAttribute(
+                    $recipe->contextualAttribute,
+                    $recipe->getReflectionParameter(),
+                );
             } elseif ($recipe->className !== null) {
                 if (array_key_exists($recipe->className, $parameters)) {
                     $pendingDependencies[] = $parameters[$recipe->className];
@@ -239,12 +223,12 @@ class BoundMethod
                         ? $variadicDependencies
                         : [$variadicDependencies]);
                 } elseif ($recipe->hasDefault && ! $container->bound($recipe->className)) {
-                    $pendingDependencies[] = $recipe->default;
+                    $pendingDependencies[] = $recipe->getDefaultValue();
                 } else {
                     $pendingDependencies[] = $container->make($recipe->className);
                 }
             } elseif ($recipe->hasDefault) {
-                $pendingDependencies[] = $recipe->default;
+                $pendingDependencies[] = $recipe->getDefaultValue();
             } elseif (! $recipe->isOptional && ! array_key_exists($recipe->name, $parameters)) {
                 $message = "Unable to resolve dependency [{$recipe->reflectionString}] in class {$recipe->declaringClassName}";
                 throw new BindingResolutionException($message);
@@ -335,7 +319,7 @@ class BoundMethod
 
             unset($parameters[$paramName]);
         } elseif ($attribute = Util::getContextualAttributeFromDependency($parameter)) {
-            $pendingDependencies[] = $container->resolveFromAttribute($attribute);
+            $pendingDependencies[] = $container->resolveFromAttribute($attribute, $parameter);
         } elseif (! is_null($className = Util::getParameterClassName($parameter))) {
             if (array_key_exists($className, $parameters)) {
                 $pendingDependencies[] = $parameters[$className];
@@ -355,7 +339,10 @@ class BoundMethod
         } elseif ($parameter->isDefaultValueAvailable()) {
             $pendingDependencies[] = $parameter->getDefaultValue();
         } elseif (! $parameter->isOptional() && ! array_key_exists($paramName, $parameters)) {
-            $message = "Unable to resolve dependency [{$parameter}] in class {$parameter->getDeclaringClass()->getName()}";
+            $declaringClass = $parameter->getDeclaringClass();
+            $declaringName = $declaringClass?->getName() ?? $parameter->getDeclaringFunction()->getName();
+            $declaringType = $declaringClass === null ? 'function' : 'class';
+            $message = "Unable to resolve dependency [{$parameter}] in {$declaringType} {$declaringName}";
 
             throw new BindingResolutionException($message);
         }

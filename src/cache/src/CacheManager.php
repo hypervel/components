@@ -17,6 +17,9 @@ use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Mockery;
 use Mockery\LegacyMockInterface;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Contracts\Cache\Repository
@@ -51,9 +54,13 @@ class CacheManager implements FactoryContract
     /**
      * Get a cache store instance by name, wrapped in a repository.
      */
-    public function store(?string $name = null): CacheRepository
+    public function store(UnitEnum|string|null $name = null): CacheRepository
     {
-        $name = $name ?: $this->getDefaultDriver();
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name ??= $this->getDefaultDriver();
 
         return $this->stores[$name] ??= $this->resolve($name);
     }
@@ -61,7 +68,7 @@ class CacheManager implements FactoryContract
     /**
      * Get a cache driver instance.
      */
-    public function driver(?string $driver = null): CacheRepository
+    public function driver(UnitEnum|string|null $driver = null): CacheRepository
     {
         return $this->store($driver);
     }
@@ -72,8 +79,12 @@ class CacheManager implements FactoryContract
      * The memoized repository is isolated to the current coroutine and resets
      * when the coroutine ends.
      */
-    public function memo(?string $driver = null): CacheRepository
+    public function memo(UnitEnum|string|null $driver = null): CacheRepository
     {
+        if ($driver instanceof UnitEnum) {
+            $driver = (string) enum_value($driver);
+        }
+
         $driver = $driver ?? $this->getDefaultDriver();
 
         // Laravel uses a scoped container binding here. Hypervel stores this
@@ -401,8 +412,12 @@ class CacheManager implements FactoryContract
      *
      * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
-    public function setDefaultDriver(string $name): void
+    public function setDefaultDriver(UnitEnum|string $name): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $this->app['config']['cache.default'] = $name;
     }
 
@@ -413,11 +428,15 @@ class CacheManager implements FactoryContract
      * coroutines may already hold a reference to the store and next resolution
      * will rebuild with fresh connections.
      */
-    public function forgetDriver(array|string|null $name = null): static
+    public function forgetDriver(array|UnitEnum|string|null $name = null): static
     {
         $name ??= $this->getDefaultDriver();
 
-        foreach ((array) $name as $cacheName) {
+        foreach (is_array($name) ? $name : [$name] as $cacheName) {
+            if ($cacheName instanceof UnitEnum) {
+                $cacheName = (string) enum_value($cacheName);
+            }
+
             if (isset($this->stores[$cacheName])) {
                 unset($this->stores[$cacheName]);
             }
@@ -433,8 +452,12 @@ class CacheManager implements FactoryContract
      * coroutines may already hold a reference to the store and next resolution
      * will rebuild with fresh connections.
      */
-    public function purge(?string $name = null): void
+    public function purge(UnitEnum|string|null $name = null): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $name ??= $this->getDefaultDriver();
 
         unset($this->stores[$name]);

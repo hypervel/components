@@ -16,6 +16,7 @@ use Mockery as m;
 use Monolog\Handler\TestHandler;
 use Monolog\Level;
 use Monolog\Logger as Monolog;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 
 class LogLoggerTest extends TestCase
@@ -173,6 +174,51 @@ class LogLoggerTest extends TestCase
 
         $this->assertTrue($arrayable->wasCalled);
         $this->assertTrue($handler->hasDebugRecords());
+    }
+
+    public function testNamedLoggerPreservesWrapperBehaviorAndSharesChannelContext(): void
+    {
+        $monolog = new Monolog('base');
+        $handler = new TestHandler(Level::Debug);
+        $monolog->pushHandler($handler);
+
+        $events = new Dispatcher;
+        $writer = new Logger($monolog, $events);
+        $writer->withContext(['request_id' => 'request-1']);
+
+        $named = $writer->withName('tenant');
+
+        $this->assertNotSame($writer, $named);
+        $this->assertNotSame($writer->getLogger(), $named->getLogger());
+        $this->assertSame('base', $monolog->getName());
+        $this->assertSame('tenant', $named->getLogger()->getName());
+        $this->assertSame($events, $named->getEventDispatcher());
+        $this->assertSame(['request_id' => 'request-1'], $named->getContext());
+
+        $named->withContext(['tenant_id' => 42]);
+
+        $this->assertSame(['request_id' => 'request-1', 'tenant_id' => 42], $writer->getContext());
+
+        $event = null;
+        $events->listen(MessageLogged::class, function (MessageLogged $message) use (&$event): void {
+            $event = $message;
+        });
+
+        $named->info('hello');
+
+        $this->assertSame('tenant', $handler->getRecords()[0]->channel);
+        $this->assertSame(['request_id' => 'request-1', 'tenant_id' => 42], $event->context);
+
+        $other = new Logger(new Monolog('other'));
+        $this->assertSame([], $other->getContext());
+    }
+
+    public function testNamedLoggerRejectsNonMonologDrivers(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Named loggers are only supported by Monolog drivers.');
+
+        (new Logger(m::mock(LoggerInterface::class)))->withName('tenant');
     }
 
     // -- Hypervel-specific tests --

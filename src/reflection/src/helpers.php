@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Support\Traits\ReflectsClosures;
 
 if (! function_exists('lazy')) {
@@ -14,6 +15,8 @@ if (! function_exists('lazy')) {
      * @param (Closure(TValue): mixed)|int $callback
      * @param array<string, mixed> $eager
      * @return TValue
+     *
+     * @throws \ReflectionException
      */
     function lazy(string|Closure $class, Closure|int $callback = 0, int $options = 0, array $eager = []): object
     {
@@ -32,7 +35,7 @@ if (! function_exists('lazy')) {
             ? [$class, $callback, $options]
             : [$closureReflector->typeFromParameter($class), $class, $callback ?: $options];
 
-        $reflectionClass = new ReflectionClass($class);
+        $reflectionClass = ClassMetadataCache::reflectClass($class);
 
         $instance = $reflectionClass->newLazyGhost(function ($instance) use ($callback) {
             $result = $callback($instance);
@@ -56,10 +59,12 @@ if (! function_exists('proxy')) {
      *
      * @template TValue of object
      *
-     * @param class-string<TValue>|(Closure(TValue): TValue) $class
-     * @param (Closure(TValue): TValue)|int $callback
+     * @param class-string<TValue>|(Closure(TValue, array<string, mixed>): TValue) $class
+     * @param (Closure(TValue, array<string, mixed>): TValue)|int $callback
      * @param array<string, mixed> $eager
      * @return TValue
+     *
+     * @throws \ReflectionException
      */
     function proxy(string|Closure $class, Closure|int $callback = 0, int $options = 0, array $eager = []): object
     {
@@ -78,7 +83,7 @@ if (! function_exists('proxy')) {
             ? [$class, $callback, $options]
             : [$closureReflector->get($class), $class, $callback ?: $options];
 
-        $reflectionClass = new ReflectionClass($class);
+        $reflectionClass = ClassMetadataCache::reflectClass($class);
 
         $proxy = $reflectionClass->newLazyProxy(function () use ($callback, $eager, &$proxy) {
             $instance = $callback($proxy, $eager);

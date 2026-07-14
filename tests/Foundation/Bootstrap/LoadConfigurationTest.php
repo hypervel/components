@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Closure;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Config\Repository as RepositoryContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use ReflectionClass;
+use RuntimeException;
 
 class LoadConfigurationTest extends TestCase
 {
@@ -132,5 +136,38 @@ class LoadConfigurationTest extends TestCase
 
         // Base configs should still be loaded for keys not in the app config dir
         $this->assertNotNull($app['config']['auth']);
+    }
+
+    public function testFailedReloadRestoresThePreviousRepositoryAndException(): void
+    {
+        $app = new Application;
+        (new LoadConfiguration)->bootstrap($app);
+
+        $originalConfig = $app->make(Repository::class);
+        $originalConfig->set('app.name', 'Original Hypervel');
+        $exception = new RuntimeException('Configuration failed.');
+
+        try {
+            (new FailingLoadConfiguration($exception))->bootstrap($app);
+
+            $this->fail('The configuration bootstrap did not fail.');
+        } catch (RuntimeException $caught) {
+            $this->assertSame($exception, $caught);
+        }
+
+        $this->assertSame($originalConfig, $app->make(Repository::class));
+        $this->assertSame('Original Hypervel', $originalConfig->get('app.name'));
+    }
+}
+
+class FailingLoadConfiguration extends LoadConfiguration
+{
+    public function __construct(protected RuntimeException $exception)
+    {
+    }
+
+    protected function loadConfigurationFiles(ApplicationContract $app, RepositoryContract $repository): void
+    {
+        throw $this->exception;
     }
 }

@@ -234,6 +234,24 @@ class ContainerCallTest extends TestCase
         });
     }
 
+    public function testCallWithoutRequiredParamsOnUnscopedClosureThrowsException(): void
+    {
+        $container = new Container;
+        $closure = Closure::bind(static function ($foo): void {
+        }, null, null);
+
+        try {
+            $container->call($closure);
+            $this->fail('Expected the unresolvable closure dependency to throw.');
+        } catch (BindingResolutionException $exception) {
+            $this->assertStringContainsString(
+                'Unable to resolve dependency [Parameter #0 [ <required> $foo ]]',
+                $exception->getMessage(),
+            );
+            $this->assertStringContainsString('in function {closure:', $exception->getMessage());
+        }
+    }
+
     public function testCallWithNullableClassParameterDefaultValue()
     {
         $container = new Container;
@@ -286,6 +304,18 @@ class ContainerCallTest extends TestCase
         $this->assertArrayHasKey($key, $cache);
         $this->assertCount(2, $cache[$key]);
         $this->assertInstanceOf(ParameterRecipe::class, $cache[$key][0]);
+        $this->assertNotSame('', $cache[$key][0]->reflectionString);
+    }
+
+    public function testMethodRecipeObjectDefaultsAreFreshAcrossCalls(): void
+    {
+        $container = new Container;
+        $callable = [new ContainerCallObjectDefaultStub, 'handle'];
+
+        $first = $container->call($callable);
+        $second = $container->call($callable);
+
+        $this->assertNotSame($first, $second);
     }
 
     public function testMethodRecipeCacheIsClearedOnFlush()
@@ -350,6 +380,18 @@ class ContainerCallTest extends TestCase
         $this->assertArrayHasKey($functionName, $functionCache);
         $this->assertCount(2, $functionCache[$functionName]);
         $this->assertInstanceOf(ParameterRecipe::class, $functionCache[$functionName][0]);
+        $this->assertNotSame('', $functionCache[$functionName][0]->reflectionString);
+    }
+
+    public function testFunctionRecipeObjectDefaultsAreFreshAcrossCalls(): void
+    {
+        $container = new Container;
+        $function = 'Hypervel\Tests\Container\containerTestObjectDefault';
+
+        $first = $container->call($function);
+        $second = $container->call($function);
+
+        $this->assertNotSame($first, $second);
     }
 
     public function testMethodRecipeCacheIsPopulatedForStaticMethodStrings()
@@ -530,6 +572,19 @@ class ContainerCallConcreteStub
 function containerTestInject(ContainerCallConcreteStub $stub, $default = 'taylor')
 {
     return func_get_args();
+}
+
+function containerTestObjectDefault(stdClass $default = new stdClass): stdClass
+{
+    return $default;
+}
+
+class ContainerCallObjectDefaultStub
+{
+    public function handle(stdClass $default = new stdClass): stdClass
+    {
+        return $default;
+    }
 }
 
 class ContainerStaticMethodStub

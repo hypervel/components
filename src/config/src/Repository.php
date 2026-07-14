@@ -17,12 +17,9 @@ class Repository implements ArrayAccess, ConfigContract
     use Macroable;
 
     /**
-     * Callback invoked after each `set` call.
-     *
-     * Instance-scoped (not static) so that only the container's Repository
-     * triggers the callback. Test-created instances won't pollute shared state.
+     * The observer invoked after each configuration mutation.
      */
-    protected ?Closure $afterSettingCallback = null;
+    protected ?Closure $mutationObserver = null;
 
     /**
      * Create a new configuration repository.
@@ -73,6 +70,7 @@ class Repository implements ArrayAccess, ConfigContract
      * Get the specified string configuration value.
      *
      * @param null|(Closure():(null|string))|string $default
+     * @throws InvalidArgumentException
      */
     public function string(string $key, mixed $default = null): string
     {
@@ -91,6 +89,7 @@ class Repository implements ArrayAccess, ConfigContract
      * Get the specified integer configuration value.
      *
      * @param null|(Closure():(null|int))|int $default
+     * @throws InvalidArgumentException
      */
     public function integer(string $key, mixed $default = null): int
     {
@@ -109,6 +108,7 @@ class Repository implements ArrayAccess, ConfigContract
      * Get the specified float configuration value.
      *
      * @param null|(Closure():(null|float))|float $default
+     * @throws InvalidArgumentException
      */
     public function float(string $key, mixed $default = null): float
     {
@@ -127,6 +127,7 @@ class Repository implements ArrayAccess, ConfigContract
      * Get the specified boolean configuration value.
      *
      * @param null|bool|(Closure():(null|bool)) $default
+     * @throws InvalidArgumentException
      */
     public function boolean(string $key, mixed $default = null): bool
     {
@@ -146,6 +147,7 @@ class Repository implements ArrayAccess, ConfigContract
      *
      * @param null|array<array-key, mixed>|(Closure():(null|array<array-key, mixed>)) $default
      * @return array<array-key, mixed>
+     * @throws InvalidArgumentException
      */
     public function array(string $key, mixed $default = null): array
     {
@@ -164,6 +166,8 @@ class Repository implements ArrayAccess, ConfigContract
      * Get the specified configuration value as a Collection.
      *
      * @param null|array<array-key, mixed>|(Closure():(null|array<array-key, mixed>)) $default
+     * @return Collection<array-key, mixed>
+     * @throws InvalidArgumentException
      */
     public function collection(string $key, mixed $default = null): Collection
     {
@@ -185,8 +189,8 @@ class Repository implements ArrayAccess, ConfigContract
             Arr::set($this->items, $key, $value);
         }
 
-        if ($this->afterSettingCallback) {
-            call_user_func($this->afterSettingCallback, $keys);
+        if ($this->mutationObserver) {
+            call_user_func($this->mutationObserver, $keys);
         }
     }
 
@@ -231,35 +235,43 @@ class Repository implements ArrayAccess, ConfigContract
     }
 
     /**
-     * Set callback after calling `set` function.
+     * Replace all configuration items without reporting a mutation.
      *
-     * Boot or tests only. The callback persists on the singleton config
-     * repository for the worker lifetime and applies to every subsequent
-     * `set` call; per-request mutation races across coroutines.
+     * @internal
      */
-    public function afterSettingCallback(?Closure $callback): void
+    public function replaceItems(array $items): void
     {
-        $this->afterSettingCallback = $callback;
+        $this->items = $items;
+    }
+
+    /**
+     * Set the observer invoked after each configuration mutation.
+     *
+     * @internal
+     */
+    public function setMutationObserver(Closure $observer): void
+    {
+        $this->mutationObserver = $observer;
     }
 
     /**
      * Determine if the given configuration option exists.
      *
-     * @param string $key
+     * @param int|string $key
      */
     public function offsetExists($key): bool
     {
-        return $this->has($key);
+        return $this->has((string) $key);
     }
 
     /**
      * Get a configuration option.
      *
-     * @param string $key
+     * @param int|string $key
      */
     public function offsetGet($key): mixed
     {
-        return $this->get($key);
+        return $this->get((string) $key);
     }
 
     /**
@@ -269,12 +281,12 @@ class Repository implements ArrayAccess, ConfigContract
      * per-request mutation races across coroutines and affects every concurrent
      * request.
      *
-     * @param string $key
+     * @param int|string $key
      * @param mixed $value
      */
     public function offsetSet($key, $value): void
     {
-        $this->set($key, $value);
+        $this->set((string) $key, $value);
     }
 
     /**
@@ -284,11 +296,11 @@ class Repository implements ArrayAccess, ConfigContract
      * per-request mutation races across coroutines and affects every concurrent
      * request.
      *
-     * @param string $key
+     * @param int|string $key
      */
     public function offsetUnset($key): void
     {
-        $this->set($key, null);
+        $this->set((string) $key, null);
     }
 
     /**

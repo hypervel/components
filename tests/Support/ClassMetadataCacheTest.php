@@ -9,6 +9,7 @@ use Error;
 use Hypervel\Support\ClassMetadataCache;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
+use ReflectionException;
 use ReflectionProperty;
 use RuntimeException;
 
@@ -17,9 +18,31 @@ class ClassMetadataCacheTest extends TestCase
     public function testReflectClassReturnsCachedReflection(): void
     {
         $first = ClassMetadataCache::reflectClass(ClassMetadataCacheFixture::class);
-        $second = ClassMetadataCache::reflectClass(ClassMetadataCacheFixture::class);
+        $second = ClassMetadataCache::reflectClass(new ClassMetadataCacheFixture);
 
         $this->assertSame($first, $second);
+    }
+
+    public function testReflectMethodReturnsCachedReflection(): void
+    {
+        $first = ClassMetadataCache::reflectMethod(ClassMetadataCacheFixture::class, 'greet');
+        $second = ClassMetadataCache::reflectMethod(new ClassMetadataCacheFixture, 'greet');
+
+        $this->assertSame($first, $second);
+    }
+
+    public function testReflectClassThrowsForMissingClass(): void
+    {
+        $this->expectException(ReflectionException::class);
+
+        ClassMetadataCache::reflectClass('MissingClassMetadataCacheFixture');
+    }
+
+    public function testReflectMethodThrowsForMissingMethod(): void
+    {
+        $this->expectException(ReflectionException::class);
+
+        ClassMetadataCache::reflectMethod(ClassMetadataCacheFixture::class, 'missingMethod');
     }
 
     public function testDefaultPropertiesAreCached(): void
@@ -141,17 +164,22 @@ class ClassMetadataCacheTest extends TestCase
 
     public function testFlushStateClearsCachedMetadata(): void
     {
-        $before = ClassMetadataCache::reflectClass(ClassMetadataCacheFixture::class);
+        $classBefore = ClassMetadataCache::reflectClass(ClassMetadataCacheFixture::class);
+        $methodBefore = ClassMetadataCache::reflectMethod(ClassMetadataCacheFixture::class, 'greet');
 
         ClassMetadataCache::getAttribute(ClassMetadataCacheAttributedFixture::class, ClassMetadataCacheAttribute::class);
         ClassMetadataCache::hasClassAttribute(ClassMetadataCacheParentFixture::class, ClassMetadataCacheAttribute::class);
         ClassMetadataCache::flushState();
 
-        $after = ClassMetadataCache::reflectClass(ClassMetadataCacheFixture::class);
-
-        $this->assertNotSame($before, $after);
+        $this->assertSame([], $this->staticProperty('methods'));
         $this->assertSame([], $this->staticProperty('attributes'));
         $this->assertSame([], $this->staticProperty('classAttributePresence'));
+
+        $classAfter = ClassMetadataCache::reflectClass(ClassMetadataCacheFixture::class);
+        $methodAfter = ClassMetadataCache::reflectMethod(ClassMetadataCacheFixture::class, 'greet');
+
+        $this->assertNotSame($classBefore, $classAfter);
+        $this->assertNotSame($methodBefore, $methodAfter);
     }
 
     /**
@@ -184,6 +212,11 @@ class ClassMetadataCacheTest extends TestCase
 class ClassMetadataCacheFixture
 {
     public string $name = 'hypervel';
+
+    public function greet(): string
+    {
+        return 'hello';
+    }
 }
 
 #[ClassMetadataCacheAttribute('class')]

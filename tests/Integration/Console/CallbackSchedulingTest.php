@@ -18,6 +18,7 @@ use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
+use UnitEnum;
 
 class CallbackSchedulingTest extends TestCase
 {
@@ -35,7 +36,7 @@ class CallbackSchedulingTest extends TestCase
                 $this->store = new Repository(new ArrayStore(true));
             }
 
-            public function store(?string $name = null): Repository
+            public function store(UnitEnum|string|null $name = null): Repository
             {
                 return $this->store;
             }

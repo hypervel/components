@@ -7,6 +7,7 @@ namespace Hypervel\Routing;
 use Closure;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Str;
+use ReflectionException;
 use ReflectionFunction;
 use ReflectionMethod;
 use ReflectionParameter;
@@ -79,6 +80,8 @@ class RouteSignatureParameters
      * Get the parameters for the given class / method by string.
      *
      * @return array<int, ReflectionParameter>
+     *
+     * @throws ReflectionException
      */
     protected static function fromClassMethodString(string $uses): array
     {

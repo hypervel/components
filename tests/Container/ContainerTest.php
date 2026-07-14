@@ -10,13 +10,14 @@ use Hypervel\Container\Attributes\Scoped;
 use Hypervel\Container\Attributes\Singleton;
 use Hypervel\Container\Container;
 use Hypervel\Container\EntryNotFoundException;
-use Hypervel\Container\ReflectionManager;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Contracts\Container\CircularDependencyException;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Container\SelfBuilding;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use LogicException;
 use Psr\Container\ContainerExceptionInterface;
 use ReflectionProperty;
 use stdClass;
@@ -91,6 +92,19 @@ class ContainerTest extends TestCase
         $this->assertSame('Dayle', $container->make('name'));
     }
 
+    public function testBindIfWithClosureRegistersOnlyUnboundReturnTypes(): void
+    {
+        $container = new Container;
+        $container->bind(IContainerContractStub::class, ContainerImplementationStubTwo::class);
+
+        $container->bindIf(function (): IContainerContractStub|ContainerImplementationStub {
+            return new ContainerImplementationStub;
+        });
+
+        $this->assertInstanceOf(ContainerImplementationStubTwo::class, $container->make(IContainerContractStub::class));
+        $this->assertInstanceOf(ContainerImplementationStub::class, $container->make(ContainerImplementationStub::class));
+    }
+
     public function testSingletonIfDoesntRegisterIfBindingAlreadyRegistered()
     {
         $container = new Container;
@@ -117,6 +131,17 @@ class ContainerTest extends TestCase
         $firstInstantiation = $container->make('otherClass');
         $secondInstantiation = $container->make('otherClass');
         $this->assertSame($firstInstantiation, $secondInstantiation);
+    }
+
+    public function testSingletonIfWithClosureRegistersSharedReturnType(): void
+    {
+        $container = new Container;
+        $container->singletonIf(fn (): ContainerConcreteStub => new ContainerConcreteStub);
+
+        $this->assertSame(
+            $container->make(ContainerConcreteStub::class),
+            $container->make(ContainerConcreteStub::class),
+        );
     }
 
     public function testSharedClosureResolution()
@@ -176,6 +201,20 @@ class ContainerTest extends TestCase
         });
         $this->assertSame('foo', $container->make('class'));
         $this->assertNotSame('bar', $container->make('class'));
+    }
+
+    public function testScopedIfWithClosureRegistersScopedReturnType(): void
+    {
+        $container = new Container;
+        $container->scopedIf(fn (): ContainerConcreteStub => new ContainerConcreteStub);
+
+        $first = $container->make(ContainerConcreteStub::class);
+
+        $this->assertSame($first, $container->make(ContainerConcreteStub::class));
+
+        $container->forgetScopedInstances();
+
+        $this->assertNotSame($first, $container->make(ContainerConcreteStub::class));
     }
 
     public function testScopedClosureResets()
@@ -329,6 +368,55 @@ class ContainerTest extends TestCase
         $this->assertSame($bound, $object);
     }
 
+    public function testNullInstanceIsAResolvedSharedBinding(): void
+    {
+        $container = new Container;
+        $container->instance('nullable', null);
+
+        $this->assertTrue($container->bound('nullable'));
+        $this->assertTrue($container->has('nullable'));
+        $this->assertTrue($container->resolved('nullable'));
+        $this->assertTrue($container->isShared('nullable'));
+        $this->assertNull($container->make('nullable'));
+        $this->assertNull($container->get('nullable'));
+    }
+
+    public function testNullSingletonValueIsCached(): void
+    {
+        $container = new Container;
+        $resolutions = 0;
+
+        $container->singleton('nullable', function () use (&$resolutions) {
+            ++$resolutions;
+
+            return null;
+        });
+
+        $this->assertNull($container->make('nullable'));
+        $this->assertNull($container->make('nullable'));
+        $this->assertSame(1, $resolutions);
+    }
+
+    public function testNullInstanceCanBeExtended(): void
+    {
+        $container = new Container;
+        $container->instance('nullable', null);
+
+        $container->extend('nullable', fn ($value) => $value ?? 'extended');
+
+        $this->assertSame('extended', $container->make('nullable'));
+    }
+
+    public function testRegisteredNullInstanceOverridesObjectDefault(): void
+    {
+        $container = new Container;
+        $container->instance(ContainerObjectDefaultDependency::class, null);
+
+        $resolved = $container->make(ContainerObjectDefaultConsumer::class);
+
+        $this->assertNull($resolved->dependency);
+    }
+
     public function testResolutionOfDefaultParameters()
     {
         $container = new Container;
@@ -363,6 +451,61 @@ class ContainerTest extends TestCase
             ->give(fn () => new ContainerConcreteStub);
         $instance = $container->make(ContainerClassWithDefaultValueStub::class);
         $this->assertInstanceOf(ContainerConcreteStub::class, $instance->default);
+    }
+
+    public function testObjectDefaultsAreFreshAcrossCachedBuildRecipes(): void
+    {
+        $container = new Container;
+
+        $first = $container->build(ContainerObjectDefaultStub::class);
+        $second = $container->build(ContainerObjectDefaultStub::class);
+
+        $this->assertNotSame($first->value, $second->value);
+        $this->assertNotSame($first->nested[0], $second->nested[0]);
+    }
+
+    public function testScalarAndEnumDefaultsDoNotRetainReflectionParameters(): void
+    {
+        Container::flushState();
+
+        $container = new Container;
+        $container->build(ContainerCachedDefaultStub::class);
+
+        $buildRecipes = new ReflectionProperty(Container::class, 'buildRecipes');
+        $recipe = $buildRecipes->getValue()[ContainerCachedDefaultStub::class];
+
+        foreach ($recipe->parameters as $parameter) {
+            $this->assertNull($parameter->reflectionParameter);
+            $this->assertFalse($parameter->refreshDefault);
+            $this->assertSame('', $parameter->reflectionString);
+        }
+    }
+
+    public function testConcreteVariadicDependencyIsPreservedAsOneArgument(): void
+    {
+        $container = new Container;
+
+        $resolved = $container->make(ContainerVariadicDependencyConsumer::class);
+
+        $this->assertCount(1, $resolved->dependencies);
+        $this->assertInstanceOf(ContainerConcreteStub::class, $resolved->dependencies[0]);
+    }
+
+    public function testContextualVariadicDependenciesRemainAnArray(): void
+    {
+        $container = new Container;
+        $first = new ContainerConcreteStub;
+        $second = new ContainerConcreteStub;
+        $container->instance('first.variadic', $first);
+        $container->instance('second.variadic', $second);
+
+        $container->when(ContainerVariadicDependencyConsumer::class)
+            ->needs(ContainerConcreteStub::class)
+            ->give(['first.variadic', 'second.variadic']);
+
+        $resolved = $container->make(ContainerVariadicDependencyConsumer::class);
+
+        $this->assertSame([$first, $second], $resolved->dependencies);
     }
 
     public function testBound()
@@ -517,6 +660,50 @@ class ContainerTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
+    public function testForgettingTemporaryInstanceRestoresScopedLifecycle(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+        $temporary = new ContainerConcreteStub;
+
+        $container->instance(ContainerConcreteStub::class, $temporary);
+
+        $this->assertSame($temporary, $container->make(ContainerConcreteStub::class));
+
+        $container->forgetInstance(ContainerConcreteStub::class);
+
+        $restored = $container->make(ContainerConcreteStub::class);
+
+        $this->assertNotSame($temporary, $restored);
+        $this->assertSame($restored, $container->make(ContainerConcreteStub::class));
+    }
+
+    public function testExplicitTransientBindingOverridesScopedAttribute(): void
+    {
+        $container = new Container;
+        $container->bind(ContainerScopedAttribute::class);
+
+        $first = $container->make(ContainerScopedAttribute::class);
+        $second = $container->make(ContainerScopedAttribute::class);
+
+        $this->assertFalse($container->isScoped(ContainerScopedAttribute::class));
+        $this->assertFalse($container->isShared(ContainerScopedAttribute::class));
+        $this->assertNotSame($first, $second);
+    }
+
+    public function testExplicitSingletonBindingOverridesScopedAttribute(): void
+    {
+        $container = new Container;
+        $container->singleton(ContainerScopedAttribute::class);
+
+        $first = $container->make(ContainerScopedAttribute::class);
+
+        $container->forgetScopedInstances();
+
+        $this->assertFalse($container->isScoped(ContainerScopedAttribute::class));
+        $this->assertSame($first, $container->make(ContainerScopedAttribute::class));
+    }
+
     public function testForgetInstancesForgetsAllInstances()
     {
         $container = new Container;
@@ -564,20 +751,6 @@ class ContainerTest extends TestCase
         $this->assertFalse($container->isAlias('ContainerConcreteStub'));
         $this->assertEmpty($container->getBindings());
         $this->assertFalse($container->isShared('ConcreteStub'));
-    }
-
-    public function testFlushClearsReflectionCache(): void
-    {
-        $container = new Container;
-        $container->make(ContainerConcreteStub::class);
-
-        $before = ReflectionManager::reflectClass(ContainerConcreteStub::class);
-
-        $container->flush();
-
-        $after = ReflectionManager::reflectClass(ContainerConcreteStub::class);
-
-        $this->assertNotSame($before, $after);
     }
 
     public function testFlushStateClearsBuildRecipeCache()
@@ -641,6 +814,28 @@ class ContainerTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
+    public function testOffsetUnsetClearsScopedLifecycleMarker(): void
+    {
+        $container = new Container;
+        $container->scoped(ContainerConcreteStub::class);
+
+        unset($container[ContainerConcreteStub::class]);
+
+        $this->assertFalse($container->isScoped(ContainerConcreteStub::class));
+    }
+
+    public function testExtendingResolvedAutoSingletonUpdatesCachedInstance(): void
+    {
+        $container = new Container;
+        $original = $container->make(AutoSingletonStub::class);
+        $replacement = new AutoSingletonStub;
+
+        $container->extend(AutoSingletonStub::class, fn ($instance) => $replacement);
+
+        $this->assertNotSame($original, $replacement);
+        $this->assertSame($replacement, $container->make(AutoSingletonStub::class));
+    }
+
     public function testResolvedResolvesAliasToBindingNameBeforeChecking()
     {
         $container = new Container;
@@ -692,6 +887,35 @@ class ContainerTest extends TestCase
         $this->assertTrue($container->isAlias('baz'));
         $this->assertTrue($container->isAlias('bar'));
         $this->assertTrue($container->isAlias('foo'));
+    }
+
+    public function testIndirectAliasCycleIsRejectedBeforeMutation(): void
+    {
+        $container = new Container;
+        $container->alias('service', 'first');
+        $container->alias('first', 'second');
+
+        try {
+            $container->alias('second', 'service');
+            $this->fail('Expected the alias cycle to be rejected.');
+        } catch (LogicException $exception) {
+            $this->assertSame('Alias [service] would create a circular alias chain.', $exception->getMessage());
+        }
+
+        $this->assertSame('service', $container->getAlias('second'));
+        $this->assertFalse($container->isAlias('service'));
+    }
+
+    public function testExistingAliasCycleIsRejectedWithoutLooping(): void
+    {
+        $container = new Container;
+        $aliases = new ReflectionProperty(Container::class, 'aliases');
+        $aliases->setValue($container, ['first' => 'second', 'second' => 'first']);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Alias [third] would create a circular alias chain.');
+
+        $container->alias('first', 'third');
     }
 
     public function testItThrowsExceptionWhenAbstractIsSameAsAlias()
@@ -1178,6 +1402,27 @@ class ContainerTest extends TestCase
         $container->make(ContextualCircularA::class);
     }
 
+    public function testDepthLimitFailureDoesNotMutateResolutionState(): void
+    {
+        $container = new ContainerStateInspectionStub;
+        CoroutineContext::set(Container::DEPTH_CONTEXT_KEY, $container->resolutionLimit());
+
+        try {
+            $container->make(ContainerConcreteStub::class);
+            $this->fail('Expected the resolution depth limit to be enforced.');
+        } catch (CircularDependencyException $exception) {
+            $this->assertStringContainsString('Maximum resolution depth', $exception->getMessage());
+        }
+
+        $this->assertSame($container->resolutionLimit(), CoroutineContext::get(Container::DEPTH_CONTEXT_KEY));
+        $this->assertSame([], $container->resolvingStack());
+        $this->assertSame([], $container->parameterOverrideStack());
+
+        CoroutineContext::set(Container::DEPTH_CONTEXT_KEY, 0);
+
+        $this->assertInstanceOf(ContainerConcreteStub::class, $container->make(ContainerConcreteStub::class));
+    }
+
     // --- Auto-singleton behavior tests ---
 
     public function testAutoSingletonCachesUnboundConcreteClass()
@@ -1647,5 +1892,72 @@ class SelfBuildingCounterStub implements SelfBuilding
     public static function newInstance(): self
     {
         return new self($_SERVER['__selfBuilding.counter']);
+    }
+}
+
+class ContainerObjectDefaultDependency
+{
+}
+
+class ContainerObjectDefaultConsumer
+{
+    public function __construct(
+        public readonly ?ContainerObjectDefaultDependency $dependency = new ContainerObjectDefaultDependency,
+    ) {
+    }
+}
+
+class ContainerObjectDefaultStub
+{
+    public function __construct(
+        public readonly stdClass $value = new stdClass,
+        public readonly array $nested = [new stdClass],
+    ) {
+    }
+}
+
+enum ContainerCachedDefaultEnvironment
+{
+    case Production;
+}
+
+class ContainerCachedDefaultStub
+{
+    public function __construct(
+        public readonly string $name = 'hypervel',
+        public readonly ContainerCachedDefaultEnvironment $environment = ContainerCachedDefaultEnvironment::Production,
+        public readonly array $options = ['enabled' => true],
+    ) {
+    }
+}
+
+class ContainerVariadicDependencyConsumer
+{
+    /**
+     * @var ContainerConcreteStub[]
+     */
+    public readonly array $dependencies;
+
+    public function __construct(ContainerConcreteStub ...$dependencies)
+    {
+        $this->dependencies = $dependencies;
+    }
+}
+
+class ContainerStateInspectionStub extends Container
+{
+    public function resolutionLimit(): int
+    {
+        return parent::MAX_RESOLUTION_DEPTH;
+    }
+
+    public function resolvingStack(): array
+    {
+        return $this->getResolvingStack();
+    }
+
+    public function parameterOverrideStack(): array
+    {
+        return $this->getParameterOverrideStack();
     }
 }

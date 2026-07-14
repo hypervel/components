@@ -17,6 +17,7 @@ use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
+use UnitEnum;
 
 class CommandSchedulingTest extends TestCase
 {
@@ -37,7 +38,7 @@ class CommandSchedulingTest extends TestCase
                 $this->store = new Repository(new WorkerArrayStore(true));
             }
 
-            public function store(?string $name = null): Repository
+            public function store(UnitEnum|string|null $name = null): Repository
             {
                 return $this->store;
             }
