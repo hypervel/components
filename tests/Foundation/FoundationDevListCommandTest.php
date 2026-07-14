@@ -100,6 +100,14 @@ class FoundationDevListCommandTest extends TestCase
             ->assertFailed();
     }
 
+    public function testFilterValueZeroReturnsFailureWhenNoMatch(): void
+    {
+        DevCommands::register('echo hello', 'greeter');
+
+        $this->artisan('dev:list', ['--filter' => '0', '--json' => true])
+            ->assertFailed();
+    }
+
     public function testEmptyStateWithNoCommands(): void
     {
         $this->artisan('dev:list')

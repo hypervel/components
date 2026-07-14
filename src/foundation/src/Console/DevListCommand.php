@@ -118,7 +118,11 @@ class DevListCommand extends Command
      */
     protected function isFiltering(): bool
     {
-        return $this->option('filter') || $this->option('except-vendor') || $this->option('only-vendor');
+        $filter = $this->option('filter');
+
+        return (is_string($filter) && $filter !== '')
+            || $this->option('except-vendor')
+            || $this->option('only-vendor');
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Foundation\Console\DevCommand;
+use Hypervel\Foundation\DevCommandColor;
 use Hypervel\Foundation\DevCommands;
 use Hypervel\Support\NodePackageManager;
 use Hypervel\Testbench\TestCase;
@@ -97,6 +98,25 @@ class DevCommandTest extends TestCase
         $this->assertNotNull($packageManager->command);
         $this->assertStringContainsString('concurrently', $packageManager->command);
         $this->assertStringContainsString('php artisan watch', $packageManager->command);
+    }
+
+    public function testProcessCommandArgumentsAreShellEscaped(): void
+    {
+        $command = 'printf "%s\n" "$HOME" && php -r \'echo "quoted value";\'';
+        $name = 'quoted process';
+
+        DevCommands::register($command, $name)->blue();
+
+        $packageManager = $this->captureProcessCommand();
+
+        $this->executeUntilProcessCommand(new Application);
+
+        $this->assertSame(sprintf(
+            'concurrently -c %s %s --names=%s --kill-others-on-fail',
+            escapeshellarg(DevCommandColor::Blue->value),
+            escapeshellarg($command),
+            escapeshellarg($name),
+        ), $packageManager->command);
     }
 
     public function testCommandsAreConsumedOnce(): void

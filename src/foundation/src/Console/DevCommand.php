@@ -91,10 +91,10 @@ class DevCommand extends Command
         $this->line('');
 
         $command = $packageManager->getExecCommand(sprintf(
-            'concurrently -c "%s" "%s" --names=%s --kill-others-on-fail',
-            implode(',', $colors),
-            implode('" "', $commands),
-            implode(',', $names)
+            'concurrently -c %s %s --names=%s --kill-others-on-fail',
+            escapeshellarg(implode(',', $colors)),
+            implode(' ', array_map(escapeshellarg(...), $commands)),
+            escapeshellarg(implode(',', $names)),
         ));
 
         if (extension_loaded('pcntl')) {
