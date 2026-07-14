@@ -131,7 +131,7 @@ Add the Node package-manager contract, manager, and Bun/npm/pnpm/Yarn implementa
 
 Add:
 
-- `DevCommand`, the immutable command definition and fluent color API.
+- `DevCommand`, the typed command definition and fluent color API.
 - `DevCommandColor`, the backed color enum.
 - `DevCommands`, the worker-lifetime process registry.
 - `Foundation\Console\DevCommand`, the process orchestrator.
