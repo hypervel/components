@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Routing\ReflectionParameterCachingTest;
 
 use Closure;
+use Hypervel\Container\Attributes\RouteParameter;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Routing\Registrar;
 use Hypervel\Events\Dispatcher;
@@ -159,6 +160,22 @@ class ReflectionParameterCachingTest extends RoutingTestCase
 
         $response = $router->dispatch(Request::create('foo/dayle', 'GET'));
         $this->assertSame('dayle', $response->getContent());
+    }
+
+    public function testClosureDispatchPassesParameterMetadataToContextualAttributes(): void
+    {
+        $container = new Container;
+        $request = Request::create('foo/taylor', 'GET');
+        $container->instance('request', $request);
+
+        $router = $this->getRouter($container);
+        $router->get('foo/{name}', function (#[RouteParameter] string $name) {
+            return $name;
+        });
+
+        $response = $router->dispatch($request);
+
+        $this->assertSame('taylor', $response->getContent());
     }
 
     public function testClosureDispatchDoesNotReuseStaleParametersWhenClosureObjectIdIsReused()

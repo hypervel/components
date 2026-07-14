@@ -9,6 +9,7 @@ use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Container\ContextualAttribute;
+use UnitEnum;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
 class Auth implements ContextualAttribute
@@ -16,7 +17,7 @@ class Auth implements ContextualAttribute
     /**
      * Create a new class instance.
      */
-    public function __construct(public ?string $guard = null)
+    public function __construct(public UnitEnum|string|null $guard = null)
     {
     }
 

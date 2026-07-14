@@ -8,6 +8,7 @@ use Attribute;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Container\ContextualAttribute;
 use Hypervel\Contracts\Filesystem\Filesystem;
+use UnitEnum;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
 class Storage implements ContextualAttribute
@@ -15,7 +16,7 @@ class Storage implements ContextualAttribute
     /**
      * Create a new class instance.
      */
-    public function __construct(public ?string $disk = null)
+    public function __construct(public UnitEnum|string|null $disk = null)
     {
     }
 
