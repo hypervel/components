@@ -22,7 +22,6 @@ declare(strict_types=1);
  */
 
 use Hypervel\Engine\Coroutine;
-use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 use Hypervel\Reverb\Contracts\ApplicationProvider;
 use Hypervel\Reverb\ReverbServiceProvider;
 use Hypervel\Reverb\Servers\Hypervel\ReverbRouter;
@@ -61,8 +60,8 @@ $workerNum = (int) (env('REVERB_TEST_WORKER_NUM') ?: 1);
 $label = $scaling ? 'Reverb Redis test server' : ($workerNum > 1 ? "Reverb multi-worker test server ({$workerNum} workers)" : 'Reverb test server');
 
 // Set Reverb app env vars BEFORE boot so the config file picks them up.
-// These survive the worker-start config reload (ReloadDotenvAndConfig)
-// because the reload re-reads env vars and rebuilds config from disk.
+// These survive the worker-start config reload because the reload re-reads
+// environment values while rebuilding configuration from disk.
 // Only set defaults — don't override values already set by the caller.
 $defaults = [
     'REVERB_APP_KEY' => 'reverb-key',
@@ -89,12 +88,6 @@ foreach ($defaults as $key => $value) {
 // Boot a fully bootstrapped Hypervel app with Reverb enabled.
 $app = TestbenchApplication::create(
     resolvingCallback: function ($app) use ($workerNum) {
-        // Resolve ReloadDotenvAndConfig to register the config tracking callback
-        // BEFORE any config()->set() calls. This ensures runtime config mutations
-        // (like the server config below) are tracked and replayed when the worker
-        // starts and rebuilds config from disk.
-        $app->make(ReloadDotenvAndConfig::class);
-
         // Clear the default HTTP server entry — the test server only needs the
         // Reverb WebSocket server. Must happen before the provider registers so
         // registerWebSocketServer() appends to an empty array.
@@ -118,7 +111,8 @@ $app = TestbenchApplication::create(
         }
 
         // Add additional test apps (env vars only support one app).
-        // These mutations are tracked by ReloadDotenvAndConfig and survive worker restart.
+        // Boot-time configuration mutations are tracked automatically and survive
+        // the worker-start configuration rebuild.
         $app->make('config')->set('reverb.apps.apps.1', [
             'key' => 'reverb-key-2',
             'secret' => 'reverb-secret-2',
