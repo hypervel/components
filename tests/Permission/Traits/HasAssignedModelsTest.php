@@ -243,4 +243,29 @@ class HasAssignedModelsTest extends TestCase
 
         $this->assertTrue($user1->fresh()->hasRole($this->testUserRole));
     }
+
+    public function testUnsavedRoleReverseAssignmentsAreQueryFreeFluentNoOps(): void
+    {
+        $user = User::create(['email' => 'user@test.com']);
+        $role = $this->testUserRole->newInstance([
+            'name' => 'unsaved',
+            'guard_name' => $this->testUserRole->guard_name,
+        ]);
+        $registrar = app(PermissionRegistrar::class);
+        $token = $registrar->modelAssignmentCacheToken();
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        $this->assertSame($role, $role->assignToModels($user));
+        $this->assertSame($role, $role->removeFromModels($user));
+        $this->assertSame($role, $role->syncModels([$user]));
+        $this->assertSame([], DB::getQueryLog());
+        $this->assertSame($token, $registrar->modelAssignmentCacheToken());
+
+        $role->save();
+
+        $this->assertSame(0, DB::table(Config::modelHasRolesTable())
+            ->where($registrar->pivotRole, $role->getKey())
+            ->count());
+    }
 }

@@ -10,11 +10,15 @@ use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
+use Hypervel\Permission\Support\PermissionPartition;
+use Hypervel\Permission\Support\PermissionRelationContext;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 
 trait HasAssignedModels
 {
+    use BuildsPermissionRelations;
+
     /**
      * Assign this role to the given models without removing existing assignments.
      *
@@ -28,17 +32,34 @@ trait HasAssignedModels
         }
 
         $registrar = Container::getInstance()->make(PermissionRegistrar::class);
-        $teamPivot = $this->teamPivot();
+        $context = $this->assignedModelRelationContext($registrar);
+        $groupedModels = $this->groupModelsByMorphClass($models, $modelClass, $registrar, $context->partition);
 
-        foreach ($this->groupModelsByMorphClass($models, $modelClass) as $morphClass => $ids) {
-            $relation = $this->relationForModel($morphClass);
-            $existingIds = $relation->pluck(Config::morphKey())->all();
+        if ($groupedModels !== []) {
+            $assignGroups = function () use ($context, $groupedModels): void {
+                foreach ($groupedModels as $groupedModelClass => $ids) {
+                    $relation = $this->relationForModel($groupedModelClass, $context);
+                    $existingIds = $relation->pluck(Config::morphKey())->all();
+                    $missingIds = array_diff($ids, $existingIds);
 
-            $relation->attach(array_diff($ids, $existingIds), $teamPivot);
+                    if ($missingIds !== []) {
+                        $relation->attach($missingIds);
+                    }
+                }
+            };
+
+            if (count($groupedModels) === 1) {
+                $assignGroups();
+            } else {
+                $this->getConnection()->transaction($assignGroups);
+            }
+        }
+
+        foreach ($groupedModels as $groupedModelClass => $ids) {
+            $this->forgetAssignedModelCaches($registrar, $groupedModelClass, $ids, $context);
         }
 
         $this->unsetRelation('users');
-        $registrar->bumpModelAssignmentCacheToken();
 
         return $this;
     }
@@ -51,14 +72,33 @@ trait HasAssignedModels
      */
     public function removeFromModels(array|Collection|Model|int|string $models, ?string $modelClass = null): static
     {
-        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+        if (! $this->exists) {
+            return $this;
+        }
 
-        foreach ($this->groupModelsByMorphClass($models, $modelClass) as $morphClass => $ids) {
-            $this->relationForModel($morphClass)->detach($ids);
+        $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+        $context = $this->assignedModelRelationContext($registrar);
+        $groupedModels = $this->groupModelsByMorphClass($models, $modelClass, $registrar, $context->partition);
+
+        if ($groupedModels !== []) {
+            $removeGroups = function () use ($context, $groupedModels): void {
+                foreach ($groupedModels as $groupedModelClass => $ids) {
+                    $this->relationForModel($groupedModelClass, $context)->detach($ids);
+                }
+            };
+
+            if (count($groupedModels) === 1) {
+                $removeGroups();
+            } else {
+                $this->getConnection()->transaction($removeGroups);
+            }
+        }
+
+        foreach ($groupedModels as $groupedModelClass => $ids) {
+            $this->forgetAssignedModelCaches($registrar, $groupedModelClass, $ids, $context);
         }
 
         $this->unsetRelation('users');
-        $registrar->bumpModelAssignmentCacheToken();
 
         return $this;
     }
@@ -71,20 +111,24 @@ trait HasAssignedModels
      */
     public function syncModels(array|Collection|Model|int|string $models, ?string $modelClass = null): static
     {
+        if (! $this->exists) {
+            return $this;
+        }
+
         $registrar = Container::getInstance()->make(PermissionRegistrar::class);
+        $context = $this->assignedModelRelationContext($registrar);
+        $groupedModels = $this->groupModelsByMorphClass($models, $modelClass, $registrar, $context->partition);
 
-        if ($this->exists) {
-            $this->newPivotQueryForRole()->delete();
-        }
+        $this->getConnection()->transaction(function () use ($context, $groupedModels): void {
+            $this->newPivotQueryForRole($context)->delete();
 
-        $teamPivot = $this->teamPivot();
-
-        foreach ($this->groupModelsByMorphClass($models, $modelClass) as $morphClass => $ids) {
-            $this->relationForModel($morphClass)->attach($ids, $teamPivot);
-        }
+            foreach ($groupedModels as $groupedModelClass => $ids) {
+                $this->relationForModel($groupedModelClass, $context)->attach($ids);
+            }
+        });
 
         $this->unsetRelation('users');
-        $registrar->bumpModelAssignmentCacheToken();
+        $registrar->bumpModelAssignmentCacheTokenFor($context->partition);
 
         return $this;
     }
@@ -92,21 +136,20 @@ trait HasAssignedModels
     /**
      * Build a morphedByMany relation pointing to a specific model class.
      */
-    protected function relationForModel(string $modelClass): MorphToMany
-    {
-        $relation = $this->morphedByMany(
+    protected function relationForModel(
+        string $modelClass,
+        ?PermissionRelationContext $context = null,
+    ): MorphToMany {
+        return $this->permissionMorphToMany(
             $modelClass,
-            'model',
             Config::modelHasRolesTable(),
             Container::getInstance()->make(PermissionRegistrar::class)->pivotRole,
             Config::morphKey(),
+            'users',
+            inverse: true,
+            teamScoped: Config::teamsEnabled(),
+            context: $context,
         );
-
-        if (! Config::teamsEnabled()) {
-            return $relation;
-        }
-
-        return $relation->wherePivot(Config::teamForeignKey(), getPermissionsTeamId());
     }
 
     /**
@@ -118,12 +161,23 @@ trait HasAssignedModels
     private function groupModelsByMorphClass(
         array|Collection|Model|int|string $models,
         ?string $modelClass,
+        PermissionRegistrar $registrar,
+        ?PermissionPartition $partition,
     ): array {
         $defaultModelClass = $this->resolveDefaultModelClass($modelClass);
 
         return collect(Arr::flatten(Arr::wrap($models)))
             ->reject(fn ($value) => $value === null || $value === '')
-            ->reduce(function (array $grouped, $value) use ($defaultModelClass) {
+            ->reduce(function (array $grouped, $value) use ($defaultModelClass, $registrar, $partition) {
+                if ($value instanceof Model && $partition) {
+                    $attributes = $value->getAttributes();
+
+                    if (array_key_exists($partition->column, $attributes)
+                        && $attributes[$partition->column] !== null) {
+                        $registrar->ensureModelMatchesPartition($value, $partition);
+                    }
+                }
+
                 $class = $value instanceof Model ? $value::class : $defaultModelClass;
                 $id = $value instanceof Model ? $value->getKey() : $value;
 
@@ -148,25 +202,64 @@ trait HasAssignedModels
     }
 
     /**
-     * @return array<string, null|int|string>
+     * Capture the partition and team for a reverse assignment operation.
      */
-    private function teamPivot(): array
+    private function assignedModelRelationContext(PermissionRegistrar $registrar): PermissionRelationContext
     {
-        if (! Config::teamsEnabled()) {
-            return [];
+        $partition = $registrar->resolvePartition();
+
+        if ($partition) {
+            $registrar->ensureModelMatchesPartition($this, $partition);
         }
 
-        return [Config::teamForeignKey() => getPermissionsTeamId()];
+        $teamScoped = Config::teamsEnabled();
+
+        return new PermissionRelationContext(
+            $partition,
+            $teamScoped,
+            $teamScoped ? $registrar->getPermissionsTeamId() : null,
+        );
     }
 
-    private function newPivotQueryForRole(): Builder
+    /**
+     * Forget exact assignment caches affected by a reverse assignment operation.
+     *
+     * @param class-string<Model> $modelClass
+     * @param list<int|string> $ids
+     */
+    private function forgetAssignedModelCaches(
+        PermissionRegistrar $registrar,
+        string $modelClass,
+        array $ids,
+        PermissionRelationContext $context,
+    ): void {
+        $morphType = (new $modelClass)->getMorphClass();
+
+        foreach ($ids as $id) {
+            $registrar->forgetModelAssignmentCacheForIdentity(
+                $morphType,
+                $id,
+                $context->partition,
+                $context->team,
+            );
+        }
+    }
+
+    /**
+     * Build the raw pivot query used to replace this role's assignments.
+     */
+    private function newPivotQueryForRole(PermissionRelationContext $context): Builder
     {
         $query = $this->getConnection()
             ->table(Config::modelHasRolesTable())
             ->where(Container::getInstance()->make(PermissionRegistrar::class)->pivotRole, $this->getKey());
 
-        if (Config::teamsEnabled()) {
-            $query->where(Config::teamForeignKey(), getPermissionsTeamId());
+        if ($context->partition) {
+            $query->where($context->partition->column, $context->partition->value);
+        }
+
+        if ($context->teamScoped) {
+            $query->where(Config::teamForeignKey(), $context->team);
         }
 
         return $query;
