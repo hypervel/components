@@ -58,6 +58,8 @@ php artisan watch --path=routes --path=database/**/*.php
 php artisan watch --no-restart
 ```
 
+When the watch command receives `SIGINT`, `SIGTERM`, or `SIGQUIT`, it stops the active driver and managed server before allowing the signal to terminate the command.
+
 ## Architecture
 
 The watcher separates three concerns:
