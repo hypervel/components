@@ -109,6 +109,8 @@ class PermissionRegistrar
     /**
      * Configure the permission row partition resolver.
      *
+     * Register before resolving the Permission registrar or Gate.
+     *
      * Boot-only. The column and callback persist in static properties for the
      * worker lifetime and affect every subsequent permission operation.
      *
@@ -837,7 +839,7 @@ class PermissionRegistrar
         BaseCollection $collection,
         PermissionRelationContext $context,
     ): void {
-        if ($context->partition === null && ! $context->teamScoped) {
+        if (! static::partitioningEnabled() && ! $this->teams) {
             return;
         }
 
