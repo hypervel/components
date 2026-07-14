@@ -175,10 +175,10 @@ class RepositoryTest extends TestCase
         $this->assertNull($this->repository->get('key5'));
     }
 
-    public function testAfterSettingCallback()
+    public function testMutationObserver()
     {
         $result = null;
-        $this->repository->afterSettingCallback(function (array $values) use (&$result) {
+        $this->repository->setMutationObserver(function (array $values) use (&$result) {
             $result = $values;
         });
 
@@ -189,7 +189,10 @@ class RepositoryTest extends TestCase
 
         $this->assertSame($expected, $result);
 
-        $this->repository->afterSettingCallback(null);
+        $this->repository->replaceItems(['replacement' => true]);
+
+        $this->assertSame($expected, $result);
+        $this->assertSame(['replacement' => true], $this->repository->all());
     }
 
     public function testPrepend()
@@ -250,6 +253,7 @@ class RepositoryTest extends TestCase
         $this->assertTrue(isset($this->repository['empty_string']));
         $this->assertTrue(isset($this->repository['numeric_value']));
         $this->assertFalse(isset($this->repository['non_numeric']));
+        $this->assertFalse(isset($this->repository[-1]));
     }
 
     public function testOffsetGet()
@@ -260,6 +264,10 @@ class RepositoryTest extends TestCase
             'x' => 'xxx',
             'y' => 'yyy',
         ], $this->repository['associate']);
+
+        $this->repository[-1] = 'negative';
+
+        $this->assertSame('negative', $this->repository[-1]);
     }
 
     public function testOffsetSet()
@@ -279,8 +287,8 @@ class RepositoryTest extends TestCase
         $this->repository[''] = 'value';
         $this->assertSame('value', $this->repository['']);
 
-        $this->repository['123'] = '123';
-        $this->assertSame('123', $this->repository['123']);
+        $this->repository[123] = '123';
+        $this->assertSame('123', $this->repository[123]);
     }
 
     public function testOffsetUnset()
@@ -292,6 +300,12 @@ class RepositoryTest extends TestCase
 
         $this->assertArrayHasKey('associate', $this->repository->all());
         $this->assertNull($this->repository->get('associate'));
+
+        $this->repository[-1] = 'negative';
+        unset($this->repository[-1]);
+
+        $this->assertTrue(isset($this->repository[-1]));
+        $this->assertNull($this->repository[-1]);
     }
 
     public function testsItIsMacroable()
