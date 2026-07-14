@@ -19,6 +19,12 @@ use Hypervel\Permission\Support\Config;
 use Hypervel\Permission\Support\PermissionPartition;
 use Hypervel\Permission\Support\PermissionRelationContext;
 
+/**
+ * Build Permission relations from one immutable partition and team snapshot.
+ *
+ * The captured context must constrain related and pivot queries for the
+ * relation's lifetime, even if ambient context later changes.
+ */
 trait BuildsPermissionRelations
 {
     /**
@@ -101,7 +107,7 @@ trait BuildsPermissionRelations
             $context,
         );
 
-        $this->applyPermissionPartitionToRelation($relation, $partition);
+        $relation = $this->applyPermissionPartitionToRelation($relation, $partition);
 
         if ($teamScoped) {
             $teamColumn = Config::teamForeignKey();
@@ -164,6 +170,10 @@ trait BuildsPermissionRelations
 
     /**
      * Apply the captured partition to pivot reads and writes.
+     *
+     * @template TRelation of BelongsToMany
+     * @param TRelation $relation
+     * @return TRelation
      */
     protected function applyPermissionPartitionToRelation(
         BelongsToMany $relation,
