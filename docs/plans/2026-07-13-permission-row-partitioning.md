@@ -115,6 +115,8 @@ Important verified behavior:
 28. Saved `assignRole()`, `removeRole()`, and `revokePermissionTo()` retain native plain `attach()` / `detach()` semantics. `touchIfTouching()` can perform real application-configured model touches, but making a simple pivot write and those optional touches atomic is application transaction policy rather than a Permission-owned guarantee. Role/Permission record deletion is different because the package itself owns two pivot-table cleanups: wrap both captured-partition deletes in one model-connection transaction and invalidate only after the model deletion commits. Built-in Role and Permission models do not use soft deletes; an application subclass that does must wrap `forceDelete()` in an application transaction when the record row and package cleanup must commit together because Eloquent has no `forceDeleteOrFail()`.
 29. Consolidating all subject cleanup into `HasRoles` broke the supported composition of a model using `HasPermissions` without `HasRoles`, while moving Role/Permission record cleanup into `RefreshesPermissionCache` made cleanup depend on an optional cache concern instead of the public authorization traits. Preserve the Spatie-shaped ownership boundary: `HasPermissions` owns direct-subject and Role-record cleanup; `HasRoles` owns role-subject and Permission-record cleanup; `RefreshesPermissionCache` owns saved/deleted catalog invalidation only. Each subject trait discovers and deletes its own table. This costs two cold-path discovery reads for a full `HasRoles` subject instead of one UNION, but it preserves every public trait composition and avoids shared deletion machinery.
 30. Hypervel's per-model assignment cache includes team in its identity. Hard deletion removes a subject's rows across every team, so invalidating only the ambient team leaves stale entries even when row partitioning is disabled. Each owning trait must discover exactly the enabled cache-key dimensions in its table: partition and team, partition only, team only, or none. A partition assignment-token bump could invalidate all teams without discovery, but would invalidate every subject in that partition—or the whole application when unpartitioned. Reject that broad invalidation for a single-subject deletion. Use one indexed discovery read per owning table on this cold path and forget only the affected subject identities.
+31. The supported-database integration schema exposed two test-infrastructure defects. Its generated `model_has_permissions_workspace_id_model_type_model_test_id_index` identifier is 65 characters, while MySQL and MariaDB allow 64; the shared SQLite-backed partition fixture contains the same latent defect. Give both subject lookup indexes stable explicit names in both fixtures and in application schema guidance. The failed setup also proved that Hypervel's authoritative global cleanup was registered only for PHPUnit's `Test\Finished`, which PHPUnit does not emit when setup fails before `wasPrepared` becomes true. Keep the existing `Finished` cleanup timing for prepared tests, track one pending test from `PreparationStarted`, clean an unprepared predecessor before the next test captures globals, and add an `ExecutionFinished` backstop for the final test in a worker. This is framework-wide cleanup reliability, not a Permission-local reset. PHPUnit restores its own error and exception handlers independently; the risky handler reports from this failure disappear when the invalid index no longer aborts setup.
+32. Tests for the cleanup registry called `AfterEachTestCleanup::forgetCallbacks()` in `tearDown()`, which also removed suite-level app and package callbacks discovered once during extension bootstrap. Exercise the all-callback reset against an isolated test subclass, give temporary callbacks collision-resistant test-class names, and remove only those names through `AfterEachTestCleanup::forget()`. Worker-lifetime test-state registrations must survive every framework test that touches the registry.
 
 ### Upstream references checked
 
@@ -1107,7 +1109,10 @@ Schema::create('model_has_roles', function (Blueprint $table) use ($partition): 
     $table->uuidMorphs('model');
 
     $table->primary([$partition, 'role_id', 'model_id', 'model_type']);
-    $table->index([$partition, 'model_type', 'model_id']);
+    $table->index(
+        [$partition, 'model_type', 'model_id'],
+        'model_has_roles_partition_subject_index',
+    );
 
     $table->foreign([$partition, 'role_id'])
         ->references([$partition, 'id'])
@@ -1122,7 +1127,10 @@ Schema::create('model_has_permissions', function (Blueprint $table) use ($partit
     $table->boolean('is_forbidden')->default(false);
 
     $table->primary([$partition, 'permission_id', 'model_id', 'model_type']);
-    $table->index([$partition, 'model_type', 'model_id']);
+    $table->index(
+        [$partition, 'model_type', 'model_id'],
+        'model_has_permissions_partition_subject_index',
+    );
 
     $table->foreign([$partition, 'permission_id'])
         ->references([$partition, 'id'])
@@ -1132,6 +1140,8 @@ Schema::create('model_has_permissions', function (Blueprint $table) use ($partit
 ```
 
 Applications may add a foreign key from the partition column to their own partition-owner table. Permission must not assume such a table exists.
+
+Use explicit names for partition-leading subject indexes. The example's default identifiers fit supported engine limits, but applications may configure longer partition or morph-key columns whose generated index names exceed MySQL and MariaDB's 64-character limit.
 
 ### Teams nested inside partitions
 
@@ -1208,6 +1218,24 @@ Also correct the existing stock-migration note that suggests changing indexes me
 Do not describe a framework tenancy package, tenant resolver, tenant middleware, landlord, or tenant-owned default schema. A short sentence may say “for example, multi-tenancy” after generic use cases are established.
 
 ## Test Architecture
+
+### Global cleanup after unprepared tests
+
+Keep `AfterEachTestSubscriber` as the cleanup owner and normal `Test\Finished` subscriber. Add `AfterEachTestPreparationStartedSubscriber` and `AfterEachTestExecutionFinishedSubscriber`, both delegating to the same owner instance created by `AfterEachTestExtension`.
+
+The owner tracks one `cleanupPending` boolean:
+
+- `PreparationStarted` first flushes a prior pending test, then marks the current test pending in `finally`;
+- `Finished` clears the flag before running cleanup for a prepared test;
+- `ExecutionFinished` clears and runs any final pending cleanup;
+- clearing before cleanup gives callbacks, Mockery verification, pooled-connection cleanup, and framework resets exactly-once semantics even when one stage throws;
+- the `finally` is required because PHPUnit converts exceptions from external event subscribers into runner warnings and continues the current test.
+
+Do not emit synthetic lifecycle events inside the parent PHPUnit process when testing this state. Unit tests drive fresh owner instances directly. End-to-end tests run real child PHPUnit processes to prove setup errors, setup skips/incompletes, data-provider rows, and the last-test backstop cannot leak framework static state.
+
+Tests that register temporary `AfterEachTestCleanup` callbacks use test-class callback names and remove only those names. Tests that exercise the all-callback reset use a subclass with its own static registry, so they cannot erase app or package callbacks registered once for the PHPUnit worker.
+
+Update `src/boost/docs/testing.md` to direct ordinary tests to `AfterEachTestCleanup::forget($name)` when removing one temporary callback and retain the warning that `forgetCallbacks()` clears the worker's complete app/package registry.
 
 ### Shared partition fixtures
 
@@ -1451,7 +1479,7 @@ For every supported engine verify:
 - cross-partition Role/Permission pivot inserts are rejected;
 - same name/guard is allowed across partitions and rejected inside one partition;
 - UUID partition/role/permission/morph values round-trip without text coercion bugs;
-- partition-leading indexes exist with the expected columns;
+- partition-leading indexes exist with their explicit portable names and expected ordered columns;
 - ordinary package relation operations succeed.
 
 Do not weaken constraints for SQLite to make tests easier. Enable foreign keys through the normal test connection behavior.
@@ -1487,9 +1515,10 @@ Implement and test one file at a time in this order:
 19. Port each test class listed above one at a time, running it immediately.
 20. Delete obsolete cache-key-resolver tests and verify zero symbol references.
 21. Add supported-database integration coverage.
-22. Update `src/permission/README.md`.
-23. Update `src/boost/docs/permission.md` in full, including TOC, partition section, caching, teams, custom models, commands, testing/seeding, performance, and differences.
-24. Broadly audit source, tests, docs, comments, and plans for stale `resolveCacheKeyUsing`, `cacheKeyResolver`, contextual cache-isolation claims, manual relation-unset instructions, and unpartitioned raw authorization-table paths.
+22. Repair framework test cleanup for tests that fail before PHPUnit emits `Finished`, with direct state-machine and child-process regression coverage, isolated callback-registry tests, and targeted callback-removal guidance in `src/boost/docs/testing.md`.
+23. Update `src/permission/README.md`.
+24. Update `src/boost/docs/permission.md` in full, including TOC, partition section, caching, teams, custom models, commands, testing/seeding, performance, and differences.
+25. Broadly audit source, tests, docs, comments, and plans for stale `resolveCacheKeyUsing`, `cacheKeyResolver`, contextual cache-isolation claims, manual relation-unset instructions, and unpartitioned raw authorization-table paths.
 
 Do not modify the stock Permission migration or config unless implementation evidence contradicts this plan and the owner approves the change.
 
@@ -1513,6 +1542,10 @@ After each new/changed test class:
 ./vendor/bin/phpunit --no-progress tests/Permission/Commands/PartitionCommandTest.php
 ./vendor/bin/phpunit --no-progress tests/Permission/Integration/PartitionQueryCountTest.php
 ./vendor/bin/phpunit --no-progress tests/Integration/Database/PermissionPartitionTest.php
+./vendor/bin/phpunit --no-progress tests/Testing/PHPUnit/AfterEachTestCleanupTest.php
+./vendor/bin/phpunit --no-progress tests/Testing/PHPUnit/AfterEachTestSubscriberTest.php
+./vendor/bin/phpunit --no-progress tests/Testing/PHPUnit/AfterEachTestExtensionTest.php
+./vendor/bin/phpunit --no-progress tests/Testing/PHPUnit/TestStateRegistrarsTest.php
 ```
 
 Then run all Permission tests:
@@ -1581,6 +1614,9 @@ Database CI must run `tests/Integration/Database/PermissionPartitionTest.php` un
 - [ ] Resolver lookup performs no database query.
 - [ ] Default migration/config remain clean and unpartitioned.
 - [ ] Application schema examples use non-null native types, partition-leading indexes, composite foreign keys, and globally stable morph IDs.
+- [ ] Configurable partition subject indexes have explicit portable names in tests and documentation.
+- [ ] Framework static cleanup runs exactly once for prepared tests and for tests that fail before PHPUnit emits `Finished`, including the final test in a worker.
+- [ ] Cleanup-registry tests cannot remove suite-level app or package callbacks registered for the PHPUnit worker.
 - [ ] `resolveCacheKeyUsing()` and every stale cache-only isolation claim are removed.
 - [ ] `src/permission/README.md` is current.
 - [ ] `src/boost/docs/permission.md` fully documents the feature without implying framework tenancy support.
