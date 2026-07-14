@@ -7,17 +7,17 @@ namespace Hypervel\Support\Facades;
 use Mockery;
 
 /**
- * @method static \Hypervel\Contracts\Cache\Repository store(string|null $name = null)
- * @method static \Hypervel\Contracts\Cache\Repository driver(string|null $driver = null)
- * @method static \Hypervel\Contracts\Cache\Repository memo(string|null $driver = null)
+ * @method static \Hypervel\Contracts\Cache\Repository store(\UnitEnum|string|null $name = null)
+ * @method static \Hypervel\Contracts\Cache\Repository driver(\UnitEnum|string|null $driver = null)
+ * @method static \Hypervel\Contracts\Cache\Repository memo(\UnitEnum|string|null $driver = null)
  * @method static \Hypervel\Contracts\Cache\Repository resolve(string $name)
  * @method static \Hypervel\Contracts\Cache\Repository build(array $config)
  * @method static \Hypervel\Cache\Repository repository(\Hypervel\Contracts\Cache\Store $store, array $config = [])
  * @method static void refreshEventDispatcher()
  * @method static string getDefaultDriver()
- * @method static void setDefaultDriver(string $name)
- * @method static \Hypervel\Cache\CacheManager forgetDriver(array|string|null $name = null)
- * @method static void purge(string|null $name = null)
+ * @method static void setDefaultDriver(\UnitEnum|string $name)
+ * @method static \Hypervel\Cache\CacheManager forgetDriver(array|\UnitEnum|string|null $name = null)
+ * @method static void purge(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Cache\CacheManager extend(string $driver, \Closure $callback)
  * @method static \Hypervel\Cache\CacheManager setApplication(\Hypervel\Contracts\Container\Container $app)
  * @method static mixed pull(\UnitEnum|string $key, \Closure|mixed $default = null)
