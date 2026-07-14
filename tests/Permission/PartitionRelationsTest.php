@@ -184,7 +184,6 @@ class PartitionRelationsTest extends PartitionTestCase
 
     public function testSuppliedPermissionFromAnotherPartitionIsRejected(): void
     {
-        $role = PartitionedRole::create(['name' => 'member']);
         $permission = PartitionedPermission::create(['name' => 'articles.edit']);
         $this->setPartition(self::PARTITION_B);
         $roleB = PartitionedRole::create(['name' => 'member']);
@@ -192,6 +191,81 @@ class PartitionRelationsTest extends PartitionTestCase
         $this->expectException(PermissionPartitionViolation::class);
 
         $roleB->givePermissionTo($permission);
+    }
+
+    public function testHasRoleCollectionRejectsARoleFromAnotherPartition(): void
+    {
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $roleA = PartitionedRole::create(['name' => 'member']);
+        $user->assignRole($roleA);
+
+        $this->setPartition(self::PARTITION_B);
+        $roleB = PartitionedRole::create(['name' => 'member']);
+        $this->setPartition(self::PARTITION_A);
+
+        $this->expectException(PermissionPartitionViolation::class);
+
+        $user->hasRole(collect([$roleB]));
+    }
+
+    public function testHasRoleArrayRejectsARoleFromAnotherPartition(): void
+    {
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $roleA = PartitionedRole::create(['name' => 'member']);
+        $user->assignRole($roleA);
+
+        $this->setPartition(self::PARTITION_B);
+        $roleB = PartitionedRole::create(['name' => 'member']);
+        $this->setPartition(self::PARTITION_A);
+
+        $this->expectException(PermissionPartitionViolation::class);
+
+        $user->hasRole([$roleB]);
+    }
+
+    public function testHasAnyRoleRejectsARoleFromAnotherPartition(): void
+    {
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $roleA = PartitionedRole::create(['name' => 'member']);
+        $user->assignRole($roleA);
+
+        $this->setPartition(self::PARTITION_B);
+        $roleB = PartitionedRole::create(['name' => 'member']);
+        $this->setPartition(self::PARTITION_A);
+
+        $this->expectException(PermissionPartitionViolation::class);
+
+        $user->hasAnyRole($roleB);
+    }
+
+    public function testHasAllRolesRejectsARoleFromAnotherPartition(): void
+    {
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $roleA = PartitionedRole::create(['name' => 'member']);
+        $user->assignRole($roleA);
+
+        $this->setPartition(self::PARTITION_B);
+        $roleB = PartitionedRole::create(['name' => 'member']);
+        $this->setPartition(self::PARTITION_A);
+
+        $this->expectException(PermissionPartitionViolation::class);
+
+        $user->hasAllRoles([$roleB]);
+    }
+
+    public function testHasExactRolesRejectsARoleFromAnotherPartition(): void
+    {
+        $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
+        $roleA = PartitionedRole::create(['name' => 'member']);
+        $user->assignRole($roleA);
+
+        $this->setPartition(self::PARTITION_B);
+        $roleB = PartitionedRole::create(['name' => 'member']);
+        $this->setPartition(self::PARTITION_A);
+
+        $this->expectException(PermissionPartitionViolation::class);
+
+        $user->hasExactRoles(collect([$roleB]));
     }
 
     public function testPartitionBearingSubjectFromAnotherPartitionIsRejected(): void

@@ -761,6 +761,8 @@ trait HasRoles
         }
 
         if ($roles instanceof Collection) {
+            $this->ensureRoleCollectionMatchesPartition($roles);
+
             return $roles->intersect($guard ? $roleCollection->where('guard_name', $guard) : $roleCollection)->isNotEmpty();
         }
 
@@ -807,7 +809,9 @@ trait HasRoles
             return $roleCollection->contains($roles->getKeyName(), $roles->getKey());
         }
 
-        $roles = collect()->make($roles)->map(fn ($role) => $role instanceof Role ? $role->name : enum_value($role));
+        $roles = collect()->make($roles);
+        $this->ensureRoleCollectionMatchesPartition($roles);
+        $roles = $roles->map(fn ($role) => $role instanceof Role ? $role->name : enum_value($role));
 
         $roleNames = $guard
             ? $roleCollection->where('guard_name', $guard)->pluck('name')
@@ -844,7 +848,9 @@ trait HasRoles
             $roles = [$roles->name];
         }
 
-        $roles = collect()->make($roles)->map(
+        $roles = collect()->make($roles);
+        $this->ensureRoleCollectionMatchesPartition($roles);
+        $roles = $roles->map(
             fn ($role) => $role instanceof Role ? $role->name : enum_value($role)
         );
 
@@ -950,6 +956,25 @@ trait HasRoles
     {
         if ($partition && $role instanceof Model) {
             $this->permissionRegistrar()->ensureModelMatchesPartition($role, $partition);
+        }
+    }
+
+    /**
+     * Ensure supplied Role models belong to the current permission partition.
+     */
+    private function ensureRoleCollectionMatchesPartition(Collection $roles): void
+    {
+        if (! PermissionRegistrar::partitioningEnabled()
+            || ! $roles->contains(fn ($role): bool => $role instanceof Role)) {
+            return;
+        }
+
+        $partition = $this->permissionRegistrar()->resolvePartition();
+
+        foreach ($roles as $role) {
+            if ($role instanceof Role) {
+                $this->ensureRoleMatchesPartition($role, $partition);
+            }
         }
     }
 
