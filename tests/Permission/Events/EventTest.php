@@ -179,6 +179,12 @@ class EventTest extends TestCase
         $user->assignRole('testRole');
         $user->revokePermissionTo('edit-articles');
         $user->removeRole('testRole');
+
+        Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
+        Event::assertDispatchedTimes(PermissionDetachedEvent::class, 1);
+        Event::assertDispatchedTimes(RoleAttachedEvent::class, 1);
+        Event::assertDispatchedTimes(RoleDetachedEvent::class, 1);
+
         $user->save();
 
         Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
@@ -218,6 +224,9 @@ class EventTest extends TestCase
             allowed: ['edit-articles'],
             forbidden: ['edit-news'],
         );
+
+        Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
+
         $user->save();
 
         $editNewsPermission = $this->app->make(PermissionContract::class)::findByName('edit-news');
