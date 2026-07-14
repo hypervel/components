@@ -188,7 +188,10 @@ abstract class PartitionTestCase extends TestCase
 
             $primary = [...$primary, 'role_test_id', 'model_test_id', 'model_type'];
             $table->primary($primary);
-            $table->index(['workspace_id', 'model_type', 'model_test_id']);
+            $table->index(
+                ['workspace_id', 'model_type', 'model_test_id'],
+                'model_has_roles_partition_subject_index',
+            );
             $table->foreign(['workspace_id', 'role_test_id'])
                 ->references(['workspace_id', 'id'])
                 ->on('roles')
@@ -211,7 +214,10 @@ abstract class PartitionTestCase extends TestCase
 
             $primary = [...$primary, 'permission_test_id', 'model_test_id', 'model_type'];
             $table->primary($primary);
-            $table->index(['workspace_id', 'model_type', 'model_test_id']);
+            $table->index(
+                ['workspace_id', 'model_type', 'model_test_id'],
+                'model_has_permissions_partition_subject_index',
+            );
             $table->foreign(['workspace_id', 'permission_test_id'])
                 ->references(['workspace_id', 'id'])
                 ->on('permissions')

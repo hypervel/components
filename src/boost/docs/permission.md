@@ -988,7 +988,10 @@ Schema::create('model_has_roles', function (Blueprint $table): void {
     $table->uuidMorphs('model');
 
     $table->primary(['workspace_id', 'role_id', 'model_id', 'model_type']);
-    $table->index(['workspace_id', 'model_type', 'model_id']);
+    $table->index(
+        ['workspace_id', 'model_type', 'model_id'],
+        'model_has_roles_partition_subject_index',
+    );
 
     $table->foreign(['workspace_id', 'role_id'])
         ->references(['workspace_id', 'id'])
@@ -1003,7 +1006,10 @@ Schema::create('model_has_permissions', function (Blueprint $table): void {
     $table->boolean('is_forbidden')->default(false);
 
     $table->primary(['workspace_id', 'permission_id', 'model_id', 'model_type']);
-    $table->index(['workspace_id', 'model_type', 'model_id']);
+    $table->index(
+        ['workspace_id', 'model_type', 'model_id'],
+        'model_has_permissions_partition_subject_index',
+    );
 
     $table->foreign(['workspace_id', 'permission_id'])
         ->references(['workspace_id', 'id'])
@@ -1012,7 +1018,7 @@ Schema::create('model_has_permissions', function (Blueprint $table): void {
 });
 ```
 
-The `['workspace_id', 'id']` unique keys are required targets for the composite foreign keys even when Role and Permission IDs are globally unique primary keys. You may also add a foreign key from `workspace_id` to your own partition-owner table.
+The `['workspace_id', 'id']` unique keys are required targets for the composite foreign keys even when Role and Permission IDs are globally unique primary keys. The subject lookup indexes use explicit names because application-defined partition and morph-key names can otherwise produce generated identifiers longer than MySQL and MariaDB allow. You may also add a foreign key from `workspace_id` to your own partition-owner table.
 
 Partition-leading primary, unique, and lookup indexes let the database narrow each operation immediately. Keep the partition first wherever Permission always supplies it first.
 

@@ -122,7 +122,10 @@ class PermissionPartitionTest extends DatabaseTestCase
             $table->string('model_type');
             $table->uuid('model_test_id');
             $table->primary(['workspace_id', 'role_test_id', 'model_test_id', 'model_type']);
-            $table->index(['workspace_id', 'model_type', 'model_test_id']);
+            $table->index(
+                ['workspace_id', 'model_type', 'model_test_id'],
+                'model_has_roles_partition_subject_index',
+            );
             $table->foreign(['workspace_id', 'role_test_id'])
                 ->references(['workspace_id', 'id'])
                 ->on('roles')
@@ -136,7 +139,10 @@ class PermissionPartitionTest extends DatabaseTestCase
             $table->uuid('model_test_id');
             $table->boolean('is_forbidden')->default(false);
             $table->primary(['workspace_id', 'permission_test_id', 'model_test_id', 'model_type']);
-            $table->index(['workspace_id', 'model_type', 'model_test_id']);
+            $table->index(
+                ['workspace_id', 'model_type', 'model_test_id'],
+                'model_has_permissions_partition_subject_index',
+            );
             $table->foreign(['workspace_id', 'permission_test_id'])
                 ->references(['workspace_id', 'id'])
                 ->on('permissions')
@@ -172,10 +178,12 @@ class PermissionPartitionTest extends DatabaseTestCase
             fn (array $index): bool => $index['columns'] === ['workspace_id', 'id'] && $index['unique'],
         ));
         $this->assertTrue(collect($modelRoleIndexes)->contains(
-            fn (array $index): bool => $index['columns'] === ['workspace_id', 'model_type', 'model_test_id'],
+            fn (array $index): bool => $index['name'] === 'model_has_roles_partition_subject_index'
+                && $index['columns'] === ['workspace_id', 'model_type', 'model_test_id'],
         ));
         $this->assertTrue(collect($modelPermissionIndexes)->contains(
-            fn (array $index): bool => $index['columns'] === ['workspace_id', 'model_type', 'model_test_id'],
+            fn (array $index): bool => $index['name'] === 'model_has_permissions_partition_subject_index'
+                && $index['columns'] === ['workspace_id', 'model_type', 'model_test_id'],
         ));
     }
 
