@@ -192,7 +192,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Foundation\Http\Middleware\PreventRequestForgery::flushState();
         \Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance::flushState();
         \Hypervel\Foundation\Http\Middleware\TrimStrings::flushState();
-        \Hypervel\Foundation\Listeners\ReloadDotenvAndConfig::flushState();
         \Hypervel\Foundation\PackageManifest::flushState();
         \Hypervel\Foundation\Support\Providers\EventServiceProvider::flushState();
         \Hypervel\Foundation\Support\Providers\RouteServiceProvider::flushState();
