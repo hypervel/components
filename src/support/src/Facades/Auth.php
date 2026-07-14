@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 /**
- * @method static \Hypervel\Contracts\Auth\Guard|\Hypervel\Contracts\Auth\StatefulGuard guard(string|null $name = null)
+ * @method static \Hypervel\Contracts\Auth\Guard|\Hypervel\Contracts\Auth\StatefulGuard guard(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Auth\SessionGuard createSessionDriver(string $name, array $config)
  * @method static \Hypervel\Auth\TokenGuard createTokenDriver(string $name, array $config)
  * @method static string getDefaultDriver()
- * @method static void shouldUse(string|null $name)
- * @method static void setDefaultDriver(string $name)
+ * @method static void shouldUse(\UnitEnum|string|null $name)
+ * @method static void setDefaultDriver(\UnitEnum|string $name)
  * @method static \Hypervel\Auth\AuthManager viaRequest(string $driver, callable $callback)
  * @method static \Closure userResolver()
  * @method static \Hypervel\Auth\AuthManager resolveUsersUsing(\Closure $userResolver)
