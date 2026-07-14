@@ -165,7 +165,7 @@ The implementation is verified at three levels:
 
 The final verification completed with:
 
-- 22,638 framework tests and 64,321 assertions.
+- 22,640 framework tests and 64,325 assertions.
 - 327 Testbench tests and 955 assertions.
 - 4 dogfood tests and 7 assertions.
 - No CS Fixer or PHPStan failures.
