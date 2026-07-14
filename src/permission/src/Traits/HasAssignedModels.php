@@ -39,7 +39,10 @@ trait HasAssignedModels
             $assignGroups = function () use ($context, $groupedModels): void {
                 foreach ($groupedModels as $groupedModelClass => $ids) {
                     $relation = $this->relationForModel($groupedModelClass, $context);
-                    $existingIds = $relation->pluck(Config::morphKey())->all();
+                    $existingIds = $relation->newPivotQuery()
+                        ->whereIn(Config::morphKey(), $ids)
+                        ->pluck(Config::morphKey())
+                        ->all();
                     $missingIds = array_diff($ids, $existingIds);
 
                     if ($missingIds !== []) {

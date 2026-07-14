@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Permission\Traits;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Tests\Permission\Fixtures\Models\SoftDeletingUser;
 use Hypervel\Tests\Permission\Fixtures\Models\User;
 use Hypervel\Tests\Permission\TestCase;
 
@@ -137,6 +138,24 @@ class HasAssignedModelsTest extends TestCase
 
         $count = DB::table(Config::modelHasRolesTable())
             ->where(app(PermissionRegistrar::class)->pivotRole, $this->testUserRole->getKey())
+            ->count();
+
+        $this->assertSame(1, $count);
+    }
+
+    public function testItDoesNotReAssignASoftDeletedModelWithAnExistingPivot(): void
+    {
+        $user = SoftDeletingUser::create(['email' => 'user@test.com']);
+
+        $this->testUserRole->assignToModels($user);
+        $user->delete();
+
+        $this->testUserRole->assignToModels($user);
+
+        $count = DB::table(Config::modelHasRolesTable())
+            ->where(app(PermissionRegistrar::class)->pivotRole, $this->testUserRole->getKey())
+            ->where('model_type', $user->getMorphClass())
+            ->where(Config::morphKey(), $user->getKey())
             ->count();
 
         $this->assertSame(1, $count);
