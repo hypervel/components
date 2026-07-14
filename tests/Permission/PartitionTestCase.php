@@ -182,7 +182,7 @@ abstract class PartitionTestCase extends TestCase
             $primary = ['workspace_id'];
 
             if ($this->partitionTeams) {
-                $table->uuid('team_test_id')->nullable();
+                $table->uuid('team_test_id');
                 $primary[] = 'team_test_id';
             }
 
@@ -208,7 +208,7 @@ abstract class PartitionTestCase extends TestCase
             $primary = ['workspace_id'];
 
             if ($this->partitionTeams) {
-                $table->uuid('team_test_id')->nullable();
+                $table->uuid('team_test_id');
                 $primary[] = 'team_test_id';
             }
 

@@ -1076,6 +1076,8 @@ $table->primary(['workspace_id', 'team_id', 'role_id', 'model_id', 'model_type']
 $table->primary(['workspace_id', 'team_id', 'permission_id', 'model_id', 'model_type']);
 ```
 
+The Role table's `team_id` may be nullable for global Roles. The `model_has_roles` and `model_has_permissions` team columns are non-null because every assignment stores the active team; assigning a global Role still writes the active team to `model_has_roles`. The non-null assignment columns can therefore participate in the composite primary keys above.
+
 MySQL and MariaDB permit multiple `NULL` values inside a unique key. Applications requiring exactly one global-team Role per name should use a non-null sentinel or a database-appropriate normalized/generated uniqueness key.
 
 <a name="partition-cache-and-performance"></a>

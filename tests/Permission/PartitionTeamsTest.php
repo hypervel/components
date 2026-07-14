@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Permission;
 use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Permission\Support\Config;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Permission\Fixtures\Models\GlobalPartitionPermissionsOnlyUser;
 use Hypervel\Tests\Permission\Fixtures\Models\GlobalPartitionUser;
 use Hypervel\Tests\Permission\Fixtures\Models\PartitionedPermission;
@@ -17,6 +18,17 @@ use Hypervel\Tests\Permission\Fixtures\PartitionContext;
 class PartitionTeamsTest extends PartitionTestCase
 {
     protected bool $partitionTeams = true;
+
+    public function testOnlyRoleTeamColumnsAreNullable(): void
+    {
+        $roleColumns = collect(Schema::getColumns(Config::rolesTable()));
+        $roleAssignmentColumns = collect(Schema::getColumns(Config::modelHasRolesTable()));
+        $permissionAssignmentColumns = collect(Schema::getColumns(Config::modelHasPermissionsTable()));
+
+        $this->assertTrue($roleColumns->firstWhere('name', 'team_test_id')['nullable']);
+        $this->assertFalse($roleAssignmentColumns->firstWhere('name', 'team_test_id')['nullable']);
+        $this->assertFalse($permissionAssignmentColumns->firstWhere('name', 'team_test_id')['nullable']);
+    }
 
     public function testPartitionAndTeamRemainIndependentAssignmentDimensions(): void
     {
