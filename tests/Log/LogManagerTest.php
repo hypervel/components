@@ -807,6 +807,57 @@ class LogManagerTest extends TestCase
         $this->assertSame($manager, $manager->channel(__CLASS__)->getLogger());
     }
 
+    public function testLogManagerCanResolveBackedEnumChannel(): void
+    {
+        $manager = new LogManager($this->app);
+
+        $logger1 = $manager->channel(LogChannelName::Single);
+        $logger2 = $manager->channel('single');
+
+        $this->assertSame($logger1, $logger2);
+    }
+
+    public function testLogManagerCanResolveUnitEnumChannel(): void
+    {
+        $manager = new LogManager($this->app);
+
+        $logger1 = $manager->channel(UnitLogChannelName::single);
+        $logger2 = $manager->channel('single');
+
+        $this->assertSame($logger1, $logger2);
+    }
+
+    public function testLogManagerCanResolveZeroBackedEnumChannel(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('logging.channels.0', $config->get('logging.channels.single'));
+
+        $manager = new LogManager($this->app);
+
+        $logger1 = $manager->channel(NumericLogChannelName::Zero);
+        $logger2 = $manager->channel('0');
+
+        $this->assertSame($logger1, $logger2);
+    }
+
+    public function testLogManagerCanResolveBackedEnumDriver(): void
+    {
+        $manager = new LogManager($this->app);
+
+        $logger1 = $manager->driver(LogChannelName::Single);
+        $logger2 = $manager->driver('single');
+
+        $this->assertSame($logger1, $logger2);
+    }
+
+    public function testSetDefaultDriverAcceptsBackedEnum(): void
+    {
+        $manager = new LogManager($this->app);
+        $manager->setDefaultDriver(LogChannelName::Single);
+
+        $this->assertSame('single', $this->app->make('config')->get('logging.default'));
+    }
+
     // -- Hypervel-specific tests --
 
     public function testItSharesContextWithChannelsResolvedAfterSharing()
@@ -879,4 +930,19 @@ class LoggerSpy implements LoggerInterface
             'context' => $context,
         ];
     }
+}
+
+enum LogChannelName: string
+{
+    case Single = 'single';
+}
+
+enum UnitLogChannelName
+{
+    case single;
+}
+
+enum NumericLogChannelName: int
+{
+    case Zero = 0;
 }

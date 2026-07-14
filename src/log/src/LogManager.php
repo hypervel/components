@@ -30,6 +30,9 @@ use Monolog\Processor\PsrLogMessageProcessor;
 use Psr\Log\LoggerInterface;
 use Stringable;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Log\Logger
@@ -98,7 +101,7 @@ class LogManager implements LoggerInterface
     /**
      * Get a log channel instance.
      */
-    public function channel(?string $channel = null): LoggerInterface
+    public function channel(UnitEnum|string|null $channel = null): LoggerInterface
     {
         return $this->driver($channel);
     }
@@ -106,8 +109,12 @@ class LogManager implements LoggerInterface
     /**
      * Get a log driver instance.
      */
-    public function driver(?string $driver = null): LoggerInterface
+    public function driver(UnitEnum|string|null $driver = null): LoggerInterface
     {
+        if ($driver instanceof UnitEnum) {
+            $driver = (string) enum_value($driver);
+        }
+
         return $this->get($this->parseDriver($driver));
     }
 
@@ -532,8 +539,12 @@ class LogManager implements LoggerInterface
      *
      * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
-    public function setDefaultDriver(string $name): void
+    public function setDefaultDriver(UnitEnum|string $name): void
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         $this->app->make('config')->set('logging.default', $name);
     }
 

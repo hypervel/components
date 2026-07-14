@@ -12,6 +12,7 @@ use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Context\Repository as ContextRepository;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Traits\Conditionable;
+use Monolog\Logger as Monolog;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Stringable;
@@ -21,15 +22,15 @@ class Logger implements LoggerInterface
     use Conditionable;
 
     /**
-     * The CoroutineContext key prefix for per-instance logger context.
+     * The CoroutineContext key prefix for per-channel logger context.
      */
     protected const CONTEXT_KEY_PREFIX = '__log.channel_context.';
 
     /**
-     * The coroutine-local key for this logger instance's context.
+     * The coroutine-local key for this logger channel's context.
      *
-     * Each Logger gets its own CoroutineContext slot so that
-     * withContext() on one channel does not leak into others.
+     * Named variants share their source channel's slot so context added through
+     * either wrapper remains channel-local without leaking to other channels.
      */
     protected readonly string $contextKey;
 
@@ -140,6 +141,23 @@ class Logger implements LoggerInterface
         );
 
         $this->fireLogEvent($level, $message, $context);
+    }
+
+    /**
+     * Return a named variant of the logger.
+     *
+     * @throws RuntimeException
+     */
+    public function withName(string $name): self
+    {
+        if (! $this->logger instanceof Monolog) {
+            throw new RuntimeException('Named loggers are only supported by Monolog drivers.');
+        }
+
+        $logger = clone $this;
+        $logger->logger = $this->logger->withName($name);
+
+        return $logger;
     }
 
     /**
