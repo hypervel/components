@@ -986,9 +986,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `config`
-- **Ledger entries required for the active work:** none
-- **Pending revalidation carried into the active work:** none
+- **Active package or work unit:** `container`
+- **Ledger entries required for the active work:** `Consolidate reflection metadata and correct callable inference` (`reflection-03`, `reflection-04`)
+- **Pending revalidation carried into the active work:** `reflection-03`, `reflection-04`
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1009,6 +1009,8 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `reflection-02` | `reflection` | `console`, `routing`, `view`, `foundation`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
 | `reflection-03` | `reflection` | `container`; later full `container` audit | `Consolidate reflection metadata and correct callable inference`; finding `reflection-03` |
 | `reflection-04` | `reflection` | `container`, `di`, `support`, `queue`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
+| `config-01` | `config` | `foundation`; later full `foundation` audit | `Preserve configuration identity across worker reloads`; finding `config-01` |
+| `config-02` | `foundation` | `config`, `testing`, `reverb`; later full consumer audits | `Preserve configuration identity across worker reloads`; finding `config-02` |
 
 ## Package checklist
 
@@ -1036,7 +1038,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `macroable`
 - [x] `collections`
 - [x] `reflection`
-- [ ] `config`
+- [x] `config`
 - [ ] `container`
 - [ ] `context`
 - [ ] `di`
