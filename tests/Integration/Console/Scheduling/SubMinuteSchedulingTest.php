@@ -18,6 +18,7 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use UnitEnum;
 
 class SubMinuteSchedulingTest extends TestCase
 {
@@ -40,7 +41,7 @@ class SubMinuteSchedulingTest extends TestCase
                 $this->store = new Repository(new WorkerArrayStore(true));
             }
 
-            public function store(?string $name = null): Repository
+            public function store(UnitEnum|string|null $name = null): Repository
             {
                 return $this->store;
             }
