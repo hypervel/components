@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission;
 
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Permission\Middleware\PermissionMiddleware;
 use Hypervel\Permission\Middleware\RoleMiddleware;
 use Hypervel\Permission\Middleware\RoleOrPermissionMiddleware;
@@ -13,6 +15,8 @@ use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
 use Hypervel\View\Compilers\BladeCompiler;
+use ReflectionMethod;
+use ReflectionParameter;
 
 class PublicApiTest extends TestCase
 {
@@ -60,5 +64,46 @@ class PublicApiTest extends TestCase
         $this->assertStringContainsString('<?php else: ?>', $compiled);
         $this->assertStringContainsString("Blade::check('role', 'missing')", $compiled);
         $this->assertStringContainsString('<?php endif; ?>', $compiled);
+    }
+
+    public function testPermissionRelationsKeepLaravelBaseReturnTypes(): void
+    {
+        $this->assertInstanceOf(MorphToMany::class, $this->testUser->roles());
+        $this->assertInstanceOf(MorphToMany::class, $this->testUser->permissions());
+        $this->assertInstanceOf(BelongsToMany::class, $this->testUserRole->permissions());
+        $this->assertInstanceOf(BelongsToMany::class, $this->testUserPermission->roles());
+        $this->assertInstanceOf(BelongsToMany::class, $this->testUserRole->users());
+        $this->assertInstanceOf(BelongsToMany::class, $this->testUserPermission->users());
+        $this->assertInstanceOf(BelongsToMany::class, $this->testUser->teams());
+
+        foreach (['roles', 'permissions', 'teams'] as $relation) {
+            $method = new ReflectionMethod($this->testUser, $relation);
+
+            $this->assertSame(BelongsToMany::class, (string) $method->getReturnType());
+            $this->assertSame([], $method->getParameters());
+        }
+    }
+
+    public function testAssignmentMethodsDoNotExposePartitionArguments(): void
+    {
+        $methods = [
+            'assignRole' => ['roles'],
+            'removeRole' => ['role'],
+            'syncRoles' => ['roles'],
+            'givePermissionTo' => ['permissions'],
+            'giveForbiddenTo' => ['permissions'],
+            'revokePermissionTo' => ['permission'],
+            'syncPermissions' => ['permissions'],
+            'syncPermissionsWithForbidden' => ['allowed', 'forbidden'],
+        ];
+
+        foreach ($methods as $method => $parameters) {
+            $reflection = new ReflectionMethod($this->testUser, $method);
+
+            $this->assertSame(
+                $parameters,
+                array_map(static fn (ReflectionParameter $parameter): string => $parameter->getName(), $reflection->getParameters()),
+            );
+        }
     }
 }
