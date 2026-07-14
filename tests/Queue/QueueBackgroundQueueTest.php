@@ -161,6 +161,8 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testLaterWithDateInterval()
     {
+        Carbon::setTestNow('2024-01-01 12:00:00');
+
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
             ->once()
@@ -180,6 +182,8 @@ class QueueBackgroundQueueTest extends TestCase
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.later.test'][0]);
         $this->assertEquals(['baz' => 'qux'], $_SERVER['__background.later.test'][1]);
+
+        Carbon::setTestNow();
     }
 
     public function testLaterWithDateTime()
