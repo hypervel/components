@@ -98,7 +98,7 @@ class BroadcastManagerTest extends TestCase
         Bus::fake();
         Queue::fake();
 
-        $lockKey = 'laravel_unique_job:' . TestEventUnique::class . ':';
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUnique::class) . ':';
         $lock = m::mock(\Hypervel\Contracts\Cache\Lock::class);
         $lock->shouldReceive('get')->once()->andReturn(true);
         $cache = m::mock(Cache::class);
@@ -121,7 +121,7 @@ class BroadcastManagerTest extends TestCase
         Bus::assertNotDispatched(UniqueBroadcastEvent::class);
         Queue::assertPushed(UniqueBroadcastEvent::class);
 
-        $lockKey = 'laravel_unique_job:' . TestEventUniqueWithIdProperty::class . ':unique-id-property';
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUniqueWithIdProperty::class) . ':unique-id-property';
         $this->assertFalse($this->app->get(Cache::class)->lock($lockKey, 10)->get());
     }
 
@@ -135,7 +135,7 @@ class BroadcastManagerTest extends TestCase
         Bus::assertNotDispatched(UniqueBroadcastEvent::class);
         Queue::assertPushed(UniqueBroadcastEvent::class);
 
-        $lockKey = 'laravel_unique_job:' . TestEventUniqueWithIdMethod::class . ':unique-id-method';
+        $lockKey = 'laravel_unique_job:' . hash('xxh128', TestEventUniqueWithIdMethod::class) . ':unique-id-method';
         $this->assertFalse($this->app->get(Cache::class)->lock($lockKey, 10)->get());
     }
 

@@ -58,7 +58,7 @@ class UniqueLock
             : ($job->uniqueId ?? '');
 
         $jobName = method_exists($job, 'displayName')
-            ? $job->displayName()
+            ? hash('xxh128', $job->displayName())
             : get_class($job);
 
         // IMPORTANT: Uses Laravel's prefix for cross-framework queue interoperability.
