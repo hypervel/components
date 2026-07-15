@@ -48,7 +48,7 @@ This is Hypervel 0.4 framework work. Backwards compatibility and diff size are n
 
 1. `HasPermissions::hasPermissionTo()` checks deny paths before `filterPermission()`. When no guard is passed, `storedPermissionMatches()` skips guard filtering, so a deny under one guard can block an allow under another guard.
 
-2. A naive default-guard fix would create a fail-open bug for concrete `Permission` objects. If an API-guard `Permission` object is passed while the model default is web, forcing the default guard before matching would hide API forbidden rows.
+2. A naive default-guard fix would create a fail-open bug for concrete `Permission` objects. If an API-guard `Permission` object is passed while the model default is web, forcing the default guard before matching would hide API denied rows.
 
 3. `PermissionMiddleware`, `RoleOrPermissionMiddleware`, and `RoleMiddleware` can call `UnauthorizedException::missingTraitHasRoles(Authorizable $user)` with an authenticated object that is not `Authorizable`. The exception only needs `$user::class`.
 
@@ -60,7 +60,7 @@ This is Hypervel 0.4 framework work. Backwards compatibility and diff size are n
 
 7. `PermissionRegistrar::getPermissions()` and `getRoles()` scan the whole hydrated catalog for common exact lookups. This affects `findByName()`, `findById()`, `filterPermission()`, and direct assignment hydration.
 
-8. `hasForbiddenPermissionViaRoles()` materializes every permission's role pivots on every role-deny check.
+8. `hasDeniedPermissionViaRoles()` materializes every permission's role pivots on every role-deny check.
 
 9. Most deployments have no role-permission deny edges. A catalog-level boolean can skip the role-deny path cheaply.
 
@@ -90,9 +90,9 @@ This is Hypervel 0.4 framework work. Backwards compatibility and diff size are n
 
 7. Add registrar catalog indexes instead of a separate direct-permission hydrated memo. This fixes the root O(catalog) lookup cost.
 
-8. Add a serialized `hasForbiddenRolePermissions` catalog flag.
+8. Add a serialized `hasDeniedRolePermissions` catalog flag.
 
-9. Narrow `hasForbiddenPermissionViaRoles()` to the requested permission and effective guard.
+9. Narrow `hasDeniedPermissionViaRoles()` to the requested permission and effective guard.
 
 10. Add a coroutine-local via-role materialization memo for public getters only, with centralized invalidation.
 
@@ -123,7 +123,7 @@ protected function storedPermissionMatches(Model $storedPermission, mixed $permi
 }
 ```
 
-`hasPermissionTo('edit')` passes `null` to both forbidden checks before the allow path resolves the default guard. That means `edit@api` denied can block `edit@web` allowed in default-web contexts.
+`hasPermissionTo('edit')` passes `null` to both denied checks before the allow path resolves the default guard. That means `edit@api` denied can block `edit@web` allowed in default-web contexts.
 
 #### How
 
@@ -151,23 +151,23 @@ protected function guardNameForPermissionMatch(mixed $permission, ?string $guard
 }
 ```
 
-Update public forbidden helper methods to use it:
+Update public denied helper methods to use it:
 
 ```php
-public function hasForbiddenPermission($permission, ?string $guardName = null): bool
+public function hasDeniedPermission($permission, ?string $guardName = null): bool
 {
     $guardName = $this->guardNameForPermissionMatch($permission, $guardName);
 
     return $this->getCachedDirectPermissions()
         ->contains(
-            fn (Model $storedPermission): bool => $this->pivotIsForbidden($storedPermission)
+            fn (Model $storedPermission): bool => $this->pivotIsDenied($storedPermission)
             && $this->storedPermissionMatches($storedPermission, $permission, $guardName)
         );
 }
 ```
 
 ```php
-public function hasForbiddenPermissionViaRoles($permission, ?string $guardName = null): bool
+public function hasDeniedPermissionViaRoles($permission, ?string $guardName = null): bool
 {
     if ($this instanceof Role || $this instanceof Permission) {
         return false;
@@ -185,11 +185,11 @@ Update non-wildcard `hasPermissionTo()` to resolve once:
 public function hasPermissionTo($permission, ?string $guardName = null): bool
 {
     if ($this->getWildcardClass()) {
-        if ($this->hasForbiddenPermission($permission, $guardName)) {
+        if ($this->hasDeniedPermission($permission, $guardName)) {
             return false;
         }
 
-        if ($this->hasForbiddenPermissionViaRoles($permission, $guardName)) {
+        if ($this->hasDeniedPermissionViaRoles($permission, $guardName)) {
             return false;
         }
 
@@ -198,11 +198,11 @@ public function hasPermissionTo($permission, ?string $guardName = null): bool
 
     $permission = $this->filterPermission($permission, $guardName);
 
-    if ($this->hasForbiddenPermission($permission, $guardName)) {
+    if ($this->hasDeniedPermission($permission, $guardName)) {
         return false;
     }
 
-    if ($this->hasForbiddenPermissionViaRoles($permission, $guardName)) {
+    if ($this->hasDeniedPermissionViaRoles($permission, $guardName)) {
         return false;
     }
 
@@ -216,7 +216,7 @@ Apply the same resolve-once shape to `Role::hasPermissionTo()`:
 public function hasPermissionTo(UnitEnum|int|string|PermissionContract $permission, ?string $guardName = null): bool
 {
     if ($this->getWildcardClass()) {
-        if ($this->hasForbiddenPermission($permission, $guardName)) {
+        if ($this->hasDeniedPermission($permission, $guardName)) {
             return false;
         }
 
@@ -225,7 +225,7 @@ public function hasPermissionTo(UnitEnum|int|string|PermissionContract $permissi
 
     $permission = $this->filterPermission($permission, $guardName);
 
-    if ($this->hasForbiddenPermission($permission, $guardName)) {
+    if ($this->hasDeniedPermission($permission, $guardName)) {
         return false;
     }
 
@@ -241,7 +241,7 @@ Keep `storedPermissionMatches()` as the final comparison helper. It can still ac
 
 #### Tests
 
-Add tests to `tests/Permission/ForbiddenPermissionTest.php`:
+Add tests to `tests/Permission/DeniedPermissionTest.php`:
 
 - same permission name exists under `web` and `api`
 - user has allow for `web`
@@ -262,13 +262,13 @@ Add role-path equivalents:
 
 Add `Role::hasPermissionTo()` tests:
 
-- role with API forbidden permission checked by concrete API permission object returns false
+- role with API denied permission checked by concrete API permission object returns false
 - role with default web context does not miss the concrete object's deny
 
 Run immediately:
 
 ```shell
-./vendor/bin/phpunit --no-progress tests/Permission/ForbiddenPermissionTest.php
+./vendor/bin/phpunit --no-progress tests/Permission/DeniedPermissionTest.php
 ```
 
 ### 2. Middleware TypeError
@@ -612,7 +612,7 @@ to:
  *     roleByKey: array<string, Model>,
  *     roleByNameAndGuard: array<string, list<Model>>,
  *     roleOrderByKey: array<string, int>,
- *     hasForbiddenRolePermissions: bool
+ *     hasDeniedRolePermissions: bool
  * }
  */
 private function permissionCatalog(): array
@@ -633,7 +633,7 @@ $catalog = [
     'roleByKey' => $this->indexModelsByKey($roles),
     'roleByNameAndGuard' => $this->indexModelsByNameAndGuard($roles),
     'roleOrderByKey' => $this->indexModelOrderByKey($roles),
-    'hasForbiddenRolePermissions' => (bool) ($payload['hasForbiddenRolePermissions'] ?? false),
+    'hasDeniedRolePermissions' => (bool) $payload['hasDeniedRolePermissions'],
 ];
 ```
 
@@ -868,7 +868,7 @@ Preserve return type and visible behavior:
 - fall back to `filterModels()` for any param shape not exactly handled
 - use `!== null` for the indexed fast path so an empty lookup result is still returned directly
 
-#### Add Forbidden Edge Flag
+#### Add Denied Edge Flag
 
 Update serialized payload:
 
@@ -877,21 +877,21 @@ private function getSerializedPermissionsForCache(): array
 {
     $except = $this->config->array('permission.cache.column_names_except', ['created_at', 'updated_at', 'deleted_at']);
     $permissions = $this->getPermissionsWithRoles();
-    $hasForbiddenRolePermissions = false;
+    $hasDeniedRolePermissions = false;
 
     return [
         'permissions' => $permissions
-            ->map(function (Model $permission) use (&$hasForbiddenRolePermissions, $except): array {
+            ->map(function (Model $permission) use (&$hasDeniedRolePermissions, $except): array {
                 $roles = $this->relationCollection($permission, 'roles')
-                    ->map(function (Model $role) use ($permission, &$hasForbiddenRolePermissions): array {
-                        $isForbidden = $this->pivotIsForbidden($role);
-                        $hasForbiddenRolePermissions = $hasForbiddenRolePermissions || $isForbidden;
+                    ->map(function (Model $role) use ($permission, &$hasDeniedRolePermissions): array {
+                        $isDenied = $this->pivotIsDenied($role);
+                        $hasDeniedRolePermissions = $hasDeniedRolePermissions || $isDenied;
 
                         return [
                             'pivot' => [
                                 $this->pivotPermission => $permission->getKey(),
                                 $this->pivotRole => $role->getKey(),
-                                'is_forbidden' => $isForbidden,
+                                'is_denied' => $isDenied,
                             ],
                         ];
                     })
@@ -911,12 +911,12 @@ private function getSerializedPermissionsForCache(): array
             ])
             ->values()
             ->all(),
-        'hasForbiddenRolePermissions' => $hasForbiddenRolePermissions,
+        'hasDeniedRolePermissions' => $hasDeniedRolePermissions,
     ];
 }
 ```
 
-Because this changes only the value stored under the package cache key and the package already tolerates recaching, no migration is needed. The hydration path should use `?? false` so old cache payloads are harmless until they expire or are flushed.
+Because this changes only the value stored under the package cache key and the package clears its catalog cache with the schema migration, no compatibility migration or fallback is needed. The hydration path treats `hasDeniedRolePermissions` as a required package-generated payload field.
 
 #### Tests
 
@@ -933,7 +933,7 @@ Add registrar tests in the existing `tests/Permission/Integration/PermissionRegi
 9. stale coroutine catalog plus a duplicate `Permission::create()` still throws `PermissionAlreadyExists`, not a raw database unique-constraint exception.
 10. stale coroutine catalog plus `Permission::findOrCreate()` returns the existing DB row instead of throwing.
 11. catalog-resolved roles expose the expected key/name/guard/team data and do not require timestamp attributes that the catalog intentionally strips.
-12. old cache payload without `hasForbiddenRolePermissions` is treated as false if practical to seed.
+12. the normal serialized catalog reports `hasDeniedRolePermissions` accurately before and after a denied role-permission assignment.
 
 Performance behavior can be tested by creating unrelated permissions and asserting a permission check result remains correct. Avoid brittle tests that depend on private loop counts unless a clean spy pattern already exists.
 
@@ -958,7 +958,7 @@ Current role-deny check:
 ```php
 return $this->getPermissionsViaRolesWithPivots()
     ->contains(
-        fn (Model $storedPermission): bool => $this->pivotIsForbidden($storedPermission)
+        fn (Model $storedPermission): bool => $this->pivotIsDenied($storedPermission)
         && $this->storedPermissionMatches($storedPermission, $permission, $guardName)
     );
 ```
@@ -971,11 +971,11 @@ Add registrar method:
 
 ```php
 /**
- * Determine if any cached role-permission edge is forbidden.
+ * Determine if any cached role-permission edge is denied.
  */
-public function hasForbiddenRolePermissions(): bool
+public function hasDeniedRolePermissions(): bool
 {
-    return (bool) $this->permissionCatalog()['hasForbiddenRolePermissions'];
+    return (bool) $this->permissionCatalog()['hasDeniedRolePermissions'];
 }
 ```
 
@@ -1012,10 +1012,10 @@ protected function permissionForMatch(mixed $permission, string $guardName): ?Mo
 }
 ```
 
-Then rewrite `hasForbiddenPermissionViaRoles()`:
+Then rewrite `hasDeniedPermissionViaRoles()`:
 
 ```php
-public function hasForbiddenPermissionViaRoles($permission, ?string $guardName = null): bool
+public function hasDeniedPermissionViaRoles($permission, ?string $guardName = null): bool
 {
     if ($this instanceof Role || $this instanceof Permission) {
         return false;
@@ -1029,7 +1029,7 @@ public function hasForbiddenPermissionViaRoles($permission, ?string $guardName =
 
     $registrar = $this->permissionRegistrar();
 
-    if (! $registrar->hasForbiddenRolePermissions()) {
+    if (! $registrar->hasDeniedRolePermissions()) {
         return false;
     }
 
@@ -1045,7 +1045,7 @@ public function hasForbiddenPermissionViaRoles($permission, ?string $guardName =
     return $this->relationCollection($storedPermission, 'roles')
         ->contains(
             fn (Model $role): bool => isset($roleIds[(string) $role->getKey()])
-                && $this->pivotIsForbidden($role)
+                && $this->pivotIsDenied($role)
         );
 }
 ```
@@ -1054,16 +1054,16 @@ Keep the fast ordering:
 
 1. role/permission model early return
 2. no cached roles early return
-3. no forbidden role edges early return
+3. no denied role edges early return
 4. resolve requested permission
 5. inspect only that permission's role pivots
 
 #### Tests
 
-Add to `tests/Permission/ForbiddenPermissionTest.php`:
+Add to `tests/Permission/DeniedPermissionTest.php`:
 
-- forbidden role permission under another guard does not deny default guard
-- forbidden role permission for a different permission does not deny requested permission
+- denied role permission under another guard does not deny default guard
+- denied role permission for a different permission does not deny requested permission
 - explicit guard with role deny still denies
 - concrete permission object from denied guard is denied
 - missing permission still returns false from `checkPermissionTo()` and throws from `hasPermissionTo()` as before
@@ -1072,7 +1072,7 @@ Add to `tests/Permission/ForbiddenPermissionTest.php`:
 Run:
 
 ```shell
-./vendor/bin/phpunit --no-progress tests/Permission/ForbiddenPermissionTest.php
+./vendor/bin/phpunit --no-progress tests/Permission/DeniedPermissionTest.php
 ```
 
 ### 8. Via-Role Materialization Memo And Deduping
@@ -1208,8 +1208,8 @@ Apply this exact keep/remove list:
 | `HasPermissions::attachPermissions()` | around line 644 | Keep for unsaved models; remove from branches that already called `forgetModelPermissionCache()` or `forgetCachedPermissions()` by restructuring the method so the direct call only runs when no cache-clearing helper ran | unsaved models only queue assignments and have no registrar cache helper to centralize through |
 | `HasPermissions::attachQueuedPermissionAssignments()` | around line 791 | Remove | saved model flush goes through `forgetModelPermissionCache()` or `forgetCachedPermissions()` |
 | `HasPermissions::syncPermissions()` | around line 916 | Remove for saved models; keep only in any unsaved/queued branch that does not call a registrar helper | saved direct mutations go through `forgetModelPermissionCache()` |
-| `HasPermissions::syncPermissionsWithForbidden()` | around line 962 | Keep | this is the unsaved queued branch and no registrar model-cache helper runs |
-| `HasPermissions::syncPermissionsWithForbidden()` | around line 990 | Remove | saved direct mutations go through `forgetModelPermissionCache()` |
+| `HasPermissions::syncPermissionEffects()` | around line 962 | Keep | this is the unsaved queued branch and no registrar model-cache helper runs |
+| `HasPermissions::syncPermissionEffects()` | around line 990 | Remove | saved direct mutations go through `forgetModelPermissionCache()` |
 | `HasPermissions::revokePermissionTo()` | around line 1015 | Remove | saved direct mutations go through `forgetModelPermissionCache()` |
 | `HasRoles::assignRole()` | around line 321 | Keep for unsaved models; remove from branches that already called `forgetModelRoleCache()` or `forgetCachedPermissions()` by restructuring the method so the direct call only runs when no cache-clearing helper ran | unsaved models only queue assignments and have no registrar cache helper to centralize through |
 | `HasRoles::attachQueuedRoleAssignments()` | around line 366 | Remove | saved model flush goes through `forgetModelRoleCache()` or `forgetCachedPermissions()` |
@@ -1253,7 +1253,7 @@ Update `getPermissionsViaRoles()` to dedupe:
 
 ```php
 return $permissions
-    ->reject(fn (Model $permission): bool => isset($forbiddenPermissionKeys[$this->permissionComparisonKey($permission)]))
+    ->reject(fn (Model $permission): bool => isset($deniedPermissionKeys[$this->permissionComparisonKey($permission)]))
     ->unique(fn (Model $permission): string => $this->permissionComparisonKey($permission))
     ->sort()
     ->values();
@@ -1264,7 +1264,7 @@ Also update `getAllPermissions()` to use the same comparison key:
 ```php
 return $directPermissions
     ->merge($viaRolePermissions)
-    ->reject(fn (Model $permission): bool => isset($forbiddenPermissionKeys[$this->permissionComparisonKey($permission)]))
+    ->reject(fn (Model $permission): bool => isset($deniedPermissionKeys[$this->permissionComparisonKey($permission)]))
     ->unique(fn (Model $permission): string => $this->permissionComparisonKey($permission))
     ->sort()
     ->values();
@@ -1296,16 +1296,16 @@ Add to `tests/Permission/CacheTest.php`:
 5. Mutate a role's permission edges.
 6. Assert later `getAllPermissions()` reflects the mutation.
 
-Add to `tests/Permission/ForbiddenPermissionTest.php`:
+Add to `tests/Permission/DeniedPermissionTest.php`:
 
 - same permission granted through two roles appears once from `getPermissionsViaRoles()`
-- forbidden duplicate remains excluded
+- denied duplicate remains excluded
 
 Run:
 
 ```shell
 ./vendor/bin/phpunit --no-progress tests/Permission/CacheTest.php
-./vendor/bin/phpunit --no-progress tests/Permission/ForbiddenPermissionTest.php
+./vendor/bin/phpunit --no-progress tests/Permission/DeniedPermissionTest.php
 ```
 
 ### 9. Remove Storage Connection Option
@@ -1411,14 +1411,14 @@ Run the full permission test suite after all permission changes:
 Current:
 
 ```php
-$relation = $this->morphToMany(...)->withPivot('is_forbidden');
+$relation = $this->morphToMany(...)->withPivot('is_denied');
 
 if (! Config::teamsEnabled()) {
     return $relation;
 }
 
 $teamsKey = Config::teamForeignKey();
-$relation->withPivot($teamsKey, 'is_forbidden');
+$relation->withPivot($teamsKey, 'is_denied');
 ```
 
 Target:
@@ -1428,14 +1428,14 @@ $teamsKey = Config::teamForeignKey();
 $relation->withPivot($teamsKey);
 ```
 
-Only add the team pivot in the team branch because `is_forbidden` was already added.
+Only add the team pivot in the team branch because `is_denied` was already added.
 
 #### README And Boost Docs
 
 `src/boost/docs/permission.md` already says allowed getters return allowed permissions only. Add concise bullets under `Differences From Spatie Laravel Permission` in both `src/permission/README.md` and `src/boost/docs/permission.md`:
 
 ```md
-- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. Explicit denies are exposed through `hasForbiddenPermission()` and `hasForbiddenPermissionViaRoles()`.
+- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. Explicit denied edges are exposed through `hasDeniedPermission()` and `hasDeniedPermissionViaRoles()`.
 - Undefined `permission.cache.store` values fail fast through Hypervel's cache manager instead of silently falling back to an array store.
 ```
 
@@ -1482,12 +1482,12 @@ Specific review checks:
 
 1. Cross-guard tests cover direct user, role-via-user, and Role model paths.
 2. Concrete permission object checks never become fail-open.
-3. Wildcard checks still deny explicit forbidden permissions before wildcard allow.
+3. Wildcard checks still deny explicit denied permissions before wildcard allow.
 4. `HasAssignedModels` team tests prove other teams survive assign, remove, sync, and empty sync.
 5. Delete hooks do not bump global token for plain models.
 6. Role/Permission deletes still bump global token through `RefreshesPermissionCache`.
 7. Catalog indexes preserve `Collection` return behavior and only fast-path supported param shapes.
-8. Old cache payloads without `hasForbiddenRolePermissions` are safe.
+8. The normal cache payload always includes the required `hasDeniedRolePermissions` field and reports it accurately.
 9. Via-role memo clears on same-coroutine role assignment mutation and role-permission mutation.
 10. Storage connection config has zero remaining references.
 11. README and Boost docs have no stale storage-connection language.
