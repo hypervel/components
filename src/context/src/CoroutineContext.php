@@ -7,6 +7,7 @@ namespace Hypervel\Context;
 use ArrayObject;
 use Closure;
 use Hypervel\Engine\Coroutine;
+use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -26,15 +27,20 @@ class CoroutineContext
      * @param TKey $id
      * @param TValue $value
      * @return TValue
+     *
+     * @throws CoroutineDestroyedException
      */
     public static function set(UnitEnum|string $id, mixed $value, ?int $coroutineId = null): mixed
     {
         $id = enum_value($id);
+        $context = Coroutine::getContextFor($coroutineId);
 
-        if (Coroutine::id() > 0) {
-            Coroutine::getContextFor($coroutineId)[$id] = $value;
-        } else {
+        if ($context !== null) {
+            $context[$id] = $value;
+        } elseif ($coroutineId === null) {
             static::$nonCoroutineContext[$id] = $value;
+        } else {
+            throw new CoroutineDestroyedException(sprintf('Coroutine #%d has been destroyed.', $coroutineId));
         }
 
         return $value;
@@ -49,12 +55,15 @@ class CoroutineContext
     public static function get(UnitEnum|string $id, mixed $default = null, ?int $coroutineId = null): mixed
     {
         $id = enum_value($id);
+        $context = Coroutine::getContextFor($coroutineId);
 
-        if (Coroutine::id() > 0) {
-            return Coroutine::getContextFor($coroutineId)[$id] ?? $default;
+        if ($context !== null) {
+            return $context[$id] ?? $default;
         }
 
-        return static::$nonCoroutineContext[$id] ?? $default;
+        return $coroutineId === null
+            ? static::$nonCoroutineContext[$id] ?? $default
+            : $default;
     }
 
     /**
@@ -65,12 +74,13 @@ class CoroutineContext
     public static function has(UnitEnum|string $id, ?int $coroutineId = null): bool
     {
         $id = enum_value($id);
+        $context = Coroutine::getContextFor($coroutineId);
 
-        if (Coroutine::id() > 0) {
-            return isset(Coroutine::getContextFor($coroutineId)[$id]);
+        if ($context !== null) {
+            return isset($context[$id]);
         }
 
-        return isset(static::$nonCoroutineContext[$id]);
+        return $coroutineId === null && isset(static::$nonCoroutineContext[$id]);
     }
 
     /**
@@ -81,12 +91,13 @@ class CoroutineContext
     public static function forget(UnitEnum|string $id, ?int $coroutineId = null): void
     {
         $id = enum_value($id);
+        $context = Coroutine::getContextFor($coroutineId);
 
-        if (Coroutine::id() > 0) {
-            unset(Coroutine::getContextFor($coroutineId)[$id]);
+        if ($context !== null) {
+            unset($context[$id]);
+        } elseif ($coroutineId === null) {
+            unset(static::$nonCoroutineContext[$id]);
         }
-
-        unset(static::$nonCoroutineContext[$id]);
     }
 
     /**
@@ -162,7 +173,7 @@ class CoroutineContext
     public static function setMany(array $values, ?int $coroutineId = null): void
     {
         foreach ($values as $key => $value) {
-            static::set($key, $value, $coroutineId);
+            static::set((string) $key, $value, $coroutineId);
         }
     }
 
@@ -194,6 +205,9 @@ class CoroutineContext
 
     /**
      * Copy context data from the specified coroutine context to non-coroutine context.
+     *
+     * Tests only. This copies coroutine-local values into worker-global storage,
+     * so request-time use can leak or race across concurrent requests.
      */
     public static function copyToNonCoroutine(array $keys = [], ?int $coroutineId = null): void
     {
@@ -234,8 +248,8 @@ class CoroutineContext
     /**
      * Clear specific keys from non-coroutine context only.
      *
-     * Unlike forget() which clears from both contexts, this only affects
-     * non-coroutine storage. Useful for clearing stale data before copying.
+     * Tests only. This mutates worker-global storage, so request-time use can
+     * race with concurrent requests using the same keys.
      */
     public static function clearFromNonCoroutine(array $keys): void
     {
@@ -249,25 +263,12 @@ class CoroutineContext
      */
     public static function flush(?int $coroutineId = null): void
     {
-        $coroutineId = $coroutineId ?: Coroutine::id();
+        $context = Coroutine::getContextFor($coroutineId);
 
-        // Clear non-coroutine context in non-coroutine environment.
-        if ($coroutineId < 0) {
+        if ($context !== null) {
+            $context->exchangeArray([]);
+        } elseif ($coroutineId === null) {
             static::$nonCoroutineContext = [];
-            return;
-        }
-
-        if (! $context = Coroutine::getContextFor($coroutineId)) {
-            return;
-        }
-
-        $contextKeys = [];
-        foreach ($context as $key => $_) {
-            $contextKeys[] = $key;
-        }
-
-        foreach ($contextKeys as $key) {
-            static::forget($key, $coroutineId);
         }
     }
 
@@ -278,10 +279,12 @@ class CoroutineContext
      */
     public static function getContainer(?int $coroutineId = null): array|ArrayObject|null
     {
-        if (Coroutine::id() > 0) {
-            return Coroutine::getContextFor($coroutineId);
+        $context = Coroutine::getContextFor($coroutineId);
+
+        if ($context !== null) {
+            return $context;
         }
 
-        return static::$nonCoroutineContext;
+        return $coroutineId === null ? static::$nonCoroutineContext : null;
     }
 }
