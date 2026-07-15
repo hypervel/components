@@ -9,7 +9,7 @@ namespace Hypervel\Di\Aop;
  *
  * Tracks which aspect classes target which classes/methods,
  * and their execution priority. Used by ProxyManager to determine
- * which classes need proxy generation and by ProxyTrait at runtime
+ * which classes need proxy generation and by ProxyDispatcher at runtime
  * to resolve the aspect pipeline for each method call.
  */
 class AspectCollector

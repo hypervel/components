@@ -9,12 +9,12 @@ use Hypervel\Tests\TestCase;
 
 class AspectManagerTest extends TestCase
 {
-    public function testHasReturnsFalseForUnsetEntry()
+    public function testHasReturnsFalseForUnsetEntry(): void
     {
         $this->assertFalse(AspectManager::has('Foo', 'bar'));
     }
 
-    public function testSetAndGet()
+    public function testSetAndGet(): void
     {
         AspectManager::set('Foo', 'bar', ['Aspect1', 'Aspect2']);
 
@@ -22,21 +22,12 @@ class AspectManagerTest extends TestCase
         $this->assertSame(['Aspect1', 'Aspect2'], AspectManager::get('Foo', 'bar'));
     }
 
-    public function testGetReturnsEmptyArrayForUnsetEntry()
+    public function testGetReturnsEmptyArrayForUnsetEntry(): void
     {
         $this->assertSame([], AspectManager::get('Foo', 'bar'));
     }
 
-    public function testInsertAppendsToList()
-    {
-        AspectManager::set('Foo', 'bar', []);
-        AspectManager::insert('Foo', 'bar', 'Aspect1');
-        AspectManager::insert('Foo', 'bar', 'Aspect2');
-
-        $this->assertSame(['Aspect1', 'Aspect2'], AspectManager::get('Foo', 'bar'));
-    }
-
-    public function testFlushStateRemovesAllEntries()
+    public function testFlushStateRemovesAllEntries(): void
     {
         AspectManager::set('Foo', 'bar', ['Aspect1']);
         AspectManager::set('Baz', 'qux', ['Aspect2']);

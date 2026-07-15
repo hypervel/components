@@ -54,15 +54,25 @@ class ProceedingJoinPoint
     public function getArguments(): array
     {
         $result = [];
+
         foreach ($this->arguments['order'] ?? [] as $order) {
-            $result[] = $this->arguments['keys'][$order];
+            if (($this->arguments['variadic'] ?? '') !== $order) {
+                $result[] = &$this->arguments['keys'][$order];
+
+                continue;
+            }
+
+            foreach ($this->arguments['keys'][$order] as $key => &$value) {
+                if (is_string($key)) {
+                    $result[$key] = &$value;
+                } else {
+                    $result[] = &$value;
+                }
+            }
+
+            unset($value);
         }
 
-        // Variable arguments are always placed at the end.
-        if (isset($this->arguments['variadic'], $order) && $order === $this->arguments['variadic']) {
-            $variadic = array_pop($result);
-            $result = array_merge($result, $variadic);
-        }
         return $result;
     }
 

@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Di\Aop;
 
 use Hypervel\Di\Aop\ProceedingJoinPoint;
-use Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
 use Hypervel\Tests\TestCase;
 
 class ProceedingJoinPointTest extends TestCase
 {
-    public function testProcessOriginalMethod()
+    public function testProcessOriginalMethod(): void
     {
         $obj = new ProceedingJoinPoint(
             fn () => 1,
-            ProxyTraitObject::class,
+            ProceedingJoinPointTarget::class,
             'incr',
             ['keys' => []]
         );
@@ -22,11 +21,11 @@ class ProceedingJoinPointTest extends TestCase
         $this->assertSame(1, $obj->processOriginalMethod());
     }
 
-    public function testGetArguments()
+    public function testGetArguments(): void
     {
         $obj = new ProceedingJoinPoint(
             fn () => 1,
-            ProxyTraitObject::class,
+            ProceedingJoinPointTarget::class,
             'incr',
             ['keys' => []]
         );
@@ -34,7 +33,7 @@ class ProceedingJoinPointTest extends TestCase
 
         $obj = new ProceedingJoinPoint(
             fn () => 1,
-            ProxyTraitObject::class,
+            ProceedingJoinPointTarget::class,
             'get4',
             ['order' => ['id', 'variadic'], 'keys' => ['id' => 1, 'variadic' => []], 'variadic' => 'variadic']
         );
@@ -42,7 +41,7 @@ class ProceedingJoinPointTest extends TestCase
 
         $obj = new ProceedingJoinPoint(
             fn () => 1,
-            ProxyTraitObject::class,
+            ProceedingJoinPointTarget::class,
             'get4',
             ['order' => ['id', 'variadic'], 'keys' => ['id' => 1, 'variadic' => [2, 'foo' => 3]], 'variadic' => 'variadic']
         );
@@ -50,20 +49,20 @@ class ProceedingJoinPointTest extends TestCase
 
         $obj = new ProceedingJoinPoint(
             fn () => 1,
-            ProxyTraitObject::class,
+            ProceedingJoinPointTarget::class,
             'get4',
             ['order' => ['id', 'variadic'], 'keys' => ['id' => 1, 'variadic' => [2, 'foo' => 3]], 'variadic' => '']
         );
         $this->assertSame([1, [2, 'foo' => 3]], $obj->getArguments());
     }
 
-    public function testGetInstance()
+    public function testGetInstance(): void
     {
-        $object = new ProxyTraitObject('TestName');
+        $object = new ProceedingJoinPointTarget('TestName');
 
         $joinPoint = new ProceedingJoinPoint(
             $object->getName(...),
-            ProxyTraitObject::class,
+            ProceedingJoinPointTarget::class,
             'getName',
             ['keys' => []]
         );
@@ -71,15 +70,27 @@ class ProceedingJoinPointTest extends TestCase
         $this->assertSame($object, $joinPoint->getInstance());
     }
 
-    public function testGetInstanceReturnsNullForStaticClosure()
+    public function testGetInstanceReturnsNullForStaticClosure(): void
     {
         $joinPoint = new ProceedingJoinPoint(
             static fn () => 'value',
-            ProxyTraitObject::class,
+            ProceedingJoinPointTarget::class,
             'staticMethod',
             ['keys' => []]
         );
 
         $this->assertNull($joinPoint->getInstance());
+    }
+}
+
+class ProceedingJoinPointTarget
+{
+    public function __construct(public string $name)
+    {
+    }
+
+    public function getName(): string
+    {
+        return $this->name;
     }
 }

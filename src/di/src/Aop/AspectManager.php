@@ -42,14 +42,6 @@ class AspectManager
     }
 
     /**
-     * Append an aspect to the resolved list for a class method.
-     */
-    public static function insert(string $class, string $method, string $value): void
-    {
-        static::$container[$class][$method][] = $value;
-    }
-
-    /**
      * Flush all static state.
      */
     public static function flushState(): void
