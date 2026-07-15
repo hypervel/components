@@ -77,6 +77,32 @@ class JobChainingTest extends QueueTestCase
         $this->assertTrue(JobChainingTestSecondJob::$ran);
     }
 
+    public function testPendingChainDispatchForwardsNamedArguments(): void
+    {
+        Bus::chain([
+            JobChainingNamedTestJob::class,
+            new JobChainingNamedTestJob('second'),
+        ])->dispatch(id: 'first');
+
+        $this->runQueueWorkerCommand(['--stop-when-empty' => true]);
+
+        $this->assertSame(['first', 'second'], JobRunRecorder::$results);
+    }
+
+    public function testFakePendingChainDispatchForwardsNamedArguments(): void
+    {
+        Bus::fake();
+
+        Bus::chain([
+            JobChainingNamedTestJob::class,
+        ])->dispatch(id: 'first');
+
+        Bus::assertDispatched(
+            JobChainingNamedTestJob::class,
+            fn (JobChainingNamedTestJob $job): bool => $job->id === 'first'
+        );
+    }
+
     public function testJobsCanBeChainedOnSuccessUsingBusFacade()
     {
         Bus::dispatchChain([

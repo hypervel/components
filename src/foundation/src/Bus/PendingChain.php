@@ -146,10 +146,10 @@ class PendingChain
     /**
      * Dispatch the job chain.
      */
-    public function dispatch(): mixed
+    public function dispatch(mixed ...$arguments): mixed
     {
         if (is_string($this->job)) {
-            $firstJob = new $this->job(...func_get_args());
+            $firstJob = new $this->job(...$arguments);
         } elseif ($this->job instanceof Closure) {
             $firstJob = CallQueuedClosure::create($this->job);
         } else {
