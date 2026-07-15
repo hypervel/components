@@ -986,9 +986,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `context`
-- **Ledger entries required for the active work:** `Coordinate shared container construction and complete current contextual resolution` (`container-05`, `container-06`)
-- **Pending revalidation carried into the active work:** `container-05`, `container-06`
+- **Active package or work unit:** `di`
+- **Ledger entries required for the active work:** `Consolidate reflection metadata and correct callable inference` (`reflection-04`)
+- **Pending revalidation carried into the active work:** `reflection-04`
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1010,11 +1010,13 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `reflection-04` | `reflection` | `di`, `support`, `queue`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
 | `config-01` | `config` | `foundation`; later full `foundation` audit | `Preserve configuration identity across worker reloads`; finding `config-01` |
 | `config-02` | `foundation` | `testing`, `reverb`; later full consumer audits | `Preserve configuration identity across worker reloads`; finding `config-02` |
-| `container-05` | `container` | `context`; later full `context` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-05` |
-| `container-06` | `container` | `context`; later full `context` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-06` |
+| `container-05` | `container` | `context` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-05` |
+| `container-06` | `container` | `context` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-06` |
 | `container-08` | `container` | `auth`, `cache`, `log`, `routing`, `support`; later full consumer audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-08` |
 | `container-09` | `auth`, `cache`, `log` | `container` (revalidation complete); later full `auth`, `cache`, and `log` audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-09` |
 | `container-10` | `log` | `container` (revalidation complete); later full `log` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
+| `context-01` | `context` | `container` (revalidation complete), `foundation`; later full `foundation` audit | `Correct explicit coroutine context targeting`; finding `context-01` |
+| `context-04` | `context` | `foundation`, `database`; later full consumer audits | `Correct explicit coroutine context targeting`; finding `context-04` |
 
 ## Package checklist
 
@@ -1044,7 +1046,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `reflection`
 - [x] `config`
 - [x] `container`
-- [ ] `context`
+- [x] `context`
 - [ ] `di`
 - [ ] `events`
 - [ ] `log`
