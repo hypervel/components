@@ -208,7 +208,7 @@ class PermissionServiceProvider extends ServiceProvider
             'Teams' => 'teams',
             'Wildcard Permissions' => 'enable_wildcard_permission',
             'Passport Client Credentials' => 'use_passport_client_credentials',
-            'Forbidden Permissions' => null,
+            'Denied Permissions' => null,
         ];
 
         $config = $this->app->make('config');

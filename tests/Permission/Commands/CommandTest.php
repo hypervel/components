@@ -156,7 +156,7 @@ class CommandTest extends TestCase
         Artisan::call('about');
         $output = str_replace("\r\n", "\n", Artisan::output());
 
-        $this->assertMatchesRegularExpression('/Hypervel Permissions[ .\n]*Features Enabled[ .]*Forbidden Permissions[ .\n]*Version/', $output);
+        $this->assertMatchesRegularExpression('/Hypervel Permissions[ .\n]*Features Enabled[ .]*Denied Permissions[ .\n]*Version/', $output);
     }
 
     public function testItCanRespondToAboutCommandWithTeams(): void
@@ -171,7 +171,7 @@ class CommandTest extends TestCase
         Artisan::call('about');
         $output = str_replace("\r\n", "\n", Artisan::output());
 
-        $this->assertMatchesRegularExpression('/Hypervel Permissions[ .\n]*Features Enabled[ .]*Teams, Forbidden Permissions[ .\n]*Version/', $output);
+        $this->assertMatchesRegularExpression('/Hypervel Permissions[ .\n]*Features Enabled[ .]*Teams, Denied Permissions[ .\n]*Version/', $output);
     }
 
     public function testItCanAssignRoleToUser(): void
