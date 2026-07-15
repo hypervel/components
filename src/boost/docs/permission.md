@@ -24,7 +24,7 @@
     - [Assigning Permissions](#assigning-permissions)
     - [Checking Permissions](#checking-permissions)
     - [Gate and Super Admins](#gate-and-super-admins)
-    - [Forbidden Permissions](#forbidden-permissions)
+    - [Denied Permissions](#denied-permissions)
     - [Revoking Permissions](#revoking-permissions)
     - [Retrieving Permissions](#retrieving-permissions)
 - [Using Enums](#using-enums)
@@ -62,7 +62,7 @@
 
 Hypervel's permission package provides role-based access control for Eloquent models. You may create roles and permissions, assign them to users or other models, and check access by role, direct permission, or permission inherited through a role.
 
-The package is based on Spatie's `laravel-permission` package and adapted for Hypervel. It also supports forbidden permissions, which explicitly deny an ability even when the model receives the same permission directly or through a role.
+The package is based on Spatie's `laravel-permission` package and adapted for Hypervel. It also supports denied permissions, which explicitly reject an ability even when the model receives the same permission directly or through a role.
 
 <a name="installation"></a>
 ## Installation
@@ -109,7 +109,7 @@ The published migration creates the following tables:
 - `model_has_permissions`
 - `model_has_roles`
 
-The `role_has_permissions` and `model_has_permissions` tables include an `is_forbidden` column used by forbidden permissions.
+The `role_has_permissions` and `model_has_permissions` tables include an `is_denied` column used by denied permissions.
 
 > [!WARNING]
 > If you customize the table or column names in the permission configuration file, update the published migration before running it.
@@ -321,12 +321,12 @@ $role->givePermissionTo('delete articles', 'publish articles');
 $role->syncPermissions(['edit articles', 'publish articles']);
 ```
 
-To replace a role's allowed and forbidden permissions at the same time, use `syncPermissionsWithForbidden`:
+To replace a role's allowed and denied permissions at the same time, use `syncPermissionEffects`:
 
 ```php
-$role->syncPermissionsWithForbidden(
+$role->syncPermissionEffects(
     allowed: ['edit articles'],
-    forbidden: ['delete articles'],
+    denied: ['delete articles'],
 );
 ```
 
@@ -528,41 +528,41 @@ Gate::before(function (User $user, string $ability): ?bool {
 
 Direct package calls such as `hasPermissionTo` do not pass through Gate callbacks. Use `can`, `canAny`, policies, middleware, or Blade authorization checks when you want Gate-level behavior to apply.
 
-<a name="forbidden-permissions"></a>
-### Forbidden Permissions
+<a name="denied-permissions"></a>
+### Denied Permissions
 
-Forbidden permissions explicitly deny access. The permission assignment tables store `is_forbidden` as the effect for the assignment edge, so a model or role has one row for a given permission in the current team context.
+Denied permissions explicitly reject access. The permission assignment tables store `is_denied` as the effect for the assignment edge, so a model or role has one row for a given permission in the current team context.
 
-Calling `giveForbiddenTo` for an allowed permission flips that assignment to a deny. Calling `givePermissionTo` for a forbidden permission flips it back to an allow. A forbidden permission overrides an allowed permission, including permissions inherited through roles:
+Calling `denyPermissionTo` for an allowed permission flips that assignment to a deny. Calling `givePermissionTo` for a denied permission flips it back to an allow. A denied permission overrides an allowed permission, including permissions inherited through roles:
 
 ```php
 $user->givePermissionTo('delete articles');
 
-$user->giveForbiddenTo('delete articles');
+$user->denyPermissionTo('delete articles');
 
 $user->hasPermissionTo('delete articles');
 
 // false
 ```
 
-You may check whether a forbidden permission exists directly on the model or through its roles:
+You may check whether an explicit denied permission exists directly on the model or through its roles:
 
 ```php
-if ($user->hasForbiddenPermission('delete articles')) {
+if ($user->hasDeniedPermission('delete articles')) {
     // ...
 }
 
-if ($user->hasForbiddenPermissionViaRoles('delete articles')) {
+if ($user->hasDeniedPermissionViaRoles('delete articles')) {
     // ...
 }
 ```
 
-Use `syncPermissionsWithForbidden` to replace allowed and forbidden direct permissions together. If a permission is present in both arrays, the forbidden permission wins:
+Use `syncPermissionEffects` to replace allowed and denied direct permissions together. If a permission is present in both arrays, the denied permission wins:
 
 ```php
-$user->syncPermissionsWithForbidden(
+$user->syncPermissionEffects(
     allowed: ['view articles', 'edit articles'],
-    forbidden: ['edit articles', 'delete articles'],
+    denied: ['edit articles', 'delete articles'],
 );
 ```
 
@@ -581,7 +581,7 @@ $user->revokePermissionTo('edit articles');
 $user->revokePermissionTo('edit articles', 'delete articles');
 ```
 
-This removes the assignment edge whether it is currently allowed or forbidden.
+This removes the assignment edge whether it is currently allowed or denied.
 
 <a name="retrieving-permissions"></a>
 ### Retrieving Permissions
@@ -598,7 +598,7 @@ To retrieve only permissions inherited through roles, use `getPermissionsViaRole
 $rolePermissions = $user->getPermissionsViaRoles();
 ```
 
-`getDirectPermissions`, `getPermissionsViaRoles`, `getAllPermissions`, and `getPermissionNames` return allowed permissions. Explicitly forbidden permissions are checked through `hasForbiddenPermission` and `hasForbiddenPermissionViaRoles`.
+`getDirectPermissions`, `getPermissionsViaRoles`, `getAllPermissions`, and `getPermissionNames` return allowed permissions. Explicitly denied permissions are checked through `hasDeniedPermission` and `hasDeniedPermissionViaRoles`.
 
 <a name="using-enums"></a>
 ## Using Enums
@@ -894,7 +894,7 @@ Permission does not provide a partition model, middleware, command option, migra
 
 - Role and Permission model queries and lifecycle writes;
 - role-permission, model-role, and model-permission relations and pivots;
-- assignment, synchronization, reverse-assignment, query-scope, eager-load, wildcard, and forbidden-permission paths;
+- assignment, synchronization, reverse-assignment, query-scope, eager-load, wildcard, and denied-permission paths;
 - console commands and queued Role or Permission restoration;
 - shared cache keys, assignment tokens, wildcard indexes, coroutine-local memoization, and invalidation.
 
@@ -967,7 +967,7 @@ Schema::create('role_has_permissions', function (Blueprint $table): void {
     $table->uuid('workspace_id');
     $table->uuid('permission_id');
     $table->uuid('role_id');
-    $table->boolean('is_forbidden')->default(false);
+    $table->boolean('is_denied')->default(false);
 
     $table->primary(['workspace_id', 'permission_id', 'role_id']);
 
@@ -1003,7 +1003,7 @@ Schema::create('model_has_permissions', function (Blueprint $table): void {
     $table->uuid('workspace_id');
     $table->uuid('permission_id');
     $table->uuidMorphs('model');
-    $table->boolean('is_forbidden')->default(false);
+    $table->boolean('is_denied')->default(false);
 
     $table->primary(['workspace_id', 'permission_id', 'model_id', 'model_type']);
     $table->index(
@@ -1092,7 +1092,7 @@ Partitioning adds no database queries to authorization or normal mutation paths:
 - warm authorization checks remain zero-query;
 - a cold permission catalog remains three queries;
 - cold authorization and assignment-cache misses retain their unpartitioned query counts;
-- synchronization uses the same query count in partitioned and unpartitioned modes; Role sync uses one delete and one bulk insert, while direct-permission sync adds the pivot read needed to compare forbidden effects;
+- synchronization uses the same query count in partitioned and unpartitioned modes; Role sync uses one delete and one bulk insert, while direct-permission sync adds the pivot read needed to compare denied effects;
 - the resolver is an in-memory Context lookup;
 - existing SQL receives one bound partition predicate;
 - pivot inserts receive the partition value.
@@ -1325,10 +1325,10 @@ $user->removeRole('writer');
 $user->syncRoles(['writer']);
 
 $user->givePermissionTo('edit articles');
-$user->giveForbiddenTo('delete articles');
-$user->syncPermissionsWithForbidden(
+$user->denyPermissionTo('delete articles');
+$user->syncPermissionEffects(
     allowed: ['edit articles'],
-    forbidden: ['delete articles'],
+    denied: ['delete articles'],
 );
 ```
 
@@ -1468,8 +1468,8 @@ Partition registration and isolation failures use focused exceptions:
 <a name="differences-from-spatie-laravel-permission"></a>
 ## Differences From Spatie Laravel Permission
 
-- Hypervel adds forbidden permissions. A forbidden permission explicitly denies an ability and wins over direct or role-granted allows. The deny flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge.
-- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. Explicit denies are exposed through `hasForbiddenPermission()` and `hasForbiddenPermissionViaRoles()`.
+- Hypervel adds denied permissions. A denied assignment explicitly rejects an ability and wins over direct or role-granted allows. The `is_denied` flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge.
+- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. Explicit denied edges are exposed through `hasDeniedPermission()` and `hasDeniedPermissionViaRoles()`.
 - Hypervel accepts pure unit enums anywhere enum names are valid role or permission inputs. Backed enums use their values; unit enums use their case names.
 - Hypervel adds opt-in generic row partitioning through `PermissionRegistrar::resolvePartitionUsing(...)`. It scopes model lifecycle operations, every package relation and pivot, queries, commands, cache identities, and invalidation without depending on any partition domain.
 - Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
