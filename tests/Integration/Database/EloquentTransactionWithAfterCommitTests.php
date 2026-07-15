@@ -140,6 +140,49 @@ trait EloquentTransactionWithAfterCommitTests
         $this->assertEquals(1, $observer::$calledTimes, 'Failed to assert the observer was called once.');
     }
 
+    public function testAfterCommitObserverCreatingEventFiresImmediately(): void
+    {
+        User::observe($observer = EloquentTransactionWithAfterCommitTestsCreatingObserver::resetting());
+
+        DB::transaction(function () use ($observer): void {
+            User::unguarded(fn () => User::create(UserFactory::new()->raw()));
+
+            $this->assertTrue($observer::$creatingCalled, 'creating should fire immediately inside the transaction');
+            $this->assertFalse($observer::$createdCalled, 'created should not fire until after commit');
+        });
+
+        $this->assertTrue($observer::$createdCalled, 'created should fire after commit');
+    }
+
+    public function testAfterCommitObserverUpdatingEventFiresImmediately(): void
+    {
+        User::observe($observer = EloquentTransactionWithAfterCommitTestsUpdatingObserver::resetting());
+
+        $user = User::unguarded(fn () => User::create(UserFactory::new()->raw()));
+
+        DB::transaction(function () use ($user, $observer): void {
+            User::unguarded(fn () => $user->update(['name' => 'Updated Name']));
+
+            $this->assertTrue($observer::$updatingCalled, 'updating should fire immediately inside the transaction');
+            $this->assertFalse($observer::$updatedCalled, 'updated should not fire until after commit');
+        });
+
+        $this->assertTrue($observer::$updatedCalled, 'updated should fire after commit');
+    }
+
+    public function testAfterCommitObserverCreatingCanCancelOperation(): void
+    {
+        User::observe($observer = EloquentTransactionWithAfterCommitTestsCancellingObserver::resetting());
+
+        $user = DB::transaction(
+            fn () => User::unguarded(fn () => User::create(UserFactory::new()->raw()))
+        );
+
+        $this->assertFalse($user->exists, 'Model should not be persisted when creating returns false');
+        $this->assertTrue($observer::$creatingCalled, 'creating should have been called');
+        $this->assertFalse($observer::$createdCalled, 'created should not fire when creating was cancelled');
+    }
+
     public function testTransactionCallbackExceptions()
     {
         [$firstObject, $secondObject] = [
@@ -241,5 +284,88 @@ class EloquentTransactionWithAfterCommitTestsTestObjectForTransactions
     {
         $this->ran = true;
         ++$this->runs;
+    }
+}
+
+class EloquentTransactionWithAfterCommitTestsCreatingObserver
+{
+    public static bool $creatingCalled = false;
+
+    public static bool $createdCalled = false;
+
+    public bool $afterCommit = true;
+
+    public static function resetting(): static
+    {
+        static::$creatingCalled = false;
+        static::$createdCalled = false;
+
+        return new static;
+    }
+
+    public function creating(User $user): void
+    {
+        static::$creatingCalled = true;
+    }
+
+    public function created(User $user): void
+    {
+        static::$createdCalled = true;
+    }
+}
+
+class EloquentTransactionWithAfterCommitTestsUpdatingObserver
+{
+    public static bool $updatingCalled = false;
+
+    public static bool $updatedCalled = false;
+
+    public bool $afterCommit = true;
+
+    public static function resetting(): static
+    {
+        static::$updatingCalled = false;
+        static::$updatedCalled = false;
+
+        return new static;
+    }
+
+    public function updating(User $user): void
+    {
+        static::$updatingCalled = true;
+    }
+
+    public function updated(User $user): void
+    {
+        static::$updatedCalled = true;
+    }
+}
+
+class EloquentTransactionWithAfterCommitTestsCancellingObserver
+{
+    public static bool $creatingCalled = false;
+
+    public static bool $createdCalled = false;
+
+    public bool $afterCommit = true;
+
+    public static function resetting(): static
+    {
+        static::$creatingCalled = false;
+        static::$createdCalled = false;
+
+        return new static;
+    }
+
+    public function creating(User $user): bool
+    {
+        static::$creatingCalled = true;
+
+        return false;
+    }
+
+    public function created(User $user): void
+    {
+        static::$createdCalled = true;
     }
 }
