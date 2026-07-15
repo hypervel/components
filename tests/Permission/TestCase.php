@@ -345,7 +345,7 @@ abstract class TestCase extends TestbenchTestCase
             $table->uuid($pivotPermission);
             $table->string('model_type');
             $table->unsignedBigInteger($modelMorphKey);
-            $table->boolean('is_forbidden')->default(false);
+            $table->boolean('is_denied')->default(false);
             $table->index([$modelMorphKey, 'model_type'], 'model_has_permissions_model_id_model_type_index');
 
             $table->foreign($pivotPermission)
@@ -373,7 +373,7 @@ abstract class TestCase extends TestbenchTestCase
         Schema::create($tableNames['role_has_permissions'], static function (Blueprint $table) use ($pivotPermission, $pivotRole, $tableNames): void {
             $table->uuid($pivotPermission);
             $table->uuid($pivotRole);
-            $table->boolean('is_forbidden')->default(false);
+            $table->boolean('is_denied')->default(false);
 
             $table->foreign($pivotPermission)
                 ->references('permission_test_id')

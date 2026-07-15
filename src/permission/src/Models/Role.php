@@ -119,7 +119,7 @@ class Role extends Model implements RoleContract
             $registrar->pivotPermission,
             'permissions',
             $context,
-        )->withPivot('is_forbidden');
+        )->withPivot('is_denied');
     }
 
     /**
@@ -267,7 +267,7 @@ class Role extends Model implements RoleContract
     public function hasPermissionTo(UnitEnum|int|string|PermissionContract $permission, ?string $guardName = null): bool
     {
         if ($this->getWildcardClass()) {
-            if ($this->hasForbiddenPermission($permission, $guardName)) {
+            if ($this->hasDeniedPermission($permission, $guardName)) {
                 return false;
             }
 
@@ -276,7 +276,7 @@ class Role extends Model implements RoleContract
 
         $permission = $this->filterPermission($permission, $guardName);
 
-        if ($this->hasForbiddenPermission($permission, $guardName)) {
+        if ($this->hasDeniedPermission($permission, $guardName)) {
             return false;
         }
 
@@ -288,6 +288,6 @@ class Role extends Model implements RoleContract
             ->filter(fn (Model $rolePermission): bool => $rolePermission->getKey() === $permission->getKey());
 
         return $matches->isNotEmpty()
-            && ! $matches->contains(fn (Model $rolePermission): bool => $this->pivotIsForbidden($rolePermission));
+            && ! $matches->contains(fn (Model $rolePermission): bool => $this->pivotIsDenied($rolePermission));
     }
 }

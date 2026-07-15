@@ -104,7 +104,7 @@ class PermissionPartitionTest extends DatabaseTestCase
             $table->uuid('workspace_id');
             $table->uuid('permission_test_id');
             $table->uuid('role_test_id');
-            $table->boolean('is_forbidden')->default(false);
+            $table->boolean('is_denied')->default(false);
             $table->primary(['workspace_id', 'permission_test_id', 'role_test_id']);
             $table->foreign(['workspace_id', 'permission_test_id'])
                 ->references(['workspace_id', 'id'])
@@ -137,7 +137,7 @@ class PermissionPartitionTest extends DatabaseTestCase
             $table->uuid('permission_test_id');
             $table->string('model_type');
             $table->uuid('model_test_id');
-            $table->boolean('is_forbidden')->default(false);
+            $table->boolean('is_denied')->default(false);
             $table->primary(['workspace_id', 'permission_test_id', 'model_test_id', 'model_type']);
             $table->index(
                 ['workspace_id', 'model_type', 'model_test_id'],
@@ -215,7 +215,7 @@ class PermissionPartitionTest extends DatabaseTestCase
             'workspace_id' => self::PARTITION_A,
             'permission_test_id' => $permissionB->getKey(),
             'role_test_id' => $roleA->getKey(),
-            'is_forbidden' => false,
+            'is_denied' => false,
         ]);
     }
 
@@ -254,34 +254,34 @@ class PermissionPartitionTest extends DatabaseTestCase
             'attached' => [$permission->getKey()],
             'detached' => [],
             'updated' => [],
-        ], $user->syncPermissionsWithForbidden([$permission]));
+        ], $user->syncPermissionEffects([$permission]));
 
         $this->assertSame([
             'attached' => [],
             'detached' => [],
             'updated' => [$permission->getKey()],
-        ], $user->syncPermissionsWithForbidden([], [$permission]));
-        $this->assertTrue($user->hasForbiddenPermission($permission));
+        ], $user->syncPermissionEffects([], [$permission]));
+        $this->assertTrue($user->hasDeniedPermission($permission));
 
         $this->assertSame([
             'attached' => [],
             'detached' => [],
             'updated' => [],
-        ], $user->syncPermissionsWithForbidden([], [$permission]));
+        ], $user->syncPermissionEffects([], [$permission]));
 
         $this->assertSame([
             'attached' => [],
             'detached' => [],
             'updated' => [$permission->getKey()],
-        ], $user->syncPermissionsWithForbidden([$permission]));
-        $this->assertFalse($user->hasForbiddenPermission($permission));
+        ], $user->syncPermissionEffects([$permission]));
+        $this->assertFalse($user->hasDeniedPermission($permission));
 
         $this->assertSame([
             'attached' => [],
             'detached' => [],
             'updated' => [$permission->getKey()],
-        ], $user->syncPermissionsWithForbidden([$permission], [$permission]));
-        $this->assertTrue($user->hasForbiddenPermission($permission));
+        ], $user->syncPermissionEffects([$permission], [$permission]));
+        $this->assertTrue($user->hasDeniedPermission($permission));
 
         $secondPermission = PartitionedPermission::create(['name' => 'articles.archive']);
         $user->givePermissionTo($secondPermission);
@@ -292,6 +292,6 @@ class PermissionPartitionTest extends DatabaseTestCase
             'attached' => [],
             'detached' => $expectedDetached,
             'updated' => [],
-        ], $user->syncPermissionsWithForbidden());
+        ], $user->syncPermissionEffects());
     }
 }

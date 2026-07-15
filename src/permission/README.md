@@ -11,7 +11,7 @@ This package provides Spatie-style roles and permissions for Hypervel applicatio
 - Teams support with coroutine-scoped current team state.
 - Wildcard permissions.
 - Passport client-credentials middleware support.
-- Hypervel-only forbidden permissions, where an explicit deny wins over direct or role-granted allows.
+- Hypervel-only denied permissions, where an explicit deny wins over direct or role-granted allows.
 - Opt-in generic row partitioning across queries, relations, assignments, caches, and invalidation.
 - Configured cache store plus per-coroutine memoization for hot permission checks.
 
@@ -41,8 +41,8 @@ class User extends Model
 
 ## Differences From Spatie Laravel Permission
 
-- Hypervel adds forbidden permissions. A forbidden permission explicitly denies an ability and wins over direct or role-granted allows. The deny flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge. Use `syncPermissionsWithForbidden()` to replace allowed and forbidden assignments together.
-- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. Explicit denies are exposed through `hasForbiddenPermission()` and `hasForbiddenPermissionViaRoles()`.
+- Hypervel adds denied permissions. A denied assignment explicitly rejects an ability and wins over direct or role-granted allows. The `is_denied` flag is stored as the effect on the assignment row, so assigning allow or deny for the same model or role and permission updates the existing edge. Use `syncPermissionEffects()` to replace allowed and denied assignments together.
+- `getDirectPermissions()`, `getPermissionsViaRoles()`, `getAllPermissions()`, and `getPermissionNames()` return effective allowed permissions. Explicit denied edges are exposed through `hasDeniedPermission()` and `hasDeniedPermissionViaRoles()`.
 - Hypervel accepts pure unit enums anywhere enum names are valid role or permission inputs. Backed enums use their values; unit enums use their case names.
 - Hypervel's cache config uses `expiration_seconds` and separate named cache keys so role, model-role, model-permission, and assignment-token caches can be invalidated independently.
 - Hypervel supports generic row partitioning through `PermissionRegistrar::resolvePartitionUsing(...)`. One application-defined scalar dimension scopes Role and Permission rows, every package-owned pivot operation, relations, query scopes, commands, cache identities, and invalidation. Missing context fails closed. Workspaces, installations, realms, and multi-tenancy are possible uses; Permission does not provide or depend on any one partition domain.

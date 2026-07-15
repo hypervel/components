@@ -33,20 +33,34 @@ class CacheTest extends TestCase
         $this->assertIsArray($permission);
         $this->assertArrayNotHasKey('attributes', $permission['roles'][0]);
         $this->assertSame($this->testUserRole->getKey(), $permission['roles'][0]['pivot'][$registrar->pivotRole]);
-        $this->assertFalse($permission['roles'][0]['pivot']['is_forbidden']);
+        $this->assertFalse($permission['roles'][0]['pivot']['is_denied']);
     }
 
-    public function testRoleForbiddenPivotHydratesFromGlobalCache(): void
+    public function testRoleDeniedPivotHydratesFromGlobalCache(): void
     {
         $this->testUser->assignRole('testRole');
-        $this->testUserRole->giveForbiddenTo('edit-articles');
+        $this->testUserRole->denyPermissionTo('edit-articles');
 
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
 
         $this->app->make(PermissionRegistrar::class)->clearPermissionsCollection();
 
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertTrue($this->testUser->hasForbiddenPermissionViaRoles('edit-articles'));
+        $this->assertTrue($this->testUser->hasDeniedPermissionViaRoles('edit-articles'));
+    }
+
+    public function testDirectDeniedPivotHydratesFromModelAssignmentCache(): void
+    {
+        $this->testUserRole->givePermissionTo('edit-articles');
+        $this->testUser->assignRole($this->testUserRole);
+        $this->testUser->denyPermissionTo('edit-articles');
+
+        $user = User::findOrFail($this->testUser->getKey());
+
+        $this->assertFalse($user->relationLoaded('permissions'));
+        $this->assertTrue($user->hasDeniedPermission('edit-articles'));
+        $this->assertFalse($user->relationLoaded('permissions'));
+        $this->assertFalse($user->hasPermissionTo('edit-articles'));
     }
 
     public function testPermissionCacheResetChangesModelAssignmentCacheToken(): void
@@ -114,19 +128,19 @@ class CacheTest extends TestCase
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
     }
 
-    public function testSyncPermissionsWithForbiddenInvalidatesWarmModelPermissionCache(): void
+    public function testSyncPermissionEffectsInvalidatesWarmModelPermissionCache(): void
     {
         $this->testUser->givePermissionTo('edit-articles');
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertFalse($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertFalse($this->testUser->hasDeniedPermission('edit-articles'));
 
-        $this->testUser->syncPermissionsWithForbidden(
+        $this->testUser->syncPermissionEffects(
             allowed: ['edit-news'],
-            forbidden: ['edit-articles'],
+            denied: ['edit-articles'],
         );
 
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertTrue($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertTrue($this->testUser->hasDeniedPermission('edit-articles'));
         $this->assertTrue($this->testUser->hasPermissionTo('edit-news'));
     }
 
@@ -153,17 +167,17 @@ class CacheTest extends TestCase
         $this->assertSame(['edit-articles'], $this->testUser->getAllPermissions()->pluck('name')->all());
     }
 
-    public function testRoleForbiddenPermissionMutationsInvalidateWarmGlobalPermissionCatalog(): void
+    public function testRoleDeniedPermissionMutationsInvalidateWarmGlobalPermissionCatalog(): void
     {
         $this->testUser->assignRole('testRole');
         $this->testUserRole->givePermissionTo('edit-articles');
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertFalse($this->testUser->hasForbiddenPermissionViaRoles('edit-articles'));
+        $this->assertFalse($this->testUser->hasDeniedPermissionViaRoles('edit-articles'));
 
-        $this->testUserRole->syncPermissionsWithForbidden(forbidden: ['edit-articles']);
+        $this->testUserRole->syncPermissionEffects(denied: ['edit-articles']);
 
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
-        $this->assertTrue($this->testUser->hasForbiddenPermissionViaRoles('edit-articles'));
+        $this->assertTrue($this->testUser->hasDeniedPermissionViaRoles('edit-articles'));
     }
 
     public function testWildcardPermissionMutationsInvalidateWarmWildcardIndex(): void
@@ -194,7 +208,7 @@ class CacheTest extends TestCase
             ->insert([
                 $registrar->pivotPermission => $permission->getKey(),
                 $registrar->pivotRole => $this->testUserRole->getKey(),
-                'is_forbidden' => false,
+                'is_denied' => false,
             ]);
 
         $registrar->getCacheRepository()->forget($registrar->getCacheKey());

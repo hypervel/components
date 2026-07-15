@@ -1,17 +1,17 @@
-# Permission Forbidden Single-State Hardening Plan
+# Permission Denied Single-State Hardening Plan
 
 ## Objective
 
-Fix the permission package so forbidden permissions are modeled as a single state on each assignment edge, not as a second row that can coexist beside an allowed row.
+Fix the permission package so denied permissions are modeled as a single state on each assignment edge, not as a second row that can coexist beside an allowed row.
 
 The final package must read as if it was designed this way from the start:
 
 - one database row per subject / permission / team edge
-- `is_forbidden` is the effect stored on that edge
+- `is_denied` is the effect stored on that edge
 - write methods flip the edge effect instead of creating competing rows
-- read methods treat forbidden as deny and never depend on relation order
+- read methods treat denied as deny and never depend on relation order
 - query scopes use the same effective permission semantics as `hasPermissionTo()`
-- allowed permission accessors do not return forbidden rows
+- allowed permission accessors do not return denied rows
 - assignment cache invalidation uses a fresh namespace token instead of numeric increments
 - README and Boost docs describe the final behavior without stale dual-row wording
 
@@ -26,16 +26,16 @@ Greptile flagged order-dependent reads in:
 
 The real root cause is schema and write behavior, not only those readers.
 
-Current migrations include `is_forbidden` in the primary key:
+Current migrations include `is_denied` in the primary key:
 
 ```php
 $table->primary(
-    [$pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'],
+    [$pivotPermission, $modelMorphKey, 'model_type', 'is_denied'],
     'model_has_permissions_permission_model_type_primary',
 );
 
 $table->primary(
-    [$pivotPermission, $pivotRole, 'is_forbidden'],
+    [$pivotPermission, $pivotRole, 'is_denied'],
     'role_has_permissions_permission_id_role_id_primary',
 );
 ```
@@ -43,45 +43,45 @@ $table->primary(
 That allows two rows for the same edge:
 
 ```text
-model_id=1, permission_id=5, is_forbidden=false
-model_id=1, permission_id=5, is_forbidden=true
+model_id=1, permission_id=5, is_denied=false
+model_id=1, permission_id=5, is_denied=true
 ```
 
-Then reads that call `first()` can return whichever row the relation gives first. Even when a caller checks forbidden before allowed, the data model is still contradictory and has to be defended in too many places.
+Then reads that call `first()` can return whichever row the relation gives first. Even when a caller checks denied before allowed, the data model is still contradictory and has to be defended in too many places.
 
 The correct model is one row per edge:
 
 ```text
-model_id=1, permission_id=5, is_forbidden=true
+model_id=1, permission_id=5, is_denied=true
 ```
 
 Assigning allow or deny for the same edge updates that row's effect.
 
-During implementation, `scopePermission()` was also found to ignore forbidden
+During implementation, `scopePermission()` was also found to ignore denied
 effects. A model where `hasPermissionTo()` returns `false` could still match
-`User::permission()` because the scope counted forbidden direct pivots and
-forbidden role-permission pivots as grants. That is the same class of
-forbidden-correctness bug and must be fixed in this plan.
+`User::permission()` because the scope counted denied direct pivots and
+denied role-permission pivots as grants. That is the same class of
+denied-correctness bug and must be fixed in this plan.
 
 ## Agreed Decisions
 
-1. Keep forbidden permissions as a Hypervel improvement.
+1. Keep denied permissions as a Hypervel improvement.
 
-   Explicit deny is useful in role/permission systems. A forbidden assignment must win over a direct allow, a role allow, or another role's allow.
+   Explicit deny is useful in role/permission systems. A denied assignment must win over a direct allow, a role allow, or another role's allow.
 
-2. Store forbidden as an effect, not an identity field.
+2. Store denied as an effect, not an identity field.
 
-   `is_forbidden` stays as a boolean column on `model_has_permissions` and `role_has_permissions`, but it must not be part of the primary key.
+   `is_denied` stays as a boolean column on `model_has_permissions` and `role_has_permissions`, but it must not be part of the primary key.
 
 3. Make write paths enforce single-state.
 
-   `givePermissionTo()` and `giveForbiddenTo()` must insert missing edges and update existing edges to the requested effect. They must not rely on duplicate rows.
+   `givePermissionTo()` and `denyPermissionTo()` must insert missing edges and update existing edges to the requested effect. They must not rely on duplicate rows.
 
 4. Keep defensive read hardening.
 
-   Once schema and writes are fixed, duplicates cannot be created through public APIs. Readers still handle bad manual data by making forbidden win deterministically.
+   Once schema and writes are fixed, duplicates cannot be created through public APIs. Readers still handle bad manual data by making denied win deterministically.
 
-5. Exclude forbidden rows from allowed permission accessors.
+5. Exclude denied rows from allowed permission accessors.
 
    `getDirectPermissions()` and `getPermissionNames()` are allow-oriented APIs. They must not return explicit denies.
 
@@ -99,7 +99,7 @@ forbidden-correctness bug and must be fixed in this plan.
 
 8. Update docs to describe the final model only.
 
-   Documentation must not mention the old dual-row shape or leave wording that suggests allow and forbid rows can coexist for the same edge.
+   Documentation must not mention the old dual-row shape or leave wording that suggests allowed and denied rows can coexist for the same edge.
 
 ## Files To Change
 
@@ -120,19 +120,19 @@ Current primary keys:
 ```php
 // Base migration, teams enabled.
 $table->primary(
-    [$teamForeignKey, $pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'],
+    [$teamForeignKey, $pivotPermission, $modelMorphKey, 'model_type', 'is_denied'],
     'model_has_permissions_permission_model_type_primary',
 );
 
 // Base migration, teams disabled.
 $table->primary(
-    [$pivotPermission, $modelMorphKey, 'model_type', 'is_forbidden'],
+    [$pivotPermission, $modelMorphKey, 'model_type', 'is_denied'],
     'model_has_permissions_permission_model_type_primary',
 );
 
 // Base migration, role permissions.
 $table->primary(
-    [$pivotPermission, $pivotRole, 'is_forbidden'],
+    [$pivotPermission, $pivotRole, 'is_denied'],
     'role_has_permissions_permission_id_role_id_primary',
 );
 ```
@@ -187,7 +187,7 @@ $table->primary(
 Keep:
 
 ```php
-$table->boolean('is_forbidden')->default(false);
+$table->boolean('is_denied')->default(false);
 ```
 
 ### Assignment Writes
@@ -199,18 +199,18 @@ File:
 Current write path:
 
 ```php
-private function attachPermissions(array $permissions, bool $isForbidden): static
+private function attachPermissions(array $permissions, bool $isDenied): static
 {
     $permissions = $this->collectPermissions($permissions);
     $model = $this;
     $registrar = $this->permissionRegistrar();
     $teamPivot = $registrar->teams && ! $this instanceof Role
         ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
-    $pivot = $teamPivot + ['is_forbidden' => $isForbidden];
+    $pivot = $teamPivot + ['is_denied' => $isDenied];
 
     if ($model->exists) {
         $currentPermissions = $this->relationCollection($this->loadMissing('permissions'), 'permissions')
-            ->filter(fn (Model $permission): bool => $this->pivotIsForbidden($permission) === $isForbidden)
+            ->filter(fn (Model $permission): bool => $this->pivotIsDenied($permission) === $isDenied)
             ->map(fn (Model $permission) => $permission->getKey())
             ->toArray();
 
@@ -229,7 +229,7 @@ Target behavior:
 - collect permission ids
 - build the team pivot once
 - for persisted models, find existing related permission ids regardless of effect
-- attach missing ids with the requested `is_forbidden` value
+- attach missing ids with the requested `is_denied` value
 - update existing ids whose pivot effect differs
 - do not keep same-flag dedup logic
 - unset the relation after mutation
@@ -238,12 +238,12 @@ Target behavior:
 Target shape:
 
 ```php
-private function attachPermissions(array $permissions, bool $isForbidden): static
+private function attachPermissions(array $permissions, bool $isDenied): static
 {
     $permissions = $this->collectPermissions($permissions);
     $model = $this;
     $registrar = $this->permissionRegistrar();
-    $pivot = $this->permissionAssignmentPivot($isForbidden);
+    $pivot = $this->permissionAssignmentPivot($isDenied);
 
     if ($model->exists) {
         $this->upsertPermissionAssignments($permissions, $pivot);
@@ -273,14 +273,14 @@ Add a helper for the pivot data so direct and queued paths share the same source
  *
  * @return array<string, mixed>
  */
-private function permissionAssignmentPivot(bool $isForbidden): array
+private function permissionAssignmentPivot(bool $isDenied): array
 {
     $registrar = $this->permissionRegistrar();
 
     $teamPivot = $registrar->teams && ! $this instanceof Role
         ? [$registrar->teamsKey => getPermissionsTeamId()] : [];
 
-    return $teamPivot + ['is_forbidden' => $isForbidden];
+    return $teamPivot + ['is_denied' => $isDenied];
 }
 ```
 
@@ -302,7 +302,7 @@ private function upsertPermissionAssignments(array $permissions, array $pivot): 
     $relation = $this->permissions();
     $currentPermissions = $relation->get()
         ->keyBy(fn (Model $permission): string => (string) $permission->getKey());
-    $effect = ['is_forbidden' => (bool) $pivot['is_forbidden']];
+    $effect = ['is_denied' => (bool) $pivot['is_denied']];
 
     $attach = [];
     $updated = false;
@@ -316,7 +316,7 @@ private function upsertPermissionAssignments(array $permissions, array $pivot): 
             continue;
         }
 
-        if ($this->pivotIsForbidden($currentPermission) !== $effect['is_forbidden']) {
+        if ($this->pivotIsDenied($currentPermission) !== $effect['is_denied']) {
             $updated = $relation->updateExistingPivot($permission, $effect, false) > 0 || $updated;
         }
     }
@@ -335,7 +335,7 @@ private function upsertPermissionAssignments(array $permissions, array $pivot): 
 Upsert notes:
 
 - `permissions()` already scopes model permissions by team through `wherePivot($teamsKey, getPermissionsTeamId())`, so `updateExistingPivot()` and `attach()` operate in the current team context for user/model assignments.
-- For model assignments, pass the full pivot data to `attach()` so new rows get the team id, but pass only `['is_forbidden' => ...]` to `updateExistingPivot()`. The relation already scopes the update to the current team, so setting the team column again is noise.
+- For model assignments, pass the full pivot data to `attach()` so new rows get the team id, but pass only `['is_denied' => ...]` to `updateExistingPivot()`. The relation already scopes the update to the current team, so setting the team column again is noise.
 - Role permission assignments have no team pivot by design, so the same helper works for `Role`.
 - The helper queries the relation fresh instead of using `loadMissing()`. This matters because callers may already have a stale `permissions` relation loaded, and queued assignments can process allow/deny calls back-to-back after save.
 - `touchIfTouching()` is called once after a changed batch so flipping multiple rows does not touch repeatedly, and no-op calls do not touch related models.
@@ -364,7 +364,7 @@ private function attachPermissionAssignments(array $permissions, array $pivot): 
 
 This helper is only for paths that have already proved the assignment set is
 empty for the target `(model, permission, team)` identity. Do not replace the
-normal persisted `givePermissionTo()` / `giveForbiddenTo()` path with it.
+normal persisted `givePermissionTo()` / `denyPermissionTo()` path with it.
 Known-empty paths use `attachPermissionAssignments()` to avoid the read that
 `upsertPermissionAssignments()` needs for possibly-existing rows.
 
@@ -396,7 +396,7 @@ protected function attachQueuedPermissionAssignments(): void
 }
 ```
 
-This will hit primary-key conflicts under the new schema if an unsaved model receives both allow and forbid for the same permission before it is saved.
+This will hit primary-key conflicts under the new schema if an unsaved model receives both allow and deny for the same permission before it is saved.
 
 Target:
 
@@ -458,7 +458,7 @@ private function collapseQueuedPermissionAssignments(): array
     foreach ($collapsed as $assignment) {
         $pivot = $assignment['pivot'];
         $batchKey = $this->queuedPermissionAssignmentTeamKey($pivot) . '|'
-            . ((bool) $pivot['is_forbidden'] ? 'forbidden' : 'allowed');
+            . ((bool) $pivot['is_denied'] ? 'denied' : 'allowed');
 
         $batches[$batchKey] ??= [
             'permissions' => [],
@@ -492,11 +492,11 @@ This keeps queued calls ordered per assignment edge. For example:
 ```php
 $user = new User;
 $user->givePermissionTo('edit articles');
-$user->giveForbiddenTo('edit articles');
+$user->denyPermissionTo('edit articles');
 $user->save();
 ```
 
-The saved row must be forbidden. Reversing the calls must save an allowed row.
+The saved row must be denied. Reversing the calls must save an allowed row.
 The collapse key is permission id plus team identity, not permission id alone:
 
 ```php
@@ -513,7 +513,7 @@ assignments for the same permission and same team collapse, with the last effect
 winning.
 
 Do not dispatch `PermissionAttachedEvent` from `attachQueuedPermissionAssignments()`.
-The existing API dispatches at `givePermissionTo()` / `giveForbiddenTo()` call
+The existing API dispatches at `givePermissionTo()` / `denyPermissionTo()` call
 time, including unsaved-model queued calls. The queued flush must only persist
 rows and invalidate caches/wildcard indexes, or queued calls would double-fire
 events.
@@ -527,15 +527,15 @@ relation.
 
 ### Sync Behavior
 
-`syncPermissionsWithForbidden()` already builds one `$syncData[$permissionId]` entry per permission id:
+`syncPermissionEffects()` already builds one `$syncData[$permissionId]` entry per permission id:
 
 ```php
 foreach ($allowedIds as $permissionId) {
-    $syncData[$permissionId] = $teamPivot + ['is_forbidden' => false];
+    $syncData[$permissionId] = $teamPivot + ['is_denied' => false];
 }
 
-foreach ($forbiddenIds as $permissionId) {
-    $syncData[$permissionId] = $teamPivot + ['is_forbidden' => true];
+foreach ($deniedIds as $permissionId) {
+    $syncData[$permissionId] = $teamPivot + ['is_denied' => true];
 }
 
 $changes = $this->permissions()->sync($syncData);
@@ -545,9 +545,9 @@ Because `sync()` updates existing pivot attributes for existing ids, this method
 
 Still verify these paths with tests:
 
-- allow to forbid returns the changed permission id under `updated`
-- forbid to allow returns the changed permission id under `updated`
-- permission present in both `allowed` and `forbidden` ends forbidden
+- allow to deny returns the changed permission id under `updated`
+- deny to allow returns the changed permission id under `updated`
+- permission present in both `allowed` and `denied` ends denied
 - custom primary key tests still pass
 
 `syncPermissions()` should collect ids once, detach existing rows, then use the
@@ -601,15 +601,15 @@ Invalidate the wildcard permission index before dispatching so synchronous
 listeners rebuild from current assignment state instead of reading a stale
 wildcard index.
 
-`syncPermissionsWithForbidden()` must support unsaved models with the same
+`syncPermissionEffects()` must support unsaved models with the same
 scope-aware queued replacement. Its return value remains the database sync
 change set. For unsaved models, no rows are changed until the model is saved, so
-it returns an empty change set after queueing the future allowed and forbidden
-assignments. Apply the existing allowed-minus-forbidden filtering before
-queueing so a permission present in both arrays still ends forbidden.
+it returns an empty change set after queueing the future allowed and denied
+assignments. Apply the existing allowed-minus-denied filtering before
+queueing so a permission present in both arrays still ends denied.
 
-`syncPermissionsWithForbidden()` also dispatches `PermissionAttachedEvent` once
-with the desired allowed and forbidden ids, matching `syncPermissions()` event
+`syncPermissionEffects()` also dispatches `PermissionAttachedEvent` once
+with the desired allowed and denied ids, matching `syncPermissions()` event
 timing. For unsaved models, the event fires when the sync method is called; the
 queued flush on save must not dispatch it again.
 
@@ -631,10 +631,10 @@ public function revokePermissionTo($permission): static
 No source change is expected here, but add coverage proving a direct deny can be revoked:
 
 ```php
-$user->giveForbiddenTo('edit articles');
+$user->denyPermissionTo('edit articles');
 $user->revokePermissionTo('edit articles');
 
-$this->assertFalse($user->hasForbiddenPermission('edit articles'));
+$this->assertFalse($user->hasDeniedPermission('edit articles'));
 $this->assertFalse($user->hasPermissionTo('edit articles'));
 $this->assertSame([], $user->getDirectPermissions()->all());
 ```
@@ -656,7 +656,7 @@ public function hasDirectPermission($permission): bool
         ->first(fn (Model $directPermission): bool => $directPermission->getKey() === $permission->getKey());
 
     return $matchedPermission !== null
-        && ! $this->pivotIsForbidden($matchedPermission);
+        && ! $this->pivotIsDenied($matchedPermission);
 }
 ```
 
@@ -671,7 +671,7 @@ public function hasDirectPermission($permission): bool
         ->filter(fn (Model $directPermission): bool => $directPermission->getKey() === $permission->getKey());
 
     return $matches->isNotEmpty()
-        && ! $matches->contains(fn (Model $directPermission): bool => $this->pivotIsForbidden($directPermission));
+        && ! $matches->contains(fn (Model $directPermission): bool => $this->pivotIsDenied($directPermission));
 }
 ```
 
@@ -690,7 +690,7 @@ $matchedPermission = $this->loadMissing('permissions')
 $pivot = $matchedPermission?->getRelation('pivot');
 
 return $matchedPermission !== null
-    && (! $pivot instanceof Pivot || ! (bool) $pivot->getAttribute('is_forbidden'));
+    && (! $pivot instanceof Pivot || ! (bool) $pivot->getAttribute('is_denied'));
 ```
 
 Target:
@@ -701,7 +701,7 @@ $matches = $this->loadMissing('permissions')
     ->filter(fn (Model $rolePermission): bool => $rolePermission->getKey() === $permission->getKey());
 
 return $matches->isNotEmpty()
-    && ! $matches->contains(fn (Model $rolePermission): bool => $this->pivotIsForbidden($rolePermission));
+    && ! $matches->contains(fn (Model $rolePermission): bool => $this->pivotIsDenied($rolePermission));
 ```
 
 This removes the last direct `Pivot` class reference in `Role.php`. Remove the `use Hypervel\Database\Eloquent\Relations\Pivot;` import.
@@ -713,7 +713,7 @@ File:
 - `src/permission/src/Traits/HasPermissions.php`
 
 `scopePermission()` currently counts direct and role permission rows without
-checking the forbidden effect:
+checking the denied effect:
 
 ```php
 return $query->where(
@@ -735,19 +735,19 @@ return $query->where(
 );
 ```
 
-This is wrong for forbidden permissions:
+This is wrong for denied permissions:
 
-- direct forbidden rows match `permission()` as if they were allows
-- role forbidden rows match `permission()` as if they were allows
+- direct denied rows match `permission()` as if they were allows
+- role denied rows match `permission()` as if they were allows
 - `withoutPermission()` is not a true inverse once deny semantics are involved
 
 Target semantics for one model `M` and permission `p`:
 
 ```text
-directAllow(M, p) = direct edge for p with is_forbidden=false
-directDeny(M, p)  = direct edge for p with is_forbidden=true
-roleAllow(M, p)   = assigned role edge for p with is_forbidden=false
-roleDeny(M, p)    = assigned role edge for p with is_forbidden=true
+directAllow(M, p) = direct edge for p with is_denied=false
+directDeny(M, p)  = direct edge for p with is_denied=true
+roleAllow(M, p)   = assigned role edge for p with is_denied=false
+roleDeny(M, p)    = assigned role edge for p with is_denied=true
 
 effective(M, p) = (directAllow(M, p) OR roleAllow(M, p))
                   AND NOT (directDeny(M, p) OR roleDeny(M, p))
@@ -817,17 +817,17 @@ protected function whereEffectivePermission(Builder $query, array $permissionIds
 /**
  * Add a permission-effect predicate for direct and role-granted permissions.
  */
-protected function wherePermissionEffect(Builder $query, int|string $permissionId, bool $forbidden): Builder
+protected function wherePermissionEffect(Builder $query, int|string $permissionId, bool $denied): Builder
 {
     $query->whereHas(
         'permissions',
-        fn (Builder $query) => $this->whereDirectPermissionEffect($query, $permissionId, $forbidden),
+        fn (Builder $query) => $this->whereDirectPermissionEffect($query, $permissionId, $denied),
     );
 
     if (! $this instanceof Role) {
         $query->orWhereHas(
             'roles.permissions',
-            fn (Builder $query) => $this->whereRolePermissionEffect($query, $permissionId, $forbidden),
+            fn (Builder $query) => $this->whereRolePermissionEffect($query, $permissionId, $denied),
         );
     }
 
@@ -837,7 +837,7 @@ protected function wherePermissionEffect(Builder $query, int|string $permissionI
 /**
  * Add a direct permission-effect predicate.
  */
-protected function whereDirectPermissionEffect(Builder $query, int|string $permissionId, bool $forbidden): Builder
+protected function whereDirectPermissionEffect(Builder $query, int|string $permissionId, bool $denied): Builder
 {
     $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
     $pivotTable = $this instanceof Role
@@ -846,19 +846,19 @@ protected function whereDirectPermissionEffect(Builder $query, int|string $permi
 
     return $query
         ->where(Config::permissionsTable() . ".{$permissionKey}", $permissionId)
-        ->where("{$pivotTable}.is_forbidden", $forbidden);
+        ->where("{$pivotTable}.is_denied", $denied);
 }
 
 /**
  * Add a role permission-effect predicate.
  */
-protected function whereRolePermissionEffect(Builder $query, int|string $permissionId, bool $forbidden): Builder
+protected function whereRolePermissionEffect(Builder $query, int|string $permissionId, bool $denied): Builder
 {
     $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
 
     return $query
         ->where(Config::permissionsTable() . ".{$permissionKey}", $permissionId)
-        ->where(Config::roleHasPermissionsTable() . '.is_forbidden', $forbidden);
+        ->where(Config::roleHasPermissionsTable() . '.is_denied', $denied);
 }
 ```
 
@@ -875,7 +875,7 @@ Important implementation constraints:
   the role's own `role_has_permissions` edge and must not traverse
   `roles.permissions`.
 - Do not change `scopeRole()` or `scopeWithoutRole()`. Role assignment has no
-  forbidden effect column; it is pure membership.
+  denied effect column; it is pure membership.
 - The direct branch inherits team scoping from `permissions()` for models. The
   nested role branch inherits team scoping from `roles()`, while
   `role_has_permissions` remains unscoped by team by design.
@@ -926,7 +926,7 @@ Target:
 protected function allowedDirectPermissions(): Collection
 {
     return $this->getCachedDirectPermissions()
-        ->reject(fn (Model $permission): bool => $this->pivotIsForbidden($permission))
+        ->reject(fn (Model $permission): bool => $this->pivotIsDenied($permission))
         ->values();
 }
 
@@ -957,7 +957,7 @@ The global catalog payload already carries role-permission pivot effects:
         'pivot' => [
             $this->pivotPermission => $permission->getKey(),
             $this->pivotRole => $role->getKey(),
-            'is_forbidden' => $this->pivotIsForbidden($role),
+            'is_denied' => $this->pivotIsDenied($role),
         ],
     ])
     ->values()
@@ -977,9 +977,9 @@ $role->setRelation('pivot', Pivot::fromRawAttributes(
 
 During implementation, verify this still passes after single-state writes and schema changes. Keep tests around:
 
-- payload includes `is_forbidden=false` for allowed role permissions
-- payload includes `is_forbidden=true` for forbidden role permissions
-- hydrated cache preserves forbidden role behavior after clearing coroutine-local catalog state
+- payload includes `is_denied=false` for allowed role permissions
+- payload includes `is_denied=true` for denied role permissions
+- hydrated cache preserves denied role behavior after clearing coroutine-local catalog state
 
 ### Assignment Cache Namespace Token
 
@@ -1115,11 +1115,11 @@ Files:
 
 Update docs to say:
 
-- `is_forbidden` is an effect column on permission assignment tables.
+- `is_denied` is an effect column on permission assignment tables.
 - Each assignment edge has one row.
-- Calling `givePermissionTo()` after `giveForbiddenTo()` flips that edge back to allowed.
-- Calling `giveForbiddenTo()` after `givePermissionTo()` flips that edge to forbidden.
-- `revokePermissionTo()` removes the edge regardless of whether it is allowed or forbidden.
+- Calling `givePermissionTo()` after `denyPermissionTo()` flips that edge back to allowed.
+- Calling `denyPermissionTo()` after `givePermissionTo()` flips that edge to denied.
+- `revokePermissionTo()` removes the edge regardless of whether it is allowed or denied.
 - `getDirectPermissions()` and `getPermissionNames()` return allowed direct permissions, not explicit denies.
 - `permission()` and `withoutPermission()` query scopes use effective concrete
   permission semantics: an allow counts only when the same permission is not
@@ -1130,15 +1130,15 @@ Update docs to say:
 - Permission assignment caches use namespace tokens; resetting permission cache makes old model assignment keys unreachable until TTL cleanup.
 - Update the existing Boost docs prose that says "assignment-cache version" to "assignment-cache token", including the current text around `src/boost/docs/permission.md:1081` and `src/boost/docs/permission.md:1178`.
 
-Suggested Boost docs replacement around forbidden permissions:
+Suggested Boost docs replacement around denied permissions:
 
 ```md
-Forbidden permissions explicitly deny access. The permission assignment tables store
-`is_forbidden` as the effect for the assignment edge, so a model or role has one
+Denied permissions explicitly reject access. The permission assignment tables store
+`is_denied` as the effect for the assignment edge, so a model or role has one
 row for a given permission in the current team context.
 
-Calling `giveForbiddenTo` for an allowed permission flips that assignment to a
-deny. Calling `givePermissionTo` for a forbidden permission flips it back to an
+Calling `denyPermissionTo` for an allowed permission flips that assignment to a
+deny. Calling `givePermissionTo` for a denied permission flips it back to an
 allow.
 ```
 
@@ -1146,9 +1146,9 @@ Suggested retrieval note:
 
 ```md
 `getDirectPermissions`, `getPermissionsViaRoles`, `getAllPermissions`, and
-`getPermissionNames` return allowed permissions. Explicitly forbidden permissions
-are checked through `hasForbiddenPermission` and
-`hasForbiddenPermissionViaRoles`.
+`getPermissionNames` return allowed permissions. Explicitly denied permissions
+are checked through `hasDeniedPermission` and
+`hasDeniedPermissionViaRoles`.
 ```
 
 Suggested query-scope note:
@@ -1173,7 +1173,7 @@ the configured cache TTL.
 Update README differences:
 
 ```md
-- Hypervel adds forbidden permissions. A forbidden permission explicitly denies
+- Hypervel adds denied permissions. A denied permission explicitly rejects
   an ability and wins over direct or role-granted allows. The deny flag is stored
   as the effect on the assignment row, so assigning allow or deny for the same
   model/role and permission updates the existing edge.
@@ -1182,7 +1182,7 @@ Update README differences:
   invalidated independently.
 ```
 
-Remove or rewrite any wording that implies an allowed and forbidden row can both exist for the same assignment edge.
+Remove or rewrite any wording that implies an allowed and denied row can both exist for the same assignment edge.
 
 ## Testing Plan
 
@@ -1192,7 +1192,7 @@ Run tests after each changed test file.
 
 File:
 
-- `tests/Permission/ForbiddenPermissionTest.php`
+- `tests/Permission/DeniedPermissionTest.php`
 
 Add imports as needed:
 
@@ -1205,29 +1205,29 @@ use Hypervel\Permission\Support\Config;
 Add/update coverage:
 
 ```php
-public function testDirectForbiddenPermissionFlipsExistingAllowedPermission(): void
+public function testDirectDeniedPermissionFlipsExistingAllowedPermission(): void
 {
     $this->testUser->givePermissionTo('edit-articles');
-    $this->testUser->giveForbiddenTo('edit-articles');
+    $this->testUser->denyPermissionTo('edit-articles');
 
     $this->testUser->refresh();
 
     $this->assertSame(1, $this->testUser->permissions()->count());
-    $this->assertTrue($this->testUser->hasForbiddenPermission('edit-articles'));
+    $this->assertTrue($this->testUser->hasDeniedPermission('edit-articles'));
     $this->assertFalse($this->testUser->hasDirectPermission('edit-articles'));
     $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
     $this->assertSame([], $this->testUser->getPermissionNames()->all());
 }
 
-public function testDirectAllowedPermissionFlipsExistingForbiddenPermission(): void
+public function testDirectAllowedPermissionFlipsExistingDeniedPermission(): void
 {
-    $this->testUser->giveForbiddenTo('edit-articles');
+    $this->testUser->denyPermissionTo('edit-articles');
     $this->testUser->givePermissionTo('edit-articles');
 
     $this->testUser->refresh();
 
     $this->assertSame(1, $this->testUser->permissions()->count());
-    $this->assertFalse($this->testUser->hasForbiddenPermission('edit-articles'));
+    $this->assertFalse($this->testUser->hasDeniedPermission('edit-articles'));
     $this->assertTrue($this->testUser->hasDirectPermission('edit-articles'));
     $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
     $this->assertSame(['edit-articles'], $this->testUser->getPermissionNames()->all());
@@ -1237,27 +1237,27 @@ public function testDirectAllowedPermissionFlipsExistingForbiddenPermission(): v
 Role edge flips:
 
 ```php
-public function testRoleForbiddenPermissionFlipsExistingAllowedPermission(): void
+public function testRoleDeniedPermissionFlipsExistingAllowedPermission(): void
 {
     $this->testUserRole->givePermissionTo('edit-articles');
-    $this->testUserRole->giveForbiddenTo('edit-articles');
+    $this->testUserRole->denyPermissionTo('edit-articles');
 
     $this->testUserRole->refresh();
 
     $this->assertSame(1, $this->testUserRole->permissions()->count());
-    $this->assertTrue($this->testUserRole->hasForbiddenPermission('edit-articles'));
+    $this->assertTrue($this->testUserRole->hasDeniedPermission('edit-articles'));
     $this->assertFalse($this->testUserRole->hasPermissionTo('edit-articles'));
 }
 
-public function testRoleAllowedPermissionFlipsExistingForbiddenPermission(): void
+public function testRoleAllowedPermissionFlipsExistingDeniedPermission(): void
 {
-    $this->testUserRole->giveForbiddenTo('edit-articles');
+    $this->testUserRole->denyPermissionTo('edit-articles');
     $this->testUserRole->givePermissionTo('edit-articles');
 
     $this->testUserRole->refresh();
 
     $this->assertSame(1, $this->testUserRole->permissions()->count());
-    $this->assertFalse($this->testUserRole->hasForbiddenPermission('edit-articles'));
+    $this->assertFalse($this->testUserRole->hasDeniedPermission('edit-articles'));
     $this->assertTrue($this->testUserRole->hasPermissionTo('edit-articles'));
 }
 ```
@@ -1265,33 +1265,33 @@ public function testRoleAllowedPermissionFlipsExistingForbiddenPermission(): voi
 Queued unsaved-model flips:
 
 ```php
-public function testQueuedDirectForbiddenPermissionFlipsExistingQueuedAllowedPermission(): void
+public function testQueuedDirectDeniedPermissionFlipsExistingQueuedAllowedPermission(): void
 {
     $user = new User(['email' => 'queued@example.com']);
 
     $user->givePermissionTo('edit-articles');
-    $user->giveForbiddenTo('edit-articles');
+    $user->denyPermissionTo('edit-articles');
     $user->save();
 
     $user->refresh();
 
     $this->assertSame(1, $user->permissions()->count());
-    $this->assertTrue($user->hasForbiddenPermission('edit-articles'));
+    $this->assertTrue($user->hasDeniedPermission('edit-articles'));
     $this->assertFalse($user->hasPermissionTo('edit-articles'));
 }
 
-public function testQueuedDirectAllowedPermissionFlipsExistingQueuedForbiddenPermission(): void
+public function testQueuedDirectAllowedPermissionFlipsExistingQueuedDeniedPermission(): void
 {
     $user = new User(['email' => 'queued@example.com']);
 
-    $user->giveForbiddenTo('edit-articles');
+    $user->denyPermissionTo('edit-articles');
     $user->givePermissionTo('edit-articles');
     $user->save();
 
     $user->refresh();
 
     $this->assertSame(1, $user->permissions()->count());
-    $this->assertFalse($user->hasForbiddenPermission('edit-articles'));
+    $this->assertFalse($user->hasDeniedPermission('edit-articles'));
     $this->assertTrue($user->hasPermissionTo('edit-articles'));
 }
 ```
@@ -1334,15 +1334,15 @@ known-empty path instead of reading current pivots before attaching.
 Revoke deny:
 
 ```php
-public function testRevokePermissionRemovesDirectForbiddenPermission(): void
+public function testRevokePermissionRemovesDirectDeniedPermission(): void
 {
-    $this->testUser->giveForbiddenTo('edit-articles');
+    $this->testUser->denyPermissionTo('edit-articles');
     $this->testUser->revokePermissionTo('edit-articles');
 
     $this->testUser->refresh();
 
     $this->assertSame(0, $this->testUser->permissions()->count());
-    $this->assertFalse($this->testUser->hasForbiddenPermission('edit-articles'));
+    $this->assertFalse($this->testUser->hasDeniedPermission('edit-articles'));
     $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
 }
 ```
@@ -1350,11 +1350,11 @@ public function testRevokePermissionRemovesDirectForbiddenPermission(): void
 Layered reveal:
 
 ```php
-public function testRemovingDirectForbiddenPermissionRevealsRoleAllowedPermission(): void
+public function testRemovingDirectDeniedPermissionRevealsRoleAllowedPermission(): void
 {
     $this->testUserRole->givePermissionTo('edit-articles');
     $this->testUser->assignRole($this->testUserRole);
-    $this->testUser->giveForbiddenTo('edit-articles');
+    $this->testUser->denyPermissionTo('edit-articles');
 
     $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
 
@@ -1371,7 +1371,7 @@ public function testDirectPermissionChecksDenyWhenRelationContainsDuplicateEffec
 {
     $permission = $this->app->make(PermissionContract::class)::findByName('edit-articles');
     $allowed = clone $permission;
-    $forbidden = clone $permission;
+    $denied = clone $permission;
 
     $allowed->setRelation('pivot', Pivot::fromRawAttributes(
         $this->testUser,
@@ -1379,25 +1379,25 @@ public function testDirectPermissionChecksDenyWhenRelationContainsDuplicateEffec
             $this->app->make(PermissionRegistrar::class)->pivotPermission => $permission->getKey(),
             Config::morphKey() => $this->testUser->getKey(),
             'model_type' => $this->testUser->getMorphClass(),
-            'is_forbidden' => false,
+            'is_denied' => false,
         ],
         Config::modelHasPermissionsTable(),
         true,
     ));
 
-    $forbidden->setRelation('pivot', Pivot::fromRawAttributes(
+    $denied->setRelation('pivot', Pivot::fromRawAttributes(
         $this->testUser,
         [
             $this->app->make(PermissionRegistrar::class)->pivotPermission => $permission->getKey(),
             Config::morphKey() => $this->testUser->getKey(),
             'model_type' => $this->testUser->getMorphClass(),
-            'is_forbidden' => true,
+            'is_denied' => true,
         ],
         Config::modelHasPermissionsTable(),
         true,
     ));
 
-    $this->testUser->setRelation('permissions', collect([$allowed, $forbidden]));
+    $this->testUser->setRelation('permissions', collect([$allowed, $denied]));
 
     $this->assertFalse($this->testUser->hasDirectPermission('edit-articles'));
 }
@@ -1412,38 +1412,38 @@ public function testRolePermissionChecksDenyWhenRelationContainsDuplicateEffects
 {
     $permission = $this->app->make(PermissionContract::class)::findByName('edit-articles');
     $allowed = clone $permission;
-    $forbidden = clone $permission;
+    $denied = clone $permission;
 
     $allowed->setRelation('pivot', Pivot::fromRawAttributes(
         $this->testUserRole,
         [
             $this->app->make(PermissionRegistrar::class)->pivotPermission => $permission->getKey(),
             $this->app->make(PermissionRegistrar::class)->pivotRole => $this->testUserRole->getKey(),
-            'is_forbidden' => false,
+            'is_denied' => false,
         ],
         Config::roleHasPermissionsTable(),
         true,
     ));
 
-    $forbidden->setRelation('pivot', Pivot::fromRawAttributes(
+    $denied->setRelation('pivot', Pivot::fromRawAttributes(
         $this->testUserRole,
         [
             $this->app->make(PermissionRegistrar::class)->pivotPermission => $permission->getKey(),
             $this->app->make(PermissionRegistrar::class)->pivotRole => $this->testUserRole->getKey(),
-            'is_forbidden' => true,
+            'is_denied' => true,
         ],
         Config::roleHasPermissionsTable(),
         true,
     ));
 
-    $this->testUserRole->setRelation('permissions', collect([$allowed, $forbidden]));
+    $this->testUserRole->setRelation('permissions', collect([$allowed, $denied]));
 
     $this->assertFalse($this->testUserRole->hasDirectPermission('edit-articles'));
     $this->assertFalse($this->testUserRole->hasPermissionTo('edit-articles'));
 }
 ```
 
-The `hasDirectPermission()` assertion exercises the hardened duplicate-match filter. `Role::hasPermissionTo()` first calls `hasForbiddenPermission()`, so its assertion confirms the public role permission check still denies, but it does not by itself prove the rewritten `$matches` block in `Role::hasPermissionTo()` is reached.
+The `hasDirectPermission()` assertion exercises the hardened duplicate-match filter. `Role::hasPermissionTo()` first calls `hasDeniedPermission()`, so its assertion confirms the public role permission check still denies, but it does not by itself prove the rewritten `$matches` block in `Role::hasPermissionTo()` is reached.
 
 ### Query Scopes
 
@@ -1451,22 +1451,22 @@ Files:
 
 - `tests/Permission/Traits/HasPermissionsTest.php`
 - `tests/Permission/Traits/TeamHasPermissionsTest.php`
-- `tests/Permission/ForbiddenPermissionTest.php`
+- `tests/Permission/DeniedPermissionTest.php`
 
 Add coverage for effective permission query scopes:
 
 ```php
-public function testPermissionScopeExcludesDirectForbiddenPermission(): void
+public function testPermissionScopeExcludesDirectDeniedPermission(): void
 {
-    $this->testUser->giveForbiddenTo('edit-articles');
+    $this->testUser->denyPermissionTo('edit-articles');
 
     $this->assertFalse(User::permission('edit-articles')->get()->contains($this->testUser));
     $this->assertTrue(User::withoutPermission('edit-articles')->get()->contains($this->testUser));
 }
 
-public function testPermissionScopeExcludesRoleForbiddenPermission(): void
+public function testPermissionScopeExcludesRoleDeniedPermission(): void
 {
-    $this->testUserRole->giveForbiddenTo('edit-articles');
+    $this->testUserRole->denyPermissionTo('edit-articles');
     $this->testUser->assignRole($this->testUserRole);
 
     $this->assertFalse(User::permission('edit-articles')->get()->contains($this->testUser));
@@ -1477,7 +1477,7 @@ public function testPermissionScopeLetsDirectDenyOverrideRoleAllow(): void
 {
     $this->testUserRole->givePermissionTo('edit-articles');
     $this->testUser->assignRole($this->testUserRole);
-    $this->testUser->giveForbiddenTo('edit-articles');
+    $this->testUser->denyPermissionTo('edit-articles');
 
     $this->assertFalse(User::permission('edit-articles')->get()->contains($this->testUser));
     $this->assertTrue(User::withoutPermission('edit-articles')->get()->contains($this->testUser));
@@ -1485,7 +1485,7 @@ public function testPermissionScopeLetsDirectDenyOverrideRoleAllow(): void
 
 public function testPermissionScopeLetsRoleDenyOverrideDirectAllow(): void
 {
-    $this->testUserRole->giveForbiddenTo('edit-articles');
+    $this->testUserRole->denyPermissionTo('edit-articles');
     $this->testUser->assignRole($this->testUserRole);
     $this->testUser->givePermissionTo('edit-articles');
 
@@ -1500,14 +1500,14 @@ Add tests that catch per-permission correlation bugs:
 public function testPermissionScopeMatchesAllowedPermissionWhenDifferentRequestedPermissionIsDenied(): void
 {
     $this->testUser->givePermissionTo('edit-articles');
-    $this->testUser->giveForbiddenTo('edit-news');
+    $this->testUser->denyPermissionTo('edit-news');
 
     $this->assertTrue(User::permission(['edit-articles', 'edit-news'])->get()->contains($this->testUser));
 }
 
 public function testPermissionScopeMatchesSecondAllowedPermissionWhenFirstRequestedPermissionIsDenied(): void
 {
-    $this->testUserRole->giveForbiddenTo('edit-articles');
+    $this->testUserRole->denyPermissionTo('edit-articles');
     $this->testUser->assignRole($this->testUserRole);
     $this->testUser->givePermissionTo('edit-articles');
     $this->testUser->givePermissionTo('edit-news');
@@ -1533,9 +1533,9 @@ public function testWithoutPermissionScopeWithNoPermissionsMatchesAllModels(): v
 Add role-subject coverage:
 
 ```php
-public function testRolePermissionScopeExcludesForbiddenRolePermissionEdges(): void
+public function testRolePermissionScopeExcludesDeniedRolePermissionEdges(): void
 {
-    $this->testUserRole->giveForbiddenTo('edit-articles');
+    $this->testUserRole->denyPermissionTo('edit-articles');
 
     $this->assertFalse($this->app->make(RoleContract::class)::permission('edit-articles')->get()->contains($this->testUserRole));
 }
@@ -1552,10 +1552,10 @@ File:
 
 Add or update coverage:
 
-- allow then forbid in team 1 leaves one row in team 1 and does not affect team 2
-- forbid then allow in team 1 leaves one allowed row in team 1
-- `getPermissionNames()` excludes forbidden direct permissions in the active team
-- `revokePermissionTo()` removes a forbidden row in the active team only
+- allow then deny in team 1 leaves one row in team 1 and does not affect team 2
+- deny then allow in team 1 leaves one allowed row in team 1
+- `getPermissionNames()` excludes denied direct permissions in the active team
+- `revokePermissionTo()` removes a denied row in the active team only
 - `permission()` respects direct allow/deny effects in the active team
 - role-granted permissions match in a team where the role is assigned and do not
   match in a team where the role is not assigned
@@ -1619,7 +1619,7 @@ Add assertions for primary key shape where the schema inspection API supports it
 
 ```php
 $this->testUser->givePermissionTo('edit-articles');
-$this->testUser->giveForbiddenTo('edit-articles');
+$this->testUser->denyPermissionTo('edit-articles');
 
 $this->assertSame(1, $this->testUser->permissions()->count());
 ```
@@ -1631,7 +1631,7 @@ Run the custom model test path too, because `tests/Permission/TestCase.php` has 
 After each changed test file:
 
 ```sh
-./vendor/bin/phpunit --no-progress tests/Permission/ForbiddenPermissionTest.php
+./vendor/bin/phpunit --no-progress tests/Permission/DeniedPermissionTest.php
 ./vendor/bin/phpunit --no-progress tests/Permission/Traits/HasPermissionsTest.php
 ./vendor/bin/phpunit --no-progress tests/Permission/Traits/TeamHasPermissionsTest.php
 ./vendor/bin/phpunit --no-progress tests/Permission/CacheTest.php
@@ -1650,21 +1650,21 @@ composer fix
 
 ## Implementation Checklist
 
-1. Change all schema primary keys to remove `is_forbidden` from identity while keeping the column.
+1. Change all schema primary keys to remove `is_denied` from identity while keeping the column.
 2. Add permission assignment pivot/upsert/known-empty attach helpers in `HasPermissions`.
 3. Update `attachPermissions()` to call the upsert helper for persisted models.
 4. Update `attachQueuedPermissionAssignments()` to collapse queued assignments by permission and team, then attach with the known-empty helper after save.
 5. Remove same-flag dedup logic that only existed for dual-row schema.
 6. Update `syncPermissions()` to collect ids once and attach through the known-empty helper after detach.
 7. Update queued replace-style sync paths to replace only the current assignment scope.
-8. Update unsaved `syncPermissionsWithForbidden()` to queue allowed and forbidden assignments, return an empty change set, and preserve forbidden-wins filtering.
-9. Preserve permission attach event timing: dispatch from give/sync methods, including `syncPermissionsWithForbidden()`, not from queued flushes. Invalidate wildcard indexes before dispatch so synchronous listeners see fresh wildcard state.
-10. Harden `hasDirectPermission()` and `Role::hasPermissionTo()` to deny if any matching pivot is forbidden.
+8. Update unsaved `syncPermissionEffects()` to queue allowed and denied assignments, return an empty change set, and preserve denied-wins filtering.
+9. Preserve permission attach event timing: dispatch from give/sync methods, including `syncPermissionEffects()`, not from queued flushes. Invalidate wildcard indexes before dispatch so synchronous listeners see fresh wildcard state.
+10. Harden `hasDirectPermission()` and `Role::hasPermissionTo()` to deny if any matching pivot is denied.
 11. Rework `scopePermission()` around the effective permission predicate, and keep `scopeWithoutPermission()` as a delegate to `scopePermission(..., true)`.
 12. Add `allowedDirectPermissions()` in `HasPermissions`, make `getPermissionNames()` use it, and make `HasRoles::getDirectPermissions()` delegate to it.
-13. Verify and keep global catalog serialization/hydration of `is_forbidden`.
+13. Verify and keep global catalog serialization/hydration of `is_denied`.
 14. Rename numeric model assignment cache versions to ULID namespace tokens across source, config, tests, README, and Boost docs.
-15. Update tests for forbidden flips, queued flips, query-count preservation, revoke deny, effective scopes, teams, cache token, and accessors.
+15. Update tests for denied flips, queued flips, query-count preservation, revoke deny, effective scopes, teams, cache token, and accessors.
 16. Update README and Boost docs, including the concrete-grant query-scope boundary for wildcard permissions.
 17. Run focused tests after each changed test file.
 18. Run `composer fix`.
@@ -1675,26 +1675,26 @@ composer fix
 
 Check all of these before asking for review:
 
-- `grep -R "is_forbidden.*primary\|primary.*is_forbidden" -n src/permission tests/Permission` returns nothing outside archived material.
+- `grep -R "is_denied.*primary\|primary.*is_denied" -n src/permission tests/Permission` returns nothing outside archived material.
 - No public write path can create two rows for the same edge.
-- `givePermissionTo()` after `giveForbiddenTo()` flips deny to allow.
-- `giveForbiddenTo()` after `givePermissionTo()` flips allow to deny.
+- `givePermissionTo()` after `denyPermissionTo()` flips deny to allow.
+- `denyPermissionTo()` after `givePermissionTo()` flips allow to deny.
 - queued unsaved model calls preserve call order and end with one row.
 - queued unsaved model calls for the same permission in different teams create
   separate team edges.
 - unsaved `syncPermissions()` replaces only the current assignment scope in the
   pending queue.
-- unsaved `syncPermissionsWithForbidden()` replaces only the current assignment
-  scope, queues both effects, applies forbidden-wins filtering, and returns an
+- unsaved `syncPermissionEffects()` replaces only the current assignment
+  scope, queues both effects, applies denied-wins filtering, and returns an
   empty change set because no database rows changed yet.
 - queued unsaved model flushes do not dispatch a second attach event.
-- `syncPermissionsWithForbidden()` dispatches `PermissionAttachedEvent` once for
+- `syncPermissionEffects()` dispatches `PermissionAttachedEvent` once for
   saved and unsaved models.
 - permission attach events fire after wildcard index invalidation, so
   synchronous listeners see fresh wildcard permission state.
 - `syncPermissions()` collects ids once and does not read current pivots after
   detaching.
-- `syncPermissionsWithForbidden()` still reports `attached`, `detached`, and `updated` correctly.
+- `syncPermissionEffects()` still reports `attached`, `detached`, and `updated` correctly.
 - existing query-count tests for new permissions and queued unsaved-model
   assignments still expect two queries and pass.
 - `revokePermissionTo()` removes a direct deny.
@@ -1712,8 +1712,8 @@ Check all of these before asking for review:
   `roles.permissions`.
 - wildcard docs state that permission query scopes filter concrete stored grants
   and do not expand wildcard grammar.
-- allowed accessors exclude forbidden rows.
-- global catalog cache payload contains `is_forbidden` and hydration preserves it.
+- allowed accessors exclude denied rows.
+- global catalog cache payload contains `is_denied` and hydration preserves it.
 - model assignment cache keys include a ULID token.
 - tests no longer compare assignment cache namespace values numerically.
 - `grep -R "assertGreaterThan.*modelAssignmentCache\\|modelAssignmentCache.*assertGreaterThan" -n tests/Permission` returns nothing.
@@ -1721,16 +1721,16 @@ Check all of these before asking for review:
 - `grep -R "assignment-cache version\|cache version" -n src/permission tests/Permission src/boost/docs/permission.md src/permission/README.md` returns nothing.
 - permission cache docs and comments describe the assignment cache namespace as a token, not a numeric version.
 - `grep -R "use Hypervel\\\\Database\\\\Eloquent\\\\Relations\\\\Pivot;" -n src/permission/src/Models/Role.php` returns nothing.
-- docs no longer imply dual allow/forbid rows can coexist for one edge.
+- docs no longer imply dual allow/deny rows can coexist for one edge.
 - all changed files have no unused imports, dead code, stale comments, or stale wording.
 
 ## Expected Commit Split After Everything Is Green
 
 The final split can be decided after implementation. The expected clean split is:
 
-1. schema and write/read behavior for single-state forbidden permissions
+1. schema and write/read behavior for single-state denied permissions
 2. effective permission query-scope behavior
-3. regression tests for forbidden single-state and effective-scope behavior
+3. regression tests for denied single-state and effective-scope behavior
 4. assignment cache namespace token cleanup
 5. permission docs/README updates
 

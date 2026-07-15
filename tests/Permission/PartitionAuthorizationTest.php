@@ -26,7 +26,7 @@ class PartitionAuthorizationTest extends PartitionTestCase
         $webRoleA = PartitionedRole::create(['name' => 'editor', 'guard_name' => 'web']);
         $apiRoleA = PartitionedRole::create(['name' => 'editor', 'guard_name' => 'api']);
         $webRoleA->givePermissionTo($webPermissionA);
-        $apiRoleA->giveForbiddenTo($apiPermissionA);
+        $apiRoleA->denyPermissionTo($apiPermissionA);
         $user->assignRole($webRoleA, $apiRoleA);
 
         $this->assertTrue($user->hasPermissionTo('articles.edit', 'web'));
@@ -37,7 +37,7 @@ class PartitionAuthorizationTest extends PartitionTestCase
         $apiPermissionB = PartitionedPermission::create(['name' => 'articles.edit', 'guard_name' => 'api']);
         $webRoleB = PartitionedRole::create(['name' => 'editor', 'guard_name' => 'web']);
         $apiRoleB = PartitionedRole::create(['name' => 'editor', 'guard_name' => 'api']);
-        $webRoleB->giveForbiddenTo($webPermissionB);
+        $webRoleB->denyPermissionTo($webPermissionB);
         $apiRoleB->givePermissionTo($apiPermissionB);
         $user->assignRole($webRoleB, $apiRoleB);
 
@@ -50,36 +50,36 @@ class PartitionAuthorizationTest extends PartitionTestCase
         $this->assertFalse($user->hasPermissionTo('articles.edit', 'api'));
     }
 
-    public function testDirectAndInheritedForbiddenPermissionsArePartitionIsolated(): void
+    public function testDirectAndInheritedDeniedPermissionsArePartitionIsolated(): void
     {
         $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
         $permissionA = PartitionedPermission::create(['name' => 'articles.edit']);
         $allowedRoleA = PartitionedRole::create(['name' => 'allowed']);
         $allowedRoleA->givePermissionTo($permissionA);
         $user->assignRole($allowedRoleA);
-        $user->giveForbiddenTo($permissionA);
+        $user->denyPermissionTo($permissionA);
 
-        $this->assertTrue($user->hasForbiddenPermission($permissionA));
+        $this->assertTrue($user->hasDeniedPermission($permissionA));
         $this->assertFalse($user->hasPermissionTo($permissionA));
 
         $this->setPartition(self::PARTITION_B);
         $permissionB = PartitionedPermission::create(['name' => 'articles.edit']);
-        $forbiddenRoleB = PartitionedRole::create(['name' => 'forbidden']);
-        $forbiddenRoleB->giveForbiddenTo($permissionB);
+        $deniedRoleB = PartitionedRole::create(['name' => 'denied']);
+        $deniedRoleB->denyPermissionTo($permissionB);
         $user->givePermissionTo($permissionB);
-        $user->assignRole($forbiddenRoleB);
+        $user->assignRole($deniedRoleB);
 
         $this->assertTrue($user->hasDirectPermission($permissionB));
-        $this->assertTrue($user->hasForbiddenPermissionViaRoles($permissionB));
+        $this->assertTrue($user->hasDeniedPermissionViaRoles($permissionB));
         $this->assertFalse($user->hasPermissionTo($permissionB));
 
-        $user->removeRole($forbiddenRoleB);
+        $user->removeRole($deniedRoleB);
 
         $this->assertTrue($user->hasPermissionTo($permissionB));
 
         $this->setPartition(self::PARTITION_A);
 
-        $this->assertTrue($user->hasForbiddenPermission($permissionA));
+        $this->assertTrue($user->hasDeniedPermission($permissionA));
         $this->assertFalse($user->hasPermissionTo($permissionA));
     }
 
@@ -94,7 +94,7 @@ class PartitionAuthorizationTest extends PartitionTestCase
 
         $this->setPartition(self::PARTITION_B);
         $wildcardB = PartitionedPermission::create(['name' => 'posts.*']);
-        $user->giveForbiddenTo($wildcardB);
+        $user->denyPermissionTo($wildcardB);
 
         $this->assertFalse($user->hasPermissionTo('posts.create'));
         $this->assertFalse($user->hasPermissionTo('posts.delete.123'));
@@ -111,14 +111,14 @@ class PartitionAuthorizationTest extends PartitionTestCase
         $denied = GlobalPartitionUser::create(['email' => 'denied@example.com']);
         $permissionA = PartitionedPermission::create(['name' => 'articles.edit']);
         $allowed->givePermissionTo($permissionA);
-        $denied->giveForbiddenTo($permissionA);
+        $denied->denyPermissionTo($permissionA);
 
         $this->assertSame([$allowed->getKey()], GlobalPartitionUser::permission($permissionA)->pluck('id')->all());
         $this->assertSame([$denied->getKey()], GlobalPartitionUser::withoutPermission($permissionA)->pluck('id')->all());
 
         $this->setPartition(self::PARTITION_B);
         $permissionB = PartitionedPermission::create(['name' => 'articles.edit']);
-        $allowed->giveForbiddenTo($permissionB);
+        $allowed->denyPermissionTo($permissionB);
         $denied->givePermissionTo($permissionB);
 
         $this->assertSame([$denied->getKey()], GlobalPartitionUser::permission($permissionB)->pluck('id')->all());

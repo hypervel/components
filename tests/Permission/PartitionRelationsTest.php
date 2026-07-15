@@ -142,19 +142,19 @@ class PartitionRelationsTest extends PartitionTestCase
     {
         $user = GlobalPartitionUser::create(['email' => 'global@example.com']);
         $permission = PartitionedPermission::create(['name' => 'articles.edit']);
-        $user->permissions()->attach($permission, ['is_forbidden' => false]);
+        $user->permissions()->attach($permission, ['is_denied' => false]);
 
         $this->assertSame(1, $user->permissions()->updateExistingPivot($permission, [
             'workspace_id' => self::PARTITION_A,
-            'is_forbidden' => true,
+            'is_denied' => true,
         ]));
-        $this->assertTrue((bool) DB::table(Config::modelHasPermissionsTable())->value('is_forbidden'));
+        $this->assertTrue((bool) DB::table(Config::modelHasPermissionsTable())->value('is_denied'));
 
         $this->expectException(PermissionPartitionViolation::class);
 
         $user->permissions()->updateExistingPivot($permission, [
             'workspace_id' => self::PARTITION_B,
-            'is_forbidden' => false,
+            'is_denied' => false,
         ]);
     }
 
@@ -167,7 +167,7 @@ class PartitionRelationsTest extends PartitionTestCase
 
         $user->permissions()->syncWithPivotValues(
             [$permission->getKey()],
-            ['workspace_id' => self::PARTITION_B, 'is_forbidden' => false],
+            ['workspace_id' => self::PARTITION_B, 'is_denied' => false],
         );
     }
 
@@ -316,7 +316,7 @@ class PartitionRelationsTest extends PartitionTestCase
         $roleB = PartitionedRole::create(['name' => 'member']);
         $permissionB = PartitionedPermission::create(['name' => 'articles.edit']);
         $user->assignRole($roleB);
-        $user->giveForbiddenTo($permissionB);
+        $user->denyPermissionTo($permissionB);
 
         PartitionContext::forget();
         $user->save();
@@ -327,7 +327,7 @@ class PartitionRelationsTest extends PartitionTestCase
 
         $this->setPartition(self::PARTITION_B);
         $this->assertTrue($user->hasRole($roleB));
-        $this->assertTrue($user->hasForbiddenPermission($permissionB));
+        $this->assertTrue($user->hasDeniedPermission($permissionB));
     }
 
     public function testUnsavedRoleQueueDoesNotInvalidateWildcardStateBeforeCommit(): void
@@ -393,7 +393,7 @@ class PartitionRelationsTest extends PartitionTestCase
 
         $this->setPartition(self::PARTITION_B);
         $user->assignRole($roleB);
-        $user->giveForbiddenTo($permissionB);
+        $user->denyPermissionTo($permissionB);
 
         $this->assertSame(
             [$runtimeKeyA, $runtimeKeyB],
@@ -423,7 +423,7 @@ class PartitionRelationsTest extends PartitionTestCase
         $roleB = PartitionedRole::create(['name' => 'member']);
         $permissionB = PartitionedPermission::create(['name' => 'articles.edit']);
         $user->assignRole($roleB);
-        $user->giveForbiddenTo($permissionB);
+        $user->denyPermissionTo($permissionB);
         $tokenB = $registrar->modelAssignmentCacheToken();
         $this->app->make('config')->set('permission.events_enabled', true);
         Event::fake([
@@ -482,7 +482,7 @@ SQL,
 
         $this->setPartition(self::PARTITION_B);
         $this->assertTrue($user->hasRole($roleB));
-        $this->assertTrue($user->hasForbiddenPermission($permissionB));
+        $this->assertTrue($user->hasDeniedPermission($permissionB));
     }
 
     public function testUnsavedSyncReplacesOnlyTheCapturedPartitionQueue(): void
@@ -531,7 +531,7 @@ SQL,
         $roleB = PartitionedRole::create(['name' => 'member']);
         $permissionB = PartitionedPermission::create(['name' => 'articles.edit']);
         $user->assignRole($roleB);
-        $user->giveForbiddenTo($permissionB);
+        $user->denyPermissionTo($permissionB);
 
         $this->setPartition(self::PARTITION_A);
         $user->removeRole($roleA);
@@ -546,7 +546,7 @@ SQL,
 
         $this->setPartition(self::PARTITION_B);
         $this->assertTrue($user->hasRole($roleB));
-        $this->assertTrue($user->hasForbiddenPermission($permissionB));
+        $this->assertTrue($user->hasDeniedPermission($permissionB));
     }
 
     public function testEmptyAddsStillValidateAPartitionBearingSubject(): void
@@ -664,9 +664,9 @@ SQL,
         ));
 
         try {
-            $user->syncPermissionsWithForbidden(
+            $user->syncPermissionEffects(
                 allowed: [$allowed],
-                forbidden: [$failing],
+                denied: [$failing],
             );
             $this->fail('Expected the forced permission assignment failure.');
         } catch (QueryException) {
@@ -694,14 +694,14 @@ SQL,
         $this->assertTrue($registrar->getCacheRepository()->has($cacheKey));
         $this->assertSame($cachedAssignments, $registrar->getCacheRepository()->get($cacheKey));
 
-        $user->syncPermissionsWithForbidden(
+        $user->syncPermissionEffects(
             allowed: [$allowed],
-            forbidden: [$failing],
+            denied: [$failing],
         );
 
         $this->assertFalse($user->hasDirectPermission($current));
         $this->assertTrue($user->hasDirectPermission($allowed));
-        $this->assertTrue($user->hasForbiddenPermission($failing));
+        $this->assertTrue($user->hasDeniedPermission($failing));
     }
 
     public function testApplicationTransactionRollsBackRoleAssignmentWhenTouchingTheRelatedModelsFails(): void

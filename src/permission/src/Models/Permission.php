@@ -103,7 +103,7 @@ class Permission extends Model implements PermissionContract
             $registrar->pivotRole,
             'roles',
             $context,
-        )->withPivot('is_forbidden');
+        )->withPivot('is_denied');
     }
 
     /**

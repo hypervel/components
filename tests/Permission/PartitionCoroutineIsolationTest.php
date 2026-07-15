@@ -33,7 +33,7 @@ class PartitionCoroutineIsolationTest extends PartitionTestCase
         $permissionB = PartitionedPermission::create(['name' => 'articles.*']);
         $roleB = PartitionedRole::create(['name' => 'viewer']);
         $user->assignRole($roleB);
-        $user->giveForbiddenTo($permissionB);
+        $user->denyPermissionTo($permissionB);
 
         $userKey = $user->getKey();
 
@@ -51,7 +51,7 @@ class PartitionCoroutineIsolationTest extends PartitionTestCase
                     'owner' => $user->hasRole('owner'),
                     'viewer' => $user->hasRole('viewer'),
                     'allowed' => $user->hasPermissionTo('articles.edit'),
-                    'forbidden' => $user->hasForbiddenPermission($permission),
+                    'denied' => $user->hasDeniedPermission($permission),
                     'roles' => $user->roles->pluck('name')->all(),
                 ];
             },
@@ -68,7 +68,7 @@ class PartitionCoroutineIsolationTest extends PartitionTestCase
                     'owner' => $user->hasRole('owner'),
                     'viewer' => $user->hasRole('viewer'),
                     'allowed' => $user->hasPermissionTo('articles.edit'),
-                    'forbidden' => $user->hasForbiddenPermission($permission),
+                    'denied' => $user->hasDeniedPermission($permission),
                     'roles' => $user->roles->pluck('name')->all(),
                 ];
             },
@@ -79,7 +79,7 @@ class PartitionCoroutineIsolationTest extends PartitionTestCase
             'owner' => true,
             'viewer' => false,
             'allowed' => true,
-            'forbidden' => false,
+            'denied' => false,
             'roles' => ['owner'],
         ], $partitionA);
         $this->assertSame([
@@ -87,7 +87,7 @@ class PartitionCoroutineIsolationTest extends PartitionTestCase
             'owner' => false,
             'viewer' => true,
             'allowed' => false,
-            'forbidden' => true,
+            'denied' => true,
             'roles' => ['viewer'],
         ], $partitionB);
         $this->assertSame(self::PARTITION_B, PartitionContext::get());

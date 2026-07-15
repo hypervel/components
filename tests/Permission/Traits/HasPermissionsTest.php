@@ -596,11 +596,11 @@ class HasPermissionsTest extends TestCase
         $this->assertFalse($user->hasPermissionTo('edit-news'));
     }
 
-    public function testQueuedSyncPermissionsReplacesEarlierQueuedForbiddenPermissionAssignment(): void
+    public function testQueuedSyncPermissionsReplacesEarlierQueuedDeniedPermissionAssignment(): void
     {
-        $user = new User(['email' => 'queued-sync-forbidden@example.com']);
+        $user = new User(['email' => 'queued-sync-denied@example.com']);
 
-        $user->giveForbiddenTo('edit-articles');
+        $user->denyPermissionTo('edit-articles');
         $user->syncPermissions('edit-articles');
         $user->save();
 
@@ -608,7 +608,7 @@ class HasPermissionsTest extends TestCase
 
         $this->assertSame(1, $user->permissions()->count());
         $this->assertTrue($user->hasPermissionTo('edit-articles'));
-        $this->assertFalse($user->hasForbiddenPermission('edit-articles'));
+        $this->assertFalse($user->hasDeniedPermission('edit-articles'));
     }
 
     public function testItDoesNotRunUnnecessarySqlWhenAssigningNewPermissions(): void

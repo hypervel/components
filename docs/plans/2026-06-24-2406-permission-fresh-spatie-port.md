@@ -4,7 +4,7 @@
 
 Fresh-port the current `spatie/laravel-permission` package into `src/permission` for Hypervel 0.4, while preserving the useful Hypervel-specific improvements from the existing package:
 
-- Forbidden permissions, where a denied permission overrides direct and role-granted allows.
+- Denied permissions, where an explicit deny overrides direct and role-granted allows.
 - Hot permission-check caching tuned for long-lived Swoole workers.
 - Coroutine-safe request/team state.
 - Strict PHP 8.4+ types, docblocks, and PHPStan-clean code.
@@ -73,7 +73,7 @@ The current upstream state inspected for this plan was commit `c2c871a` with tag
 
    Teams are a supported Spatie feature and should be available in Hypervel. The base published migration should support teams when teams are enabled before the initial migration, and `permission:setup-teams` should be ported so an app can enable teams after its first install by publishing the teams upgrade migration stub.
 
-7. Preserve forbidden permissions.
+7. Preserve denied permissions.
 
    This is a real Hypervel improvement. It should be integrated into the Spatie API shape rather than kept as a separate old implementation.
 
@@ -147,18 +147,18 @@ database/migrations/add_teams_fields.php.stub
 
 ## Current Hypervel Improvements To Preserve
 
-### Forbidden Permissions
+### Denied Permissions
 
-Preserve the current `is_forbidden` concept:
+Preserve the explicit denial concept using the final single-edge representation:
 
-- Add `is_forbidden` to `role_has_permissions`.
-- Add `is_forbidden` to `model_has_permissions`.
-- `giveForbiddenTo(...)` attaches permissions with `is_forbidden = true`.
-- `hasForbiddenPermission(...)` checks direct forbidden permissions.
-- `hasForbiddenPermissionViaRoles(...)` checks forbidden permissions inherited through assigned roles.
-- `hasPermissionTo(...)`, `checkPermissionTo(...)`, Gate checks, and middleware checks must return false when a forbidden permission applies.
-- If a permission is both allowed and forbidden, forbidden wins.
-- `getAllPermissions()` and `getPermissionsViaRoles()` should exclude forbidden permissions from the allowed result sets.
+- Add `is_denied` to `role_has_permissions`.
+- Add `is_denied` to `model_has_permissions`.
+- `denyPermissionTo(...)` attaches permissions with `is_denied = true`.
+- `hasDeniedPermission(...)` checks direct denied permissions.
+- `hasDeniedPermissionViaRoles(...)` checks denied permissions inherited through assigned roles.
+- `hasPermissionTo(...)`, `checkPermissionTo(...)`, Gate checks, and middleware checks must return false when a denied permission applies.
+- If a permission appears in both allowed and denied sync inputs, denied wins.
+- `getAllPermissions()` and `getPermissionsViaRoles()` should exclude denied permissions from the allowed result sets.
 
 Use Spatie's canonical methods as the public surface:
 
@@ -183,7 +183,7 @@ Keep the useful idea from the current `PermissionManager`: direct model roles an
 
 Implement this through the new `PermissionRegistrar`:
 
-- Global permission/role cache stores current role and permission records needed to hydrate checks, extended to include `is_forbidden` pivot data.
+- Global permission/role cache stores current role and permission records needed to hydrate checks, extended to include `is_denied` pivot data.
 - Model direct-role cache stores assignment identifiers and pivot flags, not full role records.
 - Model direct-permission cache stores assignment identifiers and pivot flags, not full permission records.
 - Cache keys include morph class, model key, and active team id when teams are enabled.
@@ -291,7 +291,7 @@ Register `AboutCommand` under `Hypervel Permissions`, not `Spatie Permissions`. 
 - Teams
 - Wildcard Permissions
 - Passport Client Credentials
-- Forbidden Permissions
+- Denied Permissions
 
 ### Intentional Difference Comments
 
@@ -373,7 +373,7 @@ Create the greenfield base migration for Hypervel 0.4 and port the teams upgrade
 Changes from Spatie:
 
 - Use Hypervel namespaces.
-- Include `is_forbidden` columns.
+- Include `is_denied` columns.
 - Keep teams support in the primary migration and also ship the teams upgrade stub for later opt-in.
 - Use `timestamp`, not `timestampTz`.
 - Include a real `down()` method on the base create migration, matching Spatie and the existing Hypervel migration.
@@ -400,15 +400,15 @@ When teams are enabled:
 - role unique constraints include team foreign key.
 - pivot foreign keys still cascade on delete.
 
-Add `is_forbidden`:
+Add `is_denied`:
 
 ```php
-$table->boolean('is_forbidden')->default(false);
+$table->boolean('is_denied')->default(false);
 ```
 
-Use default false because this is a security flag and because old Hypervel semantics treat normal grants as allowed unless explicitly forbidden.
+Use default false because normal grants are allowed unless explicitly denied.
 
-Include `is_forbidden` in the primary keys for `model_has_permissions` and `role_has_permissions`. This allows an allow row and a forbidden row to coexist for the same permission tuple so forbidden permissions can override allows.
+Keep `is_denied` outside the primary keys for `model_has_permissions` and `role_has_permissions`. Each assignment tuple has one row, and assigning the opposite effect updates that existing edge.
 
 ### Permission Registrar
 
@@ -446,7 +446,7 @@ When serializing the global permission cache, use a simple explicit payload inst
 - permission attributes
 - role relation
 - role attributes
-- `is_forbidden` pivot data for role-permission rows
+- `is_denied` pivot data for role-permission rows
 
 Honor `permission.cache.column_names_except` when building the explicit payload so timestamp and soft-delete columns can be stripped without keeping Spatie's alias-compression complexity.
 
@@ -568,7 +568,7 @@ Required model behavior:
 - role/permission relations use configured pivot keys.
 - user/model inverse relations use `model` morph naming.
 - teams support on role creation and queries.
-- forbidden permission support in relations and checks.
+- denied permission support in relations and checks.
 
 Use `CarbonInterface` or `CarbonImmutable` annotations where needed, not mutable `Carbon`.
 
@@ -583,15 +583,15 @@ HasPermissions
 HasRoles
 ```
 
-Then merge Hypervel forbidden-permission behavior into `HasPermissions`.
+Then merge Hypervel denied-permission behavior into `HasPermissions`.
 
 Important points:
 
 - `HasRoles` uses `HasPermissions`.
 - `Role` uses `HasAssignedModels`, `HasPermissions`, and `RefreshesPermissionCache`.
 - `Permission` uses `HasRoles` and `RefreshesPermissionCache`.
-- `HasPermissions::permissions()` must include `withPivot('is_forbidden')`.
-- `Role::permissions()` and `Permission::roles()` must include `withPivot('is_forbidden')`.
+- `HasPermissions::permissions()` must include `withPivot('is_denied')`.
+- `Role::permissions()` and `Permission::roles()` must include `withPivot('is_denied')`.
 - team pivot behavior must match Spatie.
 - `teams()` relation should return a harmless empty relation when teams are disabled, matching upstream v7.4.1+.
 - `scopeRole`, `scopeWithoutRole`, `scopePermission`, `scopeWithoutPermission`, `scopeTeam`, and `scopeWithoutTeam` must be ported.
@@ -600,16 +600,16 @@ Important points:
 - `Model::preventLazyLoading()` tests should pass.
 - `Permission::getPermissions()` and `Role::getRoles()` must not mutate singleton registrar model classes as part of normal lookup. Upstream Spatie calls setters in some subclass paths; in Hypervel, lookup methods must pass the requested model class into registrar query helpers so one coroutine cannot change the class used by another coroutine.
 
-Forbidden logic should fit into canonical methods:
+Denied logic should fit into canonical methods:
 
 ```php
 public function hasPermissionTo($permission, ?string $guardName = null): bool
 {
-    if ($this->hasForbiddenPermission($permission, $guardName)) {
+    if ($this->hasDeniedPermission($permission, $guardName)) {
         return false;
     }
 
-    if ($this->hasForbiddenPermissionViaRoles($permission, $guardName)) {
+    if ($this->hasDeniedPermissionViaRoles($permission, $guardName)) {
         return false;
     }
 
@@ -623,9 +623,9 @@ public function hasPermissionTo($permission, ?string $guardName = null): bool
 }
 ```
 
-When merging the archived forbidden-permission behavior, do not copy the old rough edges:
+When merging the archived denied-permission behavior, do not copy the old rough edges:
 
-- use strict comparisons and `(bool)` pivot casts for `is_forbidden`
+- use strict comparisons and `(bool)` pivot casts for `is_denied`
 - use `getKey()` / `getKeyName()` and configured pivot keys, never hardcoded `id`
 
 For role models, `hasPermissionTo()` must still validate guard compatibility against the permission's guard.
@@ -636,9 +636,9 @@ Port `Contracts\Wildcard`, `WildcardPermission`, wildcard exceptions, and all wi
 
 Keep Spatie's algorithm. It is already optimized upstream and includes recent performance work. Do not add a worker-lifetime wildcard index unless implementation proves it is needed and can be invalidated with the same model assignment versioning. The first fresh port should keep the wildcard behavior easy to compare with upstream.
 
-Forbidden permissions must apply before wildcard allows.
+Denied permissions must apply before wildcard allows.
 
-Forbidden checks that run before the wildcard path must match the input against the subject's forbidden permission names, IDs, and enum values without routing wildcard-pattern strings through `filterPermission()`. A wildcard input such as `posts.*` should not throw `PermissionDoesNotExist` before the wildcard matcher has a chance to evaluate it.
+Denied checks that run before the wildcard path must match the input against the subject's denied permission names, IDs, and enum values without routing wildcard-pattern strings through `filterPermission()`. A wildcard input such as `posts.*` should not throw `PermissionDoesNotExist` before the wildcard matcher has a chance to evaluate it.
 
 ### Events
 
@@ -744,7 +744,7 @@ Update the package README to include:
 - current status for Hypervel 0.4
 - installation
 - key differences from Spatie Laravel Permission
-- forbidden permissions
+- denied permissions
 - Swoole/cache notes
 - Passport support
 
@@ -757,7 +757,7 @@ Add `Differences From Spatie Laravel Permission`:
   request/team state uses coroutine context, and permission cache freshness is
   handled by configured cache stores, per-coroutine memoization, stack cache,
   and explicit invalidation.
-- Hypervel adds forbidden permissions. A forbidden permission explicitly denies
+- Hypervel adds denied permissions. A denied permission explicitly rejects
   an ability and wins over direct or role-granted allows.
 ```
 
@@ -773,7 +773,7 @@ Update `src/boost/docs/permission.md` to match the fresh port:
 - commands.
 - route macros.
 - Blade directives.
-- forbidden permissions.
+- denied permissions.
 - cache memo / stack advice.
 
 Remove old `owner_*` docs.
@@ -856,23 +856,23 @@ Key adaptations:
 - typed injected config repository
 - no runtime config mutation
 - configured cache repository plus memo wrapper
-- forbidden pivot data in serialized cache
+- denied pivot data in serialized cache
 - coroutine-safe team id resolver
 - cache key helpers for model role/direct permission caches
 - static `flushState()` for test cleanup
 
 ### 4. Port Models And Traits
 
-Port `Role`, `Permission`, and traits. Merge forbidden permission support into `HasPermissions` after the Spatie base is compiling.
+Port `Role`, `Permission`, and traits. Merge denied permission support into `HasPermissions` after the Spatie base is compiling.
 
 Why: this preserves upstream behavior first, then layers Hypervel's improvement into the correct points.
 
-Forbidden methods to add:
+Denied methods to add:
 
 ```php
-public function giveForbiddenTo(...$permissions): static;
-public function hasForbiddenPermission($permission, ?string $guardName = null): bool;
-public function hasForbiddenPermissionViaRoles($permission, ?string $guardName = null): bool;
+public function denyPermissionTo(...$permissions): static;
+public function hasDeniedPermission($permission, ?string $guardName = null): bool;
+public function hasDeniedPermissionViaRoles($permission, ?string $guardName = null): bool;
 ```
 
 `syncPermissions()` keeps Spatie's variadic API and return type:
@@ -881,13 +881,13 @@ public function hasForbiddenPermissionViaRoles($permission, ?string $guardName =
 $model->syncPermissions(['edit articles', 'delete articles']);
 ```
 
-Add a dedicated dual-list helper for forbidden sync so Spatie call sites stay intact:
+Add a dedicated dual-effect helper so Spatie call sites stay intact:
 
 ```php
-public function syncPermissionsWithForbidden(array|Collection $allowed = [], array|Collection $forbidden = []): array;
+public function syncPermissionEffects(array|Collection $allowed = [], array|Collection $denied = []): array;
 ```
 
-The helper accepts allowed and forbidden permission lists, syncs both direct-pivot sets, invalidates direct permission caches, and returns the `BelongsToMany::sync()` change array. `syncPermissions(...$permissions)` must continue to return `static`, matching Spatie.
+The helper accepts allowed and denied permission lists, synchronizes direct-pivot effects, invalidates direct permission caches, and returns the assignment change array. `syncPermissions(...$permissions)` must continue to return `static`, matching Spatie.
 
 ### 5. Port Middleware, Events, Blade, Route Macros, Commands
 
@@ -1022,23 +1022,23 @@ Only add these comments where upstream tests would otherwise be ported.
 
 Add tests beyond upstream where Hypervel architecture or improvements require proof.
 
-#### Forbidden Permissions
+#### Denied Permissions
 
 Cover:
 
-- direct forbidden permission denies `hasPermissionTo()`
-- direct forbidden denies `can()` through Gate
-- role forbidden denies role-granted allow
-- role forbidden denies direct allow
-- forbidden wins when allowed and forbidden are both passed
-- forbidden permissions inherited through roles work with custom role and permission primary keys
+- direct denied permission denies `hasPermissionTo()`
+- direct denied permission denies `can()` through Gate
+- role denied permission denies role-granted allow
+- role denied permission denies direct allow
+- denied wins when allowed and denied are both passed
+- denied permissions inherited through roles work with custom role and permission primary keys
 - pure unit enums work for role and permission assignment/check paths
-- `getAllPermissions()` excludes forbidden permissions
-- `getPermissionsViaRoles()` excludes forbidden role permissions
+- `getAllPermissions()` excludes denied permissions
+- `getPermissionsViaRoles()` excludes denied role permissions
 - `syncPermissions()` keeps Spatie behavior
-- forbidden sync helper returns correct attached/detached/updated data
-- role-permission forbidden pivot is included in global cache
-- model direct forbidden pivot is included in model direct-permission cache
+- denied sync helper returns correct attached/detached/updated data
+- role-permission denied pivot is included in global cache
+- model direct denied pivot is included in model direct-permission cache
 
 #### Cache And Memo
 
@@ -1047,7 +1047,7 @@ Cover:
 - repeated permission checks in one coroutine do not repeatedly hit the underlying configured cache store
 - `Cache::memo()` over a configured stack store works for permission cache reads
 - model direct role cache invalidates after `assignRole`, `removeRole`, and `syncRoles`
-- model direct permission cache invalidates after `givePermissionTo`, `giveForbiddenTo`, `revokePermissionTo`, and forbidden sync helper
+- model direct permission cache invalidates after `givePermissionTo`, `denyPermissionTo`, `revokePermissionTo`, and denied sync helper
 - role/permission model save/delete clears global permission cache
 - role/permission model save/delete bumps the model assignment-cache version so old per-subject cache entries are bypassed
 - `permission:cache-reset` clears the global catalog and bumps the model assignment-cache version
@@ -1156,7 +1156,7 @@ composer fix
 
 - The package source is a fresh Hypervel port of the current upstream Spatie package.
 - Public APIs match Spatie unless this plan records an intentional Hypervel difference.
-- Forbidden permissions are preserved and fully tested.
+- Denied permissions are preserved and fully tested.
 - Teams are coroutine-safe.
 - Passport client-credentials support is present and fake-tested.
 - Events stay dormant when no listeners exist.
@@ -1176,7 +1176,7 @@ composer fix
 3. Pull `/tmp/spatie-laravel-permission`.
 4. Confirm current package has been archived and only skeleton files remain.
 5. Copy and port source files one at a time from upstream.
-6. Merge the archived Hypervel forbidden-permission and cache improvements into the Spatie-shaped implementation.
+6. Merge the archived Hypervel denied-permission and cache improvements into the Spatie-shaped implementation.
 7. Port tests file by file, running each file immediately.
 8. Add Hypervel-specific tests listed above.
 9. Update README and Boost docs.
