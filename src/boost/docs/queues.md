@@ -2805,6 +2805,8 @@ class ProcessPodcast implements ShouldQueue
 }
 ```
 
+The `Backoff` attribute also accepts the same sequence as separate arguments: `#[Backoff(1, 5, 10)]`.
+
 <a name="cleaning-up-after-failed-jobs"></a>
 ### Cleaning Up After Failed Jobs
 
