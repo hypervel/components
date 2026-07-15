@@ -42,7 +42,7 @@ class BroadcastEvent implements ShouldQueue
     /**
      * The number of seconds to wait before retrying the job when encountering an uncaught exception.
      */
-    public ?int $backoff;
+    public array|int|null $backoff;
 
     /**
      * The maximum number of unhandled exceptions to allow before failing.

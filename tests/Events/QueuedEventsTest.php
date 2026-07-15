@@ -16,6 +16,7 @@ use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Events\Dispatcher;
+use Hypervel\Queue\Attributes\Backoff;
 use Hypervel\Queue\Attributes\Delay;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
@@ -43,6 +44,25 @@ class QueuedEventsTest extends TestCase
 
         $d->listen('some.event', TestDispatcherQueuedHandler::class . '@someMethod');
         $d->dispatch('some.event', ['foo', 'bar']);
+    }
+
+    public function testQueuedEnumEventsRemainSerializable(): void
+    {
+        $dispatcher = new Dispatcher;
+        $queue = new QueueFake(new Container);
+
+        $dispatcher->setQueueResolver(fn () => $queue);
+        $dispatcher->listen(QueuedEvent::class, TestDispatcherQueuedHandler::class . '@handle');
+        $dispatcher->dispatch(QueuedEvent::Created);
+
+        $queue->assertPushed(CallQueuedListener::class, function (CallQueuedListener $job): bool {
+            $clone = clone $job;
+
+            $this->assertSame(QueuedEvent::Created, $clone->data[0]);
+            $this->assertIsString(serialize($clone));
+
+            return true;
+        });
     }
 
     public function testCustomizedQueuedEventHandlersAreQueued()
@@ -261,6 +281,36 @@ class QueuedEventsTest extends TestCase
         $fakeQueue->assertPushed(CallQueuedListener::class, function ($job) {
             return $job->tries === 5;
         });
+    }
+
+    public function testQueuePropagatesArrayBackoffFromMethod(): void
+    {
+        $dispatcher = new Dispatcher;
+        $queue = new QueueFake(new Container);
+
+        $dispatcher->setQueueResolver(fn () => $queue);
+        $dispatcher->listen('some.event', TestDispatcherWithBackoffMethod::class . '@handle');
+        $dispatcher->dispatch('some.event', ['foo', 'bar']);
+
+        $queue->assertPushed(
+            CallQueuedListener::class,
+            fn (CallQueuedListener $job): bool => $job->backoff === [1, 5, 10]
+        );
+    }
+
+    public function testQueuePropagatesVariadicBackoffAttribute(): void
+    {
+        $dispatcher = new Dispatcher;
+        $queue = new QueueFake(new Container);
+
+        $dispatcher->setQueueResolver(fn () => $queue);
+        $dispatcher->listen('some.event', TestDispatcherWithBackoffAttribute::class . '@handle');
+        $dispatcher->dispatch('some.event', ['foo', 'bar']);
+
+        $queue->assertPushed(
+            CallQueuedListener::class,
+            fn (CallQueuedListener $job): bool => $job->backoff === [1, 5, 10]
+        );
     }
 
     public function testQueuePropagateMessageGroupProperty()
@@ -490,7 +540,7 @@ class QueuedEventsTest extends TestCase
 
         $this->assertSame(TestDispatcherShouldBeUnique::class, $listener->displayName());
         $this->assertSame(
-            'laravel_unique_job:' . TestDispatcherShouldBeUnique::class . ':test-id',
+            'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUnique::class) . ':test-id',
             \Hypervel\Bus\UniqueLock::getKey($listener)
         );
     }
@@ -506,7 +556,7 @@ class QueuedEventsTest extends TestCase
 
         $container->instance(Cache::class, $cache);
 
-        $expectedKey = 'laravel_unique_job:' . TestDispatcherShouldBeUnique::class . ':unique-listener-id';
+        $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUnique::class) . ':unique-listener-id';
 
         $cache->shouldReceive('lock')
             ->once()
@@ -540,7 +590,7 @@ class QueuedEventsTest extends TestCase
 
         TestDispatcherShouldBeUniqueWithCustomCache::$cache = $uniqueCache;
 
-        $expectedKey = 'laravel_unique_job:' . TestDispatcherShouldBeUniqueWithCustomCache::class . ':unique-listener-id';
+        $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUniqueWithCustomCache::class) . ':unique-listener-id';
 
         $uniqueCache->shouldReceive('lock')
             ->once()
@@ -572,7 +622,7 @@ class QueuedEventsTest extends TestCase
         $listener->uniqueId = 'unique-listener-id';
         $listener->uniqueFor = 60;
 
-        $expectedKey = 'laravel_unique_job:' . TestDispatcherShouldBeUnique::class . ':unique-listener-id';
+        $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUnique::class) . ':unique-listener-id';
 
         $cache->shouldReceive('lock')
             ->once()
@@ -602,14 +652,14 @@ class QueuedEventsTest extends TestCase
 
         TestDispatcherShouldBeUniqueUntilProcessing::$lockReleasedBeforeHandling = null;
         TestDispatcherShouldBeUniqueUntilProcessing::$cache = $cache;
-        TestDispatcherShouldBeUniqueUntilProcessing::$expectedLockKey = 'laravel_unique_job:' . TestDispatcherShouldBeUniqueUntilProcessing::class . ':until-processing-id';
+        TestDispatcherShouldBeUniqueUntilProcessing::$expectedLockKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUniqueUntilProcessing::class) . ':until-processing-id';
 
         $listener = new CallQueuedListener(TestDispatcherShouldBeUniqueUntilProcessing::class, 'handle', ['foo', 'bar']);
         $listener->shouldBeUnique = true;
         $listener->shouldBeUniqueUntilProcessing = true;
         $listener->uniqueId = 'until-processing-id';
 
-        $expectedKey = 'laravel_unique_job:' . TestDispatcherShouldBeUniqueUntilProcessing::class . ':until-processing-id';
+        $expectedKey = 'laravel_unique_job:' . hash('xxh128', TestDispatcherShouldBeUniqueUntilProcessing::class) . ':until-processing-id';
 
         $cache->shouldReceive('lock')
             ->with($expectedKey)
@@ -636,6 +686,11 @@ class TestDispatcherQueuedHandler implements ShouldQueue
     public function handle()
     {
     }
+}
+
+enum QueuedEvent
+{
+    case Created;
 }
 
 class TestDispatcherConnectionQueuedHandler implements ShouldQueue
@@ -729,6 +784,26 @@ class TestDispatcherOptions implements ShouldQueue
     }
 
     public function handle()
+    {
+    }
+}
+
+class TestDispatcherWithBackoffMethod implements ShouldQueue
+{
+    public function backoff(): array
+    {
+        return [1, 5, 10];
+    }
+
+    public function handle(): void
+    {
+    }
+}
+
+#[Backoff(1, 5, 10)]
+class TestDispatcherWithBackoffAttribute implements ShouldQueue
+{
+    public function handle(): void
     {
     }
 }
