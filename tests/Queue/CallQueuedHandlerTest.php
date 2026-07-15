@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hypervel\Bus\BatchRepository;
+use Hypervel\Bus\Dispatcher as ConcreteBusDispatcher;
 use Hypervel\Bus\Queueable;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\Repository as Cache;
@@ -18,10 +20,14 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Events\CallQueuedListener;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\FakeJob;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionMethod;
 use RuntimeException;
+use Swoole\Coroutine\Channel;
+
+use function Hypervel\Coroutine\parallel;
 
 class CallQueuedHandlerTest extends TestCase
 {
@@ -277,6 +283,57 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertNull($handler->getRunningCommand());
     }
 
+    public function testConcurrentMappedHandlersReceiveTheirOwnJobInstance(): void
+    {
+        $container = new Container;
+        $dispatcher = new ConcreteBusDispatcher($container);
+        $dispatcher->map([
+            CallQueuedHandlerTestMappedCommand::class => CallQueuedHandlerTestMappedHandler::class,
+        ]);
+        $handler = new CallQueuedHandler($dispatcher, $container);
+
+        $firstReady = new Channel(1);
+        $secondReady = new Channel(1);
+        $firstJob = new FakeJob;
+        $secondJob = new FakeJob;
+
+        [$firstResolved, $secondResolved] = parallel([
+            function () use ($handler, $firstJob, $firstReady, $secondReady) {
+                $resolved = $this->invokeMethod(
+                    $handler,
+                    'resolveHandler',
+                    [$firstJob, new CallQueuedHandlerTestMappedCommand]
+                );
+
+                $firstReady->push(true);
+
+                if ($secondReady->pop(1.0) !== true) {
+                    throw new RuntimeException('Timed out waiting for the second mapped handler.');
+                }
+
+                return $resolved;
+            },
+            function () use ($handler, $secondJob, $firstReady, $secondReady) {
+                if ($firstReady->pop(1.0) !== true) {
+                    throw new RuntimeException('Timed out waiting for the first mapped handler.');
+                }
+
+                $resolved = $this->invokeMethod(
+                    $handler,
+                    'resolveHandler',
+                    [$secondJob, new CallQueuedHandlerTestMappedCommand]
+                );
+                $secondReady->push(true);
+
+                return $resolved;
+            },
+        ]);
+
+        $this->assertNotSame($firstResolved, $secondResolved);
+        $this->assertSame($firstJob, $firstResolved->job);
+        $this->assertSame($secondJob, $secondResolved->job);
+    }
+
     private function createHandler(): CallQueuedHandler
     {
         return new CallQueuedHandler(
@@ -321,6 +378,15 @@ class CallQueuedHandlerTestRegularJob implements ShouldQueue
     public function handle(): void
     {
     }
+}
+
+class CallQueuedHandlerTestMappedCommand
+{
+}
+
+class CallQueuedHandlerTestMappedHandler
+{
+    use InteractsWithQueue;
 }
 
 class CallQueuedHandlerTestRunningCommandJob implements ShouldQueue
