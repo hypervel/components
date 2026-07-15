@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Events\CoroutineEventsTest;
 
 use Hypervel\Context\CoroutineContext;
-use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use RuntimeException;
 
-use function Hypervel\Coroutine\go;
+use function Hypervel\Coroutine\parallel;
 
 class CoroutineEventsTest extends TestCase
 {
@@ -28,47 +27,40 @@ class CoroutineEventsTest extends TestCase
             $results[] = 'b-dispatched';
         });
 
-        $waiter = new WaitGroup;
-
         // Track whether events were correctly deferred (not dispatched during callback)
         $aDeferredDuringCallback = null;
         $bDeferredDuringCallback = null;
 
-        // Coroutine 1: defer event-a, sleep to let coroutine 2 run, then complete
-        $waiter->add(1);
-        go(function () use ($dispatcher, &$results, &$aDeferredDuringCallback, $waiter) {
-            $dispatcher->defer(function () use ($dispatcher, &$results, &$aDeferredDuringCallback) {
-                $dispatcher->dispatch('event-a');
+        parallel([
+            // Coroutine 1: defer event-a, sleep to let coroutine 2 run, then complete
+            function () use ($dispatcher, &$results, &$aDeferredDuringCallback) {
+                $dispatcher->defer(function () use ($dispatcher, &$results, &$aDeferredDuringCallback) {
+                    $dispatcher->dispatch('event-a');
 
-                // Event should be deferred, not dispatched yet
-                $aDeferredDuringCallback = ! in_array('a-dispatched', $results, true);
+                    // Event should be deferred, not dispatched yet
+                    $aDeferredDuringCallback = ! in_array('a-dispatched', $results, true);
 
-                usleep(10000); // 10ms — let coroutine 2 start its defer
-            });
+                    usleep(10000); // 10ms — let coroutine 2 start its defer
+                });
 
-            // After defer() completes, event-a should have been dispatched
-            $results[] = 'coroutine-1-done';
-            $waiter->done();
-        });
+                // After defer() completes, event-a should have been dispatched
+                $results[] = 'coroutine-1-done';
+            },
+            // Coroutine 2: defer event-b independently
+            function () use ($dispatcher, &$results, &$bDeferredDuringCallback) {
+                usleep(5000); // 5ms — start after coroutine 1 enters defer
 
-        // Coroutine 2: defer event-b independently
-        $waiter->add(1);
-        go(function () use ($dispatcher, &$results, &$bDeferredDuringCallback, $waiter) {
-            usleep(5000); // 5ms — start after coroutine 1 enters defer
+                $dispatcher->defer(function () use ($dispatcher, &$results, &$bDeferredDuringCallback) {
+                    $dispatcher->dispatch('event-b');
 
-            $dispatcher->defer(function () use ($dispatcher, &$results, &$bDeferredDuringCallback) {
-                $dispatcher->dispatch('event-b');
+                    // Event should be deferred, not dispatched yet
+                    $bDeferredDuringCallback = ! in_array('b-dispatched', $results, true);
+                });
 
-                // Event should be deferred, not dispatched yet
-                $bDeferredDuringCallback = ! in_array('b-dispatched', $results, true);
-            });
-
-            // After defer() completes, event-b should have been dispatched
-            $results[] = 'coroutine-2-done';
-            $waiter->done();
-        });
-
-        $waiter->wait();
+                // After defer() completes, event-b should have been dispatched
+                $results[] = 'coroutine-2-done';
+            },
+        ]);
 
         // Events were correctly deferred inside their respective callbacks
         $this->assertTrue($aDeferredDuringCallback, 'event-a should have been deferred during callback');
@@ -95,29 +87,22 @@ class CoroutineEventsTest extends TestCase
             }
         });
 
-        $waiter = new WaitGroup;
-
-        // Coroutine 1: defer and dispatch with source=coroutine-1
-        $waiter->add(1);
-        go(function () use ($dispatcher, $waiter) {
-            $dispatcher->defer(function () use ($dispatcher) {
-                $dispatcher->dispatch('shared-event', ['coroutine-1']);
-                usleep(15000); // 15ms — hold open while coroutine 2 finishes defer
-            });
-            $waiter->done();
-        });
-
-        // Coroutine 2: defer and dispatch with source=coroutine-2
-        $waiter->add(1);
-        go(function () use ($dispatcher, $waiter) {
-            usleep(5000); // 5ms delay
-            $dispatcher->defer(function () use ($dispatcher) {
-                $dispatcher->dispatch('shared-event', ['coroutine-2']);
-            });
-            $waiter->done();
-        });
-
-        $waiter->wait();
+        parallel([
+            // Coroutine 1: defer and dispatch with source=coroutine-1
+            function () use ($dispatcher) {
+                $dispatcher->defer(function () use ($dispatcher) {
+                    $dispatcher->dispatch('shared-event', ['coroutine-1']);
+                    usleep(15000); // 15ms — hold open while coroutine 2 finishes defer
+                });
+            },
+            // Coroutine 2: defer and dispatch with source=coroutine-2
+            function () use ($dispatcher) {
+                usleep(5000); // 5ms delay
+                $dispatcher->defer(function () use ($dispatcher) {
+                    $dispatcher->dispatch('shared-event', ['coroutine-2']);
+                });
+            },
+        ]);
 
         // Each coroutine should have dispatched its own event independently
         $this->assertCount(1, $coroutine1Events);
@@ -133,27 +118,20 @@ class CoroutineEventsTest extends TestCase
             $flushed[] = $source;
         });
 
-        $waiter = new WaitGroup;
+        parallel([
+            function () use ($dispatcher) {
+                $dispatcher->push('shared-event', ['coroutine-1']);
 
-        $waiter->add(1);
-        go(function () use ($dispatcher, $waiter) {
-            $dispatcher->push('shared-event', ['coroutine-1']);
+                usleep(10000);
 
-            usleep(10000);
+                $dispatcher->flush('shared-event');
+            },
+            function () use ($dispatcher) {
+                usleep(5000);
 
-            $dispatcher->flush('shared-event');
-            $waiter->done();
-        });
-
-        $waiter->add(1);
-        go(function () use ($dispatcher, $waiter) {
-            usleep(5000);
-
-            $dispatcher->push('shared-event', ['coroutine-2']);
-            $waiter->done();
-        });
-
-        $waiter->wait();
+                $dispatcher->push('shared-event', ['coroutine-2']);
+            },
+        ]);
 
         $this->assertSame(['coroutine-1'], $flushed);
     }
@@ -167,28 +145,21 @@ class CoroutineEventsTest extends TestCase
             $flushed[] = $source;
         });
 
-        $waiter = new WaitGroup;
+        parallel([
+            function () use ($dispatcher) {
+                $dispatcher->push('shared-event', ['coroutine-1']);
 
-        $waiter->add(1);
-        go(function () use ($dispatcher, $waiter) {
-            $dispatcher->push('shared-event', ['coroutine-1']);
+                usleep(10000);
 
-            usleep(10000);
+                $dispatcher->flush('shared-event');
+            },
+            function () use ($dispatcher) {
+                usleep(5000);
 
-            $dispatcher->flush('shared-event');
-            $waiter->done();
-        });
-
-        $waiter->add(1);
-        go(function () use ($dispatcher, $waiter) {
-            usleep(5000);
-
-            $dispatcher->push('shared-event', ['coroutine-2']);
-            $dispatcher->forgetPushed();
-            $waiter->done();
-        });
-
-        $waiter->wait();
+                $dispatcher->push('shared-event', ['coroutine-2']);
+                $dispatcher->forgetPushed();
+            },
+        ]);
 
         $this->assertSame(['coroutine-1'], $flushed);
     }
