@@ -65,11 +65,32 @@ class BusPendingDispatchTest extends TestCase
         $this->pendingDispatch->onGroup('test-group');
     }
 
+    public function testOnGroupForwardsAnArray(): void
+    {
+        $groups = ['first', 'second'];
+
+        $this->job->shouldReceive('onGroup')->once()->with($groups);
+        $this->pendingDispatch->onGroup($groups);
+    }
+
     public function testWithDeduplicator()
     {
         $deduplicator = fn () => 'id';
         $this->job->shouldReceive('withDeduplicator')->once()->with($deduplicator);
         $this->pendingDispatch->withDeduplicator($deduplicator);
+    }
+
+    public function testWithDeduplicatorForwardsAnArrayCallable(): void
+    {
+        $deduplicator = [$this, 'resolveDeduplicationId'];
+
+        $this->job->shouldReceive('withDeduplicator')->once()->with($deduplicator);
+        $this->pendingDispatch->withDeduplicator($deduplicator);
+    }
+
+    public function resolveDeduplicationId(): string
+    {
+        return 'id';
     }
 
     public function testAllOnConnection()

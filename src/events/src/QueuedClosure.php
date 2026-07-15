@@ -33,12 +33,14 @@ class QueuedClosure
     /**
      * The job "group" the job should be sent to.
      */
-    public ?string $messageGroup = null;
+    public int|string|null $messageGroup = null;
 
     /**
      * The job deduplicator callback the job should use to generate the deduplication ID.
+     *
+     * @var null|callable
      */
-    public ?SerializableClosure $deduplicator = null;
+    public mixed $deduplicator = null;
 
     /**
      * The number of seconds before the job should be made available.
@@ -141,7 +143,7 @@ class QueuedClosure
                 ->onQueue($this->queue)
                 ->delay($this->delay)
                 ->onGroup($this->messageGroup)
-                ->withDeduplicator($this->deduplicator?->getClosure());
+                ->withDeduplicator($this->deduplicator);
         };
     }
 }
