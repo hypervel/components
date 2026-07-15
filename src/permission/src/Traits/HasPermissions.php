@@ -316,7 +316,7 @@ trait HasPermissions
             'permissions',
             teamScoped: $teamScoped,
             context: $context,
-        )->withPivot('is_forbidden');
+        )->withPivot('is_denied');
     }
 
     /**
@@ -344,7 +344,7 @@ trait HasPermissions
                 ->get()
                 ->map(fn (Model $permission): array => [
                     $permissionKey => $permission->getKey(),
-                    'is_forbidden' => $this->pivotIsForbidden($permission),
+                    'is_denied' => $this->pivotIsDenied($permission),
                 ])
                 ->values()
                 ->all(),
@@ -368,7 +368,7 @@ trait HasPermissions
                     $registrar->pivotPermission => $permission->getKey(),
                     Config::morphKey() => $model->getKey(),
                     'model_type' => $model->getMorphClass(),
-                    'is_forbidden' => (bool) ($assignment['is_forbidden'] ?? false),
+                    'is_denied' => (bool) $assignment['is_denied'],
                 ];
 
                 if ($registrar->teams) {
@@ -399,7 +399,7 @@ trait HasPermissions
     protected function allowedDirectPermissions(): Collection
     {
         return $this->getCachedDirectPermissions()
-            ->reject(fn (Model $permission): bool => $this->pivotIsForbidden($permission))
+            ->reject(fn (Model $permission): bool => $this->pivotIsDenied($permission))
             ->values();
     }
 
@@ -453,17 +453,17 @@ trait HasPermissions
     /**
      * Add a permission-effect predicate for direct and role-granted permissions.
      */
-    protected function wherePermissionEffect(Builder $query, int|string $permissionId, bool $forbidden): Builder
+    protected function wherePermissionEffect(Builder $query, int|string $permissionId, bool $denied): Builder
     {
         $query->whereHas(
             'permissions',
-            fn (Builder $query) => $this->whereDirectPermissionEffect($query, $permissionId, $forbidden),
+            fn (Builder $query) => $this->whereDirectPermissionEffect($query, $permissionId, $denied),
         );
 
         if (! $this instanceof Role) {
             $query->orWhereHas(
                 'roles.permissions',
-                fn (Builder $query) => $this->whereRolePermissionEffect($query, $permissionId, $forbidden),
+                fn (Builder $query) => $this->whereRolePermissionEffect($query, $permissionId, $denied),
             );
         }
 
@@ -473,7 +473,7 @@ trait HasPermissions
     /**
      * Add a direct permission-effect predicate.
      */
-    protected function whereDirectPermissionEffect(Builder $query, int|string $permissionId, bool $forbidden): Builder
+    protected function whereDirectPermissionEffect(Builder $query, int|string $permissionId, bool $denied): Builder
     {
         $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
         $pivotTable = $this instanceof Role
@@ -482,19 +482,19 @@ trait HasPermissions
 
         return $query
             ->where(Config::permissionsTable() . ".{$permissionKey}", $permissionId)
-            ->where("{$pivotTable}.is_forbidden", $forbidden);
+            ->where("{$pivotTable}.is_denied", $denied);
     }
 
     /**
      * Add a role permission-effect predicate.
      */
-    protected function whereRolePermissionEffect(Builder $query, int|string $permissionId, bool $forbidden): Builder
+    protected function whereRolePermissionEffect(Builder $query, int|string $permissionId, bool $denied): Builder
     {
         $permissionKey = Guard::getModelKeyName($this->getPermissionClass());
 
         return $query
             ->where(Config::permissionsTable() . ".{$permissionKey}", $permissionId)
-            ->where(Config::roleHasPermissionsTable() . '.is_forbidden', $forbidden);
+            ->where(Config::roleHasPermissionsTable() . '.is_denied', $denied);
     }
 
     /**
@@ -586,11 +586,11 @@ trait HasPermissions
     public function hasPermissionTo($permission, ?string $guardName = null): bool
     {
         if ($this->getWildcardClass()) {
-            if ($this->hasForbiddenPermission($permission, $guardName)) {
+            if ($this->hasDeniedPermission($permission, $guardName)) {
                 return false;
             }
 
-            if ($this->hasForbiddenPermissionViaRoles($permission, $guardName)) {
+            if ($this->hasDeniedPermissionViaRoles($permission, $guardName)) {
                 return false;
             }
 
@@ -599,11 +599,11 @@ trait HasPermissions
 
         $permission = $this->filterPermission($permission, $guardName);
 
-        if ($this->hasForbiddenPermission($permission, $guardName)) {
+        if ($this->hasDeniedPermission($permission, $guardName)) {
             return false;
         }
 
-        if ($this->hasForbiddenPermissionViaRoles($permission, $guardName)) {
+        if ($this->hasDeniedPermissionViaRoles($permission, $guardName)) {
             return false;
         }
 
@@ -706,7 +706,7 @@ trait HasPermissions
 
         return $this->hasRole(
             $this->relationCollection($permission, 'roles')
-                ->reject(fn (Model $role): bool => $this->pivotIsForbidden($role))
+                ->reject(fn (Model $role): bool => $this->pivotIsDenied($role))
         );
     }
 
@@ -725,7 +725,7 @@ trait HasPermissions
             ->filter(fn (Model $directPermission): bool => $directPermission->getKey() === $permission->getKey());
 
         return $matches->isNotEmpty()
-            && ! $matches->contains(fn (Model $directPermission): bool => $this->pivotIsForbidden($directPermission));
+            && ! $matches->contains(fn (Model $directPermission): bool => $this->pivotIsDenied($directPermission));
     }
 
     /**
@@ -734,10 +734,10 @@ trait HasPermissions
     public function getPermissionsViaRoles(): Collection
     {
         $permissions = $this->getPermissionsViaRolesWithPivots();
-        $forbiddenPermissionKeys = $this->forbiddenPermissionKeys($permissions);
+        $deniedPermissionKeys = $this->deniedPermissionKeys($permissions);
 
         return $permissions
-            ->reject(fn (Model $permission): bool => isset($forbiddenPermissionKeys[$this->permissionComparisonKey($permission)]))
+            ->reject(fn (Model $permission): bool => isset($deniedPermissionKeys[$this->permissionComparisonKey($permission)]))
             ->unique(fn (Model $permission): string => $this->permissionComparisonKey($permission))
             ->sort()
             ->values();
@@ -752,11 +752,11 @@ trait HasPermissions
         $viaRolePermissions = $this instanceof Permission
             ? collect()
             : $this->getPermissionsViaRolesWithPivots();
-        $forbiddenPermissionKeys = $this->forbiddenPermissionKeys($directPermissions, $viaRolePermissions);
+        $deniedPermissionKeys = $this->deniedPermissionKeys($directPermissions, $viaRolePermissions);
 
         return $directPermissions
             ->merge($viaRolePermissions)
-            ->reject(fn (Model $permission): bool => isset($forbiddenPermissionKeys[$this->permissionComparisonKey($permission)]))
+            ->reject(fn (Model $permission): bool => isset($deniedPermissionKeys[$this->permissionComparisonKey($permission)]))
             ->unique(fn (Model $permission): string => $this->permissionComparisonKey($permission))
             ->sort()
             ->values();
@@ -793,7 +793,7 @@ trait HasPermissions
     }
 
     /**
-     * Grant the given permission(s) to a role.
+     * Grant the given permission(s) to the model.
      *
      * @param array|Collection|int|Permission|string|UnitEnum $permissions
      */
@@ -803,21 +803,21 @@ trait HasPermissions
     }
 
     /**
-     * Grant the given forbidden permission(s) to a role.
+     * Deny the given permission(s) for the model.
      *
      * @param array|Collection|int|Permission|string|UnitEnum $permissions
      */
-    public function giveForbiddenTo(...$permissions): static
+    public function denyPermissionTo(...$permissions): static
     {
         return $this->attachPermissions($permissions, true);
     }
 
     /**
-     * Attach permissions with the given forbidden flag.
+     * Attach permissions with the given denied flag.
      *
      * @param array<int, mixed> $permissions
      */
-    private function attachPermissions(array $permissions, bool $isForbidden): static
+    private function attachPermissions(array $permissions, bool $isDenied): static
     {
         $model = $this;
         $registrar = $this->permissionRegistrar();
@@ -830,7 +830,7 @@ trait HasPermissions
             return $this;
         }
 
-        $pivot = $this->permissionAssignmentPivot($isForbidden, $context);
+        $pivot = $this->permissionAssignmentPivot($isDenied, $context);
 
         if (! $model->exists) {
             $this->queuePermissionAssignments($permissions, $pivot, $context);
@@ -840,8 +840,8 @@ trait HasPermissions
         }
 
         $changes = $this->synchronizePermissionAssignments(
-            $isForbidden ? [] : $permissions,
-            $isForbidden ? $permissions : [],
+            $isDenied ? [] : $permissions,
+            $isDenied ? $permissions : [],
             $context,
             false,
         );
@@ -874,12 +874,12 @@ trait HasPermissions
      * @return array<string, mixed>
      */
     private function permissionAssignmentPivot(
-        bool $isForbidden,
+        bool $isDenied,
         PermissionRelationContext $context,
     ): array {
         $registrar = $this->permissionRegistrar();
 
-        $pivot = ['is_forbidden' => $isForbidden];
+        $pivot = ['is_denied' => $isDenied];
 
         if ($context->partition) {
             $pivot[$context->partition->column] = $context->partition->value;
@@ -951,12 +951,12 @@ trait HasPermissions
      * Synchronize direct permission assignment presence and effects.
      *
      * @param array<int, int|string> $allowed
-     * @param array<int, int|string> $forbidden
+     * @param array<int, int|string> $denied
      * @return array{attached: array<int, int|string>, detached: array<int, int|string>, updated: array<int, int|string>}
      */
     private function synchronizePermissionAssignments(
         array $allowed,
-        array $forbidden,
+        array $denied,
         PermissionRelationContext $context,
         bool $detaching,
     ): array {
@@ -965,14 +965,14 @@ trait HasPermissions
         foreach ($this->indexAssignmentIds($allowed) as $identity => $permission) {
             $desired[$identity] = [
                 'id' => $permission,
-                'is_forbidden' => false,
+                'is_denied' => false,
             ];
         }
 
-        foreach ($this->indexAssignmentIds($forbidden) as $identity => $permission) {
+        foreach ($this->indexAssignmentIds($denied) as $identity => $permission) {
             $desired[$identity] = [
                 'id' => $permission,
-                'is_forbidden' => true,
+                'is_denied' => true,
             ];
         }
 
@@ -981,7 +981,7 @@ trait HasPermissions
             $relatedPivotKey = $relation->getRelatedPivotKeyName();
             $pivots = $this->readCurrentAssignmentPivots(
                 $relation,
-                [$relatedPivotKey, 'is_forbidden'],
+                [$relatedPivotKey, 'is_denied'],
                 $detaching ? null : array_column($desired, 'id'),
             );
 
@@ -992,7 +992,7 @@ trait HasPermissions
 
                 $current[$this->assignmentIdIdentity($id)] = [
                     'id' => $id,
-                    'is_forbidden' => $this->permissionEffectIsForbidden($pivot->is_forbidden),
+                    'is_denied' => $this->permissionEffectIsDenied($pivot->is_denied),
                 ];
             }
 
@@ -1002,9 +1002,9 @@ trait HasPermissions
                 'updated' => [],
             ];
             $attachAllowed = [];
-            $attachForbidden = [];
+            $attachDenied = [];
             $updateAllowed = [];
-            $updateForbidden = [];
+            $updateDenied = [];
 
             if ($detaching) {
                 foreach (array_diff_key($current, $desired) as $assignment) {
@@ -1018,8 +1018,8 @@ trait HasPermissions
                 if ($currentAssignment === null) {
                     $changes['attached'][] = $assignment['id'];
 
-                    if ($assignment['is_forbidden']) {
-                        $attachForbidden[] = $assignment['id'];
+                    if ($assignment['is_denied']) {
+                        $attachDenied[] = $assignment['id'];
                     } else {
                         $attachAllowed[] = $assignment['id'];
                     }
@@ -1027,11 +1027,11 @@ trait HasPermissions
                     continue;
                 }
 
-                if ($currentAssignment['is_forbidden'] !== $assignment['is_forbidden']) {
+                if ($currentAssignment['is_denied'] !== $assignment['is_denied']) {
                     $changes['updated'][] = $assignment['id'];
 
-                    if ($assignment['is_forbidden']) {
-                        $updateForbidden[] = $assignment['id'];
+                    if ($assignment['is_denied']) {
+                        $updateDenied[] = $assignment['id'];
                     } else {
                         $updateAllowed[] = $assignment['id'];
                     }
@@ -1050,9 +1050,9 @@ trait HasPermissions
                 );
             }
 
-            if ($attachForbidden !== []) {
+            if ($attachDenied !== []) {
                 $relation->attach(
-                    $attachForbidden,
+                    $attachDenied,
                     $this->permissionAssignmentPivot(true, $context),
                     false,
                 );
@@ -1063,13 +1063,13 @@ trait HasPermissions
             if ($updateAllowed !== []) {
                 $relation->newPivotQuery()
                     ->whereIn($relatedPivotKey, $updateAllowed)
-                    ->update(['is_forbidden' => false]);
+                    ->update(['is_denied' => false]);
             }
 
-            if ($updateForbidden !== []) {
+            if ($updateDenied !== []) {
                 $relation->newPivotQuery()
-                    ->whereIn($relatedPivotKey, $updateForbidden)
-                    ->update(['is_forbidden' => true]);
+                    ->whereIn($relatedPivotKey, $updateDenied)
+                    ->update(['is_denied' => true]);
             }
 
             if ($changes['attached'] !== []
@@ -1321,7 +1321,7 @@ trait HasPermissions
         foreach ($collapsed as $assignment) {
             $pivot = $assignment['pivot'];
             $batchKey = $assignment['context']->identity() . ':'
-                . ((bool) $pivot['is_forbidden'] ? 'forbidden' : 'allowed');
+                . ((bool) $pivot['is_denied'] ? 'denied' : 'allowed');
 
             $batches[$batchKey] ??= [
                 'permissions' => [],
@@ -1428,29 +1428,29 @@ trait HasPermissions
     }
 
     /**
-     * Remove all current permissions and set allowed and forbidden permissions.
+     * Remove all current permissions and set allowed and denied permissions.
      *
      * For unsaved models, assignments are queued until the model is saved and
      * the returned change set is empty because no database rows are changed yet.
      *
      * @param array<array-key, mixed>|Collection<array-key, mixed> $allowed
-     * @param array<array-key, mixed>|Collection<array-key, mixed> $forbidden
+     * @param array<array-key, mixed>|Collection<array-key, mixed> $denied
      * @return array{attached: array<int, int|string>, detached: array<int, int|string>, updated: array<int, int|string>}
      */
-    public function syncPermissionsWithForbidden(array|Collection $allowed = [], array|Collection $forbidden = []): array
+    public function syncPermissionEffects(array|Collection $allowed = [], array|Collection $denied = []): array
     {
         $registrar = $this->permissionRegistrar();
         $context = $this->permissionAssignmentContext($registrar);
 
         $allowedIds = $this->collectPermissions($allowed, $context->partition);
-        $forbiddenIds = $this->collectPermissions($forbidden, $context->partition);
+        $deniedIds = $this->collectPermissions($denied, $context->partition);
         $allowedIds = array_values(array_filter(
             $allowedIds,
-            fn (int|string $allowedId): bool => ! in_array($allowedId, $forbiddenIds, true),
+            fn (int|string $allowedId): bool => ! in_array($allowedId, $deniedIds, true),
         ));
-        $permissions = array_merge($allowedIds, $forbiddenIds);
+        $permissions = array_merge($allowedIds, $deniedIds);
         $allowedPivot = $this->permissionAssignmentPivot(false, $context);
-        $forbiddenPivot = $this->permissionAssignmentPivot(true, $context);
+        $deniedPivot = $this->permissionAssignmentPivot(true, $context);
 
         if (! $this->exists) {
             $this->replaceQueuedPermissionAssignments(
@@ -1461,8 +1461,8 @@ trait HasPermissions
                         'context' => $context,
                     ],
                     [
-                        'permissions' => $forbiddenIds,
-                        'pivot' => $forbiddenPivot,
+                        'permissions' => $deniedIds,
+                        'pivot' => $deniedPivot,
                         'context' => $context,
                     ],
                 ],
@@ -1475,7 +1475,7 @@ trait HasPermissions
 
         $changes = $this->synchronizePermissionAssignments(
             $allowedIds,
-            $forbiddenIds,
+            $deniedIds,
             $context,
             true,
         );
@@ -1574,27 +1574,27 @@ trait HasPermissions
     }
 
     /**
-     * Determine if the model has a forbidden direct permission.
+     * Determine if the model has an explicit denied direct permission.
      *
      * @param int|Permission|string|UnitEnum $permission
      */
-    public function hasForbiddenPermission($permission, ?string $guardName = null): bool
+    public function hasDeniedPermission($permission, ?string $guardName = null): bool
     {
         $guardName = $this->guardNameForPermissionMatch($permission, $guardName);
 
         return $this->getCachedDirectPermissions()
             ->contains(
-                fn (Model $storedPermission): bool => $this->pivotIsForbidden($storedPermission)
+                fn (Model $storedPermission): bool => $this->pivotIsDenied($storedPermission)
                 && $this->storedPermissionMatches($storedPermission, $permission, $guardName)
             );
     }
 
     /**
-     * Determine if the model has a forbidden permission via roles.
+     * Determine if the model has an explicit denied permission via roles.
      *
      * @param int|Permission|string|UnitEnum $permission
      */
-    public function hasForbiddenPermissionViaRoles($permission, ?string $guardName = null): bool
+    public function hasDeniedPermissionViaRoles($permission, ?string $guardName = null): bool
     {
         if ($this instanceof Role || $this instanceof Permission) {
             return false;
@@ -1608,7 +1608,7 @@ trait HasPermissions
 
         $registrar = $this->permissionRegistrar();
 
-        if (! $registrar->hasForbiddenRolePermissions()) {
+        if (! $registrar->hasDeniedRolePermissions()) {
             return false;
         }
 
@@ -1624,7 +1624,7 @@ trait HasPermissions
         return $this->relationCollection($storedPermission, 'roles')
             ->contains(
                 fn (Model $role): bool => isset($roleIds[(string) $role->getKey()])
-                    && $this->pivotIsForbidden($role)
+                    && $this->pivotIsDenied($role)
             );
     }
 
@@ -1706,15 +1706,15 @@ trait HasPermissions
     }
 
     /**
-     * Build lookup keys for forbidden permissions.
+     * Build lookup keys for denied permissions.
      */
-    protected function forbiddenPermissionKeys(Collection ...$permissionCollections): array
+    protected function deniedPermissionKeys(Collection ...$permissionCollections): array
     {
         $keys = [];
 
         foreach ($permissionCollections as $permissions) {
             foreach ($permissions as $permission) {
-                if ($permission instanceof Model && $this->pivotIsForbidden($permission)) {
+                if ($permission instanceof Model && $this->pivotIsDenied($permission)) {
                     $keys[$this->permissionComparisonKey($permission)] = true;
                 }
             }
@@ -1743,9 +1743,9 @@ trait HasPermissions
     }
 
     /**
-     * Determine if a hydrated pivot marks the permission as forbidden.
+     * Determine if a hydrated pivot marks the permission as denied.
      */
-    protected function pivotIsForbidden(Model $model): bool
+    protected function pivotIsDenied(Model $model): bool
     {
         if (! $model->relationLoaded('pivot')) {
             return false;
@@ -1754,13 +1754,13 @@ trait HasPermissions
         $pivot = $model->getRelation('pivot');
 
         return $pivot instanceof Pivot
-            && $this->permissionEffectIsForbidden($pivot->getAttribute('is_forbidden'));
+            && $this->permissionEffectIsDenied($pivot->getAttribute('is_denied'));
     }
 
     /**
      * Normalize a permission assignment effect.
      */
-    protected function permissionEffectIsForbidden(mixed $value): bool
+    protected function permissionEffectIsDenied(mixed $value): bool
     {
         // Framework connectors disable stringified fetches, so booleans arrive as bool or 0/1.
         return (bool) $value;

@@ -187,24 +187,24 @@ class PartitionQueryCountTest extends PartitionTestCase
     public function testPermissionEffectSyncBatchesMixedFlipsIntoTwoUpdates(): void
     {
         $user = GlobalPartitionUser::create(['email' => 'permission-effects@example.com']);
-        $toForbiddenOne = PartitionedPermission::create(['name' => 'articles.forbid-one']);
-        $toForbiddenTwo = PartitionedPermission::create(['name' => 'articles.forbid-two']);
+        $toDeniedOne = PartitionedPermission::create(['name' => 'articles.deny-one']);
+        $toDeniedTwo = PartitionedPermission::create(['name' => 'articles.deny-two']);
         $toAllowedOne = PartitionedPermission::create(['name' => 'articles.allow-one']);
         $toAllowedTwo = PartitionedPermission::create(['name' => 'articles.allow-two']);
         $unchangedAllowed = PartitionedPermission::create(['name' => 'articles.allowed']);
-        $unchangedForbidden = PartitionedPermission::create(['name' => 'articles.forbidden']);
+        $unchangedDenied = PartitionedPermission::create(['name' => 'articles.denied']);
 
-        $user->syncPermissionsWithForbidden(
-            [$toForbiddenOne, $toForbiddenTwo, $unchangedAllowed],
-            [$toAllowedOne, $toAllowedTwo, $unchangedForbidden],
+        $user->syncPermissionEffects(
+            [$toDeniedOne, $toDeniedTwo, $unchangedAllowed],
+            [$toAllowedOne, $toAllowedTwo, $unchangedDenied],
         );
 
         DB::enableQueryLog();
         DB::flushQueryLog();
 
-        $changes = $user->syncPermissionsWithForbidden(
+        $changes = $user->syncPermissionEffects(
             [$toAllowedOne, $toAllowedTwo, $unchangedAllowed],
-            [$toForbiddenOne, $toForbiddenTwo, $unchangedForbidden],
+            [$toDeniedOne, $toDeniedTwo, $unchangedDenied],
         );
         $queries = DB::getQueryLog();
 
@@ -214,8 +214,8 @@ class PartitionQueryCountTest extends PartitionTestCase
             'updated' => [
                 $toAllowedOne->getKey(),
                 $toAllowedTwo->getKey(),
-                $toForbiddenOne->getKey(),
-                $toForbiddenTwo->getKey(),
+                $toDeniedOne->getKey(),
+                $toDeniedTwo->getKey(),
             ],
         ], $changes);
         $this->assertCount(3, $queries);
@@ -226,9 +226,9 @@ class PartitionQueryCountTest extends PartitionTestCase
         $this->assertContains($toAllowedOne->getKey(), $queries[1]['bindings']);
         $this->assertContains($toAllowedTwo->getKey(), $queries[1]['bindings']);
         $this->assertNotContains($unchangedAllowed->getKey(), $queries[1]['bindings']);
-        $this->assertContains($toForbiddenOne->getKey(), $queries[2]['bindings']);
-        $this->assertContains($toForbiddenTwo->getKey(), $queries[2]['bindings']);
-        $this->assertNotContains($unchangedForbidden->getKey(), $queries[2]['bindings']);
+        $this->assertContains($toDeniedOne->getKey(), $queries[2]['bindings']);
+        $this->assertContains($toDeniedTwo->getKey(), $queries[2]['bindings']);
+        $this->assertNotContains($unchangedDenied->getKey(), $queries[2]['bindings']);
     }
 
     public function testRoleRemovalWithoutAListenerUsesOneBlindDelete(): void

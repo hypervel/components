@@ -142,15 +142,15 @@ class EventTest extends TestCase
         $this->assertTrue($listenerSawPermission);
     }
 
-    public function testSyncPermissionsWithForbiddenDispatchesPermissionAttachedEventOnce(): void
+    public function testSyncPermissionEffectsDispatchesPermissionAttachedEventOnce(): void
     {
         $this->app->make('config')->set('permission.events_enabled', true);
 
         Event::fake([PermissionAttachedEvent::class]);
 
-        $this->testUser->syncPermissionsWithForbidden(
+        $this->testUser->syncPermissionEffects(
             allowed: ['edit-articles'],
-            forbidden: ['edit-news'],
+            denied: ['edit-news'],
         );
 
         $editNewsPermission = $this->app->make(PermissionContract::class)::findByName('edit-news');
@@ -212,17 +212,17 @@ class EventTest extends TestCase
         });
     }
 
-    public function testDeferredForbiddenPermissionSyncDispatchesOnceBeforeSave(): void
+    public function testDeferredDeniedPermissionSyncDispatchesOnceBeforeSave(): void
     {
         $this->app->make('config')->set('permission.events_enabled', true);
 
         Event::fake([PermissionAttachedEvent::class]);
 
-        $user = new User(['email' => 'queued-forbidden-event@example.com']);
+        $user = new User(['email' => 'queued-denied-event@example.com']);
 
-        $user->syncPermissionsWithForbidden(
+        $user->syncPermissionEffects(
             allowed: ['edit-articles'],
-            forbidden: ['edit-news'],
+            denied: ['edit-news'],
         );
 
         Event::assertDispatchedTimes(PermissionAttachedEvent::class, 1);
@@ -356,7 +356,7 @@ class EventTest extends TestCase
 
         Event::fake([PermissionAttachedEvent::class, PermissionDetachedEvent::class]);
 
-        $this->testUser->giveForbiddenTo('edit-articles');
+        $this->testUser->denyPermissionTo('edit-articles');
 
         Event::assertDispatched(PermissionAttachedEvent::class, function (PermissionAttachedEvent $event): bool {
             return $event->model->is($this->testUser)

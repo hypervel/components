@@ -578,8 +578,8 @@ class PermissionRegistrar
     /**
      * Remember a model's permission assignment ids.
      *
-     * @param Closure(): array<int, array<string, mixed>> $callback
-     * @return array<int, array<string, mixed>>
+     * @param Closure(): array<int, array{is_denied: bool, ...<string, int|string>}> $callback
+     * @return array<int, array{is_denied: bool, ...<string, int|string>}>
      */
     public function rememberModelPermissionAssignments(Model $model, Closure $callback): array
     {
@@ -931,7 +931,7 @@ class PermissionRegistrar
      *     roleByKey: array<string, Model>,
      *     roleByNameAndGuard: array<string, list<Model>>,
      *     roleOrderByKey: array<string, int>,
-     *     hasForbiddenRolePermissions: bool
+     *     hasDeniedRolePermissions: bool
      * }
      */
     private function permissionCatalog(): array
@@ -940,11 +940,11 @@ class PermissionRegistrar
         $catalogs = CoroutineContext::get(self::PERMISSION_CATALOG_CONTEXT_KEY, []);
 
         if (isset($catalogs[$contextKey]) && is_array($catalogs[$contextKey])) {
-            /** @var array{permissions: Collection, roles: Collection, permissionByKey: array<string, Model>, permissionByNameAndGuard: array<string, list<Model>>, permissionOrderByKey: array<string, int>, roleByKey: array<string, Model>, roleByNameAndGuard: array<string, list<Model>>, roleOrderByKey: array<string, int>, hasForbiddenRolePermissions: bool} */
+            /** @var array{permissions: Collection, roles: Collection, permissionByKey: array<string, Model>, permissionByNameAndGuard: array<string, list<Model>>, permissionOrderByKey: array<string, int>, roleByKey: array<string, Model>, roleByNameAndGuard: array<string, list<Model>>, roleOrderByKey: array<string, int>, hasDeniedRolePermissions: bool} */
             return $catalogs[$contextKey];
         }
 
-        /** @var array{permissions: array<int, array<string, mixed>>, roles: array<int, array<string, mixed>>, hasForbiddenRolePermissions?: bool} $payload */
+        /** @var array{permissions: array<int, array<string, mixed>>, roles: array<int, array<string, mixed>>, hasDeniedRolePermissions: bool} $payload */
         $payload = $this->cacheRepository()->remember(
             $contextKey,
             $this->cacheExpirationTime,
@@ -963,7 +963,7 @@ class PermissionRegistrar
             'roleByKey' => $this->indexModelsByKey($roles),
             'roleByNameAndGuard' => $this->indexModelsByNameAndGuard($roles),
             'roleOrderByKey' => $this->indexModelOrderByKey($roles),
-            'hasForbiddenRolePermissions' => (bool) ($payload['hasForbiddenRolePermissions'] ?? false),
+            'hasDeniedRolePermissions' => (bool) $payload['hasDeniedRolePermissions'],
         ];
 
         $catalogs[$contextKey] = $catalog;
@@ -1327,25 +1327,25 @@ class PermissionRegistrar
     /**
      * Serialize permissions for cache.
      *
-     * @return array{permissions: array<int, array<string, mixed>>, roles: array<int, array<string, mixed>>, hasForbiddenRolePermissions: bool}
+     * @return array{permissions: array<int, array<string, mixed>>, roles: array<int, array<string, mixed>>, hasDeniedRolePermissions: bool}
      */
     private function getSerializedPermissionsForCache(): array
     {
         $except = $this->config->array('permission.cache.column_names_except', ['created_at', 'updated_at', 'deleted_at']);
-        $hasForbiddenRolePermissions = false;
+        $hasDeniedRolePermissions = false;
         $partition = $this->resolvePartition();
 
         return [
             'permissions' => $this->getPermissionsWithRoles()
-                ->map(function (Model $permission) use ($except, &$hasForbiddenRolePermissions, $partition): array {
+                ->map(function (Model $permission) use ($except, &$hasDeniedRolePermissions, $partition): array {
                     $roles = $this->relationCollection($permission, 'roles')
-                        ->map(function (Model $role) use ($permission, &$hasForbiddenRolePermissions, $partition): array {
-                            $isForbidden = $this->pivotIsForbidden($role);
-                            $hasForbiddenRolePermissions = $hasForbiddenRolePermissions || $isForbidden;
+                        ->map(function (Model $role) use ($permission, &$hasDeniedRolePermissions, $partition): array {
+                            $isDenied = $this->pivotIsDenied($role);
+                            $hasDeniedRolePermissions = $hasDeniedRolePermissions || $isDenied;
                             $pivot = [
                                 $this->pivotPermission => $permission->getKey(),
                                 $this->pivotRole => $role->getKey(),
-                                'is_forbidden' => $isForbidden,
+                                'is_denied' => $isDenied,
                             ];
 
                             if ($partition) {
@@ -1372,22 +1372,22 @@ class PermissionRegistrar
                 ])
                 ->values()
                 ->all(),
-            'hasForbiddenRolePermissions' => $hasForbiddenRolePermissions,
+            'hasDeniedRolePermissions' => $hasDeniedRolePermissions,
         ];
     }
 
     /**
-     * Determine if any cached role-permission edge is forbidden.
+     * Determine if any cached role-permission edge is denied.
      */
-    public function hasForbiddenRolePermissions(): bool
+    public function hasDeniedRolePermissions(): bool
     {
-        return (bool) $this->permissionCatalog()['hasForbiddenRolePermissions'];
+        return (bool) $this->permissionCatalog()['hasDeniedRolePermissions'];
     }
 
     /**
-     * Determine if a hydrated pivot marks the permission as forbidden.
+     * Determine if a hydrated pivot marks the permission as denied.
      */
-    protected function pivotIsForbidden(Model $model): bool
+    protected function pivotIsDenied(Model $model): bool
     {
         if (! $model->relationLoaded('pivot')) {
             return false;
@@ -1395,7 +1395,7 @@ class PermissionRegistrar
 
         $pivot = $model->getRelation('pivot');
 
-        return $pivot instanceof Pivot && (bool) $pivot->getAttribute('is_forbidden');
+        return $pivot instanceof Pivot && (bool) $pivot->getAttribute('is_denied');
     }
 
     /**

@@ -55,7 +55,7 @@ return new class extends Migration {
             $table->unsignedBigInteger($pivotPermission);
             $table->string('model_type');
             $table->unsignedBigInteger($modelMorphKey);
-            $table->boolean('is_forbidden')->default(false);
+            $table->boolean('is_denied')->default(false);
             $table->index([$modelMorphKey, 'model_type'], 'model_has_permissions_model_id_model_type_index');
 
             $table->foreign($pivotPermission)
@@ -97,7 +97,7 @@ return new class extends Migration {
         Schema::create($tableNames['role_has_permissions'], static function (Blueprint $table) use ($tableNames, $pivotRole, $pivotPermission): void {
             $table->unsignedBigInteger($pivotPermission);
             $table->unsignedBigInteger($pivotRole);
-            $table->boolean('is_forbidden')->default(false);
+            $table->boolean('is_denied')->default(false);
 
             $table->foreign($pivotPermission)
                 ->references('id')

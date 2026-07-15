@@ -144,11 +144,11 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $this->assertCount(0, User::permission('edit-news')->get());
     }
 
-    public function testForbiddenPermissionFlipsExistingAllowedPermissionForCurrentTeamOnly(): void
+    public function testDeniedPermissionFlipsExistingAllowedPermissionForCurrentTeamOnly(): void
     {
         setPermissionsTeamId(1);
         $this->testUser->givePermissionTo('edit-articles');
-        $this->testUser->giveForbiddenTo('edit-articles');
+        $this->testUser->denyPermissionTo('edit-articles');
 
         setPermissionsTeamId(2);
         $this->testUser->givePermissionTo('edit-articles');
@@ -156,36 +156,36 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         setPermissionsTeamId(1);
         $this->testUser->unsetRelation('permissions');
         $this->assertSame(1, $this->testUser->permissions()->count());
-        $this->assertTrue($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertTrue($this->testUser->hasDeniedPermission('edit-articles'));
         $this->assertSame([], $this->testUser->getPermissionNames()->all());
 
         setPermissionsTeamId(2);
         $this->testUser->unsetRelation('permissions');
         $this->assertSame(1, $this->testUser->permissions()->count());
-        $this->assertFalse($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertFalse($this->testUser->hasDeniedPermission('edit-articles'));
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
         $this->assertSame(['edit-articles'], $this->testUser->getPermissionNames()->all());
     }
 
-    public function testAllowedPermissionFlipsExistingForbiddenPermissionForCurrentTeamOnly(): void
+    public function testAllowedPermissionFlipsExistingDeniedPermissionForCurrentTeamOnly(): void
     {
         setPermissionsTeamId(1);
-        $this->testUser->giveForbiddenTo('edit-articles');
+        $this->testUser->denyPermissionTo('edit-articles');
         $this->testUser->givePermissionTo('edit-articles');
 
         setPermissionsTeamId(2);
-        $this->testUser->giveForbiddenTo('edit-articles');
+        $this->testUser->denyPermissionTo('edit-articles');
 
         setPermissionsTeamId(1);
         $this->testUser->unsetRelation('permissions');
         $this->assertSame(1, $this->testUser->permissions()->count());
-        $this->assertFalse($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertFalse($this->testUser->hasDeniedPermission('edit-articles'));
         $this->assertTrue($this->testUser->hasPermissionTo('edit-articles'));
 
         setPermissionsTeamId(2);
         $this->testUser->unsetRelation('permissions');
         $this->assertSame(1, $this->testUser->permissions()->count());
-        $this->assertTrue($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertTrue($this->testUser->hasDeniedPermission('edit-articles'));
         $this->assertFalse($this->testUser->hasPermissionTo('edit-articles'));
     }
 
@@ -236,9 +236,9 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $this->assertSame(['edit-articles'], $user->getPermissionNames()->all());
     }
 
-    public function testQueuedForbiddenSyncReplacesOnlyCurrentTeamPermissionAssignments(): void
+    public function testQueuedDeniedSyncReplacesOnlyCurrentTeamPermissionAssignments(): void
     {
-        $user = new User(['email' => 'queued-team-forbidden-sync@example.com']);
+        $user = new User(['email' => 'queued-team-denied-sync@example.com']);
 
         setPermissionsTeamId(1);
         $user->givePermissionTo('edit-news');
@@ -247,9 +247,9 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         $user->givePermissionTo('edit-articles');
 
         setPermissionsTeamId(1);
-        $changes = $user->syncPermissionsWithForbidden(
+        $changes = $user->syncPermissionEffects(
             allowed: ['edit-blog'],
-            forbidden: ['edit-articles'],
+            denied: ['edit-articles'],
         );
 
         $this->assertSame(['attached' => [], 'detached' => [], 'updated' => []], $changes);
@@ -259,39 +259,39 @@ class TeamHasPermissionsTest extends HasPermissionsTest
         setPermissionsTeamId(1);
         $user->unsetRelation('permissions');
         $this->assertSame(['edit-blog'], $user->getPermissionNames()->all());
-        $this->assertTrue($user->hasForbiddenPermission('edit-articles'));
+        $this->assertTrue($user->hasDeniedPermission('edit-articles'));
         $this->assertFalse($user->hasPermissionTo('edit-news'));
 
         setPermissionsTeamId(2);
         $user->unsetRelation('permissions');
         $this->assertSame(['edit-articles'], $user->getPermissionNames()->all());
-        $this->assertFalse($user->hasForbiddenPermission('edit-articles'));
+        $this->assertFalse($user->hasDeniedPermission('edit-articles'));
     }
 
-    public function testItRevokesForbiddenPermissionsForCurrentTeamOnly(): void
+    public function testItRevokesDeniedPermissionsForCurrentTeamOnly(): void
     {
         setPermissionsTeamId(1);
-        $this->testUser->giveForbiddenTo('edit-articles');
+        $this->testUser->denyPermissionTo('edit-articles');
 
         setPermissionsTeamId(2);
-        $this->testUser->giveForbiddenTo('edit-articles');
+        $this->testUser->denyPermissionTo('edit-articles');
 
         setPermissionsTeamId(1);
         $this->testUser->revokePermissionTo('edit-articles');
         $this->testUser->unsetRelation('permissions');
         $this->assertSame(0, $this->testUser->permissions()->count());
-        $this->assertFalse($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertFalse($this->testUser->hasDeniedPermission('edit-articles'));
 
         setPermissionsTeamId(2);
         $this->testUser->unsetRelation('permissions');
         $this->assertSame(1, $this->testUser->permissions()->count());
-        $this->assertTrue($this->testUser->hasForbiddenPermission('edit-articles'));
+        $this->assertTrue($this->testUser->hasDeniedPermission('edit-articles'));
     }
 
     public function testPermissionScopeUsesDirectPermissionEffectForCurrentTeamOnly(): void
     {
         setPermissionsTeamId(1);
-        $this->testUser->giveForbiddenTo('edit-articles');
+        $this->testUser->denyPermissionTo('edit-articles');
 
         setPermissionsTeamId(2);
         $this->testUser->givePermissionTo('edit-articles');

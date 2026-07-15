@@ -161,7 +161,7 @@ abstract class PartitionTestCase extends TestCase
             $table->uuid('workspace_id');
             $table->uuid('permission_test_id');
             $table->uuid('role_test_id');
-            $table->boolean('is_forbidden')->default(false);
+            $table->boolean('is_denied')->default(false);
             $table->primary(['workspace_id', 'permission_test_id', 'role_test_id']);
             $table->foreign(['workspace_id', 'permission_test_id'])
                 ->references(['workspace_id', 'id'])
@@ -203,7 +203,7 @@ abstract class PartitionTestCase extends TestCase
             $table->uuid('permission_test_id');
             $table->string('model_type');
             $table->uuid('model_test_id');
-            $table->boolean('is_forbidden')->default(false);
+            $table->boolean('is_denied')->default(false);
 
             $primary = ['workspace_id'];
 

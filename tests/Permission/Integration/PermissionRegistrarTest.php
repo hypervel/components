@@ -218,18 +218,15 @@ class PermissionRegistrarTest extends TestCase
         $this->assertSame('web', $permission->guard_name);
     }
 
-    public function testOldCachePayloadWithoutForbiddenRolePermissionFlagIsSafe(): void
+    public function testCatalogReportsWhetherItContainsDeniedRolePermissions(): void
     {
         $registrar = $this->app->make(PermissionRegistrar::class);
 
-        $registrar->getCacheRepository()->put($registrar->getCacheKey(), [
-            'permissions' => [],
-            'roles' => [],
-        ], 3600);
+        $this->assertFalse($registrar->hasDeniedRolePermissions());
 
-        $registrar->clearPermissionsCollection();
+        $this->testUserRole->denyPermissionTo($this->testUserPermission);
 
-        $this->assertFalse($registrar->hasForbiddenRolePermissions());
+        $this->assertTrue($registrar->hasDeniedRolePermissions());
     }
 
     public function testCatalogResolvedRolesExposeExpectedAttributes(): void

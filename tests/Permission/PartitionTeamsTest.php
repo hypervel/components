@@ -203,7 +203,7 @@ class PartitionTeamsTest extends PartitionTestCase
 
         setPermissionsTeamId($teamA2);
         $user->assignRole($firstRole);
-        $user->giveForbiddenTo($firstPermission);
+        $user->denyPermissionTo($firstPermission);
 
         setPermissionsTeamId($teamA1);
         $user->syncRoles($secondRole);
@@ -222,7 +222,7 @@ class PartitionTeamsTest extends PartitionTestCase
 
         setPermissionsTeamId($teamA2);
         $this->assertTrue($user->hasRole($firstRole));
-        $this->assertTrue($user->hasForbiddenPermission($firstPermission));
+        $this->assertTrue($user->hasDeniedPermission($firstPermission));
         $this->assertFalse($user->hasRole($secondRole));
         $this->assertFalse($user->hasDirectPermission($secondPermission));
     }

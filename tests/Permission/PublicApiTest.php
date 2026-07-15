@@ -9,12 +9,14 @@ use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Permission\Middleware\PermissionMiddleware;
 use Hypervel\Permission\Middleware\RoleMiddleware;
 use Hypervel\Permission\Middleware\RoleOrPermissionMiddleware;
+use Hypervel\Permission\PermissionRegistrar;
 use Hypervel\Routing\Router;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Facades\Blade;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Tests\Permission\Fixtures\Models\TestRolePermissionsEnum;
 use Hypervel\View\Compilers\BladeCompiler;
+use ReflectionClass;
 use ReflectionMethod;
 use ReflectionParameter;
 
@@ -91,10 +93,10 @@ class PublicApiTest extends TestCase
             'removeRole' => ['role'],
             'syncRoles' => ['roles'],
             'givePermissionTo' => ['permissions'],
-            'giveForbiddenTo' => ['permissions'],
+            'denyPermissionTo' => ['permissions'],
             'revokePermissionTo' => ['permission'],
             'syncPermissions' => ['permissions'],
-            'syncPermissionsWithForbidden' => ['allowed', 'forbidden'],
+            'syncPermissionEffects' => ['allowed', 'denied'],
         ];
 
         foreach ($methods as $method => $parameters) {
@@ -105,5 +107,23 @@ class PublicApiTest extends TestCase
                 array_map(static fn (ReflectionParameter $parameter): string => $parameter->getName(), $reflection->getParameters()),
             );
         }
+    }
+
+    public function testRemovedPermissionEffectMethodsDoNotExist(): void
+    {
+        $model = new ReflectionClass($this->testUser);
+
+        foreach ([
+            'giveForbiddenTo',
+            'hasForbiddenPermission',
+            'hasForbiddenPermissionViaRoles',
+            'syncPermissionsWithForbidden',
+        ] as $method) {
+            $this->assertFalse($model->hasMethod($method));
+        }
+
+        $registrar = new ReflectionClass(PermissionRegistrar::class);
+
+        $this->assertFalse($registrar->hasMethod('hasForbiddenRolePermissions'));
     }
 }

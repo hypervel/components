@@ -78,7 +78,7 @@ class DeletionTest extends TestCase
         DB::table(Config::roleHasPermissionsTable())->insert([
             app('config')->get('permission.column_names.role_pivot_key') => $role->getKey(),
             app('config')->get('permission.column_names.permission_pivot_key') => $this->testUserPermission->getKey(),
-            'is_forbidden' => false,
+            'is_denied' => false,
         ]);
 
         $cleanupObservedBeforeRecordDeletion = false;
@@ -110,12 +110,12 @@ class DeletionTest extends TestCase
             app('config')->get('permission.column_names.permission_pivot_key') => $permission->getKey(),
             Config::morphKey() => $this->testUser->getKey(),
             'model_type' => $this->testUser->getMorphClass(),
-            'is_forbidden' => false,
+            'is_denied' => false,
         ]);
         DB::table(Config::roleHasPermissionsTable())->insert([
             app('config')->get('permission.column_names.role_pivot_key') => $this->testUserRole->getKey(),
             app('config')->get('permission.column_names.permission_pivot_key') => $permission->getKey(),
-            'is_forbidden' => false,
+            'is_denied' => false,
         ]);
 
         $cleanupObservedBeforeRecordDeletion = false;

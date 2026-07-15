@@ -78,10 +78,10 @@ class GateTest extends TestCase
         $this->assertTrue($this->testUser->canAny([TestRolePermissionsEnum::ViewArticles->value, 'missing']));
     }
 
-    public function testForbiddenPermissionDeniesGatePermission(): void
+    public function testDeniedPermissionDeniesGatePermission(): void
     {
         $this->testUser->givePermissionTo('edit-articles');
-        $this->testUser->giveForbiddenTo('edit-articles');
+        $this->testUser->denyPermissionTo('edit-articles');
 
         $this->assertFalse($this->testUser->can('edit-articles'));
     }
