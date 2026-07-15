@@ -67,7 +67,7 @@ The following implementation surfaces were read and traced:
 - the package config and stock migration
 - `src/permission/README.md`
 - all of `src/boost/docs/permission.md`
-- the current Permission test base, cache/query-count tests, model tests, relation/assignment tests, teams tests, forbidden/wildcard tests, command tests, event tests, and custom-model fixtures.
+- the current Permission test base, cache/query-count tests, model tests, relation/assignment tests, teams tests, denied/wildcard tests, command tests, event tests, and custom-model fixtures.
 
 ### Eloquent and cache internals read
 
@@ -99,10 +99,10 @@ Important verified behavior:
 12. Eloquent fires `saved` before `finishSave()` synchronizes a newly inserted model's original attributes. During that callback, `wasRecentlyCreated` is true, the inserted partition exists in raw current attributes, and raw original attributes do not yet contain it. Record-derived invalidation must therefore prefer a present raw original value, then fall back to a present raw current value only for a newly inserted model. It must never read the fallback through casts/accessors or use it for an existing narrowed model.
 13. Eloquent eager loading constructs each relation under `Relation::noConstraints()` on an attribute-less, non-persisted `newInstance()` prototype. Partition-aware Role/Permission relations must allow only that prototype to define the relation; real persisted parents and unsaved parents carrying an explicit partition attribute still validate. The eager query remains protected by the captured related-table and pivot predicates, while `addEagerConstraints()` supplies the real parent keys.
 14. Unsaved-subject assignment queues currently retain only Role/Permission IDs and pivot data, then resolve one ambient relation context again from the model's `saved` callback. If context changes before the model is saved, the captured pivot and newly resolved relation disagree. Multiple deferred batches can also partially commit before a later batch fails, leaving the retained queue inconsistent with the database on retry. Deferred assignments must retain their immutable `PermissionRelationContext`, flush every Role and Permission batch in one model-connection transaction, clear queues only after commit, and invalidate each captured context only after commit.
-15. Pure-add APIs currently queue and invalidate even when their resolved Role or Permission ID list is empty. The replacement/sync queue path already skips empty lists. `assignRole()`, `givePermissionTo()`, and `giveForbiddenTo()` must treat an empty resolved add as no write, queue, or cache mutation, while still resolving and validating the current partition before the no-op guard. Their existing Spatie-shaped events continue reporting the collected request, including an empty or already-satisfied request; event behavior is a public contract independent of whether a pivot write was necessary. Sync-to-empty remains a real detach mutation for saved models.
+15. Pure-add APIs currently queue and invalidate even when their resolved Role or Permission ID list is empty. The replacement/sync queue path already skips empty lists. `assignRole()`, `givePermissionTo()`, and `denyPermissionTo()` must treat an empty resolved add as no write, queue, or cache mutation, while still resolving and validating the current partition before the no-op guard. Their existing Spatie-shaped events continue reporting the collected request, including an empty or already-satisfied request; event behavior is a public contract independent of whether a pivot write was necessary. Sync-to-empty remains a real detach mutation for saved models.
 16. `syncRoles()` delegates to `assignRole()` for an unsaved subject, so it appends instead of replacing earlier queued roles. `removeRole()` and `revokePermissionTo()` issue no-op database deletes for unsaved subjects without reconciling their queued entries. Deferred sync/removal must update only the exact captured `PermissionRelationContext` queue, drop empty entries, and preserve other contexts. Existing assignment events still dispatch synchronously at the public method call boundary; the later saved callback emits nothing because it only commits already-reported deferred intent.
 17. Assignment events are established Spatie-shaped public APIs that describe the collected assignment request, not a database change-set. Preserve their pre-branch payload types, requested IDs, no-op behavior, and saved/unsaved dispatch timing. In particular, `PermissionDetachedEvent` receives the stored Permission model or collection, and Permission sync emits only its established attached event. Do not add queries, sorting, payload conversion, or event suppression to make these events report persisted deltas. Keep `eventsEnabled()` and `hasListeners()` guards so disabled or unobserved events add no construction/dispatch overhead.
-18. Native `BelongsToMany::sync()` cannot produce truthful direct-permission effect deltas when desired records carry `is_forbidden` attributes. It calls `updateExistingPivot()` for every current record with non-empty attributes, rewrites unchanged effects, and treats driver matched-row counts as `updated`. Role sync is unaffected because plain Role IDs have empty per-record attributes. Direct-permission add/sync must share one pivot-only read/compare/minimal-write synchronizer that returns PHP-computed deltas.
+18. Native `BelongsToMany::sync()` cannot produce truthful direct-permission effect deltas when desired records carry `is_denied` attributes. It calls `updateExistingPivot()` for every current record with non-empty attributes, rewrites unchanged effects, and treats driver matched-row counts as `updated`. Role sync is unaffected because plain Role IDs have empty per-record attributes. Direct-permission add/sync must share one pivot-only read/compare/minimal-write synchronizer that returns PHP-computed deltas.
 19. Package-owned operations that genuinely perform multiple writes must be atomic. A failed later write after an earlier delete/attach otherwise leaves a partial authorization graph. Direct-permission synchronization, Role bulk replacement, `syncModels()`, deferred multi-context flushing, multi-table record cleanup, and discovery-plus-delete subject cleanup use model-connection transactions and invalidate only after commit. Simple one-write attach/detach methods use native `attach()` / `detach()` without adding package transaction policy; applications wrap Permission calls in their own transaction when they need atomicity with model touches or other application work.
 20. Pre-branch Hypervel Role synchronization already uses one detach and one bulk attach, unlike native `BelongsToMany::sync()`'s per-ID inserts. Preserve that efficient bulk replacement shape with a captured partition/team relation and wrap the two writes in one transaction. Do not add delta indexing or sorting. When `RoleDetachedEvent` is observed, one listener-gated pivot-only read captures the pre-operation current IDs required by that established event; the ordinary path performs no current-pivot read. This replaces pre-branch full Role hydration with the same query count and lower cost on the observed-event path.
 21. `removeRole()` and `revokePermissionTo()` preserve their established request-oriented events. Issue the normal captured-scope detach without an event-only discovery read, then dispatch the collected Role IDs or stored Permission model/collection exactly as before. Do not branch SQL shape on listener presence. Event guards still prevent construction and dispatch when disabled or unobserved.
@@ -110,7 +110,7 @@ Important verified behavior:
 23. Reverse Role assignment helpers can write several morph-class batches, while `syncModels()` can commit its scope-wide delete before any replacement attach succeeds. Precompute and validate every group before writing. `assignToModels()` and `removeFromModels()` execute zero or one morph-class write directly and use one parent Role connection transaction only when several morph-class writes must succeed together. `syncModels()` always keeps one transaction around its delete and replacement inserts. Perform cache/token/relation cleanup only after successful writes. Permission authorization tables and pivots form one shared schema on the parent Role/Permission connection; split authorization-table connections are not supported.
 24. `partitionFromRecord()` must report an absent or invalid raw persisted partition as a record constraint violation, not fabricate an `unresolved` ambient partition merely to reuse a context-mismatch message. The new exception covers context mismatch, immutable-column mutation, missing/invalid persisted values, and conflicting pivot input, so use the general `PermissionPartitionViolation` name rather than a mismatch-only name. Use distinct factories for each invariant. Render `null`, an empty string, and non-scalar types visibly without dumping state, and test each raw-record failure with an unchanged database row.
 25. Unsaved Role and Permission queue mutations still clear wildcard runtime state before any pivot exists. Authorization reads do not consume deferred queues, so those clears cannot expose queued intent; for Roles they clear the whole ambient partition and can target the wrong partition when the queue retained another captured context. Remove every pre-save wildcard clear. The successful saved-callback flush is the sole deferred invalidation boundary: after commit it invalidates each distinct stored partition/team context exactly, while rollback retains queues and cache state unchanged.
-26. The direct-permission synchronizer batches attaches and detaches but performs one `updateExistingPivot()` statement per real `is_forbidden` flip. Since the effect has only two target values, collect changed IDs into allowed and forbidden groups and execute at most two captured-scope `whereIn(...)->update(...)` statements inside the existing transaction. This bypasses native pivot timestamp/custom-class hooks intentionally because Permission assignment pivots have neither timestamps nor a custom pivot class by design; record that assumption beside the code and revisit batching if the schema contract changes. The Hypervel-owned `syncPermissionsWithForbidden()` return value remains a PHP-computed accurate change-set and preserves natural pivot-read order; assignment events remain request-oriented and do not consume this change-set.
+26. The direct-permission synchronizer batches attaches and detaches but performs one `updateExistingPivot()` statement per real `is_denied` flip. Since the effect has only two target values, collect changed IDs into allowed and denied groups and execute at most two captured-scope `whereIn(...)->update(...)` statements inside the existing transaction. This bypasses native pivot timestamp/custom-class hooks intentionally because Permission assignment pivots have neither timestamps nor a custom pivot class by design; record that assumption beside the code and revisit batching if the schema contract changes. The Hypervel-owned `syncPermissionEffects()` return value remains a PHP-computed accurate change-set and preserves natural pivot-read order; assignment events remain request-oriented and do not consume this change-set.
 27. Current Spatie and Hypervel `HasAssignedModels` treat `assignToModels()` on an unsaved Role as a fluent no-op, but `removeFromModels()` still issues a useless null-key delete and `syncModels()` attempts non-null/FK-invalid pivot inserts with a null Role key. Preserve the existing public API contract by adding the same top-level unsaved guard to all three methods. Do not invent a deferred reverse-assignment queue or change the established method to throw. Record this as a fixed upstream bug and recommend the same two guards back to Spatie.
 28. Saved `assignRole()`, `removeRole()`, and `revokePermissionTo()` retain native plain `attach()` / `detach()` semantics. `touchIfTouching()` can perform real application-configured model touches, but making a simple pivot write and those optional touches atomic is application transaction policy rather than a Permission-owned guarantee. Role/Permission record deletion is different because the package itself owns two pivot-table cleanups: wrap both captured-partition deletes in one model-connection transaction and invalidate only after the model deletion commits. Built-in Role and Permission models do not use soft deletes; an application subclass that does must wrap `forceDelete()` in an application transaction when the record row and package cleanup must commit together because Eloquent has no `forceDeleteOrFail()`.
 29. Consolidating all subject cleanup into `HasRoles` broke the supported composition of a model using `HasPermissions` without `HasRoles`, while moving Role/Permission record cleanup into `RefreshesPermissionCache` made cleanup depend on an optional cache concern instead of the public authorization traits. Preserve the Spatie-shaped ownership boundary: `HasPermissions` owns direct-subject and Role-record cleanup; `HasRoles` owns role-subject and Permission-record cleanup; `RefreshesPermissionCache` owns saved/deleted catalog invalidation only. Each subject trait discovers and deletes its own table. This costs two cold-path discovery reads for a full `HasRoles` subject instead of one UNION, but it preserves every public trait composition and avoids shared deletion machinery.
@@ -179,9 +179,9 @@ This queue is in-process deferred work on one unsaved Eloquent instance. It is s
 
 ### Empty pure-add calls are validated no-ops
 
-An empty resolved input to `assignRole()`, `givePermissionTo()`, or `giveForbiddenTo()` does not describe an authorization mutation. Queuing an inert entry, writing a pivot, or invalidating cache for it is wrong. Its established request-oriented attach event still dispatches when enabled and observed, including for an empty collected request.
+An empty resolved input to `assignRole()`, `givePermissionTo()`, or `denyPermissionTo()` does not describe an authorization mutation. Queuing an inert entry, writing a pivot, or invalidating cache for it is wrong. Its established request-oriented attach event still dispatches when enabled and observed, including for an empty collected request.
 
-Decision: resolve the relation context and collect/validate supplied models first, then return immediately when the collected ID list is empty. This single placement covers zero arguments and inputs filtered to empty while preserving fail-closed subject validation: an empty add on a partition-bearing subject from A under context B still throws `PermissionPartitionViolation`. Do not place a pre-context zero-argument shortcut before validation. Do not apply the guard to `syncRoles([])`, `syncPermissions([])`, or `syncPermissionsWithForbidden([], [])`; on a saved model, those calls intentionally remove existing assignments and invalidate their caches.
+Decision: resolve the relation context and collect/validate supplied models first, then return immediately when the collected ID list is empty. This single placement covers zero arguments and inputs filtered to empty while preserving fail-closed subject validation: an empty add on a partition-bearing subject from A under context B still throws `PermissionPartitionViolation`. Do not place a pre-context zero-argument shortcut before validation. Do not apply the guard to `syncRoles([])`, `syncPermissions([])`, or `syncPermissionEffects([], [])`; on a saved model, those calls intentionally remove existing assignments and invalidate their caches.
 
 ### Deferred queues preserve context; assignment events preserve their public contract
 
@@ -189,7 +189,7 @@ An unsaved subject has no assignment edge yet, but the package's established ass
 
 - `syncRoles()` replaces queued roles only in the captured partition/team context;
 - `removeRole()` removes matching queued roles only from that context;
-- `revokePermissionTo()` removes matching queued permissions from both allowed and forbidden batches only in that context;
+- `revokePermissionTo()` removes matching queued permissions from both allowed and denied batches only in that context;
 - entries that become empty are removed;
 - other queued partition/team contexts remain unchanged;
 - unsaved add, sync, remove, and revoke operations retain their pre-branch requested-input event behavior;
@@ -197,7 +197,7 @@ An unsaved subject has no assignment edge yet, but the package's established ass
 
 For saved subjects, events also retain the pre-branch request-oriented contract. `RoleAttachedEvent`, `RoleDetachedEvent`, and `PermissionAttachedEvent` receive collected requested ID arrays, including already-satisfied or empty requests. `PermissionDetachedEvent` receives the stored Permission model or collection returned by `getStoredPermission()`. Permission synchronization emits only its established attached event; it does not invent a detached event from the internal change-set. Invalidate changed cache state before dispatch so listeners observe current authorization data, but do not invalidate an already-correct cache solely because a no-op request still emits its public event.
 
-Saved Role synchronization uses one captured relation to detach the old set and bulk-attach the requested replacement inside one transaction. This preserves pre-branch Hypervel's efficient bulk write shape while preventing a failed attach from leaving all Roles removed. It does not compute deltas. Only an observed `RoleDetachedEvent` triggers one pre-operation pivot-only ID read because its established payload is the current set; remove/revoke events need no such read because their payload is the already-known request. Saved direct-permission add/sync uses the transactional pivot-only effect-aware synchronizer because the `is_forbidden` edge state requires real comparison and minimal updates.
+Saved Role synchronization uses one captured relation to detach the old set and bulk-attach the requested replacement inside one transaction. This preserves pre-branch Hypervel's efficient bulk write shape while preventing a failed attach from leaving all Roles removed. It does not compute deltas. Only an observed `RoleDetachedEvent` triggers one pre-operation pivot-only ID read because its established payload is the current set; remove/revoke events need no such read because their payload is the already-known request. Saved direct-permission add/sync uses the transactional pivot-only effect-aware synchronizer because the `is_denied` edge state requires real comparison and minimal updates.
 
 The Role sync transaction is a deliberate correctness improvement, not a restoration of pre-branch transaction behavior. Both Role sync events dispatch after commit. Their payloads and order remain unchanged, but a detached-event listener that queries the database sees the final replacement graph instead of the pre-branch mid-sync empty graph. Post-commit visibility is the correct contract for the new atomic operation.
 
@@ -205,7 +205,7 @@ Detach and revoke issue the same blind captured-scope delete regardless of liste
 
 The direct-permission synchronizer's `attached` and effect `updated` return values preserve caller order. Its detached return values preserve the natural pivot-read order, matching the prior native relation-sync behavior as closely as the custom effect-aware implementation permits. Do not sort them or expose any of these internal deltas through assignment events.
 
-The direct-permission synchronizer is also the single implementation for `givePermissionTo()` and `giveForbiddenTo()` with detaching disabled. Its pivot-only read replaces the existing full Permission-model join/hydration read. Narrow non-detaching reads to requested IDs; sync reads the full captured partition/team pivot scope to compute removals. Within one model-connection transaction, batch allowed/forbidden inserts, group real effect flips by their target boolean into at most two scoped updates, touch once, and return driver-independent PHP-computed deltas. One shared `permissionEffectIsForbidden()` normalizes hydrated and raw pivot effects; comment that it relies on framework connections returning native booleans/0-1 integers, and protect that assumption with supported-database integration tests. The raw effect updates rely on the package's timestamp-free, non-custom Permission assignment pivot schema; if that schema contract changes, the batching path must add the corresponding timestamp/custom-pivot behavior.
+The direct-permission synchronizer is also the single implementation for `givePermissionTo()` and `denyPermissionTo()` with detaching disabled. Its pivot-only read replaces the existing full Permission-model join/hydration read. Narrow non-detaching reads to requested IDs; sync reads the full captured partition/team pivot scope to compute removals. Within one model-connection transaction, batch allowed/denied inserts, group real effect flips by their target boolean into at most two scoped updates, touch once, and return driver-independent PHP-computed deltas. One shared `permissionEffectIsDenied()` normalizes hydrated and raw pivot effects; comment that it relies on framework connections returning native booleans/0-1 integers, and protect that assumption with supported-database integration tests. The raw effect updates rely on the package's timestamp-free, non-custom Permission assignment pivot schema; if that schema contract changes, the batching path must add the corresponding timestamp/custom-pivot behavior.
 
 Keep the collision-safe ID indexing, raw-pivot normalization, and optional-ID-constrained pivot-only read directly with the permission synchronizer. Desired and current Permission IDs both normalize then pass through `PermissionPartition::encodeCacheSegment()`, so driver-hydrated string `'5'` matches desired integer `5` while carried write/return IDs retain the proper key type. Do not retain a generic assignment synchronization engine after the Role synchronizer is removed.
 
@@ -903,7 +903,7 @@ Same-name Role and Permission rows are valid in different partitions because app
 Partition-aware relations cover:
 
 - `assignRole`, `removeRole`, `syncRoles`, queued role assignment;
-- `givePermissionTo`, `giveForbiddenTo`, `revokePermissionTo`, `syncPermissions`, `syncPermissionsWithForbidden`, queued permission assignment;
+- `givePermissionTo`, `denyPermissionTo`, `revokePermissionTo`, `syncPermissions`, `syncPermissionEffects`, queued permission assignment;
 - `assignToModels`, `removeFromModels`, `syncModels`;
 - Role-Permission assignment from either model direction;
 - public relation `attach`, `detach`, `toggle`, `sync`, `syncWithoutDetaching`, `syncWithPivotValues`, `updateExistingPivot`, and `...OrFail` variants.
@@ -916,7 +916,7 @@ Reverse Role assignment helpers group and validate all supplied subject models b
 
 `assignToModels()` detects already-present requested IDs from the captured relation's pivot-only query. It must not use the joined related-model query because subject global scopes, including soft deletes, do not remove the assignment pivot and must not make an existing edge appear absent.
 
-For assignments queued on an unsaved subject, capture and retain the full `PermissionRelationContext` at the call boundary. The `saved` callback must not resolve ambient partition or team context. It groups deferred entries by the stored context, deduplicates Role IDs within each context, preserves Permission replacement/forbidden semantics within each context, and writes all Role and Permission batches in one transaction on the subject model's connection. Queues are cleared only after commit; exact per-context cache invalidation runs after commit and is deduplicated across Role and Permission batches.
+For assignments queued on an unsaved subject, capture and retain the full `PermissionRelationContext` at the call boundary. The `saved` callback must not resolve ambient partition or team context. It groups deferred entries by the stored context, deduplicates Role IDs within each context, preserves Permission replacement/denied semantics within each context, and writes all Role and Permission batches in one transaction on the subject model's connection. Queues are cleared only after commit; exact per-context cache invalidation runs after commit and is deduplicated across Role and Permission batches.
 
 Pure-add methods skip queue, write, and invalidation after context/model validation when their collected ID list is empty, but retain the existing requested-input attach event. Sync methods retain their native empty-input detach meaning.
 
@@ -940,12 +940,12 @@ Search both `src/` and `tests/` for every authorization table helper after imple
 - an explicit raw query with a bound partition;
 - an intentionally cross-partition/team subject-deletion discovery query for one owning assignment table.
 
-### Guards, forbidden permissions, and wildcards
+### Guards, denied permissions, and wildcards
 
 No special query system is added for these features:
 
 - guard matching remains inside the already partitioned catalog;
-- `is_forbidden` remains an edge attribute on partitioned pivots;
+- `is_denied` remains an edge attribute on partitioned pivots;
 - wildcard indexes use partitioned model runtime cache identities;
 - via-role permission materialization uses partitioned catalog and assignment identities.
 
@@ -1017,7 +1017,7 @@ The per-partition assignment token is not used here. Bumping it would avoid team
 - The resolver is an in-memory Context lookup and performs no query.
 - Existing cache TTL behavior remains.
 - Swoole stores hash the longer logical key, so applications only need to size table row count/value capacity for their workload; Permission requires no Swoole-specific branch.
-- Partitioned and unpartitioned modes use identical query counts for the same synchronization operation. Saved Role sync uses the pre-branch bulk delete/insert shape in both modes. Direct-permission synchronization reads current pivots in both modes to compare `is_forbidden` effects and avoid rewriting unchanged edges; this mode-independent read is not partition overhead.
+- Partitioned and unpartitioned modes use identical query counts for the same synchronization operation. Saved Role sync uses the pre-branch bulk delete/insert shape in both modes. Direct-permission synchronization reads current pivots in both modes to compare `is_denied` effects and avoid rewriting unchanged edges; this mode-independent read is not partition overhead.
 
 ### Cache reset
 
@@ -1097,7 +1097,7 @@ Schema::create('role_has_permissions', function (Blueprint $table) use ($partiti
     $table->uuid($partition);
     $table->uuid('permission_id');
     $table->uuid('role_id');
-    $table->boolean('is_forbidden')->default(false);
+    $table->boolean('is_denied')->default(false);
 
     $table->primary([$partition, 'permission_id', 'role_id']);
 
@@ -1135,7 +1135,7 @@ Schema::create('model_has_permissions', function (Blueprint $table) use ($partit
     $table->uuid($partition);
     $table->uuid('permission_id');
     $table->uuidMorphs('model');
-    $table->boolean('is_forbidden')->default(false);
+    $table->boolean('is_denied')->default(false);
 
     $table->primary([$partition, 'permission_id', 'model_id', 'model_type']);
     $table->index(
@@ -1325,13 +1325,13 @@ Add `tests/Permission/PartitionRelationsTest.php` covering every relation from b
 - global subjects can have different assignments in A and B;
 - teams nest inside partition and neither dimension replaces the other.
 - unsaved global subjects retain the partition/team captured by each queued Role and Permission assignment even when saved under another or missing ambient context;
-- one unsaved global subject may queue assignments in multiple partitions and teams, with Role IDs deduplicated per captured context and Permission replacement/forbidden behavior kept per captured context;
+- one unsaved global subject may queue assignments in multiple partitions and teams, with Role IDs deduplicated per captured context and Permission replacement/denied behavior kept per captured context;
 - all deferred Role and Permission batches flush atomically: a forced later-batch failure rolls back earlier batches, retains the queues, and a clean retry inserts each edge exactly once;
 - deferred assignment invalidation occurs once per distinct captured context and only after a successful commit.
 - deferred queue add, sync, remove, and revoke change no wildcard, catalog, or model runtime cache before save; a multi-partition queue invalidates every stored context only after commit and changes no cache state on rollback;
-- empty `assignRole()`, `givePermissionTo()`, and `giveForbiddenTo()` calls on saved and unsaved subjects perform no queue, pivot write, or invalidation while retaining their requested-input attach event;
+- empty `assignRole()`, `givePermissionTo()`, and `denyPermissionTo()` calls on saved and unsaved subjects perform no queue, pivot write, or invalidation while retaining their requested-input attach event;
 - empty pure-add calls still reject a partition-bearing subject whose record partition conflicts with the current context;
-- saved `syncRoles([])`, `syncPermissions([])`, and `syncPermissionsWithForbidden([], [])` still detach existing edges and invalidate, proving the pure-add guard does not change sync semantics.
+- saved `syncRoles([])`, `syncPermissions([])`, and `syncPermissionEffects([], [])` still detach existing edges and invalidate, proving the pure-add guard does not change sync semantics.
 - unsaved role sync replaces only its captured context instead of appending, and unsaved role/permission removal drops matching queued IDs without touching other contexts;
 - queued entries that become empty are removed;
 - deferred operations dispatch their established requested-input events at the public call boundary, and the saved-callback flush emits no duplicate event even when save runs under another or missing ambient context;
@@ -1342,7 +1342,7 @@ Add `tests/Permission/PartitionRelationsTest.php` covering every relation from b
 - the direct-permission public change-set preserves caller order for desired-side entries and natural pivot-read order for detached entries without sorting;
 - unchanged permission effects are neither rewritten nor reported as updated on any supported database;
 - mixed permission effect synchronization batches all real flips into exactly two target-value updates while leaving unchanged edges unwritten;
-- a permission present in both allowed and forbidden sync input deterministically resolves to forbidden;
+- a permission present in both allowed and denied sync input deterministically resolves to denied;
 - listeners observe invalidated, post-mutation authorization state.
 - Role sync and permission synchronization roll back all earlier writes when any later batch/update fails, retain pre-operation cache state, emit no post-failure events, and retry cleanly;
 - syncing many new Roles uses one bulk insert rather than one insert per Role;
@@ -1409,13 +1409,13 @@ Add `tests/Permission/PartitionDeletionTest.php` covering:
 - no discovery query occurs only when both partitioning and teams are disabled;
 - stable morph identity requirement is enforced by fixture design and documented.
 
-### Guards, forbidden, wildcard, and teams
+### Guards, denied, wildcard, and teams
 
 Extend or add focused cases so both partitions cover:
 
 - same names under different guards;
-- direct forbidden override;
-- role-inherited forbidden override;
+- direct denied override;
+- role-inherited denied override;
 - wildcard allow and deny;
 - team-global and team-specific roles inside each partition;
 - `role()`, `withoutRole()`, `permission()`, `withoutPermission()`, `team()`, and `withoutTeam()` scopes.
@@ -1623,7 +1623,7 @@ Database CI must run `tests/Integration/Database/PermissionPartitionTest.php` un
 - [ ] Laravel/Spatie relation types, assignment APIs, commands, events, contracts, Gate, middleware, and Blade surfaces remain intact.
 - [ ] Same-name roles/permissions work across partitions and collide inside one partition.
 - [ ] Partition, team, and guard compose independently.
-- [ ] Direct, inherited, forbidden, wildcard, and query-scope paths are isolated.
+- [ ] Direct, inherited, denied, wildcard, and query-scope paths are isolated.
 - [ ] Loaded relation provenance handles lazy, eager, nested, and empty collections.
 - [ ] Teams-only warm authorization reuses partition-independent hydrated catalog relations without database queries.
 - [ ] Switching teams no longer requires manual relation unsetting.
