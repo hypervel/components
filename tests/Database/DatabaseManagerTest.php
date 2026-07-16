@@ -86,6 +86,63 @@ class DatabaseManagerTest extends TestCase
         $this->assertNotNull($default->getRawPdo());
     }
 
+    public function testIntegerBackedEnumConnectionNameIsNormalizedAcrossManagerLifecycle(): void
+    {
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], '0');
+
+        $manager = $this->db->getDatabaseManager();
+        $connection = $manager->connection(DatabaseManagerConnectionName::Zero);
+
+        $this->assertSame('0', $connection->getName());
+
+        $manager->disconnect(DatabaseManagerConnectionName::Zero);
+        $this->assertNull($connection->getRawPdo());
+
+        $reconnected = $manager->reconnect(DatabaseManagerConnectionName::Zero);
+        $this->assertSame($connection, $reconnected);
+        $this->assertNotNull($reconnected->getRawPdo());
+
+        $manager->purge(DatabaseManagerConnectionName::Zero);
+
+        $this->assertNotSame($connection, $manager->connection(DatabaseManagerConnectionName::Zero));
+    }
+
+    public function testEmptyConnectionNamesUseTheDefaultAcrossManagerLifecycle(): void
+    {
+        $manager = $this->db->getDatabaseManager();
+        $connection = $manager->connection();
+
+        $this->assertSame($connection, $manager->connection(''));
+
+        $manager->disconnect('');
+        $this->assertNull($connection->getRawPdo());
+
+        $this->assertSame($connection, $manager->reconnect(''));
+
+        $manager->purge('');
+
+        $this->assertNotSame($connection, $manager->connection());
+    }
+
+    public function testUsingConnectionNormalizesIntegerBackedEnumAndRestoresTheDefault(): void
+    {
+        $this->db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], '0');
+
+        $manager = $this->db->getDatabaseManager();
+
+        $this->assertSame('0', $manager->usingConnection(
+            DatabaseManagerConnectionName::Zero,
+            fn (): ?string => $manager->connection()->getName()
+        ));
+        $this->assertSame('default', $manager->connection()->getName());
+    }
+
     public function testDisconnectWithNoExistingConnectionDoesNotError()
     {
         $manager = $this->db->getDatabaseManager();
@@ -367,4 +424,9 @@ class DatabaseManagerTest extends TestCase
         $statement = $pdo->prepare('insert into users (name) values (?)');
         $statement->execute([$name]);
     }
+}
+
+enum DatabaseManagerConnectionName: int
+{
+    case Zero = 0;
 }

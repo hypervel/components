@@ -6,14 +6,29 @@ namespace Hypervel\Tests\Pipeline;
 
 use Exception;
 use Hypervel\Container\Container;
+use Hypervel\Database\Connection;
+use Hypervel\Database\DatabaseManager;
+use Hypervel\Pipeline\Hub;
 use Hypervel\Pipeline\Pipeline;
 use Hypervel\Tests\Pipeline\Fixtures\FooPipeline;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use RuntimeException;
 use stdClass;
 
 class PipelineTest extends TestCase
 {
+    public function testHubPreservesZeroNamedPipelines(): void
+    {
+        $hub = new Hub(new Container);
+        $hub->defaults(fn (Pipeline $pipeline, string $value): string => 'default-' . $value);
+        $hub->pipeline('0', fn (Pipeline $pipeline, string $value): string => 'zero-' . $value);
+
+        $this->assertSame('default-value', $hub->pipe('value'));
+        $this->assertSame('default-value', $hub->pipe('value', ''));
+        $this->assertSame('zero-value', $hub->pipe('value', '0'));
+    }
+
     public function testPipelineBasicUsage()
     {
         $pipeTwo = function ($piped, $next) {
@@ -270,6 +285,23 @@ class PipelineTest extends TestCase
             });
     }
 
+    public function testPipelineDelegatesIntegerBackedEnumTransactionConnection(): void
+    {
+        $container = new Container;
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('transaction')->once()->andReturnUsing(fn (callable $callback) => $callback());
+        $manager = m::mock(DatabaseManager::class);
+        $manager->shouldReceive('connection')->once()->with(PipelineConnectionName::Zero)->andReturn($connection);
+        $container->instance('db', $manager);
+
+        $result = (new Pipeline($container))
+            ->send('data')
+            ->withinTransaction(PipelineConnectionName::Zero)
+            ->thenReturn();
+
+        $this->assertSame('data', $result);
+    }
+
     public function testPipelineThenReturnMethodRunsPipelineThenReturnsPassable()
     {
         $result = (new Pipeline(new Container))
@@ -498,6 +530,11 @@ class PipelineTest extends TestCase
         $pipeline2 = new Pipeline(new Container);
         $this->assertSame('second', $pipeline2->testMacro());
     }
+}
+
+enum PipelineConnectionName: int
+{
+    case Zero = 0;
 }
 
 class PipelineTestPipeOne

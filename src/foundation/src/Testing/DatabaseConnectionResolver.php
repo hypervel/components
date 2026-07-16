@@ -152,7 +152,15 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        $connectionName = ConnectionName::parse(enum_value($name) ?: $this->getDefaultConnection());
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
+
+        $connectionName = ConnectionName::parse($name);
 
         // If the pool is enabled, we should use the default connection resolver.
         /** @var ConfigRepository $config */

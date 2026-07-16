@@ -58,7 +58,7 @@ class Hub implements HubContract
      */
     public function pipe(mixed $object, ?string $pipeline = null): mixed
     {
-        $pipeline = $pipeline ?: 'default';
+        $pipeline = $pipeline === null || $pipeline === '' ? 'default' : $pipeline;
 
         return call_user_func(
             $this->pipelines[$pipeline],

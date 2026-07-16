@@ -1872,7 +1872,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function getConnectionName(): ?string
     {
-        return enum_value($this->connection);
+        return $this->connection instanceof UnitEnum
+            ? (string) enum_value($this->connection)
+            : $this->connection;
     }
 
     /**

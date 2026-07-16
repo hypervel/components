@@ -505,7 +505,11 @@ class Blueprint
      */
     public function dropMorphs(string $name, ?string $indexName = null): void
     {
-        $this->dropIndex($indexName ?: $this->createIndexName('index', ["{$name}_type", "{$name}_id"]));
+        $this->dropIndex(
+            $indexName === null || $indexName === ''
+                ? $this->createIndexName('index', ["{$name}_type", "{$name}_id"])
+                : $indexName
+        );
 
         $this->dropColumn("{$name}_type", "{$name}_id");
     }
@@ -1302,7 +1306,9 @@ class Blueprint
         // If no name was specified for this index, we will create one using a basic
         // convention of the table name, followed by the columns, followed by an
         // index type, such as primary or index, which makes the index unique.
-        $index = $index ?: $this->createIndexName($type, $columns);
+        $index = $index === null || $index === ''
+            ? $this->createIndexName($type, $columns)
+            : $index;
 
         return $this->addCommand(
             $type,

@@ -40,9 +40,15 @@ class SimpleConnectionResolver implements ConnectionResolverInterface
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        return $this->manager->resolveConnectionDirectly(
-            enum_value($name) ?? $this->getDefaultConnection()
-        );
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
+
+        return $this->manager->resolveConnectionDirectly($name);
     }
 
     /**

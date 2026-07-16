@@ -101,8 +101,15 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        return $this->app->make('db.resolver')
-            ->connection(enum_value($name) ?? $this->getDefaultConnection());
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
+
+        return $this->app->make('db.resolver')->connection($name);
     }
 
     /**
@@ -249,7 +256,13 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
-        $requestedName = enum_value($name) ?: $this->getDefaultConnection();
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $requestedName = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
         $connectionName = ConnectionName::parse($requestedName);
         $variants = $this->connectionNameVariants($requestedName);
 
@@ -292,7 +305,13 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function disconnect(UnitEnum|string|null $name = null): void
     {
-        $requestedName = enum_value($name) ?: $this->getDefaultConnection();
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $requestedName = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
         $connectionName = ConnectionName::parse($requestedName);
 
         // Pooled mode: disconnect the current coroutine's connection
@@ -316,7 +335,13 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function reconnect(UnitEnum|string|null $name = null): Connection
     {
-        $name = enum_value($name) ?: $this->getDefaultConnection();
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
 
         $this->disconnect($name);
 
@@ -352,7 +377,10 @@ class DatabaseManager implements ConnectionResolverInterface
     {
         $previous = CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
-        CoroutineContext::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, enum_value($name));
+        CoroutineContext::set(
+            ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY,
+            $name instanceof UnitEnum ? (string) enum_value($name) : $name
+        );
 
         try {
             return $callback();
@@ -488,7 +516,15 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     protected function connectionNameVariants(UnitEnum|string|null $name): array
     {
-        $base = ConnectionName::parse(enum_value($name) ?: $this->getDefaultConnection())->base;
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultConnection()
+            : $name;
+
+        $base = ConnectionName::parse($name)->base;
 
         return [$base, $base . '::read', $base . '::write'];
     }

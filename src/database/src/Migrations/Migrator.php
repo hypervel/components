@@ -693,7 +693,7 @@ class Migrator
     public function resolveConnection(?string $connection): Connection
     {
         $connection = static::resolveMigrationConnectionName(
-            $connection ?: $this->connection
+            $connection === null || $connection === '' ? $this->connection : $connection
         );
 
         if (static::$connectionResolverCallback) {

@@ -51,6 +51,13 @@ class DatabaseEloquentFactoryTest extends TestCase
         Factory::expandRelationshipsByDefault();
     }
 
+    public function testIntegerBackedConnectionEnumIsExposedAsAString(): void
+    {
+        $factory = (new UserFactory)->connection(FactoryConnectionName::Zero);
+
+        $this->assertSame('0', $factory->getConnectionName());
+    }
+
     /**
      * Setup the database schema.
      */
@@ -1177,6 +1184,11 @@ class UserFactory extends Factory
             'options' => null,
         ];
     }
+}
+
+enum FactoryConnectionName: int
+{
+    case Zero = 0;
 }
 
 class User extends Eloquent

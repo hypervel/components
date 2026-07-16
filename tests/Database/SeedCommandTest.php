@@ -186,6 +186,63 @@ class SeedCommandTest extends TestCase
         $command->run(new ArrayInput(['--force' => true]), new NullOutput);
     }
 
+    public function testHandlePreservesZeroDatabaseOption(): void
+    {
+        $seeder = m::mock(Seeder::class);
+        $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
+        $seeder->shouldReceive('setCommand')->once()->andReturnSelf();
+        $seeder->shouldReceive('__invoke')->once()->andReturnUsing(function (): void {
+            Assert::assertSame(
+                '0',
+                CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
+            );
+        });
+
+        $resolver = m::mock(ConnectionResolverInterface::class);
+
+        $app = new ApplicationDatabaseSeedStub([
+            ConnectionResolverInterface::class => $resolver,
+            'DatabaseSeeder' => $seeder,
+        ]);
+
+        $command = new SeedCommand($resolver);
+        $command->setHypervel($app);
+
+        $command->run(
+            new ArrayInput(['--force' => true, '--database' => '0']),
+            new NullOutput,
+        );
+    }
+
+    public function testHandleWithEmptyDatabaseOptionUsesResolverDefault(): void
+    {
+        $seeder = m::mock(Seeder::class);
+        $seeder->shouldReceive('setContainer')->once()->andReturnSelf();
+        $seeder->shouldReceive('setCommand')->once()->andReturnSelf();
+        $seeder->shouldReceive('__invoke')->once()->andReturnUsing(function (): void {
+            Assert::assertSame(
+                'tenant_reporting',
+                CoroutineContext::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY),
+            );
+        });
+
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('getDefaultConnection')->once()->andReturn('tenant_reporting');
+
+        $app = new ApplicationDatabaseSeedStub([
+            ConnectionResolverInterface::class => $resolver,
+            'DatabaseSeeder' => $seeder,
+        ]);
+
+        $command = new SeedCommand($resolver);
+        $command->setHypervel($app);
+
+        $command->run(
+            new ArrayInput(['--force' => true, '--database' => '']),
+            new NullOutput,
+        );
+    }
+
     public function testHandleDoesNotMutateConfigDatabaseDefault()
     {
         // Regression: db:seed must use Context, not config mutation. config

@@ -31,4 +31,18 @@ class DatabaseMonitorCommandTest extends TestCase
 
         $this->assertSame(0, $command->run(new ArrayInput([]), new NullOutput));
     }
+
+    public function testMonitorCommandPreservesConnectionNameZero(): void
+    {
+        $connection = m::mock(ConnectionInterface::class);
+        $connection->shouldReceive('threadCount')->once()->andReturn(1);
+
+        $resolver = m::mock(ConnectionResolverInterface::class);
+        $resolver->shouldReceive('connection')->once()->with('0')->andReturn($connection);
+
+        $command = new MonitorCommand($resolver, m::mock(Dispatcher::class));
+        $command->setHypervel($this->app);
+
+        $this->assertSame(0, $command->run(new ArrayInput(['--databases' => '0']), new NullOutput));
+    }
 }
