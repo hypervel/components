@@ -10,7 +10,7 @@ use InvalidArgumentException;
 
 class XmlTest extends TestCase
 {
-    public function testToArray()
+    public function testToArray(): void
     {
         $xml = '<?xml version="1.0" encoding="utf-8"?><xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>';
         $data = [
@@ -20,7 +20,7 @@ class XmlTest extends TestCase
         $this->assertSame($data, Xml::toArray($xml));
     }
 
-    public function testToArrayException()
+    public function testToArrayException(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Syntax error.');
@@ -28,7 +28,7 @@ class XmlTest extends TestCase
         Xml::toArray('xxxxx');
     }
 
-    public function testToXml()
+    public function testToXml(): void
     {
         $xml = '<?xml version="1.0" encoding="utf-8"?><xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>';
         $data = [
@@ -38,7 +38,18 @@ class XmlTest extends TestCase
         $this->assertSame(Xml::toXml(Xml::toArray($xml), null, 'xml'), Xml::toXml($data, null, 'xml'));
     }
 
-    public function testXmlFailed()
+    public function testNestedNumericKeysUseValidElementNames(): void
+    {
+        $xml = Xml::toXml([
+            ['name' => 'first'],
+            ['name' => 'second'],
+        ], root: 'items');
+
+        $this->assertStringContainsString('<item0><name>first</name></item0>', $xml);
+        $this->assertStringContainsString('<item1><name>second</name></item1>', $xml);
+    }
+
+    public function testXmlFailed(): void
     {
         $this->expectException(InvalidArgumentException::class);
         Xml::toArray('{"hype');

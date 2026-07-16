@@ -14,9 +14,19 @@ class Base62
 
     /**
      * Encode the given number to a base62 string.
+     *
+     * @throws InvalidArgumentException
      */
     public static function encode(int $number): string
     {
+        if ($number < 0) {
+            throw new InvalidArgumentException('The number to encode must be greater than or equal to zero.');
+        }
+
+        if ($number === 0) {
+            return static::CHARS[0];
+        }
+
         $chars = [];
         while ($number > 0) {
             $remain = $number % static::BASE;

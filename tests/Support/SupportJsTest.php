@@ -32,6 +32,12 @@ class SupportJsTest extends TestCase
         );
     }
 
+    public function testInvalidUtf8IsSubstituted(): void
+    {
+        $this->assertSame('"�1"', Js::encode("\xB1\x31"));
+        $this->assertSame("'�1'", (string) Js::from("\xB1\x31"));
+    }
+
     public function testArrays()
     {
         $this->assertEquals(
