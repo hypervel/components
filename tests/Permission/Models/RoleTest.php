@@ -117,6 +117,22 @@ class RoleTest extends TestCase
         $this->testUserRole->givePermissionTo($this->testAdminPermission);
     }
 
+    public function testGuardMismatchReportsAnExplicitZeroNamedGuard(): void
+    {
+        $this->expectException(GuardDoesNotMatch::class);
+        $this->expectExceptionMessage('should use guard `0` instead of `admin`');
+
+        $this->testUserRole->hasPermissionTo($this->testAdminPermission, '0');
+    }
+
+    public function testGuardMismatchTreatsAnEmptyGuardAsUnspecified(): void
+    {
+        $this->expectException(GuardDoesNotMatch::class);
+        $this->expectExceptionMessage('should use guard `web` instead of `admin`');
+
+        $this->testUserRole->hasPermissionTo($this->testAdminPermission, '');
+    }
+
     public function testItCanBeGivenMultiplePermissionsUsingAnArray(): void
     {
         $this->testUserRole->givePermissionTo(['edit-articles', 'edit-news']);

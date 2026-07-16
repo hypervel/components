@@ -192,7 +192,10 @@ trait HasRoles
 
             $method = is_int($role) || PermissionRegistrar::isUid($role) ? 'findById' : 'findByName';
 
-            $role = $this->getRoleClass()::{$method}($role, $guard ?: $this->getDefaultGuardName());
+            $role = $this->getRoleClass()::{$method}(
+                $role,
+                $guard === null || $guard === '' ? $this->getDefaultGuardName() : $guard
+            );
             $this->ensureRoleMatchesPartition($role, $partition);
 
             return $role;
@@ -728,13 +731,13 @@ trait HasRoles
         if (is_int($roles) || PermissionRegistrar::isUid($roles)) {
             $key = Guard::getModelKeyName($this->getRoleClass());
 
-            return $guard
+            return $guard !== null && $guard !== ''
                 ? $roleCollection->where('guard_name', $guard)->contains($key, $roles)
                 : $roleCollection->contains($key, $roles);
         }
 
         if (is_string($roles)) {
-            $roleNames = $guard
+            $roleNames = $guard !== null && $guard !== ''
                 ? $roleCollection->where('guard_name', $guard)->pluck('name')
                 : $roleCollection->pluck('name');
 
@@ -763,7 +766,9 @@ trait HasRoles
         if ($roles instanceof Collection) {
             $this->ensureRoleCollectionMatchesPartition($roles);
 
-            return $roles->intersect($guard ? $roleCollection->where('guard_name', $guard) : $roleCollection)->isNotEmpty();
+            return $roles->intersect(
+                $guard !== null && $guard !== '' ? $roleCollection->where('guard_name', $guard) : $roleCollection
+            )->isNotEmpty();
         }
 
         throw new TypeError('Unsupported type for $roles parameter to hasRole().');
@@ -813,7 +818,7 @@ trait HasRoles
         $this->ensureRoleCollectionMatchesPartition($roles);
         $roles = $roles->map(fn ($role) => $role instanceof Role ? $role->name : enum_value($role));
 
-        $roleNames = $guard
+        $roleNames = $guard !== null && $guard !== ''
             ? $roleCollection->where('guard_name', $guard)->pluck('name')
             : $this->getRoleNames();
 

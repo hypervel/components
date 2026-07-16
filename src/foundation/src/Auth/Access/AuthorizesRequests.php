@@ -10,6 +10,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Http\Request;
 use Hypervel\Support\Str;
+use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
@@ -44,7 +45,9 @@ trait AuthorizesRequests
      */
     protected function parseAbilityAndArguments(mixed $ability, mixed $arguments = []): array
     {
-        $ability = enum_value($ability);
+        if ($ability instanceof UnitEnum) {
+            $ability = (string) enum_value($ability);
+        }
 
         if (is_string($ability) && ! str_contains($ability, '\\')) {
             return [$ability, $arguments];

@@ -34,7 +34,7 @@ class ShowCommand extends Command
         $style = (string) ($this->argument('style') ?? 'default');
         $guard = $this->argument('guard');
 
-        if ($guard) {
+        if ($guard !== null && $guard !== '') {
             $guards = Collection::make([(string) $guard]);
         } else {
             $guards = $permissionClass::query()
