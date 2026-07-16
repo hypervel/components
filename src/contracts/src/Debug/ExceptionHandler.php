@@ -9,6 +9,10 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
+/**
+ * @method array<array-key, mixed> buildContextForException(Throwable $e)
+ * @method bool isReporting(Throwable $e)
+ */
 interface ExceptionHandler
 {
     /**

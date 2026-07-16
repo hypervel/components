@@ -19,6 +19,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Debug\ShouldntReport;
 use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\RecordNotFoundException;
@@ -74,6 +75,11 @@ class Handler implements ExceptionHandlerContract
      * Context key for after-response callbacks.
      */
     public const AFTER_RESPONSE_CONTEXT_KEY = '__foundation.errors.after_response';
+
+    /**
+     * Context key for the exception currently being reported.
+     */
+    public const CURRENTLY_REPORTING_CONTEXT_KEY = '__foundation.errors.currently_reporting';
 
     /**
      * A list of the exception types that are not reported.
@@ -363,11 +369,37 @@ class Handler implements ExceptionHandlerContract
 
         $level = $this->mapLogLevel($e);
 
-        $context = $this->buildExceptionContext($e);
+        $hadPrevious = CoroutineContext::has(self::CURRENTLY_REPORTING_CONTEXT_KEY);
+        $previous = CoroutineContext::get(self::CURRENTLY_REPORTING_CONTEXT_KEY);
 
-        method_exists($logger, $level)
-            ? $logger->{$level}($e->getMessage(), $context)
-            : $logger->log($level, $e->getMessage(), $context);
+        CoroutineContext::set(self::CURRENTLY_REPORTING_CONTEXT_KEY, [
+            'coroutineId' => Coroutine::id(),
+            'exception' => $e,
+        ]);
+
+        try {
+            $context = $this->buildExceptionContext($e);
+
+            method_exists($logger, $level)
+                ? $logger->{$level}($e->getMessage(), $context)
+                : $logger->log($level, $e->getMessage(), $context);
+        } finally {
+            $hadPrevious
+                ? CoroutineContext::set(self::CURRENTLY_REPORTING_CONTEXT_KEY, $previous)
+                : CoroutineContext::forget(self::CURRENTLY_REPORTING_CONTEXT_KEY);
+        }
+    }
+
+    /**
+     * Determine if the given exception is being reported by this coroutine.
+     */
+    public function isReporting(Throwable $e): bool
+    {
+        $reporting = CoroutineContext::get(self::CURRENTLY_REPORTING_CONTEXT_KEY);
+
+        return is_array($reporting)
+            && ($reporting['coroutineId'] ?? null) === Coroutine::id()
+            && ($reporting['exception'] ?? null) === $e;
     }
 
     /**
@@ -512,10 +544,20 @@ class Handler implements ExceptionHandlerContract
     protected function buildExceptionContext(Throwable $e): array
     {
         return array_merge(
-            $this->exceptionContext($e),
+            $this->buildContextForException($e),
             $this->context(),
             ['exception' => $e]
         );
+    }
+
+    /**
+     * Create the context for the given exception.
+     *
+     * @return array<array-key, mixed>
+     */
+    public function buildContextForException(Throwable $e): array
+    {
+        return $this->exceptionContext($e);
     }
 
     /**
