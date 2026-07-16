@@ -170,11 +170,11 @@ class Logger implements LoggerInterface
                 $message = $this->formatMessage($message),
                 $context = array_merge($state->context, $context)
             );
+
+            $this->fireLogEvent($level, $message, $context);
         } finally {
             --$state->depth;
         }
-
-        $this->fireLogEvent($level, $message, $context);
     }
 
     /**

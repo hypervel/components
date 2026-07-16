@@ -271,6 +271,24 @@ class LogLoggerTest extends TestCase
         $this->assertSame([], $writer->getContext());
     }
 
+    public function testMessageLoggedListenerRecursionUsesLoopDetection(): void
+    {
+        $handler = new TestHandler;
+        $events = new Dispatcher;
+        $writer = new Logger(new Monolog('recursive', [$handler]), $events);
+        $remainingRecursions = 6;
+
+        $events->listen(MessageLogged::class, function () use ($writer, &$remainingRecursions): void {
+            if ($remainingRecursions-- > 0) {
+                $writer->info('nested');
+            }
+        });
+
+        $writer->info('initial');
+
+        $this->assertTrue($handler->hasWarningThatContains('infinite logging loop'));
+    }
+
     public function testNamedLoggerRejectsNonMonologDrivers(): void
     {
         $this->expectException(RuntimeException::class);

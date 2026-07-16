@@ -23,6 +23,7 @@ class JsonFormatter extends MonologJsonFormatter
             return array_merge($this->getExceptionContext($e, $depth), $response);
         }
 
+        // Active reports already carry this context at record level; rebuilding it can re-enter user callbacks.
         if (! method_exists($handler, 'isReporting') || ! $handler->isReporting($e)) {
             if (method_exists($handler, 'buildContextForException')
                 && is_array($context = $this->normalize($handler->buildContextForException($e), $depth + 1))
