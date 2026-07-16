@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `log`
-- **Ledger entries required for the active work:** `Coordinate shared container construction and complete current contextual resolution` (`container-09`, `container-10`)
-- **Pending revalidation carried into the active work:** `container-09`, `container-10`
+- **Active package or work unit:** `support`
+- **Ledger entries required for the active work:** `Isolate logging state and capture queued payloads deterministically` (`support-01`) and `Normalize framework enum identifiers at string boundaries` (`support-02`)
+- **Pending revalidation carried into the active work:** callback rebinding across every direct Manager consumer; enum identifier ownership across Support managers and their consumers; later full `foundation`, `queue`, and `sentry` audits must retain the completed Log boundaries
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1031,6 +1031,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events` (revalidation complete), `broadcasting`; later full `bus`, `queue`, and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support`; later full `foundation` and `support` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
+| `support-02` | `support` | `auth`, `broadcasting`, `bus`, `cache`, `concurrency`, `console`, `container`, `contracts`, `cookie`, `database`, `events`, `filesystem`, `foundation`, `hashing`, `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis`, `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-framework-enum-identifier-contracts.md` |
 
 ## Package checklist
 
@@ -1063,7 +1064,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `context`
 - [x] `di`
 - [x] `events`
-- [ ] `log`
+- [x] `log`
 - [ ] `support`
 
 ### Security and request primitives
