@@ -31,7 +31,7 @@ abstract class CacheEvent
     public function __construct(?string $storeName, UnitEnum|string $key, array $tags = [])
     {
         $this->storeName = $storeName;
-        $this->key = enum_value($key);
+        $this->key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $this->tags = $tags;
     }
 

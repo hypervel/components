@@ -241,6 +241,23 @@ class ConcurrencyLimiterTest extends TestCase
         $this->assertSame('failed', $result);
     }
 
+    public function testFunnelIntegerBackedEnumSharesKeyWithStringEquivalent(): void
+    {
+        (new ConcurrencyLimiterMockThatDoesntRelease($this->repository->getStore(), '0', 1, 5))->block(2, function () {
+        });
+
+        $result = $this->repository->funnel(ConcurrencyLimiterIntegerBackedEnum::Zero)
+            ->limit(1)
+            ->releaseAfter(5)
+            ->block(0)
+            ->then(
+                fn () => 'success',
+                fn () => 'failed'
+            );
+
+        $this->assertSame('failed', $result);
+    }
+
     public function testFunnelThrowsExceptionWhenStoreDoesNotSupportLocks(): void
     {
         $store = $this->createStub(Store::class);
@@ -443,6 +460,11 @@ class ConcurrencyLimiterMockThatDoesntRelease extends ConcurrencyLimiter
 enum ConcurrencyLimiterBackedEnum: string
 {
     case TestFunnel = 'test-funnel';
+}
+
+enum ConcurrencyLimiterIntegerBackedEnum: int
+{
+    case Zero = 0;
 }
 
 enum ConcurrencyLimiterUnitEnum

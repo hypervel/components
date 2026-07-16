@@ -646,14 +646,14 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('get')
             ->once()
-            ->with('prefix:profile')
+            ->with('prefix:0')
             ->andReturnNull();
 
         $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->withArgs(function (string $script, array $keys, array $args): bool {
-                $this->assertSame('prefix:profile', $keys[0]);
-                $this->assertSame('profile', $args[5]);
+                $this->assertSame('prefix:0', $keys[0]);
+                $this->assertSame('0', $args[5]);
 
                 return true;
             })
@@ -678,9 +678,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $keyWritten = array_values(array_filter($captured, fn (object $event) => $event instanceof KeyWritten))[0] ?? null;
 
         $this->assertNotNull($cacheMissed);
-        $this->assertSame('profile', $cacheMissed->key);
+        $this->assertSame('0', $cacheMissed->key);
         $this->assertNotNull($keyWritten);
-        $this->assertSame('profile', $keyWritten->key);
+        $this->assertSame('0', $keyWritten->key);
     }
 
     public function testRememberNullableStoresAndReturnsNonNullValue(): void
@@ -846,7 +846,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
 
         $connection->shouldReceive('get')
             ->once()
-            ->with('prefix:settings')
+            ->with('prefix:1')
             ->andReturn(serialize('cached_settings'));
 
         $captured = [];
@@ -867,7 +867,7 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
         $cacheHit = array_values(array_filter($captured, fn (object $event) => $event instanceof CacheHit))[0] ?? null;
 
         $this->assertNotNull($cacheHit);
-        $this->assertSame('settings', $cacheHit->key);
+        $this->assertSame('1', $cacheHit->key);
     }
 
     /**
@@ -1129,8 +1129,8 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     }
 }
 
-enum AnyTaggedCacheTestKey: string
+enum AnyTaggedCacheTestKey: int
 {
-    case Profile = 'profile';
-    case Settings = 'settings';
+    case Profile = 0;
+    case Settings = 1;
 }

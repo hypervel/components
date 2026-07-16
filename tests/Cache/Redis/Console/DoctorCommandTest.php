@@ -210,7 +210,7 @@ class DoctorCommandTest extends TestCase
         $command = new DoctorCommand;
         $command->setHypervel($this->app);
         $output = new BufferedOutput;
-        $command->run(new ArrayInput([]), $output);
+        $command->run(new ArrayInput(['--store' => '']), $output);
 
         // Verify it detected the redis store (case-insensitive check)
         $outputText = $output->fetch();
@@ -218,7 +218,7 @@ class DoctorCommandTest extends TestCase
         $this->assertStringContainsString('Tag Mode: any', $outputText);
     }
 
-    public function testDoctorUsesSpecifiedStore(): void
+    public function testDoctorUsesZeroNamedStore(): void
     {
         if (! extension_loaded('redis')
             || ! version_compare(phpversion('redis'), '6.3.0', '>=')) {
@@ -233,7 +233,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.default', 'file')
             ->andReturn('file');
         $config->shouldReceive('get')
-            ->with('cache.stores.custom-redis.connection', 'default')
+            ->with('cache.stores.0.connection', 'default')
             ->andReturn('custom');
 
         $this->app->instance('config', $config);
@@ -256,9 +256,8 @@ class DoctorCommandTest extends TestCase
         $repository->shouldReceive('getStore')->andReturn($store);
 
         $cacheManager = m::mock(CacheManager::class);
-        // Should use the specified store name (called multiple times during command)
         $cacheManager->shouldReceive('store')
-            ->with('custom-redis')
+            ->with('0')
             ->andReturn($repository);
 
         $this->app->instance(CacheContract::class, $cacheManager);
@@ -280,11 +279,10 @@ class DoctorCommandTest extends TestCase
         };
         $command->setHypervel($this->app);
         $output = new BufferedOutput;
-        $command->run(new ArrayInput(['--store' => 'custom-redis']), $output);
+        $command->run(new ArrayInput(['--store' => '0']), $output);
 
-        // Verify the custom store was used
         $outputText = $output->fetch();
-        $this->assertStringContainsString('custom-redis', $outputText);
+        $this->assertStringContainsString('Testing cache store: 0', $outputText);
     }
 
     public function testDoctorRunsChecksWhileRedisConnectionIsBorrowed(): void

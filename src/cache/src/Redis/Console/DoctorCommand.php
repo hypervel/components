@@ -82,9 +82,10 @@ class DoctorCommand extends Command
         $this->displaySystemInformation();
 
         // Detect or validate store
-        $storeName = $this->option('store') ?: $this->detectRedisStore();
+        $storeName = $this->option('store');
+        $storeName = $storeName === null || $storeName === '' ? $this->detectRedisStore() : $storeName;
 
-        if (! $storeName) {
+        if ($storeName === null || $storeName === '') {
             $this->error('Could not detect a cache store using the "redis" driver.');
             $this->info('Please configure a store in config/cache.php or provide one via --store.');
 
@@ -310,9 +311,10 @@ class DoctorCommand extends Command
 
         // Redis/Valkey Service
         try {
-            $storeName = $this->option('store') ?: $this->detectRedisStore();
+            $storeName = $this->option('store');
+            $storeName = $storeName === null || $storeName === '' ? $this->detectRedisStore() : $storeName;
 
-            if ($storeName) {
+            if ($storeName !== null && $storeName !== '') {
                 $repository = $this->hypervel->make(CacheContract::class)->store($storeName);
                 $store = $repository->getStore();
 

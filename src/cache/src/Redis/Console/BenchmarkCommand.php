@@ -203,13 +203,16 @@ class BenchmarkCommand extends Command
      */
     protected function setup(): bool
     {
-        $this->storeName = $this->option('store') ?? $this->detectRedisStore();
+        $storeName = $this->option('store');
+        $storeName = $storeName === null || $storeName === '' ? $this->detectRedisStore() : $storeName;
 
-        if (! $this->storeName) {
+        if ($storeName === null || $storeName === '') {
             $this->error('Could not detect a cache store using the "redis" driver.');
 
             return false;
         }
+
+        $this->storeName = $storeName;
 
         $cacheManager = $this->hypervel->make(CacheContract::class);
 

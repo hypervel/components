@@ -193,13 +193,13 @@ class CacheStackStoreTagsTest extends TestCase
         $taggable = $this->anyModeTaggableStore();
         $taggedCache = m::mock(TaggedCache::class);
 
-        $taggable->shouldReceive('get')->once()->with('key')->andReturnNull();
+        $taggable->shouldReceive('get')->once()->with('0')->andReturnNull();
         $taggable->shouldReceive('tags')->once()->with(['tag'])->andReturn($taggedCache);
-        $taggedCache->shouldReceive('put')->once()->andReturnTrue();
+        $taggedCache->shouldReceive('put')->once()->with('0', m::type('array'), 60)->andReturnTrue();
 
         $stack = new StackStore([$taggable]);
 
-        $this->assertSame('computed', $stack->tags(['tag'])->remember('key', 60, fn () => 'computed'));
+        $this->assertSame('computed', $stack->tags(['tag'])->remember(StackTaggedCacheKey::Zero, 60, fn () => 'computed'));
     }
 
     public function testTaggedRememberHitReadsPlainWithoutTaggedWrite(): void
@@ -271,4 +271,9 @@ class CacheStackStoreTagsTest extends TestCase
     {
         return m::mock(Store::class);
     }
+}
+
+enum StackTaggedCacheKey: int
+{
+    case Zero = 0;
 }
