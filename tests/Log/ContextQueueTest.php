@@ -6,9 +6,11 @@ namespace Hypervel\Tests\Log;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Queue\Queueable;
 use Hypervel\Log\Context\Repository;
+use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\SyncQueue;
@@ -96,6 +98,22 @@ class ContextQueueTest extends TestCase
 
         // No context Repository should have been allocated
         $this->assertFalse(Repository::hasInstance());
+    }
+
+    public function testPayloadWithoutContextFlushesAnExistingRepository(): void
+    {
+        $repository = Repository::getInstance();
+        $repository->add('stale', 'value');
+        $repository->addHidden('secret', 'value');
+
+        $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
+        $job->shouldReceive('payload')->andReturn(['job' => 'SomeJob']);
+
+        $this->app['events']->dispatch(new JobProcessing('sync', $job));
+
+        $this->assertSame($repository, Repository::getInstance());
+        $this->assertSame([], $repository->all());
+        $this->assertSame([], $repository->allHidden());
     }
 
     public function testDehydratingHookFiresBeforeJobDispatch()
@@ -210,6 +228,23 @@ class ContextQueueTest extends TestCase
         $this->assertSame('e2e-secret', ContextQueueTestJob::$receivedSecret);
     }
 
+    public function testBackgroundJobPayloadCapturesParentLogContextBeforeSpawning(): void
+    {
+        ContextQueueBackgroundJob::$receivedTraceId = null;
+        ContextQueueBackgroundJob::$completed = new Channel(1);
+        Repository::getInstance()->add('trace_id', 'parent-context');
+
+        $queue = new BackgroundQueue;
+        $queue->setContainer($this->app);
+        $queue->setConnectionName('background');
+        $queue->push(new ContextQueueBackgroundJob);
+
+        $this->assertTrue(ContextQueueBackgroundJob::$completed->pop(1));
+        $this->assertSame('parent-context', ContextQueueBackgroundJob::$receivedTraceId);
+
+        ContextQueueBackgroundJob::$completed = null;
+    }
+
     /**
      * Create a SyncQueue for payload testing.
      */
@@ -248,5 +283,22 @@ class ContextQueueTestJob implements ShouldQueue
     {
         static::$receivedTraceId = Repository::getInstance()->get('trace_id');
         static::$receivedSecret = Repository::getInstance()->getHidden('secret');
+    }
+}
+
+class ContextQueueBackgroundJob implements ShouldQueue
+{
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
+
+    public static ?Channel $completed = null;
+
+    public static ?string $receivedTraceId = null;
+
+    public function handle(): void
+    {
+        static::$receivedTraceId = Repository::getInstance()->get('trace_id');
+        static::$completed?->push(true);
     }
 }
