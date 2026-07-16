@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Di\ClassMap;
 
+use Composer\Autoload\ClassLoader;
 use Countable;
 use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\Support\Composer;
@@ -12,12 +13,34 @@ use RuntimeException;
 
 class ClassMapManagerTest extends TestCase
 {
-    public function testHasEntriesReturnsFalseWhenEmpty()
+    private ClassLoader $originalLoader;
+
+    private ClassLoader $isolatedLoader;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->originalLoader = Composer::getLoader();
+        $this->isolatedLoader = new ClassLoader;
+        $this->isolatedLoader->register();
+        Composer::setLoader($this->isolatedLoader);
+    }
+
+    protected function tearDown(): void
+    {
+        $this->isolatedLoader->unregister();
+        Composer::setLoader($this->originalLoader);
+
+        parent::tearDown();
+    }
+
+    public function testHasEntriesReturnsFalseWhenEmpty(): void
     {
         $this->assertFalse(ClassMapManager::hasEntries());
     }
 
-    public function testAddRegistersEntriesAndAppliestoAutoloader()
+    public function testAddRegistersEntriesAndAppliesToAutoloader(): void
     {
         $fakePath = '/tmp/fake_replacement.php';
 
@@ -37,7 +60,7 @@ class ClassMapManagerTest extends TestCase
         $this->assertSame($fakePath, $composerMap['Hypervel\Tests\Di\ClassMap\NonExistentClassForTesting']);
     }
 
-    public function testAddThrowsWhenClassAlreadyLoaded()
+    public function testAddThrowsWhenClassAlreadyLoaded(): void
     {
         // This test class itself is already loaded
         $this->expectException(RuntimeException::class);
@@ -48,7 +71,7 @@ class ClassMapManagerTest extends TestCase
         ]);
     }
 
-    public function testAddThrowsWhenInterfaceAlreadyLoaded()
+    public function testAddThrowsWhenInterfaceAlreadyLoaded(): void
     {
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Cannot override class map');
@@ -58,20 +81,17 @@ class ClassMapManagerTest extends TestCase
         ]);
     }
 
-    public function testAddThrowsWhenTraitAlreadyLoaded()
+    public function testAddThrowsWhenTraitAlreadyLoaded(): void
     {
-        // Force-load the trait by referencing a class that uses it
-        new \Hypervel\Tests\Di\Fixtures\ProxyTraitObject;
-
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Cannot override class map');
 
         ClassMapManager::add([
-            \Hypervel\Di\Aop\ProxyTrait::class => '/tmp/replacement.php',
+            LoadedTraitForClassMapTest::class => '/tmp/replacement.php',
         ]);
     }
 
-    public function testAddMergesMultipleCalls()
+    public function testAddMergesMultipleCalls(): void
     {
         ClassMapManager::add([
             'Fake\ClassA' => '/tmp/a.php',
@@ -86,7 +106,7 @@ class ClassMapManagerTest extends TestCase
         ], ClassMapManager::getEntries());
     }
 
-    public function testFlushStateRemovesAllEntries()
+    public function testFlushStateRemovesAllEntries(): void
     {
         ClassMapManager::add([
             'Fake\ClassA' => '/tmp/a.php',
@@ -97,4 +117,8 @@ class ClassMapManagerTest extends TestCase
         $this->assertFalse(ClassMapManager::hasEntries());
         $this->assertSame([], ClassMapManager::getEntries());
     }
+}
+
+trait LoadedTraitForClassMapTest
+{
 }

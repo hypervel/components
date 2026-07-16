@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Container\Container;
-use Hypervel\Di\Aop\Aspect;
-use Hypervel\Di\Aop\AspectCollector;
-use Hypervel\Di\Aop\Pipeline;
-use Hypervel\Di\Aop\ProceedingJoinPoint;
-use Hypervel\Support\SplPriorityQueue;
+use Hypervel\Di\Aop\ProxyDispatcher;
+use Hypervel\Di\Aop\ProxyMarker;
 use LogicException;
 use ReflectionMethod;
 
@@ -22,9 +18,8 @@ use ReflectionMethod;
  * trait is for tests where the target is not already proxied, or where the
  * goal is to exercise aspect pipeline behavior directly.
  *
- * callWithAspects() builds a ProceedingJoinPoint for the target method and runs
- * it through the same aspect resolution and pipeline execution flow used by
- * generated proxies before invoking the original method via reflection.
+ * callWithAspects() invokes the same dispatcher used by generated proxies
+ * before calling the original method via reflection.
  */
 trait InteractsWithAop
 {
@@ -42,7 +37,7 @@ trait InteractsWithAop
      */
     protected function isAopProxied(object $instance): bool
     {
-        return method_exists($instance, '__proxyCall');
+        return in_array(ProxyMarker::class, class_uses_recursive($instance), true);
     }
 
     /**
@@ -70,27 +65,12 @@ trait InteractsWithAop
 
         $reflectionMethod = new ReflectionMethod($className, $method);
 
-        $formattedArguments = $this->buildAopArguments($reflectionMethod, $arguments);
-        $originalMethod = $reflectionMethod->getClosure($instance);
-
-        $joinPoint = new ProceedingJoinPoint(
-            $originalMethod,
+        return ProxyDispatcher::dispatch(
             $className,
             $method,
-            $formattedArguments
+            $this->buildAopArguments($reflectionMethod, $arguments),
+            $reflectionMethod->getClosure($instance)
         );
-
-        $aspects = $this->resolveMatchingAspects($className, $method);
-
-        if (empty($aspects)) {
-            return $joinPoint->processOriginalMethod();
-        }
-
-        return (new Pipeline(Container::getInstance()))
-            ->via('process')
-            ->through($aspects)
-            ->send($joinPoint)
-            ->then(fn (ProceedingJoinPoint $point) => $point->processOriginalMethod());
     }
 
     /**
@@ -127,42 +107,5 @@ trait InteractsWithAop
             'keys' => $keys,
             'variadic' => $variadic,
         ];
-    }
-
-    /**
-     * Resolve the aspects that match the given class and method, sorted by priority.
-     *
-     * @return array<int, string> Aspect class names in priority order
-     */
-    private function resolveMatchingAspects(string $className, string $method): array
-    {
-        $allAspects = AspectCollector::getClassRules();
-        $matched = [];
-
-        foreach ($allAspects as $aspect => $rules) {
-            foreach ($rules as $rule) {
-                if (Aspect::isMatch($className, $method, $rule)) {
-                    $matched[] = $aspect;
-                    break;
-                }
-            }
-        }
-
-        if (empty($matched)) {
-            return [];
-        }
-
-        $queue = new SplPriorityQueue;
-        foreach ($matched as $aspect) {
-            $queue->insert($aspect, AspectCollector::getPriority($aspect));
-        }
-
-        $sorted = [];
-        while ($queue->valid()) {
-            $sorted[] = $queue->current();
-            $queue->next();
-        }
-
-        return $sorted;
     }
 }

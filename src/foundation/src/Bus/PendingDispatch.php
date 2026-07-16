@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Bus;
 
-use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DebounceLock;
@@ -65,7 +64,7 @@ class PendingDispatch
      *
      * This feature is only supported by some queues, such as Amazon SQS.
      */
-    public function onGroup(UnitEnum|string|null $group): static
+    public function onGroup(array|UnitEnum|string|int|null $group): static
     {
         if (! is_null($group)) {
             $this->job->onGroup($group);
@@ -79,7 +78,7 @@ class PendingDispatch
      *
      * This feature is only supported by some queues, such as Amazon SQS FIFO.
      */
-    public function withDeduplicator(?Closure $deduplicator): static
+    public function withDeduplicator(array|callable|null $deduplicator): static
     {
         $this->job->withDeduplicator($deduplicator);
 

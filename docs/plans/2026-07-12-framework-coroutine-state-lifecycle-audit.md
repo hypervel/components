@@ -181,6 +181,10 @@ The following behavior was reproduced on Swoole 6.2.2 while fixing the test-suit
 - `Coroutine::yield()` parks the coroutine until another path explicitly resumes it. It is not a substitute for a scheduling yield such as the production runtime's hooked `usleep(0)`.
 - Native Swoole handles can already be torn down when PHP destructors run. Native channel/resource closure therefore belongs to an explicit deterministic lifecycle path, not `__destruct()`. A destructor may perform only PHP-local best-effort cleanup whose full call chain is proven not to reach a native handle.
 
+### Verified PHP compiler behavior
+
+PHP 8.4 changed `__FUNCTION__` and `__METHOD__` inside closures and arrow functions from the historical bare `{closure}` value to a descriptor containing the lexical parent and closure definition line, such as `{closure:App\Service::method():42}`. Nested closures compose that descriptor. A source compiler that moves a method body must preserve the original lexical name and line rather than exposing its generated helper. Revalidate this descriptor format after every PHP major or minor upgrade; a native-runtime canary must fail if PHP changes the format assumed by the generator.
+
 ## Audit principles
 
 ### 1. Verify before changing
@@ -986,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `context`
-- **Ledger entries required for the active work:** `Coordinate shared container construction and complete current contextual resolution` (`container-05`, `container-06`)
-- **Pending revalidation carried into the active work:** `container-05`, `container-06`
+- **Active package or work unit:** `log`
+- **Ledger entries required for the active work:** `Coordinate shared container construction and complete current contextual resolution` (`container-09`, `container-10`)
+- **Pending revalidation carried into the active work:** `container-09`, `container-10`
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1005,16 +1009,28 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `testbench-01` | `testbench` | `foundation`; later full `testbench` and `foundation` audits | `Restore Conditionable proxy truthiness`; shared finding `testbench-01` |
 | `http-01` | `http` | `macroable`, `testing`; later full `http` and `testing` audits | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
 | `console-01` | `console` | `contracts`; later full `console` audit | `Preserve typed console contracts during Composer scripts`; shared finding `console-01` |
-| `reflection-01` | `reflection` | `events`, `foundation`; later full `events` and `foundation` audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-01` |
+| `reflection-01` | `reflection` | `events` (revalidation complete), `foundation`; later full `foundation` audit | `Consolidate reflection metadata and correct callable inference`; finding `reflection-01` |
 | `reflection-02` | `reflection` | `console`, `routing`, `view`, `foundation`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-02` |
-| `reflection-04` | `reflection` | `di`, `support`, `queue`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
+| `reflection-04` | `reflection` | `di` (revalidation complete), `support`, `queue`, `testing`; later full consumer audits | `Consolidate reflection metadata and correct callable inference`; finding `reflection-04` |
 | `config-01` | `config` | `foundation`; later full `foundation` audit | `Preserve configuration identity across worker reloads`; finding `config-01` |
 | `config-02` | `foundation` | `testing`, `reverb`; later full consumer audits | `Preserve configuration identity across worker reloads`; finding `config-02` |
-| `container-05` | `container` | `context`; later full `context` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-05` |
-| `container-06` | `container` | `context`; later full `context` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-06` |
+| `container-05` | `container` | `context` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-05` |
+| `container-06` | `container` | `context` (revalidation complete) | `Coordinate shared container construction and complete current contextual resolution`; finding `container-06` |
 | `container-08` | `container` | `auth`, `cache`, `log`, `routing`, `support`; later full consumer audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-08` |
 | `container-09` | `auth`, `cache`, `log` | `container` (revalidation complete); later full `auth`, `cache`, and `log` audits | `Coordinate shared container construction and complete current contextual resolution`; finding `container-09` |
 | `container-10` | `log` | `container` (revalidation complete); later full `log` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
+| `context-01` | `context` | `container` (revalidation complete), `foundation`; later full `foundation` audit | `Correct explicit coroutine context targeting`; finding `context-01` |
+| `context-04` | `context` | `foundation`, `database`; later full consumer audits | `Correct explicit coroutine context targeting`; finding `context-04` |
+| `di-02` | `di` | `foundation`, `sentry`, `telescope`; later full consumer audits | `Correct AOP proxy generation and publication`; finding `di-02` |
+| `filesystem-02` | `filesystem` | `di` (revalidation complete); later full `filesystem` audit | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
+| `events-01` | `foundation` | `events` (revalidation complete); later full `foundation` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-01` |
+| `events-03` | `events`, `queue` | later full `queue` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-03` |
+| `events-04` | `events`, `foundation` | later full `foundation` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-04` |
+| `events-05` | `events`, `broadcasting` | later full `broadcasting` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-05` |
+| `events-06` | `events`, `foundation` | later full `foundation` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-06` |
+| `queue-11` | `queue` | `events` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
+| `queue-12` | `bus`, `queue` | `events` (revalidation complete), `broadcasting`; later full `bus`, `queue`, and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
+| `foundation-01` | `foundation` | `support`; later full `foundation` and `support` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
 
 ## Package checklist
 
@@ -1044,9 +1060,9 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `reflection`
 - [x] `config`
 - [x] `container`
-- [ ] `context`
-- [ ] `di`
-- [ ] `events`
+- [x] `context`
+- [x] `di`
+- [x] `events`
 - [ ] `log`
 - [ ] `support`
 

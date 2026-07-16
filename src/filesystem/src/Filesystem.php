@@ -457,6 +457,8 @@ class Filesystem
 
     /**
      * Determine if the given path is a directory.
+     *
+     * @phpstan-impure
      */
     public function isDirectory(string $directory): bool
     {
@@ -563,8 +565,12 @@ class Filesystem
      */
     public function ensureDirectoryExists(string $path, int $mode = 0755, bool $recursive = true): void
     {
-        if (! $this->isDirectory($path)) {
-            $this->makeDirectory($path, $mode, $recursive);
+        if ($this->isDirectory($path)) {
+            return;
+        }
+
+        if (! $this->makeDirectory($path, $mode, $recursive, true) && ! $this->isDirectory($path)) {
+            throw new RuntimeException("Unable to create directory [{$path}].");
         }
     }
 

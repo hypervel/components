@@ -52,9 +52,30 @@ class ReadsQueueAttributesTest extends TestCase
         $this->assertSame(30, $this->getAttributeValue($job, Backoff::class));
     }
 
+    public function testBackoffAttributeWithNamedScalarIsRead(): void
+    {
+        $job = new BackoffNamedScalarJob;
+
+        $this->assertSame(30, $this->getAttributeValue($job, Backoff::class));
+    }
+
     public function testBackoffAttributeWithArrayIsRead(): void
     {
         $job = new BackoffArrayJob;
+
+        $this->assertSame([10, 20, 30], $this->getAttributeValue($job, Backoff::class));
+    }
+
+    public function testBackoffAttributeWithNamedArrayIsRead(): void
+    {
+        $job = new BackoffNamedArrayJob;
+
+        $this->assertSame([10, 20, 30], $this->getAttributeValue($job, Backoff::class));
+    }
+
+    public function testBackoffAttributeWithVariadicValuesIsRead(): void
+    {
+        $job = new BackoffVariadicJob;
 
         $this->assertSame([10, 20, 30], $this->getAttributeValue($job, Backoff::class));
     }
@@ -219,8 +240,23 @@ class BackoffJob
 {
 }
 
+#[Backoff(backoff: 30)]
+class BackoffNamedScalarJob
+{
+}
+
 #[Backoff([10, 20, 30])]
 class BackoffArrayJob
+{
+}
+
+#[Backoff(backoff: [10, 20, 30])]
+class BackoffNamedArrayJob
+{
+}
+
+#[Backoff(10, 20, 30)]
+class BackoffVariadicJob
 {
 }
 

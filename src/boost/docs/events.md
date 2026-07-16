@@ -791,7 +791,7 @@ class SendShipmentNotification implements ShouldQueue
 }
 ```
 
-If you require more complex logic for determining the listeners's backoff time, you may define a `backoff` method on your listener class:
+If you require more complex logic for determining the listener's backoff time, you may define a `backoff` method on your listener class:
 
 ```php
 /**
@@ -816,6 +816,8 @@ public function backoff(OrderShipped $event): array
     return [1, 5, 10];
 }
 ```
+
+You may also declare the sequence directly on the listener using either `#[Backoff([1, 5, 10])]` or `#[Backoff(1, 5, 10)]`.
 
 <a name="specifying-queued-listener-max-exceptions"></a>
 #### Specifying Queued Listener Max Exceptions

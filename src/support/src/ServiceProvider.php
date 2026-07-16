@@ -14,7 +14,6 @@ use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\ClassMap\ClassMapManager;
 use Hypervel\View\Compilers\CompilerInterface;
-use ReflectionClass;
 use ReflectionProperty;
 
 abstract class ServiceProvider
@@ -572,7 +571,7 @@ return [
         $aspects = is_array($aspects) ? $aspects : func_get_args();
 
         foreach ($aspects as $aspect) {
-            $reflectionClass = new ReflectionClass($aspect);
+            $reflectionClass = ClassMetadataCache::reflectClass($aspect);
             $properties = $reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC);
 
             $classes = [];

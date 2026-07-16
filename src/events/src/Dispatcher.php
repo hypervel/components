@@ -42,6 +42,7 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use ReflectionClass;
 use ReflectionException;
+use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
@@ -80,14 +81,14 @@ class Dispatcher implements DispatcherContract
     /**
      * The registered event listeners.
      *
-     * @var array<string, null|array|callable|class-string>
+     * @var array<string, array<int, null|array|callable|string>>
      */
     protected array $listeners = [];
 
     /**
      * The wildcard listeners.
      *
-     * @var array<string, array<int, array|Closure|string>>
+     * @var array<string, array<int, array|callable|string>>
      */
     protected array $wildcards = [];
 
@@ -124,14 +125,14 @@ class Dispatcher implements DispatcherContract
     /**
      * The registered event observers.
      *
-     * @var array<string, array<int, array|Closure|string>>
+     * @var array<string, array<int, array|callable|string>>
      */
     protected array $observers = [];
 
     /**
      * The wildcard observers.
      *
-     * @var array<string, array<int, array|Closure|string>>
+     * @var array<string, array<int, array|callable|string>>
      */
     protected array $observerWildcards = [];
 
@@ -753,6 +754,7 @@ class Dispatcher implements DispatcherContract
         }
 
         return $this->handlerShouldBeDispatchedAfterDatabaseTransactions($listener)
+                && ! in_array($method, ['creating', 'updating', 'saving', 'deleting', 'restoring', 'forceDeleting'])
             ? $this->createCallbackForListenerRunningAfterCommits($listener, $method)
             : [$listener, $method];
     }
@@ -790,7 +792,7 @@ class Dispatcher implements DispatcherContract
     {
         return function () use ($class, $method) {
             $arguments = array_map(function ($a) {
-                return is_object($a) ? clone $a : $a;
+                return is_object($a) && ! $a instanceof UnitEnum ? clone $a : $a;
             }, func_get_args());
 
             if ($this->handlerWantsToBeQueued($class, $arguments)) {

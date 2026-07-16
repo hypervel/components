@@ -626,6 +626,26 @@ class FilesystemTest extends TestCase
         $this->assertFileExists($this->tempDir . '/created');
     }
 
+    public function testEnsureDirectoryExistsThrowsWhenCreationFails(): void
+    {
+        $path = $this->tempDir . '/uncreatable';
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Unable to create directory [{$path}].");
+
+        (new FailingDirectoryFilesystem)->ensureDirectoryExists($path);
+    }
+
+    public function testEnsureDirectoryExistsAcceptsAConcurrentCreator(): void
+    {
+        $filesystem = new ConcurrentDirectoryFilesystem;
+
+        $filesystem->ensureDirectoryExists($this->tempDir . '/concurrently-created');
+
+        $this->assertSame(2, $filesystem->directoryChecks);
+        $this->assertSame(1, $filesystem->creationAttempts);
+    }
+
     public function testRequireOnceRequiresFileProperly()
     {
         $filesystem = new Filesystem;
@@ -825,5 +845,37 @@ class VanishingReadFilesystem extends Filesystem
     public function isFile(string $file): bool
     {
         return true;
+    }
+}
+
+class FailingDirectoryFilesystem extends Filesystem
+{
+    public function isDirectory(string $directory): bool
+    {
+        return false;
+    }
+
+    public function makeDirectory(string $path, int $mode = 0755, bool $recursive = false, bool $force = false): bool
+    {
+        return false;
+    }
+}
+
+class ConcurrentDirectoryFilesystem extends Filesystem
+{
+    public int $directoryChecks = 0;
+
+    public int $creationAttempts = 0;
+
+    public function isDirectory(string $directory): bool
+    {
+        return ++$this->directoryChecks > 1;
+    }
+
+    public function makeDirectory(string $path, int $mode = 0755, bool $recursive = false, bool $force = false): bool
+    {
+        ++$this->creationAttempts;
+
+        return false;
     }
 }

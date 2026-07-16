@@ -81,6 +81,8 @@ You may pass a coroutine ID as the third argument to store a value in a specific
 CoroutineContext::set('tenant_id', 123, $coroutineId);
 ```
 
+An explicit coroutine ID always targets only that coroutine, regardless of whether the caller is running inside another coroutine. If the requested coroutine does not exist, `set` throws a `Hypervel\Engine\Exceptions\CoroutineDestroyedException`. In the same situation, `get` returns its default, `has` returns `false`, `forget` and `flush` do nothing, and `getContainer` returns `null`. These operations never fall back to the shared non-coroutine context store when an explicit ID is supplied.
+
 <a name="determining-item-existence"></a>
 ### Determining Item Existence
 
@@ -300,31 +302,16 @@ CoroutineContext::copyFromNonCoroutine(['request_id'], $coroutineId);
 <a name="copying-to-non-coroutine-context"></a>
 ### Copying To Non-Coroutine Context
 
-The `copyToNonCoroutine` method copies values from a coroutine context into the non-coroutine context store:
+Hypervel's test infrastructure uses the `copyToNonCoroutine` method to bridge selected state from a test coroutine into PHPUnit lifecycle code that runs outside a coroutine. You may select specific keys and, when necessary, the source coroutine:
 
 ```php
 use Hypervel\Context\CoroutineContext;
 
-use function Hypervel\Coroutine\run;
-
-run(function () {
-    CoroutineContext::set('request_id', 'abc');
-
-    CoroutineContext::copyToNonCoroutine();
-});
+CoroutineContext::copyToNonCoroutine(['test_state'], $coroutineId);
 ```
 
-You may copy only specific keys:
-
-```php
-CoroutineContext::copyToNonCoroutine(['request_id']);
-```
-
-You may pass a coroutine ID as the second argument to copy from a specific coroutine:
-
-```php
-CoroutineContext::copyToNonCoroutine(['request_id'], $coroutineId);
-```
+> [!WARNING]
+> `copyToNonCoroutine` writes to process-global storage shared by every coroutine in the worker. It is intended only for controlled test lifecycle bridges and must not be used to propagate request state.
 
 <a name="reading-non-coroutine-context"></a>
 ### Reading Non-Coroutine Context
@@ -337,11 +324,14 @@ use Hypervel\Context\CoroutineContext;
 $requestId = CoroutineContext::getFromNonCoroutine('request_id');
 ```
 
-You may clear specific keys from the non-coroutine context store using `clearFromNonCoroutine`:
+Test infrastructure may clear its owned keys from the non-coroutine context store using `clearFromNonCoroutine`:
 
 ```php
-CoroutineContext::clearFromNonCoroutine(['request_id']);
+CoroutineContext::clearFromNonCoroutine(['test_state']);
 ```
+
+> [!WARNING]
+> `clearFromNonCoroutine` mutates process-global storage and is intended only for controlled test lifecycle cleanup.
 
 <a name="replicable-context-values"></a>
 ### Replicable Context Values

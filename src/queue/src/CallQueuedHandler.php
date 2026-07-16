@@ -145,8 +145,11 @@ class CallQueuedHandler
     {
         $handler = $this->dispatcher->getCommandHandler($command) ?: null;
 
-        if ($handler) {
-            $this->setJobInstanceIfNecessary($job, $handler);
+        if ($handler && in_array(InteractsWithQueue::class, class_uses_recursive($handler))) {
+            // Mapped handlers may be worker-shared container instances. Clone the
+            // configured handler before injecting the job owned by this execution.
+            $handler = clone $handler;
+            $handler->setJob($job);
         }
 
         return $handler;

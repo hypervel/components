@@ -11,9 +11,9 @@ trait Dispatchable
     /**
      * Dispatch the event with the given arguments.
      */
-    public static function dispatch(): mixed
+    public static function dispatch(mixed ...$arguments): mixed
     {
-        return event(new static(...func_get_args()));
+        return event(new static(...$arguments));
     }
 
     /**
@@ -35,8 +35,8 @@ trait Dispatchable
     /**
      * Broadcast the event with the given arguments.
      */
-    public static function broadcast(): PendingBroadcast
+    public static function broadcast(mixed ...$arguments): PendingBroadcast
     {
-        return broadcast(new static(...func_get_args()));
+        return broadcast(new static(...$arguments));
     }
 }

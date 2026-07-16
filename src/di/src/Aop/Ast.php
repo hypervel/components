@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Di\Aop;
 
-use Hypervel\Support\Composer;
-use PhpParser\Node\Stmt\ClassLike;
-use PhpParser\Node\Stmt\Namespace_;
 use PhpParser\NodeTraverser;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
@@ -36,54 +33,25 @@ class Ast
     /**
      * Generate proxy code for the given class.
      *
-     * Reads the class source file, applies all registered AST visitors
-     * (via AstVisitorRegistry), and returns the modified PHP code.
+     * Parse the supplied class source, apply all registered AST visitors,
+     * and return the modified PHP code.
      */
-    public function proxy(string $className, ?string $sourceFilePath = null): string
+    public function proxy(string $className, string $sourceFilePath, string $sourceCode): string
     {
-        $code = $this->getCodeByClassName($className, $sourceFilePath);
-        $stmts = $this->astParser->parse($code);
+        $stmts = $this->astParser->parse($sourceCode) ?? [];
         $traverser = new NodeTraverser;
-        $visitorMetadata = new VisitorMetadata($className);
+        $visitorMetadata = new VisitorMetadata($className, $sourceFilePath);
+
         // Users can modify or replace node visitors via AstVisitorRegistry.
         $queue = clone AstVisitorRegistry::getQueue();
+
         foreach ($queue as $string) {
             $visitor = new $string($visitorMetadata);
             $traverser->addVisitor($visitor);
         }
+
         $modifiedStmts = $traverser->traverse($stmts);
+
         return $this->printer->prettyPrintFile($modifiedStmts);
-    }
-
-    /**
-     * Extract the fully qualified class name from parsed statements.
-     */
-    public function parseClassByStmts(array $stmts): string
-    {
-        $namespace = $className = '';
-        foreach ($stmts as $stmt) {
-            if ($stmt instanceof Namespace_ && $stmt->name) {
-                $namespace = $stmt->name->toString();
-                foreach ($stmt->stmts as $node) {
-                    if (($node instanceof ClassLike) && $node->name) {
-                        $className = $node->name->toString();
-                        break;
-                    }
-                }
-            }
-        }
-        return ($namespace && $className) ? $namespace . '\\' . $className : '';
-    }
-
-    /**
-     * Read the source code for a class from its file.
-     */
-    private function getCodeByClassName(string $className, ?string $sourceFilePath = null): string
-    {
-        $file = $sourceFilePath ?? Composer::getLoader()->findFile($className);
-        if (! $file) {
-            return '';
-        }
-        return file_get_contents($file);
     }
 }
