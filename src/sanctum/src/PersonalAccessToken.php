@@ -239,7 +239,10 @@ class PersonalAccessToken extends Model implements HasAbilities
     {
         $cacheManager = Container::getInstance()->make('cache');
         $store = config('sanctum.cache.store');
-        return $store ? $cacheManager->store($store) : $cacheManager->store();
+
+        return $store !== null && $store !== ''
+            ? $cacheManager->store($store)
+            : $cacheManager->store();
     }
 
     /**

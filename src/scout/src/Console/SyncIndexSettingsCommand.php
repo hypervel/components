@@ -34,7 +34,8 @@ class SyncIndexSettingsCommand extends Command
      */
     public function handle(EngineManager $manager, Repository $config): int
     {
-        $driver = $this->option('driver') ?: $config->string('scout.driver');
+        $driver = $this->option('driver');
+        $driver = $driver === null || $driver === '' ? $config->string('scout.driver') : $driver;
 
         $engine = $manager->engine($driver);
 
