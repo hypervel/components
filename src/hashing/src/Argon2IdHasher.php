@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Hashing;
 
 use RuntimeException;
+use SensitiveParameter;
 
 class Argon2IdHasher extends ArgonHasher
 {
@@ -13,13 +14,13 @@ class Argon2IdHasher extends ArgonHasher
      *
      * @throws RuntimeException
      */
-    public function check(string $value, ?string $hashedValue, array $options = []): bool
+    public function check(#[SensitiveParameter] string $value, ?string $hashedValue, array $options = []): bool
     {
         if (! $this->hasHash($hashedValue)) {
             return false;
         }
 
-        if ($this->verifyAlgorithm && $this->info($hashedValue)['algoName'] !== 'argon2id') {
+        if ($this->verifyAlgorithm && ! $this->isUsingCorrectAlgorithm($hashedValue)) {
             throw new RuntimeException('This password does not use the Argon2id algorithm.');
         }
 
