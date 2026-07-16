@@ -74,7 +74,9 @@ class SupervisorOptions
         public int $rest = 0,
         public ?string $autoScalingStrategy = 'time',
     ) {
-        $this->queue = $queue ?: config('queue.connections.' . $connection . '.queue');
+        $this->queue = $queue === null || $queue === ''
+            ? config('queue.connections.' . $connection . '.queue')
+            : $queue;
     }
 
     /**

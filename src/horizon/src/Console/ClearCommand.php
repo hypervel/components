@@ -37,8 +37,12 @@ class ClearCommand extends Command
             return 1;
         }
 
-        $connection = $this->argument('connection')
-            ?: array_first(config('horizon.defaults'))['connection'] ?? 'redis';
+        $connection = $this->argument('connection');
+
+        if ($connection === null || $connection === '') {
+            $connection = array_first(config('horizon.defaults'))['connection'] ?? 'redis';
+        }
+
         $queue = $this->getQueue($connection);
 
         if (method_exists($jobRepository, 'purge')) {
@@ -58,6 +62,10 @@ class ClearCommand extends Command
      */
     protected function getQueue(string $connection): string
     {
-        return $this->option('queue') ?: config("queue.connections.{$connection}.queue", 'default');
+        $queue = $this->option('queue');
+
+        return $queue === null || $queue === ''
+            ? config("queue.connections.{$connection}.queue", 'default')
+            : $queue;
     }
 }
