@@ -481,7 +481,8 @@ class ServerTest extends ReverbIntegrationTestCase
         $this->assertNotNull($msg, 'Expected member_removed notification');
         $data = json_decode($msg, associative: true);
         $this->assertSame('pusher_internal:member_removed', $data['event']);
-        $this->assertStringContainsString('"user_id":2', $data['data']);
+        $member = json_decode($data['data'], associative: true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame('2', $member['user_id']);
 
         $this->disconnect($clientOne);
     }
