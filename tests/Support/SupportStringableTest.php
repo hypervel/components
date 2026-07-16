@@ -125,6 +125,16 @@ class SupportStringableTest extends TestCase
         $this->assertTrue($this->stringable('A')->isNotEmpty());
     }
 
+    public function testCounted(): void
+    {
+        $this->assertSame('1 order', (string) $this->stringable('order')->counted(1));
+        $this->assertSame('2 orders', (string) $this->stringable('order')->counted(2));
+        $this->assertSame('0 orders', (string) $this->stringable('order')->counted(0));
+        $this->assertSame('1,000 orders', (string) $this->stringable('order')->counted(1000));
+        $this->assertSame('1 order', (string) $this->stringable('order')->counted(['a']));
+        $this->assertSame('2 orders', (string) $this->stringable('order')->counted(['a', 'b']));
+    }
+
     public function testPluralStudly()
     {
         $this->assertSame('LaraCon', (string) $this->stringable('LaraCon')->pluralStudly(1));
