@@ -42,6 +42,9 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class QueueWorkerTest extends TestCase
 {
@@ -1010,8 +1013,12 @@ class WorkerFakeManager extends QueueManager
         $this->connections[$name] = $connection;
     }
 
-    public function connection(?string $name = null): Queue
+    public function connection(UnitEnum|string|null $name = null): Queue
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         return $this->connections[$name];
     }
 }

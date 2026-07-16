@@ -7,7 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Concurrency\ConcurrencyManager;
 
 /**
- * @method static mixed driver(string|null $name = null)
+ * @method static mixed driver(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Concurrency\CoroutineDriver createCoroutineDriver()
  * @method static \Hypervel\Concurrency\ProcessDriver createProcessDriver()
  * @method static \Hypervel\Concurrency\SyncDriver createSyncDriver()

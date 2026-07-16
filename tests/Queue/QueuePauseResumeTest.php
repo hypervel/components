@@ -197,6 +197,7 @@ class QueuePauseResumeTest extends TestCase
         };
 
         $this->assertSame(['redis', 'default'], $parser->parse(''));
+        $this->assertSame(['redis', '0'], $parser->parse('0'));
         $this->assertSame(['redis', 'emails'], $parser->parse('emails'));
         $this->assertSame(['database', 'notifications'], $parser->parse('database:notifications'));
         $this->assertSame(['redis', 'foo:bar'], $parser->parse('redis:foo:bar'));

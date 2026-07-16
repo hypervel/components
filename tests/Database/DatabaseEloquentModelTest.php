@@ -1349,6 +1349,15 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame($mockConnection, $model->getConnection());
     }
 
+    public function testIntegerBackedConnectionEnumIsExposedAsAString(): void
+    {
+        $model = new ModelStub;
+
+        $model->setConnection(IntegerBackedConnectionName::Zero);
+
+        $this->assertSame('0', $model->getConnectionName());
+    }
+
     public function testToArray()
     {
         $model = new ModelStub;
@@ -4986,4 +4995,9 @@ enum ConnectionNameBacked: string
 {
     case Foo = 'Foo';
     case Bar = 'Bar';
+}
+
+enum IntegerBackedConnectionName: int
+{
+    case Zero = 0;
 }

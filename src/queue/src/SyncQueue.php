@@ -94,7 +94,17 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function executeJob(object|string $job, mixed $data = '', ?string $queue = null): int
     {
-        $queueJob = $this->resolveJob($this->createPayload($job, $queue, $data), $queue);
+        return $this->executePayload($this->createPayload($job, $queue, $data), $queue);
+    }
+
+    /**
+     * Execute a serialized job payload synchronously.
+     *
+     * @throws Throwable
+     */
+    protected function executePayload(string $payload, ?string $queue = null): int
+    {
+        $queueJob = $this->resolveJob($payload, $queue);
 
         try {
             $this->raiseBeforeJobEvent($queueJob);

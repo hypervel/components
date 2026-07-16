@@ -194,6 +194,32 @@ class MailableQueuedTest extends TestCase
         $this->assertSame(30, $pushedJob->delay);
     }
 
+    public function testQueuedMailablePreservesZeroQueueAndDefaultsEmptyQueue(): void
+    {
+        $zeroQueue = new QueueFake($this->app);
+        (new MailableQueueableStub)->onQueue('0')->queue($zeroQueue);
+
+        $zeroQueue->assertPushedOn('0', SendQueuedMailable::class);
+
+        $defaultQueue = new QueueFake($this->app);
+        (new MailableQueueableStub)->onQueue('')->queue($defaultQueue);
+
+        $defaultQueue->assertPushedOn(null, SendQueuedMailable::class);
+    }
+
+    public function testDelayedMailablePreservesZeroQueueAndDefaultsEmptyQueue(): void
+    {
+        $zeroQueue = new QueueFake($this->app);
+        (new MailableQueueableStub)->onQueue('0')->later(10, $zeroQueue);
+
+        $zeroQueue->assertPushedOn('0', SendQueuedMailable::class);
+
+        $defaultQueue = new QueueFake($this->app);
+        (new MailableQueueableStub)->onQueue('')->later(10, $defaultQueue);
+
+        $defaultQueue->assertPushedOn(null, SendQueuedMailable::class);
+    }
+
     public function testQueuedMailableForwardsDeduplicationIdMethodToQueueJob()
     {
         $queueFake = new QueueFake($this->app);

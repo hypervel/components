@@ -82,7 +82,7 @@ trait ResolvesOnce
     public function as(BackedEnum|UnitEnum|string $key): static
     {
         $this->key = match (true) {
-            $key instanceof BackedEnum => $key->value,
+            $key instanceof BackedEnum => (string) $key->value,
             $key instanceof UnitEnum => $key->name,
             default => $key,
         };

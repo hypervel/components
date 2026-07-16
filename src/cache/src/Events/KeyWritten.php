@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Events;
 
+use UnitEnum;
+
 class KeyWritten extends CacheEvent
 {
     /**
@@ -19,7 +21,7 @@ class KeyWritten extends CacheEvent
     /**
      * Create a new event instance.
      */
-    public function __construct(?string $storeName, string $key, mixed $value, ?int $seconds = null, array $tags = [])
+    public function __construct(?string $storeName, UnitEnum|string $key, mixed $value, ?int $seconds = null, array $tags = [])
     {
         parent::__construct($storeName, $key, $tags);
 

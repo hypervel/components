@@ -474,6 +474,17 @@ class DatabaseConnectionTest extends TestCase
         $this->assertSame('users', $builder->from);
     }
 
+    public function testTableNormalizesIntegerBackedEnumName(): void
+    {
+        $connection = $this->getMockConnection();
+        $connection->setQueryGrammar(m::mock(Grammar::class));
+        $connection->setPostProcessor(m::mock(Processor::class));
+
+        $builder = $connection->table(DatabaseTableName::Zero);
+
+        $this->assertSame('0', $builder->from);
+    }
+
     public function testPrepareBindings()
     {
         $date = m::mock(DateTime::class);
@@ -886,6 +897,11 @@ class DatabaseConnectionTest extends TestCase
 
         return $connection;
     }
+}
+
+enum DatabaseTableName: int
+{
+    case Zero = 0;
 }
 
 class PDOStub extends PDO

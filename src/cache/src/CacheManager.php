@@ -13,10 +13,13 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Arr;
+use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Mockery;
 use Mockery\LegacyMockInterface;
+use ReflectionException;
+use RuntimeException;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -28,6 +31,8 @@ use function Hypervel\Support\enum_value;
  */
 class CacheManager implements FactoryContract
 {
+    use RebindsCallbacksToSelf;
+
     /**
      * The context key prefix for memoized cache repositories.
      */
@@ -471,7 +476,14 @@ class CacheManager implements FactoryContract
      */
     public function extend(string $driver, Closure $callback): static
     {
-        $this->customCreators[$driver] = $callback->bindTo($this, $this);
+        try {
+            $callback = $this->bindCallbackToSelf($callback)
+                ?? throw new RuntimeException('Unable to bind custom driver callback');
+        } catch (ReflectionException $e) {
+            throw new RuntimeException('Unable to bind custom driver callback', previous: $e);
+        }
+
+        $this->customCreators[$driver] = $callback;
 
         return $this;
     }

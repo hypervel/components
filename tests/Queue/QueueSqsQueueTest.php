@@ -18,9 +18,10 @@ use Hypervel\Support\Str;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJob;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithDeduplication;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithMessageGroup;
+use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Uid\Uuid;
 
 class QueueSqsQueueTest extends TestCase
@@ -67,6 +68,8 @@ class QueueSqsQueueTest extends TestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
+
         // Use Mockery to mock the SqsClient
         $this->sqs = m::mock(SqsClient::class);
 
@@ -198,6 +201,60 @@ class QueueSqsQueueTest extends TestCase
         $container->shouldHaveReceived('bound')->with('events')->twice();
     }
 
+    #[DataProvider('queueDefaultingDataProvider')]
+    public function testPushPreservesZeroQueueAndDefaultsEmptyQueue(string $requestedQueue, string $logicalQueue): void
+    {
+        $queueUrl = $this->prefix . $logicalQueue;
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload', 'getQueue'])
+            ->setConstructorArgs([$this->sqs, $this->queueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer(m::spy(ContainerContract::class));
+        $queue->expects($this->once())->method('createPayload')->with($this->mockedJob, $logicalQueue, $this->mockedData)->willReturn($this->mockedPayload);
+        $queue->expects($this->once())->method('getQueue')->with($requestedQueue)->willReturn($queueUrl);
+        $this->sqs->shouldReceive('sendMessage')->once()->with([
+            'QueueUrl' => $queueUrl,
+            'MessageBody' => $this->mockedPayload,
+        ])->andReturn($this->mockedSendMessageResponseModel);
+
+        $this->assertSame(
+            $this->mockedMessageId,
+            $queue->push($this->mockedJob, $this->mockedData, $requestedQueue)
+        );
+    }
+
+    #[DataProvider('queueDefaultingDataProvider')]
+    public function testLaterPreservesZeroQueueAndDefaultsEmptyQueue(string $requestedQueue, string $logicalQueue): void
+    {
+        $queueUrl = $this->prefix . $logicalQueue;
+        $queue = $this->getMockBuilder(SqsQueue::class)
+            ->onlyMethods(['createPayload', 'getQueue', 'secondsUntil'])
+            ->setConstructorArgs([$this->sqs, $this->queueName, $this->prefix])
+            ->getMock();
+        $queue->setContainer(m::spy(ContainerContract::class));
+        $queue->expects($this->once())->method('createPayload')->with($this->mockedJob, $logicalQueue, $this->mockedData, $this->mockedDelay)->willReturn($this->mockedPayload);
+        $queue->expects($this->once())->method('getQueue')->with($requestedQueue)->willReturn($queueUrl);
+        $queue->expects($this->once())->method('secondsUntil')->with($this->mockedDelay)->willReturn($this->mockedDelay);
+        $this->sqs->shouldReceive('sendMessage')->once()->with([
+            'QueueUrl' => $queueUrl,
+            'MessageBody' => $this->mockedPayload,
+            'DelaySeconds' => $this->mockedDelay,
+        ])->andReturn($this->mockedSendMessageResponseModel);
+
+        $this->assertSame(
+            $this->mockedMessageId,
+            $queue->later($this->mockedDelay, $this->mockedJob, $this->mockedData, $requestedQueue)
+        );
+    }
+
+    public static function queueDefaultingDataProvider(): array
+    {
+        return [
+            'preserves zero queue' => ['0', '0'],
+            'defaults empty queue' => ['', 'emails'],
+        ];
+    }
+
     public function testSizeProperlyReadsSqsQueueSize()
     {
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['getQueue'])->setConstructorArgs([$this->sqs, $this->queueName, $this->account])->getMock();
@@ -227,6 +284,8 @@ class QueueSqsQueueTest extends TestCase
     {
         $queue = new SqsQueue($this->sqs, $this->queueName, $this->prefix);
         $this->assertEquals($this->queueUrl, $queue->getQueue(null));
+        $this->assertEquals($this->queueUrl, $queue->getQueue(''));
+        $this->assertEquals($this->prefix . '0', $queue->getQueue('0'));
         $queueUrl = $this->baseUrl . '/' . $this->account . '/test';
         $this->assertEquals($queueUrl, $queue->getQueue('test'));
     }

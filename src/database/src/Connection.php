@@ -301,7 +301,11 @@ class Connection implements ConnectionInterface
      */
     public function table(Closure|QueryBuilder|UnitEnum|string $table, ?string $as = null): QueryBuilder
     {
-        return $this->query()->from(enum_value($table), $as);
+        if ($table instanceof UnitEnum) {
+            $table = (string) enum_value($table);
+        }
+
+        return $this->query()->from($table, $as);
     }
 
     /**

@@ -13,11 +13,13 @@ use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Exceptions\HttpResponseException;
+use Hypervel\Log\LogManager;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use Psr\Log\LoggerInterface;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
@@ -178,6 +180,17 @@ class FoundationHelpersTest extends TestCase
         // cache('baz', 'default') gets with default
         $cache->shouldReceive('get')->once()->with('baz', 'default')->andReturn('default');
         $this->assertSame('default', cache('baz', 'default'));
+    }
+
+    public function testLogsResolvesAChannelNamedZero(): void
+    {
+        $manager = m::mock(LogManager::class);
+        $logger = m::mock(LoggerInterface::class);
+        $manager->shouldReceive('driver')->once()->with('0')->andReturn($logger);
+        $this->app->instance('log', $manager);
+
+        $this->assertSame($logger, logs('0'));
+        $this->assertSame($manager, logs());
     }
 
     public function testEvents()

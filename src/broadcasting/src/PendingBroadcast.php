@@ -26,7 +26,9 @@ class PendingBroadcast
     public function via(UnitEnum|string|null $connection = null): static
     {
         if (method_exists($this->event, 'broadcastVia')) {
-            $this->event->broadcastVia(enum_value($connection));
+            $this->event->broadcastVia(
+                $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection
+            );
         }
 
         return $this;

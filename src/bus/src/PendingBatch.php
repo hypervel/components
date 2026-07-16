@@ -248,7 +248,9 @@ class PendingBatch
      */
     public function onConnection(UnitEnum|string $connection): static
     {
-        $this->options['connection'] = enum_value($connection);
+        $this->options['connection'] = $connection instanceof UnitEnum
+            ? (string) enum_value($connection)
+            : $connection;
 
         return $this;
     }
@@ -266,7 +268,9 @@ class PendingBatch
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
-        $this->options['queue'] = enum_value($queue);
+        $this->options['queue'] = $queue instanceof UnitEnum
+            ? (string) enum_value($queue)
+            : $queue;
 
         return $this;
     }

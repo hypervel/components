@@ -20,8 +20,10 @@ use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
+use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithExceptionHandling;
@@ -99,6 +101,40 @@ class FoundationExceptionsHandlerTest extends TestCase
         $logger->shouldReceive('error')->withArgs(['Exception message', m::hasKey('exception')])->once();
 
         $this->handler->report(new RuntimeException('Exception message'));
+    }
+
+    public function testReportingStateIsLocalToTheCurrentCoroutine(): void
+    {
+        $logger = m::mock(LoggerInterface::class);
+        $this->container->instance(LoggerInterface::class, $logger);
+        $exception = new RuntimeException('Exception message');
+        $parentReporting = false;
+        $childReporting = true;
+        $completed = new Channel(1);
+
+        $logger->shouldReceive('error')->once()->andReturnUsing(
+            function () use (
+                $exception,
+                &$parentReporting,
+                &$childReporting,
+                $completed
+            ): void {
+                $parentReporting = $this->handler->isReporting($exception);
+
+                Coroutine::fork(function () use ($exception, &$childReporting, $completed): void {
+                    $childReporting = $this->handler->isReporting($exception);
+                    $completed->push(true);
+                });
+
+                $completed->pop();
+            }
+        );
+
+        $this->handler->report($exception);
+
+        $this->assertTrue($parentReporting);
+        $this->assertFalse($childReporting);
+        $this->assertFalse($this->handler->isReporting($exception));
     }
 
     public function testHandlerCallsContextMethodIfPresent()

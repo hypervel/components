@@ -22,7 +22,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
-use TypeError;
 
 enum ScheduleTestQueueStringEnum: string
 {
@@ -152,12 +151,10 @@ class ScheduleTest extends TestCase
         self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
     }
 
-    public function testJobWithIntBackedEnumStoresIntValue(): void
+    public function testJobAcceptsIntegerBackedEnumForQueueAndConnection(): void
     {
         $schedule = new Schedule;
 
-        // Int-backed enum values are stored as-is (no cast to string)
-        // TypeError will occur when the job is dispatched and dispatchToQueue() receives int
         $scheduledJob = $schedule->job(
             JobToTestWithSchedule::class,
             ScheduleTestQueueIntEnum::Priority1,
@@ -182,18 +179,18 @@ class ScheduleTest extends TestCase
         $schedule->useCache(ScheduleTestCacheStoreEnum::Redis);
     }
 
-    public function testUseCacheWithIntBackedEnumThrowsTypeError(): void
+    public function testUseCacheAcceptsIntegerBackedEnum(): void
     {
         $eventMutex = m::mock(EventMutex::class, CacheAware::class);
+        $eventMutex->shouldReceive('useStore')->once()->with('1');
+
         $schedulingMutex = m::mock(SchedulingMutex::class, CacheAware::class);
+        $schedulingMutex->shouldReceive('useStore')->once()->with('1');
 
         $this->container->instance(EventMutex::class, $eventMutex);
         $this->container->instance(SchedulingMutex::class, $schedulingMutex);
 
         $schedule = new Schedule;
-
-        // TypeError is thrown when useStore() receives int instead of string
-        $this->expectException(TypeError::class);
         $schedule->useCache(ScheduleTestCacheStoreIntEnum::Store1);
     }
 

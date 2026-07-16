@@ -14,7 +14,7 @@ namespace Hypervel\Support\Facades;
  * @method static bool needsRehash(string $hashedValue, array $options = [])
  * @method static bool isHashed(string $value)
  * @method static string getDefaultDriver()
- * @method static mixed driver(string|null $driver = null)
+ * @method static mixed driver(\UnitEnum|string|null $driver = null)
  * @method static \Hypervel\Hashing\HashManager extend(string $driver, \Closure $callback)
  * @method static array getDrivers()
  * @method static \Hypervel\Contracts\Container\Container getContainer()

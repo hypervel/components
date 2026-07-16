@@ -7,8 +7,11 @@ namespace Hypervel\Tests\Bus;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
+use Hypervel\Bus\ChainedBatch;
 use Hypervel\Bus\PendingBatch;
+use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcher;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
@@ -18,6 +21,136 @@ use stdClass;
 
 class BusPendingBatchTest extends TestCase
 {
+    public function testPendingBatchNormalizesEnumConnectionAndQueueIdentifiers(): void
+    {
+        $job = new class {
+            use Batchable;
+        };
+
+        $pendingBatch = new PendingBatch(new Container, new Collection([$job]));
+
+        $pendingBatch
+            ->onConnection(PendingBatchIntegerIdentifier::Zero)
+            ->onQueue(PendingBatchUnitIdentifier::Primary);
+
+        $this->assertSame('0', $pendingBatch->connection());
+        $this->assertSame('Primary', $pendingBatch->queue());
+    }
+
+    public function testChainedBatchPreservesZeroConnectionAndQueueIdentifiers(): void
+    {
+        $container = new Container;
+        Container::setInstance($container);
+
+        $job = new class {
+            use Batchable;
+        };
+
+        $source = (new PendingBatch($container, new Collection([$job])))
+            ->onConnection(PendingBatchIntegerIdentifier::Zero)
+            ->onQueue(PendingBatchIntegerIdentifier::Zero);
+
+        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher->shouldReceive('batch')
+            ->once()
+            ->andReturnUsing(fn ($jobs) => new PendingBatch($container, $jobs));
+        $container->instance(BusDispatcher::class, $dispatcher);
+
+        $pendingBatch = (new ChainedBatch($source))->toPendingBatch();
+
+        $this->assertSame('0', $pendingBatch->connection());
+        $this->assertSame('0', $pendingBatch->queue());
+    }
+
+    public function testDirectlyRoutedChainedBatchPreservesZeroConnectionAndQueueIdentifiers(): void
+    {
+        $container = new Container;
+        Container::setInstance($container);
+
+        $job = new class {
+            use Batchable;
+        };
+
+        $source = new PendingBatch($container, new Collection([$job]));
+        $chainedBatch = (new ChainedBatch($source))
+            ->onConnection('0')
+            ->onQueue('0');
+
+        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher->shouldReceive('batch')
+            ->once()
+            ->andReturnUsing(fn ($jobs) => new PendingBatch($container, $jobs));
+        $container->instance(BusDispatcher::class, $dispatcher);
+
+        $pendingBatch = $chainedBatch->toPendingBatch();
+
+        $this->assertSame('0', $pendingBatch->connection());
+        $this->assertSame('0', $pendingBatch->queue());
+    }
+
+    public function testChainedBatchPreservesSourceEmptyConnectionAndQueueOptions(): void
+    {
+        $container = new Container;
+        Container::setInstance($container);
+
+        $job = new class {
+            use Batchable;
+        };
+
+        $source = (new PendingBatch($container, new Collection([$job])))
+            ->onConnection('')
+            ->onQueue('');
+
+        $dispatcher = m::mock(BusDispatcher::class);
+        $dispatcher->shouldReceive('batch')
+            ->once()
+            ->andReturnUsing(fn ($jobs) => new PendingBatch($container, $jobs));
+        $container->instance(BusDispatcher::class, $dispatcher);
+
+        $pendingBatch = (new ChainedBatch($source))->toPendingBatch();
+
+        $this->assertSame('', $pendingBatch->connection());
+        $this->assertSame('', $pendingBatch->queue());
+    }
+
+    public function testChainedBatchRemainderInheritsEmptyIdentifiersAndPreservesZeroIdentifiers(): void
+    {
+        foreach ([['', 'chain-connection', 'chain-queue'], ['0', '0', '0']] as [$route, $expectedConnection, $expectedQueue]) {
+            $container = new Container;
+            Container::setInstance($container);
+
+            $sourceJob = new BatchableJob;
+            $chainedBatch = new TestableChainedBatch(
+                new PendingBatch($container, new Collection([$sourceJob]))
+            );
+            $chainedBatch->chain([
+                (new ChainedBatchQueueableJob)->onConnection($route)->onQueue($route),
+            ]);
+            $chainedBatch->chainConnection = 'chain-connection';
+            $chainedBatch->chainQueue = 'chain-queue';
+
+            $dispatcher = m::mock(BusDispatcher::class);
+            $dispatcher->shouldReceive('dispatch')->once()->with(m::on(function (ChainedBatchQueueableJob $job) use ($expectedConnection, $expectedQueue): bool {
+                $this->assertSame($expectedConnection, $job->connection);
+                $this->assertSame($expectedQueue, $job->queue);
+
+                return true;
+            }));
+            $container->instance(BusDispatcher::class, $dispatcher);
+
+            $pendingBatch = $chainedBatch->attachRemainder(
+                new PendingBatch($container, new Collection([$sourceJob]))
+            );
+
+            $callbacks = $pendingBatch->finallyCallbacks();
+            $this->assertCount(1, $callbacks);
+
+            $batch = m::mock(Batch::class);
+            $batch->shouldReceive('cancelled')->once()->andReturnFalse();
+            $callbacks[0]($batch);
+        }
+    }
+
     public function testPendingBatchMayBeConfiguredAndDispatched()
     {
         $container = new Container;
@@ -387,7 +520,30 @@ class BusPendingBatchTest extends TestCase
     }
 }
 
+enum PendingBatchIntegerIdentifier: int
+{
+    case Zero = 0;
+}
+
+enum PendingBatchUnitIdentifier
+{
+    case Primary;
+}
+
 class BatchableJob
 {
     use Batchable;
+}
+
+class ChainedBatchQueueableJob
+{
+    use Queueable;
+}
+
+class TestableChainedBatch extends ChainedBatch
+{
+    public function attachRemainder(PendingBatch $batch): PendingBatch
+    {
+        return $this->attachRemainderOfChainToEndOfBatch($batch);
+    }
 }

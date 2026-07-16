@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench\Foundation\Console;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Concerns\Database\InteractsWithSqliteDatabaseFile;
 use Hypervel\Testbench\TestbenchServiceProvider;
 use Hypervel\Tests\Testbench\TestCase;
@@ -49,5 +50,23 @@ class CreateSqliteDbCommandTest extends TestCase
                 ->expectsOutputToContain('File [@hypervel/database/database.sqlite] already exists')
                 ->assertOk();
         });
+    }
+
+    #[Test]
+    public function itCanGenerateDatabaseNamedZero(): void
+    {
+        $filesystem = new Filesystem;
+        $database = database_path('0.sqlite');
+        $filesystem->delete($database);
+
+        try {
+            $this->artisan('package:create-sqlite-db', ['--database' => '0'])
+                ->expectsOutputToContain('File [@hypervel/database/0.sqlite] generated')
+                ->assertOk();
+
+            $this->assertTrue($filesystem->exists($database));
+        } finally {
+            $filesystem->delete($database);
+        }
     }
 }

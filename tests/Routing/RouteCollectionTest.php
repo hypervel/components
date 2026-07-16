@@ -343,6 +343,18 @@ class RouteCollectionTest extends RoutingTestCase
         $this->assertInstanceOf('\Symfony\Component\Routing\RouteCollection', $this->routeCollection->toSymfonyRouteCollection());
     }
 
+    public function testRouteNamedZeroRetainsItsNameInSymfonyRouteCollection(): void
+    {
+        $this->routeCollection->add(
+            $route = new Route('GET', 'users', ['uses' => 'UsersController@index', 'as' => '0'])
+        );
+
+        $symfonyRoutes = $this->routeCollection->toSymfonyRouteCollection();
+
+        $this->assertSame('0', $route->getName());
+        $this->assertNotNull($symfonyRoutes->get('0'));
+    }
+
     public function testOverlappingRoutesMatchesFirstRoute()
     {
         $this->routeCollection->add(

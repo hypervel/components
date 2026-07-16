@@ -83,6 +83,23 @@ class DatabaseConnectionResolverTest extends TestCase
         $this->assertSame('Taylor', $cachedConnection->selectOne('select name from users')->name);
     }
 
+    public function testIntegerBackedEnumConnectionNamesAreNormalizedInTestingAndPooledModes(): void
+    {
+        $config = $this->app->make('config');
+        $testing = $config->get('database.connections.testing');
+
+        $config->set('database.connections.0', $testing);
+        $config->set('database.connections.1', array_replace_recursive($testing, [
+            'pool' => ['testing_enabled' => true],
+        ]));
+
+        $resolver = $this->app->make(DatabaseConnectionResolver::class);
+
+        $this->assertSame($resolver->connection(), $resolver->connection(''));
+        $this->assertSame('0', $resolver->connection(DatabaseTestingConnectionName::Zero)->getName());
+        $this->assertSame('1', $resolver->connection(DatabaseTestingConnectionName::One)->getName());
+    }
+
     public function testNamedFlushDiscardsTheOwningWrapperAndRestoresPoolCapacity(): void
     {
         $this->app->make('config')->set('database.connections.testing.pool.max_connections', 1);
@@ -146,4 +163,10 @@ class DatabaseConnectionResolverTest extends TestCase
         $this->assertFalse($sharedPdo->inTransaction());
         $reconnected->discard();
     }
+}
+
+enum DatabaseTestingConnectionName: int
+{
+    case Zero = 0;
+    case One = 1;
 }

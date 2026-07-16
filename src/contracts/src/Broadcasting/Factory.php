@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Broadcasting;
 
 use Hypervel\Broadcasting\PendingBroadcast;
+use UnitEnum;
 
 interface Factory
 {
     /**
      * Get a broadcaster implementation by name.
      */
-    public function connection(?string $name = null): Broadcaster;
+    public function connection(UnitEnum|string|null $name = null): Broadcaster;
 
     /**
      * Begin broadcasting an event.

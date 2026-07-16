@@ -109,7 +109,14 @@ class Storage extends Facade
      */
     public static function fake(UnitEnum|string|null $disk = null, array $config = [])
     {
-        $root = self::getRootPath($disk = enum_value($disk) ?: static::$app['config']->get('filesystems.default'));
+        if ($disk instanceof UnitEnum) {
+            $disk = (string) enum_value($disk);
+        }
+
+        $disk = $disk === null || $disk === ''
+            ? static::$app['config']->get('filesystems.default')
+            : $disk;
+        $root = self::getRootPath($disk);
 
         if ($token = ParallelTesting::token()) {
             $root = "{$root}_test_{$token}";
@@ -143,7 +150,13 @@ class Storage extends Facade
      */
     public static function persistentFake(UnitEnum|string|null $disk = null, array $config = [])
     {
-        $disk = enum_value($disk) ?: static::$app['config']->get('filesystems.default');
+        if ($disk instanceof UnitEnum) {
+            $disk = (string) enum_value($disk);
+        }
+
+        $disk = $disk === null || $disk === ''
+            ? static::$app['config']->get('filesystems.default')
+            : $disk;
 
         static::set($disk, $fake = static::createLocalDriver(
             self::buildDiskConfiguration($disk, $config, root: self::getRootPath($disk))

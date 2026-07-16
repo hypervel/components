@@ -234,7 +234,7 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         );
     }
 
-    public function testResolveConnectionUsesStoredConnectionWhenArgumentIsNull()
+    public function testResolveConnectionUsesStoredConnectionWhenArgumentIsNullOrEmpty()
     {
         $this->bindConfig([
             'pgsql-pooled' => ['driver' => 'pgsql', 'migrations_connection' => 'pgsql'],
@@ -246,12 +246,34 @@ class DatabaseMigratorConnectionRoutingTest extends TestCase
         $resolvedConnection = m::mock(Connection::class);
 
         $repository->shouldReceive('setSource')->once()->with('pgsql');
-        $resolver->shouldReceive('connection')->once()->with('pgsql')->andReturn($resolvedConnection);
+        $resolver->shouldReceive('connection')->twice()->with('pgsql')->andReturn($resolvedConnection);
 
         $migrator = new Migrator($repository, $resolver, new Filesystem);
         $migrator->setConnection('pgsql-pooled');
 
         $this->assertSame($resolvedConnection, $migrator->resolveConnection(null));
+        $this->assertSame($resolvedConnection, $migrator->resolveConnection(''));
+    }
+
+    public function testResolveConnectionPreservesExplicitZeroConnection(): void
+    {
+        $this->bindConfig(
+            connections: [
+                '0' => ['driver' => 'pgsql'],
+                'pgsql' => ['driver' => 'pgsql'],
+            ],
+            default: 'pgsql',
+        );
+
+        $resolver = m::mock(Resolver::class);
+        $repository = m::mock(MigrationRepositoryInterface::class);
+        $resolvedConnection = m::mock(Connection::class);
+
+        $resolver->shouldReceive('connection')->once()->with('0')->andReturn($resolvedConnection);
+
+        $migrator = new Migrator($repository, $resolver, new Filesystem);
+
+        $this->assertSame($resolvedConnection, $migrator->resolveConnection('0'));
     }
 
     public function testResolveConnectionSwapsPerMigrationConnectionOverride()

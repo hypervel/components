@@ -65,7 +65,9 @@ class QueuedClosure
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
-        $this->connection = enum_value($connection);
+        $this->connection = $connection instanceof UnitEnum
+            ? (string) enum_value($connection)
+            : $connection;
 
         return $this;
     }
@@ -75,7 +77,9 @@ class QueuedClosure
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
-        $this->queue = enum_value($queue);
+        $this->queue = $queue instanceof UnitEnum
+            ? (string) enum_value($queue)
+            : $queue;
 
         return $this;
     }

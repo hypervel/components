@@ -87,6 +87,19 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertSame('geo_coordinates_spatialindex', $commands[0]->index);
     }
 
+    public function testIndexCommandsPreserveExplicitIndexNameZero(): void
+    {
+        $blueprint = $this->getBlueprint(table: 'users');
+        $blueprint->index('email', '0');
+
+        $this->assertSame('0', $blueprint->getCommands()[0]->index);
+
+        $blueprint = $this->getBlueprint(table: 'users');
+        $blueprint->dropMorphs('imageable', '0');
+
+        $this->assertSame('0', $blueprint->getCommands()[0]->index);
+    }
+
     public function testDropIndexDefaultNamesWhenPrefixSupplied()
     {
         $blueprint = $this->getBlueprint(table: 'users', prefix: 'prefix_');

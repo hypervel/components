@@ -113,6 +113,17 @@ class CommandTest extends TestCase
         $this->assertStringNotContainsString('Guard: admin', $output);
     }
 
+    public function testItCanShowPermissionsForGuardNamedZero(): void
+    {
+        Permission::create(['name' => 'zero-permission', 'guard_name' => '0']);
+
+        Artisan::call('permission:show', ['guard' => '0']);
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('Guard: 0', $output);
+        $this->assertStringNotContainsString('Guard: web', $output);
+    }
+
     public function testItCanSetupTeamsUpgrade(): void
     {
         $this->app->make('config')->set('permission.teams', true);

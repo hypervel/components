@@ -14,12 +14,31 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Session\DatabaseSessionHandler;
 use Hypervel\Session\SessionManager;
 use Hypervel\Session\Store;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
+use SessionHandlerInterface;
 
 class SessionManagerTest extends TestCase
 {
+    public function testEnumDefaultDriverIsNormalizedWithoutTreatingZeroAsAbsent(): void
+    {
+        $manager = new SessionManager($this->getContainer([
+            'session' => [
+                'driver' => 'array',
+                'lifetime' => 120,
+                'cookie' => 'session',
+                'encrypt' => false,
+            ],
+        ]));
+
+        $manager->extend('0', fn () => m::mock(SessionHandlerInterface::class));
+        $manager->setDefaultDriver(SessionIntegerIdentifier::Zero);
+
+        $this->assertSame('0', $manager->getDefaultDriver());
+        $this->assertSame($manager->driver('0'), $manager->driver());
+    }
+
     public function testDatabaseDriverLeavesConnectionUnsetByDefault(): void
     {
         $manager = new SessionManager($this->getContainer([
@@ -62,6 +81,32 @@ class SessionManagerTest extends TestCase
         $sessionStore = (new SessionManager($container))->driver();
 
         $this->assertInstanceOf(Store::class, $sessionStore);
+    }
+
+    public function testCacheBackedSessionsPreserveZeroStoreAndEmptyFallback(): void
+    {
+        foreach ([['0', '0'], ['', 'redis']] as [$configuredStore, $expectedStore]) {
+            $store = m::mock(RedisStore::class);
+            $store->shouldReceive('setConnection')->once()->with('session');
+
+            $cacheManager = m::mock();
+            $cacheManager->shouldReceive('store')
+                ->once()
+                ->with($expectedStore)
+                ->andReturn(new CacheRepository($store));
+
+            $container = $this->getContainer([
+                'session.driver' => 'redis',
+                'session.connection' => null,
+                'session.store' => $configuredStore,
+                'session.lifetime' => 120,
+                'session.cookie' => 'session',
+                'session.encrypt' => false,
+            ]);
+            $container->instance('cache', $cacheManager);
+
+            $this->assertInstanceOf(Store::class, (new SessionManager($container))->driver());
+        }
     }
 
     public function testExplicitSessionConnectionOverridesBothDrivers(): void
@@ -130,4 +175,9 @@ class SessionManagerTest extends TestCase
 
         return $property->getValue($handler);
     }
+}
+
+enum SessionIntegerIdentifier: int
+{
+    case Zero = 0;
 }

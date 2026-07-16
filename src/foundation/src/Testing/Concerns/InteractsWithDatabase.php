@@ -296,7 +296,13 @@ trait InteractsWithDatabase
     {
         $database = $this->app->make('db');
 
-        $connection = $connection ?: $this->getTableConnection($table) ?: $database->getDefaultConnection();
+        if ($connection === null || $connection === '') {
+            $connection = $this->getTableConnection($table);
+        }
+
+        if ($connection === null || $connection === '') {
+            $connection = $database->getDefaultConnection();
+        }
 
         return $database->connection($connection);
     }

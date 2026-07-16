@@ -55,6 +55,14 @@ class InteractsWithDatabaseTest extends TestCase
         $this->assertDatabaseEmpty('foundation_test_users');
     }
 
+    public function testDatabaseAssertionsPreserveAnExplicitZeroNamedConnection(): void
+    {
+        config()->set('database.connections.0', config('database.connections.testing'));
+
+        $this->assertSame('0', $this->getConnection('0')->getName());
+        $this->assertSame('testing', $this->getConnection('')->getName());
+    }
+
     public function testAssertModelExists()
     {
         $user = User::factory()->create();

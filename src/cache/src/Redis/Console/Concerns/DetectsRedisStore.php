@@ -19,7 +19,7 @@ trait DetectsRedisStore
 
         foreach ($stores as $name => $storeConfig) {
             if (($storeConfig['driver'] ?? null) === 'redis') {
-                return $name;
+                return (string) $name;
             }
         }
 

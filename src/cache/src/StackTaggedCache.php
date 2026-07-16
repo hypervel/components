@@ -55,7 +55,7 @@ class StackTaggedCache extends AnyModeTaggedCache
             return $this->putMany($key, $value);
         }
 
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         if ($ttl === null) {
             return $this->forever($key, $value);
@@ -84,7 +84,7 @@ class StackTaggedCache extends AnyModeTaggedCache
      */
     public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         if (! is_null($this->store->get($key))) {
             return false;
@@ -98,7 +98,7 @@ class StackTaggedCache extends AnyModeTaggedCache
      */
     public function forever(UnitEnum|string $key, mixed $value): bool
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
 
         $result = $this->store->putRecordTagged($this->tags->getNames(), $key, ['value' => $value]);
 
@@ -114,7 +114,9 @@ class StackTaggedCache extends AnyModeTaggedCache
      */
     public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->incrementTagged($this->tags->getNames(), enum_value($key), $value);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
+        return $this->store->incrementTagged($this->tags->getNames(), $key, $value);
     }
 
     /**
@@ -141,7 +143,7 @@ class StackTaggedCache extends AnyModeTaggedCache
             return $this->rememberForever($key, $callback);
         }
 
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $seconds = $this->getSeconds($ttl);
 
         if ($seconds <= 0) {
@@ -175,7 +177,7 @@ class StackTaggedCache extends AnyModeTaggedCache
      */
     public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
-        $key = enum_value($key);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $value = $this->store->get($key);
 
         if (! is_null($value)) {

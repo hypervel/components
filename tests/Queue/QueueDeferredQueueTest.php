@@ -42,6 +42,22 @@ class QueueDeferredQueueTest extends TestCase
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__deferred.test'][1]);
     }
 
+    public function testPushSnapshotsMutableJobBeforeCoroutineEnd(): void
+    {
+        DeferredQueueSnapshotHandler::$receivedValue = null;
+        $data = (object) ['value' => 'before'];
+        $deferred = new DeferredQueue;
+        $deferred->setConnectionName('deferred');
+        $deferred->setContainer($this->getContainer());
+
+        run(function () use ($deferred, $data): void {
+            $deferred->push(DeferredQueueSnapshotHandler::class, $data);
+            $data->value = 'after';
+        });
+
+        $this->assertSame('before', DeferredQueueSnapshotHandler::$receivedValue);
+    }
+
     public function testFailedJobGetsHandledWhenAnExceptionIsThrown()
     {
         unset($_SERVER['__deferred.failed']);
@@ -512,5 +528,15 @@ class DeferredQueueLaterTestHandler
     public function fire(SyncJob $job, mixed $data): void
     {
         $_SERVER['__deferred.later.test'] = func_get_args();
+    }
+}
+
+class DeferredQueueSnapshotHandler
+{
+    public static ?string $receivedValue = null;
+
+    public function fire(SyncJob $job, array $data): void
+    {
+        static::$receivedValue = $data['value'];
     }
 }

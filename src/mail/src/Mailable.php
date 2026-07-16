@@ -206,7 +206,7 @@ class Mailable implements MailableContract, Renderable
         }
 
         return $queue->connection($connection)->pushOn(
-            $queueName ?: null,
+            $queueName === '' ? null : $queueName,
             $this->newQueuedJob()
         );
     }
@@ -233,7 +233,7 @@ class Mailable implements MailableContract, Renderable
         $job->delay($delay);
 
         return $queue->connection($connection)->laterOn(
-            $queueName ?: null,
+            $queueName === '' ? null : $queueName,
             $delay,
             $job
         );

@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
-use TypeError;
+use stdClass;
 
 enum CacheRepositoryEnumTestKeyBackedEnum: string
 {
@@ -21,6 +23,7 @@ enum CacheRepositoryEnumTestKeyBackedEnum: string
 
 enum CacheRepositoryEnumTestKeyIntBackedEnum: int
 {
+    case Zero = 0;
     case Counter = 1;
     case Stats = 2;
 }
@@ -43,6 +46,12 @@ enum CacheRepositoryEnumTestTagUnitEnum
     case Exports;
 }
 
+enum CacheRepositoryEnumTestTagIntBackedEnum: int
+{
+    case Zero = 0;
+    case Reports = 1;
+}
+
 class CacheRepositoryEnumTest extends TestCase
 {
     public function testGetWithBackedEnum(): void
@@ -61,13 +70,94 @@ class CacheRepositoryEnumTest extends TestCase
         $this->assertSame('dashboard-data', $repo->get(CacheRepositoryEnumTestKeyUnitEnum::Dashboard));
     }
 
-    public function testGetWithIntBackedEnumThrowsTypeError(): void
+    public function testGetWithIntBackedEnum(): void
     {
         $repo = $this->getRepository();
+        $repo->getStore()->shouldReceive('get')->once()->with('1')->andReturn('counter-value');
 
-        // Int-backed enum causes TypeError because store expects string key
-        $this->expectException(TypeError::class);
-        $repo->get(CacheRepositoryEnumTestKeyIntBackedEnum::Counter);
+        $this->assertSame('counter-value', $repo->get(CacheRepositoryEnumTestKeyIntBackedEnum::Counter));
+    }
+
+    public function testZeroBackedEnumAndStringInteroperability(): void
+    {
+        $repo = new Repository(new ArrayStore);
+
+        $repo->put(CacheRepositoryEnumTestKeyIntBackedEnum::Zero, 'zero-value', 60);
+
+        $this->assertSame('zero-value', $repo->get('0'));
+        $this->assertSame('zero-value', $repo->get(CacheRepositoryEnumTestKeyIntBackedEnum::Zero));
+    }
+
+    public function testIntegerBackedEnumIdentifiersWorkAcrossRepositoryOperations(): void
+    {
+        $repo = new Repository(new ArrayStore);
+
+        $this->assertTrue($repo->add(CacheRepositoryEnumTestKeyIntBackedEnum::Counter, 1, 60));
+        $this->assertSame(2, $repo->increment(CacheRepositoryEnumTestKeyIntBackedEnum::Counter));
+        $this->assertSame(1, $repo->decrement(CacheRepositoryEnumTestKeyIntBackedEnum::Counter));
+        $this->assertTrue($repo->touch(CacheRepositoryEnumTestKeyIntBackedEnum::Counter, 60));
+        $this->assertSame(1, $repo->pull(CacheRepositoryEnumTestKeyIntBackedEnum::Counter));
+
+        $this->assertSame('remembered', $repo->remember(
+            CacheRepositoryEnumTestKeyIntBackedEnum::Stats,
+            60,
+            fn () => 'remembered'
+        ));
+
+        $this->assertSame('flexible', $repo->flexible(
+            CacheRepositoryEnumTestKeyIntBackedEnum::Zero,
+            [60, 120],
+            fn () => 'flexible'
+        ));
+
+        $this->assertSame('locked', $repo->withoutOverlapping(
+            CacheRepositoryEnumTestKeyIntBackedEnum::Zero,
+            fn () => 'locked'
+        ));
+    }
+
+    public function testIntegerBackedEnumTypedGetterThrowsTheIntendedDiagnostic(): void
+    {
+        $repo = new Repository(new ArrayStore);
+        $repo->put(CacheRepositoryEnumTestKeyIntBackedEnum::Counter, new stdClass, 60);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cache value for key [1] must be a string, object given.');
+
+        $repo->string(CacheRepositoryEnumTestKeyIntBackedEnum::Counter);
+    }
+
+    public function testGetMultiplePreservesNumericEnumIdentifiersAndDefaults(): void
+    {
+        $repo = new Repository(new ArrayStore);
+        $repo->put('1', 'stored', 60);
+
+        $this->assertSame([
+            1 => 'stored',
+            0 => 'fallback',
+        ], $repo->getMultiple([
+            CacheRepositoryEnumTestKeyIntBackedEnum::Counter,
+            CacheRepositoryEnumTestKeyIntBackedEnum::Zero,
+        ], 'fallback'));
+    }
+
+    public function testArrayStoreManyReadsNumericStringKeys(): void
+    {
+        $store = new ArrayStore;
+        $store->put('0', 'zero', 60);
+        $store->put('1', 'one', 60);
+
+        $this->assertSame([
+            0 => 'zero',
+            1 => 'one',
+        ], $store->many(['0', '1']));
+    }
+
+    public function testCacheEventsNormalizeIntegerBackedEnumKeys(): void
+    {
+        $event = new CacheHit('array', CacheRepositoryEnumTestKeyIntBackedEnum::Zero, 'value');
+
+        $this->assertSame('0', $event->key);
     }
 
     public function testHasWithBackedEnum(): void
@@ -322,6 +412,18 @@ class CacheRepositoryEnumTest extends TestCase
 
         $this->assertInstanceOf(TaggedCache::class, $tagged);
         $this->assertEquals(['Reports', 'Exports'], $tagged->getTags()->getNames());
+    }
+
+    public function testTagsWithIntegerBackedEnumArray(): void
+    {
+        $repo = new Repository(new ArrayStore);
+
+        $tagged = $repo->tags([
+            CacheRepositoryEnumTestTagIntBackedEnum::Zero,
+            CacheRepositoryEnumTestTagIntBackedEnum::Reports,
+        ]);
+
+        $this->assertSame(['0', '1'], $tagged->getTags()->getNames());
     }
 
     public function testTagsWithMixedEnumsAndStrings(): void

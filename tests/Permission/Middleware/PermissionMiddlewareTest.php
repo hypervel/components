@@ -17,6 +17,12 @@ use Hypervel\Tests\Permission\Fixtures\Models\UserWithoutHasRoles;
 use Hypervel\Tests\Permission\TestCase;
 use InvalidArgumentException;
 
+enum PermissionMiddlewareTestIntEnum: int
+{
+    case Zero = 0;
+    case One = 1;
+}
+
 class PermissionMiddlewareTest extends TestCase
 {
     protected PermissionMiddleware $permissionMiddleware;
@@ -169,6 +175,16 @@ class PermissionMiddlewareTest extends TestCase
         $this->assertSame(PermissionMiddleware::class . ':view articles|edit articles', PermissionMiddleware::using([
             TestRolePermissionsEnum::ViewArticles,
             TestRolePermissionsEnum::EditArticles,
+        ]));
+    }
+
+    public function testItCanHandleIntegerEnumPermissionsWithStaticUsingMethod(): void
+    {
+        $this->assertSame(PermissionMiddleware::class . ':0', PermissionMiddleware::using(PermissionMiddlewareTestIntEnum::Zero));
+        $this->assertSame(PermissionMiddleware::class . ':0,my-guard', PermissionMiddleware::using(PermissionMiddlewareTestIntEnum::Zero, 'my-guard'));
+        $this->assertSame(PermissionMiddleware::class . ':0|1', PermissionMiddleware::using([
+            PermissionMiddlewareTestIntEnum::Zero,
+            PermissionMiddlewareTestIntEnum::One,
         ]));
     }
 

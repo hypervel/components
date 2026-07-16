@@ -15,6 +15,8 @@ use RuntimeException;
 use Throwable;
 use UnitEnum;
 
+use function Hypervel\Support\enum_value;
+
 class FailoverStore extends TaggableStore implements LockProvider, RawReadable
 {
     /**
@@ -54,6 +56,8 @@ class FailoverStore extends TaggableStore implements LockProvider, RawReadable
 
     public function getRaw(UnitEnum|string $key): mixed
     {
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+
         return $this->attemptOnAllStores('getRaw', [$key]);
     }
 

@@ -192,7 +192,7 @@ class BeanstalkdQueue extends Queue implements QueueContract
      */
     public function getQueue(?string $queue): string
     {
-        return $queue ?: $this->default;
+        return $queue === null || $queue === '' ? $this->default : $queue;
     }
 
     /**

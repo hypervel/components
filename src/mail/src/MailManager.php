@@ -37,6 +37,9 @@ use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransportFactory;
 use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Contracts\Mail\Mailer
@@ -89,9 +92,15 @@ class MailManager implements FactoryContract
     /**
      * Get a mailer instance by name.
      */
-    public function mailer(?string $name = null): MailerContract
+    public function mailer(UnitEnum|string|null $name = null): MailerContract
     {
-        $name = $name ?: $this->getDefaultDriver();
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
 
         return $this->mailers[$name] = $this->get($name);
     }
@@ -99,7 +108,7 @@ class MailManager implements FactoryContract
     /**
      * Get a mailer driver instance.
      */
-    public function driver(?string $driver = null): MailerContract
+    public function driver(UnitEnum|string|null $driver = null): MailerContract
     {
         return $this->mailer($driver);
     }
@@ -678,8 +687,10 @@ class MailManager implements FactoryContract
      *
      * Boot-only. Mutates process-global config; per-request use races across coroutines.
      */
-    public function setDefaultDriver(string $name): void
+    public function setDefaultDriver(UnitEnum|string $name): void
     {
+        $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
+
         $this->config->set('mail.default', $name);
     }
 
@@ -690,9 +701,15 @@ class MailManager implements FactoryContract
      * resources. Other mailers sharing the pool transparently acquire a fresh
      * pool on their next operation.
      */
-    public function purge(?string $name = null): void
+    public function purge(UnitEnum|string|null $name = null): void
     {
-        $name = $name ?: $this->getDefaultDriver();
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : $name;
         $mailer = $this->mailers[$name] ?? null;
 
         unset($this->mailers[$name]);

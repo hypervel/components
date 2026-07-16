@@ -17,7 +17,7 @@ trait ParsesQueue
 
         return [
             $connection ?? $this->hypervel->make('config')->string('queue.default'),
-            $queue ?: 'default',
+            $queue === null || $queue === '' ? 'default' : $queue,
         ];
     }
 }

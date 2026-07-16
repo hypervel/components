@@ -20,8 +20,10 @@ use Hypervel\Queue\SyncQueue;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use UnitEnum;
 
 use function Hypervel\Coroutine\parallel;
+use function Hypervel\Support\enum_value;
 
 class FailoverQueueTest extends TestCase
 {
@@ -102,8 +104,12 @@ class FailoverQueueFakeManager extends QueueManager
     ) {
     }
 
-    public function connection(?string $name = null): Queue
+    public function connection(UnitEnum|string|null $name = null): Queue
     {
+        if ($name instanceof UnitEnum) {
+            $name = (string) enum_value($name);
+        }
+
         return $this->connections[$name];
     }
 }

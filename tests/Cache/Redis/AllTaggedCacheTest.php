@@ -679,7 +679,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = hash('xxh128', '_all:tag:users:entries') . ':profile';
+        $key = hash('xxh128', '_all:tag:users:entries') . ':0';
         $expectedScore = now()->timestamp + 60;
 
         $connection->shouldReceive('get')->once()->with("prefix:{$key}")->andReturnNull();
@@ -707,9 +707,9 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $keyWritten = array_values(array_filter($captured, fn (object $event) => $event instanceof KeyWritten))[0] ?? null;
 
         $this->assertNotNull($cacheMissed);
-        $this->assertSame('profile', $cacheMissed->key);
+        $this->assertSame('0', $cacheMissed->key);
         $this->assertNotNull($keyWritten);
-        $this->assertSame('profile', $keyWritten->key);
+        $this->assertSame('0', $keyWritten->key);
     }
 
     /**
@@ -913,7 +913,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        $key = hash('xxh128', '_all:tag:config:entries') . ':settings';
+        $key = hash('xxh128', '_all:tag:config:entries') . ':1';
 
         $connection->shouldReceive('get')
             ->once()
@@ -938,7 +938,7 @@ class AllTaggedCacheTest extends RedisCacheTestCase
         $cacheHit = array_values(array_filter($captured, fn (object $event) => $event instanceof CacheHit))[0] ?? null;
 
         $this->assertNotNull($cacheHit);
-        $this->assertSame('settings', $cacheHit->key);
+        $this->assertSame('1', $cacheHit->key);
     }
 
     /**
@@ -1139,8 +1139,8 @@ class AllTaggedCacheTest extends RedisCacheTestCase
     }
 }
 
-enum AllTaggedCacheTestKey: string
+enum AllTaggedCacheTestKey: int
 {
-    case Profile = 'profile';
-    case Settings = 'settings';
+    case Profile = 0;
+    case Settings = 1;
 }

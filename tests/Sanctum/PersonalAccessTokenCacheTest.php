@@ -46,6 +46,10 @@ class PersonalAccessTokenCacheTest extends TestCase
                 'driver' => 'array',
                 'serialize' => false,
             ],
+            'cache.stores.0' => [
+                'driver' => 'array',
+                'serialize' => false,
+            ],
             'sanctum.cache.enabled' => true,
         ]);
     }
@@ -202,6 +206,30 @@ class PersonalAccessTokenCacheTest extends TestCase
 
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
         $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}:tokenable"));
+    }
+
+    public function testTokenCacheStorePreservesZeroAndEmptyFallback(): void
+    {
+        $defaultStore = $this->app->make('cache')->store();
+        $zeroStore = $this->app->make('cache')->store('0');
+
+        $this->app->make('config')->set('sanctum.cache.store', '0');
+        $defaultStore->put('sanctum:1', 'default', 60);
+        $zeroStore->put('sanctum:1', 'zero', 60);
+
+        PersonalAccessToken::clearTokenCache(1);
+
+        $this->assertSame('default', $defaultStore->get('sanctum:1'));
+        $this->assertNull($zeroStore->get('sanctum:1'));
+
+        $this->app->make('config')->set('sanctum.cache.store', '');
+        $defaultStore->put('sanctum:2', 'default', 60);
+        $zeroStore->put('sanctum:2', 'zero', 60);
+
+        PersonalAccessToken::clearTokenCache(2);
+
+        $this->assertNull($defaultStore->get('sanctum:2'));
+        $this->assertSame('zero', $zeroStore->get('sanctum:2'));
     }
 
     public function testUpdatingTokenForgetsTokenAndTokenableCacheEntries(): void

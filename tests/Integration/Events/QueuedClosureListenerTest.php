@@ -59,6 +59,20 @@ class QueuedClosureListenerTest extends TestCase
         });
     }
 
+    public function testAnonymousQueuedListenerNormalizesEnumConnectionAndQueueIdentifiers(): void
+    {
+        Bus::fake();
+
+        Event::listen(\Hypervel\Events\queueable(function (TestEvent $event): void {
+        })->onConnection(TestQueueIdentifier::Zero)->onQueue(TestQueueUnitIdentifier::Primary));
+
+        Event::dispatch(new TestEvent);
+
+        Bus::assertDispatched(CallQueuedListener::class, function ($job): bool {
+            return $job->connection === '0' && $job->queue === 'Primary';
+        });
+    }
+
     public function testAnonymousQueuedListenerIsQueuedWithDeduplicator()
     {
         $deduplicator = fn ($payload, $queue) => 'deduplicator-1';
@@ -104,6 +118,16 @@ class TestEvent
 enum TestMessageGroup: int
 {
     case First = 1;
+}
+
+enum TestQueueIdentifier: int
+{
+    case Zero = 0;
+}
+
+enum TestQueueUnitIdentifier
+{
+    case Primary;
 }
 
 class QueuedClosureDeduplicator

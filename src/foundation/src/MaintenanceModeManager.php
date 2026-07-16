@@ -23,9 +23,11 @@ class MaintenanceModeManager extends Manager
      */
     protected function createCacheDriver(): CacheBasedMaintenanceMode
     {
+        $store = $this->config->string('app.maintenance.store');
+
         return new CacheBasedMaintenanceMode(
             $this->container->make('cache'),
-            $this->config->string('app.maintenance.store') ?: $this->config->string('cache.default'),
+            $store === '' ? $this->config->string('cache.default') : $store,
             'hypervel:foundation:down'
         );
     }

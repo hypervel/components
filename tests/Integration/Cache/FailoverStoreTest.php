@@ -140,6 +140,20 @@ class FailoverStoreTest extends TestCase
         $this->assertSame('fallback', $store->get('test'));
     }
 
+    public function testGetRawNormalizesIntegerBackedEnumKeys(): void
+    {
+        $events = m::mock(Dispatcher::class);
+        $repository = m::mock(CacheRepository::class);
+        $repository->shouldReceive('getRaw')->once()->with('0')->andReturn('zero');
+
+        $cacheManager = m::mock(CacheManager::class);
+        $cacheManager->shouldReceive('store')->once()->with('primary')->andReturn($repository);
+
+        $store = new FailoverStore($cacheManager, $events, ['primary']);
+
+        $this->assertSame('zero', $store->getRaw(FailoverCacheKey::Zero));
+    }
+
     public function testPutManyWithEmptyInputReturnsSelectedStoreResult(): void
     {
         $events = m::mock(Dispatcher::class);
@@ -284,4 +298,9 @@ class CantSerialize
 
         return [];
     }
+}
+
+enum FailoverCacheKey: int
+{
+    case Zero = 0;
 }

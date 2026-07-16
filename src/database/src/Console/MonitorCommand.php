@@ -66,7 +66,7 @@ class MonitorCommand extends DatabaseInspectionCommand
     protected function parseDatabases(?string $databases): Collection
     {
         return (new Collection(explode(',', $databases ?? '')))->map(function ($database) {
-            if (! $database) {
+            if ($database === '') {
                 $database = $this->hypervel->make('config')->string('database.default', 'default');
             }
 

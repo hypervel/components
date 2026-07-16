@@ -12,7 +12,7 @@ use Hypervel\Support\Facades\Facade;
 
 /**
  * @method static mixed with(string $driver)
- * @method static mixed driver(string|null $driver = null)
+ * @method static mixed driver(\UnitEnum|string|null $driver = null)
  * @method static mixed buildOAuth2Provider(string $provider, array|null $config)
  * @method static array formatConfig(array $config)
  * @method static \Hypervel\Socialite\SocialiteManager forgetDrivers()

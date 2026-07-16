@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
+use Hypervel\Log\Handlers\FingersCrossedHandler;
 use Hypervel\Sentry\LogChannel;
+use Hypervel\Sentry\Logs\LogChannel as LogsLogChannel;
+use Hypervel\Sentry\Logs\LogsHandler;
 use Hypervel\Sentry\SentryHandler;
-use Monolog\Handler\FingersCrossedHandler;
 use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionProperty;
 use Sentry\Event;
 
 class LogChannelTest extends SentryTestCase
@@ -25,11 +28,17 @@ class LogChannelTest extends SentryTestCase
     {
         $logChannel = new LogChannel($this->app);
 
-        $logger = $logChannel(['action_level' => 'critical']);
+        $logger = $logChannel([
+            'action_level' => 'critical',
+            'stop_buffering' => false,
+        ]);
 
         $this->assertContainsOnlyInstancesOf(FingersCrossedHandler::class, $logger->getHandlers());
 
         $currentHandler = current($logger->getHandlers());
+
+        $this->assertSame(FingersCrossedHandler::class, get_class($currentHandler));
+        $this->assertFalse((new ReflectionProperty($currentHandler, 'stopBuffering'))->getValue($currentHandler));
 
         if (method_exists($currentHandler, 'getHandler')) {
             $this->assertInstanceOf(SentryHandler::class, $currentHandler->getHandler());
@@ -38,6 +47,22 @@ class LogChannelTest extends SentryTestCase
         $loggerWithoutActionLevel = $logChannel(['action_level' => null]);
 
         $this->assertContainsOnlyInstancesOf(SentryHandler::class, $loggerWithoutActionLevel->getHandlers());
+    }
+
+    public function testCreatingLogsHandlerWithActionLevelConfig(): void
+    {
+        $logChannel = new LogsLogChannel($this->app);
+
+        $logger = $logChannel([
+            'action_level' => 'critical',
+            'stop_buffering' => false,
+        ]);
+
+        $currentHandler = current($logger->getHandlers());
+
+        $this->assertSame(FingersCrossedHandler::class, get_class($currentHandler));
+        $this->assertFalse((new ReflectionProperty($currentHandler, 'stopBuffering'))->getValue($currentHandler));
+        $this->assertInstanceOf(LogsHandler::class, $currentHandler->getHandler());
     }
 
     #[DataProvider('handlerDataProvider')]

@@ -187,6 +187,8 @@ class QueueRedisQueueTest extends TestCase
         $queue = new RedisQueue(m::mock(Redis::class), 'default', 'default');
 
         $this->assertSame('queues:default', $queue->getQueue(null));
+        $this->assertSame('queues:default', $queue->getQueue(''));
+        $this->assertSame('queues:0', $queue->getQueue('0'));
         $this->assertSame('queues:emails', $queue->getQueue('emails'));
     }
 
@@ -198,6 +200,8 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->never();
 
         $this->assertSame('queues:default', $queue->getQueue(null));
+        $this->assertSame('queues:default', $queue->getQueue(''));
+        $this->assertSame('queues:0', $queue->getQueue('0'));
         $this->assertSame('queues:emails', $queue->getQueue('emails'));
     }
 
@@ -209,6 +213,8 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->once()->andReturn($redisProxy);
 
         $this->assertSame('queues:default', $queue->testGetQueueRedisKey(null));
+        $this->assertSame('queues:default', $queue->testGetQueueRedisKey(''));
+        $this->assertSame('queues:0', $queue->testGetQueueRedisKey('0'));
         $this->assertSame('queues:emails', $queue->testGetQueueRedisKey('emails'));
     }
 
@@ -220,6 +226,8 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->once()->andReturn($redisProxy);
 
         $this->assertSame('queues:{default}', $queue->testGetQueueRedisKey(null));
+        $this->assertSame('queues:{default}', $queue->testGetQueueRedisKey(''));
+        $this->assertSame('queues:{0}', $queue->testGetQueueRedisKey('0'));
         $this->assertSame('queues:{emails}', $queue->testGetQueueRedisKey('emails'));
     }
 
@@ -399,6 +407,33 @@ class QueueRedisQueueTest extends TestCase
         $redis->shouldReceive('connection')->times(4)->andReturn($redisProxy);
 
         $this->assertNull($queue->pop());
+    }
+
+    public function testPoppedJobPreservesZeroQueueAndDefaultsEmptyQueue(): void
+    {
+        $payload = json_encode([
+            'id' => 'job-id',
+            'job' => 'job',
+            'attempts' => 0,
+            'data' => [],
+        ], JSON_THROW_ON_ERROR);
+
+        foreach ([['0', '0'], ['', 'default']] as [$requested, $expected]) {
+            $queue = $this->getMockBuilder(RedisQueue::class)
+                ->onlyMethods(['getQueueRedisKey', 'migrate', 'retrieveNextJob'])
+                ->setConstructorArgs([m::mock(Redis::class), 'default', 'default'])
+                ->getMock();
+            $queue->setContainer(new Container);
+            $queue->setConnectionName('redis');
+            $queue->expects($this->once())->method('getQueueRedisKey')->with($requested)->willReturn("queues:{$expected}");
+            $queue->expects($this->once())->method('migrate')->with("queues:{$expected}");
+            $queue->expects($this->once())->method('retrieveNextJob')->with("queues:{$expected}", true)->willReturn([$payload, $payload]);
+
+            $job = $queue->pop($requested);
+
+            $this->assertInstanceOf(RedisJob::class, $job);
+            $this->assertSame($expected, $job->getQueue());
+        }
     }
 
     public function testDeleteReservedUsesClusterSafeRedisKey(): void

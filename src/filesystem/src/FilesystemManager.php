@@ -15,6 +15,7 @@ use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Arr;
+use Hypervel\Support\RebindsCallbacksToSelf;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
 use League\Flysystem\AwsS3V3\AwsS3V3Adapter as S3Adapter;
@@ -32,6 +33,8 @@ use League\Flysystem\PhpseclibV3\SftpConnectionProvider;
 use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
 use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 use League\Flysystem\Visibility;
+use ReflectionException;
+use RuntimeException;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -43,6 +46,7 @@ use function Hypervel\Support\enum_value;
 class FilesystemManager implements FactoryContract
 {
     use HasPoolProxy;
+    use RebindsCallbacksToSelf;
 
     /**
      * The logical name used while resolving on-demand disks.
@@ -113,7 +117,9 @@ class FilesystemManager implements FactoryContract
     public function disk(UnitEnum|string|null $name = null): Filesystem
     {
         $name = enum_value($name);
-        $name = $name === null ? $this->getDefaultDriver() : (string) $name;
+        $name = $name === null || $name === ''
+            ? $this->getDefaultDriver()
+            : (string) $name;
 
         return $this->disks[$name] = $this->get($name);
     }
@@ -750,7 +756,14 @@ class FilesystemManager implements FactoryContract
             $this->addPoolable($driver);
         }
 
-        $this->customCreators[$driver] = $callback->bindTo($this, $this);
+        try {
+            $callback = $this->bindCallbackToSelf($callback)
+                ?? throw new RuntimeException('Unable to bind custom driver callback');
+        } catch (ReflectionException $e) {
+            throw new RuntimeException('Unable to bind custom driver callback', previous: $e);
+        }
+
+        $this->customCreators[$driver] = $callback;
 
         return $this;
     }

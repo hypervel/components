@@ -51,7 +51,7 @@ class ChannelConnection
      */
     public function data(?string $key = null): mixed
     {
-        return $key ? Arr::get($this->data, $key) : $this->data;
+        return $key !== null ? Arr::get($this->data, $key) : $this->data;
     }
 
     /**

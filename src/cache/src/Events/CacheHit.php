@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Events;
 
+use UnitEnum;
+
 class CacheHit extends CacheEvent
 {
     /**
@@ -14,7 +16,7 @@ class CacheHit extends CacheEvent
     /**
      * Create a new event instance.
      */
-    public function __construct(?string $storeName, string $key, mixed $value, array $tags = [])
+    public function __construct(?string $storeName, UnitEnum|string $key, mixed $value, array $tags = [])
     {
         parent::__construct($storeName, $key, $tags);
 

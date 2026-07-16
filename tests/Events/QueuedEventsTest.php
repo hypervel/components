@@ -114,6 +114,20 @@ class QueuedEventsTest extends TestCase
         $d->dispatch('some.event', ['foo', 'bar']);
     }
 
+    public function testEnumQueueAndConnectionResultsAreNormalizedBeforeDispatch(): void
+    {
+        $dispatcher = new Dispatcher;
+        $factory = m::mock(QueueFactory::class);
+        $queue = m::mock(Queue::class);
+
+        $factory->shouldReceive('connection')->once()->with('0')->andReturn($queue);
+        $queue->shouldReceive('pushOn')->once()->with('1', m::type(CallQueuedListener::class));
+
+        $dispatcher->setQueueResolver(fn () => $factory);
+        $dispatcher->listen('some.event', TestDispatcherGetEnumQueueAndConnection::class . '@handle');
+        $dispatcher->dispatch('some.event', ['foo', 'bar']);
+    }
+
     public function testDelayIsSetByWithDelay()
     {
         $d = new Dispatcher;
@@ -732,6 +746,33 @@ class TestDispatcherGetConnection implements ShouldQueue
     {
         return 'some_other_connection';
     }
+}
+
+class TestDispatcherGetEnumQueueAndConnection implements ShouldQueue
+{
+    public function handle(): void
+    {
+    }
+
+    public function viaConnection(): QueuedConnectionIdentifier
+    {
+        return QueuedConnectionIdentifier::Zero;
+    }
+
+    public function viaQueue(): QueuedQueueIdentifier
+    {
+        return QueuedQueueIdentifier::Primary;
+    }
+}
+
+enum QueuedConnectionIdentifier: int
+{
+    case Zero = 0;
+}
+
+enum QueuedQueueIdentifier: int
+{
+    case Primary = 1;
 }
 
 class TestDispatcherGetDelay implements ShouldQueue

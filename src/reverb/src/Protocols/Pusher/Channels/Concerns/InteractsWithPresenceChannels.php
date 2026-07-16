@@ -24,7 +24,7 @@ trait InteractsWithPresenceChannels
         $userData = $data ? json_decode($data, associative: true, flags: JSON_THROW_ON_ERROR) : [];
         $presenceUserId = (string) ($userData['user_id'] ?? '');
 
-        parent::subscribe($connection, $auth, $data, $presenceUserId ?: null);
+        parent::subscribe($connection, $auth, $data, $presenceUserId === '' ? null : $presenceUserId);
 
         $result = $this->lastSubscriptionResult();
 
@@ -78,13 +78,13 @@ trait InteractsWithPresenceChannels
     public function unsubscribe(Connection $connection, ?string $userId = null): void
     {
         $subscription = $this->connections->find($connection);
-        $presenceUserId = $subscription?->data('user_id');
+        $presenceUserId = (string) ($subscription?->data('user_id') ?? '');
 
-        parent::unsubscribe($connection, $presenceUserId ? (string) $presenceUserId : null);
+        parent::unsubscribe($connection, $presenceUserId === '' ? null : $presenceUserId);
 
         $result = $this->lastSubscriptionResult();
 
-        if (! $subscription || ! $presenceUserId) {
+        if ($subscription === null || $presenceUserId === '') {
             return;
         }
 
@@ -107,8 +107,8 @@ trait InteractsWithPresenceChannels
                 $manager = app(DeferredWebhookManager::class);
 
                 if ($delayMs > 0 && $connection->isDisconnecting() && ! $manager->isDraining()) {
-                    app(SharedState::class)->setMemberSmoothingPending($app->id(), $this->name(), (string) $presenceUserId, $delayMs);
-                    $manager->deferMemberRemoved($app, $this->name(), (string) $presenceUserId, $delayMs / 1000.0, $delayMs);
+                    app(SharedState::class)->setMemberSmoothingPending($app->id(), $this->name(), $presenceUserId, $delayMs);
+                    $manager->deferMemberRemoved($app, $this->name(), $presenceUserId, $delayMs / 1000.0, $delayMs);
                 } else {
                     app(WebhookDispatcher::class)->dispatch($app, 'member_removed', [
                         'channel' => $this->name(),
