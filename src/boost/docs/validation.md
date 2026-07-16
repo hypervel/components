@@ -1113,6 +1113,14 @@ $validated = $request->safe()->except(['name', 'email']);
 $validated = $request->safe()->all();
 ```
 
+Uploaded files may be retrieved from the validated input using the `file` method. The method returns the given default value when the input is missing or is not an uploaded file:
+
+```php
+$avatar = $request->safe()->file('avatar');
+
+$avatar = $request->safe()->file('avatar', $default);
+```
+
 In addition, the `Hypervel\Support\ValidatedInput` instance may be iterated over and accessed like an array:
 
 ```php

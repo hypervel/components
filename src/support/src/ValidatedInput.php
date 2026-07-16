@@ -6,6 +6,7 @@ namespace Hypervel\Support;
 
 use ArrayIterator;
 use Hypervel\Contracts\Support\ValidatedData;
+use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Traits\InteractsWithData;
 use Symfony\Component\VarDumper\VarDumper;
 use Traversable;
@@ -78,6 +79,16 @@ class ValidatedInput implements ValidatedData
             $key,
             $default
         );
+    }
+
+    /**
+     * Retrieve a file from the validated inputs.
+     */
+    public function file(string $key, mixed $default = null): mixed
+    {
+        $value = $this->input($key, $default);
+
+        return $value instanceof UploadedFile ? $value : $default;
     }
 
     /**
