@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Testing\PHPUnit;
 
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Database\Eloquent\Factories\Factory as EloquentFactory;
+use Hypervel\Encryption\Commands\KeyGenerateCommand;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Http\Client\Factory as HttpFactory;
 use Hypervel\Http\Client\PendingRequest;
@@ -21,10 +22,14 @@ use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\AfterEachTestSubscriber;
 use Hypervel\Tests\TestCase;
+use Laravel\SerializableClosure\SerializableClosure;
+use Laravel\SerializableClosure\Serializers\Native;
+use Laravel\SerializableClosure\Serializers\Signed;
 use Mockery as m;
 use Mockery\Exception\InvalidCountException;
 use Override;
 use ReflectionClass;
+use ReflectionProperty;
 use RuntimeException;
 
 class AfterEachTestSubscriberTest extends TestCase
@@ -111,6 +116,59 @@ class AfterEachTestSubscriberTest extends TestCase
             $this->assertNull(Request::create('/')->attributes->get('from_factory'));
         } finally {
             Request::flushState();
+        }
+    }
+
+    public function testFrameworkCleanupFlushesSerializableClosureGlobals(): void
+    {
+        SerializableClosure::setSecretKey('secret');
+        SerializableClosure::transformUseVariablesUsing(static fn (array $variables): array => $variables);
+        SerializableClosure::resolveUseVariablesUsing(static fn (array $variables): array => $variables);
+
+        $this->assertNotNull(Signed::$signer);
+        $this->assertNotNull(Native::$transformUseVariables);
+        $this->assertNotNull(Native::$resolveUseVariables);
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        try {
+            $subscriber->flushFrameworkStateForTest();
+
+            $this->assertNull(Signed::$signer);
+            $this->assertNull(Native::$transformUseVariables);
+            $this->assertNull(Native::$resolveUseVariables);
+        } finally {
+            SerializableClosure::setSecretKey(null);
+            SerializableClosure::transformUseVariablesUsing(null);
+            SerializableClosure::resolveUseVariablesUsing(null);
+        }
+    }
+
+    public function testFrameworkCleanupFlushesKeyGenerateCommandProhibition(): void
+    {
+        KeyGenerateCommand::prohibit();
+        $prohibited = new ReflectionProperty(KeyGenerateCommand::class, 'prohibitedFromRunning');
+
+        $this->assertTrue($prohibited->getValue());
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        try {
+            $subscriber->flushFrameworkStateForTest();
+
+            $this->assertFalse($prohibited->getValue());
+        } finally {
+            KeyGenerateCommand::flushState();
         }
     }
 

@@ -111,6 +111,13 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Carbon\Carbon::serializeUsing(null);
         \Carbon\Carbon::setTestNow();
         \Carbon\CarbonImmutable::setTestNow();
+
+        if (class_exists(\Laravel\SerializableClosure\SerializableClosure::class)) {
+            \Laravel\SerializableClosure\SerializableClosure::setSecretKey(null);
+            \Laravel\SerializableClosure\SerializableClosure::transformUseVariablesUsing(null);
+            \Laravel\SerializableClosure\SerializableClosure::resolveUseVariablesUsing(null);
+        }
+
         \Hypervel\Auth\Access\Gate::flushState();
         \Hypervel\Auth\AuthenticationException::flushState();
         \Hypervel\Auth\EloquentUserProvider::flushState();
@@ -171,6 +178,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Di\Aop\AspectManager::flushState();
         \Hypervel\Di\Aop\AstVisitorRegistry::flushState();
         \Hypervel\Di\ClassMap\ClassMapManager::flushState();
+        \Hypervel\Encryption\Commands\KeyGenerateCommand::flushState();
         \Hypervel\Events\Dispatcher::flushState();
         \Hypervel\Filesystem\Filesystem::flushState();
         \Hypervel\Filesystem\FilesystemAdapter::flushState();
