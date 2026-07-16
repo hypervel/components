@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Hashing;
 
+use SensitiveParameter;
+
 abstract class AbstractHasher
 {
     /**
@@ -17,7 +19,7 @@ abstract class AbstractHasher
     /**
      * Check the given plain value against a hash.
      */
-    public function check(string $value, ?string $hashedValue, array $options = []): bool
+    public function check(#[SensitiveParameter] string $value, ?string $hashedValue, array $options = []): bool
     {
         if (! $this->hasHash($hashedValue)) {
             return false;

@@ -235,7 +235,7 @@ if (! function_exists('bcrypt')) {
     /**
      * Hash the given value against the bcrypt algorithm.
      */
-    function bcrypt(string $value, array $options = []): string
+    function bcrypt(#[\SensitiveParameter] string $value, array $options = []): string
     {
         /* @phpstan-ignore-next-line */
         return app('hash')->driver('bcrypt')->make($value, $options);
