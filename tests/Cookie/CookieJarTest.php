@@ -11,8 +11,8 @@ use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\TestWith;
 use Symfony\Component\HttpFoundation\Cookie;
-use TypeError;
 
 enum CookieJarTestNameEnum: string
 {
@@ -28,6 +28,7 @@ enum CookieJarTestNameUnitEnum
 
 enum CookieJarTestNameIntEnum: int
 {
+    case Zero = 0;
     case First = 1;
 }
 
@@ -451,12 +452,33 @@ class CookieJarTest extends TestCase
         $this->assertNull($cookie->getValue());
     }
 
-    public function testMakeWithIntBackedEnumThrowsTypeError()
+    public function testIntegerBackedEnumNamesAreNormalizedAcrossRequestCreationAndQueuePaths(): void
     {
-        $this->expectException(TypeError::class);
+        $request = m::mock(Request::class);
+        $request->shouldReceive('cookie')->once()->with('0', null)->andReturn('request-value');
+        RequestContext::set($request);
 
-        $manager = new CookieJar;
-        $cookie = $manager->make(CookieJarTestNameIntEnum::First, 'value');
-        $cookie->getName(); // TypeError thrown here
+        $jar = new CookieJar;
+
+        $this->assertSame('request-value', $jar->get(CookieJarTestNameIntEnum::Zero));
+
+        $cookie = $jar->make(CookieJarTestNameIntEnum::First, 'queued-value');
+        $this->assertSame('1', $cookie->getName());
+
+        $jar->queue($cookie);
+        $this->assertTrue($jar->hasQueued(CookieJarTestNameIntEnum::First));
+        $this->assertSame($cookie, $jar->queued(CookieJarTestNameIntEnum::First));
+
+        $jar->unqueue(CookieJarTestNameIntEnum::First);
+        $this->assertFalse($jar->hasQueued(CookieJarTestNameIntEnum::First));
+    }
+
+    #[TestWith(['0'])]
+    #[TestWith([CookieJarTestNameIntEnum::Zero])]
+    public function testIntegerBackedEnumZeroHasTheSameCreationValidityAsStringZero(CookieJarTestNameIntEnum|string $name): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        (new CookieJar)->make($name, 'value');
     }
 }

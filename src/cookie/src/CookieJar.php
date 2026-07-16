@@ -64,7 +64,10 @@ class CookieJar implements JarContract
             return null;
         }
 
-        return $request->cookie(enum_value($key), $default);
+        return $request->cookie(
+            $key instanceof UnitEnum ? (string) enum_value($key) : $key,
+            $default
+        );
     }
 
     /**
@@ -76,7 +79,9 @@ class CookieJar implements JarContract
 
         $time = ($minutes === 0) ? 0 : $this->availableAt($minutes * 60);
 
-        return new Cookie(enum_value($name), $value, $time, $path, $domain, $secure, $httpOnly, $raw, $sameSite);
+        $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
+
+        return new Cookie($name, $value, $time, $path, $domain, $secure, $httpOnly, $raw, $sameSite);
     }
 
     /**
@@ -100,7 +105,7 @@ class CookieJar implements JarContract
      */
     public function hasQueued(UnitEnum|string $key, ?string $path = null): bool
     {
-        return ! is_null($this->queued(enum_value($key), null, $path));
+        return ! is_null($this->queued($key, null, $path));
     }
 
     /**
@@ -108,7 +113,8 @@ class CookieJar implements JarContract
      */
     public function queued(UnitEnum|string $key, mixed $default = null, ?string $path = null): ?Cookie
     {
-        $queued = Arr::get($this->getQueuedCookiesRaw(), enum_value($key), []);
+        $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
+        $queued = Arr::get($this->getQueuedCookiesRaw(), $key, []);
 
         if ($path === null) {
             return $queued === [] ? $default : Arr::last($queued, null, $default);
@@ -152,7 +158,7 @@ class CookieJar implements JarContract
      */
     public function unqueue(UnitEnum|string $name, ?string $path = null): void
     {
-        $name = enum_value($name);
+        $name = $name instanceof UnitEnum ? (string) enum_value($name) : $name;
 
         $cookies = $this->getQueuedCookiesRaw();
 
