@@ -182,8 +182,8 @@ class Schedule
     ): CallbackEvent {
         $jobName = $job;
 
-        $queue = is_null($queue) ? null : enum_value($queue);
-        $connection = is_null($connection) ? null : enum_value($connection);
+        $queue = $queue instanceof UnitEnum ? (string) enum_value($queue) : $queue;
+        $connection = $connection instanceof UnitEnum ? (string) enum_value($connection) : $connection;
 
         if (! is_string($job)) {
             $jobName = method_exists($job, 'displayName')
@@ -424,7 +424,7 @@ class Schedule
             return $this;
         }
 
-        $store = enum_value($store);
+        $store = $store instanceof UnitEnum ? (string) enum_value($store) : $store;
 
         if ($this->eventMutex instanceof CacheAware) {
             $this->eventMutex->useStore($store);

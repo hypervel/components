@@ -83,6 +83,26 @@ class JobSchedulingTest extends TestCase
         })->count());
     }
 
+    public function testJobQueuingNormalizesIntegerBackedEnumQueueAndConnection(): void
+    {
+        Queue::fake();
+
+        /** @var Schedule $scheduler */
+        $scheduler = $this->app->make(Schedule::class);
+        $scheduler->job(
+            JobWithoutDefaultConnection::class,
+            ScheduledJobIdentifier::Queue,
+            ScheduledJobIdentifier::Connection
+        )->name('')->everyMinute();
+
+        $scheduler->events()[0]->run($this->app);
+
+        $this->assertSame(1, Queue::pushed(
+            JobWithoutDefaultConnection::class,
+            fn (JobWithoutDefaultConnection $job, $queue): bool => $job->connection === '1' && $queue === '0'
+        )->count());
+    }
+
     public function testJobQueuingRespectsQueueRoutes(): void
     {
         Queue::fake();
@@ -153,4 +173,10 @@ class JobWithoutDefaultConnection implements ShouldQueue
 {
     use InteractsWithQueue;
     use Queueable;
+}
+
+enum ScheduledJobIdentifier: int
+{
+    case Queue = 0;
+    case Connection = 1;
 }
