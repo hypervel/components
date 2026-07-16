@@ -13,6 +13,7 @@ use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
+use SensitiveParameter;
 use SplFileObject;
 use Symfony\Component\Filesystem\Filesystem as SymfonyFilesystem;
 use Symfony\Component\Finder\Finder;
@@ -221,7 +222,7 @@ class Filesystem
     /**
      * Write the contents of a file, replacing it atomically if it already exists.
      */
-    public function replace(string $path, string $content, ?int $mode = null): void
+    public function replace(string $path, #[SensitiveParameter] string $content, ?int $mode = null): void
     {
         // If the path already exists and is a symlink, get the real path...
         clearstatcache(true, $path);

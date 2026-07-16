@@ -478,7 +478,7 @@ if (! function_exists('encrypt')) {
     /**
      * Encrypt the given value.
      */
-    function encrypt(mixed $value, bool $serialize = true): string
+    function encrypt(#[\SensitiveParameter] mixed $value, bool $serialize = true): string
     {
         /* @phpstan-ignore-next-line */
         return app('encrypter')->encrypt($value, $serialize);
