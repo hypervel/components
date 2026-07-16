@@ -562,6 +562,23 @@ class CacheManagerTest extends TestCase
         $this->assertNotSame($store, $cacheManager->store());
     }
 
+    public function testEmptyStoreNameRemainsExplicit(): void
+    {
+        $cacheManager = new CacheManager($this->getApp([
+            'cache' => [
+                'default' => 'array',
+                'stores' => [
+                    'array' => ['driver' => 'array'],
+                ],
+            ],
+        ]));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cache store [] is not defined.');
+
+        $cacheManager->store('');
+    }
+
     public function testEnumDriverCanBeResolved(): void
     {
         $app = $this->getApp([

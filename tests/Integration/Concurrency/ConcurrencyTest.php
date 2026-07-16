@@ -308,6 +308,22 @@ class ConcurrencyTest extends TestCase
         $this->assertInstanceOf(SyncDriver::class, $manager->driver('sync'));
     }
 
+    public function testManagerResolvesEnumDriverIdentifiers(): void
+    {
+        $manager = $this->app->make(ConcurrencyManager::class);
+
+        $manager->extend('Primary', fn () => new SyncDriver);
+        $manager->extend('1', fn () => new SyncDriver);
+        $manager->extend('0', fn () => new SyncDriver);
+
+        $this->assertSame($manager->driver('Primary'), $manager->driver(ConcurrencyUnitIdentifier::Primary));
+        $this->assertSame($manager->driver('1'), $manager->driver(ConcurrencyIntegerIdentifier::Primary));
+        $this->assertSame($manager->driver('0'), $manager->driver(ConcurrencyIntegerIdentifier::Zero));
+        $this->assertSame($manager->driver(), $manager->driver(''));
+        $this->assertInstanceOf(SyncDriver::class, $manager->driver('0'));
+        $this->assertInstanceOf(SyncDriver::class, $manager->driver(ConcurrencyIntegerIdentifier::Zero));
+    }
+
     public function testManagerCachesDriverInstances()
     {
         $manager = $this->app->make(ConcurrencyManager::class);
@@ -410,4 +426,15 @@ class ConcurrencyTestException extends Exception
     ) {
         parent::__construct("Request to {$uri} failed with status {$statusCode}");
     }
+}
+
+enum ConcurrencyUnitIdentifier
+{
+    case Primary;
+}
+
+enum ConcurrencyIntegerIdentifier: int
+{
+    case Primary = 1;
+    case Zero = 0;
 }

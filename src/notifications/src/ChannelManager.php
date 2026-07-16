@@ -17,6 +17,7 @@ use Hypervel\Support\Manager;
 use Hypervel\Support\Queue\Concerns\ResolvesQueueRoutes;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use UnitEnum;
 
 class ChannelManager extends Manager implements DispatcherContract, FactoryContract
 {
@@ -72,7 +73,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
     /**
      * Get a channel instance.
      */
-    public function channel(?string $name = null): mixed
+    public function channel(UnitEnum|string|null $name = null): mixed
     {
         return $this->driver($name);
     }

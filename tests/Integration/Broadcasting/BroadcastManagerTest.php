@@ -160,6 +160,45 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager->connection('alien_connection');
     }
 
+    public function testEnumIdentifiersResolveSetDefaultsAndPurge(): void
+    {
+        $app = new Container;
+        $app->instance('config', new Repository([
+            'broadcasting' => [
+                'default' => 'default',
+                'connections' => [
+                    'default' => ['driver' => 'null'],
+                    'Primary' => ['driver' => 'null'],
+                    'primary' => ['driver' => 'null'],
+                    '1' => ['driver' => 'null'],
+                    '0' => ['driver' => 'null'],
+                ],
+            ],
+        ]));
+
+        $manager = new BroadcastManager($app);
+
+        $this->assertSame($manager->connection(BroadcastUnitIdentifier::Primary), $manager->connection('Primary'));
+        $this->assertSame($manager->connection(BroadcastStringIdentifier::Primary), $manager->connection('primary'));
+        $this->assertSame($manager->connection(BroadcastIntegerIdentifier::Primary), $manager->connection('1'));
+        $zero = $manager->connection(BroadcastIntegerIdentifier::Zero);
+        $this->assertSame($zero, $manager->connection('0'));
+
+        $manager->setDefaultDriver(BroadcastIntegerIdentifier::Zero);
+        $this->assertSame($manager->connection('0'), $manager->connection());
+        $this->assertSame($manager->connection('0'), $manager->connection(''));
+
+        $manager->purge('');
+        $this->assertSame($zero, $manager->connection('0'));
+
+        $manager->purge(BroadcastIntegerIdentifier::Zero);
+        $replacement = $manager->connection('0');
+        $this->assertNotSame($zero, $replacement);
+
+        $manager->purge(null);
+        $this->assertNotSame($replacement, $manager->connection('0'));
+    }
+
     public function testRoutesExcludesCsrfMiddleware(): void
     {
         $route = m::mock(Route::class);
@@ -542,4 +581,20 @@ class ManagerUserAuthenticationBroadcaster extends BaseBroadcaster
     public function broadcast(array $channels, string $event, array $payload = []): void
     {
     }
+}
+
+enum BroadcastUnitIdentifier
+{
+    case Primary;
+}
+
+enum BroadcastStringIdentifier: string
+{
+    case Primary = 'primary';
+}
+
+enum BroadcastIntegerIdentifier: int
+{
+    case Primary = 1;
+    case Zero = 0;
 }

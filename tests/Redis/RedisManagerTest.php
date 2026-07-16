@@ -64,9 +64,28 @@ class RedisManagerTest extends TestCase
 
         $withNull = $manager->connection(null);
         $withoutArg = $manager->connection();
+        $withEmptyString = $manager->connection('');
 
         $this->assertSame($withNull, $withoutArg);
+        $this->assertSame($withNull, $withEmptyString);
         $this->assertSame('default', $withNull->getName());
+    }
+
+    public function testIntegerBackedEnumConnectionNameIsNormalizedForResolutionAndPurge(): void
+    {
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('flushPool')->once()->with('0');
+
+        $manager = $this->createManager(['0'], poolFactory: $poolFactory);
+        $connection = $manager->connection(RedisConnectionName::Zero);
+
+        $this->assertSame('0', $connection->getName());
+        $this->assertSame($connection, $manager->connections()['0']);
+
+        $manager->purge(RedisConnectionName::Zero);
+
+        $this->assertSame([], $manager->connections());
+        $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . '0'));
     }
 
     public function testPurgeClearsProxyContextAndPool()
@@ -78,7 +97,7 @@ class RedisManagerTest extends TestCase
 
         $first = $manager->connection('default');
 
-        $manager->purge('default');
+        $manager->purge('');
 
         // Context should be cleared
         $this->assertFalse(CoroutineContext::has(RedisProxy::CONNECTION_CONTEXT_PREFIX . 'default'));
@@ -294,4 +313,9 @@ class RedisManagerTest extends TestCase
 
         return new RedisConfig($repository);
     }
+}
+
+enum RedisConnectionName: int
+{
+    case Zero = 0;
 }

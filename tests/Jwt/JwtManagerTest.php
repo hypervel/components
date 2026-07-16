@@ -618,8 +618,9 @@ class JwtManagerTest extends TestCase
         $this->config->shouldReceive('string')->with('jwt.driver', 'lcobucci')->andReturn('dummy');
 
         $manager = new JwtManager($this->container, $this->claimFactory);
+        $provider = $this->provider;
 
-        $manager->extend('dummy', fn () => $this->provider);
+        $manager->extend('dummy', static fn () => $provider);
 
         return $manager;
     }

@@ -13,6 +13,11 @@ use Hypervel\Socialite\Two\GoogleProvider;
 use Hypervel\Socialite\Two\User as OAuth2User;
 use Hypervel\Testbench\TestCase;
 
+enum SocialiteFakeTestIntIdentifier: int
+{
+    case Zero = 0;
+}
+
 class SocialiteFakeTest extends TestCase
 {
     protected function getPackageProviders($app): array
@@ -63,6 +68,16 @@ class SocialiteFakeTest extends TestCase
 
         $this->assertSame('github-123', Socialite::driver('github')->user()->getId());
         $this->assertSame('google-456', Socialite::driver('google')->user()->getId());
+    }
+
+    public function testItCanResolveAFakedDriverUsingAnIntegerEnum(): void
+    {
+        Socialite::fake('0', (new OAuth2User)->map(['id' => 'enum-123']));
+
+        $provider = Socialite::driver(SocialiteFakeTestIntIdentifier::Zero);
+
+        $this->assertInstanceOf(FakeProvider::class, $provider);
+        $this->assertSame('enum-123', $provider->user()->getId());
     }
 
     public function testItReturnsFakeRedirectResponse()

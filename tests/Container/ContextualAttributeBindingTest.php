@@ -178,6 +178,7 @@ class ContextualAttributeBindingTest extends TestCase
             $manager->shouldReceive('store')->with('bar')->andReturn(m::mock(CacheRepository::class));
             $manager->shouldReceive('store')->with(CacheStoreUnitEnum::unit)->andReturn(m::mock(CacheRepository::class));
             $manager->shouldReceive('store')->with(CacheStoreBackedEnum::Backed)->andReturn(m::mock(CacheRepository::class));
+            $manager->shouldReceive('store')->with(CacheStoreIntegerBackedEnum::Zero)->andReturn(m::mock(CacheRepository::class));
             $manager->shouldReceive('memo')->with('foo')->andReturn(m::mock(CacheRepository::class));
             $manager->shouldReceive('memo')->with('bar')->andReturn(m::mock(CacheRepository::class));
 
@@ -208,6 +209,7 @@ class ContextualAttributeBindingTest extends TestCase
             $manager = m::mock(DatabaseManager::class);
             $manager->shouldReceive('connection')->with('foo')->andReturn(m::mock(Connection::class));
             $manager->shouldReceive('connection')->with('bar')->andReturn(m::mock(Connection::class));
+            $manager->shouldReceive('connection')->with(DatabaseConnectionIntegerBackedEnum::Zero)->andReturn(m::mock(Connection::class));
 
             return $manager;
         });
@@ -224,6 +226,7 @@ class ContextualAttributeBindingTest extends TestCase
             $manager->shouldReceive('guard')->with('bar')->andReturn(m::mock(GuardContract::class));
             $manager->shouldReceive('guard')->with(AuthGuardUnitEnum::unit)->andReturn(m::mock(GuardContract::class));
             $manager->shouldReceive('guard')->with(AuthGuardBackedEnum::Backed)->andReturn(m::mock(GuardContract::class));
+            $manager->shouldReceive('guard')->with(AuthGuardIntegerBackedEnum::Zero)->andReturn(m::mock(GuardContract::class));
 
             return $manager;
         });
@@ -329,6 +332,7 @@ class ContextualAttributeBindingTest extends TestCase
             $manager->shouldReceive('disk')->with('bar')->andReturn(m::mock(Filesystem::class));
             $manager->shouldReceive('disk')->with(StorageDiskUnitEnum::unit)->andReturn(m::mock(Filesystem::class));
             $manager->shouldReceive('disk')->with(StorageDiskBackedEnum::Backed)->andReturn(m::mock(Filesystem::class));
+            $manager->shouldReceive('disk')->with(StorageDiskIntegerBackedEnum::Zero)->andReturn(m::mock(Filesystem::class));
 
             return $manager;
         });
@@ -450,6 +454,11 @@ enum StorageDiskBackedEnum: string
     case Backed = 'backed';
 }
 
+enum StorageDiskIntegerBackedEnum: int
+{
+    case Zero = 0;
+}
+
 enum AuthGuardUnitEnum
 {
     case unit;
@@ -460,6 +469,11 @@ enum AuthGuardBackedEnum: string
     case Backed = 'backed';
 }
 
+enum AuthGuardIntegerBackedEnum: int
+{
+    case Zero = 0;
+}
+
 enum CacheStoreUnitEnum
 {
     case unit;
@@ -468,6 +482,16 @@ enum CacheStoreUnitEnum
 enum CacheStoreBackedEnum: string
 {
     case Backed = 'backed';
+}
+
+enum CacheStoreIntegerBackedEnum: int
+{
+    case Zero = 0;
+}
+
+enum DatabaseConnectionIntegerBackedEnum: int
+{
+    case Zero = 0;
 }
 
 enum LogChannelUnitEnum
@@ -630,6 +654,8 @@ final class CacheTest
         CacheRepository $unit,
         #[Cache(CacheStoreBackedEnum::Backed)]
         CacheRepository $backed,
+        #[Cache(CacheStoreIntegerBackedEnum::Zero)]
+        CacheRepository $integerBacked,
         #[Cache('foo', memo: true)]
         CacheRepository $fooMemoized,
         #[Cache('bar', memo: true)]
@@ -661,8 +687,14 @@ final class ContextHiddenTest
 
 final class DatabaseTest
 {
-    public function __construct(#[Database('foo')] Connection $foo, #[Database('bar')] Connection $bar)
-    {
+    public function __construct(
+        #[Database('foo')]
+        Connection $foo,
+        #[Database('bar')]
+        Connection $bar,
+        #[Database(DatabaseConnectionIntegerBackedEnum::Zero)]
+        Connection $integerBacked,
+    ) {
     }
 }
 
@@ -677,6 +709,8 @@ final class GuardTest
         GuardContract $unit,
         #[Auth(AuthGuardBackedEnum::Backed)]
         GuardContract $backed,
+        #[Auth(AuthGuardIntegerBackedEnum::Zero)]
+        GuardContract $integerBacked,
     ) {
     }
 }
@@ -732,6 +766,8 @@ final class StorageTest
         Filesystem $unit,
         #[Storage(StorageDiskBackedEnum::Backed)]
         Filesystem $backed,
+        #[Storage(StorageDiskIntegerBackedEnum::Zero)]
+        Filesystem $integerBacked,
     ) {
     }
 }

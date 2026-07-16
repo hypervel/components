@@ -10,7 +10,10 @@ use Hypervel\Contracts\Auth\Factory as FactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\RebindsCallbacksToSelf;
 use InvalidArgumentException;
+use ReflectionException;
+use RuntimeException;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -22,6 +25,7 @@ use function Hypervel\Support\enum_value;
 class AuthManager implements FactoryContract
 {
     use CreatesUserProviders;
+    use RebindsCallbacksToSelf;
 
     /**
      * Context key for the default guard override.
@@ -326,7 +330,14 @@ class AuthManager implements FactoryContract
      */
     public function extend(string $driver, Closure $callback): static
     {
-        $this->customCreators[$driver] = $callback->bindTo($this, $this);
+        try {
+            $callback = $this->bindCallbackToSelf($callback)
+                ?? throw new RuntimeException('Unable to bind custom driver callback');
+        } catch (ReflectionException $e) {
+            throw new RuntimeException('Unable to bind custom driver callback', previous: $e);
+        }
+
+        $this->customCreators[$driver] = $callback;
 
         return $this;
     }

@@ -8,10 +8,13 @@ use Closure;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Foundation\Application;
 use InvalidArgumentException;
+use ReflectionException;
 use RuntimeException;
 
 abstract class MultipleInstanceManager
 {
+    use RebindsCallbacksToSelf;
+
     /**
      * The configuration repository instance.
      */
@@ -64,7 +67,9 @@ abstract class MultipleInstanceManager
      */
     public function instance(?string $name = null): mixed
     {
-        $name = $name ?: $this->getDefaultInstance();
+        $name = $name === null || $name === ''
+            ? $this->getDefaultInstance()
+            : $name;
 
         return $this->instances[$name] = $this->get($name);
     }
@@ -169,7 +174,14 @@ abstract class MultipleInstanceManager
      */
     public function extend(string $name, Closure $callback): static
     {
-        $this->customCreators[$name] = $callback->bindTo($this, $this);
+        try {
+            $callback = $this->bindCallbackToSelf($callback)
+                ?? throw new RuntimeException('Unable to bind custom driver callback');
+        } catch (ReflectionException $e) {
+            throw new RuntimeException('Unable to bind custom driver callback', previous: $e);
+        }
+
+        $this->customCreators[$name] = $callback;
 
         return $this;
     }
