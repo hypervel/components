@@ -175,9 +175,52 @@ class PresenceChannelTest extends ReverbTestCase
 
         collect($connections)->each(fn ($connection) => $connection->assertReceived([
             'event' => 'pusher_internal:member_removed',
-            'data' => json_encode(['user_id' => 1]),
+            'data' => json_encode(['user_id' => '1']),
             'channel' => 'presence-test-channel',
         ]));
+    }
+
+    public function testSubscriptionAndUnsubscriptionPreserveZeroUserId(): void
+    {
+        Queue::fake();
+
+        $this->app['config']->set('reverb.apps.apps.0.webhooks', [
+            'url' => 'https://example.com/webhook',
+            'events' => ['member_added', 'member_removed'],
+            'disconnect_smoothing_ms' => 0,
+        ]);
+
+        $channel = $this->channels()->findOrCreate('presence-test-channel');
+        $data = json_encode(['user_info' => ['name' => 'Zero'], 'user_id' => 0]);
+
+        $channel->subscribe(
+            $this->connection,
+            static::validAuth($this->connection->id(), 'presence-test-channel', $data),
+            $data,
+        );
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            $event = $job->payload->events[0];
+
+            return $event['name'] === 'member_added'
+                && $event['user_id'] === '0';
+        });
+
+        $this->channelConnectionManager->shouldReceive('find')
+            ->andReturn(new ChannelConnection($this->connection, ['user_info' => ['name' => 'Zero'], 'user_id' => 0]));
+        $this->channelConnectionManager->shouldReceive('all')
+            ->andReturn([]);
+
+        Queue::fake();
+
+        $channel->unsubscribe($this->connection);
+
+        Queue::assertPushed(WebhookDeliveryJob::class, function (WebhookDeliveryJob $job) {
+            $event = $job->payload->events[0];
+
+            return $event['name'] === 'member_removed'
+                && $event['user_id'] === '0';
+        });
     }
 
     public function testEnsuresTheMemberAddedEventIsOnlyFiredOnce()

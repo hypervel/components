@@ -80,8 +80,10 @@ class ClientEvent
                 'data' => $event['data'] ?? null,
             ];
 
-            if ($userId = $channelConnection->data('user_id')) {
-                $rebroadcastEvent['user_id'] = $userId;
+            $userId = $channelConnection->data('user_id');
+
+            if ($userId !== null && $userId !== '') {
+                $rebroadcastEvent['user_id'] = (string) $userId;
             }
         }
 
