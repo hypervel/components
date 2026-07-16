@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Carbon\Factory;
+use Closure;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -12,74 +13,96 @@ use RuntimeException;
  * @see https://carbon.nesbot.com/docs/
  * @see https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Factory.php
  *
- * @method \Hypervel\Support\Carbon create($year = 0, $month = 1, $day = 1, $hour = 0, $minute = 0, $second = 0, $tz = null)
- * @method \Hypervel\Support\Carbon createFromDate($year = null, $month = null, $day = null, $tz = null)
- * @method null|\Hypervel\Support\Carbon createFromFormat($format, $time, $tz = null)
- * @method \Hypervel\Support\Carbon createFromTime($hour = 0, $minute = 0, $second = 0, $tz = null)
- * @method \Hypervel\Support\Carbon createFromTimeString($time, $tz = null)
- * @method \Hypervel\Support\Carbon createFromTimestamp($timestamp, $tz = null)
- * @method \Hypervel\Support\Carbon createFromTimestampMs($timestamp, $tz = null)
- * @method \Hypervel\Support\Carbon createFromTimestampUTC($timestamp)
- * @method \Hypervel\Support\Carbon createMidnightDate($year = null, $month = null, $day = null, $tz = null)
- * @method null|\Hypervel\Support\Carbon createSafe($year = null, $month = null, $day = null, $hour = null, $minute = null, $second = null, $tz = null)
+ * @method bool canBeCreatedFromFormat(?string $date, string $format)
+ * @method null|\Hypervel\Support\Carbon create($year = 0, $month = 1, $day = 1, $hour = 0, $minute = 0, $second = 0, $timezone = null)
+ * @method \Hypervel\Support\Carbon createFromDate($year = null, $month = null, $day = null, $timezone = null)
+ * @method null|\Hypervel\Support\Carbon createFromFormat($format, $time, $timezone = null)
+ * @method null|\Hypervel\Support\Carbon createFromIsoFormat(string $format, string $time, $timezone = null, ?string $locale = 'en', ?\Symfony\Contracts\Translation\TranslatorInterface $translator = null)
+ * @method null|\Hypervel\Support\Carbon createFromLocaleFormat(string $format, string $locale, string $time, $timezone = null)
+ * @method null|\Hypervel\Support\Carbon createFromLocaleIsoFormat(string $format, string $locale, string $time, $timezone = null)
+ * @method \Hypervel\Support\Carbon createFromTime($hour = 0, $minute = 0, $second = 0, $timezone = null)
+ * @method \Hypervel\Support\Carbon createFromTimeString(string $time, \DateTimeZone|string|int|null $timezone = null)
+ * @method \Hypervel\Support\Carbon createFromTimestamp(string|int|float $timestamp, \DateTimeZone|string|int|null $timezone = null)
+ * @method \Hypervel\Support\Carbon createFromTimestampMs(string|int|float $timestamp, \DateTimeZone|string|int|null $timezone = null)
+ * @method \Hypervel\Support\Carbon createFromTimestampMsUTC($timestamp)
+ * @method \Hypervel\Support\Carbon createFromTimestampUTC(float|int|string $timestamp)
+ * @method \Hypervel\Support\Carbon createMidnightDate($year = null, $month = null, $day = null, $timezone = null)
+ * @method null|\Hypervel\Support\Carbon createSafe($year = null, $month = null, $day = null, $hour = null, $minute = null, $second = null, $timezone = null)
+ * @method \Hypervel\Support\Carbon createStrict(?int $year = 0, ?int $month = 1, ?int $day = 1, ?int $hour = 0, ?int $minute = 0, ?int $second = 0, $timezone = null)
  * @method void disableHumanDiffOption($humanDiffOption)
  * @method void enableHumanDiffOption($humanDiffOption)
- * @method mixed executeWithLocale($locale, $func)
+ * @method mixed executeWithLocale(string $locale, callable $func)
  * @method \Hypervel\Support\Carbon fromSerialized($value)
  * @method array getAvailableLocales()
+ * @method array getAvailableLocalesInfo()
  * @method array getDays()
+ * @method null|string getFallbackLocale()
+ * @method array getFormatsToIsoReplacements()
  * @method int getHumanDiffOptions()
  * @method array getIsoUnits()
- * @method array getLastErrors()
+ * @method array|false getLastErrors()
  * @method string getLocale()
  * @method int getMidDayAt()
+ * @method string getTimeFormatByPrecision(string $unitPrecision)
+ * @method null|Closure|string getTranslationMessageWith($translator, string $key, ?string $locale = null, ?string $default = null)
  * @method null|\Hypervel\Support\Carbon getTestNow()
  * @method \Symfony\Contracts\Translation\TranslatorInterface getTranslator()
- * @method int getWeekEndsAt()
- * @method int getWeekStartsAt()
+ * @method int getWeekEndsAt(?string $locale = null)
+ * @method int getWeekStartsAt(?string $locale = null)
  * @method array getWeekendDays()
- * @method bool hasFormat($date, $format)
+ * @method bool hasFormat(string $date, string $format)
+ * @method bool hasFormatWithModifiers(string $date, string $format)
  * @method bool hasMacro($name)
- * @method bool hasRelativeKeywords($time)
+ * @method bool hasRelativeKeywords(?string $time)
  * @method bool hasTestNow()
- * @method \Hypervel\Support\Carbon instance($date)
+ * @method \Hypervel\Support\Carbon instance(\DateTimeInterface $date)
  * @method bool isImmutable()
  * @method bool isModifiableUnit($unit)
  * @method bool isMutable()
  * @method bool isStrictModeEnabled()
- * @method bool localeHasDiffOneDayWords($locale)
- * @method bool localeHasDiffSyntax($locale)
- * @method bool localeHasDiffTwoDayWords($locale)
+ * @method bool localeHasDiffOneDayWords(string $locale)
+ * @method bool localeHasDiffSyntax(string $locale)
+ * @method bool localeHasDiffTwoDayWords(string $locale)
  * @method bool localeHasPeriodSyntax($locale)
- * @method bool localeHasShortUnits($locale)
- * @method void macro($name, $macro)
- * @method null|\Hypervel\Support\Carbon make($var)
- * @method \Hypervel\Support\Carbon maxValue()
- * @method \Hypervel\Support\Carbon minValue()
- * @method void mixin($mixin)
- * @method \Hypervel\Support\Carbon now($tz = null)
- * @method \Hypervel\Support\Carbon parse($time = null, $tz = null)
+ * @method bool localeHasShortUnits(string $locale)
+ * @method void macro(string $name, ?callable $macro)
+ * @method null|\Hypervel\Support\Carbon make($var, \DateTimeZone|string|null $timezone = null)
+ * @method void mixin(object|string $mixin)
+ * @method \Hypervel\Support\Carbon now(\DateTimeZone|string|int|null $timezone = null)
+ * @method \Hypervel\Support\Carbon parse(\DateTimeInterface|\Carbon\WeekDay|\Carbon\Month|string|int|float|null $time, \DateTimeZone|string|int|null $timezone = null)
+ * @method \Hypervel\Support\Carbon parseFromLocale(string $time, ?string $locale = null, \DateTimeZone|string|int|null $timezone = null)
  * @method string pluralUnit(string $unit)
+ * @method null|\Hypervel\Support\Carbon rawCreateFromFormat(string $format, string $time, $timezone = null)
+ * @method \Hypervel\Support\Carbon rawParse(\DateTimeInterface|\Carbon\WeekDay|\Carbon\Month|string|int|float|null $time, \DateTimeZone|string|int|null $timezone = null)
  * @method void resetMonthsOverflow()
  * @method void resetToStringFormat()
  * @method void resetYearsOverflow()
  * @method void serializeUsing($callback)
  * @method void setHumanDiffOptions($humanDiffOptions)
- * @method bool setLocale($locale)
+ * @method void setFallbackLocale(string $locale)
+ * @method void setLocale(string $locale)
  * @method void setMidDayAt($hour)
- * @method void setTestNow($testNow = null)
- * @method void setToStringFormat($format)
+ * @method void setTestNow(mixed $testNow = null)
+ * @method void setTestNowAndTimezone(mixed $testNow = null, $timezone = null)
+ * @method void setToStringFormat(null|\Closure|string $format)
  * @method void setTranslator(\Symfony\Contracts\Translation\TranslatorInterface $translator)
+ * @method void setWeekEndsAt($day)
+ * @method void setWeekStartsAt($day)
  * @method void setWeekendDays($days)
  * @method bool shouldOverflowMonths()
  * @method bool shouldOverflowYears()
  * @method string singularUnit(string $unit)
- * @method \Hypervel\Support\Carbon today($tz = null)
- * @method \Hypervel\Support\Carbon tomorrow($tz = null)
+ * @method void sleep(float|int $seconds)
+ * @method \Hypervel\Support\Carbon today(\DateTimeZone|string|int|null $timezone = null)
+ * @method \Hypervel\Support\Carbon tomorrow(\DateTimeZone|string|int|null $timezone = null)
+ * @method string translateTimeString(string $timeString, ?string $from = null, ?string $to = null, int $mode = \Carbon\CarbonInterface::TRANSLATE_ALL)
+ * @method string translateWith(\Symfony\Contracts\Translation\TranslatorInterface $translator, string $key, array $parameters = [], $number = null)
  * @method void useMonthsOverflow($monthsOverflow = true)
  * @method void useStrictMode($strictModeEnabled = true)
  * @method void useYearsOverflow($yearsOverflow = true)
- * @method \Hypervel\Support\Carbon yesterday($tz = null)
+ * @method mixed withTestNow(mixed $testNow, callable $callback)
+ * @method static withTimeZone(null|\DateTimeZone|int|string $timezone)
+ * @method \Hypervel\Support\Carbon yesterday(\DateTimeZone|string|int|null $timezone = null)
  */
 class DateFactory
 {
@@ -110,6 +133,9 @@ class DateFactory
     /**
      * Use the given handler when generating dates (class name, callable, or factory).
      *
+     * Boot-only. The selected handler persists in static state for the worker
+     * lifetime and affects date creation in every subsequent request.
+     *
      * @throws InvalidArgumentException
      */
     public static function use(mixed $handler): void
@@ -133,8 +159,8 @@ class DateFactory
     /**
      * Use the default date class when generating dates.
      *
-     * Boot or tests only. Clears the worker-wide date-generation overrides
-     * shared by every coroutine.
+     * Boot-only. Clearing the worker-wide handler affects date creation in
+     * every subsequent request.
      */
     public static function useDefault(): void
     {
