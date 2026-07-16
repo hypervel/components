@@ -62,6 +62,47 @@ class WorkCommandTest extends QueueTestCase
         $this->assertFalse(SecondJob::$ran);
     }
 
+    public function testQueueOptionPreservesZeroAndDefaultsEmptyString(): void
+    {
+        Queue::push(new FirstJob, queue: '0');
+        Queue::push(new SecondJob);
+
+        $this->artisan('queue:work', [
+            '--once' => true,
+            '--memory' => 1024,
+            '--queue' => '0',
+        ])->assertExitCode(0);
+
+        $this->assertTrue(FirstJob::$ran);
+        $this->assertFalse(SecondJob::$ran);
+
+        $this->artisan('queue:work', [
+            '--once' => true,
+            '--memory' => 1024,
+            '--queue' => '',
+        ])->assertExitCode(0);
+
+        $this->assertTrue(SecondJob::$ran);
+    }
+
+    public function testConnectionArgumentPreservesZero(): void
+    {
+        $this->app['config']->set(
+            'queue.connections.0',
+            $this->app['config']->get('queue.connections.database'),
+        );
+
+        Queue::connection('0')->push(new FirstJob);
+
+        $this->artisan('queue:work', [
+            'connection' => '0',
+            '--once' => true,
+            '--memory' => 1024,
+        ])->assertExitCode(0);
+
+        $this->assertTrue(FirstJob::$ran);
+    }
+
     public function testOnceDoesNotRunInMaintenanceModeUnlessForced()
     {
         Queue::push(new FirstJob);

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
+
 class QueueRoutes
 {
     /**
@@ -25,7 +29,7 @@ class QueueRoutes
         }
 
         return is_string($route)
-            ? $route
+            ? null
             : $route[0];
     }
 
@@ -78,14 +82,19 @@ class QueueRoutes
      * Boot-only. The route persists on the singleton registry for the worker
      * lifetime and affects every subsequent dispatch of that class.
      *
-     * @param array<class-string, array{null|string, null|string}|string>|class-string $class
+     * @param array<class-string, array{null|string|UnitEnum, null|string|UnitEnum}|string|UnitEnum>|class-string $class
      */
-    public function set(array|string $class, ?string $queue = null, ?string $connection = null): void
+    public function set(array|string $class, UnitEnum|string|null $queue = null, UnitEnum|string|null $connection = null): void
     {
         $routes = is_array($class) ? $class : [$class => [$connection, $queue]];
 
         foreach ($routes as $from => $to) {
-            $this->routes[$from] = $to;
+            $this->routes[$from] = is_array($to)
+                ? array_map(
+                    fn ($value) => $value instanceof UnitEnum ? (string) enum_value($value) : $value,
+                    $to
+                )
+                : ($to instanceof UnitEnum ? (string) enum_value($to) : $to);
         }
     }
 

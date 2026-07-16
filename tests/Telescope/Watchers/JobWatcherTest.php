@@ -247,6 +247,7 @@ class JobWatcherTest extends FeatureTestCase
         $this->assertArrayHasKey('queue', $entry->content);
         $this->assertArrayHasKey('tries', $entry->content);
         $this->assertArrayHasKey('timeout', $entry->content);
+        $this->assertSame('0', $entry->content['queue']);
         $this->assertSame(0, $entry->content['tries']);
         $this->assertSame(0, $entry->content['timeout']);
     }
@@ -385,6 +386,8 @@ class MockedContextJob implements ShouldQueue
 class MockedZeroValuesJob implements ShouldQueue
 {
     use Dispatchable;
+
+    public string $queue = '0';
 
     public int $tries = 0;
 

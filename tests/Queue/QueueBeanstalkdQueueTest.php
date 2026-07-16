@@ -32,6 +32,15 @@ class QueueBeanstalkdQueueTest extends TestCase
      */
     private $container;
 
+    public function testQueueNamesPreserveZeroAndDefaultEmptyString(): void
+    {
+        $this->setQueue('default', 60);
+
+        $this->assertSame('default', $this->queue->getQueue(null));
+        $this->assertSame('default', $this->queue->getQueue(''));
+        $this->assertSame('0', $this->queue->getQueue('0'));
+    }
+
     public function testPushProperlyPushesJobOntoBeanstalkd()
     {
         $now = Carbon::now();

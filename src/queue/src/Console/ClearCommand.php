@@ -37,8 +37,11 @@ class ClearCommand extends Command
             return 1;
         }
 
-        $connection = $this->argument('connection')
-            ?: $this->hypervel->make('config')->string('queue.default');
+        $connection = $this->argument('connection');
+
+        if ($connection === null || $connection === '') {
+            $connection = $this->hypervel->make('config')->string('queue.default');
+        }
 
         // We need to get the right queue for the connection which is set in the queue
         // configuration file for the application. We will pull it based on the set
@@ -65,10 +68,11 @@ class ClearCommand extends Command
      */
     protected function getQueue(string $connection): string
     {
-        return $this->option('queue') ?: $this->hypervel->make('config')->string(
-            "queue.connections.{$connection}.queue",
-            'default'
-        );
+        $queue = $this->option('queue');
+
+        return $queue === null || $queue === ''
+            ? $this->hypervel->make('config')->string("queue.connections.{$connection}.queue", 'default')
+            : $queue;
     }
 
     /**

@@ -23,6 +23,21 @@ use stdClass;
 
 class QueueDatabaseQueueUnitTest extends TestCase
 {
+    public function testQueueNamesPreserveZeroAndDefaultEmptyString(): void
+    {
+        $queue = new TestDatabaseQueue(
+            resolver: m::mock(ConnectionResolverInterface::class),
+            connection: null,
+            table: 'table',
+            default: 'default',
+            currentTime: 1732502704,
+        );
+
+        $this->assertSame('default', $queue->getQueue(null));
+        $this->assertSame('default', $queue->getQueue(''));
+        $this->assertSame('0', $queue->getQueue('0'));
+    }
+
     #[DataProvider('pushJobsDataProvider')]
     public function testPushProperlyPushesJobOntoDatabase($uuid, $job, $displayNameStartsWith, $jobStartsWith)
     {

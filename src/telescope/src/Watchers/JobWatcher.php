@@ -192,7 +192,7 @@ class JobWatcher extends Watcher
     {
         return [
             'connection' => $connection,
-            'queue' => $queue ?: 'default',
+            'queue' => $queue === null || $queue === '' ? 'default' : $queue,
             'name' => $payload['displayName'],
             'tries' => $payload['maxTries'],
             'timeout' => $payload['timeout'],
