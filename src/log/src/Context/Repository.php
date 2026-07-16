@@ -548,6 +548,9 @@ class Repository implements ReplicableContext
     /**
      * Register a callback to execute before context is dehydrated for a job.
      *
+     * Boot-only. Registers a listener on the worker-global event dispatcher;
+     * per-request registration persists and affects subsequent requests.
+     *
      * @param (callable(self): void) $callback
      * @return $this
      */
@@ -560,6 +563,9 @@ class Repository implements ReplicableContext
 
     /**
      * Register a callback to execute after context has been hydrated from a job.
+     *
+     * Boot-only. Registers a listener on the worker-global event dispatcher;
+     * per-request registration persists and affects subsequent requests.
      *
      * @param (callable(self): void) $callback
      * @return $this
