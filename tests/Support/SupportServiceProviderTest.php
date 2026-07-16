@@ -434,6 +434,7 @@ return [
 ];
 PHP
             );
+            chmod($tempFile, 0640);
 
             // Strict mode — should delete nothing (partial match doesn't work)
             ServiceProvider::removeProviderFromBootstrapFile('TelescopeServiceProvider', $tempFile, true);
@@ -458,6 +459,39 @@ return [
 
 ];
 PHP, trim(file_get_contents($tempFile)));
+            $this->assertSame(0640, fileperms($tempFile) & 0777);
+        } finally {
+            @unlink($tempFile);
+        }
+    }
+
+    public function testCanAddProviderAndPreserveFileMode(): void
+    {
+        $tempFile = sys_get_temp_dir() . '/hypervel_test_providers_' . getmypid() . '.php';
+
+        try {
+            file_put_contents($tempFile, <<<'PHP'
+<?php
+
+return [
+    App\Providers\AppServiceProvider::class,
+];
+PHP);
+            chmod($tempFile, 0640);
+
+            $this->assertTrue(ServiceProvider::addProviderToBootstrapFile(
+                'App\Providers\TelescopeServiceProvider',
+                $tempFile,
+            ));
+            $this->assertStringEqualsStringIgnoringLineEndings(<<<'PHP'
+<?php
+
+return [
+    App\Providers\AppServiceProvider::class,
+    App\Providers\TelescopeServiceProvider::class,
+];
+PHP, trim(file_get_contents($tempFile)));
+            $this->assertSame(0640, fileperms($tempFile) & 0777);
         } finally {
             @unlink($tempFile);
         }

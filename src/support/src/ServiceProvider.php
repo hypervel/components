@@ -13,8 +13,10 @@ use Hypervel\Contracts\View\Factory as ViewFactoryContract;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Di\Aop\AspectCollector;
 use Hypervel\Di\ClassMap\ClassMapManager;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\View\Compilers\CompilerInterface;
 use ReflectionProperty;
+use RuntimeException;
 
 abstract class ServiceProvider
 {
@@ -284,6 +286,8 @@ abstract class ServiceProvider
         });
     }
 
+    // REMOVED: Laravel's deprecated loadFactoriesFrom() method is intentionally omitted.
+
     /**
      * Setup an after resolving listener, or fire immediately if already resolved.
      */
@@ -357,11 +361,10 @@ abstract class ServiceProvider
      */
     public static function pathsToPublish(?string $provider = null, ?string $group = null): array
     {
-        if (! is_null($paths = static::pathsForProviderOrGroup($provider, $group))) { // @phpstan-ignore function.impossibleType (logic bug: method always returns array, fix in separate PR)
+        if (! is_null($paths = static::pathsForProviderOrGroup($provider, $group))) {
             return $paths;
         }
 
-        // @phpstan-ignore deadCode.unreachable (logic bug: method always returns array, fix in separate PR)
         return collect(static::$publishes)->reduce(function ($paths, $p) {
             return array_merge($paths, $p);
         }, []);
@@ -437,6 +440,8 @@ abstract class ServiceProvider
             return false;
         }
 
+        $path = realpath($path) ?: $path;
+
         if (function_exists('opcache_invalidate')) {
             opcache_invalidate($path, true);
         }
@@ -455,7 +460,7 @@ return [
 ' . $providers . '
 ];';
 
-        file_put_contents($path, $content . PHP_EOL);
+        static::replaceBootstrapProviderFile($path, $content . PHP_EOL);
 
         return true;
     }
@@ -472,6 +477,8 @@ return [
         if (! file_exists($path)) {
             return false;
         }
+
+        $path = realpath($path) ?: $path;
 
         if (function_exists('opcache_invalidate')) {
             opcache_invalidate($path, true);
@@ -497,7 +504,7 @@ return [
 ' . $providers . '
 ];';
 
-        file_put_contents($path, $content . PHP_EOL);
+        static::replaceBootstrapProviderFile($path, $content . PHP_EOL);
 
         return true;
     }
@@ -602,6 +609,28 @@ return [
     {
         ClassMapManager::add($map);
     }
+
+    /**
+     * Replace the bootstrap provider file without exposing partial contents.
+     */
+    protected static function replaceBootstrapProviderFile(string $path, string $content): void
+    {
+        clearstatcache(true, $path);
+
+        $mode = @fileperms($path);
+
+        if ($mode === false) {
+            throw new RuntimeException("Unable to read permissions for bootstrap provider file [{$path}].");
+        }
+
+        (new Filesystem)->replace($path, $content, $mode & 0777);
+
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate($path, true);
+        }
+    }
+
+    // REMOVED: Laravel's deferred-provider metadata APIs do not fit Hypervel's worker bootstrap model.
 
     /**
      * Get the default providers for a Hypervel application.

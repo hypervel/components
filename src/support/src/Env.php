@@ -243,13 +243,14 @@ class Env
             throw new RuntimeException("The file [{$pathToFile}] does not exist.");
         }
 
+        $pathToFile = realpath($pathToFile) ?: $pathToFile;
         $lines = explode(PHP_EOL, $filesystem->get($pathToFile));
 
         foreach ($variables as $key => $value) {
             $lines = self::addVariableToEnvContents($key, $value, $lines, $overwrite);
         }
 
-        $filesystem->put($pathToFile, implode(PHP_EOL, $lines));
+        $filesystem->replace($pathToFile, implode(PHP_EOL, $lines), self::fileMode($pathToFile));
     }
 
     /**
@@ -266,12 +267,13 @@ class Env
             throw new RuntimeException("The file [{$pathToFile}] does not exist.");
         }
 
+        $pathToFile = realpath($pathToFile) ?: $pathToFile;
         $envContent = $filesystem->get($pathToFile);
 
         $lines = explode(PHP_EOL, $envContent);
         $lines = self::addVariableToEnvContents($key, $value, $lines, $overwrite);
 
-        $filesystem->put($pathToFile, implode(PHP_EOL, $lines));
+        $filesystem->replace($pathToFile, implode(PHP_EOL, $lines), self::fileMode($pathToFile));
     }
 
     /**
@@ -286,7 +288,7 @@ class Env
         $lastPrefixIndex = -1;
 
         $stringValue = (string) $value;
-        $shouldQuote = preg_match('/^[a-zA-z0-9]+$/', $stringValue) === 0;
+        $shouldQuote = preg_match('/^[a-zA-Z0-9]+$/', $stringValue) === 0;
 
         $lineToAddVariations = [
             $key . '=' . (is_string($value) ? self::prepareQuotedValue($value) : $value),
@@ -396,6 +398,22 @@ class Env
         }
 
         return $escaped;
+    }
+
+    /**
+     * Get the basic permission bits for an environment file.
+     */
+    protected static function fileMode(string $path): int
+    {
+        clearstatcache(true, $path);
+
+        $mode = @fileperms($path);
+
+        if ($mode === false) {
+            throw new RuntimeException("Unable to read permissions for environment file [{$path}].");
+        }
+
+        return $mode & 0777;
     }
 
     /**
