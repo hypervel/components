@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench\Foundation\Console;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\Concerns\Database\InteractsWithSqliteDatabaseFile;
 use Hypervel\Testbench\TestbenchServiceProvider;
 use Hypervel\Tests\Testbench\TestCase;
@@ -49,5 +50,23 @@ class DropSqliteDbCommandTest extends TestCase
                 ->expectsOutputToContain('File [@hypervel/database/database.sqlite] doesn\'t exists')
                 ->assertOk();
         });
+    }
+
+    #[Test]
+    public function itCanDropDatabaseNamedZero(): void
+    {
+        $filesystem = new Filesystem;
+        $database = database_path('0.sqlite');
+        $filesystem->put($database, '');
+
+        try {
+            $this->artisan('package:drop-sqlite-db', ['--database' => '0'])
+                ->expectsOutputToContain('File [@hypervel/database/0.sqlite] has been deleted')
+                ->assertOk();
+
+            $this->assertFalse($filesystem->exists($database));
+        } finally {
+            $filesystem->delete($database);
+        }
     }
 }

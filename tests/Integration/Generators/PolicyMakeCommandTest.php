@@ -41,4 +41,29 @@ class PolicyMakeCommandTest extends TestCase
             'public function forceDelete(User $user, Post $post)',
         ], 'app/Policies/FooPolicy.php');
     }
+
+    public function testItCanGeneratePolicyFileForZeroNamedGuard(): void
+    {
+        $this->app->make('config')->set([
+            'auth.guards.0.provider' => 'zero-users',
+            'auth.providers.zero-users.model' => 'App\Models\ZeroUser',
+        ]);
+
+        $this->artisan('make:policy', ['name' => 'FooPolicy', '--guard' => '0'])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'use App\Models\ZeroUser;',
+        ], 'app/Policies/FooPolicy.php');
+    }
+
+    public function testEmptyGuardOptionUsesDefaultGuard(): void
+    {
+        $this->artisan('make:policy', ['name' => 'FooPolicy', '--guard' => ''])
+            ->assertExitCode(0);
+
+        $this->assertFileContains([
+            'use Hypervel\Foundation\Auth\User;',
+        ], 'app/Policies/FooPolicy.php');
+    }
 }
