@@ -4,15 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hypervel\Broadcasting\BroadcastEvent;
-use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Hypervel\Broadcasting\PendingBroadcast;
-use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
-use TypeError;
 
 enum PendingBroadcastTestConnectionStringEnum: string
 {
@@ -61,17 +57,17 @@ class PendingBroadcastTest extends TestCase
         $this->assertSame(['redis'], $event->broadcastConnections());
     }
 
-    public function testViaWithIntBackedEnumThrowsTypeErrorAtBroadcastTime(): void
+    public function testViaNormalizesIntegerBackedEnumImmediately(): void
     {
-        $event = new TestPendingBroadcastableEvent;
-        $event->broadcastVia(PendingBroadcastTestConnectionIntEnum::Connection1);
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')->once();
 
-        $broadcastEvent = new BroadcastEvent($event);
-        $manager = m::mock(BroadcastingFactory::class);
+        $event = new TestPendingBroadcastEvent;
+        $pending = new PendingBroadcast($dispatcher, $event);
 
-        // TypeError is thrown when BroadcastManager::connection() receives int instead of ?string
-        $this->expectException(TypeError::class);
-        $broadcastEvent->handle($manager);
+        $pending->via(PendingBroadcastTestConnectionIntEnum::Connection1);
+
+        $this->assertSame(['1'], $event->broadcastConnections());
     }
 
     public function testViaAcceptsNull(): void
@@ -104,14 +100,4 @@ class PendingBroadcastTest extends TestCase
 class TestPendingBroadcastEvent
 {
     use InteractsWithBroadcasting;
-}
-
-class TestPendingBroadcastableEvent
-{
-    use InteractsWithBroadcasting;
-
-    public function broadcastOn(): Channel
-    {
-        return new Channel('test-channel');
-    }
 }

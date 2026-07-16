@@ -861,6 +861,10 @@ class Dispatcher implements DispatcherContract
             ? (isset($arguments[0]) ? $listener->viaConnection($arguments[0]) : $listener->viaConnection())
             : $this->getAttributeValue($listener, Connection::class, 'connection');
 
+        if ($connectionName instanceof UnitEnum) {
+            $connectionName = (string) enum_value($connectionName);
+        }
+
         $connection = $this->resolveQueue()->connection(
             $connectionName ?? $this->resolveConnectionFromQueueRoute($listener) ?? null
         );
@@ -877,9 +881,13 @@ class Dispatcher implements DispatcherContract
             $queue = $this->resolveQueueFromQueueRoute($listener) ?? null;
         }
 
+        if ($queue instanceof UnitEnum) {
+            $queue = (string) enum_value($queue);
+        }
+
         is_null($delay)
-            ? $connection->pushOn(enum_value($queue), $job)
-            : $connection->laterOn(enum_value($queue), $delay, $job);
+            ? $connection->pushOn($queue, $job)
+            : $connection->laterOn($queue, $delay, $job);
     }
 
     /**

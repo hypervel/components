@@ -5,15 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Bus;
 
 use Hypervel\Bus\Queueable;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
-use TypeError;
 
 class QueueableTest extends TestCase
 {
     #[DataProvider('connectionDataProvider')]
-    public function testOnConnection(mixed $connection, ?string $expected)
+    public function testOnConnection(mixed $connection, ?string $expected): void
     {
         $job = new FakeJob;
         $job->onConnection($connection);
@@ -22,7 +24,7 @@ class QueueableTest extends TestCase
     }
 
     #[DataProvider('connectionDataProvider')]
-    public function testAllOnConnection(mixed $connection, ?string $expected)
+    public function testAllOnConnection(mixed $connection, ?string $expected): void
     {
         $job = new FakeJob;
         $job->allOnConnection($connection);
@@ -36,29 +38,16 @@ class QueueableTest extends TestCase
         return [
             'uses string' => ['redis', 'redis'],
             'uses string-backed enum' => [ConnectionEnum::Sqs, 'sqs'],
+            'uses integer-backed enum' => [IntConnectionEnum::Redis, '2'],
+            'uses zero-backed enum' => [IntConnectionEnum::Zero, '0'],
             'uses unit enum' => [UnitConnectionEnum::Sync, 'Sync'],
+            'uses empty string' => ['', ''],
             'uses null' => [null, null],
         ];
     }
 
-    public function testOnConnectionWithIntBackedEnumThrowsTypeError()
-    {
-        $job = new FakeJob;
-
-        $this->expectException(TypeError::class);
-        $job->onConnection(IntConnectionEnum::Redis);
-    }
-
-    public function testAllOnConnectionWithIntBackedEnumThrowsTypeError()
-    {
-        $job = new FakeJob;
-
-        $this->expectException(TypeError::class);
-        $job->allOnConnection(IntConnectionEnum::Redis);
-    }
-
     #[DataProvider('queuesDataProvider')]
-    public function testOnQueue(mixed $queue, ?string $expected)
+    public function testOnQueue(mixed $queue, ?string $expected): void
     {
         $job = new FakeJob;
         $job->onQueue($queue);
@@ -67,7 +56,7 @@ class QueueableTest extends TestCase
     }
 
     #[DataProvider('queuesDataProvider')]
-    public function testAllOnQueue(mixed $queue, ?string $expected)
+    public function testAllOnQueue(mixed $queue, ?string $expected): void
     {
         $job = new FakeJob;
         $job->allOnQueue($queue);
@@ -81,29 +70,16 @@ class QueueableTest extends TestCase
         return [
             'uses string' => ['high', 'high'],
             'uses string-backed enum' => [QueueEnum::High, 'high'],
+            'uses integer-backed enum' => [IntQueueEnum::High, '2'],
+            'uses zero-backed enum' => [IntQueueEnum::Zero, '0'],
             'uses unit enum' => [UnitQueueEnum::Low, 'Low'],
+            'uses empty string' => ['', ''],
             'uses null' => [null, null],
         ];
     }
 
-    public function testOnQueueWithIntBackedEnumThrowsTypeError()
-    {
-        $job = new FakeJob;
-
-        $this->expectException(TypeError::class);
-        $job->onQueue(IntQueueEnum::High);
-    }
-
-    public function testAllOnQueueWithIntBackedEnumThrowsTypeError()
-    {
-        $job = new FakeJob;
-
-        $this->expectException(TypeError::class);
-        $job->allOnQueue(IntQueueEnum::High);
-    }
-
     #[DataProvider('groupDataProvider')]
-    public function testOnGroup(mixed $group, string $expected)
+    public function testOnGroup(mixed $group, int|string $expected): void
     {
         $job = new FakeJob;
         $job->onGroup($group);
@@ -116,11 +92,12 @@ class QueueableTest extends TestCase
         return [
             'uses string' => ['group-1', 'group-1'],
             'uses string-backed enum' => [GroupEnum::Alpha, 'alpha'],
+            'preserves integer-backed enum values' => [IntGroupEnum::One, 1],
             'uses unit enum' => [UnitGroupEnum::Beta, 'Beta'],
         ];
     }
 
-    public function testWithDeduplicatorClosure()
+    public function testWithDeduplicatorClosure(): void
     {
         $job = new FakeJob;
         $job->withDeduplicator(fn () => 'dedup-id');
@@ -128,7 +105,7 @@ class QueueableTest extends TestCase
         $this->assertInstanceOf(SerializableClosure::class, $job->deduplicator);
     }
 
-    public function testWithDeduplicatorNull()
+    public function testWithDeduplicatorNull(): void
     {
         $job = new FakeJob;
         $job->withDeduplicator(null);
@@ -138,7 +115,7 @@ class QueueableTest extends TestCase
 
     // REMOVED: testWithDeduplicatorRejectsNonClosureCallable - withDeduplicator() now accepts array|callable|null to match Laravel, which includes string callables
 
-    public function testPrependToChainWithMultipleJobs()
+    public function testPrependToChainWithMultipleJobs(): void
     {
         $job = new FakeJob;
         $job->chain([new FakeJob]);
@@ -152,7 +129,7 @@ class QueueableTest extends TestCase
         $this->assertInstanceOf(FakeJob::class, unserialize($job->chained[2]));
     }
 
-    public function testAppendToChainWithMultipleJobs()
+    public function testAppendToChainWithMultipleJobs(): void
     {
         $job = new FakeJob;
         $job->chain([new FakeJob]);
@@ -164,6 +141,44 @@ class QueueableTest extends TestCase
         $this->assertInstanceOf(FakeJob::class, unserialize($job->chained[0]));
         $this->assertInstanceOf(FakeJob::class, unserialize($job->chained[1]));
         $this->assertInstanceOf(FakeJob::class, unserialize($job->chained[2]));
+    }
+
+    public function testDispatchNextJobPreservesExplicitZeroIdentifiers(): void
+    {
+        $job = new FakeJob;
+        $job->chain([(new FakeJob)->onConnection('0')->onQueue('0')]);
+        $job->chainConnection = 'default-connection';
+        $job->chainQueue = 'default-queue';
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(function (FakeJob $next): bool {
+            $this->assertSame('0', $next->connection);
+            $this->assertSame('0', $next->queue);
+
+            return true;
+        }));
+        Container::getInstance()->instance(Dispatcher::class, $dispatcher);
+
+        $job->dispatchNextJobInChain();
+    }
+
+    public function testDispatchNextJobInheritsChainIdentifiersForEmptyStrings(): void
+    {
+        $job = new FakeJob;
+        $job->chain([(new FakeJob)->onConnection('')->onQueue('')]);
+        $job->chainConnection = 'default-connection';
+        $job->chainQueue = 'default-queue';
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')->once()->with(m::on(function (FakeJob $next): bool {
+            $this->assertSame('default-connection', $next->connection);
+            $this->assertSame('default-queue', $next->queue);
+
+            return true;
+        }));
+        Container::getInstance()->instance(Dispatcher::class, $dispatcher);
+
+        $job->dispatchNextJobInChain();
     }
 }
 
@@ -180,6 +195,7 @@ enum ConnectionEnum: string
 
 enum IntConnectionEnum: int
 {
+    case Zero = 0;
     case Sqs = 1;
     case Redis = 2;
 }
@@ -198,6 +214,7 @@ enum QueueEnum: string
 
 enum IntQueueEnum: int
 {
+    case Zero = 0;
     case Default = 1;
     case High = 2;
 }
@@ -212,6 +229,11 @@ enum GroupEnum: string
 {
     case Alpha = 'alpha';
     case Beta = 'beta';
+}
+
+enum IntGroupEnum: int
+{
+    case One = 1;
 }
 
 enum UnitGroupEnum

@@ -91,7 +91,9 @@ trait Queueable
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
-        $this->connection = enum_value($connection);
+        $this->connection = $connection instanceof UnitEnum
+            ? (string) enum_value($connection)
+            : $connection;
 
         return $this;
     }
@@ -101,7 +103,9 @@ trait Queueable
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
-        $this->queue = enum_value($queue);
+        $this->queue = $queue instanceof UnitEnum
+            ? (string) enum_value($queue)
+            : $queue;
 
         return $this;
     }
@@ -137,7 +141,9 @@ trait Queueable
      */
     public function allOnConnection(UnitEnum|string|null $connection): static
     {
-        $resolvedConnection = enum_value($connection);
+        $resolvedConnection = $connection instanceof UnitEnum
+            ? (string) enum_value($connection)
+            : $connection;
 
         $this->chainConnection = $resolvedConnection;
         $this->connection = $resolvedConnection;
@@ -150,7 +156,9 @@ trait Queueable
      */
     public function allOnQueue(UnitEnum|string|null $queue): static
     {
-        $resolvedQueue = enum_value($queue);
+        $resolvedQueue = $queue instanceof UnitEnum
+            ? (string) enum_value($queue)
+            : $queue;
 
         $this->chainQueue = $resolvedQueue;
         $this->queue = $resolvedQueue;
@@ -277,8 +285,12 @@ trait Queueable
             dispatch(tap(unserialize(array_shift($this->chained)), function ($next) {
                 $next->chained = $this->chained;
 
-                $next->onConnection($next->connection ?: $this->chainConnection);
-                $next->onQueue($next->queue ?: $this->chainQueue);
+                $next->onConnection($next->connection === null || $next->connection === ''
+                    ? $this->chainConnection
+                    : $next->connection);
+                $next->onQueue($next->queue === null || $next->queue === ''
+                    ? $this->chainQueue
+                    : $next->queue);
 
                 $next->chainConnection = $this->chainConnection;
                 $next->chainQueue = $this->chainQueue;

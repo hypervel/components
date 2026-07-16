@@ -85,11 +85,11 @@ class ChainedBatch implements ShouldQueue
         $batch->name = $this->name;
         $batch->options = $this->options;
 
-        if ($this->queue) {
+        if ($this->queue !== null && $this->queue !== '') {
             $batch->onQueue($this->queue);
         }
 
-        if ($this->connection) {
+        if ($this->connection !== null && $this->connection !== '') {
             $batch->onConnection($this->connection);
         }
 
@@ -114,8 +114,12 @@ class ChainedBatch implements ShouldQueue
 
             $next->chained = $this->chained;
 
-            $next->onConnection($next->connection ?: $this->chainConnection);
-            $next->onQueue($next->queue ?: $this->chainQueue);
+            $next->onConnection($next->connection === null || $next->connection === ''
+                ? $this->chainConnection
+                : $next->connection);
+            $next->onQueue($next->queue === null || $next->queue === ''
+                ? $this->chainQueue
+                : $next->queue);
 
             $next->chainConnection = $this->chainConnection;
             $next->chainQueue = $this->chainQueue;
