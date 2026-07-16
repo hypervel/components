@@ -575,7 +575,7 @@ if (! function_exists('logs')) {
      */
     function logs(?string $driver = null): LoggerInterface|LogManager
     {
-        return $driver ? app('log')->driver($driver) : app('log');
+        return $driver !== null ? app('log')->driver($driver) : app('log');
     }
 }
 
