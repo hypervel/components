@@ -274,7 +274,6 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Support\LazyCollection::flushState();
         \Hypervel\Support\Lottery::flushState();
         \Hypervel\Support\Number::flushState();
-        \Hypervel\Support\Once::flushState();
         \Hypervel\Support\Optional::flushState();
         \Hypervel\Support\Pluralizer::flushState();
         \Hypervel\Support\ServiceProvider::flushState();

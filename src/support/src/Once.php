@@ -83,13 +83,4 @@ class Once
     {
         CoroutineContext::forget(self::INSTANCE_CONTEXT_KEY);
     }
-
-    /**
-     * Flush all static state.
-     */
-    public static function flushState(): void
-    {
-        static::flush();
-        static::enable();
-    }
 }
