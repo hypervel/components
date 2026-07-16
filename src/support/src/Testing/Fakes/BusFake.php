@@ -13,6 +13,7 @@ use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Foundation\Bus\PendingChain;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
@@ -108,6 +109,14 @@ class BusFake implements Fake, QueueingDispatcher
     }
 
     /**
+     * Assert if a job was pushed exactly once.
+     */
+    public function assertDispatchedOnce(Closure|string $command): void
+    {
+        $this->assertDispatchedTimes($command, 1);
+    }
+
+    /**
      * Assert if a job was pushed a number of times.
      */
     public function assertDispatchedTimes(Closure|string $command, int $times = 1): void
@@ -125,7 +134,11 @@ class BusFake implements Fake, QueueingDispatcher
         PHPUnit::assertSame(
             $times,
             $count,
-            "The expected [{$command}] job was pushed {$count} times instead of {$times} times."
+            sprintf(
+                "The expected [{$command}] job was pushed {$count} %s instead of {$times} %s.",
+                Str::plural('time', $count),
+                Str::plural('time', $times)
+            )
         );
     }
 
@@ -192,7 +205,11 @@ class BusFake implements Fake, QueueingDispatcher
         PHPUnit::assertSame(
             $times,
             $count,
-            "The expected [{$command}] job was synchronously pushed {$count} times instead of {$times} times."
+            sprintf(
+                "The expected [{$command}] job was synchronously pushed {$count} %s instead of {$times} %s.",
+                Str::plural('time', $count),
+                Str::plural('time', $times)
+            )
         );
     }
 
@@ -248,7 +265,11 @@ class BusFake implements Fake, QueueingDispatcher
         PHPUnit::assertSame(
             $times,
             $count,
-            "The expected [{$command}] job was pushed {$count} times instead of {$times} times."
+            sprintf(
+                "The expected [{$command}] job was pushed {$count} %s instead of {$times} %s.",
+                Str::plural('time', $count),
+                Str::plural('time', $times)
+            )
         );
     }
 

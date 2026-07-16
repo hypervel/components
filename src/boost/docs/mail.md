@@ -1415,6 +1415,7 @@ If you are queueing mailables for delivery in the background, you should use the
 
 ```php
 Mail::assertQueued(OrderShipped::class);
+Mail::assertQueuedTimes(OrderShipped::class, 2);
 Mail::assertNotQueued(OrderShipped::class);
 Mail::assertNothingQueued();
 Mail::assertQueuedCount(3);

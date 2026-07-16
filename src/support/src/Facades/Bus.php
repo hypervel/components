@@ -28,6 +28,7 @@ use Hypervel\Support\Testing\Fakes\BusFake;
  * @method static string|null resolveQueueFromQueueRoute(object $queueable)
  * @method static \Hypervel\Support\Testing\Fakes\BusFake except(array|string $jobsToDispatch)
  * @method static void assertDispatched(\Closure|string $command, callable|int|null $callback = null)
+ * @method static void assertDispatchedOnce(\Closure|string $command)
  * @method static void assertDispatchedTimes(\Closure|string $command, int $times = 1)
  * @method static void assertNotDispatched(\Closure|string $command, callable|null $callback = null)
  * @method static void assertNothingDispatched()

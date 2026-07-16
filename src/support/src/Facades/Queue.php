@@ -64,6 +64,7 @@ use Hypervel\Support\Testing\Fakes\QueueFake;
  * @method static \Hypervel\Queue\Queue setContainer(\Hypervel\Contracts\Container\Container $container)
  * @method static \Hypervel\Support\Testing\Fakes\QueueFake except(array|string $jobsToBeQueued)
  * @method static void assertPushed(\Closure|string $job, callable|int|null $callback = null)
+ * @method static void assertPushedOnce(string $job)
  * @method static void assertPushedTimes(string $job, int $times = 1)
  * @method static void assertPushedOn(string|null $queue, \Closure|string $job, callable|null $callback = null)
  * @method static void assertPushedWithChain(string $job, array $expectedChain = [], callable|null $callback = null)
