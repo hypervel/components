@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `cookie`
-- **Ledger entries required for the active work:** `Normalize framework enum identifiers at string boundaries`.
-- **Pending revalidation carried into the active work:** `support-02`.
+- **Active package or work unit:** `engine`
+- **Ledger entries required for the active work:** None.
+- **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1075,7 +1075,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 - [x] `encryption`
 - [x] `hashing`
-- [ ] `cookie`
+- [x] `cookie`
 
 ### Coroutine and resource infrastructure
 
