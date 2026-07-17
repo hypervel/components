@@ -90,34 +90,19 @@ interface FrameInterface extends Stringable
     public function getPayloadLength(): int;
 
     /**
-     * Set the payload length.
-     */
-    public function setPayloadLength(int $payloadLength): static;
-
-    /**
-     * Return a copy with the given payload length.
-     */
-    public function withPayloadLength(int $payloadLength): static;
-
-    /**
      * Determine whether the frame is masked.
      */
     public function getMask(): bool;
 
     /**
-     * Get the masking key.
+     * Set whether the frame is masked.
      */
-    public function getMaskingKey(): string;
+    public function setMask(bool $mask): static;
 
     /**
-     * Set the masking key.
+     * Return a copy with the given mask state.
      */
-    public function setMaskingKey(string $maskingKey): static;
-
-    /**
-     * Return a copy with the given masking key.
-     */
-    public function withMaskingKey(string $maskingKey): static;
+    public function withMask(bool $mask): static;
 
     /**
      * Get the payload data.
@@ -137,7 +122,7 @@ interface FrameInterface extends Stringable
     /**
      * Convert the frame to a string.
      */
-    public function toString(bool $withoutPayloadData = false): string;
+    public function toString(): string;
 
     /**
      * Create a frame from the given value.
