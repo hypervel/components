@@ -13,35 +13,42 @@ use function Hypervel\Coroutine\go;
 
 class FunctionTest extends TestCase
 {
-    public function testBlock()
+    public function testBlock(): void
     {
         $aborted = block(0.001);
         $this->assertFalse($aborted);
     }
 
-    public function testBlockMicroSeconds()
+    public function testBlockMicroSeconds(): void
     {
         $aborted = block(0.000001);
         $this->assertFalse($aborted);
     }
 
-    public function testResume()
+    public function testResume(): void
     {
         $identifier = uniqid();
         $wg = new WaitGroup;
+        $results = [];
         $wg->add();
-        go(function () use ($wg, $identifier) {
-            $aborted = block(10, $identifier);
-            $this->assertTrue($aborted);
-            $wg->done();
+        go(function () use ($wg, $identifier, &$results): void {
+            try {
+                $results[] = block(10, $identifier);
+            } finally {
+                $wg->done();
+            }
         });
         $wg->add();
-        go(function () use ($wg, $identifier) {
-            $aborted = block(10, $identifier);
-            $this->assertTrue($aborted);
-            $wg->done();
+        go(function () use ($wg, $identifier, &$results): void {
+            try {
+                $results[] = block(10, $identifier);
+            } finally {
+                $wg->done();
+            }
         });
         resume($identifier);
         $wg->wait();
+
+        $this->assertSame([true, true], $results);
     }
 }

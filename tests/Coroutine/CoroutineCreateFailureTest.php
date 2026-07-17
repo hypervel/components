@@ -154,8 +154,8 @@ class CoroutineCreateFailureTest extends TestCase
                     $timer->{$method}(1.0, static fn (): null => null);
                     $this->fail('Expected coroutine creation to fail.');
                 } catch (CoroutineCreateException) {
-                    $closures = (new ReflectionProperty($timer, 'closures'))->getValue($timer);
-                    $this->assertSame([], $closures);
+                    $coroutines = (new ReflectionProperty($timer, 'coroutines'))->getValue($timer);
+                    $this->assertSame([], $coroutines);
                     $this->assertSame(['num' => 0, 'round' => 0], Timer::stats());
                 }
             }
