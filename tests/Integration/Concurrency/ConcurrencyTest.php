@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Concurrency;
 
+use Carbon\CarbonInterval;
 use Exception;
 use Hypervel\Concurrency\ConcurrencyManager;
 use Hypervel\Concurrency\CoroutineDriver;
@@ -18,8 +19,12 @@ use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Concurrency as ConcurrencyFacade;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
+use Hypervel\Tests\Foundation\Console\Fixtures\ConcurrentProcessExceptionFixtures;
+use JsonException;
 use RuntimeException;
+use stdClass;
 use Swoole\Coroutine as SwooleCoroutine;
+use TypeError;
 
 class ConcurrencyTest extends TestCase
 {
@@ -407,7 +412,7 @@ class ConcurrencyTest extends TestCase
     {
         $factory = $this->app->make(ProcessFactory::class);
         $factory->fake(fn () => $factory->result(
-            output: json_encode(['successful' => true, 'result' => serialize('hello')])
+            output: json_encode(['successful' => true, 'result' => base64_encode(serialize('hello'))])
         ));
 
         $driver = new ProcessDriver($factory);
@@ -421,7 +426,7 @@ class ConcurrencyTest extends TestCase
     {
         $factory = $this->app->make(ProcessFactory::class);
         $factory->fake(fn () => $factory->result(
-            output: json_encode(['successful' => true, 'result' => serialize(null)])
+            output: json_encode(['successful' => true, 'result' => base64_encode(serialize(null))])
         ));
 
         $driver = new ProcessDriver($factory);
@@ -434,7 +439,7 @@ class ConcurrencyTest extends TestCase
     {
         $factory = $this->app->make(ProcessFactory::class);
         $factory->fake(fn () => $factory->result(
-            output: json_encode(['successful' => true, 'result' => serialize(null)])
+            output: json_encode(['successful' => true, 'result' => base64_encode(serialize(null))])
         ));
 
         $driver = new ProcessDriver($factory);
@@ -444,6 +449,225 @@ class ConcurrencyTest extends TestCase
             return isset($process->environment['HYPERVEL_INVOKABLE_CLOSURE'])
                 && $process->environment['HYPERVEL_INVOKABLE_CLOSURE'] !== '';
         });
+    }
+
+    public function testProcessDriverReturnsBinaryResultsLosslessly(): void
+    {
+        $driver = $this->processDriverFor([
+            'successful' => true,
+            'result' => base64_encode(serialize("binary-\xFF\x00\x8B")),
+        ]);
+
+        $this->assertSame(["binary-\xFF\x00\x8B"], $driver->run(static fn () => null));
+    }
+
+    public function testProcessDriverIgnoresAppendedGzipOutput(): void
+    {
+        $driver = $this->processDriverFor([
+            'successful' => true,
+            'result' => base64_encode(serialize('result')),
+        ], "\x1f\x8bcompressed-output");
+
+        $this->assertSame(['result'], $driver->run(static fn () => null));
+    }
+
+    public function testProcessDriverRejectsMalformedJsonOutput(): void
+    {
+        $this->expectException(JsonException::class);
+
+        $this->processDriverForOutput('{malformed')->run(static fn () => null);
+    }
+
+    public function testProcessDriverRejectsMalformedBase64Results(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to decode the concurrent process result.');
+
+        $this->processDriverFor([
+            'successful' => true,
+            'result' => '*not-base64*',
+        ])->run(static fn () => null);
+    }
+
+    public function testProcessDriverPreservesPublicFalseyExceptionParameters(): void
+    {
+        $driver = $this->processDriverFor([
+            'successful' => false,
+            'exception' => ConcurrentProcessExceptionFixtures::PUBLIC_FALSEY_EXCEPTION,
+            'message' => 'public falsey values',
+            'parameters' => [
+                'status' => 0,
+                'retry' => false,
+                'reason' => '',
+                'detail' => null,
+            ],
+        ]);
+
+        try {
+            $driver->run(static fn () => null);
+            $this->fail('Expected the transported exception to be thrown.');
+        } catch (Exception $exception) {
+            $this->assertSame(ConcurrentProcessExceptionFixtures::PUBLIC_FALSEY_EXCEPTION, $exception::class);
+            $this->assertSame(0, $exception->status);
+            $this->assertFalse($exception->retry);
+            $this->assertSame('', $exception->reason);
+            $this->assertNull($exception->detail);
+        }
+    }
+
+    public function testProcessDriverUsesInaccessibleOptionalDefaults(): void
+    {
+        $driver = $this->processDriverFor([
+            'successful' => false,
+            'exception' => ConcurrentProcessExceptionFixtures::HIDDEN_OPTIONAL_EXCEPTION,
+            'message' => 'status=7',
+            'parameters' => ['status' => 0],
+        ]);
+
+        try {
+            $driver->run(static fn () => null);
+            $this->fail('Expected the transported exception to be thrown.');
+        } catch (Exception $exception) {
+            $this->assertSame(ConcurrentProcessExceptionFixtures::HIDDEN_OPTIONAL_EXCEPTION, $exception::class);
+            $this->assertSame('status=0', $exception->getMessage());
+        }
+    }
+
+    public function testProcessDriverReconstructsNamedVariadicAndInheritedParameters(): void
+    {
+        $variadic = $this->processDriverFor([
+            'successful' => false,
+            'exception' => ConcurrentProcessExceptionFixtures::VARIADIC_EXCEPTION,
+            'message' => 'context:first,second',
+            'parameters' => ['context' => 'context'],
+        ]);
+
+        try {
+            $variadic->run(static fn () => null);
+            $this->fail('Expected the transported exception to be thrown.');
+        } catch (Exception $exception) {
+            $this->assertSame(ConcurrentProcessExceptionFixtures::VARIADIC_EXCEPTION, $exception::class);
+            $this->assertSame('context:', $exception->getMessage());
+        }
+
+        $inherited = $this->processDriverFor([
+            'successful' => false,
+            'exception' => ConcurrentProcessExceptionFixtures::INHERITED_PUBLIC_EXCEPTION,
+            'message' => 'status=7',
+            'parameters' => ['status' => 7],
+        ]);
+
+        try {
+            $inherited->run(static fn () => null);
+            $this->fail('Expected the transported exception to be thrown.');
+        } catch (Exception $exception) {
+            $this->assertSame(ConcurrentProcessExceptionFixtures::INHERITED_PUBLIC_EXCEPTION, $exception::class);
+            $this->assertSame('status=7', $exception->getMessage());
+        }
+    }
+
+    public function testProcessDriverReconstructsZeroArgumentExceptionsWithoutSyntheticArguments(): void
+    {
+        $driver = $this->processDriverFor([
+            'successful' => false,
+            'exception' => ConcurrentProcessExceptionFixtures::ZERO_ARGUMENT_EXCEPTION,
+            'message' => 'zero arguments',
+            'parameters' => [],
+        ]);
+
+        try {
+            $driver->run(static fn () => null);
+            $this->fail('Expected the transported exception to be thrown.');
+        } catch (Exception $exception) {
+            $this->assertSame(ConcurrentProcessExceptionFixtures::ZERO_ARGUMENT_EXCEPTION, $exception::class);
+            $this->assertSame(0, $exception->argumentCount);
+        }
+    }
+
+    public function testProcessDriverContainsConstructorFailuresDuringReconstruction(): void
+    {
+        $driver = $this->processDriverFor([
+            'successful' => false,
+            'exception' => ConcurrentProcessExceptionFixtures::MISMATCHED_PUBLIC_PROPERTY_EXCEPTION,
+            'message' => 'status=5',
+            'parameters' => ['status' => 'v5'],
+        ]);
+
+        try {
+            $driver->run(static fn () => null);
+            $this->fail('Expected the transported exception to be thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('status=5', $exception->getMessage());
+            $this->assertInstanceOf(TypeError::class, $exception->getPrevious());
+        }
+    }
+
+    public function testProcessDriverRejectsNonThrowableExceptionClasses(): void
+    {
+        $driver = $this->processDriverFor([
+            'successful' => false,
+            'exception' => stdClass::class,
+            'message' => 'remote failure',
+            'parameters' => [],
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('remote failure');
+
+        $driver->run(static fn () => null);
+    }
+
+    public function testProcessDriverAppliesCustomTimeouts(): void
+    {
+        $factory = $this->app->make(ProcessFactory::class);
+        $factory->fake(fn () => $factory->result(
+            output: json_encode([
+                'successful' => true,
+                'result' => base64_encode(serialize('result')),
+            ])
+        ));
+
+        $driver = new ProcessDriver($factory);
+
+        $this->assertSame(['result'], $driver->run(
+            static fn () => 'result',
+            timeout: CarbonInterval::seconds(120),
+        ));
+
+        $factory->assertRan(fn ($process) => $process->timeout === 120);
+    }
+
+    public function testCoroutineAndSyncDriversAcceptProcessOnlyTimeouts(): void
+    {
+        $this->assertSame(['coroutine'], $this->coroutineDriver->run(
+            static fn () => 'coroutine',
+            timeout: 1,
+        ));
+        $this->assertSame(['sync'], (new SyncDriver)->run(
+            static fn () => 'sync',
+            timeout: 1,
+        ));
+    }
+
+    /**
+     * Create a process driver that returns the given response envelope.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function processDriverFor(array $payload, string $suffix = ''): ProcessDriver
+    {
+        return $this->processDriverForOutput(json_encode($payload, JSON_THROW_ON_ERROR) . $suffix);
+    }
+
+    /**
+     * Create a process driver that returns the given output.
+     */
+    private function processDriverForOutput(string $output): ProcessDriver
+    {
+        $factory = $this->app->make(ProcessFactory::class);
+        $factory->fake(fn () => $factory->result(output: $output));
+
+        return new ProcessDriver($factory);
     }
 }
 
