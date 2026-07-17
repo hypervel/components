@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `coordinator`
+- **Active package or work unit:** `signal`
 - **Ledger entries required for the active work:** None.
-- **Pending revalidation carried into the active work:** None for Coordinator. Later Foundation and Testbench revalidation of `concurrency-01` through `concurrency-03` remains tracked in the cross-package dependency index.
+- **Pending revalidation carried into the active work:** None for Signal. Later package revalidation remains tracked in the cross-package dependency index.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1028,6 +1028,10 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `concurrency-01` | `concurrency`, `foundation`, `testbench` | later full `foundation` and `testbench` audits | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-01` |
 | `concurrency-02` | `concurrency`, `testbench` | later full `testbench` audit | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-02` |
 | `concurrency-03` | `concurrency`, `foundation`, `testbench` | later full `foundation` and `testbench` audits | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-03` |
+| `pool-01` | `pool` | `coordinator` (revalidation complete); later full `pool` audit | `Release cleared coordinator timers deterministically`; finding `pool-01` |
+| `pool-02` | `pool` | later full `pool` audit | `Release cleared coordinator timers deterministically`; finding `pool-02` |
+| `database-01` | `database` | later full `database` audit | `Release cleared coordinator timers deterministically`; finding `database-01` |
+| `redis-01` | `redis` | later full `redis` audit | `Release cleared coordinator timers deterministically`; finding `redis-01` |
 | `di-02` | `di` | `foundation`, `sentry`, `telescope`; later full consumer audits | `Correct AOP proxy generation and publication`; finding `di-02` |
 | `filesystem-02` | `filesystem` | `di` (revalidation complete); later full `filesystem` audit | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
 | `filesystem-03` | `filesystem` | `encryption` (revalidation complete), `support`; later full `filesystem` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
@@ -1089,7 +1093,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `engine`
 - [x] `coroutine`
 - [x] `concurrency`
-- [ ] `coordinator`
+- [x] `coordinator`
 - [ ] `signal`
 - [ ] `pool`
 - [ ] `object-pool`
