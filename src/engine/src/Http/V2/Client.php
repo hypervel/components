@@ -27,7 +27,9 @@ class Client implements ClientInterface
             $this->client->set($settings);
         }
 
-        $this->client->connect();
+        if ($this->client->connect() === false) {
+            throw new HttpClientException($this->client->errMsg, $this->client->errCode);
+        }
     }
 
     /**
