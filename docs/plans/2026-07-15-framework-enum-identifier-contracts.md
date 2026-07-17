@@ -100,9 +100,9 @@ The calls divide into these classes:
 | Driver, connection, queue, mailer, channel, store, cache key/tag, cookie name, table name, ability name, and telemetry tag | Normalize enum values to strings at the owning ingress |
 | Manager default selection | Normalize first; exact null/empty fallback where upstream uses `?:`, null-only where upstream uses `??` |
 | Queue/broadcast/job state stored in typed `?string` properties or later passed to strict string methods | Store the normalized string immediately |
-| Validation values, query bindings, model attribute values, schema enum values, JSON/JS values, translation replacement values | Preserve native `int|string` values |
+| Validation values, query bindings, model attribute values, schema enum values, JSON/JS values, translation replacement values | Preserve native `int\|string` values |
 | Session keys and CoroutineContext keys | Preserve PHP array-key semantics, including integer enum values |
-| SQS/message groups and other explicitly `int|string` domains | Preserve integer values |
+| SQS/message groups and other explicitly `int\|string` domains | Preserve integer values |
 | Carbon timezone helpers (`now()`, `date()`) | Preserve Carbon's intentional integer-offset support |
 | Route and middleware strings already formed through concatenation/`implode()` | Retain the existing safe string boundary |
 | Sanctum abilities | Preserve stored ability value semantics |
