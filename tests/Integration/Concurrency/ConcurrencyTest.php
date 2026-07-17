@@ -11,12 +11,15 @@ use Hypervel\Concurrency\ProcessDriver;
 use Hypervel\Concurrency\SyncDriver;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Engine\Channel;
 use Hypervel\Process\Factory as ProcessFactory;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
 use Hypervel\Support\Facades\Concurrency as ConcurrencyFacade;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use RuntimeException;
+use Swoole\Coroutine as SwooleCoroutine;
 
 class ConcurrencyTest extends TestCase
 {
@@ -166,6 +169,32 @@ class ConcurrencyTest extends TestCase
         ]);
 
         $this->assertSame(['test_value', 'test_value'], $results);
+    }
+
+    public function testRunSurfacesContextReplicationFailureWithoutStrandingTheWaitGroup(): void
+    {
+        $result = new Channel(1);
+        $runner = Coroutine::create(static function () use ($result): void {
+            CoroutineContext::set('throwing', new ThrowingReplicableContext);
+
+            try {
+                (new CoroutineDriver)->run([
+                    static fn (): string => 'never',
+                    static fn (): string => 'never',
+                ]);
+            } catch (RuntimeException $exception) {
+                $result->push($exception);
+            }
+        });
+
+        $outcome = $result->pop(0.1);
+
+        if ($outcome === false && Coroutine::exists($runner)) {
+            SwooleCoroutine::cancel($runner, true);
+        }
+
+        $this->assertInstanceOf(RuntimeException::class, $outcome);
+        $this->assertSame('Unable to replicate context.', $outcome->getMessage());
     }
 
     public function testRunChildContextDoesNotLeakToParent()

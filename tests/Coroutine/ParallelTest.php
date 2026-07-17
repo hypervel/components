@@ -10,8 +10,10 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\ParallelExecutionException;
 use Hypervel\Coroutine\Parallel;
 use Hypervel\Engine\Channel;
+use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
+use Swoole\Coroutine as SwooleCoroutine;
 use Throwable;
 
 use function Hypervel\Coroutine\parallel;
@@ -540,6 +542,36 @@ class ParallelTest extends TestCase
         ], 0, copyContext: true);
 
         $this->assertSame('value', $channel->pop());
+    }
+
+    public function testContextReplicationFailureDoesNotStrandParallelBookkeeping(): void
+    {
+        $result = new Channel(1);
+        $runner = Coroutine::create(static function () use ($result): void {
+            CoroutineContext::set('throwing', new ThrowingReplicableContext);
+            $parallel = new Parallel(1, copyContext: true);
+            $parallel->add(static fn (): string => 'never', 'first');
+            $parallel->add(static fn (): string => 'never', 'second');
+
+            try {
+                $parallel->wait();
+            } catch (ParallelExecutionException $exception) {
+                $result->push($exception);
+            }
+        });
+
+        $outcome = $result->pop(0.1);
+
+        if ($outcome === false && Coroutine::exists($runner)) {
+            SwooleCoroutine::cancel($runner, true);
+        }
+
+        $this->assertInstanceOf(ParallelExecutionException::class, $outcome);
+        $this->assertSame(['first', 'second'], array_keys($outcome->getThrowables()));
+
+        foreach ($outcome->getThrowables() as $throwable) {
+            $this->assertSame('Unable to replicate context.', $throwable->getMessage());
+        }
     }
 
     public function returnCoroutineId(): int
