@@ -86,14 +86,6 @@ class DbPool extends Pool
     }
 
     /**
-     * Destroy the database pool.
-     */
-    public function __destruct()
-    {
-        $this->clearHeartbeat();
-    }
-
-    /**
      * Get the shared PDO for in-memory SQLite, or null for other drivers/configurations.
      */
     public function getSharedInMemorySqlitePdo(): ?PDO

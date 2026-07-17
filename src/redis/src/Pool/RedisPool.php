@@ -42,14 +42,6 @@ class RedisPool extends Pool
     }
 
     /**
-     * Destroy the Redis pool.
-     */
-    public function __destruct()
-    {
-        $this->clearHeartbeat();
-    }
-
-    /**
      * Get the Redis connection configuration.
      */
     public function getConfig(): array
