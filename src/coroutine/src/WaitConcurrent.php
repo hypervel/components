@@ -46,6 +46,32 @@ class WaitConcurrent extends Concurrent
     }
 
     /**
+     * Create a new coroutine with parent context propagation and wait tracking.
+     *
+     * @param array<string> $keys Context keys to copy (empty = all keys)
+     */
+    public function fork(callable $callable, array $keys = []): void
+    {
+        $this->wg->add();
+
+        $callable = function () use ($callable): void {
+            try {
+                $callable();
+            } finally {
+                $this->wg->done();
+            }
+        };
+
+        try {
+            parent::fork($callable, $keys);
+        } catch (Throwable $exception) {
+            $this->wg->done();
+
+            throw $exception;
+        }
+    }
+
+    /**
      * Wait for all coroutines to complete.
      *
      * @param float $timeout Timeout in seconds (-1 for unlimited)
