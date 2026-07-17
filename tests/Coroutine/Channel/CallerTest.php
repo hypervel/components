@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Coroutine\Channel;
 use Hypervel\Coroutine\Channel\Caller;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Tests\TestCase;
+use RuntimeException;
 use stdClass;
 
 use function Hypervel\Coroutine\go;
@@ -70,5 +71,30 @@ class CallerTest extends TestCase
         $caller->call(static function ($instance) {
             return 1;
         });
+    }
+
+    public function testFailedReinitializationPreservesTheCurrentInstance(): void
+    {
+        $instance = new stdClass;
+        $attempts = 0;
+        $caller = new Caller(static function () use ($instance, &$attempts): stdClass {
+            if (++$attempts > 1) {
+                throw new RuntimeException('Unable to create the replacement instance.');
+            }
+
+            return $instance;
+        });
+
+        try {
+            $caller->initInstance();
+            $this->fail('Expected replacement creation to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to create the replacement instance.', $exception->getMessage());
+        }
+
+        $this->assertSame(
+            $instance,
+            $caller->call(static fn (stdClass $current): stdClass => $current),
+        );
     }
 }
