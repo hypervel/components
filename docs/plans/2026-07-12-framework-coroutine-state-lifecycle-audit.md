@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `concurrency`
-- **Ledger entries required for the active work:** `Make coroutine creation and copied context failure-safe`; `Normalize framework enum identifiers at string boundaries`.
-- **Pending revalidation carried into the active work:** Revalidate Concurrency's parent-context and identifier boundaries through `coroutine-06` and `support-02`; retain `coroutine-05`, `foundation-02`, and `websocket-server-01` for the later full Filesystem, Foundation, and WebSocket Server audits.
+- **Active package or work unit:** `coordinator`
+- **Ledger entries required for the active work:** None.
+- **Pending revalidation carried into the active work:** None for Coordinator. Later Foundation and Testbench revalidation of `concurrency-01` through `concurrency-03` remains tracked in the cross-package dependency index.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1025,6 +1025,9 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `coroutine-06` | `context`, `coroutine` | `concurrency`, `foundation`; later full consumer audits | `Make coroutine creation and copied context failure-safe`; finding `coroutine-06` |
 | `foundation-02` | `foundation` | `coroutine`; later full `foundation` audit | `Make coroutine creation and copied context failure-safe`; finding `foundation-02` |
 | `websocket-server-01` | `websocket-server` | later full `websocket-server` audit | `Make coroutine creation and copied context failure-safe`; finding `websocket-server-01` |
+| `concurrency-01` | `concurrency`, `foundation`, `testbench` | later full `foundation` and `testbench` audits | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-01` |
+| `concurrency-02` | `concurrency`, `testbench` | later full `testbench` audit | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-02` |
+| `concurrency-03` | `concurrency`, `foundation`, `testbench` | later full `foundation` and `testbench` audits | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-03` |
 | `di-02` | `di` | `foundation`, `sentry`, `telescope`; later full consumer audits | `Correct AOP proxy generation and publication`; finding `di-02` |
 | `filesystem-02` | `filesystem` | `di` (revalidation complete); later full `filesystem` audit | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
 | `filesystem-03` | `filesystem` | `encryption` (revalidation complete), `support`; later full `filesystem` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
@@ -1085,7 +1088,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 - [x] `engine`
 - [x] `coroutine`
-- [ ] `concurrency`
+- [x] `concurrency`
 - [ ] `coordinator`
 - [ ] `signal`
 - [ ] `pool`
