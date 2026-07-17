@@ -3,6 +3,7 @@
 - [Introduction](#introduction)
     - [How it Works](#how-it-works)
 - [Running Concurrent Tasks](#running-concurrent-tasks)
+    - [Task Timeouts](#task-timeouts)
 - [Choosing a Driver](#choosing-a-driver)
 - [Deferring Concurrent Tasks](#deferring-concurrent-tasks)
 
@@ -55,7 +56,7 @@ $results['users'];
 $results['orders'];
 ```
 
-Each task receives a copy of the parent coroutine context. Context values changed inside one task will not leak into sibling tasks or back into the parent coroutine.
+Each task receives a copy of the parent coroutine context map. Adding or replacing values in that map does not affect sibling tasks or the parent coroutine. When a copied value is an object, the object reference is shared unless the object implements `Hypervel\Context\ReplicableContext`. See the [coroutine context](/docs/{{version}}/coroutine-context) documentation for more information.
 
 To use a specific driver, you may use the `driver` method:
 
@@ -70,6 +71,33 @@ php artisan config:publish concurrency
 ```
 
 In practice, you almost never need to change this default. Coroutine concurrency is fundamental to Hypervel's Swoole architecture, so prefer using `Concurrency::driver(...)` at the call site when a task needs a different driver.
+
+<a name="task-timeouts"></a>
+### Task Timeouts
+
+When using the `process` driver, you may specify the maximum number of seconds each concurrent task is allowed to run before it is terminated by providing a timeout to the `run` method:
+
+```php
+use Hypervel\Support\Facades\Concurrency;
+use Hypervel\Support\Facades\DB;
+
+[$userCount, $orderCount] = Concurrency::driver('process')->run([
+    fn () => DB::table('users')->count(),
+    fn () => DB::table('orders')->count(),
+], timeout: 30);
+```
+
+You may also provide a `CarbonInterval` instance if you prefer a more expressive timeout definition:
+
+```php
+use Hypervel\Support\Facades\Concurrency;
+
+use function Hypervel\Support\seconds;
+
+Concurrency::driver('process')->run([...], timeout: seconds(30));
+```
+
+Timeouts apply only to the `process` driver. The `coroutine` and `sync` drivers accept the argument for driver compatibility but do not terminate tasks based on it.
 
 <a name="choosing-a-driver"></a>
 ## Choosing a Driver
