@@ -2069,14 +2069,14 @@ Full method map (each path-sensitive public method resolves the prefix exactly o
 | `putFile` / `putFileAs` | replicate `FilesystemAdapter`'s argument-shift normalization first (file-as-first-argument, `FilesystemAdapter.php:488`, `:502`). For a caller-supplied string name, validate and prefix the actual final stored target — `trim($path . '/' . $name, '/')` — before any I/O, then forward that already-prefixed target in a form that cannot re-interpret `..`; checking or stripping only after the inner write permits a scope escape before the exception. This deliberately allows Flysystem-consistent internal resolution such as `a/../b` while rejecting escape from the joined target. When the normalized overload leaves name null/array and the inner adapter generates the hash name, prefix the path normally because no user-controlled filename exists. Strip the returned stored path (`false` passes through). |
 | `writeStream(string $path, $resource, array $options)` / `setVisibility(string $path, string $visibility)` | prefix `$path` |
 | `prepend(string $path, string $data, string $separator = PHP_EOL)` / `append(...)` | prefix `$path` (adapter signature incl. separator) |
-| `delete(array|string $paths)` | prefix every path |
+| `delete(array\|string $paths)` | prefix every path |
 | `copy(string $from, string $to)` / `move(...)` | prefix both |
 | `files` / `allFiles` / `directories` / `allDirectories` (`?string $directory`) | prefix the directory (null → the prefix itself); strip every returned path (fail-closed on foreign paths) |
 | `response(string $path, ...)` / `download(string $path, ...)` | prefix `$path`, forward |
 | `serve(Request $request, string $path, ...)` | prefix `$path` (second argument), forward |
 | `temporaryUrl` / `temporaryUploadUrl` | prefix `$path`, forward |
 | `providesTemporaryUrls` / `providesTemporaryUploadUrls` / `getConfig` | pass through (no path arguments; config visibility is not a boundary concern — the decorator's consumers are app code, not untrusted callers) |
-| `assertExists(array|string $path, ?string $content = null)` / `assertMissing(array|string $path)` | prefix each path; call inner; return `$this` (fluent — never the inner disk) |
+| `assertExists(array\|string $path, ?string $content = null)` / `assertMissing(array\|string $path)` | prefix each path; call inner; return `$this` (fluent — never the inner disk) |
 | `assertCount(string $path, int $count, bool $recursive = false)` / `assertDirectoryEmpty(string $path)` | prefix `$path`; return `$this` |
 | `url(string $path)` | Cloud variant only: prefix `$path` |
 | Rejected | everything else — `__call` throws (raw Flysystem calls, macros); `getDriver`/`getAdapter`/`getClient` throw (inner-disk internals); `serveUsing`/`buildTemporaryUrlsUsing`/`buildTemporaryUploadUrlsUsing` throw (a dynamically scoped wrapper must not mutate shared base-disk behavior) |

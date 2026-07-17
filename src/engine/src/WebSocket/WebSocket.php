@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Engine\WebSocket;
 
 use Hypervel\Contracts\Engine\WebSocket\WebSocketInterface;
+use Hypervel\Engine\Exceptions\RuntimeException;
 use Psr\Log\LoggerInterface;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
@@ -28,7 +29,10 @@ class WebSocket implements WebSocketInterface
     public function __construct(Response $connection, Request $request, protected ?LoggerInterface $logger = null)
     {
         $this->connection = $connection;
-        $this->connection->upgrade();
+
+        if ($this->connection->upgrade() === false) {
+            throw new RuntimeException('Unable to upgrade the connection to WebSocket');
+        }
     }
 
     /**
@@ -44,41 +48,43 @@ class WebSocket implements WebSocketInterface
      */
     public function start(): void
     {
-        while (true) {
-            /** @var false|string|SwFrame $frame */
-            $frame = $this->connection->recv(-1); // @phpstan-ignore arguments.count (recv accepts timeout parameter)
-            if ($frame === false) {
-                $this->logger?->warning(
-                    sprintf(
-                        '%s:(%s) %s',
-                        'Websocket recv failed:',
-                        swoole_last_error(),
-                        swoole_strerror(swoole_last_error(), 9)
-                    )
-                );
-            }
-
-            if ($frame === false || $frame instanceof CloseFrame || $frame === '') {
-                if ($callback = $this->events[static::ON_CLOSE] ?? null) {
-                    $callback($this->connection, $this->connection->fd);
+        try {
+            while (true) {
+                /** @var false|string|SwFrame $frame */
+                $frame = $this->connection->recv(-1); // @phpstan-ignore arguments.count (recv accepts timeout parameter)
+                if ($frame === false) {
+                    $this->logger?->warning(
+                        sprintf(
+                            '%s:(%s) %s',
+                            'Websocket recv failed:',
+                            swoole_last_error(),
+                            swoole_strerror(swoole_last_error(), 9)
+                        )
+                    );
                 }
-                break;
-            }
 
-            switch ($frame->opcode) {
-                case Opcode::PING:
-                    $this->connection->push('', Opcode::PONG);
-                    break;
-                case Opcode::PONG:
-                    break;
-                default:
-                    if ($callback = $this->events[static::ON_MESSAGE] ?? null) {
-                        $callback($this->connection, $frame);
+                if ($frame === false || $frame instanceof CloseFrame || $frame === '') {
+                    if ($callback = $this->events[static::ON_CLOSE] ?? null) {
+                        $callback($this->connection, $this->connection->fd);
                     }
-            }
-        }
+                    break;
+                }
 
-        $this->connection = null;
-        $this->events = [];
+                switch ($frame->opcode) {
+                    case Opcode::PING:
+                        $this->connection->push('', Opcode::PONG);
+                        break;
+                    case Opcode::PONG:
+                        break;
+                    default:
+                        if ($callback = $this->events[static::ON_MESSAGE] ?? null) {
+                            $callback($this->connection, $frame);
+                        }
+                }
+            }
+        } finally {
+            $this->connection = null;
+            $this->events = [];
+        }
     }
 }

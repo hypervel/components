@@ -22,14 +22,13 @@ class Frame implements FrameInterface
         protected bool $rsv2 = false,
         protected bool $rsv3 = false,
         protected int $opcode = Opcode::TEXT,
-        protected int $payloadLength = 0,
-        protected string $maskingKey = '',
+        protected bool $mask = false,
         mixed $payloadData = '',
     ) {
         $this->setPayloadData($payloadData);
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return $this->toString();
     }
@@ -119,36 +118,20 @@ class Frame implements FrameInterface
         return $this->payloadData->getSize() ?? 0;
     }
 
-    public function setPayloadLength(int $payloadLength): static
-    {
-        $this->payloadLength = $payloadLength;
-        return $this;
-    }
-
-    public function withPayloadLength(int $payloadLength): static
-    {
-        return (clone $this)->setPayloadLength($payloadLength);
-    }
-
     public function getMask(): bool
     {
-        return ! empty($this->maskingKey);
+        return $this->mask;
     }
 
-    public function getMaskingKey(): string
+    public function setMask(bool $mask): static
     {
-        return $this->maskingKey;
-    }
-
-    public function setMaskingKey(string $maskingKey): static
-    {
-        $this->maskingKey = $maskingKey;
+        $this->mask = $mask;
         return $this;
     }
 
-    public function withMaskingKey(string $maskingKey): static
+    public function withMask(bool $mask): static
     {
-        return (clone $this)->setMaskingKey($maskingKey);
+        return (clone $this)->setMask($mask);
     }
 
     public function getPayloadData(): StreamInterface
@@ -167,7 +150,7 @@ class Frame implements FrameInterface
         return (clone $this)->setPayloadData($payloadData);
     }
 
-    public function toString(bool $withoutPayloadData = false): string
+    public function toString(): string
     {
         return SwooleFrame::pack(
             (string) $this->getPayloadData(),
@@ -188,8 +171,7 @@ class Frame implements FrameInterface
             (bool) ($frame->flags & SWOOLE_WEBSOCKET_FLAG_RSV2),
             (bool) ($frame->flags & SWOOLE_WEBSOCKET_FLAG_RSV3),
             $frame->opcode,
-            strlen($frame->data),
-            $frame->flags & SWOOLE_WEBSOCKET_FLAG_MASK ? '258E' : '',
+            (bool) ($frame->flags & SWOOLE_WEBSOCKET_FLAG_MASK),
             $frame->data
         );
     }

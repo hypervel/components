@@ -83,7 +83,7 @@ The later cache-write path stores safe unbound concretes in `$autoSingletons`. P
 
 ### Coroutine context and fork semantics
 
-`CoroutineContext` stores coroutine values in the native coroutine context and non-coroutine values in a process-global fallback. `Coroutine::fork()` calls `CoroutineContext::copyFrom()` before running the child.
+`CoroutineContext` stores coroutine values in the native coroutine context and non-coroutine values in a process-global fallback. `Coroutine::fork()` snapshots the parent's context before spawning and installs that snapshot before running the child.
 
 Copying is value-sensitive:
 
@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `engine`
+- **Active package or work unit:** `signal`
 - **Ledger entries required for the active work:** None.
-- **Pending revalidation carried into the active work:** None.
+- **Pending revalidation carried into the active work:** None for Signal. Later package revalidation remains tracked in the cross-package dependency index.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1021,6 +1021,17 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `container-10` | `log` | `container` (revalidation complete); later full `log` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
 | `context-01` | `context` | `container` (revalidation complete), `foundation`; later full `foundation` audit | `Correct explicit coroutine context targeting`; finding `context-01` |
 | `context-04` | `context` | `foundation`, `database`; later full consumer audits | `Correct explicit coroutine context targeting`; finding `context-04` |
+| `coroutine-05` | `coroutine`, `filesystem` | later full `filesystem` audit | `Make coroutine creation and copied context failure-safe`; finding `coroutine-05` |
+| `coroutine-06` | `context`, `coroutine` | `concurrency`, `foundation`; later full consumer audits | `Make coroutine creation and copied context failure-safe`; finding `coroutine-06` |
+| `foundation-02` | `foundation` | `coroutine`; later full `foundation` audit | `Make coroutine creation and copied context failure-safe`; finding `foundation-02` |
+| `websocket-server-01` | `websocket-server` | later full `websocket-server` audit | `Make coroutine creation and copied context failure-safe`; finding `websocket-server-01` |
+| `concurrency-01` | `concurrency`, `foundation`, `testbench` | later full `foundation` and `testbench` audits | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-01` |
+| `concurrency-02` | `concurrency`, `testbench` | later full `testbench` audit | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-02` |
+| `concurrency-03` | `concurrency`, `foundation`, `testbench` | later full `foundation` and `testbench` audits | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-03` |
+| `pool-01` | `pool` | `coordinator` (revalidation complete); later full `pool` audit | `Release cleared coordinator timers deterministically`; finding `pool-01` |
+| `pool-02` | `pool` | later full `pool` audit | `Release cleared coordinator timers deterministically`; finding `pool-02` |
+| `database-01` | `database` | later full `database` audit | `Release cleared coordinator timers deterministically`; finding `database-01` |
+| `redis-01` | `redis` | later full `redis` audit | `Release cleared coordinator timers deterministically`; finding `redis-01` |
 | `di-02` | `di` | `foundation`, `sentry`, `telescope`; later full consumer audits | `Correct AOP proxy generation and publication`; finding `di-02` |
 | `filesystem-02` | `filesystem` | `di` (revalidation complete); later full `filesystem` audit | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
 | `filesystem-03` | `filesystem` | `encryption` (revalidation complete), `support`; later full `filesystem` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
@@ -1079,10 +1090,10 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 ### Coroutine and resource infrastructure
 
-- [ ] `engine`
-- [ ] `coroutine`
-- [ ] `concurrency`
-- [ ] `coordinator`
+- [x] `engine`
+- [x] `coroutine`
+- [x] `concurrency`
+- [x] `coordinator`
 - [ ] `signal`
 - [ ] `pool`
 - [ ] `object-pool`

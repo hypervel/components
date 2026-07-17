@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Engine\Http;
 
-use BadMethodCallException;
 use Hypervel\Engine\Exceptions\RuntimeException;
 use Psr\Http\Message\StreamInterface;
 use Stringable;
@@ -14,7 +13,7 @@ class Stream implements StreamInterface, Stringable
 {
     protected int $size;
 
-    protected bool $writable;
+    protected bool $detached = false;
 
     /**
      * Create a new stream instance.
@@ -22,7 +21,6 @@ class Stream implements StreamInterface, Stringable
     public function __construct(protected string $contents = '')
     {
         $this->size = strlen($this->contents);
-        $this->writable = true;
     }
 
     /**
@@ -62,7 +60,7 @@ class Stream implements StreamInterface, Stringable
     {
         $this->contents = '';
         $this->size = 0;
-        $this->writable = false;
+        $this->detached = true;
 
         return null;
     }
@@ -74,10 +72,7 @@ class Stream implements StreamInterface, Stringable
      */
     public function getSize(): ?int
     {
-        if (! $this->size) {
-            $this->size = strlen($this->getContents());
-        }
-        return $this->size;
+        return $this->detached ? null : $this->size;
     }
 
     /**
@@ -96,7 +91,11 @@ class Stream implements StreamInterface, Stringable
      */
     public function eof(): bool
     {
-        return $this->getSize() === 0;
+        if ($this->detached) {
+            throw new RuntimeException('Cannot determine EOF for a detached stream');
+        }
+
+        return $this->size === 0;
     }
 
     /**
@@ -143,7 +142,7 @@ class Stream implements StreamInterface, Stringable
      */
     public function isWritable(): bool
     {
-        return $this->writable;
+        return ! $this->detached;
     }
 
     /**
@@ -155,8 +154,8 @@ class Stream implements StreamInterface, Stringable
      */
     public function write($string): int
     {
-        if (! $this->writable) {
-            throw new RuntimeException('Cannot write to a non-writable stream');
+        if ($this->detached) {
+            throw new RuntimeException('Cannot write to a detached stream');
         }
 
         $size = strlen($string);
@@ -172,7 +171,7 @@ class Stream implements StreamInterface, Stringable
      */
     public function isReadable(): bool
     {
-        return true;
+        return ! $this->detached;
     }
 
     /**
@@ -187,14 +186,26 @@ class Stream implements StreamInterface, Stringable
      */
     public function read($length): string
     {
-        if ($length >= $this->getSize()) {
+        if ($this->detached) {
+            throw new RuntimeException('Cannot read from a detached stream');
+        }
+
+        if ($length < 0) {
+            throw new RuntimeException('Cannot read a negative number of bytes');
+        }
+
+        if ($length === 0) {
+            return '';
+        }
+
+        if ($length >= $this->size) {
             $result = $this->contents;
             $this->contents = '';
             $this->size = 0;
         } else {
             $result = substr($this->contents, 0, $length);
             $this->contents = substr($this->contents, $length);
-            $this->size = $this->getSize() - $length;
+            $this->size -= $length;
         }
 
         return $result;
@@ -208,6 +219,10 @@ class Stream implements StreamInterface, Stringable
      */
     public function getContents(): string
     {
+        if ($this->detached) {
+            throw new RuntimeException('Cannot read from a detached stream');
+        }
+
         return $this->contents;
     }
 
@@ -217,13 +232,12 @@ class Stream implements StreamInterface, Stringable
      * stream_get_meta_data() function.
      *
      * @see http://php.net/manual/en/function.stream-get-meta-data.php
-     * @param string $key specific metadata to retrieve
      * @return null|array|mixed Returns an associative array if no key is
      *                          provided. Returns a specific key value if a key is provided and the
      *                          value is found, or null if the key is not found.
      */
-    public function getMetadata($key = null)
+    public function getMetadata(?string $key = null): mixed
     {
-        throw new BadMethodCallException('Not implemented');
+        return $key === null ? [] : null;
     }
 }

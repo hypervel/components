@@ -42,11 +42,6 @@ abstract class KeepaliveConnection implements ConnectionInterface
         $this->timer = new Timer;
     }
 
-    public function __destruct()
-    {
-        $this->clear();
-    }
-
     /**
      * Release the connection back to the pool.
      */

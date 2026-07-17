@@ -82,6 +82,29 @@ class TimerTest extends TestCase
         }
     }
 
+    public function testClearAllFromCreationHookDoesNotLeaveTheTimerCoroutineRunning(): void
+    {
+        $timer = new Timer;
+        $callbackCalled = false;
+
+        Coroutine::afterCreated(static function () use ($timer): void {
+            $timer->clearAll();
+        });
+
+        try {
+            $timer->until(static function () use (&$callbackCalled): void {
+                $callbackCalled = true;
+            }, uniqid());
+
+            usleep(1_000);
+
+            $this->assertFalse($callbackCalled);
+            $this->assertSame(['num' => 0, 'round' => 0], Timer::stats());
+        } finally {
+            Coroutine::flushState();
+        }
+    }
+
     public function testAfterWhenClear(): void
     {
         $this->wait(function () {
@@ -95,6 +118,56 @@ class TimerTest extends TestCase
             CoordinatorManager::until($identifier)->resume();
             $this->assertSame(0, $id);
         });
+    }
+
+    public function testClearReleasesAWaitingTimerCoroutine(): void
+    {
+        $timer = new Timer;
+        $id = $timer->until(static function (): void {
+        }, uniqid());
+
+        $this->assertSame(['num' => 1, 'round' => 0], Timer::stats());
+
+        $timer->clear($id);
+        usleep(1_000);
+
+        $this->assertSame(['num' => 0, 'round' => 0], Timer::stats());
+    }
+
+    public function testClearAllReleasesEveryWaitingTimerCoroutine(): void
+    {
+        $timer = new Timer;
+        $timer->until(static function (): void {
+        }, uniqid());
+        $timer->until(static function (): void {
+        }, uniqid());
+
+        $this->assertSame(['num' => 2, 'round' => 0], Timer::stats());
+
+        $timer->clearAll();
+        usleep(1_000);
+
+        $this->assertSame(['num' => 0, 'round' => 0], Timer::stats());
+    }
+
+    public function testClearDoesNotInterruptAYieldingCallback(): void
+    {
+        $timer = new Timer;
+        $callbackStarted = new Channel(1);
+        $continueCallback = new Channel(1);
+        $callbackResult = new Channel(1);
+
+        $id = $timer->after(0.001, static function () use ($callbackStarted, $continueCallback, $callbackResult): void {
+            $callbackStarted->push(true);
+            $callbackResult->push($continueCallback->pop(0.1));
+        }, uniqid());
+
+        $this->assertTrue($callbackStarted->pop(0.1));
+
+        $timer->clear($id);
+        $continueCallback->push(true);
+
+        $this->assertTrue($callbackResult->pop(0.1));
     }
 
     public function testTick(): void

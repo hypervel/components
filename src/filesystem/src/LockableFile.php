@@ -172,14 +172,18 @@ class LockableFile
             return $callback();
         }
 
+        $locked = false;
+
         try {
-            while (! Locker::lock($this->path)) {
+            while (! ($locked = Locker::lock($this->path))) {
                 usleep(1000);
             }
 
             return $callback();
         } finally {
-            Locker::unlock($this->path);
+            if ($locked) {
+                Locker::unlock($this->path);
+            }
         }
     }
 }

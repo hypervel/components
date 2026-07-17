@@ -6,12 +6,18 @@ namespace Hypervel\Tests\Coroutine;
 
 use Exception;
 use Hypervel\Container\Container;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+use RuntimeException;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
@@ -177,5 +183,60 @@ class CoroutineTest extends TestCase
 
         $this->assertTrue($secondCallbackRan);
         $this->assertTrue($mainCallableRan);
+    }
+
+    #[RunInSeparateProcess]
+    public function testExceptionHandlerFailureFallsBackToThePhpErrorLog(): void
+    {
+        $directory = ParallelTesting::tempDir('CoroutineTest');
+        mkdir($directory, 0777, true);
+        $errorLog = $directory . '/php-error.log';
+        $previousErrorLog = ini_set('error_log', $errorLog);
+        $previousLogErrors = ini_set('log_errors', '1');
+
+        try {
+            $container = new Container;
+            $handler = m::mock(ExceptionHandlerContract::class);
+            $handler->shouldReceive('report')
+                ->once()
+                ->andThrow(new RuntimeException('The exception reporter failed.'));
+            $container->instance(ExceptionHandlerContract::class, $handler);
+            Container::setInstance($container);
+
+            Coroutine::create(static function (): void {
+                throw new RuntimeException('The coroutine failed.');
+            });
+
+            $contents = file_get_contents($errorLog);
+            $this->assertIsString($contents);
+            $this->assertStringContainsString('The coroutine failed.', $contents);
+        } finally {
+            if ($previousErrorLog !== false) {
+                ini_set('error_log', $previousErrorLog);
+            }
+
+            if ($previousLogErrors !== false) {
+                ini_set('log_errors', $previousLogErrors);
+            }
+
+            (new Filesystem)->deleteDirectory($directory);
+        }
+    }
+
+    public function testForkSurfacesContextReplicationFailureBeforeCreatingTheChild(): void
+    {
+        CoroutineContext::set('throwing', new ThrowingReplicableContext);
+        $executed = false;
+
+        try {
+            Coroutine::fork(static function () use (&$executed): void {
+                $executed = true;
+            });
+            $this->fail('Expected context replication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to replicate context.', $exception->getMessage());
+        }
+
+        $this->assertFalse($executed);
     }
 }

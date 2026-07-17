@@ -12,7 +12,7 @@ use Hypervel\Coordinator\Timer;
  * Unlike Frequency which tracks actual usage, this periodically probes one
  * idle connection regardless of usage patterns.
  */
-class ConstantFrequency implements LowFrequencyInterface
+class ConstantFrequency implements ClearableFrequencyInterface, LowFrequencyInterface
 {
     protected Timer $timer;
 
@@ -34,11 +34,6 @@ class ConstantFrequency implements LowFrequencyInterface
                 fn () => $this->pool->checkIdleConnection()
             );
         }
-    }
-
-    public function __destruct()
-    {
-        $this->clear();
     }
 
     /**

@@ -532,9 +532,9 @@ class Repository implements ReplicableContext
     /**
      * Create an independent copy with the same data and hidden values.
      *
-     * Used by CoroutineContext::copyFrom() via ReplicableContext to ensure
-     * forked coroutines get their own instance rather than sharing an
-     * object reference with the parent.
+     * Used by coroutine context copying via ReplicableContext to ensure
+     * forked coroutines get their own instance rather than sharing an object
+     * reference with the parent.
      */
     public function replicate(): static
     {

@@ -167,6 +167,15 @@ abstract class Pool implements PoolInterface
         }
 
         $this->closed = true;
+
+        if ($this->frequency instanceof ClearableFrequencyInterface) {
+            try {
+                $this->frequency->clear();
+            } catch (Throwable $exception) {
+                $this->report($exception);
+            }
+        }
+
         $this->channel->close();
 
         while ($connection = $this->popIdleConnection()) {

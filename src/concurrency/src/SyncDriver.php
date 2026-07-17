@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Concurrency;
 
+use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Contracts\Concurrency\Driver;
 use Hypervel\Support\Collection;
@@ -16,7 +17,7 @@ class SyncDriver implements Driver
     /**
      * Run the given tasks sequentially and return an array containing the results.
      */
-    public function run(Closure|array $tasks): array
+    public function run(Closure|array $tasks, CarbonInterval|int|null $timeout = null): array
     {
         return Collection::wrap($tasks)->map(
             fn ($task) => $task()

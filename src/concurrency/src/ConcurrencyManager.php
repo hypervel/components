@@ -44,6 +44,9 @@ class ConcurrencyManager extends MultipleInstanceManager
         return new ProcessDriver($this->app->make(ProcessFactory::class));
     }
 
+    // Laravel's fork driver is intentionally omitted because Swoole coroutines
+    // are Hypervel's native lightweight execution model.
+
     /**
      * Create an instance of the sync concurrency driver.
      */

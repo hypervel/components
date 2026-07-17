@@ -51,7 +51,7 @@ class RedisPoolHeartbeatTest extends TestCase
                 'heartbeat' => -1,
             ]);
 
-            $this->assertSame(0, $pool->heartbeatTimerClosureCount());
+            $this->assertSame(0, $pool->heartbeatTimerCount());
         });
     }
 
@@ -62,11 +62,11 @@ class RedisPoolHeartbeatTest extends TestCase
                 'heartbeat' => 0.001,
             ]);
 
-            $this->assertSame(1, $pool->heartbeatTimerClosureCount());
+            $this->assertSame(1, $pool->heartbeatTimerCount());
 
             $pool->close();
 
-            $this->assertSame(0, $pool->heartbeatTimerClosureCount());
+            $this->assertSame(0, $pool->heartbeatTimerCount());
         });
     }
 
@@ -535,11 +535,11 @@ class InspectableRedisPool extends RedisPool
         $this->heartbeat();
     }
 
-    public function heartbeatTimerClosureCount(): int
+    public function heartbeatTimerCount(): int
     {
         $timer = (new ReflectionProperty(RedisPool::class, 'heartbeatTimer'))->getValue($this);
 
-        return $timer === null ? 0 : count((new ClassInvoker($timer))->closures);
+        return $timer === null ? 0 : count((new ClassInvoker($timer))->coroutines);
     }
 
     protected function createConnection(): ConnectionInterface

@@ -48,8 +48,18 @@ class RemoteCommandTest extends TestCase
 
             $this->assertInstanceOf(ProcessDecorator::class, $process);
             $this->assertInstanceOf(ProcessResult::class, $result);
-            $this->assertSame('{"successful":true,"result":"i:2;"}', $process->getOutput());
+            $this->assertSame('{"successful":true,"result":"aToyOw=="}', $process->getOutput());
             $this->assertSame(2, $result->output());
+        });
+    }
+
+    #[Test]
+    public function itCanReturnBinaryDataFromASerializedClosure(): void
+    {
+        $this->withoutSqliteDatabase(function (): void {
+            $result = remote(static fn () => "binary-\xFF\x00\x8B")->mustRun();
+
+            $this->assertSame("binary-\xFF\x00\x8B", $result->output());
         });
     }
 

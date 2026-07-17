@@ -720,13 +720,17 @@ class Filesystem
     protected function atomic(string $path, callable $callback): mixed
     {
         if (Coroutine::inCoroutine()) {
+            $locked = false;
+
             try {
-                while (! Locker::lock($path)) {
+                while (! ($locked = Locker::lock($path))) {
                     usleep(1000);
                 }
                 return $callback($path);
             } finally {
-                Locker::unlock($path);
+                if ($locked) {
+                    Locker::unlock($path);
+                }
             }
         }
 

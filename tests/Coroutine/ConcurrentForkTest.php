@@ -9,7 +9,9 @@ use Hypervel\Container\Container;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Engine\Channel;
+use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
+use RuntimeException;
 use Swoole\Coroutine;
 
 class ConcurrentForkTest extends TestCase
@@ -144,5 +146,23 @@ class ConcurrentForkTest extends TestCase
 
         $this->assertSame('parent', CoroutineContext::get('shared'));
         $this->assertNull(CoroutineContext::get('child_only'));
+    }
+
+    public function testForkReleasesCapacityWhenContextReplicationFails(): void
+    {
+        CoroutineContext::set('throwing', new ThrowingReplicableContext);
+        $concurrent = new Concurrent(1);
+
+        try {
+            $concurrent->fork(static function (): void {
+                throw new RuntimeException('The child must not be created.');
+            });
+            $this->fail('Expected context replication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to replicate context.', $exception->getMessage());
+        }
+
+        $this->assertTrue($concurrent->isEmpty());
+        $this->assertSame(0, $concurrent->length());
     }
 }

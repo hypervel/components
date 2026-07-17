@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
-use Hypervel\Container\Container;
-use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Exceptions\InvalidArgumentException;
 use Hypervel\Engine\Channel;
 use Throwable;
@@ -90,8 +88,6 @@ class Concurrent
             Coroutine::create(function () use ($callable): void {
                 try {
                     $callable();
-                } catch (Throwable $exception) {
-                    $this->reportException($exception);
                 } finally {
                     $this->channel->pop();
                 }
@@ -116,8 +112,6 @@ class Concurrent
             Coroutine::fork(function () use ($callable): void {
                 try {
                     $callable();
-                } catch (Throwable $exception) {
-                    $this->reportException($exception);
                 } finally {
                     $this->channel->pop();
                 }
@@ -126,19 +120,6 @@ class Concurrent
             $this->channel->pop();
 
             throw $exception;
-        }
-    }
-
-    /**
-     * Report an exception through the exception handler.
-     */
-    protected function reportException(Throwable $throwable): void
-    {
-        $container = Container::getInstance();
-
-        if ($container->has(ExceptionHandlerContract::class)) {
-            $container->make(ExceptionHandlerContract::class)
-                ->report($throwable);
         }
     }
 }

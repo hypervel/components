@@ -21,12 +21,11 @@ class Waiter extends BaseWaiter
             $timeout = $this->popTimeout;
         }
 
+        $context = CoroutineContext::captureFrom();
         $channel = new Channel(1);
-        $coroutineId = Coroutine::id();
-        Coroutine::create(function () use ($channel, $closure, $coroutineId) {
-            if ($coroutineId) {
-                CoroutineContext::copyFrom($coroutineId);
-            }
+
+        Coroutine::create(function () use ($channel, $closure, $context) {
+            CoroutineContext::setMany($context);
 
             $result = null;
 
