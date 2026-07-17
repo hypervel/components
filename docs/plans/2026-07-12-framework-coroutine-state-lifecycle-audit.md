@@ -83,7 +83,7 @@ The later cache-write path stores safe unbound concretes in `$autoSingletons`. P
 
 ### Coroutine context and fork semantics
 
-`CoroutineContext` stores coroutine values in the native coroutine context and non-coroutine values in a process-global fallback. `Coroutine::fork()` calls `CoroutineContext::copyFrom()` before running the child.
+`CoroutineContext` stores coroutine values in the native coroutine context and non-coroutine values in a process-global fallback. `Coroutine::fork()` snapshots the parent's context before spawning and installs that snapshot before running the child.
 
 Copying is value-sensitive:
 
@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `coroutine`
-- **Ledger entries required for the active work:** None.
-- **Pending revalidation carried into the active work:** None.
+- **Active package or work unit:** `concurrency`
+- **Ledger entries required for the active work:** `Make coroutine creation and copied context failure-safe`; `Normalize framework enum identifiers at string boundaries`.
+- **Pending revalidation carried into the active work:** Revalidate Concurrency's parent-context and identifier boundaries through `coroutine-06` and `support-02`; retain `coroutine-05`, `foundation-02`, and `websocket-server-01` for the later full Filesystem, Foundation, and WebSocket Server audits.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1021,6 +1021,10 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `container-10` | `log` | `container` (revalidation complete); later full `log` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
 | `context-01` | `context` | `container` (revalidation complete), `foundation`; later full `foundation` audit | `Correct explicit coroutine context targeting`; finding `context-01` |
 | `context-04` | `context` | `foundation`, `database`; later full consumer audits | `Correct explicit coroutine context targeting`; finding `context-04` |
+| `coroutine-05` | `coroutine`, `filesystem` | later full `filesystem` audit | `Make coroutine creation and copied context failure-safe`; finding `coroutine-05` |
+| `coroutine-06` | `context`, `coroutine` | `concurrency`, `foundation`; later full consumer audits | `Make coroutine creation and copied context failure-safe`; finding `coroutine-06` |
+| `foundation-02` | `foundation` | `coroutine`; later full `foundation` audit | `Make coroutine creation and copied context failure-safe`; finding `foundation-02` |
+| `websocket-server-01` | `websocket-server` | later full `websocket-server` audit | `Make coroutine creation and copied context failure-safe`; finding `websocket-server-01` |
 | `di-02` | `di` | `foundation`, `sentry`, `telescope`; later full consumer audits | `Correct AOP proxy generation and publication`; finding `di-02` |
 | `filesystem-02` | `filesystem` | `di` (revalidation complete); later full `filesystem` audit | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
 | `filesystem-03` | `filesystem` | `encryption` (revalidation complete), `support`; later full `filesystem` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
@@ -1080,7 +1084,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 ### Coroutine and resource infrastructure
 
 - [x] `engine`
-- [ ] `coroutine`
+- [x] `coroutine`
 - [ ] `concurrency`
 - [ ] `coordinator`
 - [ ] `signal`
