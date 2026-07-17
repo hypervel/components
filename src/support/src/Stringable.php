@@ -194,6 +194,14 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     }
 
     /**
+     * Get the plural form of an English word with the count prepended.
+     */
+    public function counted(int|array|Countable $count): static
+    {
+        return new static(Str::counted($this->value, $count));
+    }
+
+    /**
      * Replace consecutive instances of a given character with a single character.
      */
     public function deduplicate(string $character = ' '): static

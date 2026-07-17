@@ -37,6 +37,7 @@ use Hypervel\Support\Testing\Fakes\MailFake;
  * @method static void assertNothingOutgoing()
  * @method static void assertNothingSent()
  * @method static void assertQueued(\Closure|string $mailable, callable|array|string|int|null $callback = null)
+ * @method static void assertQueuedTimes(string $mailable, int $times = 1)
  * @method static void assertNotQueued(\Closure|string $mailable, callable|array|string|null $callback = null)
  * @method static void assertNothingQueued()
  * @method static void assertSentCount(int $count)

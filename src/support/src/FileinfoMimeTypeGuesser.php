@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+use ErrorException;
 use Exception;
 use finfo;
 use Hypervel\Context\CoroutineContext;
@@ -60,7 +61,11 @@ class FileinfoMimeTypeGuesser
         } catch (Exception $e) {
             throw new RuntimeException($e->getMessage());
         }
-        $mimeType = $finfo->file($path) ?: null;
+        try {
+            $mimeType = $finfo->file($path) ?: null;
+        } catch (ErrorException) {
+            return null;
+        }
 
         if ($mimeType && 0 === (strlen($mimeType) % 2)) {
             $mimeStart = substr($mimeType, 0, strlen($mimeType) >> 1);

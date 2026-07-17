@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Hashing;
 
+use Error;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use InvalidArgumentException;
 use RuntimeException;
+use SensitiveParameter;
 
 class BcryptHasher extends AbstractHasher implements HasherContract
 {
@@ -31,8 +33,11 @@ class BcryptHasher extends AbstractHasher implements HasherContract
     public function __construct(array $options = [])
     {
         $this->rounds = (int) ($options['rounds'] ?? $this->rounds);
-        $this->verifyAlgorithm = $options['verify'] ?? $this->verifyAlgorithm;
-        $this->limit = $options['limit'] ?? $this->limit;
+        $this->verifyAlgorithm = (bool) ($options['verify'] ?? $this->verifyAlgorithm);
+
+        $limit = $options['limit'] ?? $this->limit;
+
+        $this->limit = $limit === null ? null : (int) $limit;
     }
 
     /**
@@ -41,17 +46,17 @@ class BcryptHasher extends AbstractHasher implements HasherContract
      * @throws RuntimeException
      * @throws InvalidArgumentException
      */
-    public function make(string $value, array $options = []): string
+    public function make(#[SensitiveParameter] string $value, array $options = []): string
     {
-        if ($this->limit && strlen($value) > $this->limit) {
-            throw new InvalidArgumentException('Value is too long to hash. Value must be less than ' . $this->limit . ' bytes.');
-        }
+        try {
+            if ($this->limit && strlen($value) > $this->limit) {
+                throw new InvalidArgumentException('Value is too long to hash. Value must be less than ' . $this->limit . ' bytes.');
+            }
 
-        $hash = password_hash($value, PASSWORD_BCRYPT, [
-            'cost' => $this->cost($options),
-        ]);
-
-        if ($hash === false) { // @phpstan-ignore identical.alwaysFalse (PHP 8 throws instead, kept for safety)
+            $hash = password_hash($value, PASSWORD_BCRYPT, [
+                'cost' => $this->cost($options),
+            ]);
+        } catch (Error) {
             throw new RuntimeException('Bcrypt hashing not supported.');
         }
 
@@ -63,13 +68,13 @@ class BcryptHasher extends AbstractHasher implements HasherContract
      *
      * @throws RuntimeException
      */
-    public function check(string $value, ?string $hashedValue, array $options = []): bool
+    public function check(#[SensitiveParameter] string $value, ?string $hashedValue, array $options = []): bool
     {
         if (! $this->hasHash($hashedValue)) {
             return false;
         }
 
-        if ($this->verifyAlgorithm && $this->info($hashedValue)['algoName'] !== 'bcrypt') {
+        if ($this->verifyAlgorithm && ! $this->isUsingCorrectAlgorithm($hashedValue)) {
             throw new RuntimeException('This password does not use the Bcrypt algorithm.');
         }
 

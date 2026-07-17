@@ -48,6 +48,9 @@ abstract class Facade
 
     /**
      * Run a Closure when the facade has been resolved.
+     *
+     * Boot-only. The callback is registered on the worker-global container
+     * and runs for every subsequent resolution of the facade accessor.
      */
     public static function resolved(Closure $callback): void
     {

@@ -16,7 +16,7 @@ use function Hypervel\Coroutine\parallel;
 #[RequiresPhpExtension('fileinfo')]
 class FileinfoMimeTypeGuesserTest extends TestCase
 {
-    public function testGuessMimeTypeWithInvalidFile()
+    public function testGuessMimeTypeWithInvalidFile(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
@@ -24,7 +24,7 @@ class FileinfoMimeTypeGuesserTest extends TestCase
             ->guessMimeType(__DIR__ . '/unknown');
     }
 
-    public function testGuessMimeType()
+    public function testGuessMimeType(): void
     {
         $mimeType = (new FileinfoMimeTypeGuesser)
             ->guessMimeType(__DIR__ . '/Fixtures/test.gif');
@@ -32,7 +32,7 @@ class FileinfoMimeTypeGuesserTest extends TestCase
         $this->assertEquals('image/gif', $mimeType);
     }
 
-    public function testGuessMimeTypeIsCoroutineScoped()
+    public function testGuessMimeTypeIsCoroutineScoped(): void
     {
         $guesser = new FileinfoMimeTypeGuesser;
         $key = FileinfoMimeTypeGuesser::FINFO_CONTEXT_KEY_PREFIX;

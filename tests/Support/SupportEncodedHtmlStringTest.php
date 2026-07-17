@@ -75,4 +75,31 @@ class SupportEncodedHtmlStringTest extends TestCase
         $this->assertSame(['b:before', 'b:after'], $results['b']);
         $this->assertSame('boot:final', (new EncodedHtmlString('final'))->toHtml());
     }
+
+    public function testBootEncoderAcceptsEveryCallableShapeAndCanBeReset(): void
+    {
+        EncodedHtmlString::encodeUsing(new class {
+            public function __invoke(string $value): string
+            {
+                return "invokable:{$value}";
+            }
+        });
+
+        $this->assertSame('invokable:value', (new EncodedHtmlString('value'))->toHtml());
+
+        $encoder = new class {
+            public function encode(string $value): string
+            {
+                return "array:{$value}";
+            }
+        };
+
+        EncodedHtmlString::encodeUsing([$encoder, 'encode']);
+
+        $this->assertSame('array:value', (new EncodedHtmlString('value'))->toHtml());
+
+        EncodedHtmlString::encodeUsing();
+
+        $this->assertSame('&lt;value&gt;', (new EncodedHtmlString('<value>'))->toHtml());
+    }
 }

@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `support`
-- **Ledger entries required for the active work:** `Isolate logging state and capture queued payloads deterministically` (`support-01`) and `Normalize framework enum identifiers at string boundaries` (`support-02`)
-- **Pending revalidation carried into the active work:** callback rebinding across every direct Manager consumer; enum identifier ownership across Support managers and their consumers; later full `foundation`, `queue`, and `sentry` audits must retain the completed Log boundaries
+- **Active package or work unit:** `engine`
+- **Ledger entries required for the active work:** None.
+- **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1023,6 +1023,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `context-04` | `context` | `foundation`, `database`; later full consumer audits | `Correct explicit coroutine context targeting`; finding `context-04` |
 | `di-02` | `di` | `foundation`, `sentry`, `telescope`; later full consumer audits | `Correct AOP proxy generation and publication`; finding `di-02` |
 | `filesystem-02` | `filesystem` | `di` (revalidation complete); later full `filesystem` audit | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
+| `filesystem-03` | `filesystem` | `encryption` (revalidation complete), `support`; later full `filesystem` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
 | `events-01` | `foundation` | `events` (revalidation complete); later full `foundation` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-01` |
 | `events-03` | `events`, `queue` | later full `queue` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-03` |
 | `events-04` | `events`, `foundation` | later full `foundation` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-04` |
@@ -1031,7 +1032,10 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events` (revalidation complete), `broadcasting`; later full `bus`, `queue`, and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support`; later full `foundation` and `support` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth`, `broadcasting`, `bus`, `cache`, `concurrency`, `console`, `container`, `contracts`, `cookie`, `database`, `events`, `filesystem`, `foundation`, `hashing`, `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis`, `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth`, `broadcasting`, `bus`, `cache`, `concurrency`, `console`, `container`, `contracts`, `cookie`, `database`, `events`, `filesystem`, `foundation`, `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis`, `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-framework-enum-identifier-contracts.md` |
+| `auth-01` | `support`, `auth` | later full `auth` audit | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
+| `encryption-03` | `encryption` | `contracts` and `support` (revalidation complete), `filesystem`, `foundation`; later full `filesystem` and `foundation` audits | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
+| `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
 
 ## Package checklist
 
@@ -1065,13 +1069,13 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `di`
 - [x] `events`
 - [x] `log`
-- [ ] `support`
+- [x] `support`
 
 ### Security and request primitives
 
-- [ ] `encryption`
-- [ ] `hashing`
-- [ ] `cookie`
+- [x] `encryption`
+- [x] `hashing`
+- [x] `cookie`
 
 ### Coroutine and resource infrastructure
 

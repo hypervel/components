@@ -40,7 +40,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     /**
      * Reversed property map cache (class name => [camelCase key => snake_case property]).
      */
-    public static ?array $reversedPropertyMapCache = [];
+    public static array $reversedPropertyMapCache = [];
 
     /**
      * Flag to indicate if auto-casting is enabled.
@@ -215,26 +215,30 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
      */
     protected static function getDependenciesData(): array
     {
-        if ($dependencies = static::$dependenciesMapCache[static::class] ?? null) {
-            return $dependencies;
+        if (array_key_exists(static::class, static::$dependenciesMapCache)) {
+            return static::$dependenciesMapCache[static::class];
         }
 
         return static::$dependenciesMapCache[static::class] = static::resolveDependenciesMap(static::class);
     }
 
-    protected static function getDependencyFromUnionType(ReflectionUnionType $type): ReflectionNamedType
+    protected static function getDependencyFromUnionType(ReflectionUnionType $type): ?ReflectionNamedType
     {
         foreach ($type->getTypes() as $namedType) {
+            if (! $namedType instanceof ReflectionNamedType) {
+                continue;
+            }
+
             $className = $namedType->getName();
             if (
                 is_subclass_of($className, DataObject::class)
-                || is_subclass_of($className, DateTimeInterface::class)
+                || is_a($className, DateTimeInterface::class, true)
             ) {
                 return $namedType;
             }
         }
 
-        throw new RuntimeException('No valid dependency found in union type.');
+        return null;
     }
 
     /**
@@ -266,7 +270,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         $visited[$class] = true;
         $reflection = new ReflectionClass($class);
         $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
-        $customizedDependencies = static::getCustomizedDependencies();
+        $customizedDependencies = $class::getCustomizedDependencies();
 
         $result = [];
         foreach ($properties as $property) {
@@ -274,27 +278,34 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
                 continue;
             }
             $propertyType = $property->getType();
+
+            if (! $propertyType instanceof ReflectionNamedType && ! $propertyType instanceof ReflectionUnionType) {
+                continue;
+            }
+
             $allowsNull = $propertyType->allowsNull();
             if ($propertyType instanceof ReflectionUnionType) {
                 $allowsNull = static::hasNullableUnionType($propertyType);
                 $propertyType = static::getDependencyFromUnionType($propertyType);
+
+                if ($propertyType === null) {
+                    continue;
+                }
             }
-            /** @var ReflectionNamedType $propertyType */
+
             $typeName = $propertyType->getName();
+            $dataKey = $class::isAutoCasting()
+                ? $class::convertPropertyToDataKey($property->getName())
+                : $property->getName();
+
             if (is_subclass_of($typeName, DataObject::class)) {
-                $dataKey = $typeName::isAutoCasting()
-                    ? $typeName::convertPropertyToDataKey($property->getName())
-                    : $property->getName();
                 $result[$dataKey] = [
-                    'handler' => [$typeName, 'make'],
+                    'handler' => fn ($value) => $value instanceof $typeName ? $value : $typeName::make($value),
                     'nullable' => $allowsNull,
                     'children' => static::resolveDependenciesMap($typeName, $visited),
                 ];
                 continue;
             }
-            $dataKey = static::isAutoCasting()
-                ? static::convertPropertyToDataKey($property->getName())
-                : $property->getName();
             if (enum_exists($typeName) && is_subclass_of($typeName, BackedEnum::class, true)) {
                 $result[$dataKey] = [
                     'handler' => fn ($value) => $value instanceof $typeName ? $value : $typeName::from($value),
@@ -307,7 +318,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
                 $result[$dataKey] = [
                     'handler' => $resolver,
                     'nullable' => $allowsNull,
-                    'children' => static::resolveDependenciesMap($typeName, $visited),
+                    'children' => [],
                 ];
                 continue;
             }
@@ -321,23 +332,23 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     /**
      * Recursively replace dependencies data in the given data array.
      */
-    protected static function replaceDependenciesData(array $dependencies, array $data): ?array
+    protected static function replaceDependenciesData(array $dependencies, array $data): array
     {
         foreach ($dependencies as $key => $dependency) {
+            if (! array_key_exists($key, $data)) {
+                continue;
+            }
+
             $handler = $dependency['handler'];
             $children = $dependency['children'] ?? [];
             $nullable = $dependency['nullable'] ?? false;
-            $matched = $data[$key] ?? null;
+            $matched = $data[$key];
 
-            if ($nullable && is_null($matched)) {
-                $data[$key] = null;
+            if ($nullable && $matched === null) {
                 continue;
             }
             if (! is_array($matched)) {
-                $data[$key] = call_user_func_array(
-                    $handler,
-                    [is_null($matched) ? [] : $matched]
-                );
+                $data[$key] = $handler($matched === null ? [] : $matched);
                 continue;
             }
 
@@ -345,7 +356,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
                 $data[$key] = static::replaceDependenciesData($children, $matched);
             }
 
-            $data[$key] = call_user_func_array($handler, [$data[$key]]);
+            $data[$key] = $handler($data[$key]);
         }
 
         return $data;
@@ -465,12 +476,13 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
      */
     protected static function getPropertyMap(): array
     {
-        if (! is_null($cache = static::$propertyMapCache[static::class] ?? null)) {
-            return $cache;
+        if (array_key_exists(static::class, static::$propertyMapCache)) {
+            return static::$propertyMapCache[static::class];
         }
 
         $reflection = new ReflectionClass(static::class);
         $properties = $reflection->getProperties(ReflectionProperty::IS_PUBLIC);
+        $map = [];
 
         foreach ($properties as $property) {
             if ($property->isStatic()) {
@@ -478,10 +490,10 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             }
             $propName = $property->getName();
             $snakeKey = static::convertPropertyToDataKey($propName);
-            static::$propertyMapCache[static::class][$snakeKey] = $propName;
+            $map[$snakeKey] = $propName;
         }
 
-        return static::$propertyMapCache[static::class];
+        return static::$propertyMapCache[static::class] = $map;
     }
 
     /**
@@ -491,8 +503,8 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
      */
     protected static function getReversedPropertyMap(): array
     {
-        if (! is_null($cache = static::$reversedPropertyMapCache[static::class] ?? null)) {
-            return $cache;
+        if (array_key_exists(static::class, static::$reversedPropertyMapCache)) {
+            return static::$reversedPropertyMapCache[static::class];
         }
 
         return static::$reversedPropertyMapCache[static::class] = array_flip(

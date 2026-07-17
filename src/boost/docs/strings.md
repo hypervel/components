@@ -68,6 +68,7 @@ If you need to clear these caches during tests, you may call `StrCache::flushSta
 [Str::contains](#method-str-contains)
 [Str::containsAll](#method-str-contains-all)
 [Str::convertCase](#method-str-convert-case)
+[Str::counted](#method-str-counted)
 [Str::doesntContain](#method-str-doesnt-contain)
 [Str::doesntEndWith](#method-str-doesnt-end-with)
 [Str::doesntStartWith](#method-str-doesnt-start-with)
@@ -132,6 +133,7 @@ If you need to clear these caches during tests, you may call `StrCache::flushSta
 [Str::take](#method-take)
 [Str::title](#method-title-case)
 [Str::toBase64](#method-str-to-base64)
+[Str::trans](#method-str-trans)
 [Str::transliterate](#method-str-transliterate)
 [Str::trim](#method-str-trim)
 [Str::ltrim](#method-str-ltrim)
@@ -176,6 +178,7 @@ If you need to clear these caches during tests, you may call `StrCache::flushSta
 [chopEnd](#method-fluent-str-chop-end)
 [contains](#method-fluent-str-contains)
 [containsAll](#method-fluent-str-contains-all)
+[counted](#method-fluent-str-counted)
 [convertCase](#method-fluent-str-convert-case)
 [decrypt](#method-fluent-str-decrypt)
 [deduplicate](#method-fluent-str-deduplicate)
@@ -1297,6 +1300,23 @@ $password = Str::password(12);
 // 'qwuar>#V|i]N'
 ```
 
+<a name="method-str-counted"></a>
+#### `Str::counted()` {.collection-method}
+
+The `Str::counted` method converts a singular word string to its singular or plural form based on the given count and prefixes the result with the formatted count:
+
+```php
+use Hypervel\Support\Str;
+
+$label = Str::counted('order', 1);
+
+// 1 order
+
+$label = Str::counted('order', 1000);
+
+// 1,000 orders
+```
+
 <a name="method-str-plural"></a>
 #### `Str::plural()` {.collection-method}
 
@@ -1819,6 +1839,17 @@ use Hypervel\Support\Str;
 $base64 = Str::toBase64('Hypervel');
 
 // SHlwZXJ2ZWw=
+```
+
+<a name="method-str-trans"></a>
+#### `Str::trans()` {.collection-method}
+
+The `Str::trans` method translates the given translation key and returns a fluent string instance:
+
+```php
+use Hypervel\Support\Str;
+
+$message = Str::trans('messages.welcome')->upper();
 ```
 
 <a name="method-str-transliterate"></a>
@@ -3297,6 +3328,23 @@ $closure = Str::of('foo')->pipe(function (Stringable $str) {
 });
 
 // 'bar'
+```
+
+<a name="method-fluent-str-counted"></a>
+#### `counted` {.collection-method}
+
+The `counted` method converts a singular word string to its singular or plural form based on the given count and prefixes the result with the formatted count:
+
+```php
+use Hypervel\Support\Str;
+
+$label = Str::of('order')->counted(1);
+
+// 1 order
+
+$label = Str::of('order')->counted(1000);
+
+// 1,000 orders
 ```
 
 <a name="method-fluent-str-plural"></a>

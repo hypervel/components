@@ -379,6 +379,93 @@ class DataObjectTest extends TestCase
         $this->assertSame(TestGenderEnum::Male, $user->gender);
     }
 
+    public function testEmptyDataObjectCanBeCreatedAndSerialized(): void
+    {
+        $object = EmptyDataObject::make([], true);
+
+        $this->assertSame([], $object->toArray());
+    }
+
+    public function testAutoResolveSkipsUntypedAndIntersectionProperties(): void
+    {
+        $untyped = UntypedDataObject::make([], true);
+        $intersectionValue = new IntersectionValue;
+        $intersection = IntersectionDataObject::make(['value' => $intersectionValue], true);
+
+        $this->assertSame('default', $untyped->value);
+        $this->assertSame($intersectionValue, $intersection->value);
+    }
+
+    public function testAutoResolveSkipsUnsupportedScalarUnions(): void
+    {
+        $object = ScalarUnionDataObject::make(['value' => 'value'], true);
+
+        $this->assertSame('value', $object->value);
+    }
+
+    public function testAutoResolveSkipsIntersectionMembersInDnfUnions(): void
+    {
+        $address = new TestAddressDataObject('123 Main St', 'New York', '10001');
+        $object = DnfUnionDataObject::make(['value' => $address], true);
+
+        $this->assertSame($address, $object->value);
+    }
+
+    public function testAutoResolvePreservesMissingDefaultsAndExplicitNulls(): void
+    {
+        $defaulted = DefaultedDependencyDataObject::make([], true);
+        $explicitNull = DefaultedDependencyDataObject::make(['gender' => null], true);
+
+        $this->assertSame(TestGenderEnum::Female, $defaulted->gender);
+        $this->assertNull($explicitNull->gender);
+    }
+
+    public function testAutoResolvePreservesExistingNestedDataObject(): void
+    {
+        $address = new TestAddressDataObject('123 Main St', 'New York', '10001');
+
+        $user = TestUserDataObject::make([
+            'name' => 'John Doe',
+            'gender' => TestGenderEnum::Male,
+            'address' => $address,
+            'created_at' => null,
+        ], true);
+
+        $this->assertSame($address, $user->address);
+    }
+
+    public function testNestedDependenciesUseEachOwningClassKeyConvention(): void
+    {
+        $object = OwnerKeyDataObject::make([
+            'owner_child' => [
+                'child_value' => 'nested',
+            ],
+        ], true);
+
+        $this->assertSame('nested', $object->child->value);
+    }
+
+    public function testNestedDependenciesUseTheNestedClassResolver(): void
+    {
+        $object = RootResolverDataObject::make([
+            'child' => [
+                'value' => 'resolved',
+            ],
+        ], true);
+
+        $this->assertSame('child:resolved', $object->child->value->value);
+    }
+
+    public function testEmptyDependencyMapsAreCached(): void
+    {
+        DependencylessDataObject::$dependencyLookups = 0;
+
+        DependencylessDataObject::make([], true);
+        DependencylessDataObject::make([], true);
+
+        $this->assertSame(1, DependencylessDataObject::$dependencyLookups);
+    }
+
     public function testFlushStateRestoresStaticDefaults(): void
     {
         TestDataObject::make($this->getData());
@@ -512,4 +599,128 @@ enum TestGenderEnum: string
 {
     case Male = 'male';
     case Female = 'female';
+}
+
+class EmptyDataObject extends DataObject
+{
+}
+
+class UntypedDataObject extends DataObject
+{
+    public $value = 'default';
+}
+
+interface FirstIntersectionType
+{
+}
+
+interface SecondIntersectionType
+{
+}
+
+class IntersectionValue implements FirstIntersectionType, SecondIntersectionType
+{
+}
+
+class IntersectionDataObject extends DataObject
+{
+    public function __construct(public FirstIntersectionType&SecondIntersectionType $value)
+    {
+    }
+}
+
+class DnfUnionDataObject extends DataObject
+{
+    public function __construct(public (FirstIntersectionType&SecondIntersectionType)|TestAddressDataObject $value)
+    {
+    }
+}
+
+class ScalarUnionDataObject extends DataObject
+{
+    public function __construct(public int|string $value)
+    {
+    }
+}
+
+class DefaultedDependencyDataObject extends DataObject
+{
+    public function __construct(public ?TestGenderEnum $gender = TestGenderEnum::Female)
+    {
+    }
+}
+
+class OwnerKeyDataObject extends DataObject
+{
+    public function __construct(public ChildKeyDataObject $child)
+    {
+    }
+
+    public static function convertPropertyToDataKey(string $input): string
+    {
+        return 'owner_' . $input;
+    }
+}
+
+class ChildKeyDataObject extends DataObject
+{
+    public function __construct(public string $value)
+    {
+    }
+
+    public static function convertPropertyToDataKey(string $input): string
+    {
+        return 'child_' . $input;
+    }
+}
+
+class RootResolverDataObject extends DataObject
+{
+    public function __construct(public ChildResolverDataObject $child)
+    {
+    }
+
+    protected static function getCustomizedDependencies(): array
+    {
+        return [
+            ResolverValue::class => fn (string $value) => new ResolverValue('root:' . $value),
+        ];
+    }
+}
+
+class ChildResolverDataObject extends DataObject
+{
+    public function __construct(public ResolverValue $value)
+    {
+    }
+
+    protected static function getCustomizedDependencies(): array
+    {
+        return [
+            ResolverValue::class => fn (string $value) => new ResolverValue('child:' . $value),
+        ];
+    }
+}
+
+class ResolverValue
+{
+    public function __construct(public string $value)
+    {
+    }
+}
+
+class DependencylessDataObject extends DataObject
+{
+    public static int $dependencyLookups = 0;
+
+    public function __construct(public string $value = 'default')
+    {
+    }
+
+    protected static function getCustomizedDependencies(): array
+    {
+        ++static::$dependencyLookups;
+
+        return parent::getCustomizedDependencies();
+    }
 }

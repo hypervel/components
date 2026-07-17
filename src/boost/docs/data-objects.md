@@ -108,6 +108,8 @@ $user->age;
 // 39
 ```
 
+Missing values use their constructor defaults. Passing `null` explicitly is distinct from omitting a nullable value.
+
 <a name="property-name-conversion"></a>
 ### Property Name Conversion
 
@@ -284,6 +286,8 @@ $user->address->street;
 ```
 
 Nested resolution works recursively for nested data object properties. If you use a union type for an auto-resolved dependency, the union should include a data object or date / time type.
+
+You may also pass an existing nested data object instance. Auto-resolution preserves that instance instead of rebuilding it.
 
 <a name="backed-enums"></a>
 ### Backed Enums

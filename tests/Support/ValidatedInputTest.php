@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Stringable;
@@ -493,6 +494,22 @@ class ValidatedInputTest extends TestCase
         $this->assertEquals([StringBackedEnum::HelloWorld], $input->enums('valid_enum_value', StringBackedEnum::class));
 
         $this->assertEmpty($input->enums('invalid_enum_value', StringBackedEnum::class));
+    }
+
+    public function testFileMethod(): void
+    {
+        $file = $this->createStub(UploadedFile::class);
+
+        $input = new ValidatedInput([
+            'name' => 'Taylor',
+            'avatar' => $file,
+        ]);
+
+        $this->assertSame($file, $input->file('avatar'));
+        $this->assertNull($input->file('name'));
+        $this->assertNull($input->file('missing'));
+        $this->assertSame('default', $input->file('missing', 'default'));
+        $this->assertSame('default', $input->file('name', 'default'));
     }
 
     public function testCollectMethod()

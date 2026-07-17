@@ -3088,6 +3088,9 @@ test('orders can be shipped', function () {
     // Assert a job was pushed
     Queue::assertPushed(ShipOrder::class);
 
+    // Assert a job was pushed exactly once...
+    Queue::assertPushedOnce(ShipOrder::class);
+
     // Assert a job was pushed twice...
     Queue::assertPushedTimes(ShipOrder::class, 2);
 
@@ -3131,6 +3134,9 @@ class ExampleTest extends TestCase
 
         // Assert a job was pushed
         Queue::assertPushed(ShipOrder::class);
+
+        // Assert a job was pushed exactly once...
+        Queue::assertPushedOnce(ShipOrder::class);
 
         // Assert a job was pushed twice...
         Queue::assertPushedTimes(ShipOrder::class, 2);
@@ -3223,7 +3229,7 @@ Queue::fake()->serializeAndRestore();
 <a name="testing-job-chains"></a>
 ### Testing Job Chains
 
-To test job chains, you will need to utilize the `Bus` facade's faking capabilities. The `Bus` facade's `assertChained` method may be used to assert that a [chain of jobs](/docs/{{version}}/queues#job-chaining) was dispatched. The `assertChained` method accepts an array of chained jobs as its first argument:
+To test job chains, you will need to utilize the `Bus` facade's faking capabilities. The `assertDispatchedOnce` method may be used to assert that a job was dispatched exactly once. The `Bus` facade's `assertChained` method may be used to assert that a [chain of jobs](/docs/{{version}}/queues#job-chaining) was dispatched. The `assertChained` method accepts an array of chained jobs as its first argument:
 
 ```php
 use App\Jobs\RecordShipment;
@@ -3234,6 +3240,8 @@ use Hypervel\Support\Facades\Bus;
 Bus::fake();
 
 // ...
+
+Bus::assertDispatchedOnce(ShipOrder::class);
 
 Bus::assertChained([
     ShipOrder::class,

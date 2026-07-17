@@ -78,7 +78,7 @@ class EncodedHtmlString extends HtmlString
      */
     public static function encodeUsing(?callable $factory = null): void
     {
-        static::$encodeUsingFactory = $factory;
+        static::$encodeUsingFactory = $factory === null ? null : Closure::fromCallable($factory);
     }
 
     /**

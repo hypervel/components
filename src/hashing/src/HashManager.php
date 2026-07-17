@@ -6,6 +6,7 @@ namespace Hypervel\Hashing;
 
 use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Support\Manager;
+use SensitiveParameter;
 
 /**
  * @mixin \Hypervel\Contracts\Hashing\Hasher
@@ -47,7 +48,7 @@ class HashManager extends Manager implements Hasher
     /**
      * Hash the given value.
      */
-    public function make(string $value, array $options = []): string
+    public function make(#[SensitiveParameter] string $value, array $options = []): string
     {
         return $this->driver()->make($value, $options);
     }
@@ -55,7 +56,7 @@ class HashManager extends Manager implements Hasher
     /**
      * Check the given plain value against a hash.
      */
-    public function check(string $value, ?string $hashedValue, array $options = []): bool
+    public function check(#[SensitiveParameter] string $value, ?string $hashedValue, array $options = []): bool
     {
         return $this->driver()->check($value, $hashedValue, $options);
     }
@@ -71,9 +72,9 @@ class HashManager extends Manager implements Hasher
     /**
      * Determine if a given string is already hashed.
      */
-    public function isHashed(string $value): bool
+    public function isHashed(#[SensitiveParameter] string $value): bool
     {
-        return password_get_info($value)['algo'] !== null;
+        return $this->driver()->info($value)['algo'] !== null;
     }
 
     /**

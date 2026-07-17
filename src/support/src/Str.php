@@ -61,6 +61,14 @@ class Str
     }
 
     /**
+     * Translate the given message and get a new stringable object.
+     */
+    public static function trans(string $key, array $replace = [], ?string $locale = null): Stringable
+    {
+        return new Stringable(__($key, $replace, $locale));
+    }
+
+    /**
      * Return the remainder of a string after the first occurrence of a given value.
      */
     public static function after(string $subject, string|int|float|bool|BaseStringable|null $search): string
@@ -282,6 +290,14 @@ class Str
     public static function convertCase(string $string, int $mode = MB_CASE_FOLD, ?string $encoding = 'UTF-8'): string
     {
         return mb_convert_case($string, $mode, $encoding);
+    }
+
+    /**
+     * Get the plural form of an English word with the count prepended.
+     */
+    public static function counted(string $value, int|array|Countable $count): string
+    {
+        return static::plural($value, $count, prependCount: true);
     }
 
     /**
@@ -919,9 +935,11 @@ class Str
 
             static::$randomStringFactory = null;
 
-            $randomString = static::random($length);
-
-            static::$randomStringFactory = $factoryCache;
+            try {
+                $randomString = static::random($length);
+            } finally {
+                static::$randomStringFactory = $factoryCache;
+            }
 
             ++$next;
 
@@ -1638,9 +1656,11 @@ class Str
 
             static::$uuidFactory = null;
 
-            $uuid = static::uuid();
-
-            static::$uuidFactory = $factoryCache;
+            try {
+                $uuid = static::uuid();
+            } finally {
+                static::$uuidFactory = $factoryCache;
+            }
 
             ++$next;
 
@@ -1751,9 +1771,11 @@ class Str
 
             static::$ulidFactory = null;
 
-            $ulid = static::ulid();
-
-            static::$ulidFactory = $factoryCache;
+            try {
+                $ulid = static::ulid();
+            } finally {
+                static::$ulidFactory = $factoryCache;
+            }
 
             ++$next;
 

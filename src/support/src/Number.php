@@ -6,6 +6,7 @@ namespace Hypervel\Support;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Support\Traits\Macroable;
+use InvalidArgumentException;
 use NumberFormatter;
 use RuntimeException;
 
@@ -164,9 +165,15 @@ class Number
      */
     public static function fileSize(float|int $bytes, int $precision = 0, ?int $maxPrecision = null): string
     {
+        if (! is_finite($bytes)) {
+            return sprintf('%s B', static::format($bytes, $precision, $maxPrecision));
+        }
+
         $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
 
-        for ($i = 0; ($bytes / 1024) > 0.9 && ($i < count($units) - 1); ++$i) {
+        $unitCount = count($units);
+
+        for ($i = 0; (abs($bytes) / 1024) > 0.9 && ($i < $unitCount - 1); ++$i) {
             $bytes /= 1024;
         }
 
@@ -203,9 +210,15 @@ class Number
 
     /**
      * Convert the number to its human-readable equivalent.
+     *
+     * @phpstan-return ($number is INF ? '∞' : ($number is NAN ? 'NaN' : ($number is 0 ? ($precision is non-positive-int ? '0' : non-empty-string|false) : non-empty-string|false)))
      */
     protected static function summarize(float|int $number, int $precision = 0, ?int $maxPrecision = null, array $units = []): false|string
     {
+        if (! is_finite($number)) {
+            return static::format($number, $precision, $maxPrecision);
+        }
+
         if (empty($units)) {
             $units = [
                 3 => 'K',
@@ -217,7 +230,7 @@ class Number
         }
 
         switch (true) {
-            case floatval($number) === 0.0:
+            case (float) $number === 0.0:
                 return $precision > 0 ? static::format(0, $precision, $maxPrecision) : '0';
             case $number < 0:
                 return sprintf('-%s', static::summarize(abs($number), $precision, $maxPrecision, $units));
@@ -227,9 +240,17 @@ class Number
 
         $numberExponent = (int) floor(log10($number));
         $displayExponent = $numberExponent - ($numberExponent % 3);
-        $number /= 10 ** $displayExponent;
+        $number /= pow(10, $displayExponent);
 
-        return trim(sprintf('%s%s', static::format($number, $precision, $maxPrecision), $units[$displayExponent] ?? ''));
+        $formatted = static::format($number, $precision, $maxPrecision);
+
+        if (static::parseFloat($formatted) >= 1000 && isset($units[$displayExponent + 3])) {
+            $number /= 1000;
+            $displayExponent += 3;
+            $formatted = static::format($number, $precision, $maxPrecision);
+        }
+
+        return trim(sprintf('%s%s', $formatted, $units[$displayExponent] ?? ''));
     }
 
     /**
@@ -245,6 +266,12 @@ class Number
      */
     public static function pairs(float|int $to, float|int $by, float|int $start = 0, float|int $offset = 1): array
     {
+        if ($by === 0 || $by === 0.0) {
+            throw new InvalidArgumentException('The $by argument must not be zero.');
+        }
+
+        $by = abs($by);
+
         $output = [];
 
         for ($lower = $start; $lower < $to; $lower += $by) {
@@ -265,6 +292,10 @@ class Number
      */
     public static function trim(float|int $number): float|int
     {
+        if (is_infinite($number) || is_nan($number)) {
+            return $number;
+        }
+
         return json_decode(json_encode($number));
     }
 

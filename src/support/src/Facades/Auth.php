@@ -54,4 +54,6 @@ class Auth extends Facade
     {
         return 'auth';
     }
+
+    // REMOVED: Auth::routes() requires laravel/ui, which Hypervel does not integrate.
 }

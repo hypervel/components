@@ -30,14 +30,12 @@ class Xml
             $xml = $parentNode;
         }
         foreach ($data as $key => $value) {
+            $key = is_numeric($key) ? 'item' . $key : $key;
+
             if (is_array($value)) {
                 self::toXml($value, $xml->addChild($key));
             } else {
-                if (is_numeric($key)) {
-                    $xml->addChild('item' . $key, (string) $value);
-                } else {
-                    $xml->addChild($key, (string) $value);
-                }
+                $xml->addChild($key, (string) $value);
             }
         }
         return trim($xml->asXML());

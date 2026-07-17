@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Encryption;
 
+use SensitiveParameter;
+
 interface StringEncrypter
 {
     /**
@@ -11,7 +13,7 @@ interface StringEncrypter
      *
      * @throws \Hypervel\Contracts\Encryption\EncryptException
      */
-    public function encryptString(string $value): string;
+    public function encryptString(#[SensitiveParameter] string $value): string;
 
     /**
      * Decrypt the given string without unserialization.

@@ -197,7 +197,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Assert if a mailable was queued a number of times.
      */
-    protected function assertQueuedTimes(string $mailable, int $times = 1): void
+    public function assertQueuedTimes(string $mailable, int $times = 1): void
     {
         $count = $this->queued($mailable)->count();
 

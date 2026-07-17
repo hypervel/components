@@ -104,6 +104,30 @@ class LotteryTest extends TestCase
         ], $result);
     }
 
+    public function testAlwaysWinRestoresNormalResultsWhenTheCallbackThrows(): void
+    {
+        try {
+            Lottery::alwaysWin(fn () => throw new RuntimeException('Callback failed.'));
+            $this->fail('Expected the callback to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Callback failed.', $exception->getMessage());
+        }
+
+        $this->assertFalse(Lottery::odds(0, 1)->choose());
+    }
+
+    public function testAlwaysLoseRestoresNormalResultsWhenTheCallbackThrows(): void
+    {
+        try {
+            Lottery::alwaysLose(fn () => throw new RuntimeException('Callback failed.'));
+            $this->fail('Expected the callback to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Callback failed.', $exception->getMessage());
+        }
+
+        $this->assertTrue(Lottery::odds(1, 1)->choose());
+    }
+
     public function testItCanForceTheResultViaSequence()
     {
         $result = null;
@@ -139,6 +163,22 @@ class LotteryTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Missing key in sequence.');
         Lottery::odds(1, 10000)->winner(fn () => 'winner')->loser(fn () => 'loser')->choose();
+    }
+
+    public function testMissingSequenceFallbackRestoresTheSequenceWhenNormalResolutionThrows(): void
+    {
+        ThrowingLottery::failNextNormalResult();
+        ThrowingLottery::forceResultWithSequence([1 => false]);
+
+        try {
+            ThrowingLottery::odds(1, 1)->choose();
+            $this->fail('Expected normal result generation to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Result generation failed.', $exception->getMessage());
+        }
+
+        $this->assertTrue(ThrowingLottery::odds(1, 1)->choose());
+        $this->assertFalse(ThrowingLottery::odds(1, 1)->choose());
     }
 
     public function testFlushStateRestoresNormalResultFactory()
@@ -192,5 +232,26 @@ class LotteryTest extends TestCase
 
         $this->assertFalse($wins);
         $this->assertTrue($loses);
+    }
+}
+
+class ThrowingLottery extends Lottery
+{
+    protected static bool $failNextNormalResult = false;
+
+    public static function failNextNormalResult(): void
+    {
+        static::$failNextNormalResult = true;
+    }
+
+    protected static function resultFactory(): callable
+    {
+        if (static::$resultFactory === null && static::$failNextNormalResult) {
+            static::$failNextNormalResult = false;
+
+            return fn () => throw new RuntimeException('Result generation failed.');
+        }
+
+        return parent::resultFactory();
     }
 }

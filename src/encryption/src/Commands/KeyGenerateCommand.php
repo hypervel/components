@@ -6,13 +6,18 @@ namespace Hypervel\Encryption\Commands;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Console\Prohibitable;
 use Hypervel\Encryption\Encrypter;
+use Hypervel\Filesystem\Filesystem;
+use RuntimeException;
+use SensitiveParameter;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'key:generate')]
 class KeyGenerateCommand extends Command
 {
     use ConfirmableTrait;
+    use Prohibitable;
 
     /**
      * The name and signature of the console command.
@@ -31,6 +36,10 @@ class KeyGenerateCommand extends Command
      */
     public function handle()
     {
+        if ($this->isProhibited()) {
+            return;
+        }
+
         $key = $this->generateRandomKey();
 
         if ($this->option('show')) {
@@ -62,7 +71,7 @@ class KeyGenerateCommand extends Command
     /**
      * Set the application key in the environment file.
      */
-    protected function setKeyInEnvironmentFile(string $key): bool
+    protected function setKeyInEnvironmentFile(#[SensitiveParameter] string $key): bool
     {
         $currentKey = $this->hypervel->make('config')->get('app.key') ?? '';
 
@@ -80,12 +89,15 @@ class KeyGenerateCommand extends Command
     /**
      * Write a new environment file with the given key.
      */
-    protected function writeNewEnvironmentFileWith(string $key): bool
+    protected function writeNewEnvironmentFileWith(#[SensitiveParameter] string $key): bool
     {
+        $path = $this->hypervel->environmentFilePath();
+        $filesystem = $this->hypervel->make(Filesystem::class);
+
         $replaced = preg_replace(
             $this->keyReplacementPattern(),
             'APP_KEY=' . $key,
-            $input = file_get_contents($this->hypervel->environmentFilePath())
+            $input = $filesystem->get($path)
         );
 
         if ($replaced === $input || $replaced === null) {
@@ -98,7 +110,7 @@ class KeyGenerateCommand extends Command
             return false;
         }
 
-        file_put_contents($this->hypervel->environmentFilePath(), $replaced);
+        $filesystem->replace($path, $replaced, $this->fileMode($path));
 
         return true;
     }
@@ -108,8 +120,24 @@ class KeyGenerateCommand extends Command
      */
     protected function keyReplacementPattern(): string
     {
-        $escaped = preg_quote('=' . ($this->hypervel->make('config')->get('app.key') ?? ''), '/');
+        $escaped = preg_quote($this->hypervel->make('config')->get('app.key') ?? '', '/');
 
-        return "/^APP_KEY{$escaped}/m";
+        return "/^APP_KEY=([\"']?){$escaped}\\1(?=\\r?$)/m";
+    }
+
+    /**
+     * Get the basic permission bits for the environment file.
+     */
+    protected function fileMode(string $path): int
+    {
+        clearstatcache(true, $path);
+
+        $mode = @fileperms($path);
+
+        if ($mode === false) {
+            throw new RuntimeException("Unable to read permissions for environment file [{$path}].");
+        }
+
+        return $mode & 0777;
     }
 }

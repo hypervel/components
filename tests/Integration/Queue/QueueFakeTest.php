@@ -9,6 +9,7 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\ExpectationFailedException;
 
 class QueueFakeTest extends TestCase
 {
@@ -59,6 +60,26 @@ class QueueFakeTest extends TestCase
         }, []);
 
         $this->assertEquals('test-value', $result);
+    }
+
+    public function testAssertPushedOnce(): void
+    {
+        Queue::fake();
+        Queue::push(new TestJob);
+
+        Queue::assertPushedOnce(TestJob::class);
+
+        Queue::push(new TestJob);
+
+        try {
+            Queue::assertPushedOnce(TestJob::class);
+            $this->fail();
+        } catch (ExpectationFailedException $exception) {
+            $this->assertStringContainsString(
+                'The expected [' . TestJob::class . '] job was pushed 2 times instead of 1 time.',
+                $exception->getMessage()
+            );
+        }
     }
 }
 

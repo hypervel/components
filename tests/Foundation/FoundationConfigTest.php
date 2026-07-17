@@ -26,6 +26,13 @@ class FoundationConfigTest extends TestCase
         $this->assertSame('json', $config['stdout_log']['format']);
     }
 
+    public function testAppConfigTreatsNullPreviousKeysAsAnEmptyList(): void
+    {
+        $config = $this->appConfigWithEnvironment('APP_PREVIOUS_KEYS', '(null)');
+
+        $this->assertSame([], $config['previous_keys']);
+    }
+
     public function testViewCompiledPathFallsBackToStoragePathWhenDirectoryDoesNotExist(): void
     {
         $key = 'VIEW_COMPILED_PATH';

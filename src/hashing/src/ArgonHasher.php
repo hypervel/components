@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Hashing;
 
+use Error;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use RuntimeException;
+use SensitiveParameter;
 
 class ArgonHasher extends AbstractHasher implements HasherContract
 {
@@ -34,10 +36,10 @@ class ArgonHasher extends AbstractHasher implements HasherContract
      */
     public function __construct(array $options = [])
     {
-        $this->time = $options['time'] ?? $this->time;
-        $this->memory = $options['memory'] ?? $this->memory;
+        $this->time = (int) ($options['time'] ?? $this->time);
+        $this->memory = (int) ($options['memory'] ?? $this->memory);
         $this->threads = $this->threads($options);
-        $this->verifyAlgorithm = $options['verify'] ?? $this->verifyAlgorithm;
+        $this->verifyAlgorithm = (bool) ($options['verify'] ?? $this->verifyAlgorithm);
     }
 
     /**
@@ -45,15 +47,15 @@ class ArgonHasher extends AbstractHasher implements HasherContract
      *
      * @throws RuntimeException
      */
-    public function make(string $value, array $options = []): string
+    public function make(#[SensitiveParameter] string $value, array $options = []): string
     {
-        $hash = @password_hash($value, $this->algorithm(), [
-            'memory_cost' => $this->memory($options),
-            'time_cost' => $this->time($options),
-            'threads' => $this->threads($options),
-        ]);
-
-        if (! is_string($hash)) { // @phpstan-ignore function.alreadyNarrowedType (password_hash returns false if algorithm unavailable)
+        try {
+            $hash = password_hash($value, $this->algorithm(), [
+                'memory_cost' => $this->memory($options),
+                'time_cost' => $this->time($options),
+                'threads' => $this->threads($options),
+            ]);
+        } catch (Error) {
             throw new RuntimeException('Argon2 hashing not supported.');
         }
 
@@ -73,13 +75,13 @@ class ArgonHasher extends AbstractHasher implements HasherContract
      *
      * @throws RuntimeException
      */
-    public function check(string $value, ?string $hashedValue, array $options = []): bool
+    public function check(#[SensitiveParameter] string $value, ?string $hashedValue, array $options = []): bool
     {
         if (! $this->hasHash($hashedValue)) {
             return false;
         }
 
-        if ($this->verifyAlgorithm && $this->info($hashedValue)['algoName'] !== 'argon2i') {
+        if ($this->verifyAlgorithm && ! $this->isUsingCorrectAlgorithm($hashedValue)) {
             throw new RuntimeException('This password does not use the Argon2i algorithm.');
         }
 
@@ -216,6 +218,6 @@ class ArgonHasher extends AbstractHasher implements HasherContract
             return 1;
         }
 
-        return $options['threads'] ?? $this->threads;
+        return (int) ($options['threads'] ?? $this->threads);
     }
 }

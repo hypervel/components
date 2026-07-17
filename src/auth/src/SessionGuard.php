@@ -263,7 +263,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function validate(array $credentials = []): bool
     {
-        return $this->timebox->call(function ($timebox) use ($credentials) {
+        return (clone $this->timebox)->call(function ($timebox) use ($credentials) {
             $this->setContextState(
                 'lastAttempted',
                 $user = $this->provider->retrieveByCredentials($credentials)
@@ -354,7 +354,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function attempt(array $credentials = [], bool $remember = false): bool
     {
-        return $this->timebox->call(function ($timebox) use ($credentials, $remember) {
+        return (clone $this->timebox)->call(function ($timebox) use ($credentials, $remember) {
             $this->fireAttemptEvent($credentials, $remember);
 
             $this->setContextState(
@@ -389,7 +389,7 @@ class SessionGuard implements StatefulGuard, SupportsBasicAuth
      */
     public function attemptWhen(array $credentials = [], array|callable|null $callbacks = null, bool $remember = false): bool
     {
-        return $this->timebox->call(function ($timebox) use ($credentials, $callbacks, $remember) {
+        return (clone $this->timebox)->call(function ($timebox) use ($credentials, $callbacks, $remember) {
             $this->fireAttemptEvent($credentials, $remember);
 
             $this->setContextState(

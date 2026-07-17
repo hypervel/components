@@ -43,7 +43,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
      *
      * @throws RuntimeException
      */
-    public function __construct(string $key, string $cipher = 'aes-128-cbc')
+    public function __construct(#[SensitiveParameter] string $key, string $cipher = 'aes-128-cbc')
     {
         if (! static::supported($key, $cipher)) {
             $ciphers = implode(', ', array_keys(self::$supportedCiphers));
@@ -58,7 +58,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Determine if the given key and cipher combination is valid.
      */
-    public static function supported(string $key, string $cipher): bool
+    public static function supported(#[SensitiveParameter] string $key, string $cipher): bool
     {
         if (! isset(self::$supportedCiphers[strtolower($cipher)])) {
             return false;
@@ -138,14 +138,19 @@ class Encrypter implements EncrypterContract, StringEncrypter
             $tag = empty($payload['tag']) ? null : base64_decode($payload['tag'])
         );
 
-        $foundValidMac = false;
+        [$keys, $validKey] = [$this->getAllKeys(), null];
+
         // Here we will decrypt the value. If we are able to successfully decrypt it
         // we will then unserialize it and return it out to the caller. If we are
         // unable to decrypt this value we will throw out an exception message.
-        foreach ($this->getAllKeys() as $key) {
-            if ($this->shouldValidateMac()
-                && ! ($foundValidMac = $foundValidMac || $this->validMacForKey($payload, $key))
-            ) {
+        foreach ($keys as $key) {
+            if ($this->shouldValidateMac()) {
+                $validMac = $this->validMacForKey($payload, $key);
+
+                if ($validMac && $validKey === null) {
+                    $validKey = $key;
+                }
+
                 continue;
             }
 
@@ -163,8 +168,19 @@ class Encrypter implements EncrypterContract, StringEncrypter
             }
         }
 
-        if ($this->shouldValidateMac() && ! $foundValidMac) {
+        if ($this->shouldValidateMac() && $validKey === null) {
             throw new DecryptException('The MAC is invalid.');
+        }
+
+        if ($this->shouldValidateMac()) {
+            $decrypted = openssl_decrypt(
+                $payload['value'],
+                strtolower($this->cipher),
+                $validKey,
+                0,
+                $iv,
+                $tag ?? ''
+            );
         }
 
         if (($decrypted ?? false) === false) {
@@ -244,7 +260,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Determine if the MAC is valid for the given payload and key.
      */
-    protected function validMacForKey(#[SensitiveParameter] array $payload, string $key): bool
+    protected function validMacForKey(#[SensitiveParameter] array $payload, #[SensitiveParameter] string $key): bool
     {
         return hash_equals(
             $this->hash($payload['iv'], $payload['value'], $key),
@@ -257,7 +273,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
      */
     protected function ensureTagIsValid(?string $tag): void
     {
-        if (self::$supportedCiphers[strtolower($this->cipher)]['aead'] && strlen($tag) !== 16) {
+        if (self::$supportedCiphers[strtolower($this->cipher)]['aead'] && ($tag === null || strlen($tag) !== 16)) {
             throw new DecryptException('Could not decrypt the data.');
         }
 
@@ -325,7 +341,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
      * Boot-only. Mutates the previous-key list; the encrypter is registered as
      * a container singleton, so per-request use races across coroutines.
      */
-    public function previousKeys(array $keys): static
+    public function previousKeys(#[SensitiveParameter] array $keys): static
     {
         foreach ($keys as $key) {
             if (! static::supported($key, $this->cipher)) {

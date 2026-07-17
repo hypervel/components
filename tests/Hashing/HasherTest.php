@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Hashing;
 
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use Hypervel\Hashing\Argon2IdHasher;
 use Hypervel\Hashing\ArgonHasher;
 use Hypervel\Hashing\BcryptHasher;
@@ -13,20 +14,21 @@ use Hypervel\Hashing\HashManager;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\Depends;
 use RuntimeException;
 
 class HasherTest extends TestCase
 {
     public HashManager $hashManager;
 
-    public function setUp(): void
+    protected function setUp(): void
     {
         parent::setUp();
 
         $this->hashManager = new HashManager($this->getContainer());
     }
 
-    public function testEmptyHashedValueReturnsFalse()
+    public function testEmptyHashedValueReturnsFalse(): void
     {
         $hasher = new BcryptHasher;
         $this->assertFalse($hasher->check('password', ''));
@@ -36,7 +38,7 @@ class HasherTest extends TestCase
         $this->assertFalse($hasher->check('password', ''));
     }
 
-    public function testNullHashedValueReturnsFalse()
+    public function testNullHashedValueReturnsFalse(): void
     {
         $hasher = new BcryptHasher;
         $this->assertFalse($hasher->check('password', null));
@@ -46,7 +48,7 @@ class HasherTest extends TestCase
         $this->assertFalse($hasher->check('password', null));
     }
 
-    public function testNullOrEmptyHashedValueDoesNotNeedRehash()
+    public function testNullOrEmptyHashedValueDoesNotNeedRehash(): void
     {
         $hasher = new BcryptHasher;
         $this->assertFalse($hasher->needsRehash(null));
@@ -64,7 +66,7 @@ class HasherTest extends TestCase
         $this->assertFalse($this->hashManager->needsRehash(''));
     }
 
-    public function testVerifiedHashersReturnFalseForNullOrEmptyHash()
+    public function testVerifiedHashersReturnFalseForNullOrEmptyHash(): void
     {
         $hasher = new BcryptHasher(['verify' => true]);
         $this->assertFalse($hasher->check('password', null));
@@ -79,7 +81,7 @@ class HasherTest extends TestCase
         $this->assertFalse($hasher->check('password', ''));
     }
 
-    public function testBasicBcryptHashing()
+    public function testBasicBcryptHashing(): void
     {
         $hasher = new BcryptHasher;
         $value = $hasher->make('password');
@@ -88,18 +90,46 @@ class HasherTest extends TestCase
         $this->assertFalse($hasher->needsRehash($value));
         $this->assertTrue($hasher->needsRehash($value, ['rounds' => 1]));
         $this->assertSame('bcrypt', password_get_info($value)['algoName']);
+        $this->assertGreaterThanOrEqual(12, password_get_info($value)['options']['cost']);
         $this->assertTrue($this->hashManager->isHashed($value));
     }
 
-    public function testBcryptValueTooLong()
+    public function testBcryptValueTooLong(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        $hasher = new BcryptHasher(['limit' => 72]);
+        $hasher = new BcryptHasher(['limit' => '72']);
         $hasher->make(str_repeat('a', 73));
     }
 
-    public function testBasicArgon2iHashing()
+    public function testNumericStringConfigurationValuesAreNormalized(): void
+    {
+        $bcrypt = new BcryptHasher([
+            'rounds' => '4',
+            'verify' => '0',
+        ]);
+        $bcryptHash = $bcrypt->make('password');
+
+        $this->assertSame(4, password_get_info($bcryptHash)['options']['cost']);
+        $this->assertFalse($bcrypt->check('password', 'not-a-hash'));
+
+        $argon = new ArgonHasher([
+            'memory' => '1024',
+            'time' => '2',
+            'threads' => '1',
+            'verify' => '0',
+        ]);
+        $argonHash = $argon->make('password');
+
+        $this->assertSame([
+            'memory_cost' => 1024,
+            'time_cost' => 2,
+            'threads' => 1,
+        ], password_get_info($argonHash)['options']);
+        $this->assertFalse($argon->check('password', 'not-a-hash'));
+    }
+
+    public function testBasicArgon2iHashing(): void
     {
         $hasher = new ArgonHasher;
         $value = $hasher->make('password');
@@ -111,7 +141,7 @@ class HasherTest extends TestCase
         $this->assertTrue($this->hashManager->isHashed($value));
     }
 
-    public function testBasicArgon2idHashing()
+    public function testBasicArgon2idHashing(): void
     {
         $hasher = new Argon2IdHasher;
         $value = $hasher->make('password');
@@ -123,10 +153,8 @@ class HasherTest extends TestCase
         $this->assertTrue($this->hashManager->isHashed($value));
     }
 
-    /**
-     * @depends testBasicBcryptHashing
-     */
-    public function testBasicBcryptVerification()
+    #[Depends('testBasicBcryptHashing')]
+    public function testBasicBcryptVerification(): void
     {
         $this->expectException(RuntimeException::class);
 
@@ -135,10 +163,8 @@ class HasherTest extends TestCase
         (new BcryptHasher(['verify' => true]))->check('password', $argonHashed);
     }
 
-    /**
-     * @depends testBasicArgon2iHashing
-     */
-    public function testBasicArgon2iVerification()
+    #[Depends('testBasicArgon2iHashing')]
+    public function testBasicArgon2iVerification(): void
     {
         $this->expectException(RuntimeException::class);
 
@@ -147,10 +173,8 @@ class HasherTest extends TestCase
         (new ArgonHasher(['verify' => true]))->check('password', $bcryptHashed);
     }
 
-    /**
-     * @depends testBasicArgon2idHashing
-     */
-    public function testBasicArgon2idVerification()
+    #[Depends('testBasicArgon2idHashing')]
+    public function testBasicArgon2idVerification(): void
     {
         $this->expectException(RuntimeException::class);
 
@@ -159,9 +183,56 @@ class HasherTest extends TestCase
         (new Argon2IdHasher(['verify' => true]))->check('password', $bcryptHashed);
     }
 
-    public function testIsHashedWithNonHashedValue()
+    public function testIsHashedWithNonHashedValue(): void
     {
         $this->assertFalse($this->hashManager->isHashed('foo'));
+    }
+
+    public function testBasicBcryptNotSupported(): void
+    {
+        $this->expectException(RuntimeException::class);
+
+        (new BcryptHasher(['rounds' => 0]))->make('password');
+    }
+
+    public function testBasicArgon2iNotSupported(): void
+    {
+        $this->expectException(RuntimeException::class);
+
+        (new ArgonHasher(['time' => 0]))->make('password');
+    }
+
+    public function testBasicArgon2idNotSupported(): void
+    {
+        $this->expectException(RuntimeException::class);
+
+        (new Argon2IdHasher(['time' => 0]))->make('password');
+    }
+
+    public function testIsHashedUsesTheConfiguredDriversInfoMethod(): void
+    {
+        $driver = m::mock(HasherContract::class);
+        $driver->shouldReceive('info')
+            ->once()
+            ->with('custom-hash')
+            ->andReturn(['algo' => 'custom']);
+
+        $manager = new HashManager($this->getContainer(['driver' => 'custom']));
+        $manager->extend('custom', fn () => $driver);
+
+        $this->assertTrue($manager->isHashed('custom-hash'));
+    }
+
+    public function testAlgorithmVerificationUsesTheProtectedExtensionMethod(): void
+    {
+        $hasher = new class(['verify' => true]) extends BcryptHasher {
+            protected function isUsingCorrectAlgorithm(string $hashedValue): bool
+            {
+                return true;
+            }
+        };
+
+        $this->assertFalse($hasher->check('password', 'not-a-hash'));
     }
 
     public function testManagerFallsBackToDefaultHashingConfig(): void
@@ -179,23 +250,25 @@ class HasherTest extends TestCase
         $this->assertInstanceOf(Argon2IdHasher::class, $manager->createArgon2idDriver());
     }
 
-    protected function getContainer()
+    protected function getContainer(?array $hashing = null): Container
     {
+        $hashing ??= [
+            'driver' => 'bcrypt',
+            'bcrypt' => [
+                'rounds' => 10,
+            ],
+            'argon' => [
+                'memory' => 65536,
+                'threads' => 1,
+                'time' => 4,
+            ],
+        ];
+
         $container = m::mock(Container::class);
         $container->shouldReceive('make')
             ->with('config')
-            ->andReturn($config = new ConfigRepository([
-                'hashing' => [
-                    'driver' => 'bcrypt',
-                    'bcrypt' => [
-                        'rounds' => 10,
-                    ],
-                    'argon' => [
-                        'memory' => 65536,
-                        'threads' => 1,
-                        'time' => 4,
-                    ],
-                ],
+            ->andReturn(new ConfigRepository([
+                'hashing' => $hashing,
             ]));
 
         return $container;

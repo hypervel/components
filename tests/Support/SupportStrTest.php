@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Support;
 
 use Countable;
 use DateTimeImmutable;
+use DateTimeInterface;
 use Exception;
+use Hypervel\Container\Container;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Support\Fixtures\StringableObjectStub;
 use Hypervel\Tests\TestCase;
@@ -19,6 +21,26 @@ use ValueError;
 
 class SupportStrTest extends TestCase
 {
+    public function testTransReturnsStringable(): void
+    {
+        $originalContainer = Container::getInstance();
+        Container::setInstance($container = new Container);
+        $container->instance('translator', new class {
+            public function get(string $key, array $replace = [], ?string $locale = null): string
+            {
+                return str_replace(':name', $replace['name'], $key) . ' ' . $locale;
+            }
+        });
+
+        try {
+            $string = Str::trans('Hello :name', ['name' => 'Taylor'], 'en');
+        } finally {
+            Container::setInstance($originalContainer);
+        }
+
+        $this->assertSame('hello taylor en', (string) $string->lower());
+    }
+
     public function testStringCanBeLimitedByWords(): void
     {
         $this->assertSame('Taylor...', Str::words('Taylor Otwell', 1));
@@ -1026,6 +1048,24 @@ class SupportStrTest extends TestCase
         }
     }
 
+    public function testRandomSequenceIsRestoredWhenNormalGenerationThrows(): void
+    {
+        ThrowingSequenceStr::failNextRandomString();
+        ThrowingSequenceStr::createRandomStringsUsingSequence([1 => 'sequence']);
+
+        try {
+            ThrowingSequenceStr::random();
+            $this->fail('Expected random string generation to fail.');
+        } catch (Exception $exception) {
+            $this->assertSame('Random string generation failed.', $exception->getMessage());
+        }
+
+        $this->assertSame(16, strlen(ThrowingSequenceStr::random()));
+        $this->assertSame('sequence', ThrowingSequenceStr::random());
+
+        ThrowingSequenceStr::createRandomStringsNormally();
+    }
+
     public function testReplace()
     {
         $this->assertSame('foo bar hypervel', Str::replace('baz', 'hypervel', 'foo bar baz'));
@@ -1770,6 +1810,25 @@ class SupportStrTest extends TestCase
         }
     }
 
+    public function testUuidSequenceIsRestoredWhenNormalGenerationThrows(): void
+    {
+        $sequenceUuid = Str::uuid();
+        ThrowingSequenceStr::failNextUuid();
+        ThrowingSequenceStr::createUuidsUsingSequence([1 => $sequenceUuid]);
+
+        try {
+            ThrowingSequenceStr::uuid();
+            $this->fail('Expected UUID generation to fail.');
+        } catch (Exception $exception) {
+            $this->assertSame('UUID generation failed.', $exception->getMessage());
+        }
+
+        $this->assertNotSame($sequenceUuid, ThrowingSequenceStr::uuid());
+        $this->assertSame($sequenceUuid, ThrowingSequenceStr::uuid());
+
+        ThrowingSequenceStr::createUuidsNormally();
+    }
+
     public function testItCanFreezeUlids()
     {
         $this->assertNotSame((string) Str::ulid(), (string) Str::ulid());
@@ -1875,6 +1934,25 @@ class SupportStrTest extends TestCase
         } finally {
             Str::createUlidsNormally();
         }
+    }
+
+    public function testUlidSequenceIsRestoredWhenNormalGenerationThrows(): void
+    {
+        $sequenceUlid = Str::ulid();
+        ThrowingSequenceStr::failNextUlid();
+        ThrowingSequenceStr::createUlidsUsingSequence([1 => $sequenceUlid]);
+
+        try {
+            ThrowingSequenceStr::ulid();
+            $this->fail('Expected ULID generation to fail.');
+        } catch (Exception $exception) {
+            $this->assertSame('ULID generation failed.', $exception->getMessage());
+        }
+
+        $this->assertNotSame($sequenceUlid, ThrowingSequenceStr::ulid());
+        $this->assertSame($sequenceUlid, ThrowingSequenceStr::ulid());
+
+        ThrowingSequenceStr::createUlidsNormally();
     }
 
     public function testPasswordCreation()
@@ -2002,6 +2080,19 @@ class SupportStrTest extends TestCase
     }
 
     #[RequiresPhpExtension('intl')]
+    public function testCounted(): void
+    {
+        $this->assertSame('1 order', Str::counted('order', 1));
+        $this->assertSame('2 orders', Str::counted('order', 2));
+        $this->assertSame('0 orders', Str::counted('order', 0));
+        $this->assertSame('1 child', Str::counted('child', 1));
+        $this->assertSame('3 children', Str::counted('child', 3));
+        $this->assertSame('1,000 orders', Str::counted('order', 1000));
+        $this->assertSame('1 order', Str::counted('order', ['a']));
+        $this->assertSame('2 orders', Str::counted('order', ['a', 'b']));
+    }
+
+    #[RequiresPhpExtension('intl')]
     public function testPlural(): void
     {
         $this->assertSame('Laracon', Str::plural('Laracon', 1));
@@ -2038,5 +2129,62 @@ class SupportStrTest extends TestCase
         };
 
         $this->assertSame('UserGroups', Str::pluralPascal('UserGroup', $countable));
+    }
+}
+
+class ThrowingSequenceStr extends Str
+{
+    protected static bool $failNextRandomString = false;
+
+    protected static bool $failNextUuid = false;
+
+    protected static bool $failNextUlid = false;
+
+    public static function failNextRandomString(): void
+    {
+        static::$failNextRandomString = true;
+    }
+
+    public static function failNextUuid(): void
+    {
+        static::$failNextUuid = true;
+    }
+
+    public static function failNextUlid(): void
+    {
+        static::$failNextUlid = true;
+    }
+
+    public static function random(int $length = 16): string
+    {
+        if (static::$randomStringFactory === null && static::$failNextRandomString) {
+            static::$failNextRandomString = false;
+
+            throw new Exception('Random string generation failed.');
+        }
+
+        return parent::random($length);
+    }
+
+    public static function uuid(): Uuid
+    {
+        if (static::$uuidFactory === null && static::$failNextUuid) {
+            static::$failNextUuid = false;
+
+            throw new Exception('UUID generation failed.');
+        }
+
+        return parent::uuid();
+    }
+
+    public static function ulid(?DateTimeInterface $time = null): Ulid
+    {
+        if (static::$ulidFactory === null && static::$failNextUlid) {
+            static::$failNextUlid = false;
+
+            throw new Exception('ULID generation failed.');
+        }
+
+        return parent::ulid($time);
     }
 }
