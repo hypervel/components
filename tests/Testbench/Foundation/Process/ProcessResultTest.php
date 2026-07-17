@@ -45,6 +45,27 @@ class ProcessResultTest extends TestCase
         $this->processResultForOutput('{malformed')->output();
     }
 
+    public function testItRejectsInvalidResponseEnvelopes(): void
+    {
+        $outputs = [
+            'scalar' => json_encode('invalid', JSON_THROW_ON_ERROR),
+            'missing status' => json_encode([], JSON_THROW_ON_ERROR),
+            'non-boolean status' => json_encode(['successful' => 1], JSON_THROW_ON_ERROR),
+            'non-string exception' => json_encode(['successful' => false, 'exception' => []], JSON_THROW_ON_ERROR),
+            'non-string message' => json_encode(['successful' => false, 'message' => []], JSON_THROW_ON_ERROR),
+            'non-array parameters' => json_encode(['successful' => false, 'parameters' => 'invalid'], JSON_THROW_ON_ERROR),
+        ];
+
+        foreach ($outputs as $description => $output) {
+            try {
+                $this->processResultForOutput($output)->output();
+                $this->fail("Expected the {$description} response envelope to be rejected.");
+            } catch (RuntimeException $exception) {
+                $this->assertSame('Invalid remote process response envelope.', $exception->getMessage());
+            }
+        }
+    }
+
     public function testItRejectsMalformedBase64Results(): void
     {
         $this->expectException(RuntimeException::class);
@@ -54,6 +75,27 @@ class ProcessResultTest extends TestCase
             'successful' => true,
             'result' => '*not-base64*',
         ])->output();
+    }
+
+    public function testItRejectsMalformedSerializedResults(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to decode the remote process result.');
+
+        $this->processResultFor([
+            'successful' => true,
+            'result' => base64_encode('not-serialized'),
+        ])->output();
+    }
+
+    public function testItPreservesFalseResults(): void
+    {
+        $result = $this->processResultFor([
+            'successful' => true,
+            'result' => base64_encode(serialize(false)),
+        ]);
+
+        $this->assertFalse($result->output());
     }
 
     public function testItPreservesPublicFalseyExceptionParameters(): void

@@ -61,6 +61,14 @@ class ProcessDriver implements Driver
                 $output = substr($output, 0, $position);
             }
 
+            $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+            if (! is_array($payload)
+                || ! array_key_exists('successful', $payload)
+                || ! is_bool($payload['successful'])) {
+                throw new RuntimeException('Invalid concurrent process response envelope.');
+            }
+
             /** @var array{
              *     successful: bool,
              *     result?: string,
@@ -69,9 +77,13 @@ class ProcessDriver implements Driver
              *     parameters?: array<string, mixed>
              * } $payload
              */
-            $payload = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
-
             if ($payload['successful'] === false) {
+                if ((array_key_exists('exception', $payload) && ! is_string($payload['exception']))
+                    || (array_key_exists('message', $payload) && ! is_string($payload['message']))
+                    || (array_key_exists('parameters', $payload) && ! is_array($payload['parameters']))) {
+                    throw new RuntimeException('Invalid concurrent process response envelope.');
+                }
+
                 $exceptionClass = $payload['exception'] ?? RuntimeException::class;
                 $message = $payload['message'] ?? 'Serialized closure execution failed.';
                 $parameters = $payload['parameters'] ?? ['message' => $message];
@@ -98,7 +110,14 @@ class ProcessDriver implements Driver
                 throw new RuntimeException('Unable to decode the concurrent process result.');
             }
 
-            return [$key => unserialize($serializedResult)];
+            // Malformed payloads warn and return false, which is also a valid serialized result.
+            $unserializedResult = @unserialize($serializedResult);
+
+            if ($unserializedResult === false && $serializedResult !== serialize(false)) {
+                throw new RuntimeException('Unable to decode the concurrent process result.');
+            }
+
+            return [$key => $unserializedResult];
         })->all();
     }
 

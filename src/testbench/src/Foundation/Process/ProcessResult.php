@@ -96,6 +96,14 @@ final class ProcessResult
             $output = substr($output, 0, $position);
         }
 
+        $result = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
+
+        if (! is_array($result)
+            || ! array_key_exists('successful', $result)
+            || ! is_bool($result['successful'])) {
+            throw new RuntimeException('Invalid remote process response envelope.');
+        }
+
         /** @var array{
          *     successful: bool,
          *     result?: string,
@@ -104,9 +112,13 @@ final class ProcessResult
          *     parameters?: array<string, mixed>
          * } $result
          */
-        $result = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
-
         if ($result['successful'] === false) {
+            if ((array_key_exists('exception', $result) && ! is_string($result['exception']))
+                || (array_key_exists('message', $result) && ! is_string($result['message']))
+                || (array_key_exists('parameters', $result) && ! is_array($result['parameters']))) {
+                throw new RuntimeException('Invalid remote process response envelope.');
+            }
+
             $exceptionClass = $result['exception'] ?? RuntimeException::class;
             $message = $result['message'] ?? 'Serialized closure execution failed.';
             $parameters = $result['parameters'] ?? ['message' => $message];
@@ -133,7 +145,14 @@ final class ProcessResult
             throw new RuntimeException('Unable to decode the remote process result.');
         }
 
-        return unserialize($serializedResult);
+        // Malformed payloads warn and return false, which is also a valid serialized result.
+        $unserializedResult = @unserialize($serializedResult);
+
+        if ($unserializedResult === false && $serializedResult !== serialize(false)) {
+            throw new RuntimeException('Unable to decode the remote process result.');
+        }
+
+        return $unserializedResult;
     }
 
     /**

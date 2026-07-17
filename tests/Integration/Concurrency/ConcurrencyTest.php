@@ -478,6 +478,27 @@ class ConcurrencyTest extends TestCase
         $this->processDriverForOutput('{malformed')->run(static fn () => null);
     }
 
+    public function testProcessDriverRejectsInvalidResponseEnvelopes(): void
+    {
+        $outputs = [
+            'scalar' => json_encode('invalid', JSON_THROW_ON_ERROR),
+            'missing status' => json_encode([], JSON_THROW_ON_ERROR),
+            'non-boolean status' => json_encode(['successful' => 1], JSON_THROW_ON_ERROR),
+            'non-string exception' => json_encode(['successful' => false, 'exception' => []], JSON_THROW_ON_ERROR),
+            'non-string message' => json_encode(['successful' => false, 'message' => []], JSON_THROW_ON_ERROR),
+            'non-array parameters' => json_encode(['successful' => false, 'parameters' => 'invalid'], JSON_THROW_ON_ERROR),
+        ];
+
+        foreach ($outputs as $description => $output) {
+            try {
+                $this->processDriverForOutput($output)->run(static fn () => null);
+                $this->fail("Expected the {$description} response envelope to be rejected.");
+            } catch (RuntimeException $exception) {
+                $this->assertSame('Invalid concurrent process response envelope.', $exception->getMessage());
+            }
+        }
+    }
+
     public function testProcessDriverRejectsMalformedBase64Results(): void
     {
         $this->expectException(RuntimeException::class);
@@ -487,6 +508,27 @@ class ConcurrencyTest extends TestCase
             'successful' => true,
             'result' => '*not-base64*',
         ])->run(static fn () => null);
+    }
+
+    public function testProcessDriverRejectsMalformedSerializedResults(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to decode the concurrent process result.');
+
+        $this->processDriverFor([
+            'successful' => true,
+            'result' => base64_encode('not-serialized'),
+        ])->run(static fn () => null);
+    }
+
+    public function testProcessDriverPreservesFalseResults(): void
+    {
+        $driver = $this->processDriverFor([
+            'successful' => true,
+            'result' => base64_encode(serialize(false)),
+        ]);
+
+        $this->assertSame([false], $driver->run(static fn () => null));
     }
 
     public function testProcessDriverPreservesPublicFalseyExceptionParameters(): void
