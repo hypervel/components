@@ -225,6 +225,10 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     protected static function getDependencyFromUnionType(ReflectionUnionType $type): ?ReflectionNamedType
     {
         foreach ($type->getTypes() as $namedType) {
+            if (! $namedType instanceof ReflectionNamedType) {
+                continue;
+            }
+
             $className = $namedType->getName();
             if (
                 is_subclass_of($className, DataObject::class)

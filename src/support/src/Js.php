@@ -92,7 +92,7 @@ class Js implements Htmlable, Stringable
     public static function encode(mixed $data, int $flags = 0, int $depth = 512): string
     {
         if ($data instanceof Jsonable) {
-            return $data->toJson($flags | static::REQUIRED_FLAGS);
+            return $data->toJson($flags | static::REQUIRED_FLAGS | JSON_INVALID_UTF8_SUBSTITUTE);
         }
 
         if ($data instanceof Arrayable && ! ($data instanceof JsonSerializable)) {

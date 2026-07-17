@@ -267,7 +267,7 @@ class HasherTest extends TestCase
         $container = m::mock(Container::class);
         $container->shouldReceive('make')
             ->with('config')
-            ->andReturn($config = new ConfigRepository([
+            ->andReturn(new ConfigRepository([
                 'hashing' => $hashing,
             ]));
 

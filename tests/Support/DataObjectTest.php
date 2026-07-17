@@ -403,6 +403,14 @@ class DataObjectTest extends TestCase
         $this->assertSame('value', $object->value);
     }
 
+    public function testAutoResolveSkipsIntersectionMembersInDnfUnions(): void
+    {
+        $address = new TestAddressDataObject('123 Main St', 'New York', '10001');
+        $object = DnfUnionDataObject::make(['value' => $address], true);
+
+        $this->assertSame($address, $object->value);
+    }
+
     public function testAutoResolvePreservesMissingDefaultsAndExplicitNulls(): void
     {
         $defaulted = DefaultedDependencyDataObject::make([], true);
@@ -617,6 +625,13 @@ class IntersectionValue implements FirstIntersectionType, SecondIntersectionType
 class IntersectionDataObject extends DataObject
 {
     public function __construct(public FirstIntersectionType&SecondIntersectionType $value)
+    {
+    }
+}
+
+class DnfUnionDataObject extends DataObject
+{
+    public function __construct(public (FirstIntersectionType&SecondIntersectionType)|TestAddressDataObject $value)
     {
     }
 }

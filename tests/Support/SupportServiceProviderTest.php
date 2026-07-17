@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -420,7 +422,10 @@ class SupportServiceProviderTest extends TestCase
 
     public function testCanRemoveProvider()
     {
-        $tempFile = sys_get_temp_dir() . '/hypervel_test_providers_' . getmypid() . '.php';
+        $tempDirectory = ParallelTesting::tempDir('SupportServiceProviderTest-remove');
+        mkdir($tempDirectory, 0777, true);
+
+        $tempFile = $tempDirectory . '/providers.php';
 
         try {
             file_put_contents(
@@ -461,13 +466,16 @@ return [
 PHP, trim(file_get_contents($tempFile)));
             $this->assertSame(0640, fileperms($tempFile) & 0777);
         } finally {
-            @unlink($tempFile);
+            (new Filesystem)->deleteDirectory($tempDirectory);
         }
     }
 
     public function testCanAddProviderAndPreserveFileMode(): void
     {
-        $tempFile = sys_get_temp_dir() . '/hypervel_test_providers_' . getmypid() . '.php';
+        $tempDirectory = ParallelTesting::tempDir('SupportServiceProviderTest-add');
+        mkdir($tempDirectory, 0777, true);
+
+        $tempFile = $tempDirectory . '/providers.php';
 
         try {
             file_put_contents($tempFile, <<<'PHP'
@@ -493,7 +501,7 @@ return [
 PHP, trim(file_get_contents($tempFile)));
             $this->assertSame(0640, fileperms($tempFile) & 0777);
         } finally {
-            @unlink($tempFile);
+            (new Filesystem)->deleteDirectory($tempDirectory);
         }
     }
 }
