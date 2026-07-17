@@ -101,7 +101,7 @@ Anything found follows When to Stop and Report — "the task didn't ask me to fi
 
 ## Development Conventions
 
-The Working rules apply to all work in this repo. The Code conventions apply to newly written code — ported code preserves upstream naming, structure, and style except for the adaptations the Porting Policy explicitly approves (see Porting Packages).
+The Working rules apply to all work in this repo. The Code conventions apply to newly written code. Laravel package ports preserve upstream naming, structure, and style except for the approved adaptations under Porting Packages. Hyperf ports follow `docs/ai/porting-hyperf.md`.
 
 ### Working rules
 
@@ -640,7 +640,7 @@ Run `./vendor/bin/phpstan` and `./vendor/bin/php-cs-fixer fix` without flags —
 
 ### Policy
 
-When porting, we keep packages as close to 1:1 with the originals as possible so merging upstream changes is easy later. The exceptions are:
+When porting Laravel packages, whether first-party or third-party, keep them as close to 1:1 with upstream as possible so future changes are easy to merge. The exceptions are:
 - Modernizing PHP types (PHP 8.4+ features, strict types, strict comparisons)
 - Converting container array access (`$app['events']`) to `make()`, and untyped `$config->get()` calls to the typed getters where the key isn't nullable (see Container and the typed-getter rule under Development Conventions)
 - Adding Laravel-style title docblocks to methods (not classes — see Development Conventions)
@@ -650,7 +650,11 @@ When porting, we keep packages as close to 1:1 with the originals as possible so
 - Not porting deprecated upstream code or backwards-compatibility shims for versions/features Hypervel does not support — Hypervel is a new framework with no backwards-compatibility burden, so deprecated APIs and compatibility code that exist only to support older versions should be omitted rather than ported. Here, "upstream" means the framework or package being ported, not one of its dependencies — a Symfony deprecation does not make a Laravel API deprecated while Laravel still retains it. If a deprecated upstream surface still contains behavior that Hypervel actively needs, keep the behavior but move it onto the correct non-deprecated Hypervel-owned surface instead of porting the deprecated alias/wrapper as-is
 - General performance improvements — but STOP and explain the opportunity to the user first for approval
 
-When working on a package, check its README for the upstream reference before making changes. Most Hypervel packages are Laravel ports, while most low-level Swoole infrastructure packages are Hyperf ports. Some packages are ports of third-party packages such as Spatie packages, and a few are Hypervel-specific.
+Approved adaptations take precedence over upstream fidelity. Preserve Laravel upstream naming, structure, and style everywhere else.
+
+Hyperf is a historical reference rather than an ongoing merge target. For the rare Hyperf port, follow `docs/ai/porting-hyperf.md`.
+
+When working on a package, check its README for the upstream reference before making changes. Most Hypervel packages are ports of Laravel first-party or third-party ecosystem packages, such as Spatie packages. Most low-level Swoole infrastructure packages were originally ported from Hyperf, and a few packages are Hypervel-specific.
 
 Before porting Hyperf code or modifying a Hyperf-ported package, read `docs/ai/porting-hyperf.md` — it covers the conversion mechanics: container calls, ConfigProvider migration, listener/event conversion, and Hyperf test porting.
 
@@ -659,9 +663,9 @@ Before porting Hyperf code or modifying a Hyperf-ported package, read `docs/ai/p
 #### 1. Package skeleton
 
 If the Hypervel version of the package doesn't exist yet, create the skeleton using an existing package as a template:
-- **Porting a Laravel package:** Use the `cache` package as reference
+- **Porting a Laravel first-party package:** Use the `cache` package as reference
 - **Porting a Hyperf package:** Use the `pool` package as reference
-- **Porting a third-party package:** Use the `permission` package as a reference
+- **Porting a Laravel-ecosystem third-party package:** Use the `permission` package as a reference
 
 Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Every package must be wired in both places: its own `src/{package}/composer.json` for the subtree split, and the root `composer.json` for monorepo development. Update autoloading, `replace`, and Hypervel provider / alias discovery metadata as needed, and add root dependencies with `composer require` — see Providers and Listeners for where providers should be registered. Add a clear upstream reference to the new package's README:
 
@@ -675,7 +679,7 @@ Check the source package to see what classes exist. Create a comprehensive todo 
 
 1. Copy the file using `cp` — never read the source first and write a new version. Copying first then reading the copy avoids reading the file twice, which wastes context.
 2. Read the ENTIRE copied file to understand context. For large files, read them in chunks.
-3. Update namespaces and apply the Porting Policy's approved adaptations (modernized types, method docblocks, etc.). Do not make unrelated naming, structural, or style changes; ported code keeps upstream naming, structure, and style.
+3. Update namespaces and apply the Porting Policy's approved adaptations (modernized types, method docblocks, etc.). For Laravel ports, do not make unrelated naming, structural, or style changes; preserve upstream naming, structure, and style. For Hyperf ports, follow `docs/ai/porting-hyperf.md`.
 
 **For very large files where even reading in chunks is impractical**
 Update the file in chunks from top to bottom — read a chunk, update, read next chunk, update. Do NOT try to search for patterns and update scattered bits.
@@ -698,7 +702,7 @@ When ported code adds a provider or listener, wire providers and aliases in both
 
 ### Porting rules
 
-- **Preserve source constant/property/method order when merging** — when porting/merging methods into an existing Hypervel class, insert them at the same relative order as they appear in the upstream source. This keeps diffs against upstream meaningful and makes future merges easier.
+- **Preserve source constant/property/method order in Laravel ports** — when porting or merging methods into an existing Hypervel class, insert them in the same relative order as upstream. This keeps diffs meaningful and makes future merges easier.
 - **Preserve existing comments** — use the following rules for upstream code comments and docblocks:
   Do not remove or modify upstream code comments unless they are incorrect.
   Only remove `@param` and `@return` annotations where the description adds nothing beyond what the native type hint and parameter/method name already convey.
@@ -715,7 +719,7 @@ When ported code adds a provider or listener, wire providers and aliases in both
 
 Follow the same cp-then-edit process as source files. This workflow applies to both Hyperf and Laravel test porting. Laravel-specific conversions are covered in Porting Laravel Tests below; Hyperf-specific conversions (namespaces, license headers, container and error-handler mocking, NonCoroutine tests) are covered in `docs/ai/porting-hyperf.md`.
 
-File names and directory structure should mirror the source (Laravel or Hyperf) for 1:1 mapping — this enables automated porting of upstream PRs. When both Hyperf and Laravel have tests covering the same class, merge them into one file — take the more comprehensive version as the base and add unique tests from the other.
+Test file names and directory structure should mirror the source for both Laravel and Hyperf ports, providing a 1:1 class-to-test mapping. For Laravel ports, this also enables automated porting of upstream PRs. When both Hyperf and Laravel have tests covering the same class, merge them into one file — take the more comprehensive version as the base and add unique tests from the other.
 
 #### 1. Audit source tests
 

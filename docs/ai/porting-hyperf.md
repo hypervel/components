@@ -2,6 +2,8 @@
 
 Read this before porting Hyperf code or modifying a Hyperf-ported package. It covers the Hyperf side of the conversion: container calls, ConfigProviders, listeners/events, and tests. Hypervel's own container semantics, binding patterns, and alias rules live in the Container section of `AGENTS.md` — this doc assumes you have read them.
 
+Hyperf ports do not aim for upstream fidelity. The preserve-upstream rules under Porting Packages in `AGENTS.md` exist for upstreams we keep merging from — Laravel first-party and Laravel-ecosystem packages — and Hyperf is neither: it's a historical reference. Adapt ported code fully to Hypervel structure, style, and naming, including cleaning up variable and method names, following this guide.
+
 ## Container Conversion
 
 Hyperf and Hypervel have fundamentally different container semantics. Every ported file that touches the container needs these updates.
