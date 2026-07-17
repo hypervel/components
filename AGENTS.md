@@ -59,6 +59,18 @@ Before editing, identify the work as one of:
 
 This determines which upstream source and tests to compare. Upstream updates and new ports follow the workflows under Porting Packages; bug fixes and enhancements follow the workflows below. The same rules apply to all four. In every case, read the package README for the upstream reference and read the relevant Hypervel source and tests before editing.
 
+### Audit what you modify
+
+Modifying code is an implicit assessment of it. Whenever you edit a method, move code, copy a file, or port from upstream, check what you touch for:
+
+- Hardcoded values that should be derived (namespaces, defaults)
+- Defensive code that masks bugs
+- Conventions that diverge from how the framework actually does it
+- Deprecated APIs or dated patterns
+- Issues in the code right next to what you're changing
+
+Anything found follows When to Stop and Report — "the task didn't ask me to fix that" and "I copied it verbatim" are not reasons to stay silent. The trigger is modification: files read only for context don't need a line-by-line audit.
+
 ### Framework bug fixes
 
 1. Reproduce the bug with the smallest useful test.
@@ -89,33 +101,64 @@ This determines which upstream source and tests to compare. Upstream updates and
 
 ## Development Conventions
 
-These apply to all work in this repo — framework fixes, enhancements, and ports alike.
+The Working rules and the Avoid overengineering rules apply to all work in this repo. The Code conventions apply to newly written code. Laravel package ports preserve upstream naming, structure, and style except for the approved adaptations under Porting Packages. Hyperf ports follow `docs/ai/porting-hyperf.md`.
 
 ### Working rules
 
 - **Avoid bulk modification tools** — tools like `sed` and `replace_all` often have unwanted side effects. Never use bulk modification tools without explicit user approval; prefer manual edits. When approved, run them in multiple passes that each target long, exact, case-sensitive strings to avoid accidental changes.
-- **One file at a time** — never work on multiple files simultaneously.
+- **One file at a time** — never work on multiple files simultaneously. This governs manual editing; package-manager and formatter runs may touch multiple files.
 - **Never use Write to overwrite files** — always use Edit for targeted updates.
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write new version → delete old version.
 - **Grep broadly — never assume a subdir** — when searching for any symbol, class, method, or pattern, grep across the whole `src/` (or `tests/`) tree, not a specific package subdir. Assumptions about where something lives produce false negatives.
+- **Read the source before describing behavior** — never state how code behaves from memory or Laravel assumptions. Hypervel's coroutine runtime breaks many Laravel assumptions; if you haven't read the relevant source, read it first.
+- **Revert failed attempts immediately** — when a fix doesn't work, revert it before trying another approach. Don't leave experimental code in place.
+- **Use `composer require` for root dependencies** — the root `composer.json` has a lockfile, so dependency entries go through Composer, never hand-edits. Direct edits are fine for metadata sections no command can write (`autoload`, `replace`, `extra`, `scripts`) and for the sub-package `src/{package}/composer.json` files, which have no lockfile.
+
+### Avoid overengineering
+
+Build complete, long-term solutions, not MVPs or local workarounds. A broad change is correct when the root cause is in shared code, but every added mechanism must solve a real problem.
+
+- Require a supported, realistic path and meaningful harm before treating a concern as a defect. Rare failures count when they can actually occur in supported production use; merely conceivable states do not.
+- Prefer the simplest existing Laravel or Hypervel API, PHP feature, or database constraint. Do not duplicate framework behavior with package-owned machinery.
+- Do not add a new mechanism merely because it sounds robust, flexible, or potentially useful — for example, a registry, retry loop, configuration option, or extension point. It must solve a verified problem, meet a clear approved requirement, support a clearly likely need whose shape is understood, or remove greater complexity elsewhere.
+- Do not add machinery to preserve invariants across deliberate Laravel-style escape hatches such as `withoutEvents()`, quiet methods, raw builders, raw SQL, disabled middleware, or direct transport access unless the public contract explicitly promises that behavior.
+- For coroutine or worker-lifetime concerns, identify the concrete shared state, a realistic interleaving, and the resulting leak or failure before adding isolation, locking, cleanup, or caching machinery.
+- Fix related symptoms in the lowest shared layer that owns the behavior instead of adding separate defensive paths. The size of the resulting change is not a reason to patch around the defect.
+- A capability may be worth adding before its first use when the need is clearly likely and its design is understood. Do not add generic flexibility for hypothetical consumers.
+- Avoiding overengineering never justifies an incomplete fix, weaker correctness, missing security or isolation safeguards, or deferring a worthwhile improvement.
 
 ### Code conventions
 
+- **Modern PHP 8.4+ with full typing** — use constructor property promotion, readonly properties, enums, match expressions, named arguments, and attributes where they fit. Every file declares `strict_types=1`; parameters, return types, and properties are natively typed wherever PHP and the inherited API permit (e.g. `resource` cannot be represented as a native PHP type).
+- **Newly written classes use dependency injection** — inject contracts (e.g. `Repository $config`, `CacheRepository $cache`) via constructor or method injection rather than helpers, facades, or `new` for framework services. Dependencies become explicit in signatures and tests swap them in directly, without facade-mocking machinery. Fall back to `Container::getInstance()->make(...)` only where injection isn't possible — static contexts and traits, like the testing package's Concerns. Helpers (`config()`, `cache()`) are fine in non-class contexts such as route and config files.
+- **Never convert ported code to dependency injection** — ported code keeps its upstream facade, helper, and instantiation style. Converting it restructures classes and breaks 1:1 upstream mergeability.
 - **Import classes, don't use FQCNs** — always add a `use` statement and reference the short name. The only exceptions are places where FQCNs genuinely make more sense, such as middleware arrays and similar config-style identifier lists.
-- **No class docblocks unless warranted** — only add a class-level docblock if something unusual or complex needs explanation. Method docblocks (title only, Laravel-style, imperative mood: "Return", not "Returns") are always added. A body can accompany the title for complex methods that need further explanation.
-- **Don't comment self-evident code** — Add inline comments only for a non-obvious WHY. Don't annotate framework divergences, routine casts, or type normalizations; match the surrounding comment density.
+- **Group traits in `Concerns/`** — follow the package's existing convention if it already has a `Concerns/` or `Traits/` directory; never mix both in one package. New Hypervel-original packages always use `Concerns/`; a newly ported package keeps its upstream directory name.
+- **No class docblocks unless warranted** — only add a class-level docblock if something unusual or complex needs explanation: purpose, architectural role, usage patterns. Never write one that inventories the class — trait lists, method summaries, "registers X, configures Y" — that duplicates the members' own docblocks and goes stale. Method docblocks (title only, Laravel-style, imperative mood: "Return", not "Returns") are always added. A body can accompany the title for complex methods that need further explanation.
+- **Add comments where they're genuinely useful** — a short WHY for logic that isn't obvious from reading the code, the reason behind a bug fix, or logic that's coupled to code in other files and hard to understand in isolation. Don't comment what the code does, and don't annotate framework divergences, routine casts, or type normalizations. Match the surrounding comment density.
 - **Don't make classes final by default** — keep classes open; add `final` only when it protects a real invariant or avoids a concrete framework/API problem, e.g. immutability, coroutine-safety, or a security guarantee.
+- **Place methods logically, not at the end** — group new methods with related ones (getters with getters, setters with setters). Two exceptions: preserve upstream order when merging ported code (see Porting rules), and `flushState()` has its own placement rule (see Static state and test cleanup).
+- **Only extract methods when justified** — extract only when the logic is complex enough to benefit from a name, it's likely to be reused, or two or more methods call it. Don't extract a simple one-liner with a single caller.
+- **Never abbreviate variable names** — `$attributes` not `$attrs`, `$connection` not `$conn`.
 - **Enum cases use PascalCase by default** — `case Pending` not `case pending`, `case OauthToken` not `case OAUTH_TOKEN`. Applies to both backed and unit enums. **Exception:** when `->name` is used as an external identifier (cache keys, cookie names, filesystem disks, rate limiter names, timezone strings) or appears in serialized output (e.g., `toArray()` returning `'name' => $this->name`), match the consuming system's convention (typically lowercase or snake_case).
+- **Strict comparisons only** — always `===` and `!==`, never `==` or `!=`. Loose comparison causes subtle bugs. When converting an upstream loose comparison, match the operand's real type — `$value === 0.0` for a float, not `=== 0`. If upstream relies on loose coercion intentionally, normalize the value explicitly before comparing strictly — don't silently change the contract.
 - **Prefer union types over `mixed` when all types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as a reference, then trace the real control flow through method bodies across all callers and callees to confirm the types are correct.
-- **Use `jsonb()` for JSON columns** — prefer `$table->jsonb()` over `$table->json()` in migrations. PostgreSQL gets real `jsonb`; other supported databases compile it to their compatible JSON/text storage.
+- **Fail fast with framework and PHP exceptions** — don't add guards, wrapping, or defensive checks unless they handle a reachable invalid case or materially improve the error, and never swallow exceptions. If code would fail anyway (e.g. null passed to a typed parameter), let it fail naturally instead of adding a check that throws a custom exception — the stack trace is enough to diagnose.
+- **Use semantic column types in migrations** — `jsonb()` over `json()`, `uuid()` / `foreignUuid()` / `uuidMorphs()` over strings for UUIDs, `ipAddress()` and `macAddress()` over `string()`. PostgreSQL gets the real types (`jsonb`, `uuid`, `inet`, `macaddr`); the other supported databases fall back automatically to compatible types.
+- **No arbitrary string lengths** — use `->string('name')`, not `->string('name', 100)`. Don't invent limits; specify a length only when the domain or protocol defines one — exact (UUID: 36, ULID: 26, sha-256 hex token: 64) or a defined maximum (IPv6 address: 45).
+- **No database enums** — use string columns plus PHP enums. Adding a value to a database enum requires a migration.
+- **Prefer `timestamp` over `timestampTz` in migrations** — store times in UTC with plain `timestamp` columns, matching the normal convention in Laravel and Hypervel first-party migrations. Reserve `timestampTz` for columns that genuinely need database-level timezone semantics, such as integrating with an existing timezone-aware schema or columns written by clients in different session timezones. The schema API supports both — this is a column-choice convention, not an API restriction.
 - **Guard optional event dispatches with `hasListeners()`** — before constructing and dispatching framework events, guard them with `hasListeners()` so hot paths skip event overhead when nobody is listening. Do not guard dispatches where dispatching is the side effect, such as jobs, broadcasts, webhooks, or command bus calls.
+- **Use `Sleep::usleep()` / `Sleep::sleep()` for delays in source code** — `Sleep` is fakeable in tests. Use raw `sleep()` / `usleep()` only where real time must pass, such as test harnesses and external-process polling.
+- **Use typed config getters, no call-site defaults** — prefer `$config->string()`, `$config->integer()`, `$config->float()`, `$config->boolean()`, `$config->array()` over `$config->get()` for any key that can't legitimately be null. Typed getters fail fast on misconfiguration — an `InvalidArgumentException` naming the key, instead of a wrong type propagating silently — and give phpstan the real type. Defaults live in config files: `LoadConfiguration` merges the framework base config, and package providers must merge their defaults through `mergeConfigFrom()`. A call-site default is then dead code that can drift from the real default. Declare every key in the package's config file and call the getter without a default — a missing key then fails loudly instead of being silently papered over. Exceptions: bootstrap code that runs before or without config merging (e.g. `LoadConfiguration` itself), and genuinely nullable keys, which keep `get()`.
+- **Env var naming** — ported config keeps its upstream env var names. New Hypervel-specific keys start with the config file's domain prefix (`SERVER_`, `APP_`) with the clearest name for the rest, e.g. `SERVER_WORKERS` for the `Constant::OPTION_WORKER_NUM` server option. If a config value mirrors another config key, reuse that key's env var instead of defining a duplicate — e.g. the Slack log channel username falls back to `APP_NAME`.
 - **Use `resolve...Using` for Hypervel-owned config resolvers** — prefer this naming for callbacks that resolve config-derived values, unless an established Laravel domain convention already exists, such as `redirectUsing()`.
 - **Always use American English spelling** — E.g., "behavior" vs "behaviour", "utilize" vs "utilise".
 
 ## Container
 
-Hypervel's container keeps Laravel's API surface — `bind()`, `singleton()`, `scoped()`, `instance()`, aliases, contextual bindings — with resolution adapted for long-lived Swoole workers. `make()` and `get()` resolve identically; `get()` is just the PSR-compliant exception wrapper. Use `make()`. `Container::getInstance()` auto-creates via `??= new static()`, so it always returns a container.
+Hypervel's container keeps Laravel's API surface — `bind()`, `singleton()`, `scoped()`, `instance()`, aliases, contextual bindings — with resolution adapted for long-lived Swoole workers. `make()` and `get()` resolve identically; `get()` is just the PSR-compliant exception wrapper. Use `make()`, and use it instead of array access too: `offsetGet()` always returns `mixed`, while `make()` carries class-string generics phpstan can follow, `make()` can take parameters, and `$app[$key] = $value` is a hidden `bind()`. Converting `$app['...']` in ported code to `make()` is an approved modernization (see Policy under Porting Packages). `Container::getInstance()` auto-creates via `??= new static()`, so it always returns a container.
 
 A user-facing summary of these differences lives in `docs/ai/differences-vs-laravel.md` — keep it consistent with this section when container behavior changes.
 
@@ -262,9 +305,10 @@ Classes that use static caching need a `flushState()` method for test cleanup �
 
 These rules apply to all work. "STOP" means: explain the situation, give the root cause and your recommended fix, and wait for approval before proceeding.
 
-- **Stop on anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Explain the situation and your recommended solution. Do not proceed without approval.
+- **Stop on anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Investigate it, explain what you found, and give your recommendation. Do not proceed without approval. Do not dismiss it as theoretical without this investigation. If investigation finds no supported, realistic path or meaningful harm, report that conclusion briefly instead of presenting it as a defect or proposing machinery for it.
 - **Never skip or stub things out** — no removing code, no commenting out with "TODO once X is ported" placeholders. If such a situation arises, STOP and explain with your recommendation.
 - **Stop on any source code bug** — if phpstan or tests expose a bug in Hypervel source code (typing, logic, behavior), investigate, explain root cause, and provide a recommended fix for approval. Also STOP and report bugs found in the **upstream** Laravel/Hyperf source being ported (resource leaks, logic errors, missing cleanup, etc.) — explain the issue and recommend a fix. Upstream bugs must be fixed, not ported as-is.
+- **Trace upstream differences before calling them bugs** — a difference from Laravel or an upstream package is not proof that Hypervel is wrong, and matching upstream is not proof that Hypervel is correct. A verified Hypervel defect remains a defect when upstream has the same problem.
 - **Do not work around incorrect existing code to avoid churn** — if work exposes incorrect types, wrong logic, missing methods/classes, or other real defects in existing Hypervel code, fix the underlying code instead of adding compatibility hacks or local workarounds to sidestep the problem. Prioritize correctness and code quality over keeping the change small. For any non-trivial fix, STOP and explain the root cause and recommended change before proceeding.
 - **Never weaken or drop tests to work around source issues** — if a test exposes source-side problems (wrong types, broken logic, missing classes/methods, signatures that diverge from Laravel, missing API parity, etc.), STOP and report the issue with a recommendation for the most correct fix. Never delete, skip, loosen assertions, or alter tests to make them pass against flawed source code. The test is the spec; the source gets fixed. For type errors specifically, "When tests expose source code type errors" under Writing Tests covers how to identify the correct type.
 - **Never dismiss issues as "out of scope" or "pre-existing"** — when any issue surfaces (bugs, divergences, missing API parity, incorrect visibility, type inconsistencies, naming mismatches, etc.), always STOP and report it. Never use phrases like "out of scope", "pre-existing", "not part of this work", "separate concern", or "unrelated" to justify not reporting something. You are not permitted to decide what is or isn't worth addressing — only the user makes that call.
@@ -280,6 +324,10 @@ Worker-lifetime state has additional stop triggers — static/singleton state ch
 ## Writing Tests
 
 These rules apply to all tests — new tests for framework work and ported tests alike.
+
+### Avoid overengineered tests
+
+Test supported public behavior, meaningful branches, verified regressions, and realistic coroutine or worker-lifetime failures. Do not add production APIs, branches, or defensive machinery solely to make speculative states testable. Do not require invariants to survive deliberate framework escape hatches unless the public contract promises that behavior.
 
 ### Directory layout
 
@@ -610,8 +658,9 @@ Run `./vendor/bin/phpstan` and `./vendor/bin/php-cs-fixer fix` without flags —
 
 ### Policy
 
-When porting, we keep packages as close to 1:1 with the originals as possible so merging upstream changes is easy later. The exceptions are:
-- Modernizing PHP types (PHP 8.4+ features, strict types)
+When porting Laravel packages, whether first-party or third-party, keep them as close to 1:1 with upstream as possible so future changes are easy to merge. The exceptions are:
+- Modernizing PHP types (PHP 8.4+ features, strict types, strict comparisons)
+- Converting container array access (`$app['events']`) to `make()`, and untyped `$config->get()` calls to the typed getters where the key isn't nullable (see Container and the typed-getter rule under Development Conventions)
 - Adding Laravel-style title docblocks to methods (not classes — see Development Conventions)
 - For ported Laravel packages: making them coroutine-safe, adding Swoole performance enhancements (e.g., static property caching), making them pass PHPStan
 - Not porting upstream framework-specific integrations that only make sense in the source framework (for example packages, drivers) unless Hypervel intentionally has an equivalent surface
@@ -619,7 +668,13 @@ When porting, we keep packages as close to 1:1 with the originals as possible so
 - Not porting deprecated upstream code or backwards-compatibility shims for versions/features Hypervel does not support — Hypervel is a new framework with no backwards-compatibility burden, so deprecated APIs and compatibility code that exist only to support older versions should be omitted rather than ported. Here, "upstream" means the framework or package being ported, not one of its dependencies — a Symfony deprecation does not make a Laravel API deprecated while Laravel still retains it. If a deprecated upstream surface still contains behavior that Hypervel actively needs, keep the behavior but move it onto the correct non-deprecated Hypervel-owned surface instead of porting the deprecated alias/wrapper as-is
 - General performance improvements — but STOP and explain the opportunity to the user first for approval
 
-When working on a package, check its README for the upstream reference before making changes. Most Hypervel packages are Laravel ports, while most low-level Swoole infrastructure packages are Hyperf ports. Some packages are ports of third-party packages such as Spatie packages, and a few are Hypervel-specific.
+Hypervel has no obligation to preserve behavior from earlier Hypervel versions, but compatibility with the Laravel public APIs that Hypervel intentionally supports is a current design requirement. Do not use the lack of a backwards-compatibility burden to rename, remove, or change the meaning of those APIs. Propose genuinely different behavior as a distinct Hypervel API; do not hide it inside a Laravel-shaped API.
+
+Approved adaptations take precedence over upstream fidelity. Preserve Laravel upstream naming, structure, and style everywhere else.
+
+Hyperf is a historical reference rather than an ongoing merge target. For the rare Hyperf port, follow `docs/ai/porting-hyperf.md`.
+
+When working on a package, check its README for the upstream reference before making changes. Most Hypervel packages are ports of Laravel first-party or third-party ecosystem packages, such as Spatie packages. Most low-level Swoole infrastructure packages were originally ported from Hyperf, and a few packages are Hypervel-specific.
 
 Before porting Hyperf code or modifying a Hyperf-ported package, read `docs/ai/porting-hyperf.md` — it covers the conversion mechanics: container calls, ConfigProvider migration, listener/event conversion, and Hyperf test porting.
 
@@ -628,11 +683,11 @@ Before porting Hyperf code or modifying a Hyperf-ported package, read `docs/ai/p
 #### 1. Package skeleton
 
 If the Hypervel version of the package doesn't exist yet, create the skeleton using an existing package as a template:
-- **Porting a Laravel package:** Use the `cache` package as reference
+- **Porting a Laravel first-party package:** Use the `cache` package as reference
 - **Porting a Hyperf package:** Use the `pool` package as reference
-- **Porting a third-party package:** Use the `permission` package as a reference
+- **Porting a Laravel-ecosystem third-party package:** Use the `permission` package as a reference
 
-Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Every package must be wired in both places: its own `src/{package}/composer.json` for the subtree split, and the root `composer.json` for monorepo development. Update autoloading, dependencies, `replace`, and Hypervel provider / alias discovery metadata as needed — see Providers and Listeners for where providers should be registered. Add a clear upstream reference to the new package's README:
+Read the reference package's `composer.json`, `LICENSE.md`, and `README.md` and create equivalents for the new package. Every package must be wired in both places: its own `src/{package}/composer.json` for the subtree split, and the root `composer.json` for monorepo development. Update autoloading, `replace`, and Hypervel provider / alias discovery metadata as needed, and add root dependencies with `composer require` — see Providers and Listeners for where providers should be registered. Add a clear upstream reference to the new package's README:
 
 ```md
 Ported from: https://github.com/vendor/package
@@ -644,7 +699,7 @@ Check the source package to see what classes exist. Create a comprehensive todo 
 
 1. Copy the file using `cp` — never read the source first and write a new version. Copying first then reading the copy avoids reading the file twice, which wastes context.
 2. Read the ENTIRE copied file to understand context. For large files, read them in chunks.
-3. Update namespaces, modernize types, add method docblocks etc. as per the rules in this file.
+3. Update namespaces and apply the Porting Policy's approved adaptations (modernized types, method docblocks, etc.). For Laravel ports, do not make unrelated naming, structural, or style changes; preserve upstream naming, structure, and style. For Hyperf ports, follow `docs/ai/porting-hyperf.md`.
 
 **For very large files where even reading in chunks is impractical**
 Update the file in chunks from top to bottom — read a chunk, update, read next chunk, update. Do NOT try to search for patterns and update scattered bits.
@@ -667,8 +722,8 @@ When ported code adds a provider or listener, wire providers and aliases in both
 
 ### Porting rules
 
-- **Preserve source constant/property/method order when merging** — when porting/merging methods into an existing Hypervel class, insert them at the same relative order as they appear in the upstream source. This keeps diffs against upstream meaningful and makes future merges easier.
-- **Preserve existing comments** - use the following rules for upstream code comments and docblocks:
+- **Preserve source constant/property/method order in Laravel ports** — when porting or merging methods into an existing Hypervel class, insert them in the same relative order as upstream. This keeps diffs meaningful and makes future merges easier.
+- **Preserve existing comments** — use the following rules for upstream code comments and docblocks:
   Do not remove or modify upstream code comments unless they are incorrect.
   Only remove `@param` and `@return` annotations where the description adds nothing beyond what the native type hint and parameter/method name already convey.
   Examples of removable: `@param string $name The name of the cookie` (just restates `string $name`), `@param int $offset Stream offset` (just restates `int $offset`).
@@ -684,7 +739,7 @@ When ported code adds a provider or listener, wire providers and aliases in both
 
 Follow the same cp-then-edit process as source files. This workflow applies to both Hyperf and Laravel test porting. Laravel-specific conversions are covered in Porting Laravel Tests below; Hyperf-specific conversions (namespaces, license headers, container and error-handler mocking, NonCoroutine tests) are covered in `docs/ai/porting-hyperf.md`.
 
-File names and directory structure should mirror the source (Laravel or Hyperf) for 1:1 mapping — this enables automated porting of upstream PRs. When both Hyperf and Laravel have tests covering the same class, merge them into one file — take the more comprehensive version as the base and add unique tests from the other.
+Test file names and directory structure should mirror the source for both Laravel and Hyperf ports, providing a 1:1 class-to-test mapping. For Laravel ports, this also enables automated porting of upstream PRs. When both Hyperf and Laravel have tests covering the same class, merge them into one file — take the more comprehensive version as the base and add unique tests from the other.
 
 #### 1. Audit source tests
 
