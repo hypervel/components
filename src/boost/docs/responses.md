@@ -188,6 +188,18 @@ By default, thanks to the `Hypervel\Cookie\Middleware\EncryptCookies` middleware
 })
 ```
 
+Alternatively, you may encrypt only a specific set of cookies by passing them to the `only` argument. Every cookie not listed will remain unencrypted and readable by the client:
+
+```php
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->encryptCookies(only: [
+        'session_cookie',
+    ]);
+})
+```
+
+When the `only` list is not empty, it takes precedence over the `except` list.
+
 > [!NOTE]
 > In general, cookie encryption should never be disabled, as this exposes your cookies to potential client-side data exposure and tampering.
 
