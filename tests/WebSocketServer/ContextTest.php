@@ -77,6 +77,17 @@ class ContextTest extends TestCase
         }]);
     }
 
+    public function testCopyFromMissingSourcePreservesExistingValues(): void
+    {
+        CoroutineContext::set(Context::FD, 3);
+        Context::set('existing', 99);
+
+        Context::copyFrom(999);
+
+        $this->assertSame(99, Context::get('existing'));
+        $this->assertSame(['existing' => 99], Context::getStorage()[3]);
+    }
+
     public function testOverride()
     {
         Context::set('override.id', 1);

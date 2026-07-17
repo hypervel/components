@@ -73,6 +73,10 @@ class Context
      */
     public static function copyFrom(int $fromFd, array $keys = []): void
     {
+        if (! isset(self::$storage[$fromFd])) {
+            return;
+        }
+
         $fd = CoroutineContext::get(Context::FD, 0);
         $from = self::$storage[$fromFd];
         $map = $keys ? Arr::only($from, $keys) : $from;
