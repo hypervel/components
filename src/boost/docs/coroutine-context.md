@@ -14,6 +14,7 @@
     - [Enum Keys](#enum-keys)
 - [Copying Context](#copying-context)
     - [Copying From Another Coroutine](#copying-from-another-coroutine)
+    - [Capturing Context Values](#capturing-context-values)
     - [Copying From Non-Coroutine Context](#copying-from-non-coroutine-context)
     - [Copying To Non-Coroutine Context](#copying-to-non-coroutine-context)
     - [Reading Non-Coroutine Context](#reading-non-coroutine-context)
@@ -268,6 +269,37 @@ Copied values are merged into the current coroutine context. Existing values tha
 > [!NOTE]
 > `copyFrom` copies from another coroutine's context. It does not copy values from the non-coroutine context store.
 
+<a name="capturing-context-values"></a>
+### Capturing Context Values
+
+The `captureFrom` method returns context values as an array without copying them into another coroutine. By default, it captures all values from the current coroutine. You may pass a list of keys as the first argument to capture only those values:
+
+```php
+use Hypervel\Context\CoroutineContext;
+use Hypervel\Coroutine\Coroutine;
+
+$context = CoroutineContext::captureFrom(['request_id']);
+
+Coroutine::create(function () use ($context) {
+    CoroutineContext::setMany($context);
+
+    $requestId = CoroutineContext::get('request_id');
+});
+```
+
+To capture another coroutine, pass its ID using the `fromCoroutineId` argument:
+
+```php
+$context = CoroutineContext::captureFrom(['request_id'], fromCoroutineId: $parentId);
+```
+
+Values implementing `ReplicableContext` are replicated when they are captured. If replication fails, no destination context has been modified and the caller may handle the exception before creating a child coroutine.
+
+The returned map is a coroutine-transfer snapshot, not a serialization or persistence format: ordinary objects remain shared references. For a few application values, prefer explicit `get` calls.
+
+> [!NOTE]
+> Most application code should use `Coroutine::fork` or the `copyContext` argument on `go`, `co`, and `parallel`. Use `captureFrom` when implementing a custom coroutine or scheduling boundary that must separate context capture from installation.
+
 <a name="copying-from-non-coroutine-context"></a>
 ### Copying From Non-Coroutine Context
 
@@ -356,7 +388,7 @@ class RequestState implements ReplicableContext
 }
 ```
 
-Objects implementing `ReplicableContext` are copied by calling their `replicate` method when `CoroutineContext::copyFrom` or `CoroutineContext::copyFromNonCoroutine` copies them.
+Objects implementing `ReplicableContext` are copied by calling their `replicate` method when `Coroutine::fork`, `CoroutineContext::captureFrom`, `CoroutineContext::copyFrom`, or `CoroutineContext::copyFromNonCoroutine` copies them.
 
 <a name="context-containers"></a>
 ## Context Containers
