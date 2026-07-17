@@ -12,8 +12,10 @@ use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
+use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 use stdClass;
 
 use function Hypervel\Coroutine\go;
@@ -21,6 +23,59 @@ use function Hypervel\Coroutine\parallel;
 
 class ContextCoroutineTest extends TestCase
 {
+    public function testCaptureFromCurrentCoroutine(): void
+    {
+        CoroutineContext::set('capture.first', 'first');
+        CoroutineContext::set('capture.second', 'second');
+
+        $captured = CoroutineContext::captureFrom();
+
+        $this->assertSame('first', $captured['capture.first']);
+        $this->assertSame('second', $captured['capture.second']);
+    }
+
+    public function testCaptureFromCurrentCoroutineWithSelectiveKeys(): void
+    {
+        CoroutineContext::set('capture.wanted', 'yes');
+        CoroutineContext::set('capture.unwanted', 'no');
+
+        $this->assertSame(
+            ['capture.wanted' => 'yes'],
+            CoroutineContext::captureFrom(['capture.wanted']),
+        );
+    }
+
+    public function testCaptureFromExplicitCoroutine(): void
+    {
+        $sourceReady = new Channel(1);
+        $releaseSource = new Channel(1);
+
+        Coroutine::create(static function () use ($sourceReady, $releaseSource): void {
+            CoroutineContext::set('capture.source', 'source');
+            CoroutineContext::set('capture.other', 'other');
+            $sourceReady->push(Coroutine::id());
+            $releaseSource->pop();
+        });
+
+        $sourceId = $sourceReady->pop(1.0);
+
+        try {
+            $this->assertSame(
+                [
+                    'capture.source' => 'source',
+                    'capture.other' => 'other',
+                ],
+                CoroutineContext::captureFrom(fromCoroutineId: $sourceId),
+            );
+            $this->assertSame(
+                ['capture.source' => 'source'],
+                CoroutineContext::captureFrom(['capture.source'], $sourceId),
+            );
+        } finally {
+            $releaseSource->push(true);
+        }
+    }
+
     public function testCopy()
     {
         CoroutineContext::set('test.store.id', $uid = uniqid());
@@ -147,5 +202,34 @@ class ContextCoroutineTest extends TestCase
             $res = CoroutineContext::getOrSet('get_or_set.id.coroutine_id', fn () => '123', $id);
             $this->assertSame($res, $value);
         });
+    }
+
+    public function testFailedReplicationDoesNotPartiallyModifyTheDestination(): void
+    {
+        $sourceReady = new Channel(1);
+        $releaseSource = new Channel(1);
+
+        Coroutine::create(static function () use ($sourceReady, $releaseSource): void {
+            CoroutineContext::set('stable', 'source');
+            CoroutineContext::set('throwing', new ThrowingReplicableContext);
+            $sourceReady->push(Coroutine::id());
+            $releaseSource->pop();
+        });
+
+        CoroutineContext::set('stable', 'destination');
+        CoroutineContext::set('untouched', 'value');
+
+        try {
+            CoroutineContext::copyFrom($sourceReady->pop(1.0));
+            $this->fail('Expected context replication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to replicate context.', $exception->getMessage());
+        } finally {
+            $releaseSource->push(true);
+        }
+
+        $this->assertSame('destination', CoroutineContext::get('stable'));
+        $this->assertSame('value', CoroutineContext::get('untouched'));
+        $this->assertFalse(CoroutineContext::has('throwing'));
     }
 }

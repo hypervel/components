@@ -40,6 +40,19 @@ class ContextTest extends TestCase
         }
     }
 
+    public function testCaptureFromOutsideCoroutineDoesNotReadNonCoroutineContext(): void
+    {
+        CoroutineContext::set('capture.fallback', 'fallback');
+
+        $this->assertSame([], CoroutineContext::captureFrom());
+        $this->assertSame([], CoroutineContext::captureFrom(['capture.fallback']));
+    }
+
+    public function testCaptureFromDestroyedCoroutineReturnsEmptyArray(): void
+    {
+        $this->assertSame([], CoroutineContext::captureFrom(fromCoroutineId: -1));
+    }
+
     public function testCopyFromNonCoroutineCopiesAllKeys(): void
     {
         CoroutineContext::set('foo', 'foo');
@@ -149,6 +162,26 @@ class ContextTest extends TestCase
             CoroutineContext::flush($coroutineId);
             $this->assertSame([], $container->getArrayCopy());
             $this->assertSame('fallback', CoroutineContext::getFromNonCoroutine('shared'));
+        } finally {
+            EngineCoroutine::resumeById($coroutineId);
+            // Drain explicitly so Swoole does not fall back to its deprecated shutdown wait.
+            Event::wait();
+        }
+    }
+
+    public function testCopyFromLiveCoroutineRequiresACoroutineDestination(): void
+    {
+        $coroutineId = Coroutine::create(static function (): void {
+            CoroutineContext::set('source', 'value');
+            EngineCoroutine::yield();
+        });
+
+        try {
+            CoroutineContext::copyFrom($coroutineId);
+            $this->fail('Expected copying into a missing current coroutine to fail.');
+        } catch (CoroutineDestroyedException $exception) {
+            $this->assertSame('Coroutine #-1 has been destroyed.', $exception->getMessage());
+            $this->assertFalse(CoroutineContext::has('source'));
         } finally {
             EngineCoroutine::resumeById($coroutineId);
             // Drain explicitly so Swoole does not fall back to its deprecated shutdown wait.

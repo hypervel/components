@@ -57,7 +57,7 @@ class ContextCoroutineTest extends TestCase
 
         $channel = new Channel(1);
 
-        // fork() copies all parent context into the child via CoroutineContext::copyFrom()
+        // fork() copies all parent context into the child.
         Coroutine::fork(function () use ($channel) {
             // Child should see the copied value
             $channel->push(Repository::getInstance()->get('trace_id'));

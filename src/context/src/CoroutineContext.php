@@ -108,26 +108,38 @@ class CoroutineContext
      */
     public static function copyFrom(int $fromCoroutineId, array $keys = []): void
     {
+        static::setMany(
+            static::captureFrom($keys, $fromCoroutineId),
+            Coroutine::id(),
+        );
+    }
+
+    /**
+     * Capture context values as an array.
+     *
+     * Replicable values are copied in the calling coroutine at capture time.
+     *
+     * @return array<TKey, TValue>
+     */
+    public static function captureFrom(array $keys = [], ?int $fromCoroutineId = null): array
+    {
         $from = Coroutine::getContextFor($fromCoroutineId);
 
         if ($from === null) {
-            return;
+            return [];
         }
 
-        $current = Coroutine::getContextFor();
-
-        if ($keys) {
-            $map = array_intersect_key($from->getArrayCopy(), array_flip($keys));
-        } else {
-            $map = $from->getArrayCopy();
-        }
+        $map = $keys
+            ? array_intersect_key($from->getArrayCopy(), array_flip($keys))
+            : $from->getArrayCopy();
 
         foreach ($map as $key => $value) {
             if ($value instanceof ReplicableContext) {
-                $value = $value->replicate();
+                $map[$key] = $value->replicate();
             }
-            $current[$key] = $value;
         }
+
+        return $map;
     }
 
     /**
@@ -172,8 +184,26 @@ class CoroutineContext
      */
     public static function setMany(array $values, ?int $coroutineId = null): void
     {
+        if ($values === []) {
+            return;
+        }
+
+        $context = Coroutine::getContextFor($coroutineId);
+
+        if ($context !== null) {
+            foreach ($values as $key => $value) {
+                $context[(string) $key] = $value;
+            }
+
+            return;
+        }
+
+        if ($coroutineId !== null) {
+            throw new CoroutineDestroyedException(sprintf('Coroutine #%d has been destroyed.', $coroutineId));
+        }
+
         foreach ($values as $key => $value) {
-            static::set((string) $key, $value, $coroutineId);
+            static::$nonCoroutineContext[(string) $key] = $value;
         }
     }
 
