@@ -12,6 +12,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
+use stdClass;
 use Symfony\Component\HttpFoundation\Cookie;
 
 enum CookieJarTestNameEnum: string
@@ -330,6 +331,25 @@ class CookieJarTest extends TestCase
         $manager = new CookieJar;
 
         $this->assertEquals('bar', $manager->get('foo'));
+    }
+
+    public function testGetReturnsNestedCookieValuesAndArrayDefaults(): void
+    {
+        RequestContext::set(Request::create('/', 'GET', [], [
+            'preferences' => ['theme' => 'dark'],
+        ]));
+
+        $manager = new CookieJar;
+
+        $this->assertSame(['theme' => 'dark'], $manager->get('preferences'));
+        $this->assertSame(['theme' => 'light'], $manager->get('missing', ['theme' => 'light']));
+    }
+
+    public function testQueuedReturnsMixedDefaults(): void
+    {
+        $default = new stdClass;
+
+        $this->assertSame($default, (new CookieJar)->queued('missing', $default));
     }
 
     // =========================================================================

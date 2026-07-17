@@ -56,7 +56,7 @@ class CookieJar implements JarContract
     /**
      * Get a cookie value from the current request.
      */
-    public function get(UnitEnum|string $key, ?string $default = null): ?string
+    public function get(UnitEnum|string $key, string|array|null $default = null): string|array|null
     {
         $request = RequestContext::getOrNull();
 
@@ -110,8 +110,10 @@ class CookieJar implements JarContract
 
     /**
      * Get a queued cookie instance.
+     *
+     * @phpstan-return ($default is null ? Cookie|null : mixed)
      */
-    public function queued(UnitEnum|string $key, mixed $default = null, ?string $path = null): ?Cookie
+    public function queued(UnitEnum|string $key, mixed $default = null, ?string $path = null): mixed
     {
         $key = $key instanceof UnitEnum ? (string) enum_value($key) : $key;
         $queued = Arr::get($this->getQueuedCookiesRaw(), $key, []);
@@ -202,6 +204,8 @@ class CookieJar implements JarContract
 
     /**
      * Get the cookies which have been queued for the next request.
+     *
+     * @return array<int, Cookie>
      */
     public function getQueuedCookies(): array
     {
