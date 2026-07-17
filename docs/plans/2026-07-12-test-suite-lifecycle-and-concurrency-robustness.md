@@ -99,13 +99,12 @@ The exact scheduler interleaving that made an otherwise inline fake job park in 
 18. Programmatic console calls inherit Symfony's process-global shell verbosity even though Hypervel already clones each Command per execution and safely supports concurrent and nested command calls. Adding a second serialization layer would guard no observable state and deadlock commands that delegate work to child coroutines.
 19. Config and route cache subprocesses do not inherit cache-path overrides stored only in PHP's `$_SERVER`, so a child can load a different cache from the one its parent cleared.
 20. Tests that mutate Testbench bootstrap, provider, route, and published files use unchecked sequential restoration; one failed cleanup can silently contaminate a later subprocess boot.
-21. Engine HTTP request dispatch does not catch a coroutine creation failure at the native Swoole callback boundary, so overload can escape without completing the response.
-22. Pool and object-pool channels can enqueue or destroy an item and then throw while creating an outside-coroutine wake helper, reporting a committed ownership change as failed.
-23. `SafeSocket` treats the valid string payload `"0"` as a closed receive, and Fswatch treats arbitrary read chunks as complete newline-delimited records.
-24. Child-reaping tests treat every `waitpid()` error as success or fall back to an unbounded blocking wait, so interruption can hide or create an owned-process leak.
-25. Reverb commits a live Redis subscriber before spawning its consumer. A failed spawn leaks that subscriber, and resetting the retry counter before the subscription handshake makes its retry limit unreachable.
-26. Horizon can signal a newly forked worker or supervisor before that child installs its handlers. An early SIGUSR2 keeps its default terminating disposition, producing the intermittent paused-supervisor failure that strict child reaping exposes.
-27. The queue worker accepts `--monitor-interval` and stores it on `WorkerOptions`, but the timeout monitor reads a separate constructor property that always retains its one-second default, so the documented option has no effect.
+21. Pool and object-pool channels can enqueue or destroy an item and then throw while creating an outside-coroutine wake helper, reporting a committed ownership change as failed.
+22. `SafeSocket` treats the valid string payload `"0"` as a closed receive, and Fswatch treats arbitrary read chunks as complete newline-delimited records.
+23. Child-reaping tests treat every `waitpid()` error as success or fall back to an unbounded blocking wait, so interruption can hide or create an owned-process leak.
+24. Reverb commits a live Redis subscriber before spawning its consumer. A failed spawn leaks that subscriber, and resetting the retry counter before the subscription handshake makes its retry limit unreachable.
+25. Horizon can signal a newly forked worker or supervisor before that child installs its handlers. An early SIGUSR2 keeps its default terminating disposition, producing the intermittent paused-supervisor failure that strict child reaping exposes.
+26. The queue worker accepts `--monitor-interval` and stores it on `WorkerOptions`, but the timeout monitor reads a separate constructor property that always retains its one-second default, so the documented option has no effect.
 
 ## Design principles
 
@@ -295,7 +294,6 @@ The complete caller audit requires these additional dispositions:
   Remove the unused public `subscribe()` method from `PubSubProvider`; `connect()` owns the complete lifecycle and the sole implementation has no external `subscribe()` caller. The internal consumer closes its captured subscriber and clears provider state by object identity before reconnecting, so an older consumer cannot clear a newer connection.
 
   Drain queued publishes in order and remove each payload only after a successful publish. A `JsonException` is a permanent payload defect: log and drop that one payload so it cannot poison every reconnect. A Redis or connection failure is transient: retain that payload and the remaining tail, abort the startup transaction, and retry through the existing bounded path. Do not replace the now-bounded `connect()`/`reconnect()` control flow with a general reconnect state machine.
-- Engine HTTP request dispatch is a native callback boundary, not an ordinary propagation boundary. Catch `CoroutineCreateException` around the spawn itself, log the overload failure, and complete the native response with HTTP 503. The existing child `try/catch` cannot catch a failure that occurs before the child exists, and an exception must not escape through Swoole's native callback.
 - pool and object-pool channels enqueue or destroy an item before `Channel::signal()` may create a helper coroutine for an outside-coroutine caller. A spawn failure must not report release/discard as failed after ownership already changed. Handle this once in both synchronized channel implementations: treat an unavailable helper spawn as a missed wake, and make pool checkout recheck idle/capacity state once at its deadline before reporting exhaustion. This also closes the ordinary timeout-versus-release race. Keep both channel implementations structurally aligned; do not catch the exception at every release caller or add a permanent dispatcher coroutine per pool.
 
 The channel boundary is narrow:
@@ -1487,7 +1485,7 @@ Each owner keeps its ordered resource list locally, restores bootstrap/provider 
 
 The order is chosen so lower-level failure contracts exist before their consumers are hardened.
 
-1. Add the Engine coroutine-creation exception and exact `int` return contract; define the native HTTP overload response.
+1. Add the Engine coroutine-creation exception and exact `int` return contract.
 2. Update high-level coroutine helpers, transactionally balance all pre-spawn bookkeeping including Reverb pub/sub startup, and make connection/object-pool wake failures non-throwing after committed state with one final checkout-state pass.
 3. Stabilize `Coordinator\Timer` identity and creation rollback.
 4. Harden `RunTestsInCoroutine` cleanup and Mockery ownership/fallback reset.
@@ -1526,7 +1524,6 @@ Use a process-isolated test or a purpose-built subprocess so changing Swoole's p
 - assert SignalRegistry removes only registrations from the failed call, normal unregister terminally removes the native waiter, SignalManager cancels a partially created watcher set, and intentional cancellation is never reported to the exception handler;
 - assert worker-exit coordination no longer consumes a coroutine slot;
 - make an `OnWorkerExit` listener throw and assert the worker-exit coordinator is still resumed while the listener failure propagates;
-- exhaust creation from the Engine HTTP native request callback and assert it logs the failure, returns HTTP 503, and does not invoke the application handler;
 - for both connection pool and object pool, release and discard from outside a coroutine while a waiter exists and helper creation is unavailable; assert ownership remains committed, the releasing caller does not receive a false failure, the waiter performs exactly one final immediate state pass, and neither implementation enters a second wait or reports false exhaustion;
 - exhaust creation after Reverb completes the Redis subscription handshake; assert the exact subscriber is closed, provider state is not left connected, and reconnect begins without leaking its receive coroutine or shutdown timer;
 - make Reverb subscriber creation or subscription fail repeatedly with faked sleeps; assert the retry counter reaches its existing limit instead of resetting on every attempt;
@@ -1668,7 +1665,6 @@ Before implementation begins, and again before declaring it complete, verify:
 
 - [ ] every native coroutine creation path has one failure contract;
 - [ ] every pre-spawn counter/token/registration is rolled back exactly once;
-- [ ] native HTTP request overload completes with a controlled 503 instead of escaping through Swoole;
 - [ ] pool/object-pool wake failure cannot turn a committed release or discard into a reported failure, and checkout performs one final state pass;
 - [ ] Timer captures coordinator identity before scheduling;
 - [ ] cleanup preserves the first failure but never skips later independent cleanup;
