@@ -9,7 +9,7 @@ use Hypervel\Engine\Channel;
 class Locker
 {
     /**
-     * @var array<string, null|Channel>
+     * @var array<string, Channel>
      */
     protected static array $channels = [];
 
@@ -38,7 +38,7 @@ class Locker
     {
         if (isset(static::$channels[$key])) {
             $channel = static::$channels[$key];
-            static::$channels[$key] = null;
+            unset(static::$channels[$key]);
             $channel->close();
         }
     }
@@ -49,7 +49,7 @@ class Locker
     public static function flushState(): void
     {
         foreach (static::$channels as $channel) {
-            $channel?->close();
+            $channel->close();
         }
 
         static::$channels = [];

@@ -8,6 +8,7 @@ use Hypervel\Coroutine\Mutex;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Engine\Channel;
 use Hypervel\Tests\TestCase;
+use ReflectionProperty;
 
 use function Hypervel\Coroutine\go;
 
@@ -52,6 +53,22 @@ class MutexTest extends TestCase
             Mutex::flushState();
 
             $this->assertTrue(Mutex::lock('held', 0.001));
+        } finally {
+            Mutex::flushState();
+        }
+    }
+
+    public function testClearRemovesReleasedKeys(): void
+    {
+        try {
+            $this->assertTrue(Mutex::lock('dynamic'));
+
+            Mutex::clear('dynamic');
+
+            $this->assertArrayNotHasKey(
+                'dynamic',
+                (new ReflectionProperty(Mutex::class, 'channels'))->getValue(),
+            );
         } finally {
             Mutex::flushState();
         }

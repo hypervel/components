@@ -9,7 +9,7 @@ use Hypervel\Engine\Channel;
 class Mutex
 {
     /**
-     * @var array<string, null|Channel>
+     * @var array<string, Channel>
      */
     protected static array $channels = [];
 
@@ -61,7 +61,7 @@ class Mutex
     {
         if (isset(static::$channels[$key])) {
             $channel = static::$channels[$key];
-            static::$channels[$key] = null;
+            unset(static::$channels[$key]);
             $channel->close();
         }
     }
@@ -72,7 +72,7 @@ class Mutex
     public static function flushState(): void
     {
         foreach (static::$channels as $channel) {
-            $channel?->close();
+            $channel->close();
         }
 
         static::$channels = [];
