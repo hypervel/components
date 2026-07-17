@@ -990,7 +990,7 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `engine`
+- **Active package or work unit:** `coroutine`
 - **Ledger entries required for the active work:** None.
 - **Pending revalidation carried into the active work:** None.
 
@@ -1079,7 +1079,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 ### Coroutine and resource infrastructure
 
-- [ ] `engine`
+- [x] `engine`
 - [ ] `coroutine`
 - [ ] `concurrency`
 - [ ] `coordinator`
