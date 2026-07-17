@@ -188,7 +188,7 @@ class ResultsFormatter
      */
     private function calculateDiff(?float $allValue, ?float $anyValue, string $better): string
     {
-        if ($allValue === null || $anyValue === null || $allValue == 0) {
+        if ($allValue === null || $anyValue === null || $allValue === 0.0) {
             return '<fg=gray>-</>';
         }
 
