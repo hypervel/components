@@ -9,7 +9,6 @@ use Closure;
 use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\ProcessResult as BaseProcessResult;
 use Hypervel\Support\Traits\ForwardsCalls;
-use JsonException;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -83,7 +82,7 @@ final class ProcessResult
     /**
      * Get the standard output of the process.
      *
-     * @throws JsonException
+     * @throws Throwable If the remote closure failed or its response could not be decoded
      */
     public function output(): mixed
     {
@@ -91,6 +90,10 @@ final class ProcessResult
 
         if (! $this->command instanceof Closure) {
             return $output;
+        }
+
+        if (($position = strpos($output, "\x1f\x8b")) !== false) {
+            $output = substr($output, 0, $position);
         }
 
         /** @var array{
@@ -104,20 +107,33 @@ final class ProcessResult
         $result = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
 
         if ($result['successful'] === false) {
-            $exception = $result['exception'] ?? RuntimeException::class;
-            $parameters = array_values(array_filter(
-                $result['parameters'] ?? [],
-                static fn (mixed $value): bool => $value !== null
-            ));
+            $exceptionClass = $result['exception'] ?? RuntimeException::class;
+            $message = $result['message'] ?? 'Serialized closure execution failed.';
+            $parameters = $result['parameters'] ?? ['message' => $message];
 
-            if ($parameters === []) {
-                $parameters = [$result['message'] ?? 'Serialized closure execution failed.'];
+            try {
+                $exception = new $exceptionClass(...$parameters);
+            } catch (Throwable $constructionException) {
+                throw new RuntimeException($message, previous: $constructionException);
             }
 
-            throw new $exception(...$parameters);
+            if (! $exception instanceof Throwable) {
+                throw new RuntimeException($message);
+            }
+
+            throw $exception;
         }
 
-        return unserialize($result['result'] ?? serialize(null));
+        $encodedResult = $result['result'] ?? null;
+        $serializedResult = is_string($encodedResult)
+            ? base64_decode($encodedResult, true)
+            : false;
+
+        if ($serializedResult === false) {
+            throw new RuntimeException('Unable to decode the remote process result.');
+        }
+
+        return unserialize($serializedResult);
     }
 
     /**
