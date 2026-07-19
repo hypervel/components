@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `process`
+- **Active package or work unit:** `server-process`
 - **Ledger entries required for the active work:** None.
-- **Pending revalidation carried into the active work:** None for Process. Later package revalidation remains tracked in the cross-package dependency index.
+- **Pending revalidation carried into the active work:** None for Server Process. Later package revalidation remains tracked in the cross-package dependency index.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1052,7 +1052,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `auth-01` | `support`, `auth` | later full `auth` audit | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts` and `support` (revalidation complete), `filesystem`, `foundation`; later full `filesystem` and `foundation` audits | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
-| `process-01` | `process` | later full `process` audit | `Expose process stopping through the contract`; finding `process-01` |
+| `process-02` | `process` | `concurrency` (revalidation complete) | `Make Process callbacks and pools failure-safe`; finding `process-02` |
 
 ## Package checklist
 
@@ -1103,7 +1103,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `signal`
 - [x] `pool`
 - [x] `object-pool`
-- [ ] `process`
+- [x] `process`
 - [ ] `server-process`
 - [ ] `filesystem`
 
