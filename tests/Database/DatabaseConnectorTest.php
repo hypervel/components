@@ -75,6 +75,20 @@ class DatabaseConnectorTest extends TestCase
         $this->assertSame($result, $connection);
     }
 
+    public function testPostgresConnectTimeoutIsBakedIntoDsn(): void
+    {
+        $dsn = "pgsql:host=foo;dbname='bar';connect_timeout=2";
+        $config = ['host' => 'foo', 'database' => 'bar', 'connect_timeout' => 2];
+        $connector = $this->getMockBuilder(PostgresConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
+        $connection = m::mock(PDO::class);
+        $connector->expects($this->once())->method('getOptions')->with($this->equalTo($config))->willReturn(['options']);
+        $connector->expects($this->once())->method('createConnection')->with($this->equalTo($dsn), $this->equalTo($config), $this->equalTo(['options']))->willReturn($connection);
+
+        $result = $connector->connect($config);
+
+        $this->assertSame($result, $connection);
+    }
+
     /**
      * @param array|string $searchPath
      * @param string $expectedSearchPath Quoted search path (output of quoteSearchPath)

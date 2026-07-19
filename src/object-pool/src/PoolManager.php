@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
-use Hypervel\Contracts\Container\Container;
 use Hypervel\ObjectPool\Contracts\Factory as FactoryContract;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use JsonException;
@@ -17,14 +16,6 @@ class PoolManager implements FactoryContract
 
     /** @var array<string, PoolDefinition> */
     protected array $definitions = [];
-
-    /**
-     * Create an object-pool manager.
-     */
-    public function __construct(
-        protected Container $container,
-    ) {
-    }
 
     /**
      * Get or create the pool registered for an immutable definition.
@@ -68,7 +59,7 @@ class PoolManager implements FactoryContract
             }
         }
 
-        $pool = new SimpleObjectPool($this->container, $callback, $definition->options);
+        $pool = new SimpleObjectPool($callback, $definition->options);
 
         $this->definitions[$identity] = $definition;
 

@@ -19,19 +19,19 @@ class SignalServiceProvider extends ServiceProvider
     {
         $events = $this->app->make('events');
 
-        $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event) {
+        $events->listen(BeforeWorkerStart::class, function (BeforeWorkerStart $event): void {
             $this->app->make(SignalRegisterListener::class)->handle($event);
         });
 
-        $events->listen(BeforeProcessHandle::class, function (BeforeProcessHandle $event) {
+        $events->listen(BeforeProcessHandle::class, function (BeforeProcessHandle $event): void {
             $this->app->make(SignalRegisterListener::class)->handle($event);
         });
 
-        $events->listen(OnWorkerExit::class, function (OnWorkerExit $event) {
+        $events->listen(OnWorkerExit::class, function (OnWorkerExit $event): void {
             $this->app->make(SignalDeregisterListener::class)->handle($event);
         });
 
-        $events->listen(AfterProcessHandle::class, function (AfterProcessHandle $event) {
+        $events->listen(AfterProcessHandle::class, function (AfterProcessHandle $event): void {
             $this->app->make(SignalDeregisterListener::class)->handle($event);
         });
     }

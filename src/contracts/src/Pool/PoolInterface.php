@@ -27,7 +27,7 @@ interface PoolInterface
     public function discard(ConnectionInterface $connection): void;
 
     /**
-     * Close idle connections in excess of the minimum pool size.
+     * Close idle connections while the total managed count exceeds the configured minimum.
      */
     public function flush(): void;
 

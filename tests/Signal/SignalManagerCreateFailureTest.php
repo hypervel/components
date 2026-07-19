@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Signal;
 
-use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Signal\SignalHandlerInterface as SignalHandler;
@@ -39,10 +38,6 @@ class SignalManagerCreateFailureTest extends TestCase
                 ->newInstanceWithoutConstructor();
             $handler = new SignalHandlerStub;
 
-            (new ReflectionProperty($manager, 'config'))->setValue(
-                $manager,
-                new Repository(['signal' => ['timeout' => 5.0]]),
-            );
             (new ReflectionProperty($manager, 'handlers'))->setValue($manager, [
                 SignalHandler::WORKER => [
                     SIGUSR1 => [$handler],

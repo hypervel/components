@@ -6,7 +6,6 @@ namespace Hypervel\Tests\ObjectPool;
 
 use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\ObjectPool\Channel as ObjectPoolChannel;
@@ -565,7 +564,6 @@ class ObjectPoolTest extends TestCase
         $handler->shouldReceive('report')->twice()->with($failure);
         $container->instance(ExceptionHandler::class, $handler);
         $pool = new InspectableObjectPool(
-            $container,
             PoolOptions::fromArray(['max_objects' => 2]),
             static fn (): object => new stdClass,
             function () use ($failure): never {
@@ -650,7 +648,6 @@ class ObjectPoolTest extends TestCase
         ?Closure $destroyCallback = null,
     ): InspectableObjectPool {
         return new InspectableObjectPool(
-            $this->container(),
             PoolOptions::fromArray($options),
             $factory ?? static fn (): object => new stdClass,
             $destroyCallback,
@@ -669,12 +666,11 @@ class ObjectPoolTest extends TestCase
 class InspectableObjectPool extends ObjectPool
 {
     public function __construct(
-        ContainerContract $container,
         PoolOptions $options,
         protected Closure $factory,
         ?Closure $destroyCallback = null,
     ) {
-        parent::__construct($container, $options, $destroyCallback);
+        parent::__construct($options, $destroyCallback);
     }
 
     public function destroyForTest(object $object): void

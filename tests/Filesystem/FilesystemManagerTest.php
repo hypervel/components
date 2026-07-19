@@ -1037,7 +1037,7 @@ class FilesystemManagerTest extends TestCase
         $container = new Container;
         $container->instance('config', $config);
         $container->instance(ContainerContract::class, $container);
-        $container->instance(PoolFactory::class, $poolManager = new PoolManager($container));
+        $container->instance(PoolFactory::class, $poolManager = new PoolManager);
         $this->poolManagers[] = $poolManager;
 
         return $container;

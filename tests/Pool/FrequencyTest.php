@@ -79,4 +79,21 @@ class FrequencyTest extends TestCase
         $num = $frequency->frequency();
         $this->assertSame(32 / 5, $num);
     }
+
+    public function testFrequencyExcludesTheExpiredEleventhBucket(): void
+    {
+        do {
+            $frequency = new FrequencyStub;
+            $now = time();
+            $frequency->setBeginTime($now - 10);
+            $frequency->setHits(array_fill_keys(range($now - 9, $now), 0) + [
+                $now - 10 => 100,
+            ]);
+
+            $frequencyValue = $frequency->frequency();
+        } while (time() !== $now);
+
+        $this->assertSame(0.0, $frequencyValue);
+        $this->assertCount(10, $frequency->getHits());
+    }
 }

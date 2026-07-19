@@ -156,6 +156,7 @@ class HeartbeatConnectionTest extends TestCase
             Coroutine::sleep(0.01);
 
             $this->assertFalse($connection->check());
+            $this->assertSame(1, $connection->closeCount);
             $contents = file_get_contents($errorLog);
             $this->assertIsString($contents);
             $this->assertStringContainsString('heartbeat fallback failed', $contents);

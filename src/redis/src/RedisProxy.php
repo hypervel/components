@@ -160,7 +160,7 @@ class RedisProxy implements ConnectionContract
         $hasContextConnection = CoroutineContext::has($this->getContextKey());
         $connection = $this->getConnection($hasContextConnection);
 
-        $start = (float) microtime(true);
+        $start = hrtime(true) / 1e9;
         $result = null;
         $exception = null;
 
@@ -170,7 +170,7 @@ class RedisProxy implements ConnectionContract
             $result = $connection->{$name}(...$arguments);
         } catch (Throwable $e) {
             $exception = $e;
-            $time = round((microtime(true) - $start) * 1000, 2);
+            $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
 
             if ($connection->getEventDispatcher()?->hasListeners(CommandFailed::class)) {
                 $connection->getEventDispatcher()->dispatch(
@@ -179,7 +179,7 @@ class RedisProxy implements ConnectionContract
             }
         } finally {
             if ($exception === null && $connection->getEventDispatcher()?->hasListeners(CommandExecuted::class)) {
-                $time = round((microtime(true) - $start) * 1000, 2);
+                $time = round((hrtime(true) / 1e9 - $start) * 1000, 2);
                 $connection->getEventDispatcher()->dispatch(
                     new CommandExecuted($name, $arguments, $time, $connection)
                 );

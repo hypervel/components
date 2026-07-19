@@ -17,6 +17,9 @@ interface Recycler
     /**
      * Set the time interval for recycling operations.
      *
+     * Boot-only. The interval persists on the singleton recycler for the worker
+     * lifetime and controls every subsequently scheduled maintenance loop.
+     *
      * @throws InvalidArgumentException when the interval is not finite and positive
      */
     public function setInterval(float $interval): void;
@@ -28,6 +31,9 @@ interface Recycler
 
     /**
      * Set the timer for scheduling recycle operations.
+     *
+     * Boot or tests only. Replacing the timer after start would diverge from
+     * the already-scheduled loop retained by the previous timer.
      */
     public function setTimer(Timer $timer): void;
 
@@ -38,11 +44,17 @@ interface Recycler
 
     /**
      * Start objects recycling with the current timer.
+     *
+     * Boot-only. Starting during a request schedules worker-wide maintenance
+     * that affects every subsequently registered pool.
      */
     public function start(): void;
 
     /**
      * Stop automatic maintenance of objects in managed pools.
+     *
+     * Boot or tests only. Stopping disables automatic maintenance for every
+     * pool in the worker.
      */
     public function stop(): void;
 }

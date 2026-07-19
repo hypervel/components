@@ -433,7 +433,7 @@ class PooledConnectionTest extends DatabaseTestCase
         $originalConnection = $pooledConnection->getConnection();
 
         (new ReflectionProperty(PooledConnection::class, 'invalid'))->setValue($pooledConnection, true);
-        (new ReflectionProperty(PooledConnection::class, 'lastReleaseTime'))->setValue($pooledConnection, microtime(true));
+        (new ReflectionProperty(PooledConnection::class, 'lastReleaseTime'))->setValue($pooledConnection, hrtime(true) / 1e9);
 
         $this->assertNotSame($originalConnection, $pooledConnection->getActiveConnection());
     }
@@ -526,12 +526,16 @@ class PooledConnectionTest extends DatabaseTestCase
         $this->app->make('config')->set('database.connections.pool_test.pool.max_lifetime', 60.0);
 
         $pool = new DbPool($this->app, 'pool_test');
+        $before = hrtime(true) / 1e9;
         $pooledConnection = $this->createPooledConnection($pool);
+        $after = hrtime(true) / 1e9;
 
         $createdAt = $pooledConnection->getCreatedAt();
         $lifetimeExpiresAt = (new ReflectionProperty(PooledConnection::class, 'lifetimeExpiresAt'))
             ->getValue($pooledConnection);
 
+        $this->assertGreaterThanOrEqual($before, $createdAt);
+        $this->assertLessThanOrEqual($after, $createdAt);
         $this->assertGreaterThanOrEqual(
             $createdAt + (60.0 * PoolOption::MIN_LIFETIME_JITTER_BASIS / PoolOption::LIFETIME_JITTER_SCALE),
             $lifetimeExpiresAt
@@ -715,17 +719,17 @@ class PooledConnectionTest extends DatabaseTestCase
 
     private function ageConnectionGeneration(PooledConnection $connection): void
     {
-        (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, microtime(true) - 5.0);
+        (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, hrtime(true) / 1e9 - 5.0);
 
         $lifetimeExpiresAt = new ReflectionProperty(PooledConnection::class, 'lifetimeExpiresAt');
 
         if ($lifetimeExpiresAt->getValue($connection) > 0.0) {
-            $lifetimeExpiresAt->setValue($connection, microtime(true) - 1.0);
+            $lifetimeExpiresAt->setValue($connection, hrtime(true) / 1e9 - 1.0);
         }
     }
 
     private function ageActiveConnectionUse(PooledConnection $connection): void
     {
-        (new ReflectionProperty(PooledConnection::class, 'lastUseTime'))->setValue($connection, microtime(true) - 5.0);
+        (new ReflectionProperty(PooledConnection::class, 'lastUseTime'))->setValue($connection, hrtime(true) / 1e9 - 5.0);
     }
 }

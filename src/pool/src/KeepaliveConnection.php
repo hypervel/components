@@ -86,9 +86,15 @@ abstract class KeepaliveConnection implements ConnectionInterface
         $channel = new Channel(1);
         $channel->push($connection);
         $this->channel = $channel;
-        $this->lastUseTime = microtime(true);
+        $this->lastUseTime = hrtime(true) / 1e9;
 
-        $this->addHeartbeat();
+        try {
+            $this->addHeartbeat();
+        } catch (Throwable $exception) {
+            $this->closeAfterFailure();
+
+            throw $exception;
+        }
 
         return true;
     }
@@ -112,7 +118,7 @@ abstract class KeepaliveConnection implements ConnectionInterface
         try {
             $result = $closure($connection);
             if ($refresh) {
-                $this->lastUseTime = microtime(true);
+                $this->lastUseTime = hrtime(true) / 1e9;
             }
         } finally {
             if ($this->isConnected()) {
@@ -159,7 +165,7 @@ abstract class KeepaliveConnection implements ConnectionInterface
      */
     public function isTimeout(): bool
     {
-        return $this->lastUseTime < microtime(true) - $this->pool->getOption()->getMaxIdleTime()
+        return $this->lastUseTime < hrtime(true) / 1e9 - $this->pool->getOption()->getMaxIdleTime()
             && $this->channel->getLength() > 0;
     }
 
@@ -194,7 +200,7 @@ abstract class KeepaliveConnection implements ConnectionInterface
 
                 $this->heartbeat();
             } catch (Throwable $throwable) {
-                $this->clear();
+                $this->closeAfterFailure();
                 $message = sprintf('Socket of %s heartbeat failed, %s', $this->name, $throwable);
 
                 if ($logger = $this->getLogger()) {
@@ -216,6 +222,20 @@ abstract class KeepaliveConnection implements ConnectionInterface
         if ($this->timerId) {
             $this->timer->clear($this->timerId);
             $this->timerId = null;
+        }
+    }
+
+    /**
+     * Close a failed connection without replacing its primary failure.
+     */
+    private function closeAfterFailure(): void
+    {
+        try {
+            $this->close();
+        } catch (Throwable) {
+            // A concurrent caller may still own the connection. Clearing makes
+            // its existing finally block drop the resource instead of requeueing it.
+            $this->clear();
         }
     }
 

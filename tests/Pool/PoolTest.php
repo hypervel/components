@@ -34,7 +34,7 @@ class PoolTest extends TestCase
         $this->createPool(['max_conections' => 10]);
     }
 
-    public function testFlushClosesIdleConnectionsDownToMinimum(): void
+    public function testFlushClosesIdleConnectionsUntilManagedCountReachesMinimum(): void
     {
         $connections = [];
         $pool = $this->createPool(
@@ -594,10 +594,6 @@ class InspectablePoolChannel extends PoolChannel
 
 class ThrowingClearableFrequency implements ClearableFrequencyInterface, LowFrequencyInterface
 {
-    public function __construct(?Pool $pool = null)
-    {
-    }
-
     public function clear(): void
     {
         throw new RuntimeException('frequency cleanup failed');

@@ -429,10 +429,7 @@ class FileResponseBuilderTest extends TestCase
 
     public function testAStreamBackedByALeaseReleasesAfterEmission(): void
     {
-        $container = new Container;
-        Container::setInstance($container);
         $pool = new SimpleObjectPool(
-            $container,
             static fn (): object => new stdClass,
             PoolOptions::fromArray([]),
         );

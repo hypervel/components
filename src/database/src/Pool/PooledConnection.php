@@ -143,7 +143,7 @@ class PooledConnection implements PoolConnectionInterface
             );
         }
 
-        $now = microtime(true);
+        $now = hrtime(true) / 1e9;
         $this->lastUseTime = $now;
         $this->stampGeneration($now);
         $this->availableForReuse = false;
@@ -165,7 +165,7 @@ class PooledConnection implements PoolConnectionInterface
             return false;
         }
 
-        $now = microtime(true);
+        $now = hrtime(true) / 1e9;
 
         if ($this->availableForReuse) {
             // Time-based recycling is a reuse rule; it must not replace a connection
@@ -193,7 +193,7 @@ class PooledConnection implements PoolConnectionInterface
             return false;
         }
 
-        return ($now ?? microtime(true)) > $this->pool->getOption()->getMaxIdleTime() + $this->lastReleaseTime;
+        return ($now ?? hrtime(true) / 1e9) > $this->pool->getOption()->getMaxIdleTime() + $this->lastReleaseTime;
     }
 
     /**
@@ -230,7 +230,7 @@ class PooledConnection implements PoolConnectionInterface
             return false;
         }
 
-        $this->lastUseTime = microtime(true);
+        $this->lastUseTime = hrtime(true) / 1e9;
 
         return true;
     }
@@ -276,7 +276,7 @@ class PooledConnection implements PoolConnectionInterface
                 }
             }
 
-            $this->lastReleaseTime = microtime(true);
+            $this->lastReleaseTime = hrtime(true) / 1e9;
 
             // Dispatch release event if configured
             $events = $this->pool->getOption()->getEvents();
@@ -334,7 +334,7 @@ class PooledConnection implements PoolConnectionInterface
             return false;
         }
 
-        return ($now ?? microtime(true)) >= $this->lifetimeExpiresAt;
+        return ($now ?? hrtime(true) / 1e9) >= $this->lifetimeExpiresAt;
     }
 
     /**
@@ -459,6 +459,6 @@ class PooledConnection implements PoolConnectionInterface
             );
         }
 
-        $this->stampGeneration(microtime(true));
+        $this->stampGeneration(hrtime(true) / 1e9);
     }
 }

@@ -67,6 +67,10 @@ class PostgresConnector extends Connector implements ConnectorInterface
             $dsn .= ";port={$port}";
         }
 
+        if (isset($connect_timeout)) {
+            $dsn .= ";connect_timeout={$connect_timeout}";
+        }
+
         if (isset($charset)) {
             $dsn .= ";client_encoding='{$charset}'";
         }

@@ -14,7 +14,7 @@ use Mockery as m;
 
 class SignalDeregisterListenerTest extends TestCase
 {
-    public function testHandleOnWorkerExitStopsSignalManager()
+    public function testHandleOnWorkerExitStopsSignalManager(): void
     {
         $container = m::mock(ContainerContract::class);
         $manager = m::mock(SignalManager::class);
@@ -25,15 +25,13 @@ class SignalDeregisterListenerTest extends TestCase
             ->once()
             ->andReturn($manager);
 
-        $manager->shouldReceive('setStopped')
-            ->with(true)
-            ->once();
+        $manager->shouldReceive('stop')->once();
 
         $listener = new SignalDeregisterListener($container);
         $listener->handle($event);
     }
 
-    public function testHandleAfterProcessHandleStopsSignalManager()
+    public function testHandleAfterProcessHandleStopsSignalManager(): void
     {
         $container = m::mock(ContainerContract::class);
         $manager = m::mock(SignalManager::class);
@@ -44,9 +42,7 @@ class SignalDeregisterListenerTest extends TestCase
             ->once()
             ->andReturn($manager);
 
-        $manager->shouldReceive('setStopped')
-            ->with(true)
-            ->once();
+        $manager->shouldReceive('stop')->once();
 
         $listener = new SignalDeregisterListener($container);
         $listener->handle($event);
