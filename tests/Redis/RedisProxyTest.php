@@ -358,7 +358,8 @@ class RedisProxyTest extends TestCase
             ->with(m::on(function (CommandExecuted $event) {
                 return $event->command === 'get'
                     && $event->parameters === ['key']
-                    && $event->connectionName === 'default';
+                    && $event->connectionName === 'default'
+                    && $event->time >= 0.0;
             }));
 
         $mockRedisConnection = $this->createMockRedisConnection('get', 'value', null, $mockEventDispatcher);
@@ -386,7 +387,9 @@ class RedisProxyTest extends TestCase
                 return $event->command === 'get'
                     && $event->parameters === ['key']
                     && $event->exception === $expectedException
-                    && $event->connectionName === 'default';
+                    && $event->connectionName === 'default'
+                    && $event->time !== null
+                    && $event->time >= 0.0;
             }));
 
         $mockRedisConnection = $this->createMockRedisConnection('get', null, $expectedException, $mockEventDispatcher);
