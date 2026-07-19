@@ -52,6 +52,11 @@ interface InvokedProcess
     public function latestErrorOutput(): string;
 
     /**
+     * Ensure that the process has not timed out.
+     */
+    public function ensureNotTimedOut(): void;
+
+    /**
      * Wait for the process to finish.
      */
     public function wait(?callable $output = null): ProcessResult;

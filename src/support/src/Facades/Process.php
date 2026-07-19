@@ -13,7 +13,7 @@ use Hypervel\Process\Factory;
  * @method static \Hypervel\Process\PendingProcess timeout(\Carbon\CarbonInterval|int $timeout)
  * @method static \Hypervel\Process\PendingProcess idleTimeout(\Carbon\CarbonInterval|int $timeout)
  * @method static \Hypervel\Process\PendingProcess forever()
- * @method static \Hypervel\Process\PendingProcess env(array<string, string> $environment)
+ * @method static \Hypervel\Process\PendingProcess env(array<string, string|\Stringable|false> $environment)
  * @method static \Hypervel\Process\PendingProcess input(null|bool|float|int|resource|string|\Traversable $input)
  * @method static \Hypervel\Process\PendingProcess quietly()
  * @method static \Hypervel\Process\PendingProcess tty(bool $tty = true)
@@ -26,7 +26,7 @@ use Hypervel\Process\Factory;
  * @method static \Hypervel\Process\PendingProcess|mixed unless(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null)
  * @method static \Hypervel\Process\FakeProcessResult result(array|string $output = '', array|string $errorOutput = '', int $exitCode = 0)
  * @method static \Hypervel\Process\FakeProcessDescription describe()
- * @method static \Hypervel\Process\FakeProcessSequence sequence(array<int, mixed> $processes = [])
+ * @method static \Hypervel\Process\FakeProcessSequence sequence(array<int, array|\Hypervel\Process\FakeProcessDescription|\Hypervel\Contracts\Process\ProcessResult|string> $processes = [])
  * @method static bool isRecording()
  * @method static \Hypervel\Process\Factory recordIfRecording(\Hypervel\Process\PendingProcess $process, \Hypervel\Contracts\Process\ProcessResult $result)
  * @method static \Hypervel\Process\Factory record(\Hypervel\Process\PendingProcess $process, \Hypervel\Contracts\Process\ProcessResult $result)
@@ -62,6 +62,8 @@ class Process extends Facade
 
     /**
      * Indicate that the process factory should fake processes.
+     *
+     * Tests only. Fake handlers and recordings persist on the container-resolved factory for the worker lifetime and affect later calls.
      */
     public static function fake(array|Closure|null $callback = null): Factory
     {

@@ -8,12 +8,14 @@ use Carbon\CarbonInterval;
 use Closure;
 use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult as ProcessResultContract;
+use Hypervel\Process\Concerns\GuardsProcessOutput;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use LogicException;
 use RuntimeException;
+use Stringable;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -22,6 +24,7 @@ use Traversable;
 class PendingProcess
 {
     use Conditionable;
+    use GuardsProcessOutput;
 
     /**
      * The process factory instance.
@@ -53,7 +56,7 @@ class PendingProcess
     /**
      * The additional environment variables for the process.
      *
-     * @var array<string, string>
+     * @var array<string, false|string|Stringable>
      */
     public array $environment = [];
 
@@ -149,7 +152,7 @@ class PendingProcess
     /**
      * Set the additional environment variables for the process.
      *
-     * @param array<string, string> $environment
+     * @param array<string, false|string|Stringable> $environment
      */
     public function env(array $environment): static
     {
@@ -210,7 +213,7 @@ class PendingProcess
      */
     public function run(array|string|null $command = null, ?callable $output = null): ProcessResultContract
     {
-        $this->command = $command ?: $this->command;
+        $this->command = $command ?? $this->command;
 
         $process = $this->toSymfonyProcess($command);
         try {
@@ -222,7 +225,7 @@ class PendingProcess
                 throw new RuntimeException('Attempted process [' . $command . '] without a matching fake.');
             }
 
-            return new ProcessResult(tap($process)->run($output)); // @phpstan-ignore method.notFound (tap proxy __call)
+            return new ProcessResult(tap($process)->run($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
         } catch (SymfonyTimeoutException $e) {
             throw new ProcessTimedOutException($e, new ProcessResult($process));
         }
@@ -231,11 +234,13 @@ class PendingProcess
     /**
      * Start the process in the background.
      *
+     * The caller must wait for or stop the process before its owning coroutine exits.
+     *
      * @throws RuntimeException
      */
     public function start(array|string|null $command = null, ?callable $output = null): InvokedProcessContract
     {
-        $this->command = $command ?: $this->command;
+        $this->command = $command ?? $this->command;
 
         $process = $this->toSymfonyProcess($command);
 
@@ -248,7 +253,7 @@ class PendingProcess
             throw new RuntimeException('Attempted process [' . $command . '] without a matching fake.');
         }
 
-        return new InvokedProcess(tap($process)->start($output)); // @phpstan-ignore method.notFound (tap proxy __call)
+        return new InvokedProcess(tap($process)->start($this->guardProcessOutput($process, $output))); // @phpstan-ignore method.notFound (tap proxy __call)
     }
 
     /**
@@ -269,7 +274,7 @@ class PendingProcess
             $process->setIdleTimeout($this->idleTimeout);
         }
 
-        if ($this->input) {
+        if ($this->input !== null) {
             $process->setInput($this->input);
         }
 
