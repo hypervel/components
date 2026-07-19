@@ -36,6 +36,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Server Processes
+    |--------------------------------------------------------------------------
+    |
+    | Here you may define the custom Swoole processes that should run alongside
+    | the application server. Each process class will be resolved through the
+    | service container and attached when the server starts.
+    |
+    */
+
+    'processes' => [],
+
+    /*
+    |--------------------------------------------------------------------------
     | Server Settings
     |--------------------------------------------------------------------------
     |
