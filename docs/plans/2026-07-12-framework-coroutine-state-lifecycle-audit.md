@@ -159,7 +159,7 @@ Use local sources rather than online lookup when available. In particular, inspe
 
 Inspect a package README only for an upstream reference, a `Differences From Laravel` section, architecture notes, or package-specific constraints. Do not spend audit time reading badges, installation boilerplate, license text, or empty descriptions.
 
-When the audit finds an upstream feature that Hypervel has not yet ported, use the originating pull request only to identify the complete changed-file surface and the reason for the change. Inspect every source file, test, fixture, configuration file, and documentation file named by that pull request, then port from the current checked-out upstream default/development branch rather than from the historical pull-request diff. Later upstream corrections may have changed the implementation or coverage. Search the corresponding current upstream documentation repository as part of the same work and port the user-facing documentation; if upstream has no documentation, add proportionate Hypervel documentation at the natural public surface.
+When the audit finds an upstream feature that Hypervel has not yet ported, follow the **Incremental upstream updates** workflow in `AGENTS.md`. Record the originating implementation and documentation pull-request surface and the current-branch result in the package investigation and companion ledger so the completeness check remains auditable.
 
 ### Inherited upstream internals
 
