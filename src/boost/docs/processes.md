@@ -10,6 +10,7 @@
     - [Process IDs and Signals](#process-ids-and-signals)
     - [Asynchronous Process Output](#asynchronous-process-output)
     - [Asynchronous Process Timeouts](#asynchronous-process-timeouts)
+    - [Extending Invoked Processes](#extending-invoked-processes)
 - [Concurrent Processes](#concurrent-processes)
     - [Pool Results](#pool-results)
     - [Naming Pool Processes](#naming-pool-processes)
@@ -62,6 +63,15 @@ Instead of passing a shell command string to the `run` method, you may pass the 
 $result = Process::run(['php', 'artisan', 'inspire']);
 ```
 
+String commands are interpreted by your operating system's shell, while array commands keep the executable and arguments separate. Therefore, you should use array commands when including dynamic or untrusted values, or when you need to signal the executable directly.
+
+If you need shell features such as pipes or conditional execution, you may safely include dynamic values using environment placeholders:
+
+```php
+$result = Process::env(['NAME' => $name])
+    ->run('echo "${:NAME}"');
+```
+
 <a name="throwing-exceptions"></a>
 #### Throwing Exceptions
 
@@ -71,6 +81,17 @@ If you have a process result and would like to throw an instance of `Hypervel\Pr
 $result = Process::run('ls -la')->throw();
 
 $result = Process::run('ls -la')->throwIf($condition);
+```
+
+You may pass a closure to the `throw` or `throwIf` methods to perform additional work before the exception is thrown. The closure receives the process result and the `ProcessFailedException` instance:
+
+```php
+use Hypervel\Contracts\Process\ProcessResult;
+use Hypervel\Process\Exceptions\ProcessFailedException;
+
+$result->throw(function (ProcessResult $result, ProcessFailedException $exception) {
+    report($exception);
+});
 ```
 
 <a name="process-options"></a>
@@ -196,6 +217,8 @@ $result = Process::run('ls -la', function (string $type, string $output) {
 });
 ```
 
+If an output callback throws an exception, Hypervel will stop the affected process and rethrow the same exception.
+
 Hypervel also offers the `seeInOutput` and `seeInErrorOutput` methods, which provide a convenient way to determine if a given string was contained in the process' output:
 
 ```php
@@ -290,6 +313,8 @@ $process = Process::timeout(120)->start('bash import.sh');
 $result = $process->wait();
 ```
 
+An asynchronously started process remains owned by the coroutine that started it. Before that coroutine exits, you must call `wait` to let the process finish or `stop` to terminate it. Returning from `waitUntil` only stops waiting; it does not stop the process.
+
 <a name="process-ids-and-signals"></a>
 ### Process IDs and Signals
 
@@ -311,6 +336,12 @@ You may use the `stop` method to stop a running process:
 
 ```php
 $process->stop();
+```
+
+By default, Hypervel sends `SIGTERM` and waits up to 10 seconds for the process to exit. If the process is still running, Hypervel sends `SIGKILL`. You may customize the grace period and fallback signal by passing them to the `stop` method:
+
+```php
+$process->stop(timeout: 5, signal: SIGKILL);
 ```
 
 <a name="asynchronous-process-output"></a>
@@ -339,6 +370,16 @@ $process = Process::start('bash import.sh', function (string $type, string $outp
 $result = $process->wait();
 ```
 
+Alternatively, you may pass the output closure to the `wait` method:
+
+```php
+$process = Process::start('bash import.sh');
+
+$result = $process->wait(function (string $type, string $output) {
+    echo $output;
+});
+```
+
 Instead of waiting until the process has finished, you may use the `waitUntil` method to stop waiting based on the output of the process. Hypervel will stop waiting for the process to finish when the closure given to the `waitUntil` method returns `true`:
 
 ```php
@@ -352,7 +393,7 @@ $process->waitUntil(function (string $type, string $output) {
 <a name="asynchronous-process-timeouts"></a>
 ### Asynchronous Process Timeouts
 
-While an asynchronous process is running, you may verify that the process has not timed out using the `ensureNotTimedOut` method. This method will throw a [timeout exception](#timeouts) if the process has timed out:
+While an asynchronous process is running, you may verify that the process has not timed out using the `ensureNotTimedOut` method. This method will throw a [timeout exception](#timeouts) if the process has timed out. The `running` method alone does not enforce asynchronous process timeouts. Therefore, you should invoke `ensureNotTimedOut` regularly while polling a process, or call `wait`, which will also enforce the configured timeouts:
 
 ```php
 $process = Process::timeout(120)->start('bash import.sh');
@@ -365,6 +406,35 @@ while ($process->running()) {
     sleep(1);
 }
 ```
+
+<a name="extending-invoked-processes"></a>
+### Extending Invoked Processes
+
+The `Hypervel\Process\InvokedProcess` class is macroable, allowing you to add custom methods to invoked processes. You should register these macros within the `boot` method of your application's `App\Providers\AppServiceProvider` class:
+
+```php
+use Hypervel\Process\InvokedProcess;
+
+public function boot(): void
+{
+    InvokedProcess::macro('summary', function () {
+        return 'Running: ' . $this->command();
+    });
+}
+```
+
+Once the macro has been registered, you may invoke it on a running process:
+
+```php
+$process = Process::start('bash import.sh');
+
+return $process->summary();
+```
+
+> [!WARNING]
+> Macros should only be registered during worker boot. Macro registrations are stored in static state for the worker lifetime and affect every subsequent invoked process.
+
+Macros are only available on real invoked processes; fake invoked processes returned when using `Process::fake()` do not support registered macros.
 
 <a name="concurrent-processes"></a>
 ## Concurrent Processes
@@ -391,6 +461,10 @@ while ($pool->running()->isNotEmpty()) {
 
 $results = $pool->wait();
 ```
+
+An asynchronously started pool remains owned by the coroutine that started it. Before that coroutine exits, you must call `wait` to let every process finish or `stop` to terminate the running processes.
+
+If the pool fails while starting or waiting, Hypervel stops any processes it has already started or still owns before rethrowing the original exception.
 
 If you do not need to inspect the pool while its processes are running, you may use the `run` method to start the process pool and immediately wait on its results:
 
@@ -472,6 +546,8 @@ You may use the `stop` method to stop all running processes within the pool:
 ```php
 $pool->stop();
 ```
+
+The `stop` method accepts the same grace period and fallback signal arguments as an individual process.
 
 <a name="testing"></a>
 ## Testing
