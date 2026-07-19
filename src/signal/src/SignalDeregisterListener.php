@@ -22,6 +22,6 @@ class SignalDeregisterListener
      */
     public function handle(OnWorkerExit|AfterProcessHandle $event): void
     {
-        $this->container->make(SignalManager::class)->setStopped(true);
+        $this->container->make(SignalManager::class)->stop();
     }
 }

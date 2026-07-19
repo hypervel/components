@@ -15,7 +15,7 @@ use Mockery as m;
 
 class SignalRegisterListenerTest extends TestCase
 {
-    public function testHandleBeforeWorkerStartInitializesAndListensForWorker()
+    public function testHandleBeforeWorkerStartInitializesAndListensForWorker(): void
     {
         $container = m::mock(ContainerContract::class);
         $manager = m::mock(SignalManager::class);
@@ -35,7 +35,7 @@ class SignalRegisterListenerTest extends TestCase
         $listener->handle($event);
     }
 
-    public function testHandleBeforeProcessHandleInitializesAndListensForProcess()
+    public function testHandleBeforeProcessHandleInitializesAndListensForProcess(): void
     {
         $container = m::mock(ContainerContract::class);
         $manager = m::mock(SignalManager::class);

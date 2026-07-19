@@ -26,6 +26,13 @@ class SignalManager
     protected bool $stopped = false;
 
     /**
+     * Coroutine IDs currently blocked in a cancellable native signal wait.
+     *
+     * @var array<int, true>
+     */
+    protected array $waiting = [];
+
+    /**
      * Create a new signal manager instance.
      */
     public function __construct(protected Container $container)
@@ -35,6 +42,9 @@ class SignalManager
 
     /**
      * Initialize the signal handlers from config.
+     *
+     * Boot-only. Reinitializing after listening starts leaves existing
+     * watchers using the prior handler set until the process exits.
      */
     public function init(): void
     {
@@ -44,9 +54,9 @@ class SignalManager
             /** @var SignalHandler $handler */
             $handler = $this->container->make($class);
             foreach ($handler->listen() as [$process, $signal]) {
-                if ($process & SignalHandler::WORKER) {
+                if ($process === SignalHandler::WORKER) {
                     $this->handlers[SignalHandler::WORKER][$signal][] = $handler;
-                } elseif ($process & SignalHandler::PROCESS) {
+                } elseif ($process === SignalHandler::PROCESS) {
                     $this->handlers[SignalHandler::PROCESS][$signal][] = $handler;
                 }
             }
@@ -63,10 +73,16 @@ class SignalManager
 
     /**
      * Start listening for signals for the given process type.
+     *
+     * Boot-only. Each call creates another set of process-lifetime watchers
+     * that would invoke the configured handlers again for the same signal.
      */
     public function listen(?int $process): void
     {
-        if ($this->isInvalidProcess($process) || ! Coroutine::inCoroutine()) {
+        if ($this->stopped
+            || ! in_array($process, [SignalHandler::PROCESS, SignalHandler::WORKER], true)
+            || ! Coroutine::inCoroutine()
+        ) {
             return;
         }
 
@@ -75,18 +91,26 @@ class SignalManager
         try {
             foreach ($this->handlers[$process] ?? [] as $signal => $handlers) {
                 $coroutineIds[] = Coroutine::create(function () use ($signal, $handlers): void {
-                    try {
-                        while (true) {
-                            $ret = EngineSignal::wait($signal, $this->config->float('signal.timeout', 5.0));
+                    $coroutineId = Coroutine::id();
 
-                            if ($ret) {
-                                foreach ($handlers as $handler) {
-                                    $handler->handle($signal);
-                                }
+                    try {
+                        while (! $this->stopped) {
+                            $this->waiting[$coroutineId] = true;
+
+                            try {
+                                $received = EngineSignal::wait($signal);
+                            } finally {
+                                unset($this->waiting[$coroutineId]);
                             }
 
-                            if ($this->isStopped()) {
+                            // An indefinite wait returns false only after an error or
+                            // non-exception cancellation; retrying could busy-spin.
+                            if (! $received) {
                                 break;
+                            }
+
+                            foreach ($handlers as $handler) {
+                                $handler->handle($signal);
                             }
                         }
                     } catch (CanceledException) {
@@ -107,36 +131,21 @@ class SignalManager
     }
 
     /**
-     * Determine if the manager has been stopped.
-     */
-    public function isStopped(): bool
-    {
-        return $this->stopped;
-    }
-
-    /**
-     * Mark the manager as stopped so signal-watcher coroutines exit.
+     * Stop listening for signals in this process.
      *
-     * Boot-only. Used by SignalDeregisterListener at worker/process exit.
-     * Setting this true permanently halts signal handling for the process; any
-     * subsequent listen() call also spawns coroutines that exit on their first
-     * wait cycle.
+     * The deregister listener invokes this at worker/process exit. Stopping is
+     * terminal and permanently halts signal handling for this process incarnation.
      */
-    public function setStopped(bool $stopped): self
+    public function stop(): void
     {
-        $this->stopped = $stopped;
-        return $this;
-    }
+        $this->stopped = true;
 
-    /**
-     * Determine if the given process type is invalid.
-     */
-    protected function isInvalidProcess(?int $process): bool
-    {
-        return ! in_array($process, [
-            SignalHandler::PROCESS,
-            SignalHandler::WORKER,
-        ]);
+        foreach (array_keys($this->waiting) as $coroutineId) {
+            EngineCoroutine::cancelById(
+                $coroutineId,
+                throwException: true,
+            );
+        }
     }
 
     /**
