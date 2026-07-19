@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `server-process`
-- **Ledger entries required for the active work:** None.
-- **Pending revalidation carried into the active work:** None for Server Process. Later package revalidation remains tracked in the cross-package dependency index.
+- **Active package or work unit:** `filesystem`
+- **Ledger entries required for the active work:** `Harden framework contracts and request-scoped state` (`filesystem-01`); `Make coroutine creation and copied context failure-safe` (`coroutine-05`); `Correct AOP proxy generation and publication` (`filesystem-02`); `Harden encryption rotation, key publication, and global lifecycle state` (`filesystem-03`, `encryption-03`); and `Normalize framework enum identifiers at string boundaries` (`support-02`).
+- **Pending revalidation carried into the active work:** Revalidate `filesystem-01`, `coroutine-05`, `filesystem-02`, `filesystem-03`, `encryption-03`, and `support-02` during the full Filesystem audit.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1053,6 +1053,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `encryption-03` | `encryption` | `contracts` and `support` (revalidation complete), `filesystem`, `foundation`; later full `filesystem` and `foundation` audits | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
 | `process-02` | `process` | `concurrency` (revalidation complete) | `Make Process callbacks and pools failure-safe`; finding `process-02` |
+| `server-process-10` | `server-process` | `foundation`; later full `foundation` audit | `Make custom server processes failure-safe`; finding `server-process-10` |
 
 ## Package checklist
 
@@ -1104,7 +1105,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `pool`
 - [x] `object-pool`
 - [x] `process`
-- [ ] `server-process`
+- [x] `server-process`
 - [ ] `filesystem`
 
 ### Framework dispatch and runtime
