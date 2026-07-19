@@ -476,7 +476,7 @@ abstract class RedisConnection extends BaseConnection
             return false;
         }
 
-        $now = microtime(true);
+        $now = hrtime(true) / 1e9;
 
         if ($this->availableForReuse) {
             // Mirrors Database\Pool\PooledConnection recycling logic. Keep in sync.
@@ -518,7 +518,7 @@ abstract class RedisConnection extends BaseConnection
      */
     protected function markReconnected(): void
     {
-        $now = microtime(true);
+        $now = hrtime(true) / 1e9;
         $this->lastUseTime = $now;
         $this->createdAt = $now;
         $this->lifetimeExpiresAt = PoolOption::jitteredLifetimeDeadline(
@@ -669,7 +669,7 @@ abstract class RedisConnection extends BaseConnection
             return false;
         }
 
-        $this->lastUseTime = microtime(true);
+        $this->lastUseTime = hrtime(true) / 1e9;
 
         return true;
     }
@@ -714,7 +714,7 @@ abstract class RedisConnection extends BaseConnection
         }
 
         // Heartbeat pings must not keep request-idle connections alive forever.
-        return ($now ?? microtime(true)) > $this->pool->getOption()->getMaxIdleTime() + $this->lastReleaseTime;
+        return ($now ?? hrtime(true) / 1e9) > $this->pool->getOption()->getMaxIdleTime() + $this->lastReleaseTime;
     }
 
     /**
@@ -734,7 +734,7 @@ abstract class RedisConnection extends BaseConnection
             return false;
         }
 
-        return ($now ?? microtime(true)) >= $this->lifetimeExpiresAt;
+        return ($now ?? hrtime(true) / 1e9) >= $this->lifetimeExpiresAt;
     }
 
     /**

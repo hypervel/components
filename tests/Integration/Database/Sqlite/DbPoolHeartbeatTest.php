@@ -429,18 +429,18 @@ class DbPoolHeartbeatTest extends TestCase
         $lastReleaseTime = new ReflectionProperty(PooledConnection::class, 'lastReleaseTime');
         $lastUseTime = new ReflectionProperty(PooledConnection::class, 'lastUseTime');
 
-        $lastReleaseTime->setValue($connection, microtime(true) - 5.0);
-        $lastUseTime->setValue($connection, microtime(true) - 5.0);
+        $lastReleaseTime->setValue($connection, hrtime(true) / 1e9 - 5.0);
+        $lastUseTime->setValue($connection, hrtime(true) / 1e9 - 5.0);
     }
 
     protected function ageConnectionGeneration(PooledConnection $connection): void
     {
-        (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, microtime(true) - 5.0);
+        (new ReflectionProperty(PooledConnection::class, 'createdAt'))->setValue($connection, hrtime(true) / 1e9 - 5.0);
 
         $lifetimeExpiresAt = new ReflectionProperty(PooledConnection::class, 'lifetimeExpiresAt');
 
         if ($lifetimeExpiresAt->getValue($connection) > 0.0) {
-            $lifetimeExpiresAt->setValue($connection, microtime(true) - 1.0);
+            $lifetimeExpiresAt->setValue($connection, hrtime(true) / 1e9 - 1.0);
         }
     }
 }

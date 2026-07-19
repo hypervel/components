@@ -41,7 +41,7 @@ class Connection extends AbstractConnection
     public function reconnect(): bool
     {
         $this->connection = ($this->callback)();
-        $this->lastUseTime = microtime(true);
+        $this->lastUseTime = hrtime(true) / 1e9;
 
         return true;
     }

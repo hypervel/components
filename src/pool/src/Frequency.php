@@ -46,9 +46,8 @@ class Frequency implements FrequencyInterface, LowFrequencyInterface
      */
     protected int $lowFrequencyInterval = 60;
 
-    public function __construct(
-        protected ?Pool $pool = null
-    ) {
+    public function __construct()
+    {
         $this->beginTime = time();
         $this->lowFrequencyTime = time();
     }
@@ -105,7 +104,7 @@ class Frequency implements FrequencyInterface, LowFrequencyInterface
     protected function flush(): void
     {
         $now = time();
-        $latest = $now - $this->time;
+        $latest = $now - $this->time + 1;
 
         foreach ($this->hits as $time => $hit) {
             if ($time < $latest) {

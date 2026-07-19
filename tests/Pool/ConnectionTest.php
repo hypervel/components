@@ -44,8 +44,12 @@ class ConnectionTest extends TestCase
         $pool->shouldReceive('release')->withAnyArgs()->andReturnNull();
         $pool->shouldReceive('getOption')->andReturn(new PoolOption(events: [ReleaseConnection::class]));
 
+        $before = hrtime(true) / 1e9;
         $connection->release();
-        $this->assertTrue($assert > 0);
+        $after = hrtime(true) / 1e9;
+
+        $this->assertGreaterThanOrEqual($before, $assert);
+        $this->assertLessThanOrEqual($after, $assert);
     }
 
     public function testDontHaveEvents(): void

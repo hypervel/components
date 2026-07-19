@@ -9,8 +9,6 @@ namespace Hypervel\Pool;
  */
 interface LowFrequencyInterface
 {
-    public function __construct(?Pool $pool = null);
-
     /**
      * Check if the pool is currently in low-frequency mode.
      */

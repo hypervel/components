@@ -70,7 +70,7 @@ class RedisPoolHeartbeatTest extends TestCase
         });
     }
 
-    public function testHeartbeatKeepsMinimumConnectionsWarmAndEvictsExpiredExtras(): void
+    public function testHeartbeatTrimsExpiredIdleConnectionsToTheManagedCountFloor(): void
     {
         run(function () {
             $pool = $this->createPool([
@@ -244,13 +244,17 @@ class RedisPoolHeartbeatTest extends TestCase
                 'max_lifetime' => 60.0,
             ]);
 
+            $before = hrtime(true) / 1e9;
             $connection = $pool->get();
+            $after = hrtime(true) / 1e9;
             $this->assertInstanceOf(HeartbeatRedisConnection::class, $connection);
 
             $createdAt = $connection->getCreatedAt();
             $lifetimeExpiresAt = (new ReflectionProperty(RedisConnection::class, 'lifetimeExpiresAt'))
                 ->getValue($connection);
 
+            $this->assertGreaterThanOrEqual($before, $createdAt);
+            $this->assertLessThanOrEqual($after, $createdAt);
             $this->assertGreaterThanOrEqual(
                 $createdAt + (60.0 * PoolOption::MIN_LIFETIME_JITTER_BASIS / PoolOption::LIFETIME_JITTER_SCALE),
                 $lifetimeExpiresAt
@@ -506,25 +510,25 @@ class RedisPoolHeartbeatTest extends TestCase
 
     protected function ageReleasedConnection(RedisConnection $connection): void
     {
-        (new ReflectionProperty(BaseConnection::class, 'lastReleaseTime'))->setValue($connection, microtime(true) - 5.0);
-        (new ReflectionProperty(BaseConnection::class, 'lastUseTime'))->setValue($connection, microtime(true) - 5.0);
+        (new ReflectionProperty(BaseConnection::class, 'lastReleaseTime'))->setValue($connection, hrtime(true) / 1e9 - 5.0);
+        (new ReflectionProperty(BaseConnection::class, 'lastUseTime'))->setValue($connection, hrtime(true) / 1e9 - 5.0);
     }
 
     protected function ageConnectionGeneration(RedisConnection $connection): void
     {
-        (new ReflectionProperty(RedisConnection::class, 'createdAt'))->setValue($connection, microtime(true) - 5.0);
+        (new ReflectionProperty(RedisConnection::class, 'createdAt'))->setValue($connection, hrtime(true) / 1e9 - 5.0);
 
         $lifetimeExpiresAt = new ReflectionProperty(RedisConnection::class, 'lifetimeExpiresAt');
 
         if ($lifetimeExpiresAt->getValue($connection) > 0.0) {
-            $lifetimeExpiresAt->setValue($connection, microtime(true) - 1.0);
+            $lifetimeExpiresAt->setValue($connection, hrtime(true) / 1e9 - 1.0);
         }
     }
 
     protected function ageReleaseTimeButKeepLastUseFresh(RedisConnection $connection): void
     {
-        (new ReflectionProperty(BaseConnection::class, 'lastReleaseTime'))->setValue($connection, microtime(true) - 5.0);
-        (new ReflectionProperty(BaseConnection::class, 'lastUseTime'))->setValue($connection, microtime(true));
+        (new ReflectionProperty(BaseConnection::class, 'lastReleaseTime'))->setValue($connection, hrtime(true) / 1e9 - 5.0);
+        (new ReflectionProperty(BaseConnection::class, 'lastUseTime'))->setValue($connection, hrtime(true) / 1e9);
     }
 }
 
