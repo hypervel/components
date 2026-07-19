@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `signal`
-- **Ledger entries required for the active work:** None.
-- **Pending revalidation carried into the active work:** None for Signal. Later package revalidation remains tracked in the cross-package dependency index.
+- **Active package or work unit:** `pool`
+- **Ledger entries required for the active work:** `Release cleared coordinator timers deterministically`.
+- **Pending revalidation carried into the active work:** `pool-01` and `pool-02` from the coordinator work unit.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1094,7 +1094,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `coroutine`
 - [x] `concurrency`
 - [x] `coordinator`
-- [ ] `signal`
+- [x] `signal`
 - [ ] `pool`
 - [ ] `object-pool`
 - [ ] `process`
