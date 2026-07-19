@@ -352,11 +352,6 @@ class PoolManager implements Factory
     /** @var array<string, PoolDefinition> */
     protected array $definitions = [];
 
-    public function __construct(
-        protected Container $container,
-    ) {
-    }
-
     /**
      * Get the pool registered for the definition's identity, creating it when absent.
      *
@@ -407,7 +402,7 @@ class PoolManager implements Factory
             }
         }
 
-        $pool = new SimpleObjectPool($this->container, $callback, $definition->options);
+        $pool = new SimpleObjectPool($callback, $definition->options);
 
         $this->definitions[$identity] = $definition;
 
@@ -582,7 +577,6 @@ abstract class ObjectPool implements ObjectPoolContract
     protected ?Closure $destroyCallback;
 
     public function __construct(
-        protected Container $container,
         protected PoolOptions $options,
         ?Closure $destroyCallback = null,
     ) {
