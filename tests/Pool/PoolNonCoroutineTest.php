@@ -6,12 +6,17 @@ namespace Hypervel\Tests\Pool;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Engine\Exceptions\CoroutineCreateException;
 use Hypervel\Pool\Pool;
+use Hypervel\Tests\Pool\Fixtures\HeartbeatPoolStub;
+use Hypervel\Tests\Pool\Fixtures\KeepaliveConnectionStub;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
+use stdClass;
 use Swoole\Coroutine as SwooleCoroutine;
 use Swoole\Event;
+use Throwable;
 
 class PoolNonCoroutineTest extends TestCase
 {
@@ -67,6 +72,40 @@ class PoolNonCoroutineTest extends TestCase
         $this->assertInstanceOf(ConnectionInterface::class, $replacement);
         $this->assertNotSame($borrowed, $replacement);
         $pool->release($replacement);
+    }
+
+    #[RunInSeparateProcess]
+    public function testHeartbeatCreationFailureClosesAcquiredConnection(): void
+    {
+        $container = new Container;
+        Container::setInstance($container);
+        $pool = new HeartbeatPoolStub($container, 'test', ['heartbeat' => 1]);
+        $exception = null;
+        $connected = null;
+        $closeCount = null;
+
+        SwooleCoroutine::set(['max_coroutine' => 1]);
+        SwooleCoroutine::create(function () use ($pool, &$exception, &$connected, &$closeCount): void {
+            /** @var KeepaliveConnectionStub $connection */
+            $connection = $pool->get();
+            $connection->setActiveConnection(new stdClass);
+
+            try {
+                $connection->reconnect();
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+                $connected = $connection->check();
+                $closeCount = $connection->closeCount;
+            } finally {
+                $connection->discard();
+            }
+        });
+
+        Event::wait();
+
+        $this->assertInstanceOf(CoroutineCreateException::class, $exception);
+        $this->assertFalse($connected);
+        $this->assertSame(1, $closeCount);
     }
 
     private function createPool(): NonCoroutinePool
