@@ -55,7 +55,6 @@ class PooledJobWorkerTest extends TestCase
             'queue',
         );
         $pool = new SimpleObjectPool(
-            $container,
             fn () => new stdClass,
             PoolOptions::fromArray([]),
         );
@@ -107,7 +106,7 @@ class PooledJobWorkerTest extends TestCase
             'data' => [],
         ], JSON_THROW_ON_ERROR));
         $job = new BeanstalkdJob($container, $pheanstalk, $rawJob, 'connection', 'queue');
-        $pool = new SimpleObjectPool($container, fn () => new stdClass, PoolOptions::fromArray([]));
+        $pool = new SimpleObjectPool(fn () => new stdClass, PoolOptions::fromArray([]));
         $job->withPoolLease(new Lease($pool, $pool->get()));
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->andReturn([]);
@@ -143,7 +142,7 @@ class PooledJobWorkerTest extends TestCase
             'data' => [],
         ], JSON_THROW_ON_ERROR));
         $job = new BeanstalkdJob($container, $pheanstalk, $rawJob, 'connection', 'queue');
-        $pool = new SimpleObjectPool($container, fn () => new stdClass, PoolOptions::fromArray([]));
+        $pool = new SimpleObjectPool(fn () => new stdClass, PoolOptions::fromArray([]));
         $job->withPoolLease(new Lease($pool, $pool->get()));
         $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->andReturn([]);

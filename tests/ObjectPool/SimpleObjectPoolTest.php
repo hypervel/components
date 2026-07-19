@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ObjectPool;
 
-use Hypervel\Container\Container;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
@@ -14,9 +13,8 @@ class SimpleObjectPoolTest extends TestCase
 {
     public function testCreateObject(): void
     {
-        $container = $this->getContainer();
         $object = new stdClass;
-        $pool = new SimpleObjectPool($container, fn () => $object, PoolOptions::fromArray([]));
+        $pool = new SimpleObjectPool(fn () => $object, PoolOptions::fromArray([]));
 
         $this->assertSame($object, $pool->get());
     }
@@ -25,7 +23,6 @@ class SimpleObjectPoolTest extends TestCase
     {
         $destroyed = [];
         $pool = new SimpleObjectPool(
-            $this->getContainer(),
             fn () => new stdClass,
             PoolOptions::fromArray([]),
             function (object $object) use (&$destroyed): void {
@@ -38,13 +35,5 @@ class SimpleObjectPoolTest extends TestCase
         $pool->close();
 
         $this->assertSame([$object], $destroyed);
-    }
-
-    protected function getContainer(): Container
-    {
-        $container = new Container;
-        Container::setInstance($container);
-
-        return $container;
     }
 }

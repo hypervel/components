@@ -48,7 +48,7 @@ class ClientPooledFilesystemTest extends TestCase
         $this->tempDir = ParallelTesting::tempDir('ClientPooledFilesystem');
         $this->adapter = new LocalFilesystemAdapter($this->tempDir);
         $this->driver = new Filesystem($this->adapter);
-        $this->pools = new PoolManager($this->app);
+        $this->pools = new PoolManager;
     }
 
     protected function tearDownInCoroutine(): void

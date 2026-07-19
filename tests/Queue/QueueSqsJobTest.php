@@ -195,7 +195,6 @@ class QueueSqsJobTest extends TestCase
     protected function lease(?Closure $destroyCallback = null): array
     {
         $pool = new SimpleObjectPool(
-            m::mock(Container::class),
             fn () => new stdClass,
             PoolOptions::fromArray([]),
             $destroyCallback,

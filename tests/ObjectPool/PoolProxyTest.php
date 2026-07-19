@@ -32,7 +32,7 @@ class PoolProxyTest extends TestCase
 
         $this->container = new Container;
         Container::setInstance($this->container);
-        $this->manager = new PoolManager($this->container);
+        $this->manager = new PoolManager;
         $this->container->instance(Factory::class, $this->manager);
         $this->definition = new PoolDefinition(
             'test:auto:service:fingerprint',

@@ -36,9 +36,7 @@ class PoolRecyclerTest extends TestCase
 
     public function testReplacementPoolSurvivesAStaleEvictionSnapshot(): void
     {
-        $container = new Container;
-        Container::setInstance($container);
-        $manager = new PoolManager($container);
+        $manager = new PoolManager;
         $definition = $this->definition('shared');
         $replacement = $manager->getOrCreate($definition, static fn (): object => new stdClass);
         $stale = m::mock(ObjectPool::class);
@@ -59,9 +57,7 @@ class PoolRecyclerTest extends TestCase
 
     public function testSuspendedFactoryPreventsIdleEviction(): void
     {
-        $container = new Container;
-        Container::setInstance($container);
-        $manager = new PoolManager($container);
+        $manager = new PoolManager;
         $definition = new PoolDefinition(
             'suspended',
             'service',
@@ -93,9 +89,7 @@ class PoolRecyclerTest extends TestCase
 
     public function testParkedWaiterAndBorrowedObjectPreventIdleEviction(): void
     {
-        $container = new Container;
-        Container::setInstance($container);
-        $manager = new PoolManager($container);
+        $manager = new PoolManager;
         $definition = new PoolDefinition(
             'waiting',
             'service',
@@ -135,6 +129,41 @@ class PoolRecyclerTest extends TestCase
         $manager->shouldReceive('pools')->once()->andReturn(['active' => $pool]);
 
         (new InspectablePoolRecycler($manager))->maintain();
+    }
+
+    public function testPoolFailureIsReportedWithoutSkippingLaterPools(): void
+    {
+        $failure = new RuntimeException('sweep failed');
+        $reported = null;
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')
+            ->once()
+            ->andReturnUsing(function (RuntimeException $exception) use (&$reported): void {
+                $reported = $exception;
+            });
+        $container = new Container;
+        $container->instance(ExceptionHandler::class, $handler);
+        Container::setInstance($container);
+
+        $failingPool = m::mock(ObjectPool::class);
+        $failingPool->shouldReceive('isIdle')->once()->andReturnFalse();
+        $failingPool->shouldReceive('sweepExpired')->once()->andThrow($failure);
+        $failingPool->shouldNotReceive('trimIdle');
+        $healthyPool = m::mock(ObjectPool::class);
+        $healthyPool->shouldReceive('isIdle')->once()->ordered()->andReturnFalse();
+        $healthyPool->shouldReceive('sweepExpired')->once()->ordered();
+        $healthyPool->shouldReceive('trimIdle')->once()->ordered();
+        $manager = m::mock(Factory::class);
+        $manager->shouldReceive('pools')->once()->andReturn([
+            'failing' => $failingPool,
+            'healthy' => $healthyPool,
+        ]);
+
+        (new InspectablePoolRecycler($manager))->maintain();
+
+        $this->assertInstanceOf(RuntimeException::class, $reported);
+        $this->assertSame('Pool maintenance failed for [failing].', $reported->getMessage());
+        $this->assertSame($failure, $reported->getPrevious());
     }
 
     public function testStartIsIdempotentAndStopClearsTheTimer(): void

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ObjectPool;
 
 use Closure;
-use Hypervel\Container\Container;
 use Hypervel\ObjectPool\Contracts\Factory;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolFingerprint;
@@ -25,9 +24,7 @@ class HasPoolProxyTest extends TestCase
     {
         parent::setUp();
 
-        $container = new Container;
-        Container::setInstance($container);
-        $this->manager = new PoolTraitManager(new PoolManager($container));
+        $this->manager = new PoolTraitManager(new PoolManager);
     }
 
     public function testAutomaticDefinitionIsNamespacedAndFingerprintsConstructionInput(): void

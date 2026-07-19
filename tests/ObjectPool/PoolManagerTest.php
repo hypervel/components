@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ObjectPool;
 
-use Hypervel\Container\Container;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
@@ -17,17 +16,13 @@ use function Hypervel\Coroutine\parallel;
 
 class PoolManagerTest extends TestCase
 {
-    protected Container $container;
-
     protected PoolManager $manager;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = new Container;
-        Container::setInstance($this->container);
-        $this->manager = new PoolManager($this->container);
+        $this->manager = new PoolManager;
     }
 
     public function testGetOrCreateRegistersThePoolAndDefinition(): void

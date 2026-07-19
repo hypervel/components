@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Closure;
-use Hypervel\Contracts\Container\Container;
 
 class SimpleObjectPool extends ObjectPool
 {
@@ -15,14 +14,13 @@ class SimpleObjectPool extends ObjectPool
      * Create a simple callback-backed object pool.
      */
     public function __construct(
-        Container $container,
         callable $callback,
         PoolOptions $options,
         ?Closure $destroyCallback = null,
     ) {
         $this->callback = Closure::fromCallable($callback);
 
-        parent::__construct($container, $options, $destroyCallback);
+        parent::__construct($options, $destroyCallback);
     }
 
     /**

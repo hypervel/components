@@ -162,7 +162,6 @@ class LeaseTest extends TestCase
         $container->instance(ExceptionHandler::class, $handler);
 
         $pool = new SimpleObjectPool(
-            $container,
             static fn (): object => new stdClass,
             PoolOptions::fromArray([]),
         );
@@ -192,7 +191,6 @@ class LeaseTest extends TestCase
     private function pool(?Closure $destroyCallback = null): SimpleObjectPool
     {
         return new SimpleObjectPool(
-            $this->container(),
             static fn (): object => new stdClass,
             PoolOptions::fromArray([]),
             $destroyCallback,

@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Broadcasting;
 use Closure;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\BroadcastPoolProxy;
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Broadcasting\Broadcaster as BroadcasterContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Http\Request;
@@ -113,10 +112,7 @@ class BroadcastPoolProxyTest extends TestCase
         ?PoolManager $pools = null,
         ?PoolDefinition $definition = null,
     ): array {
-        $container = new Container;
-        $container->instance(ContainerContract::class, $container);
-        Container::setInstance($container);
-        $pools ??= new PoolManager($container);
+        $pools ??= new PoolManager;
         $definition ??= new PoolDefinition(
             'broadcast-test',
             'broadcast-test',
