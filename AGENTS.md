@@ -57,7 +57,16 @@ Before editing, identify the work as one of:
 - An update from an existing package's upstream.
 - A new package port.
 
-This determines which upstream source and tests to compare. Upstream updates and new ports follow the workflows under Porting Packages; bug fixes and enhancements follow the workflows below. The same rules apply to all four. In every case, read the package README for the upstream reference and read the relevant Hypervel source and tests before editing.
+This determines which upstream source and tests to compare. Incremental updates from an existing upstream follow the workflow below together with the applicable Porting Policy and rules. New package ports follow the full workflow under Porting Packages. Bug fixes and enhancements follow the workflows below. In every case, read the package README for the upstream reference and the relevant Hypervel source and tests before editing.
+
+### Incremental upstream updates
+
+When bringing an existing upstream feature, fix, or API change into Hypervel:
+
+1. Find the originating implementation pull request and any corresponding documentation pull request. Use them to understand the reason for the change and identify the complete set of files changed when it was introduced.
+2. Inspect every file changed by those pull requests, including source, contracts, tests, fixtures, configuration, package metadata, and documentation. Search the current upstream branch for the added symbols as well, since later changes may have introduced additional consumers or coverage.
+3. Treat the historical pull-request diffs as discovery and history only. Port the actual source, tests, and documentation from the current checked-out upstream default or development branch. Follow-up fixes and documentation improvements may have changed the final implementation or coverage.
+4. Compare that current upstream surface with the Hypervel implementation and apply the approved Hypervel adaptations under Porting Packages. If the upstream feature has no user-facing documentation, add proportionate Hypervel documentation at its natural public surface.
 
 ### Audit what you modify
 
