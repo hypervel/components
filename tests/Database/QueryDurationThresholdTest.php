@@ -19,6 +19,15 @@ class QueryDurationThresholdTest extends TestCase
      */
     protected $now;
 
+    public function testElapsedQueryTimeUsesTheMonotonicClock(): void
+    {
+        $connection = new QueryDurationConnection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
+        $elapsed = $connection->elapsedTimeSince(hrtime(true) / 1e9 - 0.001);
+
+        $this->assertGreaterThan(0.0, $elapsed);
+        $this->assertLessThan(100.0, $elapsed);
+    }
+
     public function testItCanHandleReachingADurationThresholdInTheDb()
     {
         $connection = new Connection(new PDO('sqlite::memory:'), '', '', ['name' => 'sqlite']);
@@ -242,5 +251,13 @@ class QueryDurationThresholdTest extends TestCase
             'bar',
             'baz',
         ], $queries);
+    }
+}
+
+class QueryDurationConnection extends Connection
+{
+    public function elapsedTimeSince(float $start): float
+    {
+        return $this->getElapsedTime($start);
     }
 }

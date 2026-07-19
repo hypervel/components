@@ -688,7 +688,7 @@ class Connection implements ConnectionInterface
 
         $this->reconnectIfMissingConnection();
 
-        $start = microtime(true);
+        $start = hrtime(true) / 1e9;
 
         // Here we will run this query. If an exception occurs we'll determine if it was
         // caused by a connection that has been lost. If that is the cause, we'll try
@@ -805,7 +805,7 @@ class Connection implements ConnectionInterface
      */
     protected function getElapsedTime(float $start): float
     {
-        return round((microtime(true) - $start) * 1000, 2);
+        return round((hrtime(true) / 1e9 - $start) * 1000, 2);
     }
 
     /**
