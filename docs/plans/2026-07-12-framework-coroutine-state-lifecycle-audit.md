@@ -1052,6 +1052,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `auth-01` | `support`, `auth` | later full `auth` audit | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts` and `support` (revalidation complete), `filesystem`, `foundation`; later full `filesystem` and `foundation` audits | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
+| `process-01` | `process` | later full `process` audit | `Expose process stopping through the contract`; finding `process-01` |
 
 ## Package checklist
 

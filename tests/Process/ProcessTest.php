@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Process;
 
 use Carbon\CarbonInterval;
+use Hypervel\Contracts\Process\InvokedProcess as InvokedProcessContract;
 use Hypervel\Contracts\Process\ProcessResult;
 use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
@@ -166,6 +167,32 @@ class ProcessTest extends TestCase
         });
 
         $this->assertTrue(str_contains(implode('', $output), 'ProcessTest.php'));
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testRealInvokedProcessCanBeStoppedThroughContract(): void
+    {
+        $factory = new Factory;
+        $process = $factory->start('sleep 60');
+
+        $this->stopProcess($process);
+
+        $this->assertFalse($process->running());
+    }
+
+    public function testFakeInvokedProcessCanBeStoppedThroughContract(): void
+    {
+        $factory = new Factory;
+        $factory->fake([
+            '*' => $factory->describe()->runsFor(iterations: 10),
+        ]);
+        $process = $factory->start('sleep 60');
+
+        $this->assertTrue($process->running());
+
+        $this->stopProcess($process);
+
+        $this->assertFalse($process->running());
     }
 
     public function testBasicProcessFake()
@@ -1154,6 +1181,11 @@ class ProcessTest extends TestCase
         $process = $factory->start('ls -la');
 
         $this->assertSame('ls -la', $process->command());
+    }
+
+    protected function stopProcess(InvokedProcessContract $process): ?int
+    {
+        return $process->stop(0);
     }
 
     protected function ls(): string

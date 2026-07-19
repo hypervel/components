@@ -22,6 +22,11 @@ interface InvokedProcess
     public function signal(int $signal): static;
 
     /**
+     * Stop the process if it is still running.
+     */
+    public function stop(float $timeout = 10, ?int $signal = null): ?int;
+
+    /**
      * Determine if the process is still running.
      */
     public function running(): bool;
