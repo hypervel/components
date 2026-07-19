@@ -45,6 +45,9 @@ interface Factory
 
     /**
      * Remove and close every registered pool.
+     *
+     * Boot or tests only. This clears worker-lifetime pools shared by every
+     * coroutine; use targeted removal for runtime resource recovery.
      */
     public function flush(): void;
 }
