@@ -9,5 +9,10 @@ interface ClientFactoryInterface
     /**
      * Create an HTTP/2 client.
      */
-    public function make(string $host, int $port = 80, bool $ssl = false): ClientInterface;
+    public function make(
+        string $host,
+        int $port = 80,
+        bool $ssl = false,
+        array $settings = [],
+    ): ClientInterface;
 }

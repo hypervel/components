@@ -30,4 +30,9 @@ interface RequestInterface
      * Determine whether the request uses pipelining.
      */
     public function isPipeline(): bool;
+
+    /**
+     * Determine whether the response is read incrementally.
+     */
+    public function usesPipelineRead(): bool;
 }
