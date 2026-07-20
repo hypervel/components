@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Filesystem;
 
+use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
+use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
 #[WithConfig('filesystems.disks.local.serve', true)]
 class ReceiveFileTest extends TestCase
@@ -14,7 +17,11 @@ class ReceiveFileTest extends TestCase
     protected function setUp(): void
     {
         $this->beforeApplicationDestroyed(function () {
-            Storage::delete('receive-file-test.txt');
+            Storage::delete([
+                'receive-file-test.txt',
+                'receive-file-test.txt?pad=x',
+                'nested/folder/receive-file-test.txt',
+            ]);
         });
 
         parent::setUp();
@@ -28,6 +35,23 @@ class ReceiveFileTest extends TestCase
 
         $response->assertNoContent();
         Storage::assertExists('receive-file-test.txt', 'Hello World');
+    }
+
+    public function testStorageFailureReturnsServerError(): void
+    {
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt', now()->addMinutes(1));
+        $disk = m::mock(Filesystem::class);
+        $disk->shouldReceive('put')->once()->with('receive-file-test.txt', 'Hello World')->andReturnFalse();
+        $manager = Storage::getFacadeRoot();
+
+        try {
+            Storage::shouldReceive('disk')->once()->with('local')->andReturn($disk);
+            $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello World');
+        } finally {
+            Storage::swap($manager);
+        }
+
+        $response->assertInternalServerError();
     }
 
     public function testItWill403OnWrongSignature()
@@ -73,5 +97,37 @@ class ReceiveFileTest extends TestCase
         $response = $this->get($uploadUrl['url']);
 
         $response->assertForbidden();
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testItCanReceiveAFileWithUriDelimitersInThePath(): void
+    {
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt?pad=x', now()->addMinutes(1));
+
+        $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello Question');
+
+        $response->assertNoContent();
+        Storage::assertExists('receive-file-test.txt?pad=x', 'Hello Question');
+        Storage::assertMissing('receive-file-test.txt');
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testTemporaryUploadUrlPreservesPathSeparatorsInNestedPaths(): void
+    {
+        $result = Storage::temporaryUploadUrl('nested/folder/receive-file-test.txt', now()->addMinutes(1));
+
+        $this->assertStringContainsString('nested/folder/receive-file-test.txt', $result['url']);
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testUriDelimitersInThePathCannotHideAnExpiredUploadUrl(): void
+    {
+        $result = Storage::temporaryUploadUrl('receive-file-test.txt?pad=x', now()->subMinutes(1));
+
+        $response = $this->call('PUT', $result['url'], [], [], [], [], 'Hello Question');
+
+        $response->assertForbidden();
+        Storage::assertMissing('receive-file-test.txt');
+        Storage::assertMissing('receive-file-test.txt?pad=x');
     }
 }
