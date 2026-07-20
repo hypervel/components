@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
+use Error;
 use ErrorException;
 use Hypervel\Config\Repository as Config;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Log\LogManager;
@@ -339,6 +341,32 @@ class HandleExceptionsTest extends TestCase
             '/home/user/laravel/src/Providers/AppServiceProvider.php',
             17
         );
+    }
+
+    public function testNonConsoleExceptionIsReportedWithoutRenderingAResponse(): void
+    {
+        $exception = new RuntimeException('uncaught coroutine failure');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($exception);
+        $handler->shouldNotReceive('render');
+        $handler->shouldNotReceive('renderForConsole');
+        $this->app->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
+        $this->app->expects('runningInConsole')->andReturnFalse();
+
+        $this->handleExceptions()->handleException($exception);
+    }
+
+    public function testNonConsoleExceptionContainsAThrowableFromTheReporter(): void
+    {
+        $exception = new RuntimeException('uncaught coroutine failure');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($exception)->andThrow(new Error('reporting failed'));
+        $handler->shouldNotReceive('render');
+        $handler->shouldNotReceive('renderForConsole');
+        $this->app->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
+        $this->app->expects('runningInConsole')->andReturnFalse();
+
+        $this->handleExceptions()->handleException($exception);
     }
 
     public function testIgnoreDeprecationIfLoggerUnresolvable()
