@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
+use Carbon\CarbonImmutable;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
@@ -51,6 +52,32 @@ class BusBatchableTest extends TestCase
         $this->assertSame(3, $job->batch()->totalJobs);
     }
 
+    public function testZeroBatchIdMayBeRetrievedAndFaked(): void
+    {
+        $job = new class {
+            use Batchable;
+        };
+
+        Container::setInstance($container = new Container);
+
+        $repository = m::mock(BatchRepository::class);
+        $batch = m::mock(Batch::class);
+        $repository->shouldReceive('find')->once()->with('0')->andReturn($batch);
+        $container->instance(BatchRepository::class, $repository);
+
+        $job->withBatchId('0');
+
+        $this->assertSame($batch, $job->batch());
+
+        $fakeJob = new class {
+            use Batchable;
+        };
+
+        [, $fakeBatch] = $fakeJob->withFakeBatch('0');
+
+        $this->assertSame('0', $fakeBatch->id);
+    }
+
     public function testBatchingReflectsCancelledState()
     {
         $job = new class {
@@ -64,6 +91,17 @@ class BusBatchableTest extends TestCase
 
         // Cancel the batch and ensure batching() returns false
         $job->batch()->cancel();
+        $this->assertFalse($job->batching());
+    }
+
+    public function testBatchingReturnsFalseWhenBatchIsFinished(): void
+    {
+        $job = new class {
+            use Batchable;
+        };
+
+        $job->withFakeBatch('test-batch-id', 'test-batch-name', finishedAt: CarbonImmutable::now());
+
         $this->assertFalse($job->batching());
     }
 }

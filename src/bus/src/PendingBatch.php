@@ -81,7 +81,7 @@ class PendingBatch
                 return;
             }
 
-            if (! (static::$batchableClasses[$job::class] ?? false) && ! in_array(Batchable::class, class_uses_recursive($job))) {
+            if (! (static::$batchableClasses[$job::class] ?? false) && ! isset(class_uses_recursive($job)[Batchable::class])) {
                 static::$batchableClasses[$job::class] = false;
 
                 throw new RuntimeException(sprintf('Attempted to batch job [%s], but it does not use the Batchable trait.', $job::class));
@@ -314,9 +314,11 @@ class PendingBatch
             throw $e;
         }
 
-        $this->container->make(EventDispatcher::class)->dispatch(
-            new BatchDispatched($batch)
-        );
+        $events = $this->container->make(EventDispatcher::class);
+
+        if ($events->hasListeners(BatchDispatched::class)) {
+            $events->dispatch(new BatchDispatched($batch));
+        }
 
         return $batch;
     }
@@ -350,9 +352,11 @@ class PendingBatch
             throw $e;
         }
 
-        $this->container->make(EventDispatcher::class)->dispatch(
-            new BatchDispatched($batch)
-        );
+        $events = $this->container->make(EventDispatcher::class);
+
+        if ($events->hasListeners(BatchDispatched::class)) {
+            $events->dispatch(new BatchDispatched($batch));
+        }
     }
 
     /**

@@ -99,7 +99,7 @@ class BatchFake extends Batch
     /**
      * Cancel the batch.
      */
-    public function cancel(): void
+    public function cancel(?Throwable $exception = null): void
     {
         $this->cancelledAt = CarbonImmutable::now();
     }

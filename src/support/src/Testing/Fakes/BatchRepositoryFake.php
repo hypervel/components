@@ -72,17 +72,17 @@ class BatchRepositoryFake implements BatchRepository
     /**
      * Decrement the total number of pending jobs for the batch.
      */
-    public function decrementPendingJobs(int|string $batchId, string $jobId): UpdatedBatchJobCounts
+    public function decrementPendingJobs(int|string $batchId, string $jobId): ?UpdatedBatchJobCounts
     {
-        return new UpdatedBatchJobCounts;
+        return isset($this->batches[$batchId]) ? new UpdatedBatchJobCounts : null;
     }
 
     /**
      * Increment the total number of failed jobs for the batch.
      */
-    public function incrementFailedJobs(int|string $batchId, string $jobId): UpdatedBatchJobCounts
+    public function incrementFailedJobs(int|string $batchId, string $jobId): ?UpdatedBatchJobCounts
     {
-        return new UpdatedBatchJobCounts;
+        return isset($this->batches[$batchId]) ? new UpdatedBatchJobCounts : null;
     }
 
     /**
@@ -115,6 +115,11 @@ class BatchRepositoryFake implements BatchRepository
 
     /**
      * Execute the given Closure within a storage specific transaction.
+     *
+     * @template TReturn
+     *
+     * @param Closure(): TReturn $callback
+     * @return TReturn
      */
     public function transaction(Closure $callback): mixed
     {

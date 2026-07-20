@@ -8,6 +8,7 @@ use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\ChainedBatch;
+use Hypervel\Bus\Events\BatchDispatched;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
@@ -156,7 +157,8 @@ class BusPendingBatchTest extends TestCase
         $container = new Container;
 
         $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->shouldReceive('dispatch')->once();
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(BatchDispatched::class)->andReturnTrue();
+        $eventDispatcher->shouldReceive('dispatch')->once()->with(m::type(BatchDispatched::class));
 
         $container->instance(Dispatcher::class, $eventDispatcher);
 
@@ -188,6 +190,52 @@ class BusPendingBatchTest extends TestCase
         $container->instance(BatchRepository::class, $repository);
 
         $pendingBatch->dispatch();
+    }
+
+    public function testBatchDispatchedEventIsSkippedWithoutListeners(): void
+    {
+        $container = new Container;
+
+        $eventDispatcher = m::mock(Dispatcher::class);
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(BatchDispatched::class)->andReturnFalse();
+        $eventDispatcher->shouldNotReceive('dispatch');
+        $container->instance(Dispatcher::class, $eventDispatcher);
+
+        $job = new class {
+            use Batchable;
+        };
+
+        $pendingBatch = new PendingBatch($container, new Collection([$job]));
+
+        $repository = m::mock(BatchRepository::class);
+        $repository->shouldReceive('store')->once()->with($pendingBatch)->andReturn($batch = m::mock(Batch::class));
+        $batch->shouldReceive('add')->once()->with(m::type(Collection::class))->andReturnSelf();
+        $container->instance(BatchRepository::class, $repository);
+
+        $this->assertSame($batch, $pendingBatch->dispatch());
+    }
+
+    public function testBatchDispatchedEventIsDispatchedAfterResponse(): void
+    {
+        $container = new Container;
+
+        $eventDispatcher = m::mock(Dispatcher::class);
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(BatchDispatched::class)->andReturnTrue();
+        $eventDispatcher->shouldReceive('dispatch')->once()->with(m::type(BatchDispatched::class));
+        $container->instance(Dispatcher::class, $eventDispatcher);
+
+        $job = new class {
+            use Batchable;
+        };
+
+        $pendingBatch = new PendingBatch($container, new Collection([$job]));
+
+        $repository = m::mock(BatchRepository::class);
+        $repository->shouldReceive('store')->once()->with($pendingBatch)->andReturn($batch = m::mock(Batch::class));
+        $batch->shouldReceive('add')->once()->with(m::type(Collection::class))->andReturnSelf();
+        $container->instance(BatchRepository::class, $repository);
+
+        $this->assertSame($batch, $pendingBatch->dispatchAfterResponse());
     }
 
     public function testBatchIsDeletedFromStorageIfExceptionThrownDuringBatching()
@@ -224,7 +272,8 @@ class BusPendingBatchTest extends TestCase
         $container = new Container;
 
         $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->shouldReceive('dispatch')->once();
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(BatchDispatched::class)->andReturnTrue();
+        $eventDispatcher->shouldReceive('dispatch')->once()->with(m::type(BatchDispatched::class));
         $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
@@ -271,7 +320,8 @@ class BusPendingBatchTest extends TestCase
         $container = new Container;
 
         $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->shouldReceive('dispatch')->once();
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(BatchDispatched::class)->andReturnTrue();
+        $eventDispatcher->shouldReceive('dispatch')->once()->with(m::type(BatchDispatched::class));
         $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
@@ -318,7 +368,8 @@ class BusPendingBatchTest extends TestCase
         $container = new Container;
 
         $eventDispatcher = m::mock(Dispatcher::class);
-        $eventDispatcher->shouldReceive('dispatch')->once();
+        $eventDispatcher->shouldReceive('hasListeners')->once()->with(BatchDispatched::class)->andReturnTrue();
+        $eventDispatcher->shouldReceive('dispatch')->once()->with(m::type(BatchDispatched::class));
 
         $container->instance(Dispatcher::class, $eventDispatcher);
 
