@@ -25,6 +25,7 @@ Write Hypervel apps like Laravel apps, except for these differences. Most stem f
 
 - Workers are long-lived; many requests run concurrently as coroutines inside one worker process.
 - Anything on a static property or singleton service is shared across all concurrent requests in that worker — treat it like global state.
+- Routes retain caller-supplied closures, invokable objects, and object-method callables for the worker lifetime. Prefer `[Controller::class, 'method']` when the container should control the controller's singleton, scoped, or transient lifetime.
 
 ## Per-request state
 
