@@ -328,7 +328,7 @@ class FilesystemTest extends TestCase
         $filesystem = new RecordingDeleteFilesystem;
 
         $this->assertFalse($filesystem->deleteDirectory($directory));
-        $this->assertSame(
+        $this->assertEqualsCanonicalizing(
             [$directory . '/first.txt', $directory . '/second.txt'],
             $filesystem->deleted
         );
@@ -611,6 +611,14 @@ class FilesystemTest extends TestCase
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
         $this->assertSame('text/plain', $files->mimeType($this->tempDir . '/foo.txt'));
+    }
+
+    #[RequiresPhpExtension('fileinfo')]
+    public function testMimeTypeReturnsFalseWhenDetectionFails(): void
+    {
+        $files = new Filesystem;
+
+        $this->assertFalse($files->mimeType($this->tempDir . '/missing.txt'));
     }
 
     public function testGuessExtensionReturnsNullWhenMimeDetectionFails(): void

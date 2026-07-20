@@ -447,9 +447,9 @@ class Filesystem
      */
     public function mimeType(string $path): string|false
     {
-        $fileInfo = finfo_open(FILEINFO_MIME_TYPE);
+        $fileInfo = @finfo_open(FILEINFO_MIME_TYPE);
 
-        return $fileInfo === false ? false : finfo_file($fileInfo, $path);
+        return $fileInfo === false ? false : @finfo_file($fileInfo, $path);
     }
 
     /**
