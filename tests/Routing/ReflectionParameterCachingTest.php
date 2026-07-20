@@ -60,6 +60,23 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         $this->assertSame($cacheAfterFirst, $cacheAfterSecond);
     }
 
+    public function testInvokableObjectParametersAreCachedAcrossDispatches(): void
+    {
+        $router = $this->getRouter();
+        $invokable = new ParameterCachingInvoker;
+
+        $router->get('foo/{name}', $invokable);
+
+        $this->assertSame('taylor', $router->dispatch(Request::create('foo/taylor', 'GET'))->getContent());
+        $cacheAfterFirst = $this->getCallableDispatcherCachedParameters($invokable);
+
+        $this->assertSame('dayle', $router->dispatch(Request::create('foo/dayle', 'GET'))->getContent());
+        $cacheAfterSecond = $this->getCallableDispatcherCachedParameters($invokable);
+
+        $this->assertSame($cacheAfterFirst, $cacheAfterSecond);
+        $this->assertContainsOnlyInstancesOf(ReflectionParameter::class, $cacheAfterSecond);
+    }
+
     public function testControllerParametersAreCachedByClassAndMethod()
     {
         $router = $this->getRouter();
@@ -224,15 +241,15 @@ class ReflectionParameterCachingTest extends RoutingTestCase
         return $router;
     }
 
-    protected function getCallableDispatcherCachedParameters(Closure $closure): ?array
+    protected function getCallableDispatcherCachedParameters(object $callable): ?array
     {
         $cache = (new ReflectionProperty(CallableDispatcher::class, 'reflectionCache'))->getValue();
 
         if ($cache instanceof WeakMap) {
-            return $cache[$closure] ?? null;
+            return $cache[$callable] ?? null;
         }
 
-        return $cache[spl_object_id($closure)] ?? null;
+        return $cache[spl_object_id($callable)] ?? null;
     }
 
     protected function seedCallableDispatcherCacheWithStaleParameters(
@@ -258,6 +275,14 @@ class ReflectionParameterCachingTest extends RoutingTestCase
 class ParameterCachingController extends Controller
 {
     public function show(string $name): string
+    {
+        return $name;
+    }
+}
+
+class ParameterCachingInvoker
+{
+    public function __invoke(string $name): string
     {
         return $name;
     }

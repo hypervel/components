@@ -27,14 +27,14 @@ class RouteSignatureParameters
     protected static array $cache = [];
 
     /**
-     * Cached reflection parameters keyed by closure object.
+     * Cached reflection parameters keyed by callable object.
      *
-     * WeakMap ensures entries disappear with the closure, preventing stale
+     * WeakMap ensures entries disappear with the callable, preventing stale
      * signature reuse when object IDs are recycled during a long worker lifetime.
      *
-     * @var null|WeakMap<Closure, array<int, ReflectionParameter>>
+     * @var null|WeakMap<object, array<int, ReflectionParameter>>
      */
-    protected static ?WeakMap $closureCache = null;
+    protected static ?WeakMap $objectCache = null;
 
     /**
      * Extract the route action's signature parameters.
@@ -48,18 +48,20 @@ class RouteSignatureParameters
         if (is_string($callback)) {
             $parameters = static::$cache[$callback] ??= static::fromClassMethodString($callback);
         } else {
-            $closureCache = static::$closureCache ??= new WeakMap;
+            $objectCache = static::$objectCache ??= new WeakMap;
 
-            if (! isset($closureCache[$callback])) {
-                $closureCache[$callback] = (new ReflectionFunction($callback))->getParameters();
+            if (! isset($objectCache[$callback])) {
+                $objectCache[$callback] = $callback instanceof Closure
+                    ? (new ReflectionFunction($callback))->getParameters()
+                    : (new ReflectionMethod($callback, '__invoke'))->getParameters();
             }
 
-            $parameters = $closureCache[$callback];
+            $parameters = $objectCache[$callback];
         }
 
         return match (true) {
-            ! empty($conditions['subClass']) => array_filter($parameters, fn (ReflectionParameter $p) => Reflector::isParameterSubclassOf($p, $conditions['subClass'])),
-            ! empty($conditions['backedEnum']) => array_filter($parameters, fn (ReflectionParameter $p) => Reflector::isParameterBackedEnumWithStringBackingType($p)),
+            ! empty($conditions['subClass']) => array_filter($parameters, fn (ReflectionParameter $parameter) => Reflector::isParameterSubclassOf($parameter, $conditions['subClass'])),
+            ! empty($conditions['backedEnum']) => array_filter($parameters, fn (ReflectionParameter $parameter) => Reflector::isParameterBackedEnumWithStringBackingType($parameter)),
             default => $parameters,
         };
     }
@@ -73,7 +75,7 @@ class RouteSignatureParameters
     public static function flushCache(): void
     {
         static::$cache = [];
-        static::$closureCache = new WeakMap;
+        static::$objectCache = new WeakMap;
     }
 
     /**

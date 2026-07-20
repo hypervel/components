@@ -19,7 +19,7 @@ use WeakMap;
 
 class ImplicitRouteBindingTest extends RoutingTestCase
 {
-    public function testItCanResolveTheImplicitBackedEnumRouteBindingsForTheGivenRoute()
+    public function testItCanResolveTheImplicitBackedEnumRouteBindingsForTheGivenRoute(): void
     {
         $action = ['uses' => function (CategoryBackedEnum $category) {
             return $category->value;
@@ -37,7 +37,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         $this->assertSame('fruits', $route->parameter('category')->value);
     }
 
-    public function testItCanResolveTheImplicitBackedEnumRouteBindingsForTheGivenRouteWithOptionalParameter()
+    public function testItCanResolveTheImplicitBackedEnumRouteBindingsForTheGivenRouteWithOptionalParameter(): void
     {
         $action = ['uses' => function (?CategoryBackedEnum $category = null) {
             return $category->value;
@@ -55,7 +55,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         $this->assertSame('fruits', $route->parameter('category')->value);
     }
 
-    public function testItHandlesOptionalImplicitBackedEnumRouteBindingsForTheGivenRouteWithOptionalParameter()
+    public function testItHandlesOptionalImplicitBackedEnumRouteBindingsForTheGivenRouteWithOptionalParameter(): void
     {
         $action = ['uses' => function (?CategoryBackedEnum $category = null) {
             return $category->value;
@@ -73,7 +73,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         $this->assertNull($route->parameter('category'));
     }
 
-    public function testItDoesNotResolveImplicitNonBackedEnumRouteBindingsForTheGivenRoute()
+    public function testItDoesNotResolveImplicitNonBackedEnumRouteBindingsForTheGivenRoute(): void
     {
         $action = ['uses' => function (CategoryEnum $category) {
             return $category->value;
@@ -92,7 +92,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         $this->assertSame('fruits', $route->parameter('category'));
     }
 
-    public function testImplicitBackedEnumInternalException()
+    public function testImplicitBackedEnumInternalException(): void
     {
         $action = ['uses' => function (CategoryBackedEnum $category) {
             return $category->value;
@@ -115,7 +115,7 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         ImplicitRouteBinding::resolveForRoute($container, $route);
     }
 
-    public function testItCanResolveTheImplicitModelRouteBindingsForTheGivenRoute()
+    public function testItCanResolveTheImplicitModelRouteBindingsForTheGivenRoute(): void
     {
         $this->expectNotToPerformAssertions();
 
@@ -134,7 +134,22 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         ImplicitRouteBinding::resolveForRoute($container, $route);
     }
 
-    public function testItDoesNotReuseStaleImplicitBindingSignatureParametersWhenClosureObjectIdIsReused()
+    public function testItResolvesInvokableObjectSignatureParameters(): void
+    {
+        $route = new Route(
+            'GET',
+            '/test/{category}',
+            ['uses' => new ImplicitRouteBindingInvoker],
+        );
+        $route->bind(Request::create('/test/fruits'));
+
+        ImplicitRouteBinding::resolveForRoute(Container::getInstance(), $route);
+
+        $this->assertInstanceOf(CategoryBackedEnum::class, $route->parameter('category'));
+        $this->assertSame('fruits', $route->parameter('category')->value);
+    }
+
+    public function testItDoesNotReuseStaleImplicitBindingSignatureParametersWhenClosureObjectIdIsReused(): void
     {
         $container = Container::getInstance();
 
@@ -151,7 +166,6 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         ];
         $this->seedImplicitBindingSignatureCache(
             $closureWithNoParameters,
-            $closureWithEnumParameter,
             $staleSignature,
         );
 
@@ -163,44 +177,40 @@ class ImplicitRouteBindingTest extends RoutingTestCase
         $this->assertInstanceOf(CategoryBackedEnum::class, $route->parameter('category'));
         $this->assertSame('fruits', $route->parameter('category')->value);
 
-        if (property_exists(ImplicitRouteBinding::class, 'closureSignatureCache')) {
-            $reflectionProperty = new ReflectionProperty(ImplicitRouteBinding::class, 'closureSignatureCache');
-            $cache = $reflectionProperty->getValue();
+        $reflectionProperty = new ReflectionProperty(ImplicitRouteBinding::class, 'objectSignatureCache');
+        $cache = $reflectionProperty->getValue();
 
-            $this->assertInstanceOf(WeakMap::class, $cache);
-            $this->assertCount(2, $cache);
-            $this->assertSame([[], []], $cache[$closureWithNoParameters]);
-            $this->assertNotEmpty($cache[$closureWithEnumParameter][1]);
-            $this->assertSame('category', $cache[$closureWithEnumParameter][1][0]->getName());
-        }
+        $this->assertInstanceOf(WeakMap::class, $cache);
+        $this->assertCount(2, $cache);
+        $this->assertSame([[], []], $cache[$closureWithNoParameters]);
+        $this->assertNotEmpty($cache[$closureWithEnumParameter][1]);
+        $this->assertSame('category', $cache[$closureWithEnumParameter][1][0]->getName());
     }
 
     protected function seedImplicitBindingSignatureCache(
         Closure $staleClosure,
-        Closure $targetClosure,
         array $signature,
     ): void {
-        if (property_exists(ImplicitRouteBinding::class, 'closureSignatureCache')) {
-            $reflectionProperty = new ReflectionProperty(ImplicitRouteBinding::class, 'closureSignatureCache');
-            $cache = $reflectionProperty->getValue();
+        $reflectionProperty = new ReflectionProperty(ImplicitRouteBinding::class, 'objectSignatureCache');
+        $cache = $reflectionProperty->getValue();
 
-            if (! $cache instanceof WeakMap) {
-                $cache = new WeakMap;
-            }
-
-            $cache[$staleClosure] = $signature;
-            $reflectionProperty->setValue(null, $cache);
-
-            return;
+        if (! $cache instanceof WeakMap) {
+            $cache = new WeakMap;
         }
 
-        $reflectionProperty = new ReflectionProperty(ImplicitRouteBinding::class, 'signatureCache');
-        $cache = $reflectionProperty->getValue();
-        $cache[(string) spl_object_id($targetClosure)] = $signature;
+        $cache[$staleClosure] = $signature;
         $reflectionProperty->setValue(null, $cache);
     }
 }
 
 class ImplicitRouteBindingUser extends Model
 {
+}
+
+class ImplicitRouteBindingInvoker
+{
+    public function __invoke(CategoryBackedEnum $category): string
+    {
+        return $category->value;
+    }
 }
