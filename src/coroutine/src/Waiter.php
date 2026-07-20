@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Coroutine\Exceptions\ExceptionThrower;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Throwable;
 
 class Waiter
@@ -37,7 +38,7 @@ class Waiter
         }
 
         $channel = new Channel(1);
-        Coroutine::create(function () use ($channel, $closure) {
+        $childCoroutineId = Coroutine::create(function () use ($channel, $closure) {
             $result = null;
 
             Coroutine::defer(function () use ($channel, &$result): void {
@@ -53,8 +54,16 @@ class Waiter
 
         $result = $channel->pop($timeout);
         if ($result === false && $channel->isTimeout()) {
+            // Interrupt the operation without a catchable exception, then give the
+            // child a bounded interval to unwind and run deferred cleanup.
+            EngineCoroutine::cancelById($childCoroutineId);
+            Coroutine::join([$childCoroutineId], $this->pushTimeout);
+
             throw new WaitTimeoutException(sprintf('Channel wait failed, reason: Timed out for %s s', $timeout));
         }
+
+        Coroutine::join([$childCoroutineId]);
+
         if ($result instanceof ExceptionThrower) {
             throw $result->getThrowable();
         }

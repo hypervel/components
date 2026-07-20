@@ -391,14 +391,20 @@ class TranslationTranslatorTest extends TestCase
             return "missing:{$key}";
         });
 
-        [$hasMissingKey, $translatedMissingKey] = parallel([
-            fn (): bool => $translator->has('messages.first', 'en'),
-            function () use ($translator): string {
-                usleep(2500);
+        $results = null;
 
-                return $translator->get('messages.second', [], 'fr');
-            },
-        ]);
+        run(function () use ($translator, &$results): void {
+            $results = parallel([
+                fn (): bool => $translator->has('messages.first', 'en'),
+                function () use ($translator): string {
+                    usleep(2500);
+
+                    return $translator->get('messages.second', [], 'fr');
+                },
+            ]);
+        });
+
+        [$hasMissingKey, $translatedMissingKey] = $results;
 
         $this->assertFalse($hasMissingKey);
         $this->assertSame('missing:messages.second', $translatedMissingKey);

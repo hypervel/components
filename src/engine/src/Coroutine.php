@@ -152,6 +152,15 @@ class Coroutine implements CoroutineInterface
     }
 
     /**
+     * Wait for the given coroutines to finish.
+     */
+    public static function join(array $coroutineIds, float $timeout = -1): bool
+    {
+        /* @phpstan-ignore argument.type (@TODO: Remove once PHPStan's bundled JetBrains Swoole stub declares Swoole 6.2's float join() timeout; the extension exposes float.) */
+        return SwooleCo::join($coroutineIds, $timeout);
+    }
+
+    /**
      * Get the coroutine statistics.
      */
     public static function stats(): array
