@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `pipeline`
-- **Ledger entries required for the active work:** `Normalize framework enum identifiers at string boundaries` (`support-02`).
-- **Pending revalidation carried into the active work:** Revalidate `support-02` during the full Pipeline audit.
+- **Active package or work unit:** `bus`
+- **Ledger entries required for the active work:** `Correct event dispatch, queued-consumer isolation, and queue interoperability` (`queue-12`); `Normalize framework enum identifiers at string boundaries` (`support-02`); `Make Pipeline builders transient and restore current upstream fidelity` (`pipeline-01` through `pipeline-05`).
+- **Pending revalidation carried into the active work:** Revalidate `queue-12`, `support-02`, and Pipeline's shared-Bus invariant during the full Bus audit.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1114,7 +1114,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 
 ### Framework dispatch and runtime
 
-- [ ] `pipeline`
+- [x] `pipeline`
 - [ ] `bus`
 - [ ] `core`
 - [ ] `foundation`
