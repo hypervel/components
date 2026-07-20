@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\HttpServer;
 
+use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Response as HypervelResponse;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class ResponseBridge
 {
@@ -83,38 +85,102 @@ class ResponseBridge
     /**
      * Stream a Symfony StreamedResponse through Swoole's write() method.
      *
-     * Symfony's StreamedResponse uses echo inside a callback to emit chunks.
-     * We intercept each echo via ob_start with a callback that routes the
-     * output to Swoole's write(), sending each chunk to the client immediately.
+     * Retained iterables are consumed directly so a failed write stops their
+     * producer. Ordinary callbacks use echo, so their output is routed through
+     * a non-throwing output-buffer handler instead.
      *
      * The chunk_size of 1 means the buffer flushes after every output
      * operation that produces 1+ bytes (not per byte). A single
      * `echo "data: ...\n\n"` triggers one write() call with the full string.
      *
-     * The try/finally with safe OB level restore is critical in Swoole's
-     * long-lived workers: if sendContent() throws, the output buffer must
-     * be cleaned up to prevent OB level leaks across requests.
+     * Removable output buffers are cleaned without spinning on a non-removable
+     * user buffer before the earliest callback, write, or end failure is rethrown.
      */
     protected static function sendStreamedContent(StreamedResponse $response, SwooleResponse $swooleResponse): void
     {
-        $level = ob_get_level();
+        if ($response instanceof IterableStreamedResponse
+            && static::sendIterableContent($response, $swooleResponse)) {
+            return;
+        }
 
-        ob_start(function (string $chunk) use ($swooleResponse): string {
-            if (strlen($chunk) > 0) {
-                $swooleResponse->write($chunk);
+        $level = ob_get_level();
+        $exception = null;
+        $writable = true;
+
+        ob_start(function (string $chunk) use ($swooleResponse, &$exception, &$writable): string {
+            if ($chunk === '' || ! $writable) {
+                return '';
+            }
+
+            try {
+                $writable = $swooleResponse->write($chunk);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+                $writable = false;
             }
 
             return '';
         }, 1);
 
         try {
-            $response->sendContent();
+            try {
+                $response->sendContent();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
         } finally {
             while (ob_get_level() > $level) {
+                $status = ob_get_status();
+
+                if (($status['flags'] & PHP_OUTPUT_HANDLER_REMOVABLE) === 0) {
+                    break;
+                }
+
                 ob_end_clean();
+            }
+
+            try {
+                $swooleResponse->end();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
             }
         }
 
-        $swooleResponse->end();
+        if ($exception !== null) {
+            throw $exception;
+        }
+    }
+
+    /**
+     * Stream retained iterable chunks directly through Swoole.
+     */
+    protected static function sendIterableContent(IterableStreamedResponse $response, SwooleResponse $swooleResponse): bool
+    {
+        $exception = null;
+
+        try {
+            $handled = $response->streamTo(
+                static fn (string $chunk): bool => $swooleResponse->write($chunk)
+            );
+        } catch (Throwable $throwable) {
+            $handled = true;
+            $exception = $throwable;
+        }
+
+        if (! $handled) {
+            return false;
+        }
+
+        try {
+            $swooleResponse->end();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+
+        return true;
     }
 }

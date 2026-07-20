@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\HttpServer;
 
+use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Response as HypervelResponse;
 use Hypervel\HttpServer\ResponseBridge;
 use Hypervel\Tests\TestCase;
@@ -168,6 +169,100 @@ class ResponseBridgeTest extends TestCase
         $this->assertSame('chunk1chunk2', implode('', $chunks));
     }
 
+    public function testIterableStreamedResponseStopsAfterAFailedWrite(): void
+    {
+        $produced = 0;
+        $closed = false;
+        $chunks = (function () use (&$produced, &$closed) {
+            try {
+                ++$produced;
+                yield 'first';
+                ++$produced;
+                yield 'second';
+            } finally {
+                $closed = true;
+            }
+        })();
+        $response = new IterableStreamedResponse($chunks);
+        unset($chunks);
+        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse->shouldReceive('status')->once();
+        $swooleResponse->shouldReceive('header')->withAnyArgs();
+        $swooleResponse->shouldReceive('write')->once()->with('first')->andReturnFalse();
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs();
+
+        ResponseBridge::send($response, $swooleResponse);
+
+        $this->assertSame(1, $produced);
+        $this->assertTrue($closed);
+    }
+
+    public function testIterableStreamedResponsePreservesWriteFailureAndStillEnds(): void
+    {
+        $closed = false;
+        $chunks = (function () use (&$closed) {
+            try {
+                yield 'first';
+            } finally {
+                $closed = true;
+            }
+        })();
+        $response = new IterableStreamedResponse($chunks);
+        unset($chunks);
+        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse->shouldReceive('status')->once();
+        $swooleResponse->shouldReceive('header')->withAnyArgs();
+        $swooleResponse->shouldReceive('write')->once()->andThrow(new RuntimeException('write failed'));
+        $swooleResponse->shouldReceive('end')->once()->andThrow(new RuntimeException('end failed'));
+
+        try {
+            ResponseBridge::send($response, $swooleResponse);
+            $this->fail('Expected the write failure to propagate');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('write failed', $exception->getMessage());
+        }
+
+        $this->assertTrue($closed);
+    }
+
+    public function testOrdinaryStreamedResponseStopsWritingAfterDisconnect(): void
+    {
+        $callbackCompleted = false;
+        $response = new StreamedResponse(function () use (&$callbackCompleted): void {
+            echo 'first';
+            echo 'second';
+            $callbackCompleted = true;
+        });
+        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse->shouldReceive('status')->once();
+        $swooleResponse->shouldReceive('header')->withAnyArgs();
+        $swooleResponse->shouldReceive('write')->once()->with('first')->andReturnFalse();
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs();
+
+        ResponseBridge::send($response, $swooleResponse);
+
+        $this->assertTrue($callbackCompleted);
+    }
+
+    public function testOrdinaryStreamedResponsePreservesWriteFailureAndStillEnds(): void
+    {
+        $response = new StreamedResponse(static function (): void {
+            echo 'first';
+        });
+        $swooleResponse = $this->mockSwooleResponse();
+        $swooleResponse->shouldReceive('status')->once();
+        $swooleResponse->shouldReceive('header')->withAnyArgs();
+        $swooleResponse->shouldReceive('write')->once()->andThrow(new RuntimeException('write failed'));
+        $swooleResponse->shouldReceive('end')->once()->andThrow(new RuntimeException('end failed'));
+
+        try {
+            ResponseBridge::send($response, $swooleResponse);
+            $this->fail('Expected the write failure to propagate');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('write failed', $exception->getMessage());
+        }
+    }
+
     public function testStreamedResponseRemovesConflictingHeaders()
     {
         $response = new StreamedResponse(function () {
@@ -204,8 +299,7 @@ class ResponseBridgeTest extends TestCase
         $swooleResponse->shouldReceive('status')->once();
         $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturn(true);
         $swooleResponse->shouldReceive('write')->andReturn(true);
-        // end() should NOT be called — exception interrupts before end()
-        $swooleResponse->shouldNotReceive('end');
+        $swooleResponse->shouldReceive('end')->once();
 
         $levelBefore = ob_get_level();
 

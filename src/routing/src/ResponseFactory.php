@@ -8,6 +8,7 @@ use BackedEnum;
 use Closure;
 use Hypervel\Contracts\Routing\ResponseFactory as FactoryContract;
 use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Response;
@@ -98,49 +99,11 @@ class ResponseFactory implements FactoryContract
         return $this->stream(function () use ($callback, $endStreamWith) {
             try {
                 foreach ($callback() as $message) {
-                    if (connection_aborted()) {
-                        break;
-                    }
-
-                    $event = 'update';
-
-                    if ($message instanceof StreamedEvent) {
-                        $event = $message->event;
-                        $message = $message->data;
-                    }
-
-                    if (! is_string($message) && ! is_numeric($message)) {
-                        $message = Js::encode($message);
-                    }
-
-                    echo "event: {$event}\n";
-                    echo 'data: ' . $message;
-                    echo "\n\n";
-
-                    if (ob_get_level() > 0) {
-                        ob_flush();
-                    }
-
-                    flush();
+                    yield $this->formatStreamedEvent($message);
                 }
 
                 if (filled($endStreamWith)) {
-                    $endEvent = 'update';
-
-                    if ($endStreamWith instanceof StreamedEvent) {
-                        $endEvent = $endStreamWith->event;
-                        $endStreamWith = $endStreamWith->data;
-                    }
-
-                    echo "event: {$endEvent}\n";
-                    echo 'data: ' . $endStreamWith;
-                    echo "\n\n";
-
-                    if (ob_get_level() > 0) {
-                        ob_flush();
-                    }
-
-                    flush();
+                    yield $this->formatStreamedEvent($endStreamWith);
                 }
             } catch (Throwable $e) {
                 report($e);
@@ -153,20 +116,42 @@ class ResponseFactory implements FactoryContract
     }
 
     /**
+     * Format a server-sent event as a complete stream chunk.
+     */
+    private function formatStreamedEvent(mixed $message): string
+    {
+        $event = 'update';
+
+        if ($message instanceof StreamedEvent) {
+            $event = $message->event;
+            $message = $message->data;
+        }
+
+        if (! is_string($message) && ! is_numeric($message)) {
+            $message = Js::encode($message);
+        }
+
+        return "event: {$event}\ndata: {$message}\n\n";
+    }
+
+    /**
      * Create a new streamed response instance.
      *
-     * For generator callbacks, the callback is set directly on the StreamedResponse
-     * without wrapping in a foreach+echo loop. In Swoole's long-lived workers,
-     * the ResponseBridge handles streaming via ob_start + $swooleResponse->write().
+     * Generator callbacks are invoked once and retained as iterable chunks so the
+     * Swoole bridge can stop production immediately after a failed socket write.
      */
     public function stream(?callable $callback = null, int $status = 200, array $headers = []): StreamedResponse
     {
-        if (! is_null($callback) && (new ReflectionFunction($callback))->isGenerator()) {
-            return (new StreamedResponse(
-                null,
-                $status,
-                array_merge($headers, ['X-Accel-Buffering' => 'no'])
-            ))->setCallback($callback);
+        if ($callback !== null) {
+            $callback = Closure::fromCallable($callback);
+
+            if ((new ReflectionFunction($callback))->isGenerator()) {
+                return new IterableStreamedResponse(
+                    $callback(),
+                    $status,
+                    array_merge($headers, ['X-Accel-Buffering' => 'no'])
+                );
+            }
         }
 
         return new StreamedResponse($callback, $status, $headers);
