@@ -131,6 +131,14 @@ class ResponseFactory implements FactoryContract
             $message = Js::encode($message);
         }
 
+        $message = (string) $message;
+
+        if (strpbrk($message, "\r\n") !== false) {
+            // Normalize CRLF first so the carriage-return pass does not create an extra data line.
+            $message = str_replace(["\r\n", "\r"], "\n", $message);
+            $message = str_replace("\n", "\ndata: ", $message);
+        }
+
         return "event: {$event}\ndata: {$message}\n\n";
     }
 

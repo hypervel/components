@@ -123,6 +123,26 @@ class ResponseFactoryTest extends TestCase
         ], $chunks);
     }
 
+    public function testEventStreamPrefixesEveryMultilineDataField(): void
+    {
+        $response = $this->factory()->eventStream(
+            static function () {
+                yield "first\r\nsecond\rthird\nfourth";
+            },
+            endStreamWith: null,
+        );
+        $chunks = [];
+
+        $this->assertTrue($response->streamTo(function (string $chunk) use (&$chunks): bool {
+            $chunks[] = $chunk;
+
+            return true;
+        }));
+        $this->assertSame([
+            "event: update\ndata: first\ndata: second\ndata: third\ndata: fourth\n\n",
+        ], $chunks);
+    }
+
     private function factory(): ResponseFactory
     {
         return new ResponseFactory(
