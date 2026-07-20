@@ -45,6 +45,7 @@ use Hypervel\Reverb\Webhooks\Jobs\FlushWebhookBatchJob;
 use Hypervel\Reverb\Webhooks\WebhookBatchBuffer;
 use Hypervel\Server\Event;
 use Hypervel\Server\ServerInterface;
+use Hypervel\Server\TlsOptions;
 use Hypervel\Support\ServiceProvider;
 use Swoole\Table;
 use Throwable;
@@ -112,90 +113,37 @@ class ReverbServiceProvider extends ServiceProvider
         $reverbServer = $config->array('reverb.servers.reverb', []);
 
         $servers = $config->array('server.servers', []);
+        /** @var array<string, mixed> $tlsConfiguration */
+        $tlsConfiguration = $reverbServer['options']['tls'] ?? [];
+        $tls = TlsOptions::fromArray($tlsConfiguration);
 
         $servers[] = [
             'name' => 'reverb',
             'type' => ServerInterface::SERVER_WEBSOCKET,
             'host' => $reverbServer['host'] ?? '0.0.0.0',
             'port' => (int) ($reverbServer['port'] ?? 8080),
-            'sock_type' => $this->resolveSocketType($reverbServer),
+            'sock_type' => $tls->socketType(),
             'callbacks' => [
                 Event::ON_REQUEST => [HttpServer::class, 'onRequest'],
                 Event::ON_HANDSHAKE => [WebSocketServer::class, 'onHandshake'],
                 Event::ON_MESSAGE => [WebSocketServer::class, 'onMessage'],
                 Event::ON_CLOSE => [WebSocketServer::class, 'onClose'],
             ],
-            'settings' => $this->resolveServerSettings($reverbServer),
+            'settings' => $this->resolveServerSettings($tls),
         ];
 
         $config->set('server.servers', $servers);
     }
 
     /**
-     * Resolve the Swoole socket type for the Reverb server.
-     */
-    protected function resolveSocketType(array $server): int
-    {
-        return $this->usesTls($server)
-            ? SWOOLE_SOCK_TCP | SWOOLE_SSL
-            : SWOOLE_SOCK_TCP;
-    }
-
-    /**
      * Resolve Swoole settings for the Reverb server.
      */
-    protected function resolveServerSettings(array $server): array
+    protected function resolveServerSettings(TlsOptions $tls): array
     {
         return array_replace([
             'open_websocket_ping_frame' => true,
             'open_websocket_pong_frame' => true,
-        ], $this->resolveTlsSettings($server));
-    }
-
-    /**
-     * Resolve Swoole SSL settings from the configured TLS context.
-     */
-    protected function resolveTlsSettings(array $server): array
-    {
-        $tls = array_filter(
-            $server['options']['tls'] ?? [],
-            static fn ($value): bool => $value !== null
-        );
-
-        $settings = [];
-        $map = [
-            'local_cert' => 'ssl_cert_file',
-            'local_pk' => 'ssl_key_file',
-            'passphrase' => 'ssl_passphrase',
-            'verify_peer' => 'ssl_verify_peer',
-            'allow_self_signed' => 'ssl_allow_self_signed',
-            'cafile' => 'ssl_client_cert_file',
-            'ciphers' => 'ssl_ciphers',
-            'crypto_method' => 'ssl_protocols',
-        ];
-
-        foreach ($tls as $key => $value) {
-            $key = (string) $key;
-
-            if (isset($map[$key])) {
-                $settings[$map[$key]] = $value;
-            } elseif (str_starts_with($key, 'ssl_')) {
-                $settings[$key] = $value;
-            }
-        }
-
-        return $settings;
-    }
-
-    /**
-     * Determine whether the Reverb server should use TLS.
-     */
-    protected function usesTls(array $server): bool
-    {
-        $settings = $this->resolveTlsSettings($server);
-
-        return isset($settings['ssl_cert_file'])
-            || isset($settings['ssl_key_file']);
+        ], $tls->settings());
     }
 
     /**
