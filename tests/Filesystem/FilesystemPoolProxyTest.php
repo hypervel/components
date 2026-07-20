@@ -75,6 +75,23 @@ class FilesystemPoolProxyTest extends TestCase
         $this->assertSame(1, $this->pools->get('filesystem:driver')->getObjectNumberInPool());
     }
 
+    public function testJsonReturnsScalarDataAndReleasesTheDriver(): void
+    {
+        $this->driver->write('value.json', '"value"');
+        $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
+
+        $this->assertSame('value', $proxy->json('value.json'));
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+    }
+
+    public function testAssertEmptyReturnsTheProxyAndReleasesTheDriver(): void
+    {
+        $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
+
+        $this->assertSame($proxy, $proxy->assertEmpty());
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+    }
+
     public function testSynchronousFlysystemMethodsAndConditionableUseTheProxyBoundary(): void
     {
         $proxy = $this->proxy(fn (): FilesystemAdapter => $this->filesystem());
