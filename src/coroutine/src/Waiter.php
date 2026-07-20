@@ -54,9 +54,9 @@ class Waiter
 
         $result = $channel->pop($timeout);
         if ($result === false && $channel->isTimeout()) {
-            // Interrupt the operation without a catchable exception, then give the
-            // child a bounded interval to unwind and run deferred cleanup.
-            EngineCoroutine::cancelById($childCoroutineId);
+            // Throw into the operation so an interrupted wait cannot be ignored accidentally,
+            // then give the child a bounded interval to unwind and run deferred cleanup.
+            EngineCoroutine::cancelById($childCoroutineId, throwException: true);
             Coroutine::join([$childCoroutineId], $this->pushTimeout);
 
             throw new WaitTimeoutException(sprintf('Channel wait failed, reason: Timed out for %s s', $timeout));
