@@ -204,7 +204,7 @@ class GrpcServiceProviderTest extends TestCase
         ], ServiceProvider::pathsToPublish(GrpcServiceProvider::class, 'grpc-routes'));
     }
 
-    public function testLoadsIsolatedRoutesEvenWhenApplicationRoutesAreCached(): void
+    public function testLoadsIsolatedRoutesDuringServerBootstrapEvenWhenApplicationRoutesAreCached(): void
     {
         $cacheDirectory = ParallelTesting::tempDir('GrpcServiceProviderTest-route-cache');
         $cachePath = $cacheDirectory . '/routes.php';
@@ -219,6 +219,10 @@ class GrpcServiceProviderTest extends TestCase
             $this->assertTrue($this->app->routesAreCached());
 
             $provider->boot();
+
+            $this->assertCount(0, $this->app->make(GrpcRouter::class)->getRoutes()->getRoutes());
+
+            $this->app->make(Server::class)->bootstrapForServer('grpc');
 
             $routes = $this->app->make(GrpcRouter::class)->getRoutes()->getRoutes();
             $this->assertCount(3, $routes);

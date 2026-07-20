@@ -6,7 +6,6 @@ namespace Hypervel\Grpc\Server;
 
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Contracts\Server\OnRequestInterface;
@@ -42,8 +41,6 @@ class Server implements OnRequestInterface, BootstrapsForServer
 
     private ExceptionMapper $exceptions;
 
-    private ExceptionHandler $exceptionHandler;
-
     private CallContextStore $contexts;
 
     private int $maxMetadataSize;
@@ -62,13 +59,13 @@ class Server implements OnRequestInterface, BootstrapsForServer
         $this->container->make(KernelContract::class)->bootstrap();
         $this->router = $this->container->make(GrpcRouter::class);
         $this->router->syncMiddlewareFrom($this->container->make('router'));
+        $config = $this->container->make('config');
+        require $config->string('grpc.server.routes');
         $this->router->compileAndWarm();
         $this->responses = $this->container->make(ResponseFactory::class);
         $this->exceptions = $this->container->make(ExceptionMapper::class);
-        $this->exceptionHandler = $this->container->make(ExceptionHandler::class);
         $this->contexts = $this->container->make(CallContextStore::class);
 
-        $config = $this->container->make('config');
         $this->maxMetadataSize = $config->integer('grpc.server.max_metadata_size');
         /** @var array<string, mixed> $tlsConfiguration */
         $tlsConfiguration = $config->array('grpc.server.tls');
@@ -115,7 +112,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
             }
 
             if ($emissionStarted) {
-                $this->exceptionHandler->report($throwable);
+                $this->exceptions->report($throwable);
                 $this->completeWritableResponse($swooleResponse);
 
                 return;
@@ -128,7 +125,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
             } catch (CanceledException $exception) {
                 throw $exception;
             } catch (Throwable $emissionFailure) {
-                $this->exceptionHandler->report($emissionFailure);
+                $this->exceptions->report($emissionFailure);
                 $this->completeWritableResponse($swooleResponse);
             }
         } finally {

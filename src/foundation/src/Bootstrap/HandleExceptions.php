@@ -162,6 +162,11 @@ class HandleExceptions
             $this->getExceptionHandler()->report($e);
         } catch (Throwable) {
             $exceptionHandlerFailed = true;
+
+            try {
+                error_log((string) $e);
+            } catch (Throwable) {
+            }
         }
 
         // Swoole callbacks own response emission; this global backstop has no native response.

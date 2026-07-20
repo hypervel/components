@@ -344,6 +344,7 @@ class ServerTest extends TestCase
         $container->instance('config', new Repository([
             'grpc' => [
                 'server' => [
+                    'routes' => __DIR__ . '/Fixtures/routes.php',
                     'max_metadata_size' => $maxMetadataSize,
                     'tls' => $tls,
                 ],

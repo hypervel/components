@@ -39,7 +39,7 @@ class ExceptionMapper
             return new RpcException(StatusCode::Internal, $throwable->getMessage());
         }
 
-        $this->exceptions->report($throwable);
+        $this->report($throwable);
 
         return new RpcException(StatusCode::Unknown, 'An unknown error occurred while handling the RPC.');
     }
@@ -49,8 +49,23 @@ class ExceptionMapper
      */
     public function invalidResponse(Throwable $throwable): RpcException
     {
-        $this->exceptions->report($throwable);
+        $this->report($throwable);
 
         return new RpcException(StatusCode::Internal, 'The gRPC service returned an invalid response.');
+    }
+
+    /**
+     * Report a failure without allowing the reporter to replace it.
+     */
+    public function report(Throwable $throwable): void
+    {
+        try {
+            $this->exceptions->report($throwable);
+        } catch (Throwable) {
+            try {
+                error_log((string) $throwable);
+            } catch (Throwable) {
+            }
+        }
     }
 }

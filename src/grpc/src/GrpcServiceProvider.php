@@ -90,12 +90,6 @@ class GrpcServiceProvider extends ServiceProvider
                 __DIR__ . '/../stubs/grpc.php' => base_path('routes/grpc.php'),
             ], ['grpc', 'grpc-routes']);
         }
-
-        $config = $this->app->make('config');
-
-        if ($config->boolean('grpc.server.enabled')) {
-            require $config->string('grpc.server.routes');
-        }
     }
 
     /**

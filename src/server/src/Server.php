@@ -209,6 +209,10 @@ class Server implements ServerInterface
                     try {
                         $this->container->make(ExceptionHandler::class)->report($throwable);
                     } catch (Throwable) {
+                        try {
+                            error_log((string) $throwable);
+                        } catch (Throwable) {
+                        }
                     }
                 }
 

@@ -8,10 +8,12 @@ use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Server\Event;
 use Hypervel\Server\Port;
 use Hypervel\Server\Server;
 use Hypervel\Server\ServerInterface;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
@@ -77,8 +79,12 @@ class ServerTest extends TestCase
         $callback(m::mock(SwooleRequest::class), $response);
     }
 
-    public function testResponseCallbackContainsReportingAndCompletionFailures(): void
+    public function testResponseCallbackFallsBackToThePhpErrorLogAndContainsCompletionFailures(): void
     {
+        $directory = ParallelTesting::tempDir('ServerTest');
+        mkdir($directory, 0777, true);
+        $errorLog = $directory . '/php-error.log';
+        $previousErrorLog = ini_set('error_log', $errorLog);
         $exception = new RuntimeException('request callback failed');
         $handler = m::mock(ExceptionHandler::class);
         $handler->expects('report')->with($exception)->andThrow(new RuntimeException('reporting failed'));
@@ -93,7 +99,20 @@ class ServerTest extends TestCase
             },
         );
 
-        $callback(m::mock(SwooleRequest::class), $response);
+        try {
+            $callback(m::mock(SwooleRequest::class), $response);
+            $contents = file_get_contents($errorLog);
+
+            $this->assertIsString($contents);
+            $this->assertStringContainsString('request callback failed', $contents);
+            $this->assertStringNotContainsString('reporting failed', $contents);
+        } finally {
+            if ($previousErrorLog !== false) {
+                ini_set('error_log', $previousErrorLog);
+            }
+
+            (new Filesystem)->deleteDirectory($directory);
+        }
     }
 
     public function testOnlyResponseBearingEventsReceiveTheCallbackGuard(): void
