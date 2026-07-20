@@ -94,6 +94,17 @@ class ScopedFilesystemProxy implements Filesystem
     }
 
     /**
+     * Assert that the scoped disk contains no files.
+     */
+    public function assertEmpty(): static
+    {
+        $prefix = $this->prefix();
+        $this->call('assertDirectoryEmpty', [$prefix]);
+
+        return $this;
+    }
+
+    /**
      * Get the full path to a scoped file.
      */
     public function path(string $path): string
@@ -234,7 +245,7 @@ class ScopedFilesystemProxy implements Filesystem
     /**
      * Get the contents of a scoped file as decoded JSON.
      */
-    public function json(string $path, int $flags = 0): ?array
+    public function json(string $path, int $flags = 0): array|bool|float|int|string|null
     {
         $prefix = $this->prefix();
 

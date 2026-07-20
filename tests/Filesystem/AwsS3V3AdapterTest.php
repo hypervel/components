@@ -20,6 +20,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 
+use function Hypervel\Coroutine\parallel;
+
 class AwsS3V3AdapterTest extends TestCase
 {
     #[DataProvider('ranges')]
@@ -76,6 +78,73 @@ class AwsS3V3AdapterTest extends TestCase
         $this->assertIsResource($stream);
         $this->assertSame('full-body', stream_get_contents($stream));
         fclose($stream);
+    }
+
+    public function testReadStreamDefaultsToLazyCoroutineSafeStreaming(): void
+    {
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $this->assertIsArray($sockets);
+        [$reader, $writer] = $sockets;
+        $this->assertTrue(stream_set_timeout($reader, 1));
+        $captured = null;
+        $handler = new MockHandler([
+            function (CommandInterface $command) use (&$captured, $reader): Result {
+                $captured = $command;
+
+                return new Result(['Body' => Utils::streamFor($reader)]);
+            },
+        ]);
+        $adapter = $this->adapter($handler, ['bucket' => 'bucket']);
+        $stream = null;
+
+        try {
+            $stream = $adapter->readStream('file.txt');
+
+            $this->assertIsResource($stream);
+            $this->assertInstanceOf(CommandInterface::class, $captured);
+            $this->assertTrue($captured['@http']['stream']);
+
+            $results = parallel([
+                'read' => static fn (): string|false => fread($stream, 8),
+                'write' => static fn (): int|false => fwrite($writer, 'streamed'),
+            ]);
+
+            $this->assertSame('streamed', $results['read']);
+            $this->assertSame(8, $results['write']);
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            } elseif (is_resource($reader)) {
+                fclose($reader);
+            }
+
+            if (is_resource($writer)) {
+                fclose($writer);
+            }
+        }
+    }
+
+    public function testStreamReadsCanBeDisabled(): void
+    {
+        $captured = null;
+        $handler = new MockHandler([
+            function (CommandInterface $command) use (&$captured): Result {
+                $captured = $command;
+
+                return new Result(['Body' => Utils::streamFor('body')]);
+            },
+        ]);
+        $adapter = $this->adapter($handler, [
+            'bucket' => 'bucket',
+            'stream_reads' => false,
+        ]);
+
+        $stream = $adapter->readStream('file.txt');
+
+        $this->assertIsResource($stream);
+        fclose($stream);
+        $this->assertInstanceOf(CommandInterface::class, $captured);
+        $this->assertArrayNotHasKey('stream', $captured['@http'] ?? []);
     }
 
     public function testReadStreamRangeRejectsInvalidArgumentsBeforeClientIo(): void

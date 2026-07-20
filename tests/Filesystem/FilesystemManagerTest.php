@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Filesystem;
 
+use Aws\S3\S3Client;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient as GcsClient;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Filesystem\Filesystem;
+use Hypervel\Filesystem\AwsS3V3Adapter;
 use Hypervel\Filesystem\ClientPooledFilesystem;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
@@ -20,7 +22,9 @@ use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use League\Flysystem\AwsS3V3\AwsS3V3Adapter as FlysystemS3Adapter;
 use League\Flysystem\Filesystem as Flysystem;
+use League\Flysystem\GoogleCloudStorage\GoogleCloudStorageAdapter as FlysystemGcsAdapter;
 use League\Flysystem\Local\LocalFilesystemAdapter;
 use League\Flysystem\PathPrefixing\PathPrefixedAdapter;
 use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
@@ -845,6 +849,26 @@ class FilesystemManagerTest extends TestCase
         $this->assertArrayNotHasKey('secret', $config);
     }
 
+    public function testS3DiskDefaultsStreamingReadsAndAllowsOptOut(): void
+    {
+        $filesystem = new InspectableFilesystemManager($this->getContainer());
+        $client = new S3Client([
+            'credentials' => false,
+            'region' => 'us-east-1',
+            'version' => 'latest',
+        ]);
+
+        $default = $filesystem->buildS3DiskForTest($client, ['bucket' => 'documents']);
+        $disabled = $filesystem->buildS3DiskForTest($client, [
+            'bucket' => 'documents',
+            'stream_reads' => false,
+        ]);
+
+        $this->assertInstanceOf(FlysystemS3Adapter::class, $default->getAdapter());
+        $this->assertTrue((new ReflectionProperty(FlysystemS3Adapter::class, 'streamReads'))->getValue($default->getAdapter()));
+        $this->assertFalse((new ReflectionProperty(FlysystemS3Adapter::class, 'streamReads'))->getValue($disabled->getAdapter()));
+    }
+
     public function testGcsClientConfigSupportsFlatKeysAndTheFullExplicitSdkSurface(): void
     {
         $filesystem = new InspectableFilesystemManager($this->getContainer());
@@ -917,6 +941,24 @@ class FilesystemManagerTest extends TestCase
         $this->assertArrayNotHasKey('prefix', $driverConfig);
         $this->assertArrayNotHasKey('read-only', $driverConfig);
         $this->assertArrayNotHasKey('throw', $driverConfig);
+    }
+
+    public function testGcsDiskDefaultsStreamingReadsAndAllowsOptOut(): void
+    {
+        $bucket = m::mock(Bucket::class);
+        $client = m::mock(GcsClient::class);
+        $client->shouldReceive('bucket')->twice()->with('documents')->andReturn($bucket);
+        $filesystem = new InspectableFilesystemManager($this->getContainer());
+
+        $default = $filesystem->buildGcsDiskForTest($client, ['bucket' => 'documents']);
+        $disabled = $filesystem->buildGcsDiskForTest($client, [
+            'bucket' => 'documents',
+            'stream_reads' => false,
+        ]);
+
+        $this->assertInstanceOf(FlysystemGcsAdapter::class, $default->getAdapter());
+        $this->assertTrue((new ReflectionProperty(FlysystemGcsAdapter::class, 'streamReads'))->getValue($default->getAdapter()));
+        $this->assertFalse((new ReflectionProperty(FlysystemGcsAdapter::class, 'streamReads'))->getValue($disabled->getAdapter()));
     }
 
     public function testUnknownExplicitClientOptionsAreRejected(): void
@@ -1054,6 +1096,11 @@ class InspectableFilesystemManager extends FilesystemManager
     public function gcsClientConfigForTest(array $config): array
     {
         return $this->gcsClientConfig($config);
+    }
+
+    public function buildS3DiskForTest(S3Client $client, array $config): AwsS3V3Adapter
+    {
+        return $this->buildS3Disk($client, $config);
     }
 
     public function buildGcsDiskForTest(GcsClient $client, array $config): GoogleCloudStorageAdapter

@@ -25,10 +25,13 @@ class FakeProcessSequence
     /**
      * Create a new fake process sequence instance.
      *
-     * @param array<int, mixed> $processes
+     * @param array<int, array|FakeProcessDescription|ProcessResultContract|string> $processes
      */
     public function __construct(protected array $processes = [])
     {
+        foreach ($this->processes as $key => $process) {
+            $this->processes[$key] = $this->toProcessResult($process);
+        }
     }
 
     /**

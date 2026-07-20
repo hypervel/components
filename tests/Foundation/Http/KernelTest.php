@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Foundation\Http;
 
 use Carbon\Carbon;
 use Hypervel\Config\Repository;
+use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Events\Terminating;
@@ -15,6 +17,7 @@ use Hypervel\Http\Response;
 use Hypervel\Routing\Router;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 use function Hypervel\Coroutine\parallel;
 
@@ -258,6 +261,116 @@ class KernelTest extends TestCase
             'terminating middleware',
             'terminating callback',
         ], $called);
+    }
+
+    public function testHandleRethrowsAfterAResponseIsCommitted(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->bootstrapWith([]);
+        $failure = new RuntimeException('stream failed');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->once()->with($failure);
+        $handler->shouldReceive('render')->andReturn(new Response('replacement', 500));
+        $app->instance(ExceptionHandler::class, $handler);
+        $router = m::mock(Router::class);
+        $router->shouldReceive('dispatch')->once()->andThrow($failure);
+        $kernel = new Kernel($app, $router);
+        $committedResponse = new Response;
+        $committedResponse->markStreamed();
+        ResponseContext::set($committedResponse);
+
+        try {
+            $kernel->handle(Request::create('/'));
+            $this->fail('Expected the committed stream failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($failure, $exception);
+        } finally {
+            ResponseContext::forget();
+        }
+    }
+
+    public function testTerminationIsExhaustiveAndPreservesTheFirstFailure(): void
+    {
+        $called = [];
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->instance('config', new Repository(['app' => ['timezone' => 'UTC']]));
+        $app->bootstrapWith([]);
+        $router = m::mock(Router::class);
+        $router->shouldReceive('dispatch')->once()->andReturn(new Response);
+        $kernel = new Kernel($app, $router);
+        $request = Request::create('/');
+        $response = $kernel->handle($request);
+        $eventFailure = new RuntimeException('event failed');
+        $middlewareFailure = new RuntimeException('middleware failed');
+        $applicationFailure = new RuntimeException('application failed');
+        $durationFailure = new RuntimeException('duration failed');
+
+        $events->listen(function (Terminating $event) use (&$called, $eventFailure): void {
+            $called[] = 'event';
+
+            throw $eventFailure;
+        });
+        $app->instance('first-middleware', new class($called, $middlewareFailure) {
+            public function __construct(private &$called, private RuntimeException $failure)
+            {
+            }
+
+            public function terminate(Request $request, Response $response): void
+            {
+                $this->called[] = 'first middleware';
+
+                throw $this->failure;
+            }
+        });
+        $app->instance('second-middleware', new class($called) {
+            public function __construct(private &$called)
+            {
+            }
+
+            public function terminate(Request $request, Response $response): void
+            {
+                $this->called[] = 'second middleware';
+            }
+        });
+        $kernel->setGlobalMiddleware(['first-middleware', 'second-middleware']);
+        $app->terminating(function () use (&$called, $applicationFailure): void {
+            $called[] = 'first application';
+
+            throw $applicationFailure;
+        });
+        $app->terminating(function () use (&$called): void {
+            $called[] = 'second application';
+        });
+        $kernel->whenRequestLifecycleIsLongerThan(-1, function () use (&$called, $durationFailure): void {
+            $called[] = 'first duration';
+
+            throw $durationFailure;
+        });
+        $kernel->whenRequestLifecycleIsLongerThan(-1, function () use (&$called): void {
+            $called[] = 'second duration';
+        });
+
+        try {
+            $kernel->terminate($request, $response);
+            $this->fail('Expected the first termination failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($eventFailure, $exception);
+        }
+
+        $this->assertSame([
+            'event',
+            'first middleware',
+            'second middleware',
+            'first application',
+            'second application',
+            'first duration',
+            'second duration',
+        ], $called);
+        $this->assertNull($kernel->requestStartedAt());
     }
 
     public function testRequestStartedAtIsIsolatedBetweenConcurrentCoroutines()

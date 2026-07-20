@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Filesystem;
 use Hypervel\Support\Facades\Storage;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
 #[WithConfig('filesystems.disks.local.serve', true)]
 class ServeFileTest extends TestCase
@@ -15,10 +16,16 @@ class ServeFileTest extends TestCase
     {
         $this->afterApplicationCreated(function () {
             Storage::put('serve-file-test.txt', 'Hello World');
+            Storage::put('serve-file-test.txt?pad=x', 'Hello Question');
+            Storage::put('nested/folder/serve-file-test.txt', 'Hello Nested');
         });
 
         $this->beforeApplicationDestroyed(function () {
-            Storage::delete('serve-file-test.txt');
+            Storage::delete([
+                'serve-file-test.txt',
+                'serve-file-test.txt?pad=x',
+                'nested/folder/serve-file-test.txt',
+            ]);
         });
 
         parent::setUp();
@@ -47,6 +54,38 @@ class ServeFileTest extends TestCase
         $url = Storage::temporaryUrl('serve-file-test.txt', now()->addMinutes(1));
 
         $url = $url . 'c';
+
+        $response = $this->get($url);
+
+        $response->assertForbidden();
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testItCanServeAFileWithUriDelimitersInThePath(): void
+    {
+        $url = Storage::temporaryUrl('serve-file-test.txt?pad=x', now()->addMinutes(1));
+
+        $response = $this->get($url);
+
+        $this->assertSame('Hello Question', $response->streamedContent());
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testTemporaryUrlPreservesPathSeparatorsInNestedPaths(): void
+    {
+        $url = Storage::temporaryUrl('nested/folder/serve-file-test.txt', now()->addMinutes(1));
+
+        $this->assertStringContainsString('nested/folder/serve-file-test.txt', $url);
+
+        $response = $this->get($url);
+
+        $this->assertSame('Hello Nested', $response->streamedContent());
+    }
+
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testUriDelimitersInThePathCannotHideAnExpiredUrl(): void
+    {
+        $url = Storage::temporaryUrl('serve-file-test.txt?pad=x', now()->subMinutes(1));
 
         $response = $this->get($url);
 

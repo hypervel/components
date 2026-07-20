@@ -48,6 +48,10 @@ class Pipe
     {
         call_user_func($this->callback, $this);
 
+        if ($this->pendingProcesses === []) {
+            throw new InvalidArgumentException('Process pipe must contain at least one pending process.');
+        }
+
         return (new Collection($this->pendingProcesses))
             ->reduce(function ($previousProcessResult, $pendingProcess, $key) use ($output) {
                 if (! $pendingProcess instanceof PendingProcess) { // @phpstan-ignore instanceof.alwaysTrue (defensive validation)

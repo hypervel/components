@@ -69,6 +69,16 @@ trait InteractsWithPooledFilesystem
     }
 
     /**
+     * Assert that the disk contains no files.
+     */
+    public function assertEmpty(): static
+    {
+        $this->invoke(__FUNCTION__, []);
+
+        return $this;
+    }
+
+    /**
      * Determine if a file or directory exists.
      */
     public function exists(string $path): bool
@@ -183,7 +193,7 @@ trait InteractsWithPooledFilesystem
     /**
      * Get the contents of a file as decoded JSON.
      */
-    public function json(string $path, int $flags = 0): ?array
+    public function json(string $path, int $flags = 0): array|bool|float|int|string|null
     {
         return $this->invoke(__FUNCTION__, [$path, $flags]);
     }

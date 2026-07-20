@@ -186,6 +186,16 @@ class FilesystemAdapter implements CloudFilesystemContract
     }
 
     /**
+     * Assert that the disk contains no files.
+     */
+    public function assertEmpty(): static
+    {
+        PHPUnit::assertEmpty($this->allFiles(), 'Disk is not empty.');
+
+        return $this;
+    }
+
+    /**
      * Determine if a file or directory exists.
      */
     public function exists(string $path): bool
@@ -260,7 +270,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Get the contents of a file as decoded JSON.
      */
-    public function json(string $path, int $flags = 0): ?array
+    public function json(string $path, int $flags = 0): array|bool|float|int|string|null
     {
         $content = $this->get($path);
 
@@ -395,19 +405,27 @@ class FilesystemAdapter implements CloudFilesystemContract
             [$path, $file, $name, $options] = ['', $path, $file, $name ?? []];
         }
 
-        $stream = fopen(is_string($file) ? $file : $file->getRealPath(), 'r');
+        $path = trim($path . '/' . $name, '/');
+        $source = is_string($file) ? $file : $file->getRealPath();
+        $stream = $source === false ? false : @fopen($source, 'r');
+
+        if ($stream === false) {
+            $exception = UnableToWriteFile::atLocation($path, 'Unable to open the source file.');
+
+            throw_if($this->throwsExceptions(), $exception);
+
+            $this->report($exception);
+
+            return false;
+        }
 
         // Next, we will format the path of the file and store the file using a stream since
         // they provide better performance than alternatives. Once we write the file this
         // stream will get closed automatically by us so the developer doesn't have to.
-        $result = $this->put(
-            $path = trim($path . '/' . $name, '/'),
-            $stream,
-            $options
-        );
-
-        if (is_resource($stream)) {
-            fclose($stream);
+        try {
+            $result = $this->put($path, $stream, $options);
+        } finally {
+            @fclose($stream);
         }
 
         return $result ? $path : false;
@@ -449,7 +467,13 @@ class FilesystemAdapter implements CloudFilesystemContract
     public function prepend(string $path, string $data, string $separator = PHP_EOL): bool
     {
         if ($this->fileExists($path)) {
-            return $this->put($path, $data . $separator . $this->get($path));
+            $contents = $this->get($path);
+
+            if ($contents === null) {
+                return false;
+            }
+
+            return $this->put($path, $data . $separator . $contents);
         }
 
         return $this->put($path, $data);
@@ -461,7 +485,13 @@ class FilesystemAdapter implements CloudFilesystemContract
     public function append(string $path, string $data, string $separator = PHP_EOL): bool
     {
         if ($this->fileExists($path)) {
-            return $this->put($path, $this->get($path) . $separator . $data);
+            $contents = $this->get($path);
+
+            if ($contents === null) {
+                return false;
+            }
+
+            return $this->put($path, $contents . $separator . $data);
         }
 
         return $this->put($path, $data);

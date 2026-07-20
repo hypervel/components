@@ -23,12 +23,4 @@ class SocketAcceptException extends RuntimeException
     {
         return $this->permanent;
     }
-
-    /**
-     * Determine if the exception was caused by a socket timeout.
-     */
-    public function isTimeout(): bool
-    {
-        return $this->getCode() === SOCKET_ETIMEDOUT;
-    }
 }

@@ -31,6 +31,7 @@ use League\Flysystem\UnableToRetrieveMetadata;
 use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
+use PHPUnit\Framework\ExpectationFailedException;
 use Swoole\Runtime;
 
 class FilesystemAdapterTest extends TestCase
@@ -290,6 +291,23 @@ class FilesystemAdapterTest extends TestCase
         $this->assertNull($filesystemAdapter->json('file.json'));
     }
 
+    public function testJsonReturnsDecodedScalarData(): void
+    {
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        foreach ([
+            'boolean.json' => ['true', true],
+            'float.json' => ['1.5', 1.5],
+            'integer.json' => ['42', 42],
+            'null.json' => ['null', null],
+            'string.json' => ['"value"', 'value'],
+        ] as $path => [$json, $expected]) {
+            $this->filesystem->write($path, $json);
+
+            $this->assertSame($expected, $filesystemAdapter->json($path));
+        }
+    }
+
     public function testMimeTypeNotDetected()
     {
         $this->filesystem->write('unknown.mime-type', '');
@@ -312,12 +330,32 @@ class FilesystemAdapterTest extends TestCase
         $this->assertStringEqualsFile($this->tempDir . '/file.txt', 'Hello ' . PHP_EOL . 'World');
     }
 
+    public function testPrependDoesNotOverwriteAnUnreadableExistingFile(): void
+    {
+        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
+        $filesystemAdapter->shouldReceive('fileExists')->once()->with('file.txt')->andReturnTrue();
+        $filesystemAdapter->shouldReceive('get')->once()->with('file.txt')->andReturnNull();
+        $filesystemAdapter->shouldReceive('put')->never();
+
+        $this->assertFalse($filesystemAdapter->prepend('file.txt', 'Hello '));
+    }
+
     public function testAppend()
     {
         file_put_contents($this->tempDir . '/file.txt', 'Hello ');
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
         $filesystemAdapter->append('file.txt', 'Moon');
         $this->assertStringEqualsFile($this->tempDir . '/file.txt', 'Hello ' . PHP_EOL . 'Moon');
+    }
+
+    public function testAppendDoesNotOverwriteAnUnreadableExistingFile(): void
+    {
+        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
+        $filesystemAdapter->shouldReceive('fileExists')->once()->with('file.txt')->andReturnTrue();
+        $filesystemAdapter->shouldReceive('get')->once()->with('file.txt')->andReturnNull();
+        $filesystemAdapter->shouldReceive('put')->never();
+
+        $this->assertFalse($filesystemAdapter->append('file.txt', 'Moon'));
     }
 
     public function testDelete()
@@ -573,6 +611,45 @@ class FilesystemAdapterTest extends TestCase
         $storagePath = $filesystemAdapter->putFileAs($filePath, 'new.txt');
 
         $this->assertSame('normal file content', $filesystemAdapter->read($storagePath));
+    }
+
+    public function testPutFileAsReturnsFalseWhenTheSourceCannotBeOpened(): void
+    {
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->assertFalse($filesystemAdapter->putFileAs('/', $this->tempDir . '/missing.txt', 'new.txt'));
+        $this->assertFalse($filesystemAdapter->exists('new.txt'));
+    }
+
+    public function testPutFileAsThrowsWhenTheSourceCannotBeOpenedAndExceptionsAreEnabled(): void
+    {
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter, ['throw' => true]);
+
+        $this->expectException(UnableToWriteFile::class);
+
+        $filesystemAdapter->putFileAs('/', $this->tempDir . '/missing.txt', 'new.txt');
+    }
+
+    public function testPutFileAsClosesTheSourceWhenWritingThrows(): void
+    {
+        file_put_contents($filePath = $this->tempDir . '/foo.txt', 'normal file content');
+
+        $stream = null;
+        $filesystemAdapter = m::mock(FilesystemAdapter::class, [$this->filesystem, $this->adapter])->makePartial();
+        $filesystemAdapter->shouldReceive('put')->once()->andReturnUsing(
+            function (string $path, mixed $contents, mixed $options) use (&$stream): never {
+                $stream = $contents;
+
+                throw UnableToWriteFile::atLocation($path);
+            }
+        );
+
+        try {
+            $filesystemAdapter->putFileAs('/', $filePath, 'new.txt');
+            $this->fail('Expected the write failure to be thrown.');
+        } catch (UnableToWriteFile) {
+            $this->assertFalse(is_resource($stream));
+        }
     }
 
     public function testPutFile()
@@ -1126,6 +1203,24 @@ class FilesystemAdapterTest extends TestCase
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
         $this->assertFalse($filesystemAdapter->providesTemporaryUploadUrls());
+    }
+
+    public function testAssertEmpty(): void
+    {
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $filesystemAdapter->assertEmpty();
+    }
+
+    public function testAssertEmptyFailsWhenDiskContainsFiles(): void
+    {
+        $this->filesystem->write('foo/file.txt', 'Hello World');
+        $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
+
+        $this->expectException(ExpectationFailedException::class);
+        $this->expectExceptionMessage('Disk is not empty.');
+
+        $filesystemAdapter->assertEmpty();
     }
 
     public function testStreamStopsOnFailedWrite()

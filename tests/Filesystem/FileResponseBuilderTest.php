@@ -108,6 +108,27 @@ class FileResponseBuilderTest extends TestCase
         $this->assertSame('0', $writable->written);
     }
 
+    public function testMissingMimeTypeFallsBackToBinaryContent(): void
+    {
+        $writable = new FakeWritableConnection;
+        $response = $this->response($writable);
+
+        (new FileResponseBuilder)->build(
+            Request::create('/file.unknown', 'GET'),
+            $response,
+            'file.unknown',
+            null,
+            [],
+            'inline',
+            static fn (): false => false,
+            static fn (): int => 4,
+            fn (?int $start, ?int $end): mixed => $this->stream('body'),
+        );
+
+        $this->assertSame('application/octet-stream', $response->headers->get('Content-Type'));
+        $this->assertSame('application/octet-stream', $writable->getSocket()->headers['Content-Type']);
+    }
+
     #[DataProvider('validRangeProvider')]
     public function testValidRangesAreNormalizedAndStreamedExactly(
         string $header,
@@ -427,6 +448,25 @@ class FileResponseBuilderTest extends TestCase
         $this->assertSame(1, $state->closeCount);
     }
 
+    public function testFailedWriteStopsReadingAndClosesTheStream(): void
+    {
+        $state = new FileResponseBuilderStreamState(str_repeat('x', 128 * 1024));
+        $connection = new FileResponseBuilderDisconnectingConnection;
+
+        $this->build(
+            Request::create('/file.txt', 'GET'),
+            $this->response($connection),
+            fn (?int $start, ?int $end): mixed => $this->wrappedStream($state),
+            128 * 1024,
+        );
+
+        $this->assertSame(1, $connection->writeCalls);
+        $this->assertGreaterThan(0, $connection->bytesAttempted);
+        $this->assertSame($connection->bytesAttempted, $state->position);
+        $this->assertLessThan(128 * 1024, $state->position);
+        $this->assertSame(1, $state->closeCount);
+    }
+
     public function testAStreamBackedByALeaseReleasesAfterEmission(): void
     {
         $pool = new SimpleObjectPool(
@@ -622,6 +662,38 @@ class FileResponseBuilderThrowingConnection implements Writable
     public function write(string $data): bool
     {
         throw $this->failure;
+    }
+
+    public function end(): ?bool
+    {
+        return true;
+    }
+}
+
+class FileResponseBuilderDisconnectingConnection implements Writable
+{
+    public int $writeCalls = 0;
+
+    public int $bytesAttempted = 0;
+
+    private readonly FakeSwooleSocket $socket;
+
+    public function __construct()
+    {
+        $this->socket = new FakeSwooleSocket;
+    }
+
+    public function getSocket(): FakeSwooleSocket
+    {
+        return $this->socket;
+    }
+
+    public function write(string $data): bool
+    {
+        ++$this->writeCalls;
+        $this->bytesAttempted += strlen($data);
+
+        return false;
     }
 
     public function end(): ?bool

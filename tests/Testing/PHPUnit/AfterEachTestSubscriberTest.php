@@ -18,6 +18,7 @@ use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Process\InvokedProcess;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\AfterEachTestSubscriber;
@@ -58,6 +59,7 @@ class AfterEachTestSubscriberTest extends TestCase
             JsonApiResource::class,
             HttpResponse::class,
             UploadedFile::class,
+            InvokedProcess::class,
             NotificationFake::class,
         ];
         $macro = 'testingStaticStateProbe';

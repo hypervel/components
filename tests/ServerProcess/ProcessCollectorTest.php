@@ -6,18 +6,19 @@ namespace Hypervel\Tests\ServerProcess;
 
 use Hypervel\ServerProcess\ProcessCollector;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use Swoole\Process;
 
 class ProcessCollectorTest extends TestCase
 {
-    public function testIsEmptyInitially()
+    public function testIsEmptyInitially(): void
     {
         $this->assertTrue(ProcessCollector::isEmpty());
     }
 
-    public function testAddAndGetByName()
+    public function testAddAndGetByName(): void
     {
-        $process = new Process(function () {});
+        $process = m::mock(Process::class);
 
         ProcessCollector::add('worker', $process);
 
@@ -25,15 +26,15 @@ class ProcessCollectorTest extends TestCase
         $this->assertFalse(ProcessCollector::isEmpty());
     }
 
-    public function testGetReturnsEmptyArrayForUnknownName()
+    public function testGetReturnsEmptyArrayForUnknownName(): void
     {
         $this->assertSame([], ProcessCollector::get('nonexistent'));
     }
 
-    public function testAddMultipleProcessesUnderSameName()
+    public function testAddMultipleProcessesUnderSameName(): void
     {
-        $process1 = new Process(function () {});
-        $process2 = new Process(function () {});
+        $process1 = m::mock(Process::class);
+        $process2 = m::mock(Process::class);
 
         ProcessCollector::add('worker', $process1);
         ProcessCollector::add('worker', $process2);
@@ -43,10 +44,10 @@ class ProcessCollectorTest extends TestCase
         $this->assertSame($process2, ProcessCollector::get('worker')[1]);
     }
 
-    public function testAddProcessesUnderDifferentNames()
+    public function testAddProcessesUnderDifferentNames(): void
     {
-        $process1 = new Process(function () {});
-        $process2 = new Process(function () {});
+        $process1 = m::mock(Process::class);
+        $process2 = m::mock(Process::class);
 
         ProcessCollector::add('queue', $process1);
         ProcessCollector::add('scheduler', $process2);
@@ -55,11 +56,11 @@ class ProcessCollectorTest extends TestCase
         $this->assertSame([$process2], ProcessCollector::get('scheduler'));
     }
 
-    public function testAllReturnsFlattenedArray()
+    public function testAllReturnsFlattenedArray(): void
     {
-        $process1 = new Process(function () {});
-        $process2 = new Process(function () {});
-        $process3 = new Process(function () {});
+        $process1 = m::mock(Process::class);
+        $process2 = m::mock(Process::class);
+        $process3 = m::mock(Process::class);
 
         ProcessCollector::add('queue', $process1);
         ProcessCollector::add('queue', $process2);
@@ -72,7 +73,7 @@ class ProcessCollectorTest extends TestCase
         $this->assertSame($process3, $all[2]);
     }
 
-    public function testAllReturnsEmptyArrayWhenEmpty()
+    public function testAllReturnsEmptyArrayWhenEmpty(): void
     {
         $this->assertSame([], ProcessCollector::all());
     }

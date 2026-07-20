@@ -38,7 +38,7 @@ class LeasedStreamTest extends TestCase
         $pool->close();
     }
 
-    public function testExplicitCloseAndWrapperDestructionReleaseExactlyOnce(): void
+    public function testExplicitCloseAndStreamResourceDestructionReleaseExactlyOnce(): void
     {
         $releaseCount = 0;
         [$pool, $lease, $inner] = $this->leaseWithStream(

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use SensitiveParameter;
+
 /**
  * @method static bool exists(string $path)
  * @method static bool missing(string $path)
@@ -14,11 +16,10 @@ namespace Hypervel\Support\Facades;
  * @method static mixed requireOnce(string $path, array $data = [])
  * @method static \Hypervel\Support\LazyCollection lines(string $path)
  * @method static string|false hash(string $path, string $algorithm = 'xxh128')
- * @method static bool|int put(string $path, resource|string $contents, bool $lock = false)
- * @method static void replace(string $path, string $content, int|null $mode = null)
+ * @method static int|false put(string $path, resource|string $contents, bool $lock = false)
  * @method static void replaceInFile(array|string $search, array|string $replace, string $path)
- * @method static int prepend(string $path, string $data)
- * @method static int append(string $path, string $data, bool $lock = false)
+ * @method static int|false prepend(string $path, string $data)
+ * @method static int|false append(string $path, string $data, bool $lock = false)
  * @method static string|bool chmod(string $path, int|null $mode = null)
  * @method static bool delete(array|string $paths)
  * @method static bool move(string $path, string $target)
@@ -30,17 +31,17 @@ namespace Hypervel\Support\Facades;
  * @method static string dirname(string $path)
  * @method static string extension(string $path)
  * @method static string|null guessExtension(string $path)
- * @method static string type(string $path)
+ * @method static string|false type(string $path)
  * @method static string|false mimeType(string $path)
- * @method static int size(string $path)
- * @method static int lastModified(string $path)
+ * @method static int|false size(string $path)
+ * @method static int|false lastModified(string $path)
  * @method static bool isDirectory(string $directory)
  * @method static bool isEmptyDirectory(string $directory, bool $ignoreDotFiles = false)
  * @method static bool isReadable(string $path)
  * @method static bool isWritable(string $path)
  * @method static bool hasSameHash(string $firstFile, string $secondFile)
  * @method static bool isFile(string $file)
- * @method static array glob(string $pattern, int $flags = 0)
+ * @method static array|false glob(string $pattern, int $flags = 0)
  * @method static \SplFileInfo[] files(array|string $directory, bool $hidden = false, array|string|int $depth = 0)
  * @method static \SplFileInfo[] allFiles(array|string $directory, bool $hidden = false)
  * @method static array directories(array|string $directory, array|string|int $depth = 0)
@@ -64,6 +65,14 @@ namespace Hypervel\Support\Facades;
  */
 class File extends Facade
 {
+    /**
+     * Write the contents of a file, replacing it atomically if it already exists.
+     */
+    public static function replace(string $path, #[SensitiveParameter] string $content, ?int $mode = null): void
+    {
+        static::getFacadeRoot()->replace($path, $content, $mode);
+    }
+
     protected static function getFacadeAccessor(): string
     {
         return 'files';

@@ -66,7 +66,7 @@ class Factory
     /**
      * Begin describing a fake process sequence.
      *
-     * @param array<int, mixed> $processes
+     * @param array<int, array|FakeProcessDescription|ProcessResultContract|string> $processes
      */
     public function sequence(array $processes = []): FakeProcessSequence
     {
@@ -75,6 +75,8 @@ class Factory
 
     /**
      * Indicate that the process factory should fake processes.
+     *
+     * Tests only. Fake handlers and recordings persist on the container-resolved factory for the worker lifetime and affect later calls.
      */
     public function fake(array|Closure|null $callback = null): static
     {
@@ -123,6 +125,8 @@ class Factory
 
     /**
      * Record the given process.
+     *
+     * Tests only. Recorded processes are retained on the worker factory and affect later assertions and memory retention.
      */
     public function record(PendingProcess $process, ProcessResultContract $result): static
     {
@@ -133,6 +137,8 @@ class Factory
 
     /**
      * Indicate that an exception should be thrown if any process is not faked.
+     *
+     * Tests only. This setting persists on the worker factory and can reject every later unmatched process.
      */
     public function preventStrayProcesses(bool $prevent = true): static
     {

@@ -407,7 +407,7 @@ class FilesystemManager implements FactoryContract
             $config['visibility'] ?? Visibility::PUBLIC
         );
 
-        $streamReads = $s3Config['stream_reads'] ?? false;
+        $streamReads = $s3Config['stream_reads'];
 
         $adapter = new S3Adapter($client, $s3Config['bucket'], $root, $visibility, null, $config['options'] ?? [], $streamReads);
 
@@ -424,7 +424,10 @@ class FilesystemManager implements FactoryContract
      */
     protected function formatS3Config(array $config): array
     {
-        $config += ['version' => 'latest'];
+        $config += [
+            'stream_reads' => true,
+            'version' => 'latest',
+        ];
 
         if (! empty($config['key']) && ! empty($config['secret'])) {
             $config['credentials'] = Arr::only($config, ['key', 'secret']);
@@ -490,7 +493,9 @@ class FilesystemManager implements FactoryContract
             $client->bucket(Arr::get($gcsConfig, 'bucket')),
             Arr::get($gcsConfig, 'root'),
             Arr::get($gcsConfig, 'visibilityHandler') ? new $visibilityHandlerClass : null,
-            $defaultVisibility
+            $defaultVisibility,
+            null,
+            $gcsConfig['stream_reads'],
         );
 
         return new GoogleCloudStorageAdapter(
@@ -506,6 +511,8 @@ class FilesystemManager implements FactoryContract
      */
     protected function formatGcsConfig(array $config): array
     {
+        $config += ['stream_reads' => true];
+
         // Google's SDK expects camelCase keys, but we can use snake_case in the config.
         foreach ($config as $key => $value) {
             $config[Str::camel($key)] = $value;

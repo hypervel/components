@@ -19,7 +19,7 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
 
         $this->filesystem = m::spy(Filesystem::class);
         $this->filesystem->shouldReceive('put')
-            ->andReturn(true);
+            ->andReturn(1);
         File::swap($this->filesystem);
     }
 

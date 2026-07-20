@@ -108,42 +108,65 @@ class Server implements OnRequestInterface, BootstrapsForServer
             // Dispatch through the Kernel (global middleware → Router → response)
             $response = $this->kernel->handle($request);
         } catch (Throwable $throwable) {
-            // If Kernel::handle() itself throws (shouldn't normally — it catches internally),
-            // we still need to send something back to the client.
-            $response = new SymfonyResponse('Internal Server Error', 500);
+            $contextResponse = ResponseContext::getOrNull();
+            $response = $contextResponse?->isStreamed()
+                ? $contextResponse
+                : new SymfonyResponse('Internal Server Error', 500);
         } finally {
+            $finalizationException = null;
+
             if (isset($request)) {
-                if ($this->event?->hasListeners(RequestTerminated::class)) {
-                    Coroutine::defer(fn () => $this->event->dispatch(new RequestTerminated(
-                        request: $request,
-                        response: $response ?? null,
-                        exception: $throwable ?? null,
-                        server: $this->serverName
-                    )));
+                try {
+                    if ($this->event?->hasListeners(RequestTerminated::class)) {
+                        Coroutine::defer(fn () => $this->event->dispatch(new RequestTerminated(
+                            request: $request,
+                            response: $response ?? null,
+                            exception: $throwable ?? null,
+                            server: $this->serverName
+                        )));
+                    }
+                } catch (Throwable $exception) {
+                    $finalizationException = $exception;
                 }
 
-                if ($this->event?->hasListeners(RequestHandled::class)) {
-                    $this->event->dispatch(new RequestHandled(
-                        request: $request,
-                        response: $response ?? null,
-                        exception: $throwable ?? null,
-                        server: $this->serverName
-                    ));
+                try {
+                    if ($this->event?->hasListeners(RequestHandled::class)) {
+                        $this->event->dispatch(new RequestHandled(
+                            request: $request,
+                            response: $response ?? null,
+                            exception: $throwable ?? null,
+                            server: $this->serverName
+                        ));
+                    }
+                } catch (Throwable $exception) {
+                    $finalizationException ??= $exception;
                 }
             }
 
             // Send HttpFoundation response back through Swoole
             if (isset($response)) {
-                ResponseBridge::send(
-                    $response,
-                    $swooleResponse,
-                    withBody: ! isset($rawMethod) || $rawMethod !== 'HEAD'
-                );
+                try {
+                    ResponseBridge::send(
+                        $response,
+                        $swooleResponse,
+                        withBody: ! isset($rawMethod) || $rawMethod !== 'HEAD'
+                    );
+                } catch (Throwable $exception) {
+                    $finalizationException ??= $exception;
+                }
             }
 
             // Terminable middleware
             if (isset($request, $response)) {
-                $this->kernel->terminate($request, $response);
+                try {
+                    $this->kernel->terminate($request, $response);
+                } catch (Throwable $exception) {
+                    $finalizationException ??= $exception;
+                }
+            }
+
+            if ($finalizationException !== null) {
+                throw $finalizationException;
             }
         }
     }

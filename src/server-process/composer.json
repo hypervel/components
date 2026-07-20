@@ -1,7 +1,7 @@
 {
     "name": "hypervel/server-process",
     "type": "library",
-    "description": "Manages custom Swoole worker processes for Hypervel.",
+    "description": "Manages custom Swoole server processes for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
-use Hypervel\Support\Collection;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * @mixin \Hypervel\Process\Factory
@@ -45,24 +45,41 @@ class Pool
 
     /**
      * Start all of the processes in the pool.
+     *
+     * The caller must wait for or stop the pool before its owning coroutine exits.
      */
     public function start(?callable $output = null): InvokedProcessPool
     {
         call_user_func($this->callback, $this);
 
-        return new InvokedProcessPool(
-            (new Collection($this->pendingProcesses))
-                ->each(function ($pendingProcess) {
-                    if (! $pendingProcess instanceof PendingProcess) { // @phpstan-ignore instanceof.alwaysTrue (defensive validation)
-                        throw new InvalidArgumentException('Process pool must only contain pending processes.');
-                    }
-                })->mapWithKeys(function ($pendingProcess, $key) use ($output) {
-                    return [$key => $pendingProcess->start(output: $output ? function ($type, $buffer) use ($key, $output) {
+        foreach ($this->pendingProcesses as $pendingProcess) {
+            if (! $pendingProcess instanceof PendingProcess) { // @phpstan-ignore instanceof.alwaysTrue (defensive validation)
+                throw new InvalidArgumentException('Process pool must only contain pending processes.');
+            }
+        }
+
+        $invokedProcesses = [];
+
+        try {
+            foreach ($this->pendingProcesses as $key => $pendingProcess) {
+                $invokedProcesses[$key] = $pendingProcess->start(
+                    output: $output ? function ($type, $buffer) use ($key, $output) {
                         $output($type, $buffer, $key);
-                    } : null)];
-                })
-                ->all()
-        );
+                    } : null
+                );
+            }
+        } catch (Throwable $exception) {
+            try {
+                // Keep partial construction transactional instead of abandoning already-started children.
+                (new InvokedProcessPool($invokedProcesses))->stop(0);
+            } catch (Throwable) {
+                // Preserve the process creation failure.
+            }
+
+            throw $exception;
+        }
+
+        return new InvokedProcessPool($invokedProcesses);
     }
 
     /**

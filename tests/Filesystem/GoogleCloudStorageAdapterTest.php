@@ -18,6 +18,8 @@ use Mockery as m;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 
+use function Hypervel\Coroutine\parallel;
+
 class GoogleCloudStorageAdapterTest extends TestCase
 {
     public function testUrlUsesTheConfiguredApiUriOrBucketEndpoint(): void
@@ -83,7 +85,10 @@ class GoogleCloudStorageAdapterTest extends TestCase
         $bucket->shouldReceive('object')->twice()->with('file.txt')->andReturn($object);
         $client = m::mock(StorageClient::class);
         $client->shouldReceive('bucket')->twice()->with('bucket')->andReturn($bucket);
-        $adapter = $this->adapter($client, ['bucket' => 'bucket']);
+        $adapter = $this->adapter($client, [
+            'bucket' => 'bucket',
+            'stream_reads' => false,
+        ]);
 
         $open = $adapter->readStreamRange('file.txt', 3, null);
         $suffix = $adapter->readStreamRange('file.txt', null, 3);
@@ -98,7 +103,10 @@ class GoogleCloudStorageAdapterTest extends TestCase
     {
         $body = Utils::streamFor('full-body');
         $object = m::mock(StorageObject::class);
-        $object->shouldReceive('downloadAsStream')->once()->with([])->andReturn($body);
+        $object->shouldReceive('downloadAsStream')
+            ->once()
+            ->with(['restOptions' => ['stream' => true]])
+            ->andReturn($body);
         $bucket = m::mock(Bucket::class);
         $bucket->shouldReceive('object')->once()->with('file.txt')->andReturn($object);
         $client = m::mock(StorageClient::class);
@@ -110,6 +118,49 @@ class GoogleCloudStorageAdapterTest extends TestCase
         $this->assertIsResource($stream);
         $this->assertSame('full-body', stream_get_contents($stream));
         fclose($stream);
+    }
+
+    public function testReadStreamDefaultsToLazyCoroutineSafeStreaming(): void
+    {
+        $sockets = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        $this->assertIsArray($sockets);
+        [$reader, $writer] = $sockets;
+        $this->assertTrue(stream_set_timeout($reader, 1));
+        $object = m::mock(StorageObject::class);
+        $object->shouldReceive('downloadAsStream')
+            ->once()
+            ->with(['restOptions' => ['stream' => true]])
+            ->andReturn(Utils::streamFor($reader));
+        $bucket = m::mock(Bucket::class);
+        $bucket->shouldReceive('object')->once()->with('file.txt')->andReturn($object);
+        $client = m::mock(StorageClient::class);
+        $client->shouldReceive('bucket')->once()->with('bucket')->andReturn($bucket);
+        $adapter = $this->adapter($client, ['bucket' => 'bucket']);
+        $stream = null;
+
+        try {
+            $stream = $adapter->readStream('file.txt');
+
+            $this->assertIsResource($stream);
+
+            $results = parallel([
+                'read' => static fn (): string|false => fread($stream, 8),
+                'write' => static fn (): int|false => fwrite($writer, 'streamed'),
+            ]);
+
+            $this->assertSame('streamed', $results['read']);
+            $this->assertSame(8, $results['write']);
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            } elseif (is_resource($reader)) {
+                fclose($reader);
+            }
+
+            if (is_resource($writer)) {
+                fclose($writer);
+            }
+        }
     }
 
     public function testReadStreamRangeRejectsInvalidArgumentsBeforeClientIo(): void

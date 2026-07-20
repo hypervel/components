@@ -11,6 +11,7 @@ use Hypervel\Encryption\Encrypter;
 use Hypervel\Encryption\EncryptionServiceProvider;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Crypt;
+use Hypervel\Support\Facades\File;
 use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionFunction;
@@ -73,6 +74,7 @@ class SensitiveParameterTest extends TestCase
             'command set key' => [KeyGenerateCommand::class, 'setKeyInEnvironmentFile', 'key'],
             'command write key' => [KeyGenerateCommand::class, 'writeNewEnvironmentFileWith', 'key'],
             'atomic replacement contents' => [Filesystem::class, 'replace', 'content'],
+            'file facade replacement contents' => [File::class, 'replace', 'content'],
             'crypt facade arguments' => [Crypt::class, '__callStatic', 'args'],
         ];
     }

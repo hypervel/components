@@ -31,6 +31,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Throwable;
 
 use function Hypervel\Filesystem\join_paths;
 
@@ -1143,8 +1144,18 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function terminate(): void
     {
+        $exception = null;
+
         foreach ($this->terminatingCallbacks as $callback) {
-            $this->call($callback);
+            try {
+                $this->call($callback);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 

@@ -325,6 +325,31 @@ class FoundationApplicationTest extends TestCase
         $this->assertEquals([1, 2, 3], $result);
     }
 
+    public function testTerminationCallbacksAreExhaustiveAndPreserveTheFirstFailure(): void
+    {
+        $app = new Application;
+        $called = [];
+        $firstFailure = new RuntimeException('first failure');
+
+        $app->terminating(function () use (&$called, $firstFailure): void {
+            $called[] = 'first';
+
+            throw $firstFailure;
+        });
+        $app->terminating(function () use (&$called): void {
+            $called[] = 'second';
+        });
+
+        try {
+            $app->terminate();
+            $this->fail('Expected the first termination failure to propagate.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($firstFailure, $exception);
+        }
+
+        $this->assertSame(['first', 'second'], $called);
+    }
+
     public function testTerminationCallbacksCanAcceptAtNotation()
     {
         $app = new Application;

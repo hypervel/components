@@ -39,7 +39,7 @@ class FileResponseBuilder
         Closure $size,
         Closure $streamResolver,
     ): Response {
-        $headers['Content-Type'] ??= $mimeType();
+        $headers['Content-Type'] ??= $mimeType() ?: 'application/octet-stream';
 
         if (! array_key_exists('Content-Disposition', $headers)) {
             $filename = $name ?? basename($path);
