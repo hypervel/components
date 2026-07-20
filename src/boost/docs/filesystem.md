@@ -207,7 +207,7 @@ If you need to configure a Google Cloud Storage filesystem manually, you may use
     'visibility_handler' => null,
     'metadata' => ['cacheControl' => 'public,max-age=86400'],
     'throw' => false,
-    'stream_reads' => false,
+    'stream_reads' => true,
     'pool' => [
         'min_retained_objects' => 1,
         'max_objects' => 10,
@@ -280,6 +280,8 @@ $result = Storage::disk('s3')->withClient(function ($client) {
 ```
 
 `Storage::forgetDisk()` only removes the manager's cached disk wrapper; an equivalent wrapper can continue using the shared pool. `Storage::purge()` removes the wrapper and closes its current pool, deriving the same pool identity even when the named disk has not been resolved yet or is composed from nested scoped disks. Other disks converging on that pool transparently create a fresh one on their next operation. Streams returned by `readStream()` retain their client lease until the stream is closed or destroyed.
+
+S3 and Google Cloud Storage streams are read lazily by default, which keeps memory usage bounded and makes data available before the entire file has downloaded. This applies to `readStream()` and `readStreamRange()`; methods such as `get()` retain their normal behavior. Streaming requests close their HTTP connection after the read, so applications that open many small streams may prefer connection reuse and set the disk's `stream_reads` option to `false`.
 
 <a name="scoped-and-read-only-filesystems"></a>
 ### Scoped and Read-Only Filesystems
@@ -936,6 +938,9 @@ test('albums can be uploaded', function () {
 
     // Assert that a given directory is empty...
     Storage::disk('photos')->assertDirectoryEmpty('/wallpapers');
+
+    // Assert that the disk contains no files...
+    Storage::disk('photos')->assertEmpty();
 });
 ```
 
@@ -972,6 +977,9 @@ class ExampleTest extends TestCase
 
         // Assert that a given directory is empty...
         Storage::disk('photos')->assertDirectoryEmpty('/wallpapers');
+
+        // Assert that the disk contains no files...
+        Storage::disk('photos')->assertEmpty();
     }
 }
 ```
