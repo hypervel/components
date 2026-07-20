@@ -9,6 +9,7 @@ use Closure;
 use DateTimeInterface;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
+use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
@@ -132,21 +133,25 @@ class Kernel implements KernelContract
         try {
             $request->enableHttpMethodParameterOverride();
             $response = $this->sendRequestThroughRouter($request);
+
+            $events = $this->app['events'];
+
+            if ($events->hasListeners(RequestHandled::class)) {
+                $events->dispatch(
+                    new RequestHandled($request, $response)
+                );
+            }
+
+            return $response;
         } catch (Throwable $e) {
             $this->reportException($e);
 
-            $response = $this->renderException($request, $e);
+            if (ResponseContext::getOrNull()?->isStreamed()) {
+                throw $e;
+            }
+
+            return $this->renderException($request, $e);
         }
-
-        $events = $this->app['events'];
-
-        if ($events->hasListeners(RequestHandled::class)) {
-            $events->dispatch(
-                new RequestHandled($request, $response)
-            );
-        }
-
-        return $response;
     }
 
     /**
@@ -199,33 +204,61 @@ class Kernel implements KernelContract
      */
     public function terminate(Request $request, Response $response): void
     {
+        $exception = null;
         $events = $this->app['events'];
 
-        if ($events->hasListeners(Terminating::class)) {
-            $events->dispatch(new Terminating);
-        }
-        $this->terminateMiddleware($request, $response);
-        $this->app->terminate();
-
-        $requestStartedAt = CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
-
-        if ($requestStartedAt === null || $this->requestLifecycleDurationHandlers === []) {
-            CoroutineContext::forget(self::REQUEST_STARTED_AT_CONTEXT_KEY);
-
-            return;
-        }
-
-        $requestStartedAt->setTimezone($this->app['config']->get('app.timezone') ?? 'UTC');
-
-        foreach ($this->requestLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
-            $end ??= Carbon::now();
-
-            if ($requestStartedAt->diffInMilliseconds($end) > $threshold) {
-                $handler($requestStartedAt, $request, $response);
+        try {
+            if ($events->hasListeners(Terminating::class)) {
+                $events->dispatch(new Terminating);
             }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
         }
 
-        CoroutineContext::forget(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+        try {
+            $this->terminateMiddleware($request, $response);
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        try {
+            $this->app->terminate();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        try {
+            $requestStartedAt = CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+
+            if ($requestStartedAt !== null && $this->requestLifecycleDurationHandlers !== []) {
+                $requestStartedAt->setTimezone($this->app['config']->get('app.timezone') ?? 'UTC');
+                $end = null;
+
+                foreach ($this->requestLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
+                    try {
+                        $end ??= Carbon::now();
+
+                        if ($requestStartedAt->diffInMilliseconds($end) > $threshold) {
+                            $handler($requestStartedAt, $request, $response);
+                        }
+                    } catch (Throwable $throwable) {
+                        $exception ??= $throwable;
+                    }
+                }
+            }
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        try {
+            CoroutineContext::forget(self::REQUEST_STARTED_AT_CONTEXT_KEY);
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -244,19 +277,28 @@ class Kernel implements KernelContract
         }
 
         $middlewares = [...$routeMiddleware, ...$this->middleware];
+        $exception = null;
 
         foreach ($middlewares as $middleware) {
             if (! is_string($middleware)) {
                 continue;
             }
 
-            [$name] = $this->parseMiddleware($middleware);
+            try {
+                [$name] = $this->parseMiddleware($middleware);
 
-            $instance = $this->app->make($name);
+                $instance = $this->app->make($name);
 
-            if (method_exists($instance, 'terminate')) {
-                $instance->terminate($request, $response);
+                if (method_exists($instance, 'terminate')) {
+                    $instance->terminate($request, $response);
+                }
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
             }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 
