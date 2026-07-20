@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Server;
 
+use Closure;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Core\Bootstrap;
@@ -12,17 +14,17 @@ use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\Core\Events\BeforeServerStart;
 use Hypervel\Server\Exceptions\RuntimeException;
 use Psr\Log\LoggerInterface;
+use Swoole\Coroutine\CanceledException;
+use Swoole\Http\Request as SwooleRequest;
+use Swoole\Http\Response as SwooleResponse;
 use Swoole\Http\Server as SwooleHttpServer;
 use Swoole\Server as SwooleServer;
 use Swoole\Server\Port as SwoolePort;
 use Swoole\WebSocket\Server as SwooleWebSocketServer;
+use Throwable;
 
 class Server implements ServerInterface
 {
-    protected bool $enableHttpServer = false;
-
-    protected bool $enableWebSocketServer = false;
-
     protected ?SwooleServer $server = null;
 
     protected array $onRequestCallbacks = [];
@@ -116,28 +118,27 @@ class Server implements ServerInterface
      */
     protected function sortServers(array $servers): array
     {
-        $sortServers = [];
-        foreach ($servers as $server) {
-            switch ($server->getType()) {
-                case ServerInterface::SERVER_HTTP:
-                    $this->enableHttpServer = true;
-                    if (! $this->enableWebSocketServer) {
-                        array_unshift($sortServers, $server);
-                    } else {
-                        $sortServers[] = $server;
-                    }
-                    break;
-                case ServerInterface::SERVER_WEBSOCKET:
-                    $this->enableWebSocketServer = true;
-                    array_unshift($sortServers, $server);
-                    break;
-                default:
-                    $sortServers[] = $server;
-                    break;
-            }
+        $prioritizedServers = [];
+
+        foreach (array_values($servers) as $index => $server) {
+            $priority = match ($server->getType()) {
+                ServerInterface::SERVER_WEBSOCKET => 0,
+                ServerInterface::SERVER_HTTP => 1,
+                default => 2,
+            };
+
+            $prioritizedServers[] = [$priority, $index, $server];
         }
 
-        return $sortServers;
+        usort(
+            $prioritizedServers,
+            static fn (array $left, array $right): int => [$left[0], $left[1]] <=> [$right[0], $right[1]],
+        );
+
+        return array_map(
+            static fn (array $prioritizedServer): Port => $prioritizedServer[2],
+            $prioritizedServers,
+        );
     }
 
     /**
@@ -183,8 +184,42 @@ class Server implements ServerInterface
                 }
                 $callback = [$class, $method];
             }
+
+            if (
+                ($event === Event::ON_REQUEST || $event === Event::ON_HANDSHAKE)
+                && is_callable($callback)
+            ) {
+                $callback = $this->guardResponseCallback($callback);
+            }
+
             $server->on($event, $callback);
         }
+    }
+
+    /**
+     * Guard a native response callback from escaping its transport boundary.
+     */
+    protected function guardResponseCallback(callable $callback): Closure
+    {
+        return function (SwooleRequest $request, SwooleResponse $response) use ($callback): void {
+            try {
+                $callback($request, $response);
+            } catch (Throwable $throwable) {
+                if (! $throwable instanceof CanceledException) {
+                    try {
+                        $this->container->make(ExceptionHandler::class)->report($throwable);
+                    } catch (Throwable) {
+                    }
+                }
+
+                try {
+                    if ($response->isWritable()) {
+                        $response->end();
+                    }
+                } catch (Throwable) {
+                }
+            }
+        };
     }
 
     /**
