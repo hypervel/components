@@ -73,7 +73,7 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
     {
         return $this->readStreamWithOptions(
             $path,
-            ($this->config['stream_reads'] ?? false) ? ['restOptions' => ['stream' => true]] : []
+            ($this->config['stream_reads'] ?? true) ? ['restOptions' => ['stream' => true]] : []
         );
     }
 
@@ -97,7 +97,7 @@ class GoogleCloudStorageAdapter extends FilesystemAdapter
                     'headers' => [
                         'Range' => "bytes={$start}-{$end}",
                     ],
-                    ...(($this->config['stream_reads'] ?? false) ? ['stream' => true] : []),
+                    ...(($this->config['stream_reads'] ?? true) ? ['stream' => true] : []),
                 ],
             ]
         );
