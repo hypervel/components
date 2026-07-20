@@ -227,6 +227,29 @@ class BusDispatcherTest extends TestCase
 
         Container::setInstance(null);
     }
+
+    public function testDispatchBulkKeepsColonBearingRoutesSeparate(): void
+    {
+        $firstJob = (new BusDispatcherQueueable)->onConnection('a:b')->onQueue('c');
+        $secondJob = (new BusDispatcherQueueable)->onConnection('a')->onQueue('b:c');
+
+        $firstQueue = m::mock(Queue::class);
+        $firstQueue->shouldReceive('bulk')->once()->with([$firstJob], '', 'c');
+
+        $secondQueue = m::mock(Queue::class);
+        $secondQueue->shouldReceive('bulk')->once()->with([$secondJob], '', 'b:c');
+
+        $dispatcher = new Dispatcher(
+            new Container,
+            fn (?string $connection): Queue => match ($connection) {
+                'a:b' => $firstQueue,
+                'a' => $secondQueue,
+                default => throw new RuntimeException("Unexpected connection [{$connection}]."),
+            }
+        );
+
+        $dispatcher->bulk([$firstJob, $secondJob]);
+    }
 }
 
 class BusInjectionStub

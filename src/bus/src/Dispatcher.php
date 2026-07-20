@@ -137,17 +137,23 @@ class Dispatcher implements QueueingDispatcher
                 ?? $this->resolveQueueFromQueueRoute($job)
                 ?? null;
 
-            $groups[$connection . ':' . $queue]['connection'] = $connection;
-            $groups[$connection . ':' . $queue]['queue'] = $queue;
-            $groups[$connection . ':' . $queue]['jobs'][] = $job;
+            // Connection and queue names may contain the same delimiter, so keep the route dimensions separate.
+            $connectionKey = $connection ?? '';
+            $queueKey = $queue ?? '';
+
+            $groups[$connectionKey][$queueKey]['connection'] = $connection;
+            $groups[$connectionKey][$queueKey]['queue'] = $queue;
+            $groups[$connectionKey][$queueKey]['jobs'][] = $job;
         }
 
-        foreach ($groups as $group) {
-            ($this->queueResolver)($group['connection'])->bulk(
-                $group['jobs'],
-                '',
-                $group['queue']
-            );
+        foreach ($groups as $connectionGroups) {
+            foreach ($connectionGroups as $group) {
+                ($this->queueResolver)($group['connection'])->bulk(
+                    $group['jobs'],
+                    '',
+                    $group['queue']
+                );
+            }
         }
     }
 
