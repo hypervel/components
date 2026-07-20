@@ -204,6 +204,27 @@ class CacheFileStoreTest extends TestCase
         }
     }
 
+    public function testRefreshReturnsFalseWhenFileLockCannotBeAcquired(): void
+    {
+        $tempDir = ParallelTesting::tempDir('CacheFileStoreTest-refresh');
+        mkdir($tempDir, 0777, true);
+
+        $store = new FileStore(new Filesystem, $tempDir);
+        $path = $store->path('foo');
+        mkdir(dirname($path), 0777, true);
+        file_put_contents($path, (time() + 60) . serialize('owner'));
+        $lockableFile = new LockableFile($path, 'c+');
+
+        try {
+            $lockableFile->getExclusiveLock();
+
+            $this->assertFalse($store->refreshIfOwned('foo', 'owner', 10));
+        } finally {
+            $lockableFile->close();
+            (new Filesystem)->deleteDirectory($tempDir);
+        }
+    }
+
     public function testForeversAreStoredWithHighTimestamp()
     {
         $files = $this->mockFilesystem();

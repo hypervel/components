@@ -159,6 +159,32 @@ class FilesystemTest extends TestCase
         $this->assertStringEqualsFile($tempFile, 'Hello Taylor');
     }
 
+    public function testReplaceInFileFailsWhenTheSourceCannotBeRead(): void
+    {
+        $path = $this->tempDir . '/missing.txt';
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Unable to read file at path [{$path}].");
+
+        (new Filesystem)->replaceInFile('old', 'new', $path);
+    }
+
+    public function testReplaceInFileFailsWhenTheReplacementIsOnlyPartiallyWritten(): void
+    {
+        FilesystemTestStreamWrapper::reset('Hello World');
+        FilesystemTestStreamWrapper::$zeroWriteAfter = 5;
+        stream_wrapper_register('hypervel-filesystem-test', FilesystemTestStreamWrapper::class);
+
+        try {
+            (new Filesystem)->replaceInFile('World', 'Taylor', 'hypervel-filesystem-test://file');
+            $this->fail('A partial replacement write should fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('Unable to write the complete contents of file', $exception->getMessage());
+        } finally {
+            stream_wrapper_unregister('hypervel-filesystem-test');
+        }
+    }
+
     #[RequiresOperatingSystem('Linux|Darwin')]
     public function testReplaceWhenUnixSymlinkExists()
     {
@@ -209,6 +235,20 @@ class FilesystemTest extends TestCase
         $this->assertEquals($expectedPermissions, $filePermission);
     }
 
+    #[RequiresOperatingSystem('Linux|Darwin')]
+    public function testSetChmodAcceptsZeroMode(): void
+    {
+        $path = $this->tempDir . '/zero-mode.txt';
+        file_put_contents($path, 'Hello World');
+
+        try {
+            $this->assertTrue((new Filesystem)->chmod($path, 0000));
+            $this->assertSame(0, $this->getFilePermissions($path));
+        } finally {
+            chmod($path, 0600);
+        }
+    }
+
     public function testGetChmod()
     {
         file_put_contents($this->tempDir . '/file.txt', 'Hello World');
@@ -218,6 +258,11 @@ class FilesystemTest extends TestCase
         $filePermission = $files->chmod($this->tempDir . '/file.txt');
         $expectedPermissions = DIRECTORY_SEPARATOR === '\\' ? '0666' : '0755';
         $this->assertEquals($expectedPermissions, $filePermission);
+    }
+
+    public function testGetChmodReturnsFalseWhenPermissionsCannotBeRead(): void
+    {
+        $this->assertFalse((new Filesystem)->chmod($this->tempDir . '/missing.txt'));
     }
 
     public function testDeleteRemovesFiles()
@@ -272,6 +317,29 @@ class FilesystemTest extends TestCase
         file_put_contents($this->tempDir . '/bar/file.txt', 'Hello World');
         $files = new Filesystem;
         $this->assertFalse($files->deleteDirectory($this->tempDir . '/bar/file.txt'));
+    }
+
+    public function testDeleteDirectoryReportsFailureAfterAttemptingEveryEntry(): void
+    {
+        $directory = $this->tempDir . '/exhaustive-delete';
+        mkdir($directory);
+        file_put_contents($directory . '/first.txt', 'first');
+        file_put_contents($directory . '/second.txt', 'second');
+        $filesystem = new RecordingDeleteFilesystem;
+
+        $this->assertFalse($filesystem->deleteDirectory($directory));
+        $this->assertSame(
+            [$directory . '/first.txt', $directory . '/second.txt'],
+            $filesystem->deleted
+        );
+    }
+
+    public function testDeleteDirectoriesReportsFailureAfterAttemptingEveryDirectory(): void
+    {
+        $filesystem = new RecordingDirectoryDeleteFilesystem;
+
+        $this->assertFalse($filesystem->deleteDirectories('/root'));
+        $this->assertSame(['/root/first', '/root/second'], $filesystem->deleted);
     }
 
     public function testCleanDirectory()
@@ -459,6 +527,23 @@ class FilesystemTest extends TestCase
         $this->assertFileDoesNotExist($this->tempDir . '/foo.txt');
     }
 
+    public function testRelativeLinkThrowsWhenLinkCreationFails(): void
+    {
+        $filesystem = new StubLinkFilesystem(false);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to create a relative link');
+
+        $filesystem->relativeLink('/root/target.txt', '/root/link.txt');
+    }
+
+    public function testRelativeLinkAcceptsTheWindowsNullResult(): void
+    {
+        (new StubLinkFilesystem(null))->relativeLink('/root/target.txt', '/root/link.txt');
+
+        $this->addToAssertionCount(1);
+    }
+
     public function testNameReturnsName()
     {
         file_put_contents($this->tempDir . '/foobar.txt', 'foo');
@@ -501,6 +586,18 @@ class FilesystemTest extends TestCase
         $this->assertSame('dir', $files->type($this->tempDir . '/foo-dir'));
     }
 
+    public function testNativeMetadataFailuresReturnFalse(): void
+    {
+        $path = $this->tempDir . '/missing.txt';
+        $filesystem = new Filesystem;
+
+        $this->assertFalse($filesystem->type($path));
+        $this->assertFalse($filesystem->size($path));
+        $this->assertFalse($filesystem->lastModified($path));
+        $this->assertFalse($filesystem->hash($path));
+        $this->assertFalse($filesystem->glob(str_repeat('a', 5000), GLOB_ERR));
+    }
+
     public function testSizeOutputsSize()
     {
         $size = file_put_contents($this->tempDir . '/foo.txt', 'foo');
@@ -514,6 +611,11 @@ class FilesystemTest extends TestCase
         file_put_contents($this->tempDir . '/foo.txt', 'foo');
         $files = new Filesystem;
         $this->assertSame('text/plain', $files->mimeType($this->tempDir . '/foo.txt'));
+    }
+
+    public function testGuessExtensionReturnsNullWhenMimeDetectionFails(): void
+    {
+        $this->assertNull((new MissingMimeTypeFilesystem)->guessExtension('/missing.txt'));
     }
 
     public function testIsWritable()
@@ -787,7 +889,7 @@ class FilesystemTest extends TestCase
         $this->assertEquals('test.txt', $allFiles[0]->getFilename());
     }
 
-    public function testConcurrentCoroutineSharedGetAndPutViaAtomic()
+    public function testConcurrentCoroutineSharedGetAndLockedPut()
     {
         $files = new Filesystem;
         $path = $this->tempDir . '/concurrent.txt';
@@ -877,5 +979,148 @@ class ConcurrentDirectoryFilesystem extends Filesystem
         ++$this->creationAttempts;
 
         return false;
+    }
+}
+
+class RecordingDeleteFilesystem extends Filesystem
+{
+    /** @var list<string> */
+    public array $deleted = [];
+
+    public function delete($paths): bool
+    {
+        $this->deleted[] = $paths;
+
+        return ! str_ends_with($paths, '/first.txt');
+    }
+}
+
+class RecordingDirectoryDeleteFilesystem extends Filesystem
+{
+    /** @var list<string> */
+    public array $deleted = [];
+
+    public function directories(array|string $directory, array|string|int $depth = 0): array
+    {
+        return ['/root/first', '/root/second'];
+    }
+
+    public function deleteDirectory(string $directory, bool $preserve = false): bool
+    {
+        $this->deleted[] = $directory;
+
+        return $directory !== '/root/first';
+    }
+}
+
+class StubLinkFilesystem extends Filesystem
+{
+    public function __construct(private ?bool $result)
+    {
+    }
+
+    public function link(string $target, string $link): ?bool
+    {
+        return $this->result;
+    }
+
+    public function isFile(string $file): bool
+    {
+        return true;
+    }
+}
+
+class MissingMimeTypeFilesystem extends Filesystem
+{
+    public function mimeType(string $path): string|false
+    {
+        return false;
+    }
+}
+
+class FilesystemTestStreamWrapper
+{
+    public mixed $context;
+
+    public static string $contents = '';
+
+    public static ?int $zeroWriteAfter = null;
+
+    private int $position = 0;
+
+    public static function reset(string $contents): void
+    {
+        self::$contents = $contents;
+        self::$zeroWriteAfter = null;
+    }
+
+    public function stream_open(string $path, string $mode, int $options, ?string &$openedPath): bool
+    {
+        if (str_contains($mode, 'w')) {
+            self::$contents = '';
+        }
+
+        return true;
+    }
+
+    public function stream_read(int $count): string
+    {
+        $contents = substr(self::$contents, $this->position, $count);
+        $this->position += strlen($contents);
+
+        return $contents;
+    }
+
+    public function stream_write(string $data): int
+    {
+        if (self::$zeroWriteAfter !== null && $this->position >= self::$zeroWriteAfter) {
+            return 0;
+        }
+
+        $length = self::$zeroWriteAfter === null
+            ? strlen($data)
+            : min(strlen($data), self::$zeroWriteAfter - $this->position);
+
+        self::$contents = substr_replace(self::$contents, substr($data, 0, $length), $this->position, $length);
+        $this->position += $length;
+
+        return $length;
+    }
+
+    public function stream_eof(): bool
+    {
+        return $this->position >= strlen(self::$contents);
+    }
+
+    public function stream_tell(): int
+    {
+        return $this->position;
+    }
+
+    public function stream_seek(int $offset, int $whence = SEEK_SET): bool
+    {
+        $position = match ($whence) {
+            SEEK_SET => $offset,
+            SEEK_CUR => $this->position + $offset,
+            SEEK_END => strlen(self::$contents) + $offset,
+        };
+
+        if ($position < 0) {
+            return false;
+        }
+
+        $this->position = $position;
+
+        return true;
+    }
+
+    public function stream_flush(): bool
+    {
+        return true;
+    }
+
+    public function stream_stat(): array
+    {
+        return ['size' => strlen(self::$contents)];
     }
 }
