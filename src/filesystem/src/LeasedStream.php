@@ -188,14 +188,6 @@ final class LeasedStream
     }
 
     /**
-     * Finalize an abandoned wrapper without throwing.
-     */
-    public function __destruct()
-    {
-        $this->finalize();
-    }
-
-    /**
      * Close a resource without allowing cleanup failures to escape.
      */
     private static function closeResource(mixed $resource): void
