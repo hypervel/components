@@ -130,6 +130,7 @@ class AfterEachTestSubscriber implements FinishedSubscriber
         \Hypervel\Auth\TokenGuard::flushState();
         \Hypervel\Broadcasting\Broadcasters\Broadcaster::flushChannels();
         \Hypervel\Bus\PendingBatch::flushState();
+        \Hypervel\Bus\UniqueJobPayloadContext::flushState();
         \Hypervel\Cache\Redis\Console\BenchmarkCommand::flushState();
         \Hypervel\Cache\Redis\Console\DoctorCommand::flushState();
         \Hypervel\Cache\Repository::flushState();

@@ -10,7 +10,7 @@ use Hypervel\Testbench\TestCase;
 
 class PipelineFacadeTest extends TestCase
 {
-    public function testFacadeReturnsFreshInstanceOnEveryAccess()
+    public function testFacadeReturnsFreshInstanceOnEveryAccess(): void
     {
         $first = PipelineFacade::getFacadeRoot();
         $second = PipelineFacade::getFacadeRoot();
@@ -20,7 +20,7 @@ class PipelineFacadeTest extends TestCase
         $this->assertNotSame($first, $second);
     }
 
-    public function testFacadeInstanceIsNotContaminatedByPriorUsage()
+    public function testFacadeInstanceIsNotContaminatedByPriorUsage(): void
     {
         PipelineFacade::send('foo')->through([
             function ($value, $next) {

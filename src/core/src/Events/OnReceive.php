@@ -15,7 +15,7 @@ class OnReceive
         public readonly Server $server,
         public readonly int $fd,
         public readonly int $reactorId,
-        public readonly mixed $data,
+        public readonly string $data,
     ) {
     }
 }

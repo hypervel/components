@@ -52,7 +52,8 @@ return [
     | Server Settings
     |--------------------------------------------------------------------------
     |
-    | Swoole server options passed directly to $server->set(). See:
+    | Swoole server options passed directly to $server->set(). The event_object
+    | option is not supported; use Hypervel lifecycle events instead. See:
     | https://wiki.swoole.com/en/#/server/setting
     |
     */
@@ -61,6 +62,7 @@ return [
         'document_root' => base_path('public'),
         'enable_static_handler' => (bool) env('SERVER_STATIC_FILE_HANDLER', true),
         Constant::OPTION_ENABLE_COROUTINE => true,
+        Constant::OPTION_TASK_ENABLE_COROUTINE => false,
         Constant::OPTION_WORKER_NUM => env('SERVER_WORKERS', swoole_cpu_num()),
         Constant::OPTION_PID_FILE => storage_path('framework/hypervel.pid'),
         Constant::OPTION_OPEN_TCP_NODELAY => true,

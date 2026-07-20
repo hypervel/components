@@ -7,13 +7,13 @@ namespace Hypervel\Foundation\Bus;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DebounceLock;
+use Hypervel\Bus\UniqueJobPayloadContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Queue\PreparesForDispatch;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
-use Hypervel\Foundation\Queue\InteractsWithUniqueJobs;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
 use Hypervel\Support\Traits\Conditionable;
@@ -23,7 +23,6 @@ use UnitEnum;
 class PendingDispatch
 {
     use Conditionable;
-    use InteractsWithUniqueJobs;
     use ReadsQueueAttributes;
 
     /**
@@ -158,9 +157,9 @@ class PendingDispatch
     /**
      * Indicate that the job should be dispatched after the response is sent to the browser.
      */
-    public function afterResponse(): static
+    public function afterResponse(bool $afterResponse = true): static
     {
-        $this->afterResponse = true;
+        $this->afterResponse = $afterResponse;
 
         return $this;
     }
@@ -236,12 +235,12 @@ class PendingDispatch
      */
     public function __destruct()
     {
-        $this->addUniqueJobInformationToContext($this->job);
-
         if (! $this->shouldDispatch()) {
-            $this->removeUniqueJobInformationFromContext($this->job);
-
             return;
+        }
+
+        if ($this->job instanceof ShouldBeUnique) {
+            UniqueJobPayloadContext::register($this->job);
         }
 
         $this->acquireDebounceLock();
@@ -255,7 +254,5 @@ class PendingDispatch
                 ->make(Dispatcher::class)
                 ->dispatch($this->job);
         }
-
-        $this->removeUniqueJobInformationFromContext($this->job);
     }
 }

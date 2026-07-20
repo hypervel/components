@@ -42,6 +42,7 @@
         "hypervel/engine": "^0.4",
         "hypervel/events": "^0.4",
         "hypervel/foundation": "^0.4",
+        "hypervel/log": "^0.4",
         "hypervel/object-pool": "^0.4",
         "hypervel/pipeline": "^0.4",
         "hypervel/redis": "^0.4",

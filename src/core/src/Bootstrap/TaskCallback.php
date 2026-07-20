@@ -7,16 +7,23 @@ namespace Hypervel\Core\Bootstrap;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Core\Events\OnTask;
+use Swoole\Constant;
 use Swoole\Server;
 use Swoole\Server\Task;
 
 class TaskCallback
 {
-    protected bool $taskEnableCoroutine = false;
+    protected bool $taskUsesObject;
 
     public function __construct(protected Dispatcher $dispatcher, Repository $config)
     {
-        $this->taskEnableCoroutine = $config->boolean('server.settings.task_enable_coroutine', false);
+        $settings = $config->array('server.settings');
+        $taskObject = array_key_exists(Constant::OPTION_TASK_USE_OBJECT, $settings)
+            ? (bool) $settings[Constant::OPTION_TASK_USE_OBJECT]
+            : (bool) ($settings[Constant::OPTION_TASK_OBJECT] ?? false);
+
+        $this->taskUsesObject = $config->boolean('server.settings.' . Constant::OPTION_TASK_ENABLE_COROUTINE)
+            || $taskObject;
     }
 
     /**
@@ -24,7 +31,8 @@ class TaskCallback
      */
     public function onTask(Server $server, mixed ...$arguments): void
     {
-        if ($this->taskEnableCoroutine) {
+        if ($this->taskUsesObject) {
+            /** @var Task $task */
             $task = $arguments[0];
         } else {
             [$taskId, $srcWorkerId, $data] = $arguments;
@@ -38,7 +46,7 @@ class TaskCallback
         $this->dispatcher->dispatch($event);
 
         if (! is_null($event->result)) {
-            if ($this->taskEnableCoroutine) {
+            if ($this->taskUsesObject) {
                 $task->finish($event->result);
             } else {
                 $server->finish($event->result);

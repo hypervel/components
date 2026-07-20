@@ -10,21 +10,26 @@ use Hypervel\Config\Repository;
 use Hypervel\Core\Logger\StdoutLogger;
 use Hypervel\Tests\Core\Fixtures\TestObject;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
+use JsonSerializable;
 use Mockery as m;
+use Psr\Log\InvalidArgumentException as PsrInvalidArgumentException;
 use Psr\Log\LogLevel;
 use RuntimeException;
 use Stringable;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\ConsoleOutput;
+use Symfony\Component\Console\Output\OutputInterface;
 
 class StdoutLoggerTest extends TestCase
 {
-    public function testLog()
+    public function testLog(): void
     {
         $logger = $this->getLineLogger('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] <info>\[INFO\]<\/> Hello Hypervel\.$/');
         $logger->info('Hello {name}.', ['name' => 'Hypervel']);
     }
 
-    public function testFixedErrorContextCount()
+    public function testFixedErrorContextCount(): void
     {
         $logger = $this->getLineLogger('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] <info>\[INFO\]<\/> \[test tag\] Hello Hypervel\.$/');
         $logger->info('Hello {name}.', [
@@ -33,9 +38,9 @@ class StdoutLoggerTest extends TestCase
         ]);
     }
 
-    public function testLogComplexityContext()
+    public function testLogComplexityContext(): void
     {
-        $logger = $this->getLineLogger('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] <info>\[INFO\]<\/> \[test tag\] Hello Hypervel <OBJECT> Hypervel\\\Tests\\\Core\\\Fixtures\\\TestObject\.$/');
+        $logger = $this->getLineLogger('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] <info>\[INFO\]<\/> \[test tag\] Hello Hypervel \\\<OBJECT\\\> Hypervel\\\Tests\\\Core\\\Fixtures\\\TestObject\.$/');
         $logger->info('Hello {name} {object}.', [
             'name' => 'Hypervel',
             // tags
@@ -45,34 +50,34 @@ class StdoutLoggerTest extends TestCase
         ]);
     }
 
-    public function testLogThrowable()
+    public function testLogThrowable(): void
     {
         $output = m::mock(ConsoleOutput::class);
         $output->shouldReceive('writeln')->with(m::any())->once()->andReturnUsing(function ($message) {
             $this->assertMatchesRegularExpression('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\].*RuntimeException: Invalid Arguments\./', $message);
         });
         $logger = new StdoutLogger(new Repository([
-            'app' => ['stdout_log' => ['level' => [LogLevel::ERROR]]],
+            'app' => ['stdout_log' => ['level' => [LogLevel::ERROR], 'format' => 'line']],
         ]), $output);
 
         $logger->error(new RuntimeException('Invalid Arguments.'));
     }
 
-    public function testLevelFiltering()
+    public function testLevelFiltering(): void
     {
         $output = m::mock(ConsoleOutput::class);
         $output->shouldNotReceive('writeln');
         $logger = new StdoutLogger(new Repository([
-            'app' => ['stdout_log' => ['level' => [LogLevel::ERROR]]],
+            'app' => ['stdout_log' => ['level' => [LogLevel::ERROR], 'format' => 'line']],
         ]), $output);
 
         $logger->info('This should not be logged.');
     }
 
-    public function testLevelFilteringUsesConstructionTimeConfig()
+    public function testLevelFilteringUsesConstructionTimeConfig(): void
     {
         $config = new Repository([
-            'app' => ['stdout_log' => ['level' => [LogLevel::ERROR]]],
+            'app' => ['stdout_log' => ['level' => [LogLevel::ERROR], 'format' => 'line']],
         ]);
 
         $output = m::mock(ConsoleOutput::class);
@@ -85,22 +90,21 @@ class StdoutLoggerTest extends TestCase
         $logger->error('This should still be logged.');
     }
 
-    public function testDefaultFormatIsLine()
+    public function testLineFormat(): void
     {
         $output = m::mock(ConsoleOutput::class);
         $output->shouldReceive('writeln')->with(m::any())->once()->andReturnUsing(function ($message) {
             // Line format has colored tags, not JSON
             $this->assertMatchesRegularExpression('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] <info>\[INFO\]<\/>/', $message);
         });
-        // No 'format' key — should default to 'line'
         $logger = new StdoutLogger(new Repository([
-            'app' => ['stdout_log' => ['level' => [LogLevel::INFO]]],
+            'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'line']],
         ]), $output);
 
         $logger->info('Hello.');
     }
 
-    public function testJsonFormatBasicMessage()
+    public function testJsonFormatBasicMessage(): void
     {
         $data = $this->logJson(LogLevel::INFO, 'Hello Hypervel.');
 
@@ -111,7 +115,7 @@ class StdoutLoggerTest extends TestCase
         $this->assertArrayNotHasKey('context', $data);
     }
 
-    public function testJsonFormatTimestampIsIso8601()
+    public function testJsonFormatTimestampIsIso8601(): void
     {
         $data = $this->logJson(LogLevel::INFO, 'test');
 
@@ -119,7 +123,7 @@ class StdoutLoggerTest extends TestCase
         $this->assertInstanceOf(DateTimeImmutable::class, $parsed);
     }
 
-    public function testJsonFormatWithContext()
+    public function testJsonFormatWithContext(): void
     {
         $data = $this->logJson(LogLevel::INFO, 'Hello {name}.', ['name' => 'Hypervel']);
 
@@ -127,7 +131,7 @@ class StdoutLoggerTest extends TestCase
         $this->assertSame(['name' => 'Hypervel'], $data['context']);
     }
 
-    public function testJsonFormatWithTags()
+    public function testJsonFormatWithTags(): void
     {
         $data = $this->logJson(LogLevel::INFO, 'Hello {name}.', [
             'component' => 'test tag',
@@ -139,7 +143,7 @@ class StdoutLoggerTest extends TestCase
         $this->assertSame(['name' => 'Hypervel'], $data['context']);
     }
 
-    public function testJsonFormatWithObjectContext()
+    public function testJsonFormatWithObjectContext(): void
     {
         $data = $this->logJson(LogLevel::INFO, 'Got {object}.', ['object' => new TestObject]);
 
@@ -147,14 +151,14 @@ class StdoutLoggerTest extends TestCase
         $this->assertSame(['object' => '<OBJECT> Hypervel\Tests\Core\Fixtures\TestObject'], $data['context']);
     }
 
-    public function testJsonFormatWithThrowable()
+    public function testJsonFormatWithThrowable(): void
     {
         $data = $this->logJson(LogLevel::ERROR, new RuntimeException('Invalid Arguments.'));
 
         $this->assertStringContainsString('RuntimeException: Invalid Arguments.', $data['message']);
     }
 
-    public function testJsonFormatLevelFiltering()
+    public function testJsonFormatLevelFiltering(): void
     {
         $output = m::mock(ConsoleOutput::class);
         $output->shouldNotReceive('writeln');
@@ -163,6 +167,201 @@ class StdoutLoggerTest extends TestCase
         ]), $output);
 
         $logger->info('This should not be logged.');
+    }
+
+    public function testLineFormatSafelyStringifiesArrayAndResourceContext(): void
+    {
+        $stream = fopen('php://temp', 'r+');
+
+        try {
+            $output = new BufferedOutput;
+            $logger = new StdoutLogger(new Repository([
+                'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'line']],
+            ]), $output);
+
+            $logger->info('Values: {array} {resource}.', [
+                'array' => ['first', 'second'],
+                'resource' => $stream,
+            ]);
+
+            $this->assertStringContainsString('Values: <ARRAY> <RESOURCE> stream.', $output->fetch());
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function testLineFormatPreservesLiteralMarkupAndPercentBearingTags(): void
+    {
+        $output = new BufferedOutput;
+        $logger = new StdoutLogger(new Repository([
+            'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'line']],
+        ]), $output);
+
+        $logger->info('<error>Literal message</error>', [
+            'component' => '<comment>worker %s</comment>',
+        ]);
+
+        $this->assertStringContainsString(
+            '[<comment>worker %s</comment>] <error>Literal message</error>',
+            $output->fetch(),
+        );
+    }
+
+    public function testThrowingStringableDoesNotMaskLineLog(): void
+    {
+        $output = new BufferedOutput;
+        $logger = new StdoutLogger(new Repository([
+            'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'line']],
+        ]), $output);
+
+        $logger->info('Value: {value}.', ['value' => new ThrowingStdoutLoggerStringable]);
+
+        $this->assertStringContainsString(
+            'Value: <OBJECT> Hypervel\Tests\Core\ThrowingStdoutLoggerStringable.',
+            $output->fetch(),
+        );
+    }
+
+    public function testDateTimeContextUsesRfc3339(): void
+    {
+        $date = new DateTimeImmutable('2026-07-20T12:34:56+00:00');
+
+        $data = $this->logJson(LogLevel::INFO, 'At {date}.', ['date' => $date]);
+
+        $this->assertSame('At 2026-07-20T12:34:56+00:00.', $data['message']);
+        $this->assertSame('2026-07-20T12:34:56+00:00', $data['context']['date']);
+    }
+
+    public function testConfiguredCustomLevelIsSupported(): void
+    {
+        $output = new BufferedOutput;
+        $logger = new StdoutLogger(new Repository([
+            'app' => ['stdout_log' => ['level' => ['audit'], 'format' => 'line']],
+        ]), $output);
+
+        $logger->log('audit', 'Recorded.');
+
+        $this->assertStringContainsString('[AUDIT] Recorded.', $output->fetch());
+    }
+
+    public function testUnknownLevelThrowsPsrException(): void
+    {
+        $logger = new StdoutLogger(new Repository([
+            'app' => ['stdout_log' => ['level' => [], 'format' => 'line']],
+        ]), new BufferedOutput);
+
+        $this->expectException(PsrInvalidArgumentException::class);
+        $this->expectExceptionMessage('Unknown log level [audit].');
+
+        $logger->log('audit', 'Not configured.');
+    }
+
+    public function testNonStringLevelThrowsPsrException(): void
+    {
+        $logger = new StdoutLogger(new Repository([
+            'app' => ['stdout_log' => ['level' => [], 'format' => 'line']],
+        ]), new BufferedOutput);
+
+        $this->expectException(PsrInvalidArgumentException::class);
+        $this->expectExceptionMessage('Log level must be a string, int given.');
+
+        $logger->log(123, 'Invalid.');
+    }
+
+    public function testInvalidFormatFailsDuringConfigurationLoad(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unsupported stdout log format [xml].');
+
+        new StdoutLogger(new Repository([
+            'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'xml']],
+        ]), new BufferedOutput);
+    }
+
+    public function testNonStringConfiguredLevelFailsDuringConfigurationLoad(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Stdout log levels must be strings, int given.');
+
+        new StdoutLogger(new Repository([
+            'app' => ['stdout_log' => ['level' => [LogLevel::INFO, 1], 'format' => 'line']],
+        ]), new BufferedOutput);
+    }
+
+    public function testFailedReloadPreservesThePreviousConfiguration(): void
+    {
+        $config = new Repository([
+            'app' => ['stdout_log' => ['level' => [LogLevel::ERROR], 'format' => 'line']],
+        ]);
+        $output = new BufferedOutput;
+        $logger = new StdoutLogger($config, $output);
+
+        $config->set('app.stdout_log.format', 'json');
+        $config->set('app.stdout_log.level', [LogLevel::INFO, 1]);
+
+        try {
+            $logger->reloadConfiguration();
+            $this->fail('The invalid level should prevent the configuration from being published.');
+        } catch (InvalidArgumentException) {
+        }
+
+        $logger->error('Still using the previous configuration.');
+        $logger->info('Still disabled.');
+
+        $captured = $output->fetch();
+        $this->assertStringContainsString('Still using the previous configuration.', $captured);
+        $this->assertStringNotContainsString('Still disabled.', $captured);
+        $this->assertStringStartsWith('[', $captured);
+    }
+
+    public function testJsonOutputPreservesLiteralMarkup(): void
+    {
+        $data = $this->logJson(LogLevel::INFO, '<error>Literal message</error>');
+
+        $this->assertSame('<error>Literal message</error>', $data['message']);
+    }
+
+    public function testJsonOutputHandlesResourceContext(): void
+    {
+        $stream = fopen('php://temp', 'r+');
+
+        try {
+            $data = $this->logJson(LogLevel::INFO, 'Stream {stream}.', ['stream' => $stream]);
+
+            $this->assertSame('Stream <RESOURCE> stream.', $data['message']);
+            $this->assertSame('<RESOURCE> stream', $data['context']['stream']);
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function testJsonOutputHandlesRecursiveContext(): void
+    {
+        $recursive = [];
+        $recursive['self'] = &$recursive;
+
+        $data = $this->logJson(LogLevel::INFO, 'Recursive {value}.', ['value' => $recursive]);
+
+        $this->assertSame('Recursive <ARRAY>.', $data['message']);
+        $this->assertNull($data['context']['value']['self']);
+    }
+
+    public function testJsonOutputSubstitutesInvalidUtf8(): void
+    {
+        $data = $this->logJson(LogLevel::INFO, 'Invalid {value}.', ['value' => "\xB1\x31"]);
+
+        $this->assertSame("Invalid \u{FFFD}1.", $data['message']);
+        $this->assertSame("\u{FFFD}1", $data['context']['value']);
+    }
+
+    public function testJsonOutputDropsContextWhenNestedSerializerThrows(): void
+    {
+        $data = $this->logJson(LogLevel::INFO, 'Payload {payload}.', [
+            'payload' => ['serializer' => new ThrowingStdoutLoggerJsonSerializable],
+        ]);
+
+        $this->assertSame('Payload <ARRAY>.', $data['message']);
+        $this->assertArrayNotHasKey('context', $data);
     }
 
     /**
@@ -175,7 +374,7 @@ class StdoutLoggerTest extends TestCase
             $this->assertMatchesRegularExpression($expectedPattern, $message);
         });
         return new StdoutLogger(new Repository([
-            'app' => ['stdout_log' => ['level' => [LogLevel::INFO]]],
+            'app' => ['stdout_log' => ['level' => [LogLevel::INFO], 'format' => 'line']],
         ]), $output);
     }
 
@@ -186,9 +385,12 @@ class StdoutLoggerTest extends TestCase
     {
         $captured = null;
         $output = m::mock(ConsoleOutput::class);
-        $output->shouldReceive('writeln')->with(m::any())->once()->andReturnUsing(function ($message) use (&$captured) {
-            $captured = $message;
-        });
+        $output->shouldReceive('writeln')
+            ->with(m::any(), OutputInterface::OUTPUT_RAW)
+            ->once()
+            ->andReturnUsing(function ($message) use (&$captured) {
+                $captured = $message;
+            });
 
         $logger = new StdoutLogger(new Repository([
             'app' => ['stdout_log' => ['level' => [LogLevel::INFO, LogLevel::ERROR], 'format' => 'json']],
@@ -201,5 +403,21 @@ class StdoutLoggerTest extends TestCase
         $this->assertIsArray($data);
 
         return $data;
+    }
+}
+
+class ThrowingStdoutLoggerStringable implements Stringable
+{
+    public function __toString(): string
+    {
+        throw new RuntimeException('String conversion failed.');
+    }
+}
+
+class ThrowingStdoutLoggerJsonSerializable implements JsonSerializable
+{
+    public function jsonSerialize(): mixed
+    {
+        throw new RuntimeException('JSON serialization failed.');
     }
 }
