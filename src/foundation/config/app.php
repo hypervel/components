@@ -69,9 +69,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | These options configure the stdout logger, which is the low-level logger
-    | used by Swoole server infrastructure (connection pools, server lifecycle,
-    | response emitter, etc.). This logger is separate from the application log
-    | stack and writes directly to stdout.
+    | used by Swoole server infrastructure such as connection pools and server
+    | lifecycle callbacks. It is separate from the application log stack and
+    | writes directly to stdout.
     |
     */
 
@@ -84,6 +84,8 @@ return [
         | This array determines which log levels are written to stdout. Only
         | messages at these levels will be output. This does not affect the
         | application log stack configured in config/logging.php.
+        | Settings are loaded when each worker starts, so changes take effect
+        | for replacement workers after the server is reloaded.
         |
         */
 

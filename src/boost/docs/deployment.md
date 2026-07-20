@@ -128,6 +128,8 @@ php artisan serve
 
 By default, the HTTP server binds to `0.0.0.0:8000` with HTTP/2 enabled. You may configure the server host, port, worker count, max requests per worker, HTTP/2 support, and other Swoole settings using the `SERVER_HOST`, `SERVER_PORT`, `SERVER_WORKERS`, `SERVER_MAX_REQUESTS`, and `SERVER_HTTP2` environment variables read by `config/server.php`.
 
+Swoole's `event_object` setting is not supported because Hypervel dispatches its own lifecycle event objects from the native server callbacks. Leave this setting disabled and use Hypervel's lifecycle events when integrating with server activity.
+
 The `serve` command also accepts `--host` and `--port` options for overriding the HTTP server address for the current process. In production, prefer durable configuration in `config/server.php` and your environment.
 
 <a name="directory-permissions"></a>
