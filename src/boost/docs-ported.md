@@ -37,6 +37,7 @@ facades.md
 filesystem.md
 fortify.md
 frontend.md
+grpc.md
 hashing.md
 helpers.md
 horizon.md
