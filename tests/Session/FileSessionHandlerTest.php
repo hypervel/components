@@ -103,7 +103,7 @@ class FileSessionHandlerTest extends TestCase
         $sessionId = 'session_id';
         $data = 'session_data';
 
-        $this->files->shouldReceive('put')->with('/path/to/sessions/' . $sessionId, $data, true)->once()->andReturn(null);
+        $this->files->shouldReceive('put')->with('/path/to/sessions/' . $sessionId, $data, true)->once()->andReturn(strlen($data));
 
         $result = $this->sessionHandler->write($sessionId, $data);
 

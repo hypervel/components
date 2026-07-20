@@ -19,9 +19,9 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
 
         $this->filesystem = m::spy(Filesystem::class);
         $this->filesystem->shouldReceive('get')
-            ->andReturn(true)
+            ->andReturn('APP_NAME=Laravel')
             ->shouldReceive('put')
-            ->andReturn('APP_NAME=Laravel');
+            ->andReturn(1);
         File::swap($this->filesystem);
     }
 
@@ -187,7 +187,7 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
                     && str_starts_with($lines[0], 'APP_NAME=')
                     && str_starts_with($lines[1], 'APP_ENV=');
             }))
-            ->andReturn(true);
+            ->andReturn(1);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP'])
@@ -220,7 +220,7 @@ class EnvironmentEncryptCommandTest extends \Hypervel\Testbench\TestCase
                     && str_starts_with($lines[0], 'APP_NAME=')
                     && str_starts_with($lines[1], 'APP_ENV=');
             }))
-            ->andReturn(true);
+            ->andReturn(1);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => 'ANvVbPbE0tWMHpUySh6liY4WaCmAYKXP'])
@@ -264,7 +264,7 @@ ENV;
 
                 return true;
             }))
-            ->andReturn(true);
+            ->andReturn(1);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
@@ -318,7 +318,7 @@ ENV;
 
                 return true;
             }))
-            ->andReturn(true);
+            ->andReturn(1);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
@@ -373,7 +373,7 @@ ENV;
 
                 return true;
             }))
-            ->andReturn(true);
+            ->andReturn(1);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
@@ -427,7 +427,7 @@ ENV;
 
                 return true;
             }))
-            ->andReturn(true);
+            ->andReturn(1);
         File::swap($filesystem);
 
         $this->artisan('env:encrypt', ['--readable' => true, '--key' => $key])
