@@ -920,6 +920,9 @@ use Hypervel\Support\Facades\Storage;
 test('albums can be uploaded', function () {
     Storage::fake('photos');
 
+    // Assert that the disk contains no files...
+    Storage::disk('photos')->assertEmpty();
+
     $response = $this->json('POST', '/photos', [
         UploadedFile::fake()->image('photo1.jpg'),
         UploadedFile::fake()->image('photo2.jpg')
@@ -936,11 +939,10 @@ test('albums can be uploaded', function () {
     // Assert that the number of files in a given directory matches the expected count...
     Storage::disk('photos')->assertCount('/wallpapers', 2);
 
-    // Assert that a given directory is empty...
-    Storage::disk('photos')->assertDirectoryEmpty('/wallpapers');
+    Storage::disk('photos')->makeDirectory('/empty');
 
-    // Assert that the disk contains no files...
-    Storage::disk('photos')->assertEmpty();
+    // Assert that a given directory is empty...
+    Storage::disk('photos')->assertDirectoryEmpty('/empty');
 });
 ```
 
@@ -959,6 +961,9 @@ class ExampleTest extends TestCase
     {
         Storage::fake('photos');
 
+        // Assert that the disk contains no files...
+        Storage::disk('photos')->assertEmpty();
+
         $response = $this->json('POST', '/photos', [
             UploadedFile::fake()->image('photo1.jpg'),
             UploadedFile::fake()->image('photo2.jpg')
@@ -975,11 +980,10 @@ class ExampleTest extends TestCase
         // Assert that the number of files in a given directory matches the expected count...
         Storage::disk('photos')->assertCount('/wallpapers', 2);
 
-        // Assert that a given directory is empty...
-        Storage::disk('photos')->assertDirectoryEmpty('/wallpapers');
+        Storage::disk('photos')->makeDirectory('/empty');
 
-        // Assert that the disk contains no files...
-        Storage::disk('photos')->assertEmpty();
+        // Assert that a given directory is empty...
+        Storage::disk('photos')->assertDirectoryEmpty('/empty');
     }
 }
 ```
