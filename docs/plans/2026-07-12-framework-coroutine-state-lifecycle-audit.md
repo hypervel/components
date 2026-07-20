@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `bus`
-- **Ledger entries required for the active work:** `Correct event dispatch, queued-consumer isolation, and queue interoperability` (`queue-12`); `Normalize framework enum identifiers at string boundaries` (`support-02`); `Make Pipeline builders transient and restore current upstream fidelity` (`pipeline-01` through `pipeline-05`).
-- **Pending revalidation carried into the active work:** Revalidate `queue-12`, `support-02`, and Pipeline's shared-Bus invariant during the full Bus audit.
+- **Active package or work unit:** `core`
+- **Ledger entries required for the active work:** None identified before Core discovery.
+- **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1050,14 +1050,18 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `events-05` | `events`, `broadcasting` | later full `broadcasting` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-05` |
 | `events-06` | `events`, `foundation` | later full `foundation` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-06` |
 | `queue-11` | `queue` | `events` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
-| `queue-12` | `bus`, `queue` | `events` (revalidation complete), `broadcasting`; later full `bus`, `queue`, and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
+| `queue-12` | `bus`, `queue` | `events` and `bus` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support`; later full `foundation` and `support` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth`, `broadcasting`, `bus`, `cache`, `concurrency`, `console`, `container`, `contracts`, `cookie`, `database`, `events`, `filesystem` (revalidation complete), `foundation`, `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis`, `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth`, `broadcasting`, `bus` (revalidation complete), `cache`, `concurrency`, `console`, `container`, `contracts`, `cookie`, `database`, `events`, `filesystem` (revalidation complete), `foundation`, `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis`, `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-framework-enum-identifier-contracts.md` |
 | `auth-01` | `support`, `auth` | later full `auth` audit | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
 | `encryption-03` | `encryption` | `contracts`, `support`, and `filesystem` (revalidation complete), `foundation`; later full `foundation` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
 | `process-02` | `process` | `concurrency` (revalidation complete) | `Make Process callbacks and pools failure-safe`; finding `process-02` |
 | `server-process-10` | `server-process` | `foundation`; later full `foundation` audit | `Make custom server processes failure-safe`; finding `server-process-10` |
+| `bus-03` | `bus`, `contracts`, `foundation` | `foundation`, `queue`; later full consumer audits | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-03` |
+| `bus-10` | `bus`, `queue` | later full `queue` audit | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-10` |
+| `bus-17` | `bus`, `foundation`, `queue`, `testing` | `log` (revalidation complete), `foundation`, `queue`, `testing`; later full consumer audits | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-17` |
+| `bus-18` | `foundation`, `queue` | later full `foundation` and `queue` audits | `Make Bus dispatch, batches, and unique payloads lifecycle-safe`; finding `bus-18` |
 
 ## Package checklist
 
@@ -1115,7 +1119,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 ### Framework dispatch and runtime
 
 - [x] `pipeline`
-- [ ] `bus`
+- [x] `bus`
 - [ ] `core`
 - [ ] `foundation`
 - [ ] `console`
