@@ -14,6 +14,7 @@
     - [Response Metadata](#response-metadata)
     - [Server Streaming](#server-streaming)
 - [Errors](#errors)
+    - [Handling Client Errors](#handling-client-errors)
     - [Rich Error Details](#rich-error-details)
 - [Health Checking](#health-checking)
     - [Application Health Providers](#application-health-providers)
@@ -33,28 +34,16 @@
 - [Compression](#compression)
 - [Resource Limits](#resource-limits)
 - [Testing](#testing)
-- [Interoperability and Platform Boundaries](#interoperability-platform-boundaries)
+- [Platform Limitations](#platform-limitations)
 
 <a name="introduction"></a>
 ## Introduction
 
-Hypervel gRPC provides a coroutine-native HTTP/2 client and server without
-requiring the native gRPC PHP extension. Its application API follows Hypervel's
-Laravel-style routing, middleware, container, facade, and immutable fluent
-value conventions. Its call operations use the standard gRPC PHP vocabulary:
-`wait`, `read`, `write`, `writesDone`, and `responses`.
+Hypervel gRPC provides client and server support for [gRPC](https://grpc.io), a high-performance remote procedure call framework built on HTTP/2 and Protocol Buffers. The package does not require the native gRPC PHP extension.
 
-The client supports unary, server-streaming, client-streaming, and
-bidirectional-streaming calls to interoperable gRPC servers. The Hypervel
-server supports unary and server-streaming methods on a dedicated HTTP/2 port.
-Swoole exposes only the completed request body to a PHP request handler, so a
-Hypervel server cannot receive client or bidirectional streams incrementally.
+Hypervel clients may make unary, server-streaming, client-streaming, and bidirectional-streaming calls. Hypervel servers support unary and server-streaming methods on a dedicated HTTP/2 port.
 
-The package implements standard gRPC framing, metadata, status, rich error
-details, deadlines, identity and gzip compression, message and metadata limits,
-and explicit retries. It does not add a generic RPC layer, service discovery,
-load balancing, or a named-client manager. Application service bindings and
-normal deployment DNS remain the direct tools for those concerns.
+The package supports metadata, standard and rich error statuses, deadlines, retries, gzip compression, TLS, health checks, and configurable resource limits.
 
 <a name="installation"></a>
 ## Installation
@@ -65,14 +54,12 @@ Install the package using Composer:
 composer require hypervel/grpc
 ```
 
-Package discovery registers its service provider. The server remains disabled,
-so installing the package for outbound calls does not open another port.
+Package discovery will automatically register the package's service provider. The gRPC server is disabled by default, so you may install the package for client use without opening another port.
 
 <a name="protocol-buffer-tooling"></a>
 ### Protocol Buffer Tooling
 
-Install the official Protocol Buffers compiler for your operating system. The
-package itself does not ship a compiler. Given this service definition:
+Install the official [Protocol Buffers compiler](https://protobuf.dev/installation/) for your operating system. Given the following service definition in `resources/proto/helloworld.proto`:
 
 ```proto
 syntax = "proto3";
@@ -96,42 +83,44 @@ message HelloReply {
 }
 ```
 
-generate the PHP message classes with:
+You may generate the PHP message classes using `protoc`:
 
 ```shell
+grpc_output="$(mktemp -d)"
+trap 'rm -rf "$grpc_output"' EXIT
+
 protoc \
   --proto_path=resources/proto \
-  --php_out=app/Grpc/Generated \
+  --php_out="$grpc_output" \
   resources/proto/helloworld.proto
+
+cp -R "$grpc_output/App/." app/
 ```
 
-Adjust the output directory to match your application's PSR-4 layout. Generated
-message classes use `google/protobuf`; installing `ext-protobuf` is optional but
-improves their serialization performance.
+The temporary output directory is necessary because `protoc` includes the complete PHP namespace in its generated path. The copy command places the generated `App\Grpc\Messages` classes under your application's normal `App\` PSR-4 root, and the temporary directory is removed automatically when the shell exits.
 
-The official `grpc_php_plugin` may also generate client method bodies. Hypervel
-uses those bodies with a different parent class, as described under
-[Generated-Style Clients](#generated-style-clients). Hypervel does not claim the
-native extension's `Grpc\` namespace and does not require `ext-grpc`.
+Generated message classes use the `google/protobuf` package. Installing the optional `ext-protobuf` extension improves serialization performance.
+
+The official `grpc_php_plugin` may also generate client classes. These classes may be adapted to Hypervel as described in [Generated-Style Clients](#generated-style-clients).
 
 <a name="installing-server"></a>
 ### Installing the Server
 
-Publish the server configuration and canonical health routes:
+Publish the server configuration and standard health routes:
 
 ```shell
 php artisan grpc:install
 ```
 
-The command creates `config/grpc.php` and `routes/grpc.php` without overwriting
-existing files. Use `--force` to restore the current package versions. Enable
-the listener in your environment:
+This command publishes the `config/grpc.php` configuration file and a `routes/grpc.php` route file containing the standard gRPC health service. Existing files will not be overwritten unless you use the `--force` option.
+
+Next, enable the server in your application's `.env` file:
 
 ```ini
 GRPC_SERVER_ENABLED=true
 ```
 
-The gRPC port starts with the normal Hypervel server process:
+The gRPC listener will start with the normal Hypervel server process:
 
 ```shell
 php artisan serve
@@ -140,43 +129,23 @@ php artisan serve
 <a name="server-configuration"></a>
 ## Server Configuration
 
-The published `config/grpc.php` file contains one dedicated server definition:
+The published `config/grpc.php` file contains the following server options:
 
-```php
-'server' => [
-    'enabled' => (bool) env('GRPC_SERVER_ENABLED', false),
-    'name' => (string) env('GRPC_SERVER_NAME', 'grpc'),
-    'host' => (string) env('GRPC_SERVER_HOST', '0.0.0.0'),
-    'port' => (int) env('GRPC_SERVER_PORT', 50051),
-    'routes' => base_path('routes/grpc.php'),
-    'max_receive_message_size' => (int) env(
-        'GRPC_SERVER_MAX_RECEIVE_MESSAGE_SIZE',
-        4 * 1024 * 1024,
-    ),
-    'max_send_message_size' => (int) env(
-        'GRPC_SERVER_MAX_SEND_MESSAGE_SIZE',
-        4 * 1024 * 1024,
-    ),
-    'max_metadata_size' => (int) env(
-        'GRPC_SERVER_MAX_METADATA_SIZE',
-        8 * 1024,
-    ),
-    'compression' => env('GRPC_SERVER_COMPRESSION'),
-    'tls' => [
-        // ...
-    ],
-    'settings' => [],
-],
-```
+| Option | Environment Variable | Default | Description |
+|---|---|---:|---|
+| `enabled` | `GRPC_SERVER_ENABLED` | `false` | Determines whether the gRPC listener is started |
+| `name` | `GRPC_SERVER_NAME` | `grpc` | Unique name for the listener |
+| `host` | `GRPC_SERVER_HOST` | `0.0.0.0` | Address on which the listener binds |
+| `port` | `GRPC_SERVER_PORT` | `50051` | Port on which the listener binds |
+| `routes` | None | `routes/grpc.php` | Route file loaded by the gRPC server |
+| `max_receive_message_size` | `GRPC_SERVER_MAX_RECEIVE_MESSAGE_SIZE` | `4194304` | Maximum received message size in bytes |
+| `max_send_message_size` | `GRPC_SERVER_MAX_SEND_MESSAGE_SIZE` | `4194304` | Maximum sent message size in bytes |
+| `max_metadata_size` | `GRPC_SERVER_MAX_METADATA_SIZE` | `8192` | Maximum metadata size in bytes |
+| `compression` | `GRPC_SERVER_COMPRESSION` | `null` | Preferred response compression: `identity` or `gzip` |
+| `tls` | Various | Disabled | TLS configuration for the listener |
+| `settings` | None | `[]` | Additional supported Swoole listener settings |
 
-`compression` accepts `null`, `identity`, or `gzip`. When gzip is preferred,
-the server uses it only when the client advertises support. `settings` accepts
-native Swoole listener settings that are not owned by the protocol, message
-limits, or first-class TLS configuration. Hypervel rejects conflicting settings
-instead of silently overriding them.
-
-The configured server name must be unique among all Hypervel listeners. The
-route file must be readable before the server starts.
+The server name must be unique among all Hypervel listeners, and the route file must be readable when the server starts. Hypervel rejects Swoole settings controlled by the gRPC package, as well as globally unsupported settings such as `event_object`.
 
 <a name="server-tls"></a>
 ### TLS
@@ -199,19 +168,14 @@ The listener can terminate TLS directly:
 ],
 ```
 
-`local_cert` and `local_pk` must be supplied together. Enable `verify_peer` and
-set `cafile` when clients must present a certificate. All configured certificate
-and CA files are validated before the listener binds.
+The `local_cert` and `local_pk` options must be provided together. To require client certificates, enable `verify_peer`; use `cafile` to specify the trusted client CA. Hypervel verifies that each configured certificate, private key, and CA file is readable before starting the listener.
 
-TLS may instead terminate at a reverse proxy that forwards native HTTP/2 gRPC
-traffic to the plaintext Hypervel listener. gRPC-Web and HTTP/1 compatibility
-transports are not implemented by this package.
+You may also terminate TLS at a reverse proxy and forward native HTTP/2 gRPC traffic to a plaintext Hypervel listener. The package does not support gRPC-Web or HTTP/1 clients.
 
 <a name="routing"></a>
 ## Routing
 
-The installed `routes/grpc.php` file uses the `Grpc` facade. Group related
-methods under their fully qualified protobuf service name:
+The installed `routes/grpc.php` file uses the `Grpc` facade. You may group related methods under their fully qualified Protocol Buffer service name:
 
 ```php
 use App\Grpc\GreeterService;
@@ -226,7 +190,7 @@ Grpc::service('helloworld.Greeter', function (): void {
 });
 ```
 
-You may also register a fully qualified method directly:
+You may also register a fully qualified method name directly:
 
 ```php
 Grpc::unary(
@@ -235,17 +199,11 @@ Grpc::unary(
 );
 ```
 
-Service and method names follow protobuf identifier rules and are
-case-sensitive. Hypervel always builds the standard
-`/{fully-qualified-service}/{method}` path and always uses HTTP `POST`. URI
-parameters, fallback routes, nested service groups, alternate HTTP methods, and
-optional method segments are not part of the gRPC routing API.
+Service and method names follow Protocol Buffer identifier rules and are case-sensitive. Hypervel uses the standard `/{fully-qualified-service}/{method}` gRPC path and the required HTTP `POST` method.
 
-The gRPC router has its own route collection. Application HTTP routes are not
-available on the gRPC listener, and gRPC routes are not available on the
-application HTTP listener. Hypervel still uses its normal route matching,
-controller and closure dispatch, dependency resolution, middleware ordering,
-and route names.
+gRPC method names do not support URI parameters or fallback routes, and service groups may not be nested.
+
+gRPC routes are isolated from your application's HTTP routes. However, they still support Hypervel's normal controller and closure dispatch, dependency injection, middleware, and route names.
 
 <a name="route-middleware"></a>
 ### Route Middleware
@@ -269,58 +227,39 @@ Grpc::middleware(['auth:service', TraceGrpcCall::class])
     });
 ```
 
-Middleware aliases, groups, exclusions, and priority are copied from the
-application router after providers finish booting. Global HTTP middleware is
-not run on the gRPC port; attach the middleware that each RPC needs explicitly.
-Protocol decoding, call context, and deadline enforcement always wrap route
-middleware and cannot be excluded.
+Middleware aliases, groups, exclusions, and priorities registered on the application router are also available to gRPC routes. Global HTTP middleware is not automatically run on the gRPC port, so you should explicitly attach any middleware required by an RPC.
 
-Middleware must return the service's protobuf message, iterable, or typed gRPC
-response. Do not mutate HTTP status, headers, or framed response content.
-Attach metadata through `GrpcResponse` and `RpcException`, which lets Hypervel
-validate the complete protocol response before emission.
+Hypervel's protocol handling and deadline enforcement always run and cannot be excluded from a gRPC route.
+
+gRPC middleware should return the response produced by the next middleware or service. To add response metadata, use `GrpcResponse` or `RpcException` instead of changing HTTP response headers.
 
 <a name="writing-services"></a>
 ## Writing Services
 
-Services are ordinary container-resolved classes. They do not extend a gRPC
-base class and do not need protocol attributes or generated interfaces:
+gRPC services are ordinary classes resolved by Hypervel's service container. They do not need to extend a base class or implement a generated interface:
 
 ```php
 use App\Grpc\Messages\HelloReply;
 use App\Grpc\Messages\HelloRequest;
-use App\Repositories\GreetingRepository;
-use Hypervel\Grpc\Server\ServerCallContext;
 
 class GreeterService
 {
-    public function sayHello(
-        GreetingRepository $greetings,
-        HelloRequest $request,
-        ServerCallContext $call,
-    ): HelloReply {
-        return (new HelloReply)->setMessage(
-            $greetings->for($request->getName()),
-        );
+    public function sayHello(HelloRequest $request): HelloReply
+    {
+        return (new HelloReply)->setMessage('Hello ' . $request->getName());
     }
 }
 ```
 
-Every action must declare exactly one concrete, non-nullable protobuf message
-parameter. An optional `ServerCallContext` parameter may appear once. Container
-dependencies, defaults, and contextual attributes may appear before, between,
-or after those parameters. Hypervel validates every action signature during
-server bootstrap and refuses to listen when it is invalid.
+Every service action must declare exactly one concrete, non-nullable Protocol Buffer message parameter. You may also inject `ServerCallContext` and any other container dependencies in any parameter order. Hypervel validates service action signatures before the server starts.
 
-Because Hypervel auto-singletons unbound concrete classes, do not capture a
-call-specific `ServerCallContext` in a worker-lifetime singleton constructor.
-Use service-method injection, or bind a dependency with the correct scoped or
-fresh lifetime when it must capture call data.
+> [!WARNING]
+> The `ServerCallContext` contains data for one RPC. Inject it into the service method or a scoped dependency, not the constructor of a worker-lifetime singleton.
 
 <a name="server-call-context"></a>
 ### Server Call Context
 
-`ServerCallContext` exposes request and transport information:
+The `ServerCallContext` provides information about the current RPC:
 
 ```php
 $metadata = $call->metadata();
@@ -333,20 +272,16 @@ $expired = $call->deadlineExceeded();
 $previousAttempts = $call->previousAttempts();
 ```
 
-`deadline()` returns a wall-clock `CarbonImmutable` value for application use.
-Enforcement and `timeRemaining()` use a monotonic deadline, so wall-clock
-changes cannot extend or shorten a running call. `previousAttempts()` exposes
-the validated `grpc-previous-rpc-attempts` value for logging and idempotency
-decisions.
+The `deadline` method returns a `CarbonImmutable` instance or `null` when the client did not set a deadline. The `timeRemaining` method returns the remaining number of seconds, while `deadlineExceeded` determines whether the deadline has passed.
 
-The context is stored per coroutine. Swoole does not expose an idle HTTP/2
-stream reset to a PHP request handler, so the context does not promise a
-`cancelled()` state. Deadlines are the supported server-side termination signal.
+The `previousAttempts` method returns the number of completed retry attempts reported by the client. This can be useful for logging or idempotency handling.
+
+The context does not expose client cancellation state because Swoole cannot reliably report a peer stream reset to the server request handler. Use a deadline when service work must have a bounded lifetime.
 
 <a name="responses"></a>
 ## Responses
 
-A unary action normally returns its protobuf message directly:
+A unary service action should return its Protocol Buffer message directly:
 
 ```php
 public function sayHello(HelloRequest $request): HelloReply
@@ -355,15 +290,12 @@ public function sayHello(HelloRequest $request): HelloReply
 }
 ```
 
-Hypervel serializes and frames exactly one message. Returning no message,
-multiple unary messages, a non-protobuf value, or a message beyond the
-configured limit produces a typed protocol error rather than JSON or string
-coercion.
+Unary actions must return exactly one Protocol Buffer message. Invalid return values are reported and returned to the client with an `Internal` status.
 
 <a name="response-metadata"></a>
 ### Response Metadata
 
-Wrap a unary message when initial or trailing metadata is needed:
+If you need to add initial or trailing metadata, wrap the response using `GrpcResponse`:
 
 ```php
 use Hypervel\Grpc\Server\GrpcResponse;
@@ -373,13 +305,12 @@ return GrpcResponse::make($reply)
     ->withTrailingMetadata(['x-node' => $node]);
 ```
 
-The fluent methods return independent immutable values. Calling either method
-again appends values in order.
+The `withInitialMetadata` and `withTrailingMetadata` methods return new response instances and may be chained. Calling either method more than once appends the additional values.
 
 <a name="server-streaming"></a>
 ### Server Streaming
 
-A server-streaming route may return any `iterable` of protobuf messages:
+A server-streaming action may return any iterable of Protocol Buffer messages:
 
 ```php
 /** @return iterable<HelloReply> */
@@ -391,7 +322,7 @@ public function listGreetings(HelloRequest $request): iterable
 }
 ```
 
-Add metadata through the streaming response factory:
+To add metadata to a streamed response, use the `stream` method:
 
 ```php
 return GrpcResponse::stream($this->replies($request))
@@ -399,19 +330,9 @@ return GrpcResponse::stream($this->replies($request))
     ->withTrailingMetadata(['x-node' => $node]);
 ```
 
-Hypervel primes one message before committing response headers, then continues
-the same iterator lazily. A non-empty stream sends initial metadata with its
-first response message. If the iterator completes or throws before its first
-message, Swoole has no header-only flush operation: queued initial and trailing
-metadata are combined into the one final Trailers-Only block and are observed
-as trailing metadata. The package does not expose a `sendInitialMetadata()` API
-whose wire behavior the runtime cannot provide.
+Streamed responses are consumed lazily. Initial metadata is sent with the first response message. If a stream completes or fails before producing a message, its initial metadata is returned to the client as trailing metadata.
 
-If a stream fails after sending messages, clients receive those messages and
-then the non-OK final status. A native write failure stops and releases the
-producer immediately. Hypervel retains one response chunk because Swoole only
-preserves HTTP/2 trailers when the final chunk is passed to `end()`; the last
-yielded message is emitted when the iterator advances or completes.
+If a stream fails after producing one or more messages, the client receives those messages before receiving the final error status.
 
 <a name="errors"></a>
 ## Errors
@@ -425,7 +346,9 @@ use Hypervel\Grpc\StatusCode;
 throw new RpcException(StatusCode::NotFound, 'Greeting not found.');
 ```
 
-Attach trailing metadata or retry pushback immutably:
+The `StatusCode` enum contains every [standard gRPC status code](https://grpc.io/docs/guides/status-codes/) using PascalCase case names such as `InvalidArgument`, `NotFound`, and `Unavailable`.
+
+You may attach trailing metadata or tell retry-enabled clients how long to wait before another attempt:
 
 ```php
 throw (new RpcException(StatusCode::Unavailable, 'Try another node.'))
@@ -433,17 +356,34 @@ throw (new RpcException(StatusCode::Unavailable, 'Try another node.'))
     ->withRetryAfter(0.25);
 ```
 
-Use `withoutRetry()` to send the standard negative retry-pushback signal.
-Expected RPC exceptions are not reported. Unexpected service or middleware
-exceptions are reported through Hypervel's exception handler and become
-`Unknown` with a fixed non-sensitive message. Invalid application return values
-become `Internal`.
+You may use the `withoutRetry` method to prevent a retry-enabled client from retrying the failure. Expected `RpcException` instances are not reported. Other service or middleware exceptions are reported through Hypervel's exception handler and returned to the client with an `Unknown` status and a safe message.
+
+<a name="handling-client-errors"></a>
+### Handling Client Errors
+
+Client calls throw `RpcException` when the server returns a non-OK gRPC status. The exception provides the status, response metadata, method path, and connection target:
+
+```php
+use Hypervel\Grpc\Exceptions\RpcException;
+
+try {
+    $reply = $client->sayHello($request)->wait();
+} catch (RpcException $exception) {
+    $code = $exception->status()->code();
+    $message = $exception->status()->message();
+    $initialMetadata = $exception->metadata();
+    $trailingMetadata = $exception->trailers();
+    $method = $exception->method();
+    $target = $exception->target();
+}
+```
+
+Connection failures throw `ConnectionException`, which provides the target and, when Swoole supplies one, a transport error code. Invalid gRPC responses throw `ProtocolException`.
 
 <a name="rich-error-details"></a>
 ### Rich Error Details
 
-The package supports the standard `grpc-status-details-bin` representation
-using `Google\Rpc\Status`:
+To return structured error details, create a `Google\Rpc\Status` message and pass it to the `fromStatus` method:
 
 ```php
 use Google\Protobuf\Any;
@@ -469,10 +409,7 @@ throw RpcException::fromStatus(
 );
 ```
 
-On the client, `RpcException::status()->details()` returns the decoded outer
-`Google\Rpc\Status`. Its embedded `Any` values remain opaque. Do not instantiate
-a class from a peer-controlled type URL. Check the expected URL and merge the
-bytes into the trusted type:
+On the client, the status object's `details` method returns the decoded `Google\Rpc\Status`. Its embedded `Any` values remain packed. Check for an expected type URL before decoding the value into a trusted message class:
 
 ```php
 use Google\Rpc\ErrorInfo;
@@ -486,15 +423,12 @@ if ($any?->getTypeUrl() === 'type.googleapis.com/google.rpc.ErrorInfo') {
 }
 ```
 
-Protobuf PHP's `Any::unpack()` and `Any::is()` require the target descriptor to
-have been registered first, usually by constructing the expected message class.
-The explicit type-URL and `mergeFromString()` form does not depend on descriptor
-pool state and makes the application's trusted type clear.
+This explicit form does not depend on the Protocol Buffer descriptor pool. The `Any::unpack` and `Any::is` methods may also be used after the target message's descriptor has been registered.
 
 <a name="health-checking"></a>
 ## Health Checking
 
-`grpc:install` adds the current standard `grpc.health.v1.Health` routes:
+The `grpc:install` command adds the standard `grpc.health.v1.Health` service to `routes/grpc.php`:
 
 ```php
 use Hypervel\Grpc\Health\HealthService;
@@ -507,20 +441,24 @@ Grpc::service('grpc.health.v1.Health', function (): void {
 });
 ```
 
-The package ships the official health messages and a `HealthClient`, so native
-Kubernetes gRPC probes and ordinary clients can call the listener without an
-application-owned copy of the schema.
+The package includes the official health messages and a `HealthClient`, making the service compatible with Kubernetes gRPC probes and other standard clients.
 
-The default provider reports only the conventional empty service name, meaning
-whole-server health, as `SERVING`. It does not guess whether named application
-services or dependencies are ready. An unknown service returns `NotFound`.
+By default, the `Check` and `List` methods report the whole server, represented by an empty service name, as `SERVING`. Named services are unknown until your application provides their status, and checking an unknown service returns a `NotFound` status.
 
-`Check` and `List` are fully implemented. The Hypervel `Watch` route returns
-the standard permitted `Unimplemented` fallback. A correct watch must stay
-open, publish transitions coherently across workers, and notice an idle client
-cancellation. Swoole exposes neither the needed cross-worker notification nor
-idle per-stream reset state to the request handler. The `HealthClient::watch()`
-method still consumes watches from external servers that implement them.
+The server's `Watch` method returns the standard `Unimplemented` fallback because Hypervel cannot reliably publish health changes across workers or detect an idle client disconnect. The `HealthClient` may still consume `Watch` responses from other gRPC servers that implement it.
+
+You may use the included `HealthClient` to call a standard gRPC health service:
+
+```php
+use Hypervel\Grpc\Health\HealthClient;
+use Hypervel\Grpc\Health\V1\HealthCheckRequest;
+
+$client = new HealthClient($target, ['timeout' => 2.0]);
+$status = $client->check(
+    (new HealthCheckRequest)->setService(''),
+)->wait()->getStatus();
+$client->close();
+```
 
 <a name="application-health-providers"></a>
 ### Application Health Providers
@@ -562,16 +500,12 @@ Register it in a service provider:
 $this->app->singleton(HealthStatusProvider::class, ApplicationHealth::class);
 ```
 
-Provider state must be coherent across worker processes. Use a shared system or
-derive status from real dependencies; do not use a mutable in-process registry
-that diverges after Swoole forks.
+Since each Swoole worker has its own process memory, health state that may change while the server is running should come from a shared store or be calculated from shared dependencies.
 
 <a name="clients"></a>
 ## Clients
 
-Hypervel clients own reusable HTTP/2 connections and create typed call objects.
-Construct them with a host and port, optionally including `http://` or
-`https://`:
+Hypervel gRPC clients extend `BaseClient` and return a typed call object for each RPC. Create a client using a host and port, optionally including an `http://` or `https://` scheme:
 
 ```php
 $client = new GreeterClient('grpc.example.com:50051', [
@@ -579,10 +513,9 @@ $client = new GreeterClient('grpc.example.com:50051', [
 ]);
 ```
 
-The constructor validates targets and options without opening a socket.
-Connections are established lazily on the first call and reused for the worker
-lifetime. Call `close()` for deliberately short-lived clients; it is idempotent
-and terminal. The client never performs native socket work from a destructor.
+Connections are opened when first needed and reused by later calls. Therefore, client instances should normally be registered as worker-lifetime singletons. For a short-lived client, call its `close` method when it is no longer needed. The method is idempotent, and a closed client cannot start another call.
+
+The client's `target` method returns the target string passed to its constructor.
 
 <a name="generated-style-clients"></a>
 ### Generated-Style Clients
@@ -630,23 +563,17 @@ class GreeterClient extends BaseClient
 }
 ```
 
-The `[Reply::class, 'decode']` pair is the official generated-stub convention.
-Hypervel instantiates the message and calls `mergeFromString()`; the generated
-class does not need a real static `decode()` method.
+The `[Reply::class, 'decode']` pair follows the official generated-client convention. Hypervel will create the response message and deserialize the received bytes into it.
 
-An official `grpc_php_plugin` client may be used by replacing its
-`Grpc\BaseStub` parent and import with
-`Hypervel\Grpc\Client\BaseClient`. Its `_simpleRequest`,
-`_serverStreamRequest`, `_clientStreamRequest`, and `_bidiRequest` calls keep
-their generated argument order. This is method-body compatibility, not complete
-native extension option compatibility: Hypervel timeout values are seconds,
-not the native extension's microseconds, and unsupported option keys fail
-explicitly.
+The RPC method bodies produced by the official `grpc_php_plugin` may also be used with Hypervel. Change the parent from `Grpc\BaseStub` to `Hypervel\Grpc\Client\BaseClient`, then remove the generated constructor so the client inherits Hypervel's target-and-options constructor. You should also replace any `Grpc\UnaryCall`, `Grpc\ServerStreamingCall`, `Grpc\ClientStreamingCall`, or `Grpc\BidiStreamingCall` annotations and types with their `Hypervel\Grpc\Client` equivalents. The generated `_simpleRequest`, `_serverStreamRequest`, `_clientStreamRequest`, and `_bidiRequest` calls already use the argument order expected by Hypervel.
+
+> [!NOTE]
+> Hypervel timeouts are expressed in seconds, while the native gRPC PHP extension uses microseconds. Hypervel supports the options documented below and rejects unsupported native extension options.
 
 <a name="binding-reusable-clients"></a>
 ### Binding Reusable Clients
 
-Register one client instance for the worker lifetime:
+You may register a reusable client in one of your application's service providers:
 
 ```php
 use App\Grpc\Clients\GreeterClient;
@@ -662,28 +589,25 @@ $this->app->singleton(GreeterClient::class, fn () => new GreeterClient(
 ));
 ```
 
-HTTP/2 multiplexes calls over one connection by default. Increase
-`connections` only when a peer has a low concurrent-stream limit or measured
-load benefits from additional sockets. Each call selects a slot round-robin.
+One HTTP/2 connection can handle many concurrent calls. You should only increase the `connections` option when the remote server limits concurrent streams or application measurements show that additional connections improve performance.
 
 <a name="unary-calls"></a>
 ### Unary Calls
 
-`wait()` returns the deserialized protobuf message:
+For unary calls, the `wait` method returns the response message:
 
 ```php
 $reply = $client->sayHello($request)->wait();
 ```
 
-A non-OK status throws `RpcException`. A transport failure throws
-`ConnectionException`; malformed peer output throws `ProtocolException`.
-Repeated or concurrent `wait()` calls observe the same cached result or
-exception and do not deserialize or retry twice.
+If the server returns a non-OK status, the `wait` method throws `RpcException`. Connection failures throw `ConnectionException`, while invalid responses throw `ProtocolException`.
+
+Repeated or concurrent calls to `wait` receive the same cached response or exception without deserializing the response or running a retry more than once.
 
 <a name="server-streaming-calls"></a>
 ### Server-Streaming Calls
 
-Read one message at a time:
+For server-streaming calls, you may read one response at a time using the `read` method:
 
 ```php
 while (($reply = $call->read()) !== null) {
@@ -691,7 +615,7 @@ while (($reply = $call->read()) !== null) {
 }
 ```
 
-Or iterate every response:
+Alternatively, you may iterate over the `responses` method:
 
 ```php
 foreach ($call->responses() as $reply) {
@@ -699,14 +623,12 @@ foreach ($call->responses() as $reply) {
 }
 ```
 
-`read()` returns `null` after a clean `Ok` completion and throws `RpcException`
-when it reaches a non-OK final status. A stream supports one active reader. A
-metadata or status observer may wait concurrently with it.
+The `read` method returns `null` when the server completes the stream successfully and throws `RpcException` when the stream ends with a non-OK status. Only one coroutine may actively read a response stream at a time.
 
 <a name="client-streaming-calls"></a>
 ### Client-Streaming Calls
 
-Write request messages and half-close before waiting for the unary response:
+For client-streaming calls, use the `write` method to send request messages. When all messages have been sent, call `writesDone` before waiting for the response:
 
 ```php
 $call = $client->upload();
@@ -719,14 +641,12 @@ $call->writesDone();
 $reply = $call->wait();
 ```
 
-`wait()` calls `writesDone()` idempotently, so the explicit half-close may be
-omitted when no more writes are needed. A write after half-close throws
-`LogicException`.
+The `wait` method will call `writesDone` for you, so you may omit the explicit call when no more messages need to be sent. Calling `write` after `writesDone` throws `LogicException`.
 
 <a name="bidirectional-streaming-calls"></a>
 ### Bidirectional-Streaming Calls
 
-Bidirectional calls allow one reader and one writer concurrently:
+Bidirectional-streaming calls allow one coroutine to write request messages while another reads responses:
 
 ```php
 $call = $client->chat();
@@ -742,8 +662,9 @@ while (($reply = $call->read()) !== null) {
 }
 ```
 
-Writes and half-close are serialized. A second simultaneous reader is rejected
-instead of dividing messages between callers nondeterministically.
+Call `writesDone` when no more request messages will be sent. Response messages remain available through `read` until the server completes the call.
+
+One reader and one writer may operate concurrently on a bidirectional stream. Only one coroutine may actively read the stream at a time, and concurrent writes are serialized.
 
 <a name="call-metadata-status"></a>
 ### Call Metadata and Status
@@ -754,16 +675,13 @@ Every call exposes:
 $initialMetadata = $call->metadata();
 $trailingMetadata = $call->trailers();
 $status = $call->status();
+$successful = $status->isOk();
 $peer = $call->peer();
 ```
 
-These methods block until the requested information is known. `status()`
-returns valid non-OK RPC statuses instead of throwing `RpcException`, which is
-useful when status is data rather than control flow. It may still throw a
-transport or protocol exception when no trustworthy RPC status exists.
+These methods wait until the requested information is available. Unlike `wait`, `read`, and `responses`, the `status` method returns non-OK gRPC statuses instead of throwing `RpcException`. A connection or protocol failure may still be thrown when no valid status was received.
 
-`peer()` is the normalized authority selected for the call. Swoole does not
-expose a more authoritative per-stream remote endpoint.
+The `peer` method returns the host and port selected for the call.
 
 <a name="client-options"></a>
 ### Client Options
@@ -772,19 +690,19 @@ The `BaseClient` constructor accepts these options:
 
 | Option | Default | Description |
 |---|---:|---|
-| `connections` | `1` | Fixed reusable HTTP/2 connection slots |
-| `connect_timeout` | `3.0` | Positive connection timeout in seconds |
-| `timeout` | `null` | Default positive RPC deadline in seconds |
-| `max_receive_message_size` | `4194304` | Maximum wire and decoded response message bytes |
-| `max_send_message_size` | `4194304` | Maximum serialized and wire request message bytes |
-| `max_metadata_size` | `8192` | Maximum complete HTTP/2 metadata block bytes |
-| `max_buffered_messages` | `128` | Maximum unread messages buffered for one call |
-| `max_buffered_bytes` | `16777216` | Maximum unread payload bytes buffered for one call |
+| `connections` | `1` | Number of reusable HTTP/2 connections |
+| `connect_timeout` | `3.0` | Connection timeout in seconds |
+| `timeout` | `null` | Default call deadline in seconds |
+| `max_receive_message_size` | `4194304` | Maximum received message size in bytes |
+| `max_send_message_size` | `4194304` | Maximum sent message size in bytes |
+| `max_metadata_size` | `8192` | Maximum metadata size in bytes |
+| `max_buffered_messages` | `128` | Maximum unread messages held for one call |
+| `max_buffered_bytes` | `16777216` | Maximum unread bytes held for one call |
 | `compression` | `null` | `identity`, `gzip`, or a `Compression` value |
 | `retry` | `null` | Default `RetryPolicy` for unary and server-streaming calls |
 | `metadata` | `[]` | `Metadata` or an array appended to every call |
-| `tls` | secure defaults | First-class TLS settings |
-| `swoole` | `[]` | Raw native HTTP/2 client settings |
+| `tls` | `[]` | TLS settings; enabled automatically for `https://` targets |
+| `swoole` | `[]` | Additional Swoole HTTP/2 client settings |
 
 Per-call options are:
 
@@ -794,26 +712,18 @@ Per-call options are:
 | `compression` | Replace the default compression; `null` selects identity |
 | `retry` | Replace the default policy; `null` disables retries |
 
-`retry` is accepted only for unary and server-streaming calls. Client and
-bidirectional streams do not retain arbitrary application writes for replay and
-reject a per-call retry key. Unknown constructor, TLS, and per-call keys fail
-immediately so a misspelling cannot silently change behavior.
+The `retry` option is only supported by unary and server-streaming calls. Unknown client, TLS, and per-call option names are rejected instead of being silently ignored. The keys within the `swoole` array are native settings and are passed through after the checks described below.
 
-Raw `swoole.connect_timeout` is rejected because the first-class
-`connect_timeout` option owns that setting. A raw `swoole.write_timeout`, or
-`swoole.timeout` when no specific write value is present, may set the native
-socket-write upper bound but must be a positive finite number. Without either,
-the bound is 60 seconds. Hypervel republishes the smaller of this bound and the
-remaining RPC deadline before every serialized send or streaming write.
+The connection, message, metadata, and buffering limits must be positive. The `max_buffered_bytes` value must be at least as large as `max_receive_message_size` so one valid response message can be buffered.
 
-Default metadata is appended before per-call metadata. Repeated values are not
-silently replaced.
+The `connect_timeout` option controls connection establishment and may not be repeated within `swoole`. If you provide `swoole.write_timeout` or `swoole.timeout`, it must be a positive, finite number of seconds. Call deadlines will still take precedence when they expire sooner.
+
+Default metadata is added before per-call metadata. Values using the same key are appended rather than replaced.
 
 <a name="client-tls"></a>
 ### Client TLS
 
-An `https://` target enables TLS and an `http://` target selects plaintext. A
-scheme-less target may set `tls.enabled` explicitly:
+An `https://` target enables TLS, while an `http://` target uses plaintext. For a target without a scheme, you may set `tls.enabled` explicitly:
 
 ```php
 $client = new GreeterClient('grpc.example.com:443', [
@@ -840,14 +750,9 @@ The full TLS option set is:
 ],
 ```
 
-`certificate` and `private_key` must be supplied together for mutual TLS, and a
-`passphrase` requires that pair. Configured files must be readable. TLS-only
-options are rejected for a resolved plaintext target instead of being ignored.
+For mutual TLS, provide both `certificate` and `private_key`. A `passphrase` may only be used when a private key is configured. Hypervel verifies that configured CA, certificate, and private-key files are readable.
 
-Targets support hostnames, IPv4, and bracketed IPv6 with optional ports.
-Userinfo, query strings, fragments, non-root paths, malformed ports, and
-resolver-style targets such as `dns:///...` are rejected because the package
-does not claim a resolver subsystem.
+Targets may contain a hostname, IPv4 address, or bracketed IPv6 address with an optional port. Plaintext targets without a port use port 80, while TLS targets use port 443. TLS-only options are rejected for plaintext targets. Resolver targets such as `dns:///...` are not supported.
 
 <a name="metadata"></a>
 ## Metadata
@@ -866,8 +771,13 @@ $metadata = Metadata::make([
     ->without('x-tag');
 ```
 
-Keys are normalized to lowercase. `with()` and `merge()` append values in
-order. Replace a key explicitly with `without($key)->with($key, ...)`.
+Metadata keys are normalized to lowercase. The `with` and `merge` methods append values in order. To replace an existing key, remove it before adding the new value:
+
+```php
+$metadata = $metadata->without('x-tag')->with('x-tag', 'replacement');
+```
+
+You may retrieve metadata using the `first`, `values`, and `all` methods:
 
 ```php
 $first = $metadata->first('x-request-id');
@@ -875,10 +785,9 @@ $values = $metadata->values('x-tag');
 $all = $metadata->all();
 ```
 
-Non-binary values must contain visible ASCII without surrounding whitespace.
-Keys ending in `-bin` accept arbitrary raw bytes and are base64-encoded only at
-the wire boundary. Protocol, HTTP/2 pseudo, connection, and transport-owned
-fields are reserved and cannot be supplied as application metadata.
+The `has` and `isEmpty` methods may be used to inspect the collection. `Metadata` is also iterable and countable by key, yielding each key with its list of values.
+
+Non-binary values must contain visible ASCII characters and may not have surrounding whitespace. Keys ending in `-bin` accept arbitrary binary strings; Hypervel handles their wire encoding automatically. Protocol and transport headers cannot be used as application metadata keys.
 
 <a name="deadlines"></a>
 ## Deadlines
@@ -894,16 +803,10 @@ $reply = $client->sayHello(
 )->wait();
 ```
 
-Timeouts are positive finite seconds. `null` means no deadline. Hypervel sends
-the standard `grpc-timeout` header and uses one monotonic absolute deadline for
-lazy connection, connection-write contention, each native send or streaming
-write, response waits, service execution, streamed production, retry attempts,
-and backoff. The timeout header is refreshed immediately before each attempt is
-sent, so connection time cannot extend the deadline observed by the server. A
-deadline that expires locally or on the server produces `DeadlineExceeded`.
+Timeouts are positive, finite numbers expressed in seconds. A `null` timeout disables the deadline. The deadline covers the complete call, including connection setup, streaming operations, retries, and retry delays. When the deadline expires, the call fails with a `DeadlineExceeded` status.
 
-Set deadlines on production calls. Without one, a peer or network path may
-leave application code waiting indefinitely.
+> [!WARNING]
+> You should configure deadlines for production calls. Without a deadline, application code may wait indefinitely for an unavailable peer or network path.
 
 <a name="retries"></a>
 ## Retries
@@ -928,23 +831,11 @@ $reply = $client->sayHello(
 )->wait();
 ```
 
-`maxAttempts` includes the original attempt. Hypervel applies standard capped
-exponential backoff with ±20 percent jitter. A valid
-`grpc-retry-pushback-ms` trailer replaces the next delay; a negative or invalid
-value stops retries.
+The `maxAttempts` value includes the original call. Hypervel uses capped exponential backoff with jitter of up to 20 percent in either direction. A server may replace the next delay using `RpcException::withRetryAfter` or prevent another retry using `RpcException::withoutRetry`.
 
-Only an uncommitted unary or server-streaming call is eligible. Initial response
-metadata or a delivered response message commits the call. A Trailers-Only
-retryable status may be retried. A transport send failure is never replayed
-because Swoole cannot prove that no bytes left the process. Every attempt and
-backoff shares the original deadline, and the server can inspect
-`ServerCallContext::previousAttempts()`.
+Retries are only available for unary and server-streaming calls that have not received initial metadata or a response message. Hypervel will not retry a failed send because the server may already have received part or all of the request. All attempts and delays share the call's original deadline.
 
-Swoole merges a non-final initial header block followed directly by final
-trailers when there is no DATA frame. The runtime cannot distinguish that
-zero-message response from a true Trailers-Only response, so explicitly enabled
-retry treats it as uncommitted. This narrow limitation is covered by grpc-go
-interoperability tests.
+Because Swoole can present an early-metadata, zero-message response as a single event that is indistinguishable from a Trailers-Only response, an explicitly retry-enabled call may retry that response. See [Platform Limitations](#platform-limitations) for details.
 
 <a name="compression"></a>
 ## Compression
@@ -964,39 +855,23 @@ $reply = $client->sayHello(
 )->wait();
 ```
 
-Server response compression is selected with `grpc.server.compression` and is
-used only when the client accepts it. Compression applies to each gRPC message,
-not the complete HTTP response. Unsupported inbound compression returns
-`Unimplemented`; corrupt gzip data returns `Internal` on the server and
-`ProtocolException` on the client.
+Identity compression is used by default. Server response compression is configured using `grpc.server.compression` and is only used when the client supports it. You may override client compression for an individual call using the `compression` option.
+
+Unsupported request compression returns an `Unimplemented` status. Corrupt gzip data returns `Internal` on the server and throws `ProtocolException` on the client.
 
 <a name="resource-limits"></a>
 ## Resource Limits
 
-Send and receive limits apply to both serialized and encoded message sizes, so
-compression cannot bypass them. The receive decoder also bounds decompressed
-output while inflating, which prevents a small gzip input from allocating an
-oversized message first.
+The `max_send_message_size` and `max_receive_message_size` options limit both compressed and uncompressed message sizes. Exceeding a configured message-size limit causes the affected call to fail with `ResourceExhausted`.
 
-Metadata limits account for the complete transport-observable HTTP/2 block,
-including protocol and pseudo-fields rather than only application metadata.
-An oversized local outbound block or server inbound block produces
-`ResourceExhausted`; malformed or oversized peer response metadata produces
-`ProtocolException`.
+The `max_metadata_size` option limits the complete visible HTTP/2 metadata block, including protocol fields as well as application metadata. Malformed binary metadata or oversized metadata received by a client throws `ProtocolException`. Invalid ASCII metadata fields may be discarded, as permitted by the gRPC protocol.
 
-The client receive coroutine never blocks on a slow call. Each call has
-independent unread message and byte limits. Crossing either marks that call
-`ResourceExhausted`, releases its buffers, retires the un-cancellable stream's
-connection, and lets healthy streams already accepted on that connection
-finish.
+For streaming responses, `max_buffered_messages` and `max_buffered_bytes` limit how much unread data may be held for one call. If either limit is exceeded, that call fails with `ResourceExhausted` without blocking other calls on the same connection.
 
 <a name="testing"></a>
 ## Testing
 
-Service classes contain ordinary methods, so test application behavior by
-constructing or resolving the service and passing generated protobuf messages.
-Use the normal Hypervel testbench when middleware, bindings, configuration, or
-route registration are part of the behavior:
+Since gRPC services are ordinary classes, you may test them by passing generated Protocol Buffer messages directly to their methods. For an isolated test that does not need the application container, extend `Hypervel\Tests\TestCase`. Use Hypervel Testbench when the test requires service-container bindings, middleware, configuration, or route registration:
 
 ```php
 use App\Grpc\GreeterService;
@@ -1017,53 +892,16 @@ class GreeterServiceTest extends TestCase
 }
 ```
 
-When testing the wire and client together, start a real Hypervel or independent
-gRPC test listener and call it through the generated-style client. This covers
-HTTP/2 framing, trailers, compression, deadlines, and connection reuse that a
-service-only test cannot. Keep test clients short-lived and call `close()` in
-exception-safe cleanup.
+For end-to-end tests, start a test gRPC server and call it through your application client. This verifies behavior that a direct service test does not cover, such as metadata, compression, deadlines, and streaming. The included `HealthClient` may also be used for deployment smoke tests.
 
-The shipped `HealthClient` is also useful for deployment smoke tests:
+<a name="platform-limitations"></a>
+## Platform Limitations
 
-```php
-use Hypervel\Grpc\Health\HealthClient;
-use Hypervel\Grpc\Health\V1\HealthCheckRequest;
+Hypervel's gRPC behavior is tested in both directions against an independent grpc-go implementation. However, the Swoole HTTP/2 APIs impose a few limitations:
 
-$client = new HealthClient($target, ['timeout' => 2.0]);
-$status = $client->check(new HealthCheckRequest)->wait()->getStatus();
-$client->close();
-```
-
-<a name="interoperability-platform-boundaries"></a>
-## Interoperability and Platform Boundaries
-
-Hypervel's framing, metadata, errors, gzip, deadlines, health service, all four
-client call shapes, and TLS behavior are tested in both directions with an
-independent grpc-go peer.
-
-The Swoole 6.2 transport defines these visible limits:
-
-- Server request handlers receive the complete body only. Hypervel therefore
-  exposes unary and server-streaming server routes, while clients may use all
-  four call shapes against servers that support them.
-- The HTTP/2 client has no per-stream reset method, so calls do not expose
-  `cancel()`. A locally terminal stream retires its connection without
-  sacrificing other healthy streams already in progress.
-- Swoole stores request and response fields in associative arrays. Independently
-  repeated inbound fields may be reduced to one value, and inbound `:scheme` is
-  not exposed. Hypervel preserves repetition whenever the transport exposes it,
-  but duplicate detection and metadata-size accounting cannot reconstruct bytes
-  that Swoole discarded.
-- A peer `RST_STREAM` removes the native stream without exposing its HTTP/2
-  error code. Hypervel still detects the missing stream, fails only the affected
-  call, and retains a nullable transport code.
-- Initial headers followed immediately by trailers without response DATA are
-  merged into one event, producing the explicit retry-commitment limitation
-  described above.
-- A server producer cannot observe an idle peer reset, so the standard health
-  `Watch` route uses its specified `Unimplemented` fallback instead of leaving
-  an abandoned generator alive.
-
-These are documented transport boundaries rather than partially implemented
-APIs. Hypervel does not add protocol shims that claim behavior Swoole cannot
-provide.
+- Hypervel servers support unary and server-streaming methods. Swoole provides the complete request body to the request handler rather than exposing each incoming HTTP/2 data frame, so server-side client streaming and bidirectional streaming are not available. Hypervel clients may use all four call types against compatible servers.
+- Client call objects do not provide a `cancel` method because Swoole cannot reset an individual client stream. Deadlines are still enforced.
+- Independently repeated metadata fields may be reduced to one value by Swoole, and the inbound `:scheme` pseudo-header is not exposed. Hypervel preserves repeated values whenever the transport exposes them, but inbound duplicate-field and metadata-size validation can only cover those exposed values.
+- A peer stream reset fails only the affected call, but Swoole does not provide its HTTP/2 error code.
+- Swoole merges initial response metadata followed immediately by final metadata without a response message into one uncommitted response. Since this is indistinguishable from a Trailers-Only response, an explicitly retry-enabled call may retry it.
+- The built-in health service returns `Unimplemented` from `Watch` because the server cannot reliably observe idle stream cancellation or distribute health changes across workers.
