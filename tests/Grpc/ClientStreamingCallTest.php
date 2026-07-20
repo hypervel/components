@@ -92,8 +92,6 @@ class ClientStreamingCallTest extends TestCase
         [$call, $client] = $this->call();
         $writeStarted = new Channel(1);
         $releaseWrite = new Channel(1);
-        $writeFinished = new Channel(1);
-        $halfCloseFinished = new Channel(1);
         $blockNextWrite = true;
         $client->writeUsing(static function () use (&$blockNextWrite, $writeStarted, $releaseWrite): void {
             if (! $blockNextWrite) {
@@ -105,20 +103,26 @@ class ClientStreamingCallTest extends TestCase
             $releaseWrite->pop();
         });
 
-        Coroutine::create(static function () use ($call, $writeFinished): void {
-            $call->write((new StringValue)->setValue('message'));
-            $writeFinished->push(true);
-        });
-        $writeStarted->pop();
+        $coroutineIds = [];
 
-        Coroutine::create(static function () use ($call, $halfCloseFinished): void {
-            $call->writesDone();
-            $halfCloseFinished->push(true);
-        });
+        try {
+            $writeCoroutine = Coroutine::create(static function () use ($call): void {
+                $call->write((new StringValue)->setValue('message'));
+            });
+            $coroutineIds[] = $writeCoroutine->getId();
+            $writeStarted->pop();
 
-        $releaseWrite->push(true);
-        $writeFinished->pop();
-        $halfCloseFinished->pop();
+            $halfCloseCoroutine = Coroutine::create(static function () use ($call): void {
+                $call->writesDone();
+            });
+            $coroutineIds[] = $halfCloseCoroutine->getId();
+        } finally {
+            $releaseWrite->push(true);
+
+            if ($coroutineIds !== []) {
+                Coroutine::join($coroutineIds);
+            }
+        }
 
         $this->assertSame('message', $this->writtenValues($client)[0]);
         $this->assertTrue($client->writes[1]['end']);

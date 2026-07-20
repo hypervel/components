@@ -418,8 +418,8 @@ final class Connection
             $receiver = Coroutine::create($this->receive(...));
             $receiverCoroutineId = $receiver->getId();
 
-            // No yield occurs after create() returns, so this ID cannot be recycled
-            // before the liveness check. Later shutdown relies on receive() clearing it.
+            // create() may run the receiver to completion before returning, so only
+            // publish its ID while that receiver is still active.
             if (Coroutine::exists($receiverCoroutineId)) {
                 $this->receiverCoroutineId = $receiverCoroutineId;
             }
@@ -486,7 +486,7 @@ final class Connection
                 }
             }
         } finally {
-            // A stale ID could later name an unrelated coroutine and cancel it during close.
+            // This is the authoritative signal that the connection no longer owns a receiver.
             $this->receiverCoroutineId = null;
             $this->receiving = false;
         }
@@ -704,12 +704,16 @@ final class Connection
             $state->fail($failure);
         }
 
+        // cancelById() can clear the ownership property before yielding deferred cleanup
+        // finishes. The captured ID remains required to join the still-live receiver.
         $receiverCoroutineId = $this->receiverCoroutineId;
 
         if ($receiverCoroutineId !== null && $receiverCoroutineId !== Coroutine::id()) {
-            // receive() clears the ID before reuse. Do not replace this invariant with an
-            // existence check after earlier yields: that could match an unrelated coroutine.
             Coroutine::cancelById($receiverCoroutineId);
+
+            // Native close must wait for physical receiver and engine-client cleanup.
+            // A bounded join could still leave the socket owned when its timeout elapsed.
+            Coroutine::join([$receiverCoroutineId]);
         }
 
         if ($client !== null) {

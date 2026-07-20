@@ -399,7 +399,6 @@ class ConnectionTest extends TestCase
         $this->start($connection, $this->request(), $first);
         $sendStarted = new Channel(1);
         $releaseSend = new Channel(1);
-        $startFinished = new Channel(1);
         $client->sendUsing(function () use ($client, $sendStarted, $releaseSend): int {
             if (count($client->sentRequests) === 2) {
                 $sendStarted->push(true);
@@ -412,7 +411,7 @@ class ConnectionTest extends TestCase
         });
         $second = $this->state();
 
-        Coroutine::create(static function () use ($connection, $second, $startFinished): void {
+        $startCoroutine = Coroutine::create(static function () use ($connection, $second): void {
             $connection->start(
                 static fn (): Request => new Request(
                     '/testing.Service/Unary',
@@ -425,7 +424,6 @@ class ConnectionTest extends TestCase
                 $second,
                 Deadline::fromTimeout(null),
             );
-            $startFinished->push(true);
         });
 
         $sendStarted->pop();
@@ -434,8 +432,11 @@ class ConnectionTest extends TestCase
             $client->respond($this->trailersOnly(3));
             $this->assertSame(StatusCode::Ok, $second->status()->code());
         } finally {
-            $releaseSend->push(true);
-            $startFinished->pop();
+            try {
+                $releaseSend->push(true);
+            } finally {
+                Coroutine::join([$startCoroutine->getId()]);
+            }
         }
 
         $this->assertSame(3, $second->streamId());
@@ -454,7 +455,6 @@ class ConnectionTest extends TestCase
         $this->start($connection, $this->request(), $first);
         $sendStarted = new Channel(1);
         $releaseSend = new Channel(1);
-        $startFinished = new Channel(1);
         $client->sendUsing(function () use ($client, $sendStarted, $releaseSend): int {
             if (count($client->sentRequests) === 2) {
                 $sendStarted->push(true);
@@ -467,7 +467,7 @@ class ConnectionTest extends TestCase
         });
         $second = $this->state();
 
-        Coroutine::create(static function () use ($connection, $second, $startFinished): void {
+        $startCoroutine = Coroutine::create(static function () use ($connection, $second): void {
             $connection->start(
                 static fn (): Request => new Request(
                     '/testing.Service/Unary',
@@ -480,7 +480,6 @@ class ConnectionTest extends TestCase
                 $second,
                 Deadline::fromTimeout(null),
             );
-            $startFinished->push(true);
         });
 
         $sendStarted->pop();
@@ -508,8 +507,11 @@ class ConnectionTest extends TestCase
             ));
             $this->assertSame(StatusCode::Ok, $second->status()->code());
         } finally {
-            $releaseSend->push(true);
-            $startFinished->pop();
+            try {
+                $releaseSend->push(true);
+            } finally {
+                Coroutine::join([$startCoroutine->getId()]);
+            }
         }
 
         foreach (
@@ -628,7 +630,7 @@ class ConnectionTest extends TestCase
         $this->assertSame(1, $retired);
     }
 
-    public function testCloseCancelsTheReceiverBeforeClosingItsNativeClient(): void
+    public function testCloseJoinsTheReceiverBeforeClosingItsNativeClient(): void
     {
         $client = new ConnectionCloseWaitTestClient;
         $connection = $this->connection(new ConnectionTestClientFactory($client));
@@ -643,6 +645,7 @@ class ConnectionTest extends TestCase
         $connection->close();
 
         $this->assertFalse($client->waiting);
+        $this->assertTrue($client->receiverCleanupCompleted);
         $this->assertFalse(Coroutine::exists($receiverCoroutineId));
         $this->assertNull(
             (new ReflectionProperty(Connection::class, 'receiverCoroutineId'))->getValue($connection),
@@ -1131,9 +1134,15 @@ class ConnectionCloseWaitTestClient extends ConnectionTestClient
 {
     public bool $waiting = false;
 
+    public bool $receiverCleanupCompleted = false;
+
     public function recv(float $timeout = 0): ?ResponseInterface
     {
         $this->waiting = true;
+        Coroutine::defer(function (): void {
+            usleep(1000);
+            $this->receiverCleanupCompleted = true;
+        });
 
         try {
             return parent::recv($timeout);
@@ -1146,6 +1155,10 @@ class ConnectionCloseWaitTestClient extends ConnectionTestClient
     {
         if ($this->waiting) {
             throw new HttpClientException('Coroutine socket close wait');
+        }
+
+        if (! $this->receiverCleanupCompleted) {
+            throw new HttpClientException('Coroutine receiver cleanup wait');
         }
 
         parent::close();
