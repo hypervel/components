@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `filesystem`
-- **Ledger entries required for the active work:** `Harden framework contracts and request-scoped state` (`filesystem-01`); `Make coroutine creation and copied context failure-safe` (`coroutine-05`); `Correct AOP proxy generation and publication` (`filesystem-02`); `Harden encryption rotation, key publication, and global lifecycle state` (`filesystem-03`, `encryption-03`); and `Normalize framework enum identifiers at string boundaries` (`support-02`).
-- **Pending revalidation carried into the active work:** Revalidate `filesystem-01`, `coroutine-05`, `filesystem-02`, `filesystem-03`, `encryption-03`, and `support-02` during the full Filesystem audit.
+- **Active package or work unit:** `pipeline`
+- **Ledger entries required for the active work:** `Normalize framework enum identifiers at string boundaries` (`support-02`).
+- **Pending revalidation carried into the active work:** Revalidate `support-02` during the full Pipeline audit.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1004,7 +1004,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 |---|---|---|---|
 | `validation-01` | `validation` | `contracts`; later full `validation` audit | `Harden framework contracts and request-scoped state`; shared finding `validation-01` |
 | `view-01` | `view` | `contracts`, `foundation`; later full `view` and `foundation` audits | `Harden framework contracts and request-scoped state`; shared finding `view-01` |
-| `filesystem-01` | `filesystem` | `contracts`; later full `filesystem` audit | `Harden framework contracts and request-scoped state`; shared finding `filesystem-01` |
+| `filesystem-01` | `filesystem` | `contracts` and `filesystem` (revalidation complete) | `Harden framework contracts and request-scoped state`; shared finding `filesystem-01` |
 | `queue-01` | `queue` | `contracts`; later full `queue` audit | `Harden framework contracts and request-scoped state`; shared finding `queue-01` |
 | `testbench-01` | `testbench` | `foundation`; later full `testbench` and `foundation` audits | `Restore Conditionable proxy truthiness`; shared finding `testbench-01` |
 | `http-01` | `http` | `macroable`, `testing`; later full `http` and `testing` audits | `Complete Macroable callable and test-state handling`; shared finding `http-01` |
@@ -1021,7 +1021,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `container-10` | `log` | `container` (revalidation complete); later full `log` audit | `Coordinate shared container construction and complete current contextual resolution`; finding `container-10` |
 | `context-01` | `context` | `container` (revalidation complete), `foundation`; later full `foundation` audit | `Correct explicit coroutine context targeting`; finding `context-01` |
 | `context-04` | `context` | `foundation`, `database`; later full consumer audits | `Correct explicit coroutine context targeting`; finding `context-04` |
-| `coroutine-05` | `coroutine`, `filesystem` | later full `filesystem` audit | `Make coroutine creation and copied context failure-safe`; finding `coroutine-05` |
+| `coroutine-05` | `coroutine`, `filesystem` | `filesystem` (revalidation complete) | `Make coroutine creation and copied context failure-safe`; finding `coroutine-05` |
 | `coroutine-06` | `context`, `coroutine` | `concurrency`, `foundation`; later full consumer audits | `Make coroutine creation and copied context failure-safe`; finding `coroutine-06` |
 | `foundation-02` | `foundation` | `coroutine`; later full `foundation` audit | `Make coroutine creation and copied context failure-safe`; finding `foundation-02` |
 | `websocket-server-01` | `websocket-server` | later full `websocket-server` audit | `Make coroutine creation and copied context failure-safe`; finding `websocket-server-01` |
@@ -1038,8 +1038,12 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `database-01` | `database` | later full `database` audit | `Release cleared coordinator timers deterministically`; finding `database-01` |
 | `redis-01` | `redis` | later full `redis` audit | `Release cleared coordinator timers deterministically`; finding `redis-01` |
 | `di-02` | `di` | `foundation`, `sentry`, `telescope`; later full consumer audits | `Correct AOP proxy generation and publication`; finding `di-02` |
-| `filesystem-02` | `filesystem` | `di` (revalidation complete); later full `filesystem` audit | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
-| `filesystem-03` | `filesystem` | `encryption` (revalidation complete), `support`; later full `filesystem` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
+| `filesystem-02` | `filesystem` | `di` and `filesystem` (revalidation complete) | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
+| `filesystem-03` | `filesystem` | `encryption`, `support`, and `filesystem` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
+| `filesystem-04` | `filesystem` | `cache`; later full `cache` audit | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-04` |
+| `http-02` | `http` | `filesystem` (revalidation complete), `http-server`, `foundation`; later full consumer audits | `Harden filesystem I/O, streaming, and response teardown`; finding `http-02` |
+| `filesystem-07` | `filesystem`, `foundation`, `http-server` | `filesystem` (revalidation complete), `http`; later full `foundation`, `http-server`, and `http` audits | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-07` |
+| `foundation-04` | `foundation` | `filesystem` (revalidation complete), `http-server`; later full `foundation` and `http-server` audits | `Harden filesystem I/O, streaming, and response teardown`; finding `foundation-04` |
 | `events-01` | `foundation` | `events` (revalidation complete); later full `foundation` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-01` |
 | `events-03` | `events`, `queue` | later full `queue` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-03` |
 | `events-04` | `events`, `foundation` | later full `foundation` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-04` |
@@ -1048,9 +1052,9 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `queue-11` | `queue` | `events` (revalidation complete), `broadcasting`; later full `queue` and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-11` |
 | `queue-12` | `bus`, `queue` | `events` (revalidation complete), `broadcasting`; later full `bus`, `queue`, and `broadcasting` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `queue-12` |
 | `foundation-01` | `foundation` | `support`; later full `foundation` and `support` audits | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `foundation-01` |
-| `support-02` | `support` | `auth`, `broadcasting`, `bus`, `cache`, `concurrency`, `console`, `container`, `contracts`, `cookie`, `database`, `events`, `filesystem`, `foundation`, `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis`, `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-framework-enum-identifier-contracts.md` |
+| `support-02` | `support` | `auth`, `broadcasting`, `bus`, `cache`, `concurrency`, `console`, `container`, `contracts`, `cookie`, `database`, `events`, `filesystem` (revalidation complete), `foundation`, `hashing` (revalidation complete), `horizon`, `inertia`, `jwt`, `log`, `mail`, `notifications`, `permission`, `pipeline`, `queue`, `redis`, `reverb`, `routing`, `sanctum`, `scout`, `session`, `socialite`, `telescope`, `testbench`, `translation`; later full consumer audits | `Normalize framework enum identifiers at string boundaries`; finding `support-02`; sibling findings `translation-01` and `reverb-03`; linked detail plan `2026-07-15-framework-enum-identifier-contracts.md` |
 | `auth-01` | `support`, `auth` | later full `auth` audit | `Correct Support utility boundaries and authentication timing isolation`; finding `auth-01` |
-| `encryption-03` | `encryption` | `contracts` and `support` (revalidation complete), `filesystem`, `foundation`; later full `filesystem` and `foundation` audits | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
+| `encryption-03` | `encryption` | `contracts`, `support`, and `filesystem` (revalidation complete), `foundation`; later full `foundation` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `encryption-03` |
 | `sanctum-01` | `sanctum` | `encryption`; later full `sanctum` audit | `Harden encryption rotation, key publication, and global lifecycle state`; finding `sanctum-01` |
 | `process-02` | `process` | `concurrency` (revalidation complete) | `Make Process callbacks and pools failure-safe`; finding `process-02` |
 | `server-process-10` | `server-process` | `foundation`; later full `foundation` audit | `Make custom server processes failure-safe`; finding `server-process-10` |
@@ -1106,7 +1110,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `object-pool`
 - [x] `process`
 - [x] `server-process`
-- [ ] `filesystem`
+- [x] `filesystem`
 
 ### Framework dispatch and runtime
 
