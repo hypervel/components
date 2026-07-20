@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Filesystem;
 
+use Generator;
+use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
-use PHPUnit\Framework\TestCase;
 use Stringable;
 
 use function Hypervel\Filesystem\join_paths;
@@ -15,12 +16,12 @@ class JoinPathsHelperTest extends TestCase
 {
     #[RequiresOperatingSystem('Linux|Darwin')]
     #[DataProvider('unixDataProvider')]
-    public function testItCanMergePathsForUnix(string $expected, string $given)
+    public function testItCanMergePathsForUnix(string $expected, string $given): void
     {
         $this->assertSame($expected, $given);
     }
 
-    public static function unixDataProvider()
+    public static function unixDataProvider(): Generator
     {
         yield ['very/Basic/Functionality.php', join_paths('very', 'Basic', 'Functionality.php')];
         yield ['segments/get/ltrimed/by_directory/separator.php', join_paths('segments', '/get/ltrimed', '/by_directory/separator.php')];
@@ -30,13 +31,13 @@ class JoinPathsHelperTest extends TestCase
         yield ['', join_paths(null, null, '')];
         yield ['1/2/3', join_paths(1, 0, 2, 3)];
         yield ['app/objecty', join_paths('app', new class implements Stringable {
-            public function __toString()
+            public function __toString(): string
             {
                 return 'objecty';
             }
         })];
         yield ['app/0', join_paths('app', new class implements Stringable {
-            public function __toString()
+            public function __toString(): string
             {
                 return '0';
             }
@@ -45,12 +46,12 @@ class JoinPathsHelperTest extends TestCase
 
     #[RequiresOperatingSystem('Windows')]
     #[DataProvider('windowsDataProvider')]
-    public function testItCanMergePathsForWindows(string $expected, string $given)
+    public function testItCanMergePathsForWindows(string $expected, string $given): void
     {
         $this->assertSame($expected, $given);
     }
 
-    public static function windowsDataProvider()
+    public static function windowsDataProvider(): Generator
     {
         yield ['app\Basic\Functionality.php', join_paths('app', 'Basic', 'Functionality.php')];
         yield ['segments\get\ltrimed\by_directory\separator.php', join_paths('segments', '\get\ltrimed', '\by_directory\separator.php')];
@@ -60,13 +61,13 @@ class JoinPathsHelperTest extends TestCase
         yield ['', join_paths(null, null, '')];
         yield ['1\2\3', join_paths(1, 2, 3)];
         yield ['app\objecty', join_paths('app', new class implements Stringable {
-            public function __toString()
+            public function __toString(): string
             {
                 return 'objecty';
             }
         })];
         yield ['app\0', join_paths('app', new class implements Stringable {
-            public function __toString()
+            public function __toString(): string
             {
                 return '0';
             }
