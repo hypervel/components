@@ -15,6 +15,7 @@ use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Events\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
@@ -217,12 +218,14 @@ class CallQueuedHandler
         }
 
         $lock = new DebounceLock($this->container->make(Cache::class));
+        $currentOwner = $lock->getCurrentOwner($command);
 
-        if (! $lock->lockExists($command)) {
+        // Fail open if the lock was evicted or expired before execution.
+        if ($currentOwner === null) {
             return false;
         }
 
-        return ! $lock->isCurrentOwner($command, $owner);
+        return $currentOwner !== $owner;
     }
 
     /**
@@ -231,9 +234,12 @@ class CallQueuedHandler
     protected function deleteDebouncedJob(Job $job, mixed $command): void
     {
         if ($this->container->bound('events')) {
-            $this->container->make('events')->dispatch(
-                new JobDebounced($job->getConnectionName(), $job, $command)
-            );
+            /** @var EventDispatcher $events */
+            $events = $this->container->make('events');
+
+            if ($events->hasListeners(JobDebounced::class)) {
+                $events->dispatch(new JobDebounced($job->getConnectionName(), $job, $command));
+            }
         }
 
         $job->delete();

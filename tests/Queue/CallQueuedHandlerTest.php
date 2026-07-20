@@ -31,7 +31,7 @@ use function Hypervel\Coroutine\parallel;
 
 class CallQueuedHandlerTest extends TestCase
 {
-    public function testCommandShouldBeUniqueReturnsTrueForShouldBeUniqueInterface()
+    public function testCommandShouldBeUniqueReturnsTrueForShouldBeUniqueInterface(): void
     {
         $handler = $this->createHandler();
 
@@ -40,7 +40,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue($this->invokeMethod($handler, 'commandShouldBeUnique', [$command]));
     }
 
-    public function testCommandShouldBeUniqueReturnsTrueForCallQueuedListenerWithShouldBeUnique()
+    public function testCommandShouldBeUniqueReturnsTrueForCallQueuedListenerWithShouldBeUnique(): void
     {
         $handler = $this->createHandler();
 
@@ -50,7 +50,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue($this->invokeMethod($handler, 'commandShouldBeUnique', [$listener]));
     }
 
-    public function testCommandShouldBeUniqueReturnsFalseForCallQueuedListenerWithoutShouldBeUnique()
+    public function testCommandShouldBeUniqueReturnsFalseForCallQueuedListenerWithoutShouldBeUnique(): void
     {
         $handler = $this->createHandler();
 
@@ -60,7 +60,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertFalse($this->invokeMethod($handler, 'commandShouldBeUnique', [$listener]));
     }
 
-    public function testCommandShouldBeUniqueReturnsFalseForRegularCommand()
+    public function testCommandShouldBeUniqueReturnsFalseForRegularCommand(): void
     {
         $handler = $this->createHandler();
 
@@ -69,7 +69,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertFalse($this->invokeMethod($handler, 'commandShouldBeUnique', [$command]));
     }
 
-    public function testCommandShouldBeUniqueUntilProcessingReturnsTrueForInterface()
+    public function testCommandShouldBeUniqueUntilProcessingReturnsTrueForInterface(): void
     {
         $handler = $this->createHandler();
 
@@ -78,7 +78,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue($this->invokeMethod($handler, 'commandShouldBeUniqueUntilProcessing', [$command]));
     }
 
-    public function testCommandShouldBeUniqueUntilProcessingReturnsTrueForCallQueuedListener()
+    public function testCommandShouldBeUniqueUntilProcessingReturnsTrueForCallQueuedListener(): void
     {
         $handler = $this->createHandler();
 
@@ -88,7 +88,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertTrue($this->invokeMethod($handler, 'commandShouldBeUniqueUntilProcessing', [$listener]));
     }
 
-    public function testCommandShouldBeUniqueUntilProcessingReturnsFalseForCallQueuedListenerWithout()
+    public function testCommandShouldBeUniqueUntilProcessingReturnsFalseForCallQueuedListenerWithout(): void
     {
         $handler = $this->createHandler();
 
@@ -98,7 +98,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertFalse($this->invokeMethod($handler, 'commandShouldBeUniqueUntilProcessing', [$listener]));
     }
 
-    public function testUniqueJobLockIsReleasedAfterProcessing()
+    public function testUniqueJobLockIsReleasedAfterProcessing(): void
     {
         $lock = m::mock(Lock::class);
         $lock->shouldReceive('forceRelease')->once();
@@ -150,7 +150,7 @@ class CallQueuedHandlerTest extends TestCase
         $handler->call($job, ['command' => $serialized]);
     }
 
-    public function testHandleModelNotFoundFailsJobWhenDeleteWhenMissingModelsIsFalse()
+    public function testHandleModelNotFoundFailsJobWhenDeleteWhenMissingModelsIsFalse(): void
     {
         $container = m::mock(ContainerContract::class);
 
@@ -162,7 +162,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->invokeMethod($handler, 'handleModelNotFound', [$job, new \Hypervel\Database\Eloquent\ModelNotFoundException]);
     }
 
-    public function testHandleModelNotFoundDeletesJobWhenDeleteWhenMissingModelsIsTrue()
+    public function testHandleModelNotFoundDeletesJobWhenDeleteWhenMissingModelsIsTrue(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('bound')->with(BatchRepository::class)->andReturn(false);
@@ -177,7 +177,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->invokeMethod($handler, 'handleModelNotFound', [$job, new \Hypervel\Database\Eloquent\ModelNotFoundException]);
     }
 
-    public function testEnsureUniqueJobLockIsReleasedViaContextDoesNothingWithoutContext()
+    public function testEnsureUniqueJobLockIsReleasedViaContextDoesNothingWithoutContext(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('bound')->never();
@@ -188,7 +188,7 @@ class CallQueuedHandlerTest extends TestCase
         $this->invokeMethod($handler, 'ensureUniqueJobLockIsReleasedViaContext', []);
     }
 
-    public function testFailedMethodSetsJobInstanceWhenProvided()
+    public function testFailedMethodSetsJobInstanceWhenProvided(): void
     {
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('make')->with(Cache::class)->andReturn(m::mock(Cache::class));
@@ -267,7 +267,7 @@ class CallQueuedHandlerTest extends TestCase
     public function testRunningCommandStaysNullForDebouncedJobs(): void
     {
         $cache = m::mock(Cache::class);
-        $cache->shouldReceive('get')->twice()->andReturn('new-owner');
+        $cache->shouldReceive('get')->once()->andReturn('new-owner');
 
         $container = m::mock(ContainerContract::class);
         $container->shouldReceive('make')->with(Cache::class)->andReturn($cache);
