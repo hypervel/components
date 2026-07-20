@@ -14,9 +14,9 @@ use function Hypervel\Support\now;
 class PruneExpired extends Command
 {
     /**
-     * The console command name.
+     * The name and signature of the console command.
      */
-    protected ?string $name = 'sanctum:prune-expired {--hours=24 : The number of hours to retain expired Sanctum tokens}';
+    protected ?string $signature = 'sanctum:prune-expired {--hours=24 : The number of hours to retain expired Sanctum tokens}';
 
     /**
      * The console command description.
