@@ -23,6 +23,7 @@ class PendingBatchFake extends PendingBatch
         protected BusFake $bus,
         public Collection $jobs
     ) {
+        $this->jobs = $jobs->filter()->values();
     }
 
     /**

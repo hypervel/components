@@ -164,9 +164,11 @@ class BusFake implements Fake, QueueingDispatcher
      */
     public function assertNothingDispatched(): void
     {
-        $commandNames = implode("\n- ", array_keys($this->commands));
+        $dispatchedCommands = $this->commands + $this->commandsSync + $this->commandsAfterResponse;
 
-        PHPUnit::assertEmpty($this->commands, "The following jobs were dispatched unexpectedly:\n\n- {$commandNames}\n");
+        $commandNames = implode("\n- ", array_keys($dispatchedCommands));
+
+        PHPUnit::assertEmpty($dispatchedCommands, "The following jobs were dispatched unexpectedly:\n\n- {$commandNames}\n");
     }
 
     /**
@@ -400,10 +402,10 @@ class BusFake implements Fake, QueueingDispatcher
                             return false;
                         }
                     } elseif (is_string($chain[$index])) {
-                        if ($chain[$index] != get_class(unserialize($serializedChainedJob))) {
+                        if ($chain[$index] !== get_class(unserialize($serializedChainedJob))) {
                             return false;
                         }
-                    } elseif (serialize($chain[$index]) != $serializedChainedJob) {
+                    } elseif (serialize($chain[$index]) !== $serializedChainedJob) {
                         return false;
                     }
                 }
@@ -425,8 +427,10 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Assert if a batch was dispatched based on a truth-test callback.
      */
-    public function assertBatched(callable $callback): void
+    public function assertBatched(callable|array $callback): void
     {
+        $callback = is_array($callback) ? fn (PendingBatchFake $batch) => $batch->hasJobs($callback) : $callback;
+
         PHPUnit::assertTrue(
             $this->batched($callback)->count() > 0,
             'The expected batch was not dispatched.'
@@ -550,7 +554,9 @@ class BusFake implements Fake, QueueingDispatcher
     public function dispatch(mixed $command): mixed
     {
         if ($this->shouldFakeJob($command)) {
-            return $this->commands[get_class($command)][] = $this->getCommandRepresentation($command);
+            $this->commands[get_class($command)][] = $this->getCommandRepresentation($command);
+
+            return null;
         }
         return $this->dispatcher->dispatch($command);
     }
@@ -563,7 +569,9 @@ class BusFake implements Fake, QueueingDispatcher
     public function dispatchSync(mixed $command, mixed $handler = null): mixed
     {
         if ($this->shouldFakeJob($command)) {
-            return $this->commandsSync[get_class($command)][] = $this->getCommandRepresentation($command);
+            $this->commandsSync[get_class($command)][] = $this->getCommandRepresentation($command);
+
+            return null;
         }
         return $this->dispatcher->dispatchSync($command, $handler);
     }
@@ -574,7 +582,9 @@ class BusFake implements Fake, QueueingDispatcher
     public function dispatchNow(mixed $command, mixed $handler = null): mixed
     {
         if ($this->shouldFakeJob($command)) {
-            return $this->commands[get_class($command)][] = $this->getCommandRepresentation($command);
+            $this->commands[get_class($command)][] = $this->getCommandRepresentation($command);
+
+            return null;
         }
         return $this->dispatcher->dispatchNow($command, $handler);
     }
@@ -585,7 +595,9 @@ class BusFake implements Fake, QueueingDispatcher
     public function dispatchToQueue(mixed $command): mixed
     {
         if ($this->shouldFakeJob($command)) {
-            return $this->commands[get_class($command)][] = $this->getCommandRepresentation($command);
+            $this->commands[get_class($command)][] = $this->getCommandRepresentation($command);
+
+            return null;
         }
         return $this->dispatcher->dispatchToQueue($command);
     }
@@ -600,6 +612,16 @@ class BusFake implements Fake, QueueingDispatcher
             return;
         }
         $this->dispatcher->dispatchAfterResponse($command, $handler);
+    }
+
+    /**
+     * Dispatch multiple commands in bulk to their appropriate handlers on the queue.
+     */
+    public function bulk(iterable $jobs): void
+    {
+        foreach ($jobs as $job) {
+            $this->dispatch($job);
+        }
     }
 
     /**
@@ -642,6 +664,12 @@ class BusFake implements Fake, QueueingDispatcher
      */
     public function recordPendingBatch(PendingBatch $pendingBatch): Batch
     {
+        if ($this->serializeAndRestore) {
+            $pendingBatch->jobs = $pendingBatch->jobs->map(
+                fn (mixed $job): mixed => $this->getCommandRepresentation($job)
+            );
+        }
+
         $this->batches[] = $pendingBatch;
 
         return $this->batchRepository->store($pendingBatch);
@@ -682,7 +710,7 @@ class BusFake implements Fake, QueueingDispatcher
     }
 
     /**
-     * Specify if commands should be serialized and restored when being batched.
+     * Specify if commands should be serialized and restored when dispatched or batched.
      */
     public function serializeAndRestore(bool $serializeAndRestore = true): static
     {
