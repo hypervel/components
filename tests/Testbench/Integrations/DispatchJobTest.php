@@ -14,7 +14,7 @@ use Workbench\App\Jobs\RegisterUser;
 class DispatchJobTest extends TestCase
 {
     #[Test]
-    public function itCanTriggersExpectedJobs(): void
+    public function itCanTriggerExpectedJobs(): void
     {
         Bus::fake();
 
