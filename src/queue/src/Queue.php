@@ -8,6 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Bus\DebounceLock;
+use Hypervel\Bus\UniqueJobPayloadContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Contracts\Container\Container;
@@ -27,6 +28,7 @@ use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Context;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use RuntimeException;
@@ -143,7 +145,7 @@ abstract class Queue
      */
     protected function createObjectPayload(object $job, ?string $queue): array
     {
-        $payload = $this->withCreatePayloadHooks($queue, [
+        $payload = [
             'uuid' => (string) Str::uuid(),
             'displayName' => $this->getDisplayName($job),
             // IMPORTANT: Uses Laravel's handler reference for cross-framework queue interoperability.
@@ -161,7 +163,16 @@ abstract class Queue
                 'batchId' => $job->batchId ?? null,
             ],
             'createdAt' => Carbon::now()->getTimestamp(),
-        ]);
+        ];
+
+        $uniqueJobMetadata = UniqueJobPayloadContext::consume($job);
+
+        $payload = $uniqueJobMetadata === null
+            ? $this->withCreatePayloadHooks($queue, $payload)
+            : Context::scope(
+                fn (): array => $this->withCreatePayloadHooks($queue, $payload),
+                hidden: $uniqueJobMetadata,
+            );
 
         try {
             $command = $this->jobShouldBeEncrypted($job) && $this->container->has(Encrypter::class)

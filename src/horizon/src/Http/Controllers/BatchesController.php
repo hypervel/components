@@ -9,6 +9,7 @@ use Hypervel\Database\QueryException;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Jobs\RetryFailedJob;
 use Hypervel\Http\Request;
+use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\DB;
 
 class BatchesController extends Controller
@@ -49,15 +50,17 @@ class BatchesController extends Controller
     {
         $pattern = '%' . addcslashes($request->query('query'), '\%_') . '%';
 
-        return DB::connection(config('queue.batching.database'))
-            ->table(config('queue.batching.table', 'job_batches'))
+        $beforeId = $request->query('before_id');
+
+        return DB::connection(Config::get('queue.batching.database'))
+            ->table(Config::string('queue.batching.table'))
             ->where(function ($q) use ($pattern) {
                 $q->whereRaw("lower(name) like lower(?) escape '\\'", [$pattern])
                     ->orWhereRaw("lower(id) like lower(?) escape '\\'", [$pattern]);
             })
             ->orderByDesc('id')
             ->limit(50)
-            ->when($request->query('before_id'), fn ($q, $beforeId) => $q->where('id', '<', $beforeId))
+            ->when($beforeId !== null && $beforeId !== '', fn ($q) => $q->where('id', '<', $beforeId))
             ->pluck('id')
             ->map(fn ($id) => $this->batches->find($id))
             ->filter()

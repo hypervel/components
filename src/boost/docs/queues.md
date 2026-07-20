@@ -19,6 +19,9 @@
 - [Dispatching Jobs](#dispatching-jobs)
     - [Delayed Dispatching](#delayed-dispatching)
     - [Synchronous Dispatching](#synchronous-dispatching)
+        - [Deferred Dispatching](#deferred-dispatching)
+    - [Bulk Dispatching](#bulk-dispatching)
+    - [Preparing Jobs Before Dispatch](#preparing-jobs-before-dispatch)
     - [Jobs & Database Transactions](#jobs-and-database-transactions)
     - [Job Chaining](#job-chaining)
     - [Customizing The Queue and Connection](#customizing-the-queue-and-connection)
@@ -32,6 +35,7 @@
     - [Chains and Batches](#chains-and-batches)
     - [Adding Jobs to Batches](#adding-jobs-to-batches)
     - [Inspecting Batches](#inspecting-batches)
+    - [Batch Events](#batch-events)
     - [Cancelling Batches](#cancelling-batches)
     - [Batch Failures](#batch-failures)
     - [Pruning Batches](#pruning-batches)
@@ -56,6 +60,7 @@
 - [Clearing Jobs From Queues](#clearing-jobs-from-queues)
 - [Monitoring Your Queues](#monitoring-your-queues)
 - [Testing](#testing)
+    - [Testing Bus Dispatches](#testing-bus-dispatches)
     - [Faking a Subset of Jobs](#faking-a-subset-of-jobs)
     - [Testing Job Chains](#testing-job-chains)
     - [Testing Job Batches](#testing-job-batches)
@@ -1171,6 +1176,75 @@ RecordDelivery::dispatch($order)->onConnection('background');
 
 The `background` and `deferred` drivers do not persist jobs to an external queue backend. Delayed jobs on these connections are scheduled with an in-memory timer and will be lost if the worker exits before the timer fires. Use a persistent queue connection such as `database`, `redis`, `sqs`, or `beanstalkd` for durable delayed work.
 
+You may also chain `afterResponse` onto a dispatch to run the job synchronously when the current coroutine ends:
+
+```php
+ProcessPodcast::dispatch($podcast)->afterResponse();
+```
+
+The method accepts a boolean, which is useful when the choice is conditional. Passing `false` uses the job's normal dispatch path:
+
+```php
+ProcessPodcast::dispatch($podcast)->afterResponse($shouldDefer);
+```
+
+After-response dispatches use the synchronous connection and are not durable.
+
+<a name="bulk-dispatching"></a>
+### Bulk Dispatching
+
+If you need to dispatch many independent jobs at once and do not need [batch](#job-batching) tracking or callbacks, you may use the `bulk` method of the `Bus` facade. Hypervel will group the jobs by their configured queue connection and queue name and push each group to the appropriate queue in bulk:
+
+```php
+use App\Jobs\ProcessUser;
+use Hypervel\Support\Facades\Bus;
+
+Bus::bulk(
+    $users->map(fn ($user) => new ProcessUser($user))
+);
+```
+
+Bulk dispatch sends jobs directly to the selected queue driver and does not run the `PreparesForDispatch`, unique job, or debounce dispatch lifecycle. Dispatch jobs that use these features individually.
+
+<a name="preparing-jobs-before-dispatch"></a>
+### Preparing Jobs Before Dispatch
+
+If a job needs to prepare or inspect its state before it is pushed onto the queue, the job may implement the `Hypervel\Contracts\Queue\PreparesForDispatch` interface. Hypervel will invoke the job's `prepareForDispatch` method before dispatching the job. If this method returns `false`, the job will not be dispatched; returning `true` or no value allows dispatch to continue:
+
+```php
+<?php
+
+namespace App\Jobs;
+
+use Hypervel\Contracts\Queue\PreparesForDispatch;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Queue\Queueable;
+use Hypervel\Support\Facades\Cache;
+
+class SyncPodcasts implements PreparesForDispatch, ShouldQueue
+{
+    use Queueable;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(
+        public array $podcastIds,
+    ) {
+    }
+
+    /**
+     * Prepare the job before dispatching.
+     */
+    public function prepareForDispatch(): bool
+    {
+        return collect($this->podcastIds)
+            ->reject(fn (int $id) => Cache::has("podcast-syncing:{$id}"))
+            ->isNotEmpty();
+    }
+}
+```
+
 <a name="jobs-and-database-transactions"></a>
 ### Jobs & Database Transactions
 
@@ -2217,6 +2291,11 @@ Route::get('/batch/{batchId}', function (string $batchId) {
 });
 ```
 
+<a name="batch-events"></a>
+### Batch Events
+
+Hypervel dispatches events as a batch moves through its lifecycle. You may listen for `BatchDispatched` after a batch is dispatched, `BatchStarted` when its first job is processed, `BatchFinished` when it is marked as finished, and `BatchCanceled` when it is canceled. Each event exposes the batch through its `$batch` property; `BatchCanceled` also exposes the exception that caused cancellation, when available.
+
 <a name="cancelling-batches"></a>
 ### Cancelling Batches
 
@@ -3170,6 +3249,21 @@ Queue::assertClosurePushed(function (CallQueuedClosure $job) {
 });
 ```
 
+<a name="testing-bus-dispatches"></a>
+### Testing Bus Dispatches
+
+You may use the `Bus` facade to fake command and job dispatches. The `assertNothingDispatched` method checks normal, synchronous, and after-response dispatches:
+
+```php
+use Hypervel\Support\Facades\Bus;
+
+Bus::fake();
+
+// Perform the action under test...
+
+Bus::assertNothingDispatched();
+```
+
 <a name="faking-a-subset-of-jobs"></a>
 ### Faking a Subset of Jobs
 
@@ -3326,6 +3420,16 @@ Bus::assertBatched(function (PendingBatch $batch) {
     return $batch->name === 'Import CSV' &&
            $batch->jobs->count() === 10;
 });
+```
+
+If you only need to assert the batch's jobs, you may pass the expected jobs directly:
+
+```php
+Bus::assertBatched([
+    new ProcessCsvRow(row: 1),
+    new ProcessCsvRow(row: 2),
+    new ProcessCsvRow(row: 3),
+]);
 ```
 
 The `hasJobs` method may be used on the pending batch to verify that the batch contains the expected jobs. The method accepts an array of job instances, class names, or closures:

@@ -34,7 +34,7 @@ class BatchesTableCommand extends MigrationGeneratorCommand
      */
     protected function migrationTableName(): string
     {
-        return $this->hypervel->make('config')->string('queue.batching.table', 'job_batches');
+        return $this->hypervel->make('config')->string('queue.batching.table');
     }
 
     /**

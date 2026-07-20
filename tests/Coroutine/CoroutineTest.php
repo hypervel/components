@@ -30,6 +30,19 @@ class CoroutineTest extends TestCase
         $this->assertGreaterThan(0, Coroutine::fork(static fn (): null => null));
     }
 
+    public function testJoinWaitsForCreatedCoroutines(): void
+    {
+        $completed = false;
+        $coroutineId = Coroutine::create(static function () use (&$completed): void {
+            usleep(1000);
+            $completed = true;
+        });
+
+        $this->assertTrue(Coroutine::join([$coroutineId], 1));
+        $this->assertTrue($completed);
+        $this->assertFalse(Coroutine::exists($coroutineId));
+    }
+
     public function testCoroutineParentId()
     {
         $pid = Coroutine::id();

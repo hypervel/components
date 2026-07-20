@@ -12,6 +12,7 @@ use Hypervel\Core\Events\AfterWorkerStart;
 use Hypervel\Core\Events\BeforeWorkerStart;
 use Hypervel\Core\Events\MainWorkerStart;
 use Hypervel\Core\Events\OtherWorkerStart;
+use Hypervel\Core\Logger\StdoutLogger;
 use Swoole\Server as SwooleServer;
 
 class WorkerStartCallback
@@ -26,6 +27,10 @@ class WorkerStartCallback
     public function onWorkerStart(SwooleServer $server, int $workerId): void
     {
         $this->dispatcher->dispatch(new BeforeWorkerStart($server, $workerId));
+
+        if ($this->logger instanceof StdoutLogger) {
+            $this->logger->reloadConfiguration();
+        }
 
         if ($workerId === 0) {
             $this->dispatcher->dispatch(new MainWorkerStart($server, $workerId));

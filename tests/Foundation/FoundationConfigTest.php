@@ -9,6 +9,7 @@ use Hypervel\Container\Container;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
+use Swoole\Constant;
 
 class FoundationConfigTest extends TestCase
 {
@@ -31,6 +32,21 @@ class FoundationConfigTest extends TestCase
         $config = $this->appConfigWithEnvironment('APP_PREVIOUS_KEYS', '(null)');
 
         $this->assertSame([], $config['previous_keys']);
+    }
+
+    public function testServerConfigDisablesCoroutineTasksByDefault(): void
+    {
+        $originalContainer = Container::getInstance();
+
+        try {
+            new Application(dirname(__DIR__, 2));
+
+            $config = require dirname(__DIR__, 2) . '/src/foundation/config/server.php';
+        } finally {
+            Container::setInstance($originalContainer);
+        }
+
+        $this->assertFalse($config['settings'][Constant::OPTION_TASK_ENABLE_COROUTINE]);
     }
 
     public function testViewCompiledPathFallsBackToStoragePathWhenDirectoryDoesNotExist(): void

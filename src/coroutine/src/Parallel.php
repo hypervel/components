@@ -72,6 +72,7 @@ class Parallel
         $this->throwables = [];
 
         $wg = new WaitGroup;
+        $coroutineIds = [];
         $wg->add(count($this->callbacks));
         foreach ($this->callbacks as $key => $callback) {
             $this->concurrentChannel && $this->concurrentChannel->push(true);
@@ -90,9 +91,9 @@ class Parallel
 
             try {
                 if ($this->copyContext === false) {
-                    Coroutine::create($childCallable);
+                    $coroutineIds[] = Coroutine::create($childCallable);
                 } else {
-                    Coroutine::fork($childCallable, is_array($this->copyContext) ? $this->copyContext : []);
+                    $coroutineIds[] = Coroutine::fork($childCallable, is_array($this->copyContext) ? $this->copyContext : []);
                 }
             } catch (Throwable $throwable) {
                 $this->throwables[$key] = $throwable;
@@ -102,6 +103,12 @@ class Parallel
             }
         }
         $wg->wait();
+
+        // WaitGroup completion precedes the last child's physical teardown.
+        if ($coroutineIds !== []) {
+            Coroutine::join($coroutineIds);
+        }
+
         if ($throw && ($throwableCount = count($this->throwables)) > 0) {
             $message = 'Detecting ' . $throwableCount . ' throwable occurred during parallel execution:' . PHP_EOL . $this->formatThrowables($this->throwables);
             $executionException = new ParallelExecutionException($message);

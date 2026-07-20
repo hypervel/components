@@ -6,6 +6,7 @@ namespace Hypervel\Server;
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Server\Exceptions\InvalidArgumentException;
+use Swoole\Constant;
 
 /**
  * @method ServerConfig setType(string $type)
@@ -112,6 +113,14 @@ class ServerConfig implements Arrayable
 
         if ($name === 'servers') {
             $value = $this->validateServers($value);
+        }
+
+        if ($name === 'settings'
+            && is_array($value)
+            && ! empty($value[Constant::OPTION_EVENT_OBJECT])) {
+            throw new InvalidArgumentException(
+                'Swoole event_object is not supported in global server settings; use Hypervel lifecycle events instead.'
+            );
         }
 
         $this->config[$name] = $value;

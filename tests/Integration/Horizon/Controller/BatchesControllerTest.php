@@ -91,6 +91,18 @@ class BatchesControllerTest extends ControllerTestCase
         $this->assertSame('batch-1', $batches[1]->id);
     }
 
+    public function testSearchAppliesAZeroCursor(): void
+    {
+        $this->setupBatchTable();
+        $this->seedBatches();
+
+        $response = $this->actingAs(new Fakes\User)
+            ->get('/horizon/api/batches?query=Import&before_id=0');
+
+        $response->assertOk();
+        $this->assertSame([], $response->original['batches']);
+    }
+
     private function setupBatchTable(): void
     {
         $this->app['config']->set('queue.batching.database', 'testing');

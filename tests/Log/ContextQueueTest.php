@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Log;
 
+use Hypervel\Bus\UniqueJobPayloadContext;
+use Hypervel\Cache\Repository as CacheRepository;
+use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Context\CoroutineContext;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Bus\Dispatchable;
@@ -13,13 +17,15 @@ use Hypervel\Log\Context\Repository;
 use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Queue;
 use Hypervel\Queue\SyncQueue;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 class ContextQueueTest extends TestCase
 {
-    public function testContextIsIncludedInJobPayload()
+    public function testContextIsIncludedInJobPayload(): void
     {
         Repository::getInstance()->add('trace_id', 'abc-123');
 
@@ -31,7 +37,7 @@ class ContextQueueTest extends TestCase
         $this->assertArrayHasKey('trace_id', $payload['illuminate:log:context']['data']);
     }
 
-    public function testEmptyContextDoesNotAddToPayload()
+    public function testEmptyContextDoesNotAddToPayload(): void
     {
         // Access context but don't add anything
         Repository::getInstance();
@@ -42,7 +48,7 @@ class ContextQueueTest extends TestCase
         $this->assertArrayNotHasKey('illuminate:log:context', $payload);
     }
 
-    public function testPayloadHookSkipsWhenNoContextExists()
+    public function testPayloadHookSkipsWhenNoContextExists(): void
     {
         $queue = $this->createSyncQueue();
         $payload = $queue->testCreatePayload('SomeJob', null);
@@ -51,7 +57,7 @@ class ContextQueueTest extends TestCase
         $this->assertFalse(Repository::hasInstance());
     }
 
-    public function testHiddenContextIsIncludedInJobPayload()
+    public function testHiddenContextIsIncludedInJobPayload(): void
     {
         Repository::getInstance()->addHidden('api_key', 'secret-token');
 
@@ -63,7 +69,70 @@ class ContextQueueTest extends TestCase
         $this->assertArrayHasKey('api_key', $payload['illuminate:log:context']['hidden']);
     }
 
-    public function testContextIsHydratedWhenJobProcesses()
+    public function testUniqueJobMetadataIsScopedToItsPayloadWithoutReplacingExistingContext(): void
+    {
+        $context = Repository::getInstance()
+            ->add('trace_id', 'abc-123')
+            ->addHidden('persistent', 'value');
+
+        $job = new ContextQueueUniqueJob('unique-id');
+        UniqueJobPayloadContext::register($job);
+
+        $queue = $this->createSyncQueue();
+        $payload = $queue->testCreatePayload($job, null);
+
+        $this->assertSame('unique', unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_cache_store']));
+        $this->assertSame(
+            'laravel_unique_job:' . ContextQueueUniqueJob::class . ':unique-id',
+            unserialize($payload['illuminate:log:context']['hidden']['laravel_unique_job_key'])
+        );
+        $this->assertSame('value', unserialize($payload['illuminate:log:context']['hidden']['persistent']));
+        $this->assertSame('abc-123', $context->get('trace_id'));
+        $this->assertSame(['persistent' => 'value'], $context->allHidden());
+        $this->assertNull(UniqueJobPayloadContext::consume($job));
+    }
+
+    public function testUniqueJobMetadataScopeIsRestoredWhenAPayloadHookThrows(): void
+    {
+        $context = Repository::getInstance()->addHidden('persistent', 'value');
+        $job = new ContextQueueUniqueJob('failing-payload');
+        UniqueJobPayloadContext::register($job);
+
+        $throw = true;
+        Queue::createPayloadUsing(function (string $connection, ?string $queue, array $payload) use (&$throw): array {
+            if (($payload['data']['commandName'] ?? null) instanceof ContextQueueUniqueJob && $throw) {
+                throw new RuntimeException('Payload hook failed.');
+            }
+
+            return [];
+        });
+
+        $queue = $this->createSyncQueue();
+
+        try {
+            $queue->testCreatePayload($job, null);
+            $this->fail('The payload hook should have failed.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Payload hook failed.', $exception->getMessage());
+        }
+
+        $this->assertSame(['persistent' => 'value'], $context->allHidden());
+        $this->assertNull(UniqueJobPayloadContext::consume($job));
+
+        $throw = false;
+        $payload = $queue->testCreatePayload(new ContextQueueTestJob, null);
+
+        $this->assertArrayNotHasKey(
+            'laravel_unique_job_cache_store',
+            $payload['illuminate:log:context']['hidden']
+        );
+        $this->assertArrayNotHasKey(
+            'laravel_unique_job_key',
+            $payload['illuminate:log:context']['hidden']
+        );
+    }
+
+    public function testContextIsHydratedWhenJobProcesses(): void
     {
         // Build a payload with context
         Repository::getInstance()->add('trace_id', 'abc-123');
@@ -88,7 +157,7 @@ class ContextQueueTest extends TestCase
         $this->assertSame('token', Repository::getInstance()->getHidden('secret'));
     }
 
-    public function testHydrateSkipsWhenPayloadHasNoContext()
+    public function testHydrateSkipsWhenPayloadHasNoContext(): void
     {
         $job = m::mock(\Hypervel\Contracts\Queue\Job::class);
         $job->shouldReceive('payload')->andReturn(['job' => 'SomeJob']);
@@ -116,7 +185,7 @@ class ContextQueueTest extends TestCase
         $this->assertSame([], $repository->allHidden());
     }
 
-    public function testDehydratingHookFiresBeforeJobDispatch()
+    public function testDehydratingHookFiresBeforeJobDispatch(): void
     {
         $called = false;
 
@@ -135,7 +204,7 @@ class ContextQueueTest extends TestCase
         $this->assertArrayHasKey('dehydrated_at', $payload['illuminate:log:context']['data']);
     }
 
-    public function testHydratedHookFiresWhenJobProcesses()
+    public function testHydratedHookFiresWhenJobProcesses(): void
     {
         $called = false;
 
@@ -159,7 +228,7 @@ class ContextQueueTest extends TestCase
         $this->assertTrue($called);
     }
 
-    public function testDehydratingCallbackCanModifyWithoutAffectingOriginal()
+    public function testDehydratingCallbackCanModifyWithoutAffectingOriginal(): void
     {
         Repository::getInstance()->add('trace_id', 'abc-123');
         Repository::getInstance()->dehydrating(function (Repository $context) {
@@ -179,7 +248,7 @@ class ContextQueueTest extends TestCase
         $this->assertNull(Repository::getInstance()->get('extra'));
     }
 
-    public function testRoundTripPreservesVariousDataTypes()
+    public function testRoundTripPreservesVariousDataTypes(): void
     {
         Repository::getInstance()->add('string', 'hello');
         Repository::getInstance()->add('integer', 42);
@@ -213,7 +282,7 @@ class ContextQueueTest extends TestCase
         $this->assertSame('hidden-value', Repository::getInstance()->getHidden('secret'));
     }
 
-    public function testEndToEndSyncJobReceivesContext()
+    public function testEndToEndSyncJobReceivesContext(): void
     {
         ContextQueueTestJob::$receivedTraceId = null;
         ContextQueueTestJob::$receivedSecret = null;
@@ -263,7 +332,7 @@ class ContextQueueTest extends TestCase
  */
 class TestableSyncQueue extends SyncQueue
 {
-    public function testCreatePayload(string $job, ?string $queue): array
+    public function testCreatePayload(object|string $job, ?string $queue): array
     {
         return $this->createPayloadArray($job, $queue);
     }
@@ -300,5 +369,23 @@ class ContextQueueBackgroundJob implements ShouldQueue
     {
         static::$receivedTraceId = Repository::getInstance()->get('trace_id');
         static::$completed?->push(true);
+    }
+}
+
+class ContextQueueUniqueJob implements ShouldBeUnique
+{
+    public function __construct(
+        public string $id
+    ) {
+    }
+
+    public function uniqueId(): string
+    {
+        return $this->id;
+    }
+
+    public function uniqueVia(): CacheRepository
+    {
+        return new CacheRepository(new WorkerArrayStore, ['store' => 'unique']);
     }
 }

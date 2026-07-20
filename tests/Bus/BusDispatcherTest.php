@@ -192,6 +192,64 @@ class BusDispatcherTest extends TestCase
 
         Container::setInstance(null);
     }
+
+    public function testDispatchBulk(): void
+    {
+        $container = new Container;
+        $container->instance('queue.routes', $queueRoutes = m::mock(QueueRoutes::class));
+        $queueRoutes->shouldReceive('getQueue')->andReturn(null);
+        $queueRoutes->shouldReceive('getConnection')->andReturn(null);
+        Container::setInstance($container);
+
+        $defaultQueue = m::mock(Queue::class);
+        $defaultQueue->shouldReceive('bulk')->once()->with(m::on(fn ($jobs) => count($jobs) === 2), '', null);
+        $defaultQueue->shouldReceive('bulk')->once()->with(m::on(fn ($jobs) => count($jobs) === 1), '', 'high');
+
+        $priorityQueue = m::mock(Queue::class);
+        $priorityQueue->shouldReceive('bulk')->once()->with(m::on(fn ($jobs) => count($jobs) === 1), '', 'high');
+
+        $dispatcher = new Dispatcher(
+            $container,
+            fn (?string $connection) => $connection === 'priority' ? $priorityQueue : $defaultQueue
+        );
+
+        $immediate = new BusDispatcherImmediateCommand;
+
+        $dispatcher->bulk([
+            new BusDispatcherQueueable,
+            new BusDispatcherQueueable,
+            new BusDispatcherTestSpecificQueueCommand,
+            new BusDispatcherTestSpecificConnectionAndQueueCommand,
+            $immediate,
+        ]);
+
+        $this->assertTrue($immediate->handled);
+
+        Container::setInstance(null);
+    }
+
+    public function testDispatchBulkKeepsColonBearingRoutesSeparate(): void
+    {
+        $firstJob = (new BusDispatcherQueueable)->onConnection('a:b')->onQueue('c');
+        $secondJob = (new BusDispatcherQueueable)->onConnection('a')->onQueue('b:c');
+
+        $firstQueue = m::mock(Queue::class);
+        $firstQueue->shouldReceive('bulk')->once()->with([$firstJob], '', 'c');
+
+        $secondQueue = m::mock(Queue::class);
+        $secondQueue->shouldReceive('bulk')->once()->with([$secondJob], '', 'b:c');
+
+        $dispatcher = new Dispatcher(
+            new Container,
+            fn (?string $connection): Queue => match ($connection) {
+                'a:b' => $firstQueue,
+                'a' => $secondQueue,
+                default => throw new RuntimeException("Unexpected connection [{$connection}]."),
+            }
+        );
+
+        $dispatcher->bulk([$firstJob, $secondJob]);
+    }
 }
 
 class BusInjectionStub
@@ -225,6 +283,28 @@ class BusDispatcherTestSpecificQueueAndDelayCommand implements ShouldQueue
     public $queue = 'foo';
 
     public $delay = 10;
+}
+
+class BusDispatcherTestSpecificQueueCommand implements ShouldQueue
+{
+    public string $queue = 'high';
+}
+
+class BusDispatcherTestSpecificConnectionAndQueueCommand implements ShouldQueue
+{
+    public string $connection = 'priority';
+
+    public string $queue = 'high';
+}
+
+class BusDispatcherImmediateCommand
+{
+    public bool $handled = false;
+
+    public function handle(): void
+    {
+        $this->handled = true;
+    }
 }
 
 #[QueueAttribute('foo')]

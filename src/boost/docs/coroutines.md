@@ -436,7 +436,7 @@ $result = wait(function () {
 
 If no timeout is provided, `wait` will wait up to 10 seconds for the closure to finish.
 
-If the closure throws an exception, the exception is rethrown in the waiting coroutine after deferred cleanup has completed. If the timeout is reached, `Hypervel\Coroutine\Exceptions\WaitTimeoutException` is thrown.
+If the closure throws an exception, the exception is rethrown in the waiting coroutine after deferred cleanup has completed. If the timeout is reached, the child coroutine's current operation is cancelled without throwing an exception into user code. The waiter then gives the child up to 10 seconds to finish and run deferred cleanup before throwing `Hypervel\Coroutine\Exceptions\WaitTimeoutException`. Code that continues after the cancellation point may remain active after that cleanup window.
 
 You may also use the `Waiter` class directly:
 
@@ -761,12 +761,16 @@ use Hypervel\Coroutine\Coroutine;
 
 Coroutine::sleep(0.1);
 
+$joined = Coroutine::join([$firstId, $secondId], timeout: 5.0);
+
 $stats = Coroutine::stats();
 
 $exists = Coroutine::exists($id);
 
 $ids = Coroutine::list();
 ```
+
+The `join` method waits for the supplied child coroutine IDs to terminate. IDs for coroutines that have already terminated are accepted. A `false` result may mean that no supplied coroutine remained active or that the timeout elapsed; it is not a general failure signal.
 
 The `afterCreated` method registers a callback that runs after every new coroutine is created:
 

@@ -74,6 +74,16 @@ interface CoroutineInterface
     public static function cancelById(int $id, bool $throwException = false): bool;
 
     /**
+     * Wait for the given coroutines to finish.
+     *
+     * A false return may mean that no supplied coroutine remained active or
+     * that the timeout elapsed. It is not a general failure signal.
+     *
+     * @param list<int> $coroutineIds
+     */
+    public static function join(array $coroutineIds, float $timeout = -1): bool;
+
+    /**
      * Get the coroutine stats.
      */
     public static function stats(): array;

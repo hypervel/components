@@ -129,6 +129,19 @@ class Coroutine
     }
 
     /**
+     * Wait for the given coroutines to finish.
+     *
+     * A false return may mean that no supplied coroutine remained active or
+     * that the timeout elapsed. It is not a general failure signal.
+     *
+     * @param list<int> $coroutineIds
+     */
+    public static function join(array $coroutineIds, float $timeout = -1): bool
+    {
+        return Co::join($coroutineIds, $timeout);
+    }
+
+    /**
      * Determine if currently running in a coroutine.
      */
     public static function inCoroutine(): bool

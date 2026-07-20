@@ -37,6 +37,16 @@ class PendingBatchFakeTest extends TestCase
         ]));
     }
 
+    public function testJobsAreFilteredAndReindexed(): void
+    {
+        $first = new PendingBatchFakeJob('first');
+        $second = new PendingBatchFakeJob('second');
+
+        $batch = $this->batch([$first, null, false, $second]);
+
+        $this->assertSame([$first, $second], $batch->jobs->all());
+    }
+
     private function batch(array $jobs): PendingBatchFake
     {
         $bus = new BusFake(m::mock(QueueingDispatcher::class));

@@ -20,6 +20,11 @@ interface QueueingDispatcher extends Dispatcher
     public function batch(mixed $jobs): PendingBatch;
 
     /**
+     * Dispatch an iterable of jobs in bulk.
+     */
+    public function bulk(iterable $jobs): void;
+
+    /**
      * Dispatch a command to its appropriate handler behind a queue.
      */
     public function dispatchToQueue(mixed $command): mixed;

@@ -116,6 +116,48 @@ class Dispatcher implements QueueingDispatcher
     }
 
     /**
+     * Dispatch multiple commands in bulk to their appropriate handlers on the queue.
+     */
+    public function bulk(iterable $jobs): void
+    {
+        $groups = [];
+
+        foreach ($jobs as $job) {
+            if (! $this->queueResolver || ! $this->commandShouldBeQueued($job)) {
+                $this->dispatchNow($job);
+
+                continue;
+            }
+
+            $connection = $this->getAttributeValue($job, Connection::class, 'connection')
+                ?? $this->resolveConnectionFromQueueRoute($job)
+                ?? null;
+
+            $queue = $this->getAttributeValue($job, QueueAttribute::class, 'queue')
+                ?? $this->resolveQueueFromQueueRoute($job)
+                ?? null;
+
+            // Connection and queue names may contain the same delimiter, so keep the route dimensions separate.
+            $connectionKey = $connection ?? '';
+            $queueKey = $queue ?? '';
+
+            $groups[$connectionKey][$queueKey]['connection'] = $connection;
+            $groups[$connectionKey][$queueKey]['queue'] = $queue;
+            $groups[$connectionKey][$queueKey]['jobs'][] = $job;
+        }
+
+        foreach ($groups as $connectionGroups) {
+            foreach ($connectionGroups as $group) {
+                ($this->queueResolver)($group['connection'])->bulk(
+                    $group['jobs'],
+                    '',
+                    $group['queue']
+                );
+            }
+        }
+    }
+
+    /**
      * Attempt to find the batch with the given ID.
      */
     public function findBatch(string $batchId): ?Batch

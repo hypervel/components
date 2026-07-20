@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Server;
 
+use Hypervel\Server\Exceptions\InvalidArgumentException;
+use Swoole\Constant;
+
 class Port
 {
     protected string $name = 'http';
@@ -154,6 +157,12 @@ class Port
      */
     public function setSettings(array $settings): static
     {
+        if (! empty($settings[Constant::OPTION_EVENT_OBJECT])) {
+            throw new InvalidArgumentException(
+                "Swoole event_object is not supported on server port '{$this->name}'; use Hypervel lifecycle events instead."
+            );
+        }
+
         $this->settings = $settings;
         return $this;
     }
