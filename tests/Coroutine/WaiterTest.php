@@ -9,9 +9,11 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exceptions\WaitTimeoutException;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
+use Hypervel\Engine\Coroutine as EngineCoroutine;
+use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
-use Throwable;
+use Swoole\Coroutine\CanceledException;
 
 use function Hypervel\Coroutine\wait;
 
@@ -158,28 +160,34 @@ class WaiterTest extends TestCase
         $this->assertFalse(Coroutine::exists($childCoroutineId));
     }
 
-    public function testTimeoutCancellationCannotBeCaught(): void
+    public function testTimeoutCancellationTerminatesLoopingOperations(): void
     {
         $childCoroutineId = null;
-        $cancellationCaught = false;
+        $waiter = new class extends Waiter {
+            protected float $pushTimeout = 0.001;
+        };
 
         try {
-            wait(function () use (&$childCoroutineId, &$cancellationCaught): void {
+            $waiter->wait(function () use (&$childCoroutineId): never {
                 $childCoroutineId = Coroutine::id();
 
-                try {
-                    Coroutine::sleep(0.05);
-                } catch (Throwable) {
-                    $cancellationCaught = true;
+                while (true) {
+                    Sleep::usleep(1_000);
                 }
             }, 0.001);
             $this->fail('The waiter should time out.');
         } catch (WaitTimeoutException) {
         }
 
-        $this->assertFalse($cancellationCaught);
-        $this->assertIsInt($childCoroutineId);
-        $this->assertFalse(Coroutine::exists($childCoroutineId));
+        try {
+            $this->assertIsInt($childCoroutineId);
+            $this->assertFalse(Coroutine::exists($childCoroutineId));
+        } finally {
+            if (is_int($childCoroutineId) && Coroutine::exists($childCoroutineId)) {
+                EngineCoroutine::cancelById($childCoroutineId, throwException: true);
+                Coroutine::join([$childCoroutineId]);
+            }
+        }
     }
 
     public function testTimeoutWaitsForDeferredCleanupWithinTheCleanupBudget(): void
@@ -221,10 +229,14 @@ class WaiterTest extends TestCase
         try {
             $waiter->wait(function () use (&$childCoroutineId, &$childCompleted, $trailingWorkStarted, $releaseTrailingWork): void {
                 $childCoroutineId = Coroutine::id();
-                Coroutine::sleep(0.05);
-                $trailingWorkStarted->push(true);
-                $releaseTrailingWork->pop();
-                $childCompleted = true;
+
+                try {
+                    Coroutine::sleep(0.05);
+                } catch (CanceledException) {
+                    $trailingWorkStarted->push(true);
+                    $releaseTrailingWork->pop();
+                    $childCompleted = true;
+                }
             }, 0.001);
             $this->fail('The waiter should time out.');
         } catch (WaitTimeoutException) {

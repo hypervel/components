@@ -33,6 +33,8 @@ use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\Console\Event\ConsoleCommandEvent;
 use Symfony\Component\Console\Event\ConsoleTerminateEvent;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\ConsoleOutput;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Finder\Finder;
@@ -152,6 +154,7 @@ class Kernel implements KernelContract
     public function handle(InputInterface $input, ?OutputInterface $output = null): int
     {
         $this->commandStartedAt = Carbon::now();
+        $output ??= new ConsoleOutput;
 
         try {
             if (in_array($input->getFirstArgument(), ['env:encrypt', 'env:decrypt'], true)) {
@@ -543,6 +546,10 @@ class Kernel implements KernelContract
      */
     protected function renderException(OutputInterface $output, Throwable $e): void
     {
+        if ($output instanceof ConsoleOutputInterface) {
+            $output = $output->getErrorOutput();
+        }
+
         $this->app[ExceptionHandler::class]->renderForConsole($output, $e);
     }
 

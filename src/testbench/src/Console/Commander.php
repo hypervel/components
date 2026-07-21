@@ -21,6 +21,7 @@ use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
@@ -230,6 +231,10 @@ class Commander
      */
     protected function handleException(OutputInterface $output, Throwable $error): int
     {
+        if ($output instanceof ConsoleOutputInterface) {
+            $output = $output->getErrorOutput();
+        }
+
         if ($this->app instanceof HypervelApplication) {
             tap($this->app->make(ExceptionHandler::class), static function ($handler) use ($error, $output) {
                 $handler->report($error);

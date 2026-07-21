@@ -4,12 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Concerns\Database\InteractsWithSqliteDatabaseFile;
+use Hypervel\Testbench\Console\Commander;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\ConsoleOutput;
+use Symfony\Component\Console\Output\OutputInterface;
+use Throwable;
 
 use function Hypervel\Testbench\remote;
 
@@ -139,5 +148,50 @@ class CommanderTest extends TestCase
                 '2013_07_26_182750_create_testbench_users_table',
             ], DB::connection('sqlite')->table('migrations')->pluck('migration')->all());
         });
+    }
+
+    #[Test]
+    public function itRendersApplicationThrowablesToTheConsoleErrorOutput(): void
+    {
+        $exception = new RuntimeException('Application failure');
+        $output = new ConsoleOutput;
+        $errorOutput = new BufferedOutput;
+        $output->setErrorOutput($errorOutput);
+
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler->expects('report')->with($exception);
+        $handler->expects('renderForConsole')->with($errorOutput, $exception);
+        $this->app->instance(ExceptionHandlerContract::class, $handler);
+
+        $commander = new CommanderThrowableHarness([], __DIR__);
+        $commander->useApplication($this->app);
+
+        $this->assertSame(1, $commander->renderThrowable($output, $exception));
+    }
+
+    #[Test]
+    public function itRendersBootstrapThrowablesToTheConsoleErrorOutput(): void
+    {
+        $output = new ConsoleOutput;
+        $errorOutput = new BufferedOutput;
+        $output->setErrorOutput($errorOutput);
+
+        $commander = new CommanderThrowableHarness([], __DIR__);
+
+        $this->assertSame(1, $commander->renderThrowable($output, new RuntimeException('Bootstrap failure')));
+        $this->assertStringContainsString('Bootstrap failure', $errorOutput->fetch());
+    }
+}
+
+final class CommanderThrowableHarness extends Commander
+{
+    public function useApplication(ApplicationContract $app): void
+    {
+        $this->app = $app;
+    }
+
+    public function renderThrowable(OutputInterface $output, Throwable $throwable): int
+    {
+        return $this->handleException($output, $throwable);
     }
 }
