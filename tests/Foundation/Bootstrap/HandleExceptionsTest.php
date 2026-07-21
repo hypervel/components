@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
+use Error;
 use ErrorException;
 use Hypervel\Config\Repository as Config;
-use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Env;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Monolog\Handler\NullHandler;
@@ -348,7 +351,7 @@ class HandleExceptionsTest extends TestCase
     {
         $exception = new RuntimeException('Test exception');
 
-        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler = m::mock(ExceptionHandler::class);
         $handler->shouldReceive('renderForConsole')->once()->with(
             m::on(function (mixed $output): bool {
                 if (! $output instanceof StreamOutput) {
@@ -359,10 +362,53 @@ class HandleExceptionsTest extends TestCase
             }),
             $exception,
         );
-        $this->app->instance(ExceptionHandlerContract::class, $handler);
+        $this->app->instance(ExceptionHandler::class, $handler);
 
         $method = new ReflectionMethod($handleExceptions = $this->handleExceptions(), 'renderForConsole');
         $method->invoke($handleExceptions, $exception);
+    }
+
+    public function testNonConsoleExceptionIsReportedWithoutRenderingAResponse(): void
+    {
+        $exception = new RuntimeException('uncaught coroutine failure');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($exception);
+        $handler->shouldNotReceive('render');
+        $handler->shouldNotReceive('renderForConsole');
+        $this->app->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
+        $this->app->expects('runningInConsole')->andReturnFalse();
+
+        $this->handleExceptions()->handleException($exception);
+    }
+
+    public function testNonConsoleReporterFailureFallsBackToThePhpErrorLog(): void
+    {
+        $directory = ParallelTesting::tempDir('HandleExceptionsTest');
+        mkdir($directory, 0777, true);
+        $errorLog = $directory . '/php-error.log';
+        $previousErrorLog = ini_set('error_log', $errorLog);
+        $exception = new RuntimeException('uncaught coroutine failure');
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->expects('report')->with($exception)->andThrow(new Error('reporting failed'));
+        $handler->shouldNotReceive('render');
+        $handler->shouldNotReceive('renderForConsole');
+        $this->app->expects('make')->with(ExceptionHandler::class)->andReturn($handler);
+        $this->app->expects('runningInConsole')->andReturnFalse();
+
+        try {
+            $this->handleExceptions()->handleException($exception);
+            $contents = file_get_contents($errorLog);
+
+            $this->assertIsString($contents);
+            $this->assertStringContainsString('uncaught coroutine failure', $contents);
+            $this->assertStringNotContainsString('reporting failed', $contents);
+        } finally {
+            if ($previousErrorLog !== false) {
+                ini_set('error_log', $previousErrorLog);
+            }
+
+            (new Filesystem)->deleteDirectory($directory);
+        }
     }
 
     public function testIgnoreDeprecationIfLoggerUnresolvable()

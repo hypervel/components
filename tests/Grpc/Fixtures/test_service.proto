@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package hypervel.grpc.testing;
+
+option go_package = "hypervel.dev/components/grpc-interop/testingpb";
+option php_namespace = "Hypervel\\Tests\\Grpc\\Fixtures";
+option php_metadata_namespace = "Hypervel\\Tests\\Grpc\\Fixtures\\Metadata";
+
+service TestService {
+  rpc Unary (TestRequest) returns (TestReply);
+  rpc ServerStream (TestRequest) returns (stream TestReply);
+  rpc ClientStream (stream TestRequest) returns (TestReply);
+  rpc BidiStream (stream TestRequest) returns (stream TestReply);
+}
+
+message TestRequest {
+  string value = 1;
+}
+
+message TestReply {
+  string value = 1;
+}

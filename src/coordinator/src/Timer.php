@@ -46,9 +46,10 @@ class Timer
         $id = ++$this->id;
         $coordinator = CoordinatorManager::until($identifier);
         $this->coroutines[$id] = 0;
+        $startedAt = hrtime(true);
 
         try {
-            $coroutineId = go(function () use ($timeout, $closure, $coordinator, $id): void {
+            $coroutineId = go(function () use ($timeout, $closure, $coordinator, $id, $startedAt): void {
                 if (! isset($this->coroutines[$id])) {
                     return;
                 }
@@ -56,7 +57,7 @@ class Timer
                 try {
                     ++Timer::$count;
                     $isClosing = match (true) {
-                        $timeout > 0 => $this->waitForCoordinator($id, $coordinator, $timeout), // Run after $timeout seconds.
+                        $timeout > 0 => $this->waitForInterval($id, $coordinator, $timeout, $startedAt), // Run after $timeout seconds.
                         $timeout === 0.0 => $coordinator->isClosing(), // Run immediately.
                         default => $this->waitForCoordinator($id, $coordinator), // Run until $identifier resume.
                     };
@@ -103,7 +104,12 @@ class Timer
                     ++Timer::$count;
 
                     while (isset($this->coroutines[$id])) {
-                        $isClosing = $this->waitForCoordinator($id, $coordinator, max($timeout, 0.000001));
+                        $isClosing = $this->waitForInterval(
+                            $id,
+                            $coordinator,
+                            max($timeout, 0.000001),
+                            hrtime(true),
+                        );
 
                         if (! isset($this->coroutines[$id])) {
                             break;
@@ -148,6 +154,31 @@ class Timer
     }
 
     /**
+     * Wait for the timer interval or coordinator to resume.
+     */
+    private function waitForInterval(
+        int $id,
+        Coordinator $coordinator,
+        float $timeout,
+        int $startedAt,
+    ): bool {
+        while (isset($this->coroutines[$id])) {
+            $remaining = $timeout - ((hrtime(true) - $startedAt) / 1_000_000_000);
+
+            if ($remaining <= 0) {
+                return $coordinator->isClosing();
+            }
+
+            // A timed coordinator wait can return before the monotonic interval has elapsed.
+            if ($this->waitForCoordinator($id, $coordinator, $remaining)) {
+                return true;
+            }
+        }
+
+        return $coordinator->isClosing();
+    }
+
+    /**
      * Execute a callback when the identifier is resumed.
      */
     public function until(callable $closure, string $identifier = Constants::WORKER_EXIT): int
@@ -164,8 +195,8 @@ class Timer
         unset($this->coroutines[$id]);
 
         if ($coroutineId !== null && $coroutineId > 0 && isset($this->waiting[$id])) {
-            // Hyperf only removes the registration, leaving the timer coroutine
-            // and everything it captured retained until timeout or worker exit.
+            // Removing only the registration would retain the waiting coroutine
+            // and everything it captured until timeout or worker exit.
             Coroutine::cancelById($coroutineId);
         }
     }

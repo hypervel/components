@@ -160,18 +160,24 @@ class HandleExceptions
 
         try {
             $this->getExceptionHandler()->report($e);
-        } catch (Exception) {
+        } catch (Throwable) {
             $exceptionHandlerFailed = true;
+
+            try {
+                error_log((string) $e);
+            } catch (Throwable) {
+            }
         }
 
-        if (static::$app->runningInConsole()) {
-            $this->renderForConsole($e);
+        // Swoole callbacks own response emission; this global backstop has no native response.
+        if (! static::$app->runningInConsole()) {
+            return;
+        }
 
-            if ($exceptionHandlerFailed ?? false) {
-                exit(1);
-            }
-        } else {
-            $this->renderHttpResponse($e);
+        $this->renderForConsole($e);
+
+        if ($exceptionHandlerFailed ?? false) {
+            exit(1);
         }
     }
 
@@ -181,14 +187,6 @@ class HandleExceptions
     protected function renderForConsole(Throwable $e): void
     {
         $this->getExceptionHandler()->renderForConsole((new ConsoleOutput)->getErrorOutput(), $e);
-    }
-
-    /**
-     * Render an exception as an HTTP response and send it.
-     */
-    protected function renderHttpResponse(Throwable $e): void
-    {
-        $this->getExceptionHandler()->render(static::$app['request'], $e)->send();
     }
 
     /**

@@ -42,6 +42,7 @@
         "hypervel/foundation": "^0.4",
         "hypervel/http": "^0.4",
         "hypervel/redis": "^0.4",
+        "hypervel/server": "^0.4",
         "hypervel/support": "^0.4",
         "hypervel/websocket-server": "^0.4"
     },

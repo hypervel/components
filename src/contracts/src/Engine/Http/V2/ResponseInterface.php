@@ -25,4 +25,9 @@ interface ResponseInterface
      * Get the response body.
      */
     public function getBody(): ?string;
+
+    /**
+     * Determine whether the response event ends the stream.
+     */
+    public function isEndStream(): bool;
 }

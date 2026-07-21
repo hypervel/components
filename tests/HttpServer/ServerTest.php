@@ -34,7 +34,7 @@ class ServerTest extends TestCase
         CoordinatorManager::clear(Constants::WORKER_START);
     }
 
-    public function testBootstrapForServerResolvesKernelAndBootstraps()
+    public function testBootstrapForServerResolvesKernelAndBootstraps(): void
     {
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('bootstrap')->once();
@@ -53,7 +53,7 @@ class ServerTest extends TestCase
         $this->assertSame('http', $server->getServerName());
     }
 
-    public function testOnRequestDelegatestoKernelAndSendsResponse()
+    public function testOnRequestDelegatestoKernelAndSendsResponse(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -72,14 +72,14 @@ class ServerTest extends TestCase
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->once()->with(200);
-        $swooleResponse->shouldReceive('header')->withAnyArgs();
-        $swooleResponse->shouldReceive('end')->once()->with('Hello World');
+        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->once()->with('Hello World')->andReturnTrue();
 
         $server->onRequest($swooleRequest, $swooleResponse);
     }
 
-    public function testOnRequestSetsRequestAndResponseInContext()
+    public function testOnRequestSetsRequestAndResponseInContext(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -88,7 +88,7 @@ class ServerTest extends TestCase
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('handle')
             ->once()
-            ->andReturnUsing(function (Request $request) use (&$capturedRequest) {
+            ->andReturnUsing(function (Request $request) use (&$capturedRequest): Response {
                 // Inside the kernel, RequestContext should have the request
                 $capturedRequest = RequestContext::get();
                 // ResponseContext should also be set
@@ -105,16 +105,16 @@ class ServerTest extends TestCase
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->withAnyArgs();
-        $swooleResponse->shouldReceive('header')->withAnyArgs();
-        $swooleResponse->shouldReceive('end')->withAnyArgs();
+        $swooleResponse->shouldReceive('status')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->withAnyArgs()->andReturnTrue();
 
         $server->onRequest($swooleRequest, $swooleResponse);
 
         $this->assertInstanceOf(Request::class, $capturedRequest);
     }
 
-    public function testOnRequestReturns500OnKernelException()
+    public function testOnRequestReturns500OnKernelException(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -132,9 +132,9 @@ class ServerTest extends TestCase
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->once()->with(500);
-        $swooleResponse->shouldReceive('header')->withAnyArgs();
-        $swooleResponse->shouldReceive('end')->once()->with('Internal Server Error');
+        $swooleResponse->shouldReceive('status')->once()->with(500)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->once()->with('Internal Server Error')->andReturnTrue();
 
         $server->onRequest($swooleRequest, $swooleResponse);
     }
@@ -182,7 +182,7 @@ class ServerTest extends TestCase
         $swooleResponse = m::mock(SwooleResponse::class);
         $swooleResponse->shouldNotReceive('status');
         $swooleResponse->shouldNotReceive('header');
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs();
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnFalse();
 
         $server->onRequest($this->createSwooleRequest(), $swooleResponse);
 
@@ -216,8 +216,8 @@ class ServerTest extends TestCase
         $this->setKernel($server, $kernel);
         $this->setServerName($server, 'http');
         $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->once()->with(200);
-        $swooleResponse->shouldReceive('header')->withAnyArgs();
+        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
         $swooleResponse->shouldReceive('end')->once()->with('OK')->andThrow($sendFailure);
 
         try {
@@ -228,7 +228,7 @@ class ServerTest extends TestCase
         }
     }
 
-    public function testOnRequestSuppressesBodyForHeadRequests()
+    public function testOnRequestSuppressesBodyForHeadRequests(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -246,15 +246,15 @@ class ServerTest extends TestCase
 
         $swooleRequest = $this->createSwooleRequest(method: 'head');
         $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->once()->with(200);
-        $swooleResponse->shouldReceive('header')->withAnyArgs();
+        $swooleResponse->shouldReceive('status')->once()->with(200)->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
         // end() with no args — body suppressed for HEAD
-        $swooleResponse->shouldReceive('end')->once()->withNoArgs();
+        $swooleResponse->shouldReceive('end')->once()->withNoArgs()->andReturnTrue();
 
         $server->onRequest($swooleRequest, $swooleResponse);
     }
 
-    public function testOnRequestDispatchesLifecycleEventsWhenListenersAreRegistered()
+    public function testOnRequestDispatchesLifecycleEventsWhenListenersAreRegistered(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -269,8 +269,9 @@ class ServerTest extends TestCase
         $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestTerminated::class)->andReturn(true);
         $eventDispatcher->shouldReceive('hasListeners')->once()->with(RequestHandled::class)->andReturn(true);
         $eventDispatcher->shouldReceive('dispatch')
-            ->andReturnUsing(function ($event) use (&$dispatchedEvents) {
+            ->andReturnUsing(function (object $event) use (&$dispatchedEvents): object {
                 $dispatchedEvents[] = get_class($event);
+
                 return $event;
             });
 
@@ -284,9 +285,9 @@ class ServerTest extends TestCase
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->withAnyArgs();
-        $swooleResponse->shouldReceive('header')->withAnyArgs();
-        $swooleResponse->shouldReceive('end')->withAnyArgs();
+        $swooleResponse->shouldReceive('status')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->withAnyArgs()->andReturnTrue();
 
         $server->onRequest($swooleRequest, $swooleResponse);
 
@@ -296,7 +297,7 @@ class ServerTest extends TestCase
         $this->assertContains(RequestHandled::class, $dispatchedEvents);
     }
 
-    public function testOnRequestSkipsLifecycleEventDispatchWhenNoListenersAreRegistered()
+    public function testOnRequestSkipsLifecycleEventDispatchWhenNoListenersAreRegistered(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -319,14 +320,14 @@ class ServerTest extends TestCase
 
         $swooleRequest = $this->createSwooleRequest();
         $swooleResponse = m::mock(SwooleResponse::class);
-        $swooleResponse->shouldReceive('status')->withAnyArgs();
-        $swooleResponse->shouldReceive('header')->withAnyArgs();
-        $swooleResponse->shouldReceive('end')->withAnyArgs();
+        $swooleResponse->shouldReceive('status')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+        $swooleResponse->shouldReceive('end')->withAnyArgs()->andReturnTrue();
 
         $server->onRequest($swooleRequest, $swooleResponse);
     }
 
-    public function testSetAndGetServerName()
+    public function testSetAndGetServerName(): void
     {
         $container = m::mock(Container::class);
         $container->shouldReceive('bound')->with('events')->andReturn(false);
@@ -338,7 +339,7 @@ class ServerTest extends TestCase
         $this->assertSame('custom', $server->getServerName());
     }
 
-    public function testConstructorResolvesEventDispatcherWhenAvailable()
+    public function testConstructorResolvesEventDispatcherWhenAvailable(): void
     {
         $eventDispatcher = m::mock(EventDispatcherContract::class);
 
@@ -351,7 +352,7 @@ class ServerTest extends TestCase
         $this->assertInstanceOf(Server::class, $server);
     }
 
-    public function testOnRequestHandlesMalformedMethodOverrideAfterOverrideEnabled()
+    public function testOnRequestHandlesMalformedMethodOverrideAfterOverrideEnabled(): void
     {
         CoordinatorManager::until(Constants::WORKER_START)->resume();
 
@@ -379,9 +380,9 @@ class ServerTest extends TestCase
             $swooleRequest->post = ['_method' => '__construct'];
 
             $swooleResponse = m::mock(SwooleResponse::class);
-            $swooleResponse->shouldReceive('status')->once()->with(400);
-            $swooleResponse->shouldReceive('header')->withAnyArgs();
-            $swooleResponse->shouldReceive('end')->once();
+            $swooleResponse->shouldReceive('status')->once()->with(400)->andReturnTrue();
+            $swooleResponse->shouldReceive('header')->withAnyArgs()->andReturnTrue();
+            $swooleResponse->shouldReceive('end')->once()->andReturnTrue();
 
             // Should not throw SuspiciousOperationException — the raw method
             // decision uses $swooleRequest->server['request_method'], not
@@ -392,7 +393,7 @@ class ServerTest extends TestCase
         }
     }
 
-    public function testConstructorSkipsEventDispatcherWhenNotAvailable()
+    public function testConstructorSkipsEventDispatcherWhenNotAvailable(): void
     {
         $container = m::mock(Container::class);
         $container->shouldReceive('bound')->with('events')->andReturn(false);

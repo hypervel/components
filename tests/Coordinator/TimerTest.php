@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coordinator;
 
 use Closure;
+use Hypervel\Coordinator\Coordinator;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
@@ -35,6 +36,35 @@ class TimerTest extends TestCase
             usleep(10000);
             $this->assertSame(1, $id);
         });
+    }
+
+    public function testAfterRechecksElapsedTimeAfterAnEarlyCoordinatorWake(): void
+    {
+        $identifier = uniqid();
+        $coordinators = new ReflectionProperty(CoordinatorManager::class, 'container');
+        $container = $coordinators->getValue();
+        $container[$identifier] = new TimerEarlyWakeCoordinator;
+        $coordinators->setValue(null, $container);
+        $result = new Channel(1);
+        $interval = 0.02;
+        $startedAt = hrtime(true);
+
+        try {
+            (new Timer)->after($interval, static function (bool $isClosing) use ($result): void {
+                $result->push([$isClosing, hrtime(true)]);
+            }, $identifier);
+
+            $callback = $result->pop(0.1);
+
+            $this->assertIsArray($callback);
+            $this->assertFalse($callback[0]);
+            $this->assertGreaterThanOrEqual(
+                $interval,
+                ($callback[1] - $startedAt) / 1_000_000_000,
+            );
+        } finally {
+            CoordinatorManager::clear($identifier);
+        }
     }
 
     public function testAfterWhenClosing(): void
@@ -183,6 +213,37 @@ class TimerTest extends TestCase
             CoordinatorManager::until($identifier)->resume();
             $this->assertGreaterThanOrEqual(1, $id);
         });
+    }
+
+    public function testTickRechecksElapsedTimeAfterAnEarlyCoordinatorWake(): void
+    {
+        $identifier = uniqid();
+        $coordinators = new ReflectionProperty(CoordinatorManager::class, 'container');
+        $container = $coordinators->getValue();
+        $container[$identifier] = new TimerEarlyWakeCoordinator;
+        $coordinators->setValue(null, $container);
+        $result = new Channel(1);
+        $interval = 0.02;
+        $startedAt = hrtime(true);
+
+        try {
+            (new Timer)->tick($interval, static function (bool $isClosing) use ($result): string {
+                $result->push([$isClosing, hrtime(true)]);
+
+                return Timer::STOP;
+            }, $identifier);
+
+            $callback = $result->pop(0.1);
+
+            $this->assertIsArray($callback);
+            $this->assertFalse($callback[0]);
+            $this->assertGreaterThanOrEqual(
+                $interval,
+                ($callback[1] - $startedAt) / 1_000_000_000,
+            );
+        } finally {
+            CoordinatorManager::clear($identifier);
+        }
     }
 
     public function testTickWhenReturnStop(): void
@@ -340,5 +401,21 @@ class TimerTest extends TestCase
     {
         $waiter = new Waiter;
         $waiter->wait($closure);
+    }
+}
+
+class TimerEarlyWakeCoordinator extends Coordinator
+{
+    private bool $returnedEarly = false;
+
+    public function yield(float|int $timeout = -1): bool
+    {
+        if (! $this->returnedEarly) {
+            $this->returnedEarly = true;
+
+            return false;
+        }
+
+        return parent::yield($timeout);
     }
 }
