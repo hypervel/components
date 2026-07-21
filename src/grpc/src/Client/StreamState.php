@@ -555,7 +555,8 @@ final class StreamState
     private function signalWaiters(): void
     {
         foreach ($this->waiters as $waiter) {
-            $waiter->push(true, 0);
+            // Registered observers are already suspended on empty capacity-one channels.
+            $waiter->push(true);
         }
     }
 
