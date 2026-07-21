@@ -19,13 +19,13 @@ class CallableDispatcher implements CallableDispatcherContract
     use ResolvesRouteDependencies;
 
     /**
-     * Cached ReflectionParameter arrays keyed by closure object.
+     * Cached ReflectionParameter arrays keyed by callable object.
      *
-     * WeakMap ensures cached reflection metadata disappears when the closure
-     * itself is no longer referenced, so later closures cannot inherit stale
+     * WeakMap ensures cached reflection metadata disappears when the callable
+     * itself is no longer referenced, so later objects cannot inherit stale
      * parameter lists via recycled object IDs.
      *
-     * @var null|WeakMap<Closure, array<int, ReflectionParameter>>
+     * @var null|WeakMap<object, array<int, ReflectionParameter>>
      */
     protected static ?WeakMap $reflectionCache = null;
 
@@ -65,26 +65,23 @@ class CallableDispatcher implements CallableDispatcherContract
     /**
      * Resolve the parameters for the callable.
      *
-     * Handles all callable shapes that can reach this method via Route::runCallable():
-     * - Closure (most common — direct closure or deserialized SerializableClosure)
-     * - Array callable [ClassName::class, 'method'] (via RouteAction::findCallable())
-     * - Invokable object (via RouteAction::parse() with non-array callable)
-     * - String function name (theoretical — makeInvokable() catches most)
+     * Routes supply closures or invokable objects, while the public dispatcher
+     * contract also permits other native callable forms.
      */
     protected function resolveParameters(Route $route, callable $callable): array
     {
-        if ($callable instanceof Closure) {
+        if (is_object($callable)) {
             $reflectionCache = static::$reflectionCache ??= new WeakMap;
 
             if (! isset($reflectionCache[$callable])) {
-                $reflectionCache[$callable] = (new ReflectionFunction($callable))->getParameters();
+                $reflectionCache[$callable] = $callable instanceof Closure
+                    ? (new ReflectionFunction($callable))->getParameters()
+                    : (new ReflectionMethod($callable, '__invoke'))->getParameters();
             }
 
             $reflectedParameters = $reflectionCache[$callable];
         } elseif (is_array($callable)) {
             $reflectedParameters = (new ReflectionMethod($callable[0], $callable[1]))->getParameters();
-        } elseif (is_object($callable)) {
-            $reflectedParameters = (new ReflectionMethod($callable, '__invoke'))->getParameters();
         } else {
             $reflectedParameters = (new ReflectionFunction($callable))->getParameters();
         }

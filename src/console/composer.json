@@ -31,7 +31,7 @@
     "require": {
         "php": "^8.4",
         "dragonmantank/cron-expression": "^3.4",
-        "guzzlehttp/guzzle": "^7.8.2",
+        "guzzlehttp/guzzle": "^7.15.1",
         "symfony/console": "^8.1",
         "hypervel/bus": "^0.4",
         "hypervel/cache": "^0.4",
@@ -47,9 +47,6 @@
         "hypervel/queue": "^0.4",
         "hypervel/reflection": "^0.4",
         "hypervel/support": "^0.4"
-    },
-    "suggest": {
-        "nunomaduro/collision": "Required to render enhanced console exception output."
     },
     "config": {
         "sort-packages": true

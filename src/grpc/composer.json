@@ -1,0 +1,72 @@
+{
+    "name": "hypervel/grpc",
+    "type": "library",
+    "description": "The Hypervel gRPC package.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "grpc",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Grpc\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "composer-runtime-api": "^2.2",
+        "ext-swoole": "^6.2",
+        "ext-zlib": "*",
+        "google/common-protos": "^4.14",
+        "google/protobuf": "^5.35",
+        "hypervel/console": "^0.4",
+        "hypervel/container": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/contracts": "^0.4",
+        "hypervel/coordinator": "^0.4",
+        "hypervel/engine": "^0.4",
+        "hypervel/foundation": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/http-server": "^0.4",
+        "hypervel/pipeline": "^0.4",
+        "hypervel/routing": "^0.4",
+        "hypervel/server": "^0.4",
+        "hypervel/support": "^0.4",
+        "nesbot/carbon": "^3.8.4",
+        "symfony/console": "^8.1",
+        "symfony/http-foundation": "^8.1",
+        "symfony/http-kernel": "^8.1"
+    },
+    "suggest": {
+        "ext-protobuf": "Improves Protocol Buffers serialization performance."
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Grpc\\GrpcServiceProvider"
+            ]
+        },
+        "branch-alias": {
+            "dev-main": "0.4-dev"
+        }
+    }
+}

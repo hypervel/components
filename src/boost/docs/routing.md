@@ -57,6 +57,9 @@ use App\Http\Controllers\UserController;
 Route::get('/user', [UserController::class, 'index']);
 ```
 
+> [!NOTE]
+> Routes keep caller-supplied closures, invokable objects, and object-method callables for the worker lifetime. Use a class-string controller action such as `[UserController::class, 'index']` when the service container should control the controller's singleton, scoped, or transient lifetime.
+
 <a name="api-routes"></a>
 #### API Routes
 

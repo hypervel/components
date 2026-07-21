@@ -17,14 +17,7 @@ use WeakMap;
 
 class RouteSignatureParametersTest extends RoutingTestCase
 {
-    protected function tearDown(): void
-    {
-        RouteSignatureParameters::flushCache();
-
-        parent::tearDown();
-    }
-
-    public function testItCanExtractTheRouteActionSignatureParameters()
+    public function testItCanExtractTheRouteActionSignatureParameters(): void
     {
         $callable = function (SignatureParametersUser $user) {
             return $user;
@@ -40,7 +33,7 @@ class RouteSignatureParametersTest extends RoutingTestCase
         $this->assertSame('user', $parameters[0]->getName());
     }
 
-    public function testItDoesNotReuseStaleClosureSignatureParametersWhenClosureObjectIdIsReused()
+    public function testItDoesNotReuseStaleClosureSignatureParametersWhenClosureObjectIdIsReused(): void
     {
         $closureWithNoParameters = function () {
             return 'ok';
@@ -52,7 +45,6 @@ class RouteSignatureParametersTest extends RoutingTestCase
         $staleParameters = (new ReflectionFunction($closureWithNoParameters))->getParameters();
         $this->seedRouteSignatureCacheWithStaleParameters(
             $closureWithNoParameters,
-            $closureWithModelParameter,
             $staleParameters,
         );
 
@@ -62,18 +54,32 @@ class RouteSignatureParametersTest extends RoutingTestCase
         $this->assertCount(1, $parameters);
         $this->assertSame('user', $parameters[0]->getName());
 
-        if (property_exists(RouteSignatureParameters::class, 'closureCache')) {
-            $reflectionProperty = new ReflectionProperty(RouteSignatureParameters::class, 'closureCache');
-            $cache = $reflectionProperty->getValue();
+        $reflectionProperty = new ReflectionProperty(RouteSignatureParameters::class, 'objectCache');
+        $cache = $reflectionProperty->getValue();
 
-            $this->assertInstanceOf(WeakMap::class, $cache);
-            $this->assertCount(2, $cache);
-            $this->assertSame('user', $cache[$closureWithModelParameter][0]->getName());
-            $this->assertSame([], $cache[$closureWithNoParameters]);
-        }
+        $this->assertInstanceOf(WeakMap::class, $cache);
+        $this->assertCount(2, $cache);
+        $this->assertSame('user', $cache[$closureWithModelParameter][0]->getName());
+        $this->assertSame([], $cache[$closureWithNoParameters]);
     }
 
-    public function testItExtractsParametersFromExistingControllerMethod()
+    public function testItExtractsParametersFromInvokableObject(): void
+    {
+        $invokable = new SignatureParametersInvoker;
+
+        $parameters = RouteSignatureParameters::fromAction(['uses' => $invokable]);
+
+        $this->assertCount(1, $parameters);
+        $this->assertSame('user', $parameters[0]->getName());
+
+        $reflectionProperty = new ReflectionProperty(RouteSignatureParameters::class, 'objectCache');
+        $cache = $reflectionProperty->getValue();
+
+        $this->assertInstanceOf(WeakMap::class, $cache);
+        $this->assertSame('user', $cache[$invokable][0]->getName());
+    }
+
+    public function testItExtractsParametersFromExistingControllerMethod(): void
     {
         $parameters = RouteSignatureParameters::fromAction([
             'uses' => SignatureParametersController::class . '@show',
@@ -83,7 +89,7 @@ class RouteSignatureParametersTest extends RoutingTestCase
         $this->assertSame('user', $parameters[0]->getName());
     }
 
-    public function testItReturnsEmptyForMissingMethodOnExistingClass()
+    public function testItReturnsEmptyForMissingMethodOnExistingClass(): void
     {
         $parameters = RouteSignatureParameters::fromAction([
             'uses' => SignatureParametersController::class . '@nonExistent',
@@ -92,7 +98,7 @@ class RouteSignatureParametersTest extends RoutingTestCase
         $this->assertSame([], $parameters);
     }
 
-    public function testItReturnsEmptyForMagicCallControllerMethod()
+    public function testItReturnsEmptyForMagicCallControllerMethod(): void
     {
         $parameters = RouteSignatureParameters::fromAction([
             'uses' => SignatureParametersMagicController::class . '@anything',
@@ -101,7 +107,7 @@ class RouteSignatureParametersTest extends RoutingTestCase
         $this->assertSame([], $parameters);
     }
 
-    public function testItThrowsForMissingControllerClass()
+    public function testItThrowsForMissingControllerClass(): void
     {
         $this->expectException(ReflectionException::class);
 
@@ -112,26 +118,16 @@ class RouteSignatureParametersTest extends RoutingTestCase
 
     protected function seedRouteSignatureCacheWithStaleParameters(
         Closure $staleClosure,
-        Closure $targetClosure,
         array $parameters,
     ): void {
-        if (property_exists(RouteSignatureParameters::class, 'closureCache')) {
-            $reflectionProperty = new ReflectionProperty(RouteSignatureParameters::class, 'closureCache');
-            $cache = $reflectionProperty->getValue();
+        $reflectionProperty = new ReflectionProperty(RouteSignatureParameters::class, 'objectCache');
+        $cache = $reflectionProperty->getValue();
 
-            if (! $cache instanceof WeakMap) {
-                $cache = new WeakMap;
-            }
-
-            $cache[$staleClosure] = $parameters;
-            $reflectionProperty->setValue(null, $cache);
-
-            return;
+        if (! $cache instanceof WeakMap) {
+            $cache = new WeakMap;
         }
 
-        $reflectionProperty = new ReflectionProperty(RouteSignatureParameters::class, 'cache');
-        $cache = $reflectionProperty->getValue();
-        $cache['closure_' . spl_object_id($targetClosure)] = $parameters;
+        $cache[$staleClosure] = $parameters;
         $reflectionProperty->setValue(null, $cache);
     }
 }
@@ -142,7 +138,15 @@ class SignatureParametersUser extends Model
 
 class SignatureParametersController
 {
-    public function show(SignatureParametersUser $user)
+    public function show(SignatureParametersUser $user): SignatureParametersUser
+    {
+        return $user;
+    }
+}
+
+class SignatureParametersInvoker
+{
+    public function __invoke(SignatureParametersUser $user): SignatureParametersUser
     {
         return $user;
     }

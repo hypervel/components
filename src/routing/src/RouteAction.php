@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Routing;
 
+use Closure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Str;
@@ -24,14 +25,15 @@ class RouteAction
             return static::missingAction($uri);
         }
 
+        if (is_string($action)) {
+            throw new UnexpectedValueException("Invalid route action: [{$action}].");
+        }
+
         // If the action is already a Closure instance, we will just set that instance
         // as the "uses" property, because there is nothing else we need to do when
         // it is available. Otherwise we will need to find it in the action list.
         if (Reflector::isCallable($action, true)) {
-            return ! is_array($action) ? ['uses' => $action] : [
-                'uses' => $action[0] . '@' . $action[1],
-                'controller' => $action[0] . '@' . $action[1],
-            ];
+            return static::normalizeCallable([], $action);
         }
 
         // If no "uses" property has been set, we will dig through the array to find a
@@ -41,9 +43,35 @@ class RouteAction
             $action['uses'] = static::findCallable($action);
         }
 
+        $action = static::normalizeCallable($action, $action['uses']);
+
         if (! static::containsSerializedClosure($action) && is_string($action['uses']) && ! str_contains($action['uses'], '@')) {
             $action['uses'] = static::makeInvokable($action['uses']);
         }
+
+        return $action;
+    }
+
+    /**
+     * Normalize a callable route action.
+     */
+    protected static function normalizeCallable(array $action, mixed $callable): array
+    {
+        if (! is_array($callable) || ! Reflector::isCallable($callable, true)) {
+            $action['uses'] = $callable;
+
+            return $action;
+        }
+
+        if (is_object($callable[0])) {
+            $action['uses'] = Closure::fromCallable($callable);
+
+            return $action;
+        }
+
+        $controller = $callable[0] . '@' . $callable[1];
+        $action['uses'] = $controller;
+        $action['controller'] = $controller;
 
         return $action;
     }

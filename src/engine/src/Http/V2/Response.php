@@ -15,7 +15,8 @@ class Response implements ResponseInterface
         protected int $streamId,
         protected int $statusCode,
         protected array $headers,
-        protected ?string $body
+        protected ?string $body,
+        protected bool $pipeline,
     ) {
     }
 
@@ -49,5 +50,13 @@ class Response implements ResponseInterface
     public function getBody(): ?string
     {
         return $this->body;
+    }
+
+    /**
+     * Determine whether the response event ends the stream.
+     */
+    public function isEndStream(): bool
+    {
+        return ! $this->pipeline;
     }
 }

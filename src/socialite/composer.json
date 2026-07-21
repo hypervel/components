@@ -32,7 +32,7 @@
         "php": "^8.4",
         "ext-json": "*",
         "firebase/php-jwt": "^7.0",
-        "guzzlehttp/guzzle": "^7.8.2",
+        "guzzlehttp/guzzle": "^7.15.1",
         "phpseclib/phpseclib": "^3.0",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",

@@ -15,4 +15,11 @@ use Hypervel\Routing\Router;
  */
 class ReverbRouter extends Router
 {
+    /**
+     * Determine whether this router owns the application's global route state.
+     */
+    protected function ownsGlobalRouteState(): bool
+    {
+        return false;
+    }
 }

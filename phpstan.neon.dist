@@ -29,6 +29,11 @@ parameters:
     # @TODO: Add pest to root composer.json require-dev and remove this line once Pest 5 is released (required for PHPUnit 13 support).
     - %currentWorkingDirectory%/src/testbench/src/Pest/Autoload.php
   ignoreErrors:
+    # protoc 35.1 emits a two-argument enum check, while google/protobuf 5.35.1
+    # declares the userland method with one argument and relies on PHP ignoring the extra value.
+    - identifier: arguments.count
+      path: src/grpc/src/Health/V1/HealthCheckResponse.php
+
     # Framework traits provided for userland - not used internally but intentionally available
     - '#Trait Hypervel\\[A-Za-z\\\\]+ is used zero times and is not analysed\.#'
 
@@ -101,4 +106,3 @@ parameters:
 
     # Laravel's fluent factory pattern (Collection::make, Model::create, etc.) relies on new static() throughout
     - '#Unsafe usage of new static#'
-

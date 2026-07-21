@@ -16,7 +16,8 @@ class Request implements RequestInterface
         protected string $method = 'GET',
         protected string $body = '',
         protected array $headers = [],
-        protected bool $pipeline = false
+        protected bool $pipeline = false,
+        protected bool $usePipelineRead = false,
     ) {
     }
 
@@ -98,5 +99,21 @@ class Request implements RequestInterface
     public function setPipeline(bool $pipeline): void
     {
         $this->pipeline = $pipeline;
+    }
+
+    /**
+     * Determine whether the response is read incrementally.
+     */
+    public function usesPipelineRead(): bool
+    {
+        return $this->usePipelineRead;
+    }
+
+    /**
+     * Set whether the response is read incrementally.
+     */
+    public function setUsePipelineRead(bool $usePipelineRead): void
+    {
+        $this->usePipelineRead = $usePipelineRead;
     }
 }

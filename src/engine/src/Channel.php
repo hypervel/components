@@ -19,7 +19,7 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
      * Push data into the channel.
      *
      * @param TValue $data
-     * @param float $timeout Timeout in seconds (-1 for unlimited)
+     * @param float $timeout Timeout in seconds (values less than or equal to zero wait indefinitely)
      */
     public function push(mixed $data, float $timeout = -1): bool
     {
@@ -29,7 +29,7 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
     /**
      * Pop data from the channel.
      *
-     * @param float $timeout Timeout in seconds (-1 for unlimited)
+     * @param float $timeout Timeout in seconds (values less than or equal to zero wait indefinitely)
      * @return false|TValue Returns false when pop fails
      */
     public function pop(float $timeout = -1): mixed

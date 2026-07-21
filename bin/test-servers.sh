@@ -5,11 +5,14 @@
 # Usage:
 #   ./bin/test-servers.sh              # Start all servers
 #   ./bin/test-servers.sh engine       # Start engine servers only
+#   ./bin/test-servers.sh grpc         # Start gRPC servers only
 #   ./bin/test-servers.sh reverb       # Start Reverb servers only
-#   ./bin/test-servers.sh engine reverb # Start both groups
+#   ./bin/test-servers.sh engine grpc  # Start selected groups
 #
 # Groups:
 #   engine  — HTTP (19501), TCP (19502), WebSocket (19503), HTTP v2 (19505)
+#   grpc    — Hypervel plaintext (19520), grpc-go plaintext (19521),
+#             Hypervel TLS (19522), grpc-go TLS (19523)
 #   reverb  — Single-worker (19510), Redis scaling (19511), multi-worker (19512),
 #             cross-server A (19513), cross-server B (19514),
 #             scaling+multi-worker (19515)
@@ -76,6 +79,25 @@ wait_for_server() {
     exit 1
 }
 
+# Wait for a server to accept TCP connections without assuming an HTTP route.
+wait_for_tcp() {
+    local port=$1
+    local label=$2
+    local max=30
+
+    for i in $(seq 1 $max); do
+        if { exec 3<>"/dev/tcp/127.0.0.1/${port}"; } 2>/dev/null; then
+            exec 3>&-
+            exec 3<&-
+            return 0
+        fi
+        sleep 1
+    done
+
+    echo "ERROR: ${label} on port ${port} failed to start within ${max}s"
+    exit 1
+}
+
 start_engine() {
     echo "Starting engine test servers..."
 
@@ -94,6 +116,41 @@ start_engine() {
     setsid php "$PROJECT_DIR/src/engine/examples/http_server_v2.php" &
     PIDS+=($!)
     echo "  HTTP v2 server started on port 19505 (PID: $!)"
+}
+
+start_grpc() {
+    echo "Building gRPC interoperability peers..."
+
+    mkdir -p "$PROJECT_DIR/.tmp/grpc-interop"
+    (
+        cd "$PROJECT_DIR/tests/Integration/Grpc/Interop"
+        go build -o "$PROJECT_DIR/.tmp/grpc-interop/server" ./server
+        go build -o "$PROJECT_DIR/.tmp/grpc-interop/client" ./client
+    )
+
+    echo "Starting gRPC test servers..."
+
+    # Hypervel peers start serially because Testbench bootstrap paths are shared.
+    setsid sh -c "GRPC_TEST_SERVER_PORT=19520 GRPC_TEST_SERVER_COMPRESSION=gzip exec php '$PROJECT_DIR/tests/Integration/Grpc/server.php'" &
+    PIDS+=($!)
+    echo "  Hypervel gRPC server starting on port 19520 (PID: $!)..."
+    wait_for_tcp 19520 "Hypervel gRPC"
+
+    setsid sh -c "GRPC_TEST_SERVER_PORT=19522 GRPC_TEST_SERVER_COMPRESSION=gzip GRPC_TEST_SERVER_CERT='$PROJECT_DIR/tests/Integration/Grpc/Fixtures/Tls/server.crt' GRPC_TEST_SERVER_KEY='$PROJECT_DIR/tests/Integration/Grpc/Fixtures/Tls/server.key' exec php '$PROJECT_DIR/tests/Integration/Grpc/server.php'" &
+    PIDS+=($!)
+    echo "  Hypervel TLS gRPC server starting on port 19522 (PID: $!)..."
+    wait_for_tcp 19522 "Hypervel TLS gRPC"
+
+    setsid sh -c "GRPC_GO_SERVER_PORT=19521 exec '$PROJECT_DIR/.tmp/grpc-interop/server'" &
+    PIDS+=($!)
+    echo "  grpc-go server starting on port 19521 (PID: $!)..."
+
+    setsid sh -c "GRPC_GO_SERVER_PORT=19523 GRPC_GO_SERVER_CERT='$PROJECT_DIR/tests/Integration/Grpc/Fixtures/Tls/server.crt' GRPC_GO_SERVER_KEY='$PROJECT_DIR/tests/Integration/Grpc/Fixtures/Tls/server.key' exec '$PROJECT_DIR/.tmp/grpc-interop/server'" &
+    PIDS+=($!)
+    echo "  grpc-go TLS server starting on port 19523 (PID: $!)..."
+
+    wait_for_tcp 19521 "grpc-go"
+    wait_for_tcp 19523 "grpc-go TLS"
 }
 
 start_reverb() {
@@ -137,14 +194,15 @@ start_reverb() {
 SERVER_GROUPS=("$@")
 
 if [ ${#SERVER_GROUPS[@]} -eq 0 ]; then
-    SERVER_GROUPS=("engine" "reverb")
+    SERVER_GROUPS=("engine" "grpc" "reverb")
 fi
 
 for group in "${SERVER_GROUPS[@]}"; do
     case "$group" in
         engine) start_engine ;;
+        grpc) start_grpc ;;
         reverb) start_reverb ;;
-        *) echo "Unknown group: $group (available: engine, reverb)"; exit 1 ;;
+        *) echo "Unknown group: $group (available: engine, grpc, reverb)"; exit 1 ;;
     esac
 done
 
