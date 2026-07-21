@@ -254,11 +254,23 @@ class RedisTest extends TestCase
 
     public function testCallbackPipelineExceptionCleansUpContextAndReleasesConnection(): void
     {
+        $discarded = false;
         $pipeline = Mockery::mock(PhpRedis::class);
         $pipeline->shouldNotReceive('exec');
+        $pipeline->shouldReceive('discard')
+            ->once()
+            ->andReturnUsing(function () use (&$discarded) {
+                $discarded = true;
+
+                return true;
+            });
 
         $mockRedisConnection = $this->createMockRedisConnection('pipeline', $pipeline);
-        $mockRedisConnection->shouldReceive('release')->once();
+        $mockRedisConnection->shouldReceive('release')
+            ->once()
+            ->andReturnUsing(function () use (&$discarded) {
+                $this->assertTrue($discarded);
+            });
 
         $redis = $this->createRedis($mockRedisConnection);
 
@@ -269,6 +281,93 @@ class RedisTest extends TestCase
             $this->fail('Expected exception was not thrown');
         } catch (RuntimeException $exception) {
             $this->assertSame('Callback failed', $exception->getMessage());
+        }
+
+        $this->assertFalse(Context::has('redis.connection.default'));
+        $this->assertFalse(Context::has('redis.connection.default.eager_release'));
+    }
+
+    public function testCallbackTransactionExceptionDiscardsBeforeReleasingConnection(): void
+    {
+        $discarded = false;
+        $transaction = Mockery::mock(PhpRedis::class);
+        $transaction->shouldNotReceive('exec');
+        $transaction->shouldReceive('discard')
+            ->once()
+            ->andReturnUsing(function () use (&$discarded) {
+                $discarded = true;
+
+                return true;
+            });
+
+        $mockRedisConnection = $this->createMockRedisConnection('multi', $transaction);
+        $mockRedisConnection->shouldReceive('release')
+            ->once()
+            ->andReturnUsing(function () use (&$discarded) {
+                $this->assertTrue($discarded);
+            });
+
+        $redis = $this->createRedis($mockRedisConnection);
+
+        try {
+            $redis->transaction(function () {
+                throw new RuntimeException('Transaction callback failed');
+            });
+            $this->fail('Expected exception was not thrown');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Transaction callback failed', $exception->getMessage());
+        }
+
+        $this->assertFalse(Context::has('redis.connection.default'));
+        $this->assertFalse(Context::has('redis.connection.default.eager_release'));
+    }
+
+    public function testCallbackExceptionReconnectsBeforeReleaseWhenDiscardFails(): void
+    {
+        $pipeline = Mockery::mock(PhpRedis::class);
+        $pipeline->shouldNotReceive('exec');
+        $pipeline->shouldReceive('discard')->once()->andThrow(new RuntimeException('Discard failed'));
+
+        $mockRedisConnection = $this->createMockRedisConnection('pipeline', $pipeline);
+        $mockRedisConnection->shouldReceive('reconnect')->once()->andReturnTrue();
+        $mockRedisConnection->shouldReceive('close')->never();
+        $mockRedisConnection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($mockRedisConnection);
+
+        try {
+            $redis->pipeline(function () {
+                throw new RuntimeException('Original callback failure');
+            });
+            $this->fail('Expected exception was not thrown');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Original callback failure', $exception->getMessage());
+        }
+
+        $this->assertFalse(Context::has('redis.connection.default'));
+        $this->assertFalse(Context::has('redis.connection.default.eager_release'));
+    }
+
+    public function testCallbackExceptionClosesConnectionWhenDiscardAndReconnectFail(): void
+    {
+        $pipeline = Mockery::mock(PhpRedis::class);
+        $pipeline->shouldNotReceive('exec');
+        $pipeline->shouldReceive('discard')->once()->andReturnFalse();
+
+        $mockRedisConnection = $this->createMockRedisConnection('pipeline', $pipeline);
+        $mockRedisConnection->shouldReceive('reconnect')->once()->andThrow(new RuntimeException('Reconnect failed'));
+        $mockRedisConnection->shouldReceive('close')->once()->andReturnTrue();
+        $mockRedisConnection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($mockRedisConnection);
+
+        try {
+            $redis->pipeline(function () {
+                throw new RuntimeException('Original callback failure');
+            });
+            $this->fail('Expected exception was not thrown');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Original callback failure', $exception->getMessage());
         }
 
         $this->assertFalse(Context::has('redis.connection.default'));
@@ -312,6 +411,32 @@ class RedisTest extends TestCase
         });
 
         $this->assertSame([], $result);
+        $this->assertSame($mockRedisConnection, Context::get('redis.connection.default'));
+        $this->assertFalse(Context::has('redis.connection.default.eager_release'));
+    }
+
+    public function testCallbackExceptionDiscardsAndPreservesExistingContextConnection(): void
+    {
+        $pipeline = Mockery::mock(PhpRedis::class);
+        $pipeline->shouldNotReceive('exec');
+        $pipeline->shouldReceive('discard')->once()->andReturnTrue();
+
+        $mockRedisConnection = $this->createMockRedisConnection('pipeline', $pipeline);
+        $mockRedisConnection->shouldReceive('release')->never();
+        $mockRedisConnection->shouldReceive('reconnect')->never();
+        Context::set('redis.connection.default', $mockRedisConnection);
+
+        $redis = $this->createRedis($mockRedisConnection);
+
+        try {
+            $redis->pipeline(function () {
+                throw new RuntimeException('Existing callback failed');
+            });
+            $this->fail('Expected exception was not thrown');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Existing callback failed', $exception->getMessage());
+        }
+
         $this->assertSame($mockRedisConnection, Context::get('redis.connection.default'));
         $this->assertFalse(Context::has('redis.connection.default.eager_release'));
     }

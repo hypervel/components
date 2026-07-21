@@ -9,6 +9,7 @@ use Hyperf\Redis\Exception\InvalidRedisConnectionException;
 use Hyperf\Redis\Pool\PoolFactory;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
+use RedisCluster;
 use Throwable;
 
 /**
@@ -112,9 +113,16 @@ class Redis
         }
 
         try {
+            /** @var \Redis|RedisCluster $instance */
             $instance = $this->__call($command, []);
 
-            $callback($instance);
+            try {
+                $callback($instance);
+            } catch (Throwable $callbackException) {
+                $this->abortMultiExec($instance);
+
+                throw $callbackException;
+            }
 
             return $instance->exec();
         } finally {
@@ -125,6 +133,40 @@ class Redis
                     $this->exitEagerReleaseMode();
                 }
             }
+        }
+    }
+
+    /**
+     * Abort an open pipeline or transaction without masking the callback error.
+     */
+    private function abortMultiExec(\Redis|RedisCluster $instance): void
+    {
+        try {
+            if ($instance->discard() !== false) {
+                return;
+            }
+        } catch (Throwable) {
+            // Reconnect the wrapper below when native cleanup fails.
+        }
+
+        $connection = Context::get($this->getContextKey());
+
+        if (! $connection instanceof RedisConnection) {
+            return;
+        }
+
+        try {
+            if ($connection->reconnect()) {
+                return;
+            }
+        } catch (Throwable) {
+            // Closing still prevents a dirty native connection from being reused.
+        }
+
+        try {
+            $connection->close();
+        } catch (Throwable) {
+            // Preserve the original callback exception.
         }
     }
 

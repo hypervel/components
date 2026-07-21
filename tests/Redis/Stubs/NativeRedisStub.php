@@ -49,6 +49,13 @@ class NativeRedisStub extends Redis
         return $this->execResult;
     }
 
+    public function discard(): Redis|bool
+    {
+        $this->calls[] = ['discard'];
+
+        return true;
+    }
+
     public function get(string $key): mixed
     {
         $this->calls[] = ['get', $key];
