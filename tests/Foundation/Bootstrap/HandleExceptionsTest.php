@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use ErrorException;
 use Hypervel\Config\Repository as Config;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\HandleExceptions;
 use Hypervel\Log\LogManager;
@@ -14,7 +15,9 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Monolog\Handler\NullHandler;
 use ReflectionClass;
+use ReflectionMethod;
 use RuntimeException;
+use Symfony\Component\Console\Output\StreamOutput;
 
 class HandleExceptionsTest extends TestCase
 {
@@ -339,6 +342,27 @@ class HandleExceptionsTest extends TestCase
             '/home/user/laravel/src/Providers/AppServiceProvider.php',
             17
         );
+    }
+
+    public function testConsoleThrowableRendersToStandardError(): void
+    {
+        $exception = new RuntimeException('Test exception');
+
+        $handler = m::mock(ExceptionHandlerContract::class);
+        $handler->shouldReceive('renderForConsole')->once()->with(
+            m::on(function (mixed $output): bool {
+                if (! $output instanceof StreamOutput) {
+                    return false;
+                }
+
+                return stream_get_meta_data($output->getStream())['uri'] === 'php://stderr';
+            }),
+            $exception,
+        );
+        $this->app->instance(ExceptionHandlerContract::class, $handler);
+
+        $method = new ReflectionMethod($handleExceptions = $this->handleExceptions(), 'renderForConsole');
+        $method->invoke($handleExceptions, $exception);
     }
 
     public function testIgnoreDeprecationIfLoggerUnresolvable()

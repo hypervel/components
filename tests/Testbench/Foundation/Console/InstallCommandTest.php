@@ -215,8 +215,8 @@ class InstallCommandTest extends TestCase
         $process = $this->runInstallCommand(['--no-interaction'], mustRun: false);
 
         $this->assertSame(1, $process->getExitCode());
-        $this->assertStringContainsString('Unable to add Workbench autoload mapping [Workbench\App\ => workbench/app/]', $process->getOutput());
-        $this->assertStringContainsString('because [Workbench\App\] is already mapped to a different path.', $process->getOutput());
+        $this->assertStringContainsString('Unable to add Workbench autoload mapping [Workbench\App\ => workbench/app/]', $process->getErrorOutput());
+        $this->assertStringContainsString('because [Workbench\App\] is already mapped to a different path.', $process->getErrorOutput());
     }
 
     #[Test]

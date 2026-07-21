@@ -368,6 +368,7 @@ class FoundationServiceProvider extends ServiceProvider
             'hypervel-exceptions-renderer'
         );
 
+        // Laravel's optional Whoops renderer is omitted in favor of this framework-aware renderer.
         $this->app->singleton(Renderer::class, function () {
             $errorRenderer = new HtmlErrorRenderer(
                 $this->config->boolean('app.debug', false),
