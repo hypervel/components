@@ -39,6 +39,8 @@ class Redis
         } catch (Throwable $e) {
             $exception = $e;
         } finally {
+            $connection->shouldTransform(false);
+
             $time = round((microtime(true) - $start) * 1000, 2);
             $connection->getEventDispatcher()?->dispatch(
                 new CommandExecuted(
@@ -60,9 +62,11 @@ class Redis
                     $connection->setDatabase((int) $db);
                 }
                 Context::set($this->getContextKey(), $connection);
-                defer(function () {
-                    $this->releaseContextConnection();
-                });
+                if (! $this->isInEagerReleaseMode()) {
+                    defer(function () {
+                        $this->releaseContextConnection();
+                    });
+                }
             } else {
                 // Release the connection
                 $connection->release();
@@ -77,6 +81,54 @@ class Redis
     }
 
     /**
+     * Execute commands in a pipeline.
+     */
+    public function pipeline(?callable $callback = null): mixed
+    {
+        return $this->executeMultiExec('pipeline', $callback);
+    }
+
+    /**
+     * Execute commands in a transaction.
+     */
+    public function transaction(?callable $callback = null): mixed
+    {
+        return $this->executeMultiExec('multi', $callback);
+    }
+
+    /**
+     * Execute multi-exec commands with an optional callback.
+     */
+    private function executeMultiExec(string $command, ?callable $callback = null): mixed
+    {
+        if ($callback === null) {
+            return $this->__call($command, []);
+        }
+
+        $hasExistingConnection = Context::has($this->getContextKey());
+
+        if (! $hasExistingConnection) {
+            $this->enterEagerReleaseMode();
+        }
+
+        try {
+            $instance = $this->__call($command, []);
+
+            $callback($instance);
+
+            return $instance->exec();
+        } finally {
+            if (! $hasExistingConnection) {
+                try {
+                    $this->releaseContextConnection();
+                } finally {
+                    $this->exitEagerReleaseMode();
+                }
+            }
+        }
+    }
+
+    /**
      * Release the connection stored in coroutine context.
      */
     protected function releaseContextConnection(): void
@@ -85,7 +137,7 @@ class Redis
         $connection = Context::get($contextKey);
 
         if ($connection) {
-            Context::set($contextKey, null);
+            Context::destroy($contextKey);
             $connection->release();
         }
     }
@@ -128,6 +180,38 @@ class Redis
     protected function getContextKey(): string
     {
         return sprintf('redis.connection.%s', $this->poolName);
+    }
+
+    /**
+     * Determine whether the current callback operation should release eagerly.
+     */
+    private function isInEagerReleaseMode(): bool
+    {
+        return (bool) Context::get($this->getEagerReleaseContextKey());
+    }
+
+    /**
+     * Mark the current callback operation for eager release.
+     */
+    private function enterEagerReleaseMode(): void
+    {
+        Context::set($this->getEagerReleaseContextKey(), true);
+    }
+
+    /**
+     * Clear the eager-release marker.
+     */
+    private function exitEagerReleaseMode(): void
+    {
+        Context::destroy($this->getEagerReleaseContextKey());
+    }
+
+    /**
+     * Get the context key used to mark eager-release operations.
+     */
+    private function getEagerReleaseContextKey(): string
+    {
+        return sprintf('redis.connection.%s.eager_release', $this->poolName);
     }
 
     /**
