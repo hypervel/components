@@ -1081,7 +1081,7 @@ comm -3 /tmp/hypervel-src-packages /tmp/hypervel-plan-packages
 uniq -d /tmp/hypervel-plan-packages
 ```
 
-The current expected result is `71` lines in each file, with no output from `comm` or `uniq`. Update the expected count when the package set changes.
+The current expected result is `72` lines in each file, with no output from `comm` or `uniq`. Update the expected count when the package set changes.
 
 The order is lower-level first where practical. Hypervel has cross-cutting dependencies and facades, so this is not claimed to be a perfect dependency DAG. The cross-package revalidation rule handles remaining inversions.
 
@@ -1142,6 +1142,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [ ] `reverb`
 - [ ] `http`
 - [ ] `api-client`
+- [ ] `grpc`
 - [ ] `broadcasting`
 - [ ] `mail`
 - [ ] `notifications`
