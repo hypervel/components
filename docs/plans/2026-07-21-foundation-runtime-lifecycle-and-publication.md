@@ -44,7 +44,6 @@ Backward compatibility, churn, and blast radius are not constraints for Hypervel
 
 | Workstream | Category | Severity | Confidence | Owning failure |
 |---|---|---|---|---|
-| 1a. Reporter failure containment | Defect | Major | High | Reporter `Error` escapes and can prevent terminal rendering |
 | 1b. Deprecation bootstrap guards | Defect | Minor | High | Missing config/null guards dereference unavailable bootstrap state |
 | 2. Foundation/Testbench teardown | Defect | Major | High | One failure skips independent resource and static cleanup |
 | 3. External-service test ownership | Defect | Major | High | Empty Algolia prefix can target every index; duplicate lifecycle owners and an unrestored SDK client leak test state |
@@ -119,7 +118,7 @@ The installed PHPUnit 13 `TestCase::runBare()` is `final`. Its exact current con
 
 Implement in this order so lower owners are correct before consumers are changed:
 
-1. exception/deprecation boundaries;
+1. deprecation bootstrap guards and exception-backstop preservation;
 2. Foundation and Testbench lifecycle cleanup;
 3. test-only external-service and clock ownership;
 4. dumper and Console invocation state;
@@ -136,7 +135,7 @@ Implement in this order so lower owners are correct before consumers are changed
 
 Every modified method is audited under `AGENTS.md` while it is open. Add evidence-backed native types where the current method or test is untyped and PHP or the inherited API permits it; this includes `ConfigClearCommand::handle(): void`, `StubPublishCommand::handle(): void`, and every touched test method in `RouteListCommandHelperTest`. Preserve upstream relative method order and meaningful comments. Remove stale comments and imports made obsolete by the correction, and add a short WHY comment only where the ownership or ordering cannot be understood from the code itself. Do not widen unrelated APIs or reformat untouched files as a side effect.
 
-## 1. Correct exception and deprecation failure boundaries
+## 1. Preserve the exception backstop and correct deprecation boundaries
 
 ### Files
 
@@ -145,17 +144,35 @@ Every modified method is audited under `AGENTS.md` while it is open. Add evidenc
 - `tests/Foundation/Bootstrap/HandleExceptionsTest.php`
 - `tests/Testbench/Exceptions/DeprecatedExceptionTest.php`
 
-### Reporter failure containment
+### Merged exception-backstop baseline
 
-Catch `Throwable` only around reporter failure so an `Error` from the reporter cannot prevent terminal rendering:
+Retain the current process-level exception boundary unchanged while adding the deprecation guards:
 
 ```php
 try {
     $this->getExceptionHandler()->report($e);
 } catch (Throwable) {
     $exceptionHandlerFailed = true;
+
+    try {
+        error_log((string) $e);
+    } catch (Throwable) {
+    }
+}
+
+// Swoole callbacks own response emission; this global backstop has no native response.
+if (! static::$app->runningInConsole()) {
+    return;
+}
+
+$this->renderForConsole($e);
+
+if ($exceptionHandlerFailed ?? false) {
+    exit(1);
 }
 ```
+
+This merged baseline already contains reporter `Throwable` failures, preserves the original exception through a failure-safe `error_log()` fallback, keeps non-console handling report-only, renders console failures through stderr, and preserves the existing console exit behavior after reporter failure. The deleted `renderHttpResponse()` path must not be restored: a process-global exception backstop does not own the request coroutine's native Swoole response, and resolving the shared application's request there could cross coroutine ownership.
 
 ### Deprecation bootstrap guards
 
@@ -182,7 +199,9 @@ Apply the same null-app protection to Testbench's `shouldIgnoreDeprecationErrors
 
 ### Tests
 
-- a reporter throwing an `Error` still reaches the appropriate terminal renderer;
+- retain the existing non-console report-only regression;
+- retain the existing reporter-`Error` fallback regression, including that the original exception—not the reporter failure—is logged;
+- retain the existing console-stderr regression;
 - null application state ignores deprecations without dereferencing `null` in both Foundation and Testbench implementations;
 - an application without a bound config repository returns before logger configuration;
 - existing handler restoration and subclass deprecation behavior remain intact.
@@ -498,7 +517,12 @@ Use the existing throwing package-manager seam to cover failure after mutation. 
 ### Files
 
 - `src/foundation/src/Console/Kernel.php`
+- `tests/Foundation/Console/KernelTest.php`
 - `tests/Foundation/Console/KernelTerminateTest.php`
+
+### Merged console-output baseline
+
+Preserve the current `handle()` fallback that constructs `ConsoleOutput` when no output is supplied and the `renderException()` branch that passes `ConsoleOutputInterface::getErrorOutput()` to the exception handler. The termination rewrite must not route exception output back to stdout or disturb the existing `KernelTest` regressions.
 
 ### Changes
 
@@ -532,6 +556,8 @@ if ($exception !== null) {
 The nullable property assignment cannot throw, so it is an unconditional terminal statement rather than an invented cleanup-failure branch.
 
 Use the typed `app.timezone` getter without a dead call-site default. This is a cold CLI termination path; no production HTTP hot-path work is added.
+
+Run both `KernelTest` and `KernelTerminateTest` after the file changes; stderr routing and exhaustive termination are independent contracts on the same class.
 
 ## 8. Correct maintenance driver and middleware contracts
 
@@ -827,6 +853,10 @@ Add concise `Boot-only.` warnings to public mutators for:
 - `setFallbackLocale()`.
 
 The second sentence must name worker-wide impact. Do not warn `setLocale()`: its request-safe path is intentionally coroutine-aware. Preserve tested application-alias precedence over package aliases.
+
+### Exception-renderer baseline
+
+Retain the source rationale that Laravel's optional Whoops renderer is omitted in favor of Hypervel's framework-aware renderer. Do not restore the deleted Whoops/Collision classes, dependencies, or tests while changing the provider; applications continue to customize rendering by binding `ExceptionRenderer`.
 
 ### Tests and cost
 
@@ -1728,6 +1758,8 @@ Ported from: https://github.com/laravel/framework
 
 to the README in the established package style.
 
+Retain the existing `Differences From Laravel` entry explaining the intentional Whoops omission and the custom `ExceptionRenderer` extension point. Do not reintroduce Whoops, Collision, their removed metadata, or replacement compatibility machinery.
+
 ## Documentation plan
 
 Update user-facing documentation only where a public API, supported call shape, or important runtime limitation changes:
@@ -1840,7 +1872,7 @@ After implementation and `composer fix`, review the diff without trusting this p
 13. confirm query payload memory is bounded and no Octane/reset machinery was copied;
 14. confirm no generic lifecycle/publication/deletion/PID/SDK/SQL abstraction was introduced;
 15. confirm no stale properties, helpers, tests, comments, imports, or docs describe replaced behavior;
-16. update the Foundation ledger entry and audit routing/checklist only after implementation, validation, self-review, and code-review sign-off.
+16. verify the master audit still contains the complete 72-package set, including unchecked `grpc`, then update the Foundation ledger entry and audit routing/checklist only after implementation, validation, self-review, and code-review sign-off.
 
 ## Performance and overengineering assessment
 
@@ -1873,4 +1905,5 @@ This plan is implemented only when:
 - a fresh full diff review finds no lifecycle, parity, native-boundary, performance, or overengineering issue;
 - independent code review signs off;
 - the companion audit ledger records the final implemented result, validation, public API/config outcome, and pending cross-package revalidation;
+- the master audit checklist still matches all 72 first-level `src/` packages, including the unchecked `grpc` work unit;
 - the owner reviews the signed-off summary and explicitly approves commits.
