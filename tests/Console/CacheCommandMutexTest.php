@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console;
 
+use Hypervel\Cache\ArrayStore;
 use Hypervel\Console\CacheCommandMutex;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory;
@@ -106,11 +107,34 @@ class CacheCommandMutexTest extends TestCase
         $this->assertFalse($actual);
     }
 
+    public function testExistsProbesLockWithoutTakingOwnership(): void
+    {
+        $store = new ArrayStore;
+        $this->cacheFactory->shouldReceive('store')->andReturn($this->cacheRepository);
+        $this->cacheRepository->shouldReceive('getStore')->andReturn($store);
+
+        $this->assertFalse($this->mutex->exists($this->command));
+        $this->assertTrue($this->mutex->create($this->command));
+        $this->assertTrue($this->mutex->exists($this->command));
+        $this->assertFalse($this->mutex->create($this->command));
+    }
+
+    public function testCanForgetMutexWithLockProvider(): void
+    {
+        $store = new ArrayStore;
+        $this->cacheFactory->shouldReceive('store')->andReturn($this->cacheRepository);
+        $this->cacheRepository->shouldReceive('getStore')->andReturn($store);
+
+        $this->assertTrue($this->mutex->create($this->command));
+        $this->assertTrue($this->mutex->forget($this->command));
+        $this->assertFalse($this->mutex->exists($this->command));
+    }
+
     public function testCanCreateMutexWithCustomConnectionWithLockProvider()
     {
         $lock = m::mock(Store::class, LockProvider::class);
         $this->cacheFactory->expects('store')->once()->with('test')->andReturn($this->cacheRepository);
-        $this->cacheRepository->expects('getStore')->twice()->andReturn($lock);
+        $this->cacheRepository->expects('getStore')->once()->andReturn($lock);
 
         $this->acquireLockExpectations($lock, true);
         $this->mutex->useStore('test');
@@ -128,7 +152,7 @@ class CacheCommandMutexTest extends TestCase
     {
         $lock = m::mock(Store::class, LockProvider::class);
         $this->cacheFactory->expects('store')->once()->andReturn($this->cacheRepository);
-        $this->cacheRepository->expects('getStore')->twice()->andReturn($lock);
+        $this->cacheRepository->expects('getStore')->once()->andReturn($lock);
 
         return $lock;
     }

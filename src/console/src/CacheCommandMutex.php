@@ -7,6 +7,7 @@ namespace Hypervel\Console;
 use Carbon\CarbonInterval;
 use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Support\InteractsWithTime;
 
 class CacheCommandMutex implements CommandMutex
@@ -28,21 +29,21 @@ class CacheCommandMutex implements CommandMutex
      */
     public function create(Command $command): bool
     {
-        $store = $this->cache->store($this->store);
+        $repository = $this->cache->store($this->store);
+        $store = $repository->getStore();
 
         $expiresAt = method_exists($command, 'isolationLockExpiresAt')
             ? $command->isolationLockExpiresAt()
             : CarbonInterval::hour();
 
-        if ($this->shouldUseLocks($store->getStore())) {
-            /* @phpstan-ignore-next-line */
-            return $store->getStore()->lock(
+        if ($this->shouldUseLocks($store)) {
+            return $store->lock(
                 $this->commandMutexName($command),
                 $this->secondsUntil($expiresAt)
             )->get();
         }
 
-        return $store->add($this->commandMutexName($command), true, $expiresAt);
+        return $repository->add($this->commandMutexName($command), true, $expiresAt);
     }
 
     /**
@@ -50,20 +51,16 @@ class CacheCommandMutex implements CommandMutex
      */
     public function exists(Command $command): bool
     {
-        $store = $this->cache->store($this->store);
+        $repository = $this->cache->store($this->store);
+        $store = $repository->getStore();
 
-        if ($this->shouldUseLocks($store->getStore())) {
-            /* @phpstan-ignore-next-line */
-            $lock = $store->getStore()->lock($this->commandMutexName($command));
-
-            return tap(! $lock->get(), function ($exists) use ($lock) {
-                if ($exists) {
-                    $lock->release();
-                }
-            });
+        if ($this->shouldUseLocks($store)) {
+            return ! $store
+                ->lock($this->commandMutexName($command))
+                ->get(fn () => true);
         }
 
-        return $this->cache->store($this->store)->has($this->commandMutexName($command));
+        return $repository->has($this->commandMutexName($command));
     }
 
     /**
@@ -71,14 +68,16 @@ class CacheCommandMutex implements CommandMutex
      */
     public function forget(Command $command): bool
     {
-        $store = $this->cache->store($this->store);
+        $repository = $this->cache->store($this->store);
+        $store = $repository->getStore();
 
-        if ($this->shouldUseLocks($store->getStore())) {
-            /* @phpstan-ignore-next-line */
-            return $store->getStore()->lock($this->commandMutexName($command))->forceRelease();
+        if ($this->shouldUseLocks($store)) {
+            $store->lock($this->commandMutexName($command))->forceRelease();
+
+            return true;
         }
 
-        return $this->cache->store($this->store)->forget($this->commandMutexName($command));
+        return $repository->forget($this->commandMutexName($command));
     }
 
     /**
@@ -95,8 +94,10 @@ class CacheCommandMutex implements CommandMutex
 
     /**
      * Determine if the given store should use locks for command mutexes.
+     *
+     * @phpstan-assert-if-true LockProvider $store
      */
-    protected function shouldUseLocks(mixed $store): bool
+    protected function shouldUseLocks(Store $store): bool
     {
         return $store instanceof LockProvider;
     }
