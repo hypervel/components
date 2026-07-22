@@ -41,30 +41,12 @@ class CacheTableCommand extends MigrationGeneratorCommand
                 continue;
             }
 
-            $this->replaceMigrationPlaceholders(
-                $this->createBaseMigration($table),
-                $table,
-                $stub,
-            );
+            $this->createBaseMigration($table, $stub);
         }
 
         $this->components->info('Migrations created successfully.');
 
         return 0;
-    }
-
-    /**
-     * Replace the placeholders in the generated migration file.
-     */
-    protected function replaceMigrationPlaceholders(string $path, string $table, ?string $stubPath = null): void
-    {
-        $stub = str_replace(
-            '{{table}}',
-            $table,
-            $this->files->get($stubPath ?? $this->migrationStubFile())
-        );
-
-        $this->files->put($path, $stub);
     }
 
     /**

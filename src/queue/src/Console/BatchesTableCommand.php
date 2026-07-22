@@ -58,7 +58,7 @@ class BatchesTableCommand extends MigrationGeneratorCommand
             join_paths($this->hypervel->databasePath('migrations'), '*_*_*_*_create_' . $table . '_table.php'),
             join_paths($this->hypervel->databasePath('migrations'), '0001_01_01_000002_create_jobs_table.php'),
         ] as $path) {
-            if (count($this->files->glob($path)) !== 0) {
+            if ($this->matchingMigrationFiles($path) !== []) {
                 return true;
             }
         }
