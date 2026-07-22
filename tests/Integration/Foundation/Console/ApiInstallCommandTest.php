@@ -4,12 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\ApiInstallCommand;
+use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Facades\Process;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use Mockery as m;
+use ReflectionClass;
 use RuntimeException;
+use Symfony\Component\Console\Application as ConsoleApplication;
+use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Process\Exception\ProcessFailedException as SymfonyProcessFailedException;
 
 class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
 {
@@ -76,7 +84,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         CleanupActions::run(...$actions);
     }
 
-    public function testCreatesApiRoutesFile()
+    public function testCreatesApiRoutesFile(): void
     {
         Process::fake();
 
@@ -95,7 +103,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString("->middleware('auth:sanctum')", $contents);
     }
 
-    public function testRefusesOverwriteWithoutForce()
+    public function testRefusesOverwriteWithoutForce(): void
     {
         Process::fake();
 
@@ -112,7 +120,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame('<?php // existing', file_get_contents($apiRoutesPath));
     }
 
-    public function testOverwritesWithForce()
+    public function testOverwritesWithForce(): void
     {
         Process::fake();
 
@@ -129,7 +137,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString('Hypervel\Http\Request', $contents);
     }
 
-    public function testInsertsApiLineInBootstrapFile()
+    public function testInsertsApiLineInBootstrapFile(): void
     {
         Process::fake();
 
@@ -148,7 +156,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         );
     }
 
-    public function testUncommentsApiLineWhenCommentedOut()
+    public function testUncommentsApiLineWhenCommentedOut(): void
     {
         Process::fake();
 
@@ -169,7 +177,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringNotContainsString('// api:', $bootstrapContent);
     }
 
-    public function testCallsSanctumComposerRequire()
+    public function testCallsSanctumComposerRequire(): void
     {
         Process::fake();
 
@@ -182,7 +190,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame(['hypervel/sanctum:^0.4'], TestableApiInstallCommand::$composerRequireCalls[0]['packages']);
     }
 
-    public function testPublishesSanctumMigrationWhenMissing()
+    public function testPublishesSanctumMigrationWhenMissing(): void
     {
         Process::fake();
 
@@ -199,7 +207,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         });
     }
 
-    public function testSkipsSanctumMigrationWhenExists()
+    public function testSkipsSanctumMigrationWhenExists(): void
     {
         Process::fake();
 
@@ -220,7 +228,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         });
     }
 
-    public function testPromptsMigrationByDefault()
+    public function testPromptsMigrationByDefault(): void
     {
         Process::fake();
 
@@ -231,7 +239,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
             ->assertSuccessful();
     }
 
-    public function testSkipsMigrationPromptWithFlag()
+    public function testSkipsMigrationPromptWithFlag(): void
     {
         Process::fake();
 
@@ -242,7 +250,7 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
             ->assertSuccessful();
     }
 
-    public function testOutputsHasApiTokensReminder()
+    public function testOutputsHasApiTokensReminder(): void
     {
         Process::fake();
 
@@ -251,6 +259,191 @@ class ApiInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->artisan('install:api', ['--without-migration-prompt' => true])
             ->expectsOutputToContain('Hypervel\Sanctum\HasApiTokens')
             ->assertSuccessful();
+    }
+
+    public function testComposerFailureStopsInstallationBeforePublishingRoutes(): void
+    {
+        $directory = ParallelTesting::tempDir('ApiInstallCommandComposerFailure');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($directory);
+        $composer = $directory . '/composer.php';
+        $files->put($composer, '<?php exit(17);');
+        $apiRoutesPath = $this->app->basePath('routes/api.php');
+        $this->createdFiles[] = $apiRoutesPath;
+        $tester = $this->commandTester(new ApiInstallCommand);
+
+        try {
+            $tester->execute([
+                '--composer' => $composer,
+                '--without-migration-prompt' => true,
+            ]);
+            $this->fail('Expected Composer installation to fail.');
+        } catch (SymfonyProcessFailedException) {
+        } finally {
+            $files->deleteDirectory($directory);
+        }
+
+        $this->assertFileDoesNotExist($apiRoutesPath);
+        $this->assertStringNotContainsString('Published API routes file.', $tester->getDisplay());
+        $this->assertStringNotContainsString('API scaffolding installed.', $tester->getDisplay());
+    }
+
+    public function testFailedSanctumPublishingStopsInstallationBeforePublishingRoutes(): void
+    {
+        Process::fake(static fn () => Process::result(exitCode: 1));
+
+        $apiRoutesPath = $this->app->basePath('routes/api.php');
+        $this->createdFiles[] = $apiRoutesPath;
+        $tester = $this->commandTester(new TestableApiInstallCommand);
+
+        try {
+            $tester->execute(['--without-migration-prompt' => true]);
+            $this->fail('Expected Sanctum migration publishing to fail.');
+        } catch (ProcessFailedException) {
+        }
+
+        $this->assertFileDoesNotExist($apiRoutesPath);
+        $this->assertStringNotContainsString('Published API routes file.', $tester->getDisplay());
+        $this->assertStringNotContainsString('API scaffolding installed.', $tester->getDisplay());
+    }
+
+    public function testUnreadableMigrationDirectoryStopsInstallation(): void
+    {
+        Process::fake();
+
+        $directory = ParallelTesting::tempDir('ApiInstallCommandMigrationDirectory');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($directory);
+        $migrationPath = $directory . '/migrations';
+        $files->put($migrationPath, 'not a directory');
+        $this->app->useDatabasePath($directory);
+        $apiRoutesPath = $this->app->basePath('routes/api.php');
+        $this->createdFiles[] = $apiRoutesPath;
+
+        try {
+            $this->artisan('install:api', ['--without-migration-prompt' => true]);
+            $this->fail('Expected migration directory enumeration to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame("Unable to read migration directory [{$migrationPath}].", $exception->getMessage());
+        } finally {
+            $files->deleteDirectory($directory);
+        }
+
+        $this->assertFileDoesNotExist($apiRoutesPath);
+    }
+
+    public function testApiRouteSourceReadFailurePreservesExistingRouteAndReportsNoSuccess(): void
+    {
+        Process::fake();
+
+        $apiRoutesPath = $this->app->basePath('routes/api.php');
+        $this->createdFiles[] = $apiRoutesPath;
+        file_put_contents($apiRoutesPath, 'existing route');
+        $source = dirname((new ReflectionClass(ApiInstallCommand::class))->getFileName()) . '/stubs/api-routes.stub';
+        $files = m::mock(Filesystem::class)->makePartial();
+        $readException = new FileNotFoundException("File does not exist at path [{$source}].");
+        $files->shouldReceive('get')->once()->with($source)->andThrow($readException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester(new TestableApiInstallCommand);
+
+        try {
+            $tester->execute(['--force' => true, '--without-migration-prompt' => true]);
+            $this->fail('Expected API route stub reading to fail.');
+        } catch (FileNotFoundException $exception) {
+            $this->assertSame($readException, $exception);
+        }
+
+        $this->assertSame('existing route', file_get_contents($apiRoutesPath));
+        $this->assertStringNotContainsString('Published API routes file.', $tester->getDisplay());
+        $this->assertStringNotContainsString('API scaffolding installed.', $tester->getDisplay());
+    }
+
+    public function testApiRouteReplacementFailurePreservesExistingRouteAndReportsNoSuccess(): void
+    {
+        Process::fake();
+
+        $apiRoutesPath = $this->app->basePath('routes/api.php');
+        $this->createdFiles[] = $apiRoutesPath;
+        file_put_contents($apiRoutesPath, 'existing route');
+        chmod($apiRoutesPath, 0640);
+        $files = m::mock(Filesystem::class)->makePartial();
+        $publicationException = new RuntimeException('Unable to publish API route file.');
+        $files->shouldReceive('replace')
+            ->once()
+            ->with($apiRoutesPath, m::type('string'), 0640)
+            ->andThrow($publicationException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester(new TestableApiInstallCommand);
+
+        try {
+            $tester->execute(['--force' => true, '--without-migration-prompt' => true]);
+            $this->fail('Expected API route publication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($publicationException, $exception);
+        }
+
+        $this->assertSame('existing route', file_get_contents($apiRoutesPath));
+        $this->assertSame(0640, fileperms($apiRoutesPath) & 0777);
+        $this->assertStringNotContainsString('Published API routes file.', $tester->getDisplay());
+        $this->assertStringNotContainsString('API scaffolding installed.', $tester->getDisplay());
+    }
+
+    public function testBootstrapReadFailureReportsNoRouteOrInstallationSuccess(): void
+    {
+        Process::fake();
+
+        $apiRoutesPath = $this->app->basePath('routes/api.php');
+        $bootstrapPath = $this->app->bootstrapPath('app.php');
+        $this->createdFiles[] = $apiRoutesPath;
+        $files = m::mock(Filesystem::class)->makePartial();
+        $readException = new FileNotFoundException("File does not exist at path [{$bootstrapPath}].");
+        $files->shouldReceive('get')->with($bootstrapPath)->once()->andThrow($readException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester(new TestableApiInstallCommand);
+
+        try {
+            $tester->execute(['--without-migration-prompt' => true]);
+            $this->fail('Expected bootstrap file reading to fail.');
+        } catch (FileNotFoundException $exception) {
+            $this->assertSame($readException, $exception);
+        }
+
+        $this->assertFileExists($apiRoutesPath);
+        $this->assertStringNotContainsString('Published API routes file.', $tester->getDisplay());
+        $this->assertStringNotContainsString('API scaffolding installed.', $tester->getDisplay());
+    }
+
+    public function testBootstrapReplacementFailurePreservesTheExistingApplicationBootstrap(): void
+    {
+        Process::fake();
+
+        $apiRoutesPath = $this->app->basePath('routes/api.php');
+        $bootstrapPath = $this->app->bootstrapPath('app.php');
+        $bootstrapContent = file_get_contents($bootstrapPath);
+        $bootstrapPermissions = fileperms($bootstrapPath) & 0777;
+        $this->createdFiles[] = $apiRoutesPath;
+        $files = m::mock(Filesystem::class)->makePartial();
+        $publicationException = new RuntimeException('Unable to update the application bootstrap file.');
+        $files->shouldReceive('replace')->byDefault()->passthru();
+        $files->shouldReceive('replace')
+            ->once()
+            ->with($bootstrapPath, m::type('string'), $bootstrapPermissions)
+            ->andThrow($publicationException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester(new TestableApiInstallCommand);
+
+        try {
+            $tester->execute(['--without-migration-prompt' => true]);
+            $this->fail('Expected application bootstrap publication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($publicationException, $exception);
+        }
+
+        $this->assertSame($bootstrapContent, file_get_contents($bootstrapPath));
+        $this->assertSame($bootstrapPermissions, fileperms($bootstrapPath) & 0777);
+        $this->assertFileExists($apiRoutesPath);
+        $this->assertStringNotContainsString('Published API routes file.', $tester->getDisplay());
+        $this->assertStringNotContainsString('API scaffolding installed.', $tester->getDisplay());
     }
 
     /**
@@ -311,6 +504,18 @@ return Application::configure(basePath: dirname(__DIR__))
     })->create();
 PHP;
     }
+
+    /**
+     * Create a tester for an API installer command.
+     */
+    private function commandTester(ApiInstallCommand $command): CommandTester
+    {
+        $command->setHypervel($this->app);
+        $application = new ConsoleApplication;
+        $application->addCommand($command);
+
+        return new CommandTester($command);
+    }
 }
 
 /**
@@ -323,10 +528,8 @@ class TestableApiInstallCommand extends ApiInstallCommand
     /** @var list<array{composer: string, packages: array<int, string>}> */
     public static array $composerRequireCalls = [];
 
-    protected function requireComposerPackages(string $composer, array $packages): bool
+    protected function requireComposerPackages(string $composer, array $packages): void
     {
         static::$composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages];
-
-        return true;
     }
 }
