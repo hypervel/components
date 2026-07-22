@@ -69,9 +69,7 @@ class ComponentMakeCommand extends GeneratorCommand
             str_replace('.', $separator, $this->getView()) . '.blade.php'
         );
 
-        if (! $this->files->isDirectory(dirname($path))) {
-            $this->files->makeDirectory(dirname($path), 0777, true, true);
-        }
+        $this->files->ensureDirectoryExists(dirname($path), 0777);
 
         if ($this->files->exists($path) && ! $this->option('force')) {
             $this->components->error('View already exists.');
@@ -79,7 +77,7 @@ class ComponentMakeCommand extends GeneratorCommand
             return;
         }
 
-        file_put_contents(
+        $this->replaceFile(
             $path,
             '<div>
     <!-- ' . Inspiring::quotes()->random() . ' -->

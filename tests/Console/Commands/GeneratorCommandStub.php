@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Commands;
 
+use Hypervel\Console\Concerns\CreatesMatchingTest;
 use Hypervel\Console\GeneratorCommand;
 use Symfony\Component\Console\Input\InputInterface;
 
 class GeneratorCommandStub extends GeneratorCommand
 {
+    use CreatesMatchingTest;
+
+    public bool $matchingTestCreationHandled = false;
+
     protected ?string $name = 'make:test-stub';
 
     protected string $description = 'Test stub command';
@@ -69,6 +74,14 @@ class GeneratorCommandStub extends GeneratorCommand
         return $this->userProviderModel();
     }
 
+    /**
+     * Expose replaceFile() for testing.
+     */
+    public function exposedReplaceFile(string $path, string $contents): void
+    {
+        $this->replaceFile($path, $contents);
+    }
+
     protected function rootNamespace(): string
     {
         return 'App\\';
@@ -82,5 +95,15 @@ class GeneratorCommandStub extends GeneratorCommand
     protected function getDefaultNamespace(string $rootNamespace): string
     {
         return 'App';
+    }
+
+    /**
+     * Record matching test creation.
+     */
+    protected function handleTestCreation(string $path): bool
+    {
+        $this->matchingTestCreationHandled = true;
+
+        return true;
     }
 }
