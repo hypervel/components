@@ -63,6 +63,8 @@ use Hypervel\Http\Contracts\RequestContract;
  * @method static \Hypervel\Support\Uri uri()
  * @method static array headers()
  * @method static string|null bearerToken()
+ * @method static string|null getPreferredLanguage(string[]|null $locales = null)
+ * @method static string[] getLanguages()
  * @method static string[] getAcceptableContentTypes()
  * @method static string|null getMimeType(string $format)
  * @method static string[] getMimeTypes(string $format)
