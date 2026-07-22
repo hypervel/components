@@ -333,6 +333,20 @@ interface RequestContract extends RequestInterface
     public function bearerToken(): ?string;
 
     /**
+     * Returns the preferred language.
+     *
+     * @param string[] $locales An array of ordered available locales
+     */
+    public function getPreferredLanguage(?array $locales = null): ?string;
+
+    /**
+     * Gets a list of languages acceptable by the client browser ordered in the user browser preferences.
+     *
+     * @return string[]
+     */
+    public function getLanguages(): array;
+
+    /**
      * Gets a list of content types acceptable by the client browser in preferable order.
      *
      * @return string[]

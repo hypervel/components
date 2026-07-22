@@ -31,6 +31,11 @@ use function Hyperf\Collection\data_get;
 class Request extends HyperfRequest implements RequestContract
 {
     /**
+     * The coroutine context key used to cache acceptable languages.
+     */
+    private const LANGUAGES_CONTEXT_KEY = self::class . '.properties.languages';
+
+    /**
      * The user resolver callback.
      */
     protected ?Closure $userResolver = null;
@@ -774,6 +779,137 @@ class Request extends HyperfRequest implements RequestContract
         }
 
         return null;
+    }
+
+    /**
+     * Returns the preferred language.
+     *
+     * @param string[] $locales An array of ordered available locales
+     */
+    public function getPreferredLanguage(?array $locales = null): ?string
+    {
+        $preferredLanguages = $this->getLanguages();
+
+        if (! $locales) {
+            return $preferredLanguages[0] ?? null;
+        }
+
+        $locales = array_map($this->formatLocale(...), $locales);
+        if (! $preferredLanguages) {
+            return $locales[0];
+        }
+
+        $combinations = array_merge(...array_map($this->getLanguageCombinations(...), $preferredLanguages));
+        foreach ($combinations as $combination) {
+            foreach ($locales as $locale) {
+                if (str_starts_with($locale, $combination)) {
+                    return $locale;
+                }
+            }
+        }
+
+        return $locales[0];
+    }
+
+    /**
+     * Gets a list of languages acceptable by the client browser ordered in the user browser preferences.
+     *
+     * @return string[]
+     */
+    public function getLanguages(): array
+    {
+        if (Context::has(self::LANGUAGES_CONTEXT_KEY)) {
+            return Context::get(self::LANGUAGES_CONTEXT_KEY);
+        }
+
+        $languages = AcceptHeader::fromString($this->header('Accept-Language'))->all();
+        $preferredLanguages = [];
+        foreach ($languages as $acceptHeaderItem) {
+            $preferredLanguages[] = self::formatLocale($acceptHeaderItem->getValue());
+        }
+
+        return Context::set(
+            self::LANGUAGES_CONTEXT_KEY,
+            array_unique($preferredLanguages)
+        );
+    }
+
+    /**
+     * Strips the locale to only keep the canonicalized language value.
+     *
+     * Depending on the $locale value, this method can return values like:
+     * - language_Script_REGION: "fr_Latn_FR", "zh_Hans_TW"
+     * - language_Script: "fr_Latn", "zh_Hans"
+     * - language_REGION: "fr_FR", "zh_TW"
+     * - language: "fr", "zh"
+     *
+     * Invalid locale values are returned as is.
+     *
+     * @see https://wikipedia.org/wiki/IETF_language_tag
+     * @see https://datatracker.ietf.org/doc/html/rfc5646
+     */
+    private static function formatLocale(string $locale): string
+    {
+        [$language, $script, $region] = self::getLanguageComponents($locale);
+
+        return implode('_', array_filter([$language, $script, $region]));
+    }
+
+    /**
+     * Returns an array of all possible combinations of the language components.
+     *
+     * For instance, if the locale is "fr_Latn_FR", this method will return:
+     * - "fr_Latn_FR"
+     * - "fr_Latn"
+     * - "fr_FR"
+     * - "fr"
+     *
+     * @return string[]
+     */
+    private static function getLanguageCombinations(string $locale): array
+    {
+        [$language, $script, $region] = self::getLanguageComponents($locale);
+
+        return array_unique([
+            implode('_', array_filter([$language, $script, $region])),
+            implode('_', array_filter([$language, $script])),
+            implode('_', array_filter([$language, $region])),
+            $language,
+        ]);
+    }
+
+    /**
+     * Returns an array with the language components of the locale.
+     *
+     * For example:
+     * - If the locale is "fr_Latn_FR", this method will return "fr", "Latn", "FR"
+     * - If the locale is "fr_FR", this method will return "fr", null, "FR"
+     * - If the locale is "zh_Hans", this method will return "zh", "Hans", null
+     *
+     * @see https://wikipedia.org/wiki/IETF_language_tag
+     * @see https://datatracker.ietf.org/doc/html/rfc5646
+     *
+     * @return array{string, null|string, null|string}
+     */
+    private static function getLanguageComponents(string $locale): array
+    {
+        $locale = str_replace('_', '-', strtolower($locale));
+        $pattern = '/^([a-zA-Z]{2,3}|i-[a-zA-Z]{5,})(?:-([a-zA-Z]{4}))?(?:-([a-zA-Z]{2}))?(?:-(.+))?$/';
+        if (! preg_match($pattern, $locale, $matches)) {
+            return [$locale, null, null];
+        }
+        if (str_starts_with($matches[1], 'i-')) {
+            // Language not listed in ISO 639 that are not variants
+            // of any listed language, which can be registered with the
+            // i-prefix, such as i-cherokee.
+            $matches[1] = substr($matches[1], 2);
+        }
+
+        return [
+            $matches[1],
+            isset($matches[2]) ? ucfirst(strtolower($matches[2])) : null,
+            isset($matches[3]) ? strtoupper($matches[3]) : null,
+        ];
     }
 
     /**
