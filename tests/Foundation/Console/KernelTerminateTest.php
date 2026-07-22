@@ -10,6 +10,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\Carbon;
 use Hypervel\Testbench\TestCase;
+use RuntimeException;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 
@@ -279,5 +280,122 @@ class KernelTerminateTest extends TestCase
 
         $this->assertTrue($calledFirst);
         $this->assertFalse($calledSecond);
+    }
+
+    public function testEventFailureDoesNotSkipApplicationOrDurationHandlers(): void
+    {
+        $calls = [];
+        $eventException = new RuntimeException('event failed');
+        $applicationException = new RuntimeException('application failed');
+        $durationException = new RuntimeException('duration failed');
+
+        $kernel = $this->app->make(KernelContract::class);
+        $kernel->command('foo', fn () => null);
+        $this->app->make(Dispatcher::class)->listen(Terminating::class, function () use (&$calls, $eventException): void {
+            $calls[] = 'event';
+
+            throw $eventException;
+        });
+        $this->app->terminating(function () use (&$calls, $applicationException): void {
+            $calls[] = 'application';
+
+            throw $applicationException;
+        });
+        $kernel->whenCommandLifecycleIsLongerThan(0, function () use (&$calls, $durationException): void {
+            $calls[] = 'first duration';
+
+            throw $durationException;
+        });
+        $kernel->whenCommandLifecycleIsLongerThan(0, function () use (&$calls): void {
+            $calls[] = 'second duration';
+        });
+
+        Carbon::setTestNow(Carbon::now());
+        $input = new StringInput('foo');
+        $kernel->handle($input, new ConsoleOutput);
+        Carbon::setTestNow(Carbon::now()->addSecond());
+
+        try {
+            $kernel->terminate($input, 0);
+
+            self::fail('Expected the terminating event failure to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($eventException, $exception);
+        }
+
+        $this->assertSame(['event', 'application', 'first duration', 'second duration'], $calls);
+        $this->assertNull($kernel->commandStartedAt());
+    }
+
+    public function testApplicationFailurePrecedesDurationHandlerFailure(): void
+    {
+        $calls = [];
+        $applicationException = new RuntimeException('application failed');
+        $durationException = new RuntimeException('duration failed');
+
+        $kernel = $this->app->make(KernelContract::class);
+        $kernel->command('foo', fn () => null);
+        $this->app->terminating(function () use (&$calls, $applicationException): void {
+            $calls[] = 'application';
+
+            throw $applicationException;
+        });
+        $kernel->whenCommandLifecycleIsLongerThan(0, function () use (&$calls, $durationException): void {
+            $calls[] = 'duration';
+
+            throw $durationException;
+        });
+
+        Carbon::setTestNow(Carbon::now());
+        $input = new StringInput('foo');
+        $kernel->handle($input, new ConsoleOutput);
+        Carbon::setTestNow(Carbon::now()->addSecond());
+
+        try {
+            $kernel->terminate($input, 0);
+
+            self::fail('Expected the application termination failure to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($applicationException, $exception);
+        }
+
+        $this->assertSame(['application', 'duration'], $calls);
+        $this->assertNull($kernel->commandStartedAt());
+    }
+
+    public function testFirstDurationHandlerFailureDoesNotSkipLaterHandlers(): void
+    {
+        $calls = [];
+        $firstException = new RuntimeException('first duration failed');
+        $secondException = new RuntimeException('second duration failed');
+
+        $kernel = $this->app->make(KernelContract::class);
+        $kernel->command('foo', fn () => null);
+        $kernel->whenCommandLifecycleIsLongerThan(0, function () use (&$calls, $firstException): void {
+            $calls[] = 'first';
+
+            throw $firstException;
+        });
+        $kernel->whenCommandLifecycleIsLongerThan(0, function () use (&$calls, $secondException): void {
+            $calls[] = 'second';
+
+            throw $secondException;
+        });
+
+        Carbon::setTestNow(Carbon::now());
+        $input = new StringInput('foo');
+        $kernel->handle($input, new ConsoleOutput);
+        Carbon::setTestNow(Carbon::now()->addSecond());
+
+        try {
+            $kernel->terminate($input, 0);
+
+            self::fail('Expected the first duration handler failure to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($firstException, $exception);
+        }
+
+        $this->assertSame(['first', 'second'], $calls);
+        $this->assertNull($kernel->commandStartedAt());
     }
 }

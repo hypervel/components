@@ -9,6 +9,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use LogicException;
 use ReflectionClass;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
@@ -52,9 +53,8 @@ class ConfigCacheCommand extends Command
     public function handle(): int
     {
         // Subprocess branch: invoked internally via --dump-to, not by the user.
-        // Boots a fresh app (no cached config exists because the parent cleared
-        // it first), builds and validates the cache contents, writes to the
-        // temp file for the parent to read.
+        // Boots a fresh app against a guaranteed-unused cache path, builds and
+        // validates the cache contents, then writes them for the parent to read.
         if (is_string($dumpPath = $this->option('dump-to')) && $dumpPath !== '') {
             try {
                 $payload = [
@@ -62,7 +62,7 @@ class ConfigCacheCommand extends Command
                     'contents' => $this->buildFreshConfigurationCacheContents(),
                 ];
 
-                $this->files->put($dumpPath, serialize($payload));
+                $this->files->replace($dumpPath, serialize($payload));
 
                 return self::SUCCESS;
             } catch (LogicException $e) {
@@ -71,25 +71,27 @@ class ConfigCacheCommand extends Command
                     'message' => $e->getMessage(),
                 ];
 
-                $this->files->put($dumpPath, serialize($payload));
+                $this->files->replace($dumpPath, serialize($payload));
 
                 return self::FAILURE;
             }
         }
 
-        $this->callSilent('config:clear');
-
         $configPath = $this->hypervel->getCachedConfigPath();
         $contents = $this->getFreshConfigurationCacheContentsFromSubprocess();
+        $mode = null;
 
-        $this->files->put($configPath, $contents);
+        if ($this->files->exists($configPath)) {
+            $permissions = $this->files->chmod($configPath);
 
-        try {
-            require $configPath;
-        } catch (Throwable $e) {
-            $this->files->delete($configPath);
-            throw new LogicException('Your configuration files are not serializable.', 0, $e);
+            if (! is_string($permissions)) {
+                throw new RuntimeException("Unable to determine permissions for [{$configPath}].");
+            }
+
+            $mode = octdec($permissions);
         }
+
+        $this->files->replace($configPath, $contents, $mode);
 
         $this->components->info('Configuration cached successfully.');
 
@@ -102,10 +104,18 @@ class ConfigCacheCommand extends Command
     protected function getFreshConfigurationCacheContentsFromSubprocess(): string
     {
         $dumpPath = @tempnam(sys_get_temp_dir(), 'hypervel-config-');
+        $buildPath = null;
+        $exception = null;
 
         try {
             if ($dumpPath === false) {
                 throw new LogicException('Unable to create a temporary file for the configuration cache dump.');
+            }
+
+            $buildPath = $dumpPath . '.cache';
+
+            if ($this->files->exists($buildPath)) {
+                throw new LogicException("The alternate cache path [{$buildPath}] already exists.");
             }
 
             $process = new Process(
@@ -117,7 +127,7 @@ class ConfigCacheCommand extends Command
                 ],
                 $this->hypervel->basePath(),
                 [
-                    'APP_CONFIG_CACHE' => $this->hypervel->getCachedConfigPath(),
+                    'APP_CONFIG_CACHE' => $buildPath,
                     'HYPERVEL_AUTOLOAD_PATH' => $this->resolveSubprocessAutoloadPath(),
                 ],
             );
@@ -125,11 +135,13 @@ class ConfigCacheCommand extends Command
             $process->setTimeout(null);
             $process->run();
 
-            if (! $this->files->exists($dumpPath)) {
+            $serialized = $this->files->get($dumpPath);
+
+            if ($serialized === '') {
                 throw new ProcessFailedException($process);
             }
 
-            $payload = unserialize($this->files->get($dumpPath));
+            $payload = @unserialize($serialized, ['allowed_classes' => false]);
 
             if (! is_array($payload)) {
                 throw new LogicException('The configuration cache subprocess returned an invalid payload.');
@@ -150,9 +162,29 @@ class ConfigCacheCommand extends Command
             }
 
             return $contents;
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+
+            throw $throwable;
         } finally {
-            if (is_string($dumpPath)) {
-                $this->files->delete($dumpPath);
+            $cleanupException = null;
+
+            foreach ([$dumpPath, $buildPath] as $path) {
+                if (! is_string($path)) {
+                    continue;
+                }
+
+                try {
+                    if (! $this->files->delete($path) && $this->files->exists($path)) {
+                        throw new RuntimeException("Unable to delete the temporary configuration cache file [{$path}].");
+                    }
+                } catch (Throwable $throwable) {
+                    $cleanupException ??= $throwable;
+                }
+            }
+
+            if ($exception === null && $cleanupException !== null) {
+                throw $cleanupException;
             }
         }
     }
@@ -165,13 +197,14 @@ class ConfigCacheCommand extends Command
         $config = $this->hypervel['config']->all();
         $contents = '<?php return ' . var_export($config, true) . ';' . PHP_EOL;
         $cachePath = @tempnam(sys_get_temp_dir(), 'hypervel-config-cache-');
+        $exception = null;
 
         try {
             if ($cachePath === false) {
                 throw new LogicException('Unable to create a temporary file for configuration cache validation.');
             }
 
-            $this->files->put($cachePath, $contents);
+            $this->files->replace($cachePath, $contents);
 
             try {
                 require $cachePath;
@@ -188,9 +221,25 @@ class ConfigCacheCommand extends Command
             }
 
             return $contents;
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+
+            throw $throwable;
         } finally {
+            $cleanupException = null;
+
             if (is_string($cachePath)) {
-                $this->files->delete($cachePath);
+                try {
+                    if (! $this->files->delete($cachePath) && $this->files->exists($cachePath)) {
+                        throw new RuntimeException("Unable to delete the temporary configuration cache file [{$cachePath}].");
+                    }
+                } catch (Throwable $throwable) {
+                    $cleanupException = $throwable;
+                }
+            }
+
+            if ($exception === null && $cleanupException !== null) {
+                throw $cleanupException;
             }
         }
     }

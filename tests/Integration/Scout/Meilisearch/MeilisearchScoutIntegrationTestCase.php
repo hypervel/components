@@ -27,13 +27,7 @@ abstract class MeilisearchScoutIntegrationTestCase extends MeilisearchIntegratio
 
     protected function setUpInCoroutine(): void
     {
-        $this->initializeMeilisearch();
         $this->engine = $this->app->make(EngineManager::class)->engine('meilisearch');
-    }
-
-    protected function tearDownInCoroutine(): void
-    {
-        $this->cleanupTestIndexes();
     }
 
     protected function migrateFreshUsing(): array

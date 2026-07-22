@@ -9,8 +9,10 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Routing\RouteCollection;
 use LogicException;
 use ReflectionClass;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Process\Process;
+use Throwable;
 
 #[AsCommand(name: 'route:cache')]
 class RouteCacheCommand extends Command
@@ -38,18 +40,15 @@ class RouteCacheCommand extends Command
     /**
      * Execute the console command.
      *
-     * Uses a subprocess to build the route cache. The parent clears the
-     * existing cache file first, then spawns a child process that boots
-     * fresh (loading routes from source files, not from stale cache),
-     * compiles them, and writes the payload to a temp file. This avoids
-     * overwriting process-global state (Container singleton, Facade caches)
-     * that a second in-process Application bootstrap would corrupt.
+     * Uses a subprocess to build the route cache from source without
+     * disturbing either the existing cache or process-global state in the
+     * parent process.
      */
     public function handle(): int
     {
         // Subprocess branch: invoked internally via --dump-to, not by the user.
-        // The app booted fresh (no cache file exists), so the router holds a
-        // live RouteCollection loaded from source route definitions.
+        // The app booted against a guaranteed-unused cache path, so the router
+        // holds a live RouteCollection loaded from source route definitions.
         if (is_string($dumpPath = $this->option('dump-to')) && $dumpPath !== '') {
             $routes = $this->hypervel['router']->getRoutes();
 
@@ -57,12 +56,10 @@ class RouteCacheCommand extends Command
                 throw new LogicException('Fresh route dump expected a live RouteCollection.');
             }
 
-            $this->files->put($dumpPath, serialize($this->buildCachePayload($routes)));
+            $this->files->replace($dumpPath, serialize($this->buildCachePayload($routes)));
 
             return self::SUCCESS;
         }
-
-        $this->callSilent('route:clear');
 
         $compiled = $this->getFreshCompiledRoutesFromSubprocess();
 
@@ -72,10 +69,21 @@ class RouteCacheCommand extends Command
             return self::FAILURE;
         }
 
-        $this->files->put(
-            $this->hypervel->getCachedRoutesPath(),
-            $this->buildRouteCacheFile($compiled)
-        );
+        $cachePath = $this->hypervel->getCachedRoutesPath();
+        $contents = $this->buildRouteCacheFile($compiled);
+        $mode = null;
+
+        if ($this->files->exists($cachePath)) {
+            $permissions = $this->files->chmod($cachePath);
+
+            if (! is_string($permissions)) {
+                throw new RuntimeException("Unable to determine permissions for [{$cachePath}].");
+            }
+
+            $mode = octdec($permissions);
+        }
+
+        $this->files->replace($cachePath, $contents, $mode);
 
         $this->components->info('Routes cached successfully.');
 
@@ -106,10 +114,18 @@ class RouteCacheCommand extends Command
     protected function getFreshCompiledRoutesFromSubprocess(): array
     {
         $dumpPath = @tempnam(sys_get_temp_dir(), 'hypervel-routes-');
+        $buildPath = null;
+        $exception = null;
 
         try {
             if ($dumpPath === false) {
                 throw new LogicException('Unable to create a temporary file for the route cache dump.');
+            }
+
+            $buildPath = $dumpPath . '.cache';
+
+            if ($this->files->exists($buildPath)) {
+                throw new LogicException("The alternate cache path [{$buildPath}] already exists.");
             }
 
             $process = new Process(
@@ -121,7 +137,7 @@ class RouteCacheCommand extends Command
                 ],
                 $this->hypervel->basePath(),
                 [
-                    'APP_ROUTES_CACHE' => $this->hypervel->getCachedRoutesPath(),
+                    'APP_ROUTES_CACHE' => $buildPath,
                     'HYPERVEL_AUTOLOAD_PATH' => $this->resolveSubprocessAutoloadPath(),
                 ],
             );
@@ -129,16 +145,42 @@ class RouteCacheCommand extends Command
             $process->setTimeout(null);
             $process->mustRun();
 
-            $compiled = unserialize($this->files->get($dumpPath));
+            $serialized = $this->files->get($dumpPath);
+
+            if ($serialized === '') {
+                throw new LogicException('The route cache subprocess returned an empty payload.');
+            }
+
+            $compiled = @unserialize($serialized);
 
             if (! is_array($compiled)) {
                 throw new LogicException('The route cache subprocess returned an invalid payload.');
             }
 
             return $compiled;
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+
+            throw $throwable;
         } finally {
-            if (is_string($dumpPath)) {
-                $this->files->delete($dumpPath);
+            $cleanupException = null;
+
+            foreach ([$dumpPath, $buildPath] as $path) {
+                if (! is_string($path)) {
+                    continue;
+                }
+
+                try {
+                    if (! $this->files->delete($path) && $this->files->exists($path)) {
+                        throw new RuntimeException("Unable to delete the temporary route cache file [{$path}].");
+                    }
+                } catch (Throwable $throwable) {
+                    $cleanupException ??= $throwable;
+                }
+            }
+
+            if ($exception === null && $cleanupException !== null) {
+                throw $cleanupException;
             }
         }
     }

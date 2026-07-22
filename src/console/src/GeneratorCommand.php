@@ -11,6 +11,7 @@ use Hypervel\Contracts\Console\PromptsForMissingInput;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use RuntimeException;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Finder\Finder;
@@ -207,7 +208,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
         // stub files so that it gets the correctly formatted namespace and class name.
         $this->makeDirectory($path);
 
-        $this->files->put($path, $this->sortImports($this->buildClass($name)));
+        $this->replaceFile($path, $this->sortImports($this->buildClass($name)));
 
         $info = $this->type;
 
@@ -343,11 +344,29 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
      */
     protected function makeDirectory(string $path): string
     {
-        if (! $this->files->isDirectory(dirname($path))) {
-            $this->files->makeDirectory(dirname($path), 0777, true, true);
-        }
+        $this->files->ensureDirectoryExists(dirname($path), 0777);
 
         return $path;
+    }
+
+    /**
+     * Replace a generated file while preserving its permissions.
+     */
+    protected function replaceFile(string $path, string $contents): void
+    {
+        $mode = null;
+
+        if ($this->files->exists($path)) {
+            $permissions = $this->files->chmod($path);
+
+            if ($permissions === false) {
+                throw new RuntimeException("Unable to determine the permissions for [{$path}].");
+            }
+
+            $mode = octdec($permissions);
+        }
+
+        $this->files->replace($path, $contents, $mode);
     }
 
     /**
@@ -477,7 +496,7 @@ abstract class GeneratorCommand extends Command implements PromptsForMissingInpu
      */
     protected function viewPath(string $path = ''): string
     {
-        $views = $this->hypervel->make('config')->array('view.paths', [])[0] ?? resource_path('views');
+        $views = $this->hypervel->make('config')->array('view.paths')[0] ?? resource_path('views');
 
         return $views . ($path ? DIRECTORY_SEPARATOR . $path : $path);
     }

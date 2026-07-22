@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Algolia\AlgoliaSearch\Algolia;
+use Algolia\AlgoliaSearch\Http\HttpClientInterface;
+use Algolia\AlgoliaSearch\Http\Psr7\Response;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAlgolia;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithMeilisearch;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
@@ -11,7 +14,9 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithServer;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTypesense;
 use Hypervel\Support\Env;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use RuntimeException;
+use Throwable;
 
 class ExternalServiceOptInTest extends TestCase
 {
@@ -120,6 +125,95 @@ class ExternalServiceOptInTest extends TestCase
         $this->expectExceptionMessage('Algolia credentials unavailable. Set ALGOLIA_APP_ID & ALGOLIA_SECRET to enable');
 
         $harness->runSetUp();
+    }
+
+    public function testAlgoliaAssignsADefaultPrefixAndRestoresTheExactHttpClient(): void
+    {
+        $this->setHostEnvironmentValue('ALGOLIA_APP_ID', 'application-id');
+        $this->setHostEnvironmentValue('ALGOLIA_SECRET', 'secret');
+        $this->setHostEnvironmentValue('TEST_TOKEN', '3');
+
+        $originalClient = Algolia::getHttpClient();
+        $previousClient = m::mock(HttpClientInterface::class);
+        $testClient = m::mock(HttpClientInterface::class);
+        $testClient->shouldReceive('sendRequest')->times(3)->andReturn(
+            new Response(200, ['content-type' => 'application/json'], '{"items":[]}')
+        );
+
+        Algolia::setHttpClient($previousClient);
+
+        try {
+            $harness = new AlgoliaOptInHarness;
+            $harness->useHttpClient($testClient);
+            $harness->runSetUp();
+
+            $this->assertSame('test_3_', $harness->prefix());
+            $this->assertSame($testClient, Algolia::getHttpClient());
+
+            $harness->runTearDown();
+
+            $this->assertSame($previousClient, Algolia::getHttpClient());
+            $this->assertTrue($harness->hasClearedState());
+        } finally {
+            Algolia::setHttpClient($originalClient);
+        }
+    }
+
+    public function testAlgoliaPreservesAnExplicitPrefix(): void
+    {
+        $this->setHostEnvironmentValue('ALGOLIA_APP_ID', 'application-id');
+        $this->setHostEnvironmentValue('ALGOLIA_SECRET', 'secret');
+
+        $originalClient = Algolia::getHttpClient();
+        $testClient = m::mock(HttpClientInterface::class);
+        $testClient->shouldReceive('sendRequest')->times(3)->andReturn(
+            new Response(200, ['content-type' => 'application/json'], '{"items":[]}')
+        );
+
+        try {
+            $harness = new AlgoliaOptInHarness;
+            $harness->usePrefix('custom_');
+            $harness->useHttpClient($testClient);
+            $harness->runSetUp();
+
+            $this->assertSame('custom_', $harness->prefix());
+
+            $harness->runTearDown();
+        } finally {
+            Algolia::setHttpClient($originalClient);
+        }
+    }
+
+    public function testAlgoliaRestoresTheExactHttpClientWhenSetupFails(): void
+    {
+        $this->setHostEnvironmentValue('ALGOLIA_APP_ID', 'application-id');
+        $this->setHostEnvironmentValue('ALGOLIA_SECRET', 'secret');
+
+        $originalClient = Algolia::getHttpClient();
+        $previousClient = m::mock(HttpClientInterface::class);
+        $failure = new RuntimeException('Algolia probe failed');
+        $testClient = m::mock(HttpClientInterface::class);
+        $testClient->shouldReceive('sendRequest')->andThrow($failure);
+
+        Algolia::setHttpClient($previousClient);
+
+        try {
+            $harness = new AlgoliaOptInHarness;
+            $harness->useHttpClient($testClient);
+            $caught = null;
+
+            try {
+                $harness->runSetUp();
+            } catch (Throwable $throwable) {
+                $caught = $throwable;
+            }
+
+            $this->assertNotNull($caught);
+            $this->assertSame($previousClient, Algolia::getHttpClient());
+            $this->assertTrue($harness->hasClearedState());
+        } finally {
+            Algolia::setHttpClient($originalClient);
+        }
     }
 
     public function testServerSkipsBeforeProbingSocketWhenHostIsNotConfigured(): void
@@ -320,12 +414,62 @@ class AlgoliaOptInHarness
 {
     use InteractsWithAlgolia;
 
+    protected ?HttpClientInterface $httpClient = null;
+
     /**
      * Run Algolia setup.
      */
     public function runSetUp(): void
     {
         $this->setUpInteractsWithAlgolia();
+    }
+
+    /**
+     * Run Algolia teardown.
+     */
+    public function runTearDown(): void
+    {
+        $this->tearDownInteractsWithAlgolia();
+    }
+
+    /**
+     * Use the given Algolia HTTP client.
+     */
+    public function useHttpClient(HttpClientInterface $httpClient): void
+    {
+        $this->httpClient = $httpClient;
+    }
+
+    /**
+     * Use the given index prefix.
+     */
+    public function usePrefix(string $prefix): void
+    {
+        $this->algoliaTestPrefix = $prefix;
+    }
+
+    /**
+     * Get the current index prefix.
+     */
+    public function prefix(): string
+    {
+        return $this->algoliaTestPrefix;
+    }
+
+    /**
+     * Determine if all Algolia lifecycle state has been cleared.
+     */
+    public function hasClearedState(): bool
+    {
+        return $this->algolia === null && $this->previousAlgoliaHttpClient === null;
+    }
+
+    /**
+     * Create the Algolia HTTP client.
+     */
+    protected function createAlgoliaHttpClient(): HttpClientInterface
+    {
+        return $this->httpClient ?? throw new RuntimeException('No Algolia HTTP client configured.');
     }
 
     /**

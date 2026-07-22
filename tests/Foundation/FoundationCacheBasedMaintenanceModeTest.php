@@ -9,6 +9,7 @@ use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Foundation\CacheBasedMaintenanceMode;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 class FoundationCacheBasedMaintenanceModeTest extends TestCase
 {
@@ -48,25 +49,47 @@ class FoundationCacheBasedMaintenanceModeTest extends TestCase
         $this->assertSame([], $manager->data());
     }
 
-    public function testItStoresPayloadInCache()
+    public function testItStoresPayloadInCache(): void
     {
-        $cache = m::spy(Factory::class, Repository::class);
+        $cache = m::mock(Factory::class, Repository::class);
         $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
+        $cache->shouldReceive('put')->once()->with('key', ['payload'])->andReturnTrue();
 
         $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
         $manager->activate(['payload']);
-
-        $cache->shouldHaveReceived('put')->once()->with('key', ['payload']);
     }
 
-    public function testItRemovesPayloadFromCache()
+    public function testItRemovesPayloadFromCache(): void
     {
-        $cache = m::spy(Factory::class, Repository::class);
+        $cache = m::mock(Factory::class, Repository::class);
         $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
+        $cache->shouldReceive('forget')->once()->with('key')->andReturnTrue();
 
         $manager = new CacheBasedMaintenanceMode($cache, 'store-key', 'key');
         $manager->deactivate();
+    }
 
-        $cache->shouldHaveReceived('forget')->once()->with('key');
+    public function testItFailsWhenPayloadCannotBeStored(): void
+    {
+        $cache = m::mock(Factory::class, Repository::class);
+        $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
+        $cache->shouldReceive('put')->once()->with('key', ['payload'])->andReturnFalse();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to activate maintenance mode using cache key [key].');
+
+        (new CacheBasedMaintenanceMode($cache, 'store-key', 'key'))->activate(['payload']);
+    }
+
+    public function testItFailsWhenPayloadCannotBeRemoved(): void
+    {
+        $cache = m::mock(Factory::class, Repository::class);
+        $cache->shouldReceive('store')->with('store-key')->andReturnSelf();
+        $cache->shouldReceive('forget')->once()->with('key')->andReturnFalse();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to deactivate maintenance mode using cache key [key].');
+
+        (new CacheBasedMaintenanceMode($cache, 'store-key', 'key'))->deactivate();
     }
 }

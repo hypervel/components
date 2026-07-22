@@ -19,6 +19,7 @@ use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Http\Request;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobPopped;
@@ -41,6 +42,8 @@ use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 use UnitEnum;
 
@@ -396,6 +399,29 @@ class QueueWorkerTest extends TestCase
         $this->exceptionHandler->shouldHaveReceived('report')->with($e);
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobExceptionOccurred::class))->once();
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
+    }
+
+    public function testJobIsFailedIfExceptionHandlerSaysItShouldNotRetry(): void
+    {
+        $exception = new RuntimeException;
+        $job = new WorkerFakeJob(static function () use ($exception): never {
+            throw $exception;
+        });
+        $this->exceptionHandler = new ShouldntRetryExceptionHandler;
+
+        $worker = $this->getWorker('default', ['queue' => [$job]]);
+        $worker->runNextJob('default', 'queue', $this->workerOptions(['backoff' => 10]));
+
+        $this->assertNull($job->releaseAfter);
+        $this->assertTrue($job->deleted);
+        $this->assertSame($exception, $job->failedWith);
+        $this->events->shouldHaveReceived('dispatch')->with(m::on(
+            static fn (object $event): bool => $event instanceof JobExceptionOccurred
+                && $event->job === $job
+                && $event->exception === $exception
+                && $event->job->hasFailed(),
+        ))->once();
+        $this->events->shouldNotHaveReceived('dispatch', [m::type(JobReleasedAfterException::class)]);
     }
 
     public function testJobIsNotReleasedIfItHasExceededMaxAttempts()
@@ -1135,6 +1161,36 @@ class BrokenQueueConnection implements Queue
     public function getConnectionName(): string
     {
         return $this->connectionName;
+    }
+}
+
+class ShouldntRetryExceptionHandler implements ExceptionHandlerContract
+{
+    public function report(Throwable $e): void
+    {
+    }
+
+    public function shouldReport(Throwable $e): bool
+    {
+        return true;
+    }
+
+    public function render(Request $request, Throwable $e): Response
+    {
+        return new Response;
+    }
+
+    public function renderForConsole(OutputInterface $output, Throwable $e): void
+    {
+    }
+
+    public function afterResponse(callable $callback): void
+    {
+    }
+
+    public function shouldStopRetries(Throwable $e): bool
+    {
+        return true;
     }
 }
 

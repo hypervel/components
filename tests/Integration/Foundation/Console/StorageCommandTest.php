@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Testbench\TestCase;
+use Mockery as m;
+use RuntimeException;
 
-class StorageCommandTest extends \Hypervel\Testbench\TestCase
+class StorageCommandTest extends TestCase
 {
     protected Filesystem $files;
 
@@ -16,16 +19,12 @@ class StorageCommandTest extends \Hypervel\Testbench\TestCase
 
         $this->files = new Filesystem;
 
-        // Ensure the public directory exists in the runtime copy
         $this->files->ensureDirectoryExists($this->app->publicPath());
-
-        // Ensure the storage/app/public directory exists
         $this->files->ensureDirectoryExists($this->app->storagePath('app/public'));
     }
 
     protected function tearDown(): void
     {
-        // Clean up any symlinks created during tests
         $linkPath = $this->app->publicPath('storage');
 
         if (is_link($linkPath)) {
@@ -35,7 +34,7 @@ class StorageCommandTest extends \Hypervel\Testbench\TestCase
         parent::tearDown();
     }
 
-    public function testStorageLinkCreatesSymlink()
+    public function testStorageLinkCreatesSymlink(): void
     {
         $this->artisan('storage:link')
             ->assertSuccessful()
@@ -44,22 +43,18 @@ class StorageCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertTrue(is_link($this->app->publicPath('storage')));
     }
 
-    public function testStorageLinkFailsWhenLinkAlreadyExists()
+    public function testStorageLinkFailsWhenLinkAlreadyExists(): void
     {
-        // Create the link first
         $this->artisan('storage:link')->assertSuccessful();
 
-        // Try again without --force
         $this->artisan('storage:link')
             ->expectsOutputToContain('already exists');
     }
 
-    public function testStorageLinkRecreatesWithForce()
+    public function testStorageLinkRecreatesWithForce(): void
     {
-        // Create the link first
         $this->artisan('storage:link')->assertSuccessful();
 
-        // Recreate with --force
         $this->artisan('storage:link', ['--force' => true])
             ->assertSuccessful()
             ->expectsOutputToContain('connected');
@@ -67,7 +62,7 @@ class StorageCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertTrue(is_link($this->app->publicPath('storage')));
     }
 
-    public function testStorageLinkCreatesRelativeSymlink()
+    public function testStorageLinkCreatesRelativeSymlink(): void
     {
         $this->artisan('storage:link', ['--relative' => true])
             ->assertSuccessful()
@@ -77,18 +72,132 @@ class StorageCommandTest extends \Hypervel\Testbench\TestCase
 
         $this->assertTrue(is_link($linkPath));
 
-        // A relative symlink's target should be a relative path, not absolute
         $target = readlink($linkPath);
         $this->assertFalse(str_starts_with($target, '/'), 'Expected a relative symlink target, got absolute: ' . $target);
     }
 
-    public function testStorageUnlinkRemovesSymlink()
+    public function testStorageLinkRecognizesBrokenSymlinkWithoutForce(): void
     {
-        // Create the link first
+        $link = $this->app->publicPath('storage');
+
+        symlink($this->app->storagePath('missing'), $link);
+
+        $this->artisan('storage:link')
+            ->expectsOutputToContain('already exists')
+            ->assertSuccessful();
+
+        $this->assertTrue(is_link($link));
+    }
+
+    public function testStorageLinkReplacesBrokenSymlinkWithForce(): void
+    {
+        $link = $this->app->publicPath('storage');
+        $target = $this->app->storagePath('app/public');
+
+        symlink($this->app->storagePath('missing'), $link);
+
+        $this->artisan('storage:link', ['--force' => true])
+            ->expectsOutputToContain('connected')
+            ->assertSuccessful();
+
+        $this->assertTrue(is_link($link));
+        $this->assertSame($target, readlink($link));
+    }
+
+    public function testStorageLinkFailsWhenForcedLinkRemovalLeavesTheLink(): void
+    {
+        $link = $this->app->publicPath('storage');
+        $target = $this->app->storagePath('app/public');
+
+        symlink($target, $link);
+
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('delete')->once()->with($link)->andReturnFalse();
+        $this->app->instance('files', $files);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Unable to delete the existing link [{$link}].");
+
+        $this->artisan('storage:link', ['--force' => true]);
+    }
+
+    public function testStorageLinkAcceptsConcurrentDisappearanceDuringForcedRemoval(): void
+    {
+        $link = $this->app->publicPath('storage');
+        $target = $this->app->storagePath('app/public');
+
+        symlink($target, $link);
+
+        $files = m::mock(Filesystem::class)->makePartial();
+        $files->shouldReceive('delete')->once()->with($link)->andReturnUsing(function () use ($link): bool {
+            unlink($link);
+
+            return false;
+        });
+        $this->app->instance('files', $files);
+
+        $this->artisan('storage:link', ['--force' => true])
+            ->expectsOutputToContain('connected')
+            ->assertSuccessful();
+
+        $this->assertTrue(is_link($link));
+    }
+
+    public function testStorageLinkFailsWhenNativeLinkCreationReturnsFalse(): void
+    {
+        $link = $this->app->publicPath('storage');
+        $target = $this->app->storagePath('app/public');
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('link')->once()->with($target, $link)->andReturnFalse();
+        $this->app->instance('files', $files);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Unable to create a link from [{$link}] to [{$target}].");
+
+        $this->artisan('storage:link');
+    }
+
+    public function testStorageLinkAcceptsWindowsCompatibleNullAfterCreation(): void
+    {
+        $link = $this->app->publicPath('storage');
+        $target = $this->app->storagePath('app/public');
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('link')
+            ->once()
+            ->with($target, $link)
+            ->andReturnUsing(function () use ($target, $link): ?bool {
+                symlink($target, $link);
+
+                return null;
+            });
+        $this->app->instance('files', $files);
+
+        $this->artisan('storage:link')
+            ->expectsOutputToContain('connected')
+            ->assertSuccessful();
+
+        $this->assertTrue(is_link($link));
+    }
+
+    public function testStorageLinkFailsWhenCreationDoesNotEstablishTheLink(): void
+    {
+        $link = $this->app->publicPath('storage');
+        $target = $this->app->storagePath('app/public');
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('link')->once()->with($target, $link)->andReturnTrue();
+        $this->app->instance('files', $files);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Unable to create a link from [{$link}] to [{$target}].");
+
+        $this->artisan('storage:link');
+    }
+
+    public function testStorageUnlinkRemovesSymlink(): void
+    {
         $this->artisan('storage:link')->assertSuccessful();
         $this->assertTrue(is_link($this->app->publicPath('storage')));
 
-        // Remove it
         $this->artisan('storage:unlink')
             ->assertSuccessful()
             ->expectsOutputToContain('deleted');
@@ -96,9 +205,58 @@ class StorageCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertFalse(is_link($this->app->publicPath('storage')));
     }
 
-    public function testStorageUnlinkDoesNothingWhenNoLink()
+    public function testStorageUnlinkRemovesBrokenSymlink(): void
     {
-        // No link exists — command should succeed silently
+        $link = $this->app->publicPath('storage');
+
+        symlink($this->app->storagePath('missing'), $link);
+
+        $this->artisan('storage:unlink')
+            ->expectsOutputToContain('deleted')
+            ->assertSuccessful();
+
+        $this->assertFalse(is_link($link));
+    }
+
+    public function testStorageUnlinkFailsWhenLinkRemains(): void
+    {
+        $link = $this->app->publicPath('storage');
+
+        symlink($this->app->storagePath('missing'), $link);
+
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('delete')->once()->with($link)->andReturnFalse();
+        $this->app->instance('files', $files);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Unable to delete the link [{$link}].");
+
+        $this->artisan('storage:unlink');
+    }
+
+    public function testStorageUnlinkAcceptsConcurrentDisappearance(): void
+    {
+        $link = $this->app->publicPath('storage');
+
+        symlink($this->app->storagePath('missing'), $link);
+
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('delete')->once()->with($link)->andReturnUsing(function () use ($link): bool {
+            unlink($link);
+
+            return false;
+        });
+        $this->app->instance('files', $files);
+
+        $this->artisan('storage:unlink')
+            ->expectsOutputToContain('deleted')
+            ->assertSuccessful();
+
+        $this->assertFalse(is_link($link));
+    }
+
+    public function testStorageUnlinkDoesNothingWhenNoLink(): void
+    {
         $this->artisan('storage:unlink')
             ->assertSuccessful();
     }

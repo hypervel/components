@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Exceptions;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Exceptions\Renderer\Mappers\BladeMapper;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\View\Engines\CompilerEngine;
+use ReflectionMethod;
 
 use function Hypervel\Testbench\after_resolving;
 use function Hypervel\Testbench\package_path;
@@ -89,5 +94,30 @@ class RenderBladeFilesTest extends TestCase
 
         $this->assertStringContainsString('data-tippy-content="', $html);
         $this->assertStringNotContainsString('<br', $html);
+    }
+
+    public function testBladeMapperSkipsMissingOriginalAndCompiledPaths(): void
+    {
+        CoroutineContext::set(CompilerEngine::COMPILED_PATH_CONTEXT_KEY, [
+            ParallelTesting::tempDir('MissingBladeSource') . '/missing.blade.php',
+        ]);
+
+        $method = new ReflectionMethod(BladeMapper::class, 'getKnownPaths');
+
+        $this->assertSame([], $method->invoke($this->app->make(BladeMapper::class)));
+    }
+
+    public function testBladeMapperPreservesCompiledLineWhenOriginalDisappears(): void
+    {
+        $method = new ReflectionMethod(BladeMapper::class, 'detectLineNumber');
+
+        $this->assertSame(
+            37,
+            $method->invoke(
+                $this->app->make(BladeMapper::class),
+                ParallelTesting::tempDir('MissingBladeSource') . '/missing.blade.php',
+                37,
+            ),
+        );
     }
 }

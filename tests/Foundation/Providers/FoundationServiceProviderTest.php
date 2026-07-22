@@ -8,7 +8,9 @@ use Carbon\CarbonImmutable;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Foundation\ArrayMaintenanceMode;
 use Hypervel\Foundation\DevCommands;
+use Hypervel\Foundation\MaintenanceModeManager;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Support\Carbon;
@@ -130,5 +132,14 @@ class FoundationServiceProviderTest extends TestCase
             11,
             (new ReflectionClass($mode))->getProperty('refreshInterval')->getValue($mode)
         );
+    }
+
+    public function testArrayMaintenanceModeDriverIsAvailable(): void
+    {
+        $this->app->make('config')->set('app.maintenance.driver', 'array');
+
+        $driver = (new MaintenanceModeManager($this->app))->driver();
+
+        $this->assertInstanceOf(ArrayMaintenanceMode::class, $driver);
     }
 }

@@ -10,9 +10,16 @@ use Hypervel\Foundation\Events\VendorTagPublished;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
+use Mockery as m;
+use RuntimeException;
+use Symfony\Component\Console\Application as ConsoleApplication;
+use Symfony\Component\Console\Tester\CommandTester;
 
 class VendorPublishCommandTest extends TestCase
 {
+    protected Filesystem $filesystem;
+
     protected string $sourceDir;
 
     protected string $destDir;
@@ -21,23 +28,23 @@ class VendorPublishCommandTest extends TestCase
     {
         parent::setUp();
 
-        $this->sourceDir = sys_get_temp_dir() . '/vendor-publish-test-source-' . uniqid();
-        $this->destDir = sys_get_temp_dir() . '/vendor-publish-test-dest-' . uniqid();
+        $this->filesystem = new Filesystem;
+        $this->sourceDir = ParallelTesting::tempDir('VendorPublishCommandSource');
+        $this->destDir = ParallelTesting::tempDir('VendorPublishCommandDestination');
 
-        mkdir($this->sourceDir, 0755, true);
-        mkdir($this->destDir, 0755, true);
+        $this->filesystem->ensureDirectoryExists($this->sourceDir);
+        $this->filesystem->ensureDirectoryExists($this->destDir);
     }
 
     protected function tearDown(): void
     {
-        $filesystem = new Filesystem;
-        $filesystem->deleteDirectory($this->sourceDir);
-        $filesystem->deleteDirectory($this->destDir);
+        $this->filesystem->deleteDirectory($this->sourceDir);
+        $this->filesystem->deleteDirectory($this->destDir);
 
         parent::tearDown();
     }
 
-    public function testPublishesFile()
+    public function testPublishesFile(): void
     {
         $source = $this->sourceDir . '/config.php';
         $dest = $this->destDir . '/config.php';
@@ -52,7 +59,7 @@ class VendorPublishCommandTest extends TestCase
         $this->assertFileEquals($source, $dest);
     }
 
-    public function testPublishesDirectory()
+    public function testPublishesDirectory(): void
     {
         $sourceSubDir = $this->sourceDir . '/views';
         mkdir($sourceSubDir, 0755, true);
@@ -71,7 +78,7 @@ class VendorPublishCommandTest extends TestCase
         $this->assertStringEqualsFile($destSubDir . '/index.blade.php', '<h1>Hello</h1>');
     }
 
-    public function testSkipsExistingFileWithoutForce()
+    public function testSkipsExistingFileWithoutForce(): void
     {
         $source = $this->sourceDir . '/config.php';
         $dest = $this->destDir . '/config.php';
@@ -86,7 +93,24 @@ class VendorPublishCommandTest extends TestCase
         $this->assertStringEqualsFile($dest, '<?php return ["old"];');
     }
 
-    public function testOverwritesExistingFileWithForce()
+    public function testSkippedFileUsesConfiguredPathWhenDestinationDisappears(): void
+    {
+        $source = $this->sourceDir . '/config.php';
+        $destination = $this->destDir . '/config.php';
+        file_put_contents($source, '<?php return ["new"];');
+        ServiceProvider::$publishes[TestPublishProvider::class] = [$source => $destination];
+
+        $files = m::mock(Filesystem::class)->makePartial();
+        $files->shouldReceive('exists')->once()->with($destination)->andReturnTrue();
+        $tester = $this->commandTester($files);
+
+        $this->assertSame(0, $tester->execute(['--provider' => TestPublishProvider::class]));
+        $this->assertStringContainsString($destination, $tester->getDisplay());
+        $this->assertStringContainsString('SKIPPED', $tester->getDisplay());
+        $this->assertFileDoesNotExist($destination);
+    }
+
+    public function testOverwritesExistingFileWithForce(): void
     {
         $source = $this->sourceDir . '/config.php';
         $dest = $this->destDir . '/config.php';
@@ -101,7 +125,7 @@ class VendorPublishCommandTest extends TestCase
         $this->assertStringEqualsFile($dest, '<?php return ["new"];');
     }
 
-    public function testExistingOptionOnlyOverwritesExistingFiles()
+    public function testExistingOptionOnlyOverwritesExistingFiles(): void
     {
         $source1 = $this->sourceDir . '/existing.php';
         $source2 = $this->sourceDir . '/new.php';
@@ -124,7 +148,7 @@ class VendorPublishCommandTest extends TestCase
         $this->assertFileDoesNotExist($dest2);
     }
 
-    public function testPublishesByTag()
+    public function testPublishesByTag(): void
     {
         $source = $this->sourceDir . '/config.php';
         $dest = $this->destDir . '/config.php';
@@ -147,7 +171,7 @@ class VendorPublishCommandTest extends TestCase
         $this->assertFileDoesNotExist($otherDest);
     }
 
-    public function testPublishesByProvider()
+    public function testPublishesByProvider(): void
     {
         $source = $this->sourceDir . '/config.php';
         $dest = $this->destDir . '/config.php';
@@ -167,7 +191,7 @@ class VendorPublishCommandTest extends TestCase
         $this->assertFileDoesNotExist($otherDest);
     }
 
-    public function testDispatchesVendorTagPublishedEvent()
+    public function testDispatchesVendorTagPublishedEvent(): void
     {
         Event::fake([VendorTagPublished::class]);
 
@@ -183,7 +207,7 @@ class VendorPublishCommandTest extends TestCase
         Event::assertDispatched(VendorTagPublished::class);
     }
 
-    public function testCreatesParentDirectories()
+    public function testCreatesParentDirectories(): void
     {
         $source = $this->sourceDir . '/config.php';
         $dest = $this->destDir . '/nested/deep/config.php';
@@ -197,7 +221,7 @@ class VendorPublishCommandTest extends TestCase
         $this->assertFileExists($dest);
     }
 
-    public function testPublishAllWithFlag()
+    public function testPublishAllWithFlag(): void
     {
         // Isolate $publishes so --all only sees the test's entries,
         // not real framework providers that would publish into workbench.
@@ -226,7 +250,7 @@ class VendorPublishCommandTest extends TestCase
         }
     }
 
-    public function testDontUpdateMigrationDates()
+    public function testDontUpdateMigrationDates(): void
     {
         VendorPublishCommand::dontUpdateMigrationDates();
 
@@ -241,6 +265,56 @@ class VendorPublishCommandTest extends TestCase
 
         // File should be published with original name since date updating is disabled
         $this->assertFileExists($dest);
+    }
+
+    public function testCopyFailureDoesNotReportStatusOrDispatchPublishedEvent(): void
+    {
+        Event::fake([VendorTagPublished::class]);
+
+        $source = $this->sourceDir . '/config.php';
+        $destination = $this->destDir . '/config.php';
+        file_put_contents($source, '<?php return [];');
+        ServiceProvider::$publishes[TestPublishProvider::class] = [$source => $destination];
+
+        $files = m::mock(Filesystem::class)->makePartial();
+        $files->shouldReceive('copy')->once()->with($source, $destination)->andReturnFalse();
+        $tester = $this->commandTester($files);
+
+        try {
+            $tester->execute(['--provider' => TestPublishProvider::class]);
+            $this->fail('Expected vendor file copying to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame("Unable to copy [{$source}] to [{$destination}].", $exception->getMessage());
+        }
+
+        $this->assertFileDoesNotExist($destination);
+        $this->assertStringNotContainsString('Copying file', $tester->getDisplay());
+        Event::assertNotDispatched(VendorTagPublished::class);
+    }
+
+    public function testEmptyDirectoryPublicationReportsConfiguredDestinationPath(): void
+    {
+        $source = $this->sourceDir . '/empty';
+        $destination = $this->destDir . '/published-empty';
+        $this->filesystem->ensureDirectoryExists($source);
+        ServiceProvider::$publishes[TestPublishProvider::class] = [$source => $destination];
+
+        $this->artisan('vendor:publish', ['--provider' => TestPublishProvider::class])
+            ->expectsOutputToContain('published-empty')
+            ->assertSuccessful();
+    }
+
+    /**
+     * Create a tester for the vendor publisher.
+     */
+    protected function commandTester(Filesystem $files): CommandTester
+    {
+        $command = new VendorPublishCommand($files);
+        $command->setHypervel($this->app);
+        $application = new ConsoleApplication;
+        $application->addCommand($command);
+
+        return new CommandTester($command);
     }
 }
 

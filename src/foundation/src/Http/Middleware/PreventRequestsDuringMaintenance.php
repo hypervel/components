@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Http\Middleware;
 
 use Closure;
-use ErrorException;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Http\MaintenanceModeBypassCookie;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
@@ -43,7 +43,6 @@ class PreventRequestsDuringMaintenance
      * Handle an incoming request.
      *
      * @throws HttpException
-     * @throws ErrorException
      */
     public function handle(Request $request, Closure $next): mixed
     {
@@ -51,52 +50,48 @@ class PreventRequestsDuringMaintenance
             return $next($request);
         }
 
-        if ($this->app->maintenanceMode()->active()) {
-            try {
-                $data = $this->app->maintenanceMode()->data();
-            } catch (ErrorException $exception) {
-                if (! $this->app->maintenanceMode()->active()) { // @phpstan-ignore booleanNot.alwaysFalse (race condition guard for drivers without worker-lifetime caching)
-                    return $next($request);
-                }
-
-                throw $exception;
-            }
-
-            if (isset($data['secret']) && $request->path() === $data['secret']) {
-                return $this->bypassResponse($data['secret']);
-            }
-
-            if ($this->hasValidBypassCookie($request, $data)) {
+        try {
+            if (! $this->app->maintenanceMode()->active()) {
                 return $next($request);
             }
 
-            if (isset($data['redirect'])) {
-                $path = $data['redirect'] === '/'
-                    ? $data['redirect']
-                    : trim($data['redirect'], '/');
+            $data = $this->app->maintenanceMode()->data();
+        } catch (FileNotFoundException) {
+            return $next($request);
+        }
 
-                if ($request->path() !== $path) {
-                    return redirect($path);
-                }
+        if (isset($data['secret']) && $request->path() === $data['secret']) {
+            return $this->bypassResponse($data['secret']);
+        }
+
+        if ($this->hasValidBypassCookie($request, $data)) {
+            return $next($request);
+        }
+
+        if (isset($data['redirect']) && ! $request->expectsJson()) {
+            $path = $data['redirect'] === '/'
+                ? $data['redirect']
+                : trim($data['redirect'], '/');
+
+            if ($request->path() !== $path) {
+                return redirect($path);
             }
+        }
 
-            if (isset($data['template'])) {
-                return response(
-                    $data['template'],
-                    $data['status'] ?? 503,
-                    $this->getHeaders($data)
-                );
-            }
-
-            throw new HttpException(
+        if (isset($data['template']) && ! $request->expectsJson()) {
+            return response(
+                $data['template'],
                 $data['status'] ?? 503,
-                'Service Unavailable',
-                null,
                 $this->getHeaders($data)
             );
         }
 
-        return $next($request);
+        throw new HttpException(
+            $data['status'] ?? 503,
+            'Service Unavailable',
+            null,
+            $this->getHeaders($data)
+        );
     }
 
     /**

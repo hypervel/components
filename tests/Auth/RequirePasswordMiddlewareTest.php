@@ -11,6 +11,7 @@ use Hypervel\Contracts\Routing\ResponseFactory;
 use Hypervel\Contracts\Routing\UrlGenerator;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Http\JsonResponse;
+use Hypervel\Http\Middleware\PrefersJsonResponses;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
 use Hypervel\Support\Carbon;
@@ -83,6 +84,88 @@ class RequirePasswordMiddlewareTest extends TestCase
         $this->assertSame($jsonResponse, $result);
 
         Carbon::setTestNow();
+    }
+
+    public function testPreferredJsonResponsesTurnWildcardRequestsIntoJsonResponses(): void
+    {
+        Carbon::setTestNow(Carbon::createFromTimestamp(20000));
+
+        try {
+            $session = m::mock(Session::class);
+            $session->shouldReceive('get')
+                ->with('auth.password_confirmed_at_web', 0)
+                ->andReturn(0);
+
+            $request = Request::create('/', 'GET', server: ['HTTP_ACCEPT' => '*/*']);
+            $request->setHypervelSession($session);
+
+            $jsonResponse = new JsonResponse(['message' => 'Password confirmation required.'], 423);
+            $responseFactory = m::mock(ResponseFactory::class);
+            $responseFactory->shouldReceive('json')
+                ->with(['message' => 'Password confirmation required.'], 423)
+                ->once()
+                ->andReturn($jsonResponse);
+
+            $middleware = $this->middleware(
+                responseFactory: $responseFactory,
+                urlGenerator: m::mock(UrlGenerator::class),
+            );
+
+            $response = (new PrefersJsonResponses)->handle(
+                $request,
+                static fn (Request $request): Response => $middleware->handle(
+                    $request,
+                    static fn (): Response => new Response('should not reach'),
+                ),
+            );
+
+            $this->assertSame($jsonResponse, $response);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function testPreferredJsonResponsesPreserveExplicitHtmlRedirects(): void
+    {
+        Carbon::setTestNow(Carbon::createFromTimestamp(20000));
+
+        try {
+            $session = m::mock(Session::class);
+            $session->shouldReceive('get')
+                ->with('auth.password_confirmed_at_web', 0)
+                ->andReturn(0);
+
+            $request = Request::create('/', 'GET', server: ['HTTP_ACCEPT' => 'text/html']);
+            $request->setHypervelSession($session);
+
+            $redirectResponse = m::mock(RedirectResponse::class);
+            $responseFactory = m::mock(ResponseFactory::class);
+            $responseFactory->shouldReceive('redirectGuest')
+                ->with('/password/confirm')
+                ->once()
+                ->andReturn($redirectResponse);
+            $urlGenerator = m::mock(UrlGenerator::class);
+            $urlGenerator->shouldReceive('route')
+                ->with('password.confirm')
+                ->andReturn('/password/confirm');
+
+            $middleware = $this->middleware(
+                responseFactory: $responseFactory,
+                urlGenerator: $urlGenerator,
+            );
+
+            $response = (new PrefersJsonResponses)->handle(
+                $request,
+                static fn (Request $request): Response => $middleware->handle(
+                    $request,
+                    static fn (): Response => new Response('should not reach'),
+                ),
+            );
+
+            $this->assertSame($redirectResponse, $response);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function testRedirectsWhenStaleAndRequestDoesNotExpectJson(): void

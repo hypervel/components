@@ -17,6 +17,7 @@ use Hypervel\Testbench\Attributes\ResetRefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
+use RuntimeException;
 
 class RefreshDatabaseTest extends TestCase
 {
@@ -151,6 +152,28 @@ class RefreshDatabaseTest extends TestCase
         $this->refreshTestDatabase();
     }
 
+    public function testRefreshTestDatabaseRestoresMockConsoleOutputAfterMigrationFailure(): void
+    {
+        $this->mockConsoleOutput = true;
+
+        $kernel = m::mock(KernelContract::class);
+        $kernel->shouldReceive('call')
+            ->once()
+            ->andThrow(new RuntimeException('Migration failed.'));
+
+        $this->app = new Application;
+        $this->app->singleton('config', fn () => new Repository(['database' => ['default' => 'default']]));
+        $this->app->singleton(KernelContract::class, fn () => $kernel);
+
+        try {
+            $this->refreshTestDatabase();
+            $this->fail('Expected the migration failure to be rethrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Migration failed.', $exception->getMessage());
+            $this->assertTrue($this->mockConsoleOutput);
+        }
+    }
+
     public function testBeginDatabaseTransactionWorkSetsMigratedAndCachesPdoTogether()
     {
         // Regression test for the RefreshDatabase + RunTestsInCoroutine +
@@ -205,7 +228,7 @@ class RefreshDatabaseTest extends TestCase
         );
     }
 
-    public function testRefreshTestDatabaseLeavesMigratedFalseWhenTransactionWorkNotYetRun()
+    public function testRefreshTestDatabaseLeavesMigratedFalseWhenTransactionWorkNotYetRun(): void
     {
         // Regression test for the skip-window scenario: a RunTestsInCoroutine
         // test that runs migrate:fresh in refreshTestDatabase() and then
@@ -221,6 +244,7 @@ class RefreshDatabaseTest extends TestCase
         // want migrate:fresh to run because $migrated is false, not because
         // $migrateRefresh forces it.
         $this->migrateRefresh = false;
+        $this->runTestsInCoroutine = true;
 
         $kernel = m::mock(KernelContract::class);
         $kernel->shouldReceive('call')

@@ -24,8 +24,12 @@ class AuthenticationRedirects
      * exception static properties for the worker lifetime and affects every
      * subsequent unauthenticated or session-mismatch request.
      */
-    public static function redirectGuestsTo(callable|string $redirect): void
+    public static function redirectGuestsTo(callable|string|null $redirect): void
     {
+        $redirect = $redirect === null
+            ? static fn () => null
+            : $redirect;
+
         self::redirectTo(guests: $redirect);
     }
 

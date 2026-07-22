@@ -39,9 +39,12 @@ class UrlSigningTest extends RoutingTestCase
 
     public function testSigningUrlWorksWhenPreviousKeysConfigIsMissing(): void
     {
-        $this->app->make('config')->set('app', [
-            'key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF',
-        ]);
+        $config = $this->app->make('config');
+        $appConfig = $config->array('app');
+        $appConfig['key'] = 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF';
+        unset($appConfig['previous_keys']);
+
+        $config->set('app', $appConfig);
 
         Route::get('/foo/{id}', function (Request $request, $id) {
             return $request->hasValidSignature() ? 'valid' : 'invalid';

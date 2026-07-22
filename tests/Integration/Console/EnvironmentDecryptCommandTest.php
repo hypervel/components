@@ -7,19 +7,22 @@ namespace Hypervel\Tests\Integration\Console;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\File;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Testing\ParallelTesting;
 use Mockery as m;
+use RuntimeException;
 
-class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
+class EnvironmentDecryptCommandTest extends TestCase
 {
-    protected $filesystem;
+    protected Filesystem $filesystem;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->filesystem = m::spy(Filesystem::class);
-        $this->filesystem->shouldReceive('put')
-            ->andReturn(1);
+        $this->filesystem->shouldReceive('replace');
+        $this->filesystem->shouldReceive('chmod')->andReturn('0640');
         File::swap($this->filesystem);
     }
 
@@ -88,8 +91,8 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), 'APP_NAME=Laravel');
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env'), 'APP_NAME=Laravel', 0640);
     }
 
     public function testItGeneratesTheEnvironmentFileWithUserProvidedKey(): void
@@ -111,35 +114,43 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), 'APP_NAME="Laravel Two"');
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env'), 'APP_NAME="Laravel Two"', 0600);
     }
 
     public function testItGeneratesTheEnvironmentFileWithKeyFromEnvironment(): void
     {
+        $hadEncryptionKey = array_key_exists('HYPERVEL_ENV_ENCRYPTION_KEY', $_SERVER);
+        $previousEncryptionKey = $_SERVER['HYPERVEL_ENV_ENCRYPTION_KEY'] ?? null;
         $_SERVER['HYPERVEL_ENV_ENCRYPTION_KEY'] = 'ponmlkjihgfedcbaponmlkjihgfedcba';
 
-        $this->filesystem->shouldReceive('exists')
-            ->once()
-            ->andReturn(true)
-            ->shouldReceive('exists')
-            ->once()
-            ->andReturn(false)
-            ->shouldReceive('get')
-            ->once()
-            ->andReturn(
-                (new Encrypter('ponmlkjihgfedcbaponmlkjihgfedcba', 'AES-256-CBC'))
-                    ->encrypt('APP_NAME="Laravel Three"')
-            );
+        try {
+            $this->filesystem->shouldReceive('exists')
+                ->once()
+                ->andReturn(true)
+                ->shouldReceive('exists')
+                ->once()
+                ->andReturn(false)
+                ->shouldReceive('get')
+                ->once()
+                ->andReturn(
+                    (new Encrypter('ponmlkjihgfedcbaponmlkjihgfedcba', 'AES-256-CBC'))
+                        ->encrypt('APP_NAME="Laravel Three"')
+                );
 
-        $this->artisan('env:decrypt')
-            ->expectsOutputToContain('Environment successfully decrypted.')
-            ->assertExitCode(0);
+            $this->artisan('env:decrypt')
+                ->expectsOutputToContain('Environment successfully decrypted.')
+                ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), 'APP_NAME="Laravel Three"');
-
-        unset($_SERVER['HYPERVEL_ENV_ENCRYPTION_KEY']);
+            $this->filesystem->shouldHaveReceived('replace')
+                ->with(base_path('.env'), 'APP_NAME="Laravel Three"', 0600);
+        } finally {
+            if ($hadEncryptionKey) {
+                $_SERVER['HYPERVEL_ENV_ENCRYPTION_KEY'] = $previousEncryptionKey;
+            } else {
+                unset($_SERVER['HYPERVEL_ENV_ENCRYPTION_KEY']);
+            }
+        }
     }
 
     public function testItGeneratesTheEnvironmentFileWhenForcing(): void
@@ -161,8 +172,8 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), 'APP_NAME="Laravel Two"');
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env'), 'APP_NAME="Laravel Two"', 0640);
     }
 
     public function testItDecryptsMultiLineEnvironmentCorrectly(): void
@@ -202,8 +213,8 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), $contents);
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env'), $contents, 0640);
     }
 
     public function testItWritesTheEnvironmentFileCustomFilename(): void
@@ -225,8 +236,8 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), 'APP_NAME="Laravel Two"');
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env'), 'APP_NAME="Laravel Two"', 0600);
     }
 
     public function testItWritesTheEnvironmentFileCustomPath(): void
@@ -248,8 +259,8 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with('/tmp' . DIRECTORY_SEPARATOR . '.env.production', 'APP_NAME="Laravel Two"');
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with('/tmp' . DIRECTORY_SEPARATOR . '.env.production', 'APP_NAME="Laravel Two"', 0600);
     }
 
     public function testItWritesTheEnvironmentFileCustomPathAndFilename(): void
@@ -271,8 +282,8 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with('/tmp' . DIRECTORY_SEPARATOR . '.env', 'APP_NAME="Laravel Two"');
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with('/tmp' . DIRECTORY_SEPARATOR . '.env', 'APP_NAME="Laravel Two"', 0600);
     }
 
     public function testItCannotOverwriteEncryptedFiles(): void
@@ -306,8 +317,8 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), 'APP_NAME="Laravel Two"');
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env'), 'APP_NAME="Laravel Two"', 0600);
     }
 
     public function testItAutoDetectsAndDecryptsReadableFormat(): void
@@ -333,8 +344,8 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), "APP_NAME=Laravel\nAPP_ENV=local\n");
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env'), "APP_NAME=Laravel\nAPP_ENV=local\n", 0600);
     }
 
     public function testItStillDecryptsBlobFormat(): void
@@ -360,8 +371,8 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), $originalContent);
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env'), $originalContent, 0600);
     }
 
     public function testItDecryptsBlobFormatWithNewlineInContent(): void
@@ -391,8 +402,8 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), $originalContent);
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env'), $originalContent, 0600);
     }
 
     public function testItDecryptsReadableFormatWithBase64Values(): void
@@ -418,7 +429,99 @@ class EnvironmentDecryptCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain('Environment successfully decrypted.')
             ->assertExitCode(0);
 
-        $this->filesystem->shouldHaveReceived('put')
-            ->with(base_path('.env'), "APP_KEY=base64:Ge+W23u+VZI2tbrp5QCGWrsUuxgcD65i7jtTRR2ZqfY=\nAPP_ENV=local\n");
+        $this->filesystem->shouldHaveReceived('replace')
+            ->with(base_path('.env'), "APP_KEY=base64:Ge+W23u+VZI2tbrp5QCGWrsUuxgcD65i7jtTRR2ZqfY=\nAPP_ENV=local\n", 0600);
+    }
+
+    public function testNewEnvironmentFileUsesPrivatePermissions(): void
+    {
+        $tempDir = ParallelTesting::tempDir('EnvironmentDecryptCommandTest-new');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($tempDir);
+        $this->app->useEnvironmentPath($tempDir);
+        $key = 'abcdefghijklmnopabcdefghijklmnop';
+        $encryptedFile = $tempDir . '/.env.encrypted';
+        $outputFile = $tempDir . '/.env';
+        $files->put(
+            $encryptedFile,
+            (new Encrypter($key, 'AES-256-CBC'))->encrypt('APP_NAME=Hypervel'),
+        );
+        File::swap($files);
+
+        try {
+            $this->artisan('env:decrypt', ['--key' => $key])->assertSuccessful();
+
+            $this->assertSame('APP_NAME=Hypervel', $files->get($outputFile));
+            $this->assertSame(0600, fileperms($outputFile) & 0777);
+        } finally {
+            $files->deleteDirectory($tempDir);
+        }
+    }
+
+    public function testOverwrittenEnvironmentFilePreservesExistingPermissions(): void
+    {
+        $tempDir = ParallelTesting::tempDir('EnvironmentDecryptCommandTest-overwrite');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($tempDir);
+        $this->app->useEnvironmentPath($tempDir);
+        $key = 'abcdefghijklmnopabcdefghijklmnop';
+        $encryptedFile = $tempDir . '/.env.encrypted';
+        $outputFile = $tempDir . '/.env';
+        $files->put(
+            $encryptedFile,
+            (new Encrypter($key, 'AES-256-CBC'))->encrypt('APP_NAME=Hypervel'),
+        );
+        $files->put($outputFile, 'previous');
+        chmod($outputFile, 0644);
+        File::swap($files);
+
+        try {
+            $this->artisan('env:decrypt', ['--force' => true, '--key' => $key])->assertSuccessful();
+
+            $this->assertSame('APP_NAME=Hypervel', $files->get($outputFile));
+            $this->assertSame(0644, fileperms($outputFile) & 0777);
+        } finally {
+            $files->deleteDirectory($tempDir);
+        }
+    }
+
+    public function testExistingEnvironmentFileSurvivesReplacementFailure(): void
+    {
+        $tempDir = ParallelTesting::tempDir('EnvironmentDecryptCommandTest');
+        $files = new Filesystem;
+        $files->ensureDirectoryExists($tempDir);
+        $this->app->useEnvironmentPath($tempDir);
+        $key = 'abcdefghijklmnopabcdefghijklmnop';
+        $encryptedFile = $tempDir . '/.env.encrypted';
+        $outputFile = $tempDir . '/.env';
+        $previousContents = 'previous plaintext contents';
+        $files->put(
+            $encryptedFile,
+            (new Encrypter($key, 'AES-256-CBC'))->encrypt('APP_NAME=Hypervel'),
+        );
+        $files->put($outputFile, $previousContents);
+        chmod($outputFile, 0640);
+
+        $filesystem = m::mock(Filesystem::class)->makePartial();
+        $filesystem->shouldReceive('replace')
+            ->once()
+            ->with($outputFile, 'APP_NAME=Hypervel', 0640)
+            ->andThrow(new RuntimeException('publication failed'));
+        File::swap($filesystem);
+
+        try {
+            $this->artisan('env:decrypt', [
+                '--force' => true,
+                '--key' => $key,
+            ])
+                ->expectsOutputToContain('publication failed')
+                ->doesntExpectOutputToContain('Environment successfully decrypted.')
+                ->assertExitCode(1);
+
+            $this->assertSame($previousContents, $files->get($outputFile));
+            $this->assertSame(0640, fileperms($outputFile) & 0777);
+        } finally {
+            $files->deleteDirectory($tempDir);
+        }
     }
 }

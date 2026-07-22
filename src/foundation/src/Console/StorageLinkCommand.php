@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'storage:link')]
@@ -19,24 +20,36 @@ class StorageLinkCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         $relative = $this->option('relative');
+        $force = (bool) $this->option('force');
+        $files = $this->hypervel->make('files');
 
         foreach ($this->links() as $link => $target) {
-            if (file_exists($link) && ! $this->isRemovableSymlink($link, $this->option('force'))) {
+            if ((file_exists($link) || is_link($link)) && ! $this->isRemovableSymlink($link, $force)) {
                 $this->components->error("The [{$link}] link already exists.");
                 continue;
             }
 
-            if (is_link($link)) {
-                $this->hypervel->make('files')->delete($link);
+            if (is_link($link) && ! $files->delete($link)) {
+                // Filesystem clears this at runtime; repeat it so static analysis
+                // re-evaluates the native postcondition below.
+                clearstatcache(false, $link);
+
+                if (file_exists($link) || is_link($link)) {
+                    throw new RuntimeException("Unable to delete the existing link [{$link}].");
+                }
             }
 
             if ($relative) {
-                $this->hypervel->make('files')->relativeLink($target, $link);
-            } else {
-                $this->hypervel->make('files')->link($target, $link);
+                $files->relativeLink($target, $link);
+            } elseif ($files->link($target, $link) === false) {
+                throw new RuntimeException("Unable to create a link from [{$link}] to [{$target}].");
+            }
+
+            if (! file_exists($link) && ! is_link($link)) {
+                throw new RuntimeException("Unable to create a link from [{$link}] to [{$target}].");
             }
 
             $this->components->info("The [{$link}] link has been connected to [{$target}].");

@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Foundation;
 
 use DateTimeInterface;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
+use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Foundation\Console\DownCommand;
 use Hypervel\Foundation\Console\UpCommand;
 use Hypervel\Foundation\Events\MaintenanceModeDisabled;
@@ -15,8 +19,11 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Cookie;
+use Throwable;
 
 class MaintenanceModeTest extends TestCase
 {
@@ -28,6 +35,16 @@ class MaintenanceModeTest extends TestCase
         });
 
         parent::setUp();
+    }
+
+    protected function tearDown(): void
+    {
+        FailingReloadDownCommand::$reloadAttempted = false;
+        FailingReloadDownCommand::$reloadFailure = null;
+        FailingReloadUpCommand::$reloadAttempted = false;
+        FailingReloadUpCommand::$reloadFailure = null;
+
+        parent::tearDown();
     }
 
     public function testBasicMaintenanceModeResponse()
@@ -46,6 +63,21 @@ class MaintenanceModeTest extends TestCase
         $response->assertStatus(503);
         $response->assertHeader('Retry-After', '60');
         $response->assertHeader('Refresh', '60');
+    }
+
+    public function testConcurrentMaintenanceFileRemovalAllowsTheRequestToProceed(): void
+    {
+        $mode = m::mock(MaintenanceModeContract::class);
+        $mode->shouldReceive('active')->twice()->andReturnTrue();
+        $mode->shouldReceive('data')->twice()->andThrow(new FileNotFoundException('removed'));
+        $this->app->instance(MaintenanceModeContract::class, $mode);
+
+        Route::get('/foo', fn () => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+
+        $response = $this->get('/foo');
+
+        $response->assertOk();
+        $this->assertSame('Hello World', $response->original);
     }
 
     public function testMaintenanceModeCanHaveCustomStatus()
@@ -81,6 +113,42 @@ class MaintenanceModeTest extends TestCase
         $response->assertStatus(503);
         $response->assertHeader('Retry-After', '60');
         $this->assertSame('Rendered Content', $response->original);
+    }
+
+    public function testMaintenanceModeDoesNotUseCustomTemplateForJsonRequests(): void
+    {
+        file_put_contents(storage_path('framework/down'), json_encode([
+            'retry' => 60,
+            'refresh' => 30,
+            'template' => 'Rendered Content',
+        ]));
+
+        Route::get('/foo', fn () => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+
+        $response = $this->getJson('/foo');
+
+        $response->assertStatus(503);
+        $response->assertHeader('Retry-After', '60');
+        $response->assertHeader('Refresh', '30');
+        $response->assertJson(['message' => 'Service Unavailable']);
+    }
+
+    public function testMaintenanceModeDoesNotRedirectJsonRequests(): void
+    {
+        file_put_contents(storage_path('framework/down'), json_encode([
+            'retry' => 60,
+            'refresh' => 30,
+            'redirect' => '/maintenance',
+        ]));
+
+        Route::get('/foo', fn () => 'Hello World')->middleware(PreventRequestsDuringMaintenance::class);
+
+        $response = $this->getJson('/foo');
+
+        $response->assertStatus(503);
+        $response->assertHeader('Retry-After', '60');
+        $response->assertHeader('Refresh', '30');
+        $response->assertJson(['message' => 'Service Unavailable']);
     }
 
     public function testDownCommandPrerendersTemplateIntoMaintenancePayload()
@@ -212,6 +280,101 @@ class MaintenanceModeTest extends TestCase
         Event::assertDispatched(MaintenanceModeDisabled::class);
     }
 
+    public function testDownAttemptsReloadAfterEventFailureAndPreservesTheEventFailure(): void
+    {
+        $eventException = new RuntimeException('event failed');
+        $reloadException = new RuntimeException('reload failed');
+        $reportException = new RuntimeException('report failed');
+        $command = $this->app->make(FailingReloadDownCommand::class);
+        FailingReloadDownCommand::$reloadFailure = $reloadException;
+        $this->app->make(KernelContract::class)->registerCommand($command);
+        $this->app->make('events')->listen(
+            MaintenanceModeEnabled::class,
+            static fn () => throw $eventException,
+        );
+
+        $handler = m::mock(ExceptionHandler::class);
+        $handler->shouldReceive('report')->once()->with($eventException)->andThrow($reportException);
+        $this->app->instance(ExceptionHandler::class, $handler);
+
+        $this->artisan(FailingReloadDownCommand::class)
+            ->expectsOutputToContain('The application is in maintenance mode, but a follow-up operation failed: event failed.')
+            ->doesntExpectOutputToContain('Application is now in maintenance mode.')
+            ->assertExitCode(1);
+
+        $this->assertTrue(FailingReloadDownCommand::$reloadAttempted);
+        $this->assertFileExists(storage_path('framework/down'));
+    }
+
+    public function testDownReportsReloadFailureAfterMaintenanceStateIsCommitted(): void
+    {
+        $command = $this->app->make(FailingReloadDownCommand::class);
+        FailingReloadDownCommand::$reloadFailure = new RuntimeException('reload failed');
+        $this->app->make(KernelContract::class)->registerCommand($command);
+
+        $this->artisan(FailingReloadDownCommand::class)
+            ->expectsOutputToContain('The application is in maintenance mode, but a follow-up operation failed: reload failed.')
+            ->doesntExpectOutputToContain('Application is now in maintenance mode.')
+            ->assertExitCode(1);
+
+        $this->assertTrue(FailingReloadDownCommand::$reloadAttempted);
+        $this->assertFileExists(storage_path('framework/down'));
+    }
+
+    public function testUpAttemptsReloadAfterEventFailureAndPreservesTheEventFailure(): void
+    {
+        file_put_contents(storage_path('framework/down'), json_encode(['status' => 503]));
+
+        $eventException = new RuntimeException('event failed');
+        $command = $this->app->make(FailingReloadUpCommand::class);
+        FailingReloadUpCommand::$reloadFailure = new RuntimeException('reload failed');
+        $this->app->make(KernelContract::class)->registerCommand($command);
+        $this->app->make('events')->listen(
+            MaintenanceModeDisabled::class,
+            static fn () => throw $eventException,
+        );
+
+        $this->artisan(FailingReloadUpCommand::class)
+            ->expectsOutputToContain('The application is live, but a follow-up operation failed: event failed.')
+            ->doesntExpectOutputToContain('Application is now live.')
+            ->assertExitCode(1);
+
+        $this->assertTrue(FailingReloadUpCommand::$reloadAttempted);
+        $this->assertFileDoesNotExist(storage_path('framework/down'));
+    }
+
+    public function testDownReportsDriverFailureBeforeMaintenanceStateIsCommitted(): void
+    {
+        $mode = m::mock(MaintenanceModeContract::class);
+        $mode->shouldReceive('active')->once()->andReturnFalse();
+        $mode->shouldReceive('activate')->once()->andThrow(new RuntimeException('activation failed'));
+        $this->app->instance(MaintenanceModeContract::class, $mode);
+
+        $this->artisan(DownCommand::class)
+            ->expectsOutputToContain('Failed to enter maintenance mode: activation failed.')
+            ->doesntExpectOutputToContain('The application is in maintenance mode')
+            ->assertExitCode(1);
+
+        $this->assertFileDoesNotExist(storage_path('framework/down'));
+    }
+
+    public function testUpReportsDriverFailureBeforeMaintenanceStateIsCommitted(): void
+    {
+        file_put_contents(storage_path('framework/down'), json_encode(['status' => 503]));
+
+        $mode = m::mock(MaintenanceModeContract::class);
+        $mode->shouldReceive('active')->once()->andReturnTrue();
+        $mode->shouldReceive('deactivate')->once()->andThrow(new RuntimeException('deactivation failed'));
+        $this->app->instance(MaintenanceModeContract::class, $mode);
+
+        $this->artisan(UpCommand::class)
+            ->expectsOutputToContain('Failed to disable maintenance mode: deactivation failed.')
+            ->doesntExpectOutputToContain('The application is live')
+            ->assertExitCode(1);
+
+        $this->assertFileExists(storage_path('framework/down'));
+    }
+
     #[DataProvider('retryAfterDatetimeProvider')]
     public function testMaintenanceModeRetryCanAcceptDatetime(string $datetime)
     {
@@ -274,6 +437,21 @@ class MaintenanceModeTest extends TestCase
         $this->assertSame($expectedDate, $data['retry']);
     }
 
+    public function testMaintenanceModeCanBeRefreshedWithNewOptions(): void
+    {
+        $this->artisan(DownCommand::class, ['--retry' => 60])
+            ->expectsOutputToContain('Application is now in maintenance mode.');
+
+        $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+        $this->assertSame(60, $data['retry']);
+
+        $this->artisan(DownCommand::class, ['--retry' => 120])
+            ->expectsOutputToContain('Maintenance mode options updated.');
+
+        $data = json_decode(file_get_contents(storage_path('framework/down')), true);
+        $this->assertSame(120, $data['retry']);
+    }
+
     public function testMaintenanceModeRespectsBootstrapConfiguredExcludedPaths()
     {
         PreventRequestsDuringMaintenance::except([
@@ -288,5 +466,37 @@ class MaintenanceModeTest extends TestCase
             '/api/*',
             '/webhooks/*',
         ], $data['except']);
+    }
+}
+
+class FailingReloadDownCommand extends DownCommand
+{
+    public static bool $reloadAttempted = false;
+
+    public static ?Throwable $reloadFailure = null;
+
+    protected function reloadWorkers(): void
+    {
+        static::$reloadAttempted = true;
+
+        if (static::$reloadFailure !== null) {
+            throw static::$reloadFailure;
+        }
+    }
+}
+
+class FailingReloadUpCommand extends UpCommand
+{
+    public static bool $reloadAttempted = false;
+
+    public static ?Throwable $reloadFailure = null;
+
+    protected function reloadWorkers(): void
+    {
+        static::$reloadAttempted = true;
+
+        if (static::$reloadFailure !== null) {
+            throw static::$reloadFailure;
+        }
     }
 }

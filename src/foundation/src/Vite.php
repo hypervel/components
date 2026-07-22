@@ -12,6 +12,7 @@ use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
+use JsonException;
 use RuntimeException;
 
 class Vite implements Htmlable
@@ -137,6 +138,9 @@ class Vite implements Htmlable
 
     /**
      * Use the given key to detect integrity hashes in the manifest.
+     *
+     * Boot-only. The key is stored on the shared Vite instance and affects
+     * every subsequent asset render by this worker.
      */
     public function useIntegrityKey(string|false $key): static
     {
@@ -170,6 +174,9 @@ class Vite implements Htmlable
 
     /**
      * Set the filename for the manifest file.
+     *
+     * Boot-only. The filename is stored on the shared Vite instance and affects
+     * every subsequent manifest lookup by this worker.
      */
     public function useManifestFilename(string $filename): static
     {
@@ -201,6 +208,9 @@ class Vite implements Htmlable
 
     /**
      * Set the Vite "hot" file path.
+     *
+     * Boot-only. The path is stored on the shared Vite instance and affects
+     * every subsequent asset render by this worker.
      */
     public function useHotFile(string $path): static
     {
@@ -211,6 +221,9 @@ class Vite implements Htmlable
 
     /**
      * Set the Vite build directory.
+     *
+     * Boot-only. The directory is stored on the shared Vite instance and
+     * affects every subsequent asset render by this worker.
      */
     public function useBuildDirectory(string $path): static
     {
@@ -221,6 +234,9 @@ class Vite implements Htmlable
 
     /**
      * Use the given callback to resolve attributes for script tags.
+     *
+     * Boot-only. The resolver persists on the shared Vite instance and affects
+     * every subsequent asset render by this worker.
      *
      * @param array|(callable(string, string, ?array, ?array): array) $attributes
      */
@@ -238,6 +254,9 @@ class Vite implements Htmlable
     /**
      * Use the given callback to resolve attributes for style tags.
      *
+     * Boot-only. The resolver persists on the shared Vite instance and affects
+     * every subsequent asset render by this worker.
+     *
      * @param array|(callable(string, string, ?array, ?array): array) $attributes
      */
     public function useStyleTagAttributes(callable|array $attributes): static
@@ -254,6 +273,9 @@ class Vite implements Htmlable
     /**
      * Use the given callback to resolve attributes for preload tags.
      *
+     * Boot-only. The resolver persists on the shared Vite instance and affects
+     * every subsequent asset render by this worker.
+     *
      * @param array|(callable(string, string, ?array, ?array): (array|false))|false $attributes
      */
     public function usePreloadTagAttributes(callable|array|false $attributes): static
@@ -269,6 +291,9 @@ class Vite implements Htmlable
 
     /**
      * Eagerly prefetch assets.
+     *
+     * Boot-only. The strategy is stored on the shared Vite instance and affects
+     * every subsequent asset render by this worker.
      */
     public function prefetch(?int $concurrency = null, string $event = 'load'): static
     {
@@ -281,6 +306,9 @@ class Vite implements Htmlable
 
     /**
      * Use the "waterfall" prefetching strategy.
+     *
+     * Boot-only. The strategy is stored on the shared Vite instance and affects
+     * every subsequent asset render by this worker.
      */
     public function useWaterfallPrefetching(?int $concurrency = null): static
     {
@@ -291,6 +319,9 @@ class Vite implements Htmlable
 
     /**
      * Use the "aggressive" prefetching strategy.
+     *
+     * Boot-only. The strategy is stored on the shared Vite instance and affects
+     * every subsequent asset render by this worker.
      */
     public function useAggressivePrefetching(): static
     {
@@ -299,6 +330,9 @@ class Vite implements Htmlable
 
     /**
      * Set the prefetching strategy.
+     *
+     * Boot-only. The strategy is stored on the shared Vite instance and affects
+     * every subsequent asset render by this worker.
      *
      * @throws Exception
      */
@@ -730,7 +764,14 @@ class Vite implements Htmlable
      */
     protected function hotAsset(string $asset): string
     {
-        return rtrim(file_get_contents($this->hotFile())) . '/' . $asset;
+        $path = $this->hotFile();
+        $contents = @file_get_contents($path);
+
+        if ($contents === false) {
+            throw new ViteException("Unable to read the Vite hot file at [{$path}].");
+        }
+
+        return rtrim($contents) . '/' . $asset;
     }
 
     /**
@@ -766,7 +807,13 @@ class Vite implements Htmlable
             throw new ViteException("Unable to locate file from Vite manifest: {$path}.");
         }
 
-        return file_get_contents($path);
+        $contents = @file_get_contents($path);
+
+        if ($contents === false) {
+            throw new ViteException("Unable to read file from Vite manifest: {$path}.");
+        }
+
+        return $contents;
     }
 
     /**
@@ -799,7 +846,23 @@ class Vite implements Htmlable
                 throw new ViteException("Vite manifest not found at: {$path}");
             }
 
-            static::$manifests[$path] = json_decode(file_get_contents($path), true);
+            $contents = @file_get_contents($path);
+
+            if ($contents === false) {
+                throw new ViteException("Unable to read the Vite manifest at [{$path}].");
+            }
+
+            try {
+                $manifest = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+            } catch (JsonException $exception) {
+                throw new ViteException("Unable to parse the Vite manifest at [{$path}].", previous: $exception);
+            }
+
+            if (! is_array($manifest)) {
+                throw new ViteException("The Vite manifest at [{$path}] is invalid.");
+            }
+
+            static::$manifests[$path] = $manifest;
         }
 
         return static::$manifests[$path];
@@ -828,7 +891,7 @@ class Vite implements Htmlable
             return null;
         }
 
-        return hash_file('xxh128', $path) ?: null;
+        return @hash_file('xxh128', $path) ?: null;
     }
 
     /**

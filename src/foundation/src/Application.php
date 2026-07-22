@@ -25,6 +25,7 @@ use Hypervel\Support\Env;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
+use JsonException;
 use ReflectionClass;
 use RuntimeException;
 use Symfony\Component\Console\Input\InputInterface;
@@ -397,6 +398,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Set the application directory.
+     *
+     * Boot-only. The configured path and its container binding are shared by
+     * every request in the worker.
      */
     public function useAppPath(string $path): static
     {
@@ -425,6 +429,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Set the bootstrap file directory.
+     *
+     * Boot-only. The configured path and its container binding are shared by
+     * every request in the worker.
      */
     public function useBootstrapPath(string $path): static
     {
@@ -453,6 +460,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Set the configuration directory.
+     *
+     * Boot-only. The configured path and its container binding are shared by
+     * every request in the worker.
      */
     public function useConfigPath(string $path): static
     {
@@ -473,6 +483,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Set the database directory.
+     *
+     * Boot-only. The configured path and its container binding are shared by
+     * every request in the worker.
      */
     public function useDatabasePath(string $path): static
     {
@@ -493,6 +506,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Set the language file directory.
+     *
+     * Boot-only. The configured path and its container binding are shared by
+     * every request in the worker.
      */
     public function useLangPath(string $path): static
     {
@@ -513,6 +529,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Set the public / web directory.
+     *
+     * Boot-only. The configured path and its container binding are shared by
+     * every request in the worker.
      */
     public function usePublicPath(string $path): static
     {
@@ -538,7 +557,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function viewPath(string $path = ''): string
     {
-        $paths = $this->make('config')->array('view.paths', [$this->basePath('resources/views')]);
+        $paths = $this->make('config')->array('view.paths');
 
         $viewPath = rtrim(
             $paths[0] ?? $this->basePath('resources/views'),
@@ -566,6 +585,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Set the storage directory.
+     *
+     * Boot-only. The configured path and its container binding are shared by
+     * every request in the worker.
      */
     public function useStoragePath(string $path): static
     {
@@ -587,6 +609,8 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Set the directory for the environment file.
      *
+     * Boot-only. The configured path is shared by every request in the worker.
+     *
      * @return $this
      */
     public function useEnvironmentPath(string $path): static
@@ -598,6 +622,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Set the environment file to be loaded during bootstrapping.
+     *
+     * Boot-only. The configured filename is shared by every request in the
+     * worker.
      *
      * @return $this
      */
@@ -696,6 +723,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Add new prefix to list of absolute path prefixes.
+     *
+     * Boot-only. The prefix persists on the application singleton and affects
+     * cache-path resolution for every request in the worker.
      *
      * @return $this
      */
@@ -813,7 +843,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function hasDebugModeEnabled(): bool
     {
-        return $this->make('config')->boolean('app.debug', false);
+        return $this->make('config')->boolean('app.debug');
     }
 
     /**
@@ -860,6 +890,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
     /**
      * Indicate that the framework's base configuration should not be merged.
      *
+     * Boot-only. The setting changes configuration bootstrap behavior for the
+     * entire worker.
+     *
      * @return $this
      */
     public function dontMergeFrameworkConfiguration(): static
@@ -899,7 +932,7 @@ class Application extends Container implements ApplicationContract, CachesConfig
      */
     public function registerConfiguredProviders(): void
     {
-        $providers = (new Collection($this->make('config')->array('app.providers', [])))
+        $providers = (new Collection($this->make('config')->array('app.providers')))
             ->partition(fn (string $provider) => str_starts_with($provider, 'Hypervel\\'));
 
         $discovered = static::sortByPriority($this->discoverProviders());
@@ -1254,6 +1287,9 @@ class Application extends Container implements ApplicationContract, CachesConfig
 
     /**
      * Set the current application fallback locale.
+     *
+     * Boot-only. The fallback is stored on the shared translator and affects
+     * every request in the worker.
      */
     public function setFallbackLocale(string $fallbackLocale): void
     {
@@ -1480,10 +1516,42 @@ class Application extends Container implements ApplicationContract, CachesConfig
             return $this->namespace;
         }
 
-        $composer = json_decode(file_get_contents($this->basePath('composer.json')), true);
-        foreach ((array) data_get($composer, 'autoload.psr-4') as $namespace => $path) {
-            foreach ((array) $path as $pathChoice) {
-                if (realpath($this->path()) === realpath($this->basePath($pathChoice))) {
+        $contents = @file_get_contents($this->basePath('composer.json'));
+
+        if ($contents === false) {
+            throw new RuntimeException('Unable to detect application namespace.');
+        }
+
+        try {
+            $composer = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException('Unable to detect application namespace.', previous: $exception);
+        }
+
+        if (! is_array($composer)) {
+            throw new RuntimeException('Unable to detect application namespace.');
+        }
+
+        $mappings = data_get($composer, 'autoload.psr-4', []);
+        $appPath = realpath($this->path());
+
+        if (! is_array($mappings) || ! is_string($appPath)) {
+            throw new RuntimeException('Unable to detect application namespace.');
+        }
+
+        foreach ($mappings as $namespace => $paths) {
+            if (! is_string($namespace) || (! is_string($paths) && ! is_array($paths))) {
+                throw new RuntimeException('Unable to detect application namespace.');
+            }
+
+            foreach ((array) $paths as $path) {
+                if (! is_string($path)) {
+                    throw new RuntimeException('Unable to detect application namespace.');
+                }
+
+                $candidatePath = realpath($this->basePath($path));
+
+                if (is_string($candidatePath) && $candidatePath === $appPath) {
                     return $this->namespace = $namespace;
                 }
             }

@@ -145,6 +145,16 @@ class DevCommandTest extends TestCase
         $this->assertFalse($defaults['coroutine']);
     }
 
+    public function testColumnsIsRestoredWhenProcessCommandConstructionFails(): void
+    {
+        DevCommands::register('command', 'custom');
+        $this->captureProcessCommand();
+
+        $this->executeUntilProcessCommand(new Application);
+
+        $this->assertSame('120', getenv('COLUMNS'));
+    }
+
     /**
      * Bind a package manager that captures the orchestrator command.
      */

@@ -131,6 +131,21 @@ use Hypervel\Foundation\Configuration\Middleware;
 
 The `$middleware` object provided to the `withMiddleware` closure is an instance of `Hypervel\Foundation\Configuration\Middleware` and is responsible for managing the middleware assigned to your application's routes. The `append` method adds the middleware to the end of the list of global middleware. If you would like to add a middleware to the beginning of the list, you should use the `prepend` method.
 
+<a name="preferring-json-responses"></a>
+#### Preferring JSON Responses
+
+For API-first applications, you may configure Hypervel to prefer JSON responses when a request does not include a specific `Accept` header:
+
+```php
+use Hypervel\Foundation\Application;
+
+$app = Application::configure(basePath: dirname(__DIR__))
+    ->prefersJsonResponses()
+    ->create();
+```
+
+Requests with a specific media type in their `Accept` header are left unchanged.
+
 <a name="manually-managing-hypervels-default-global-middleware"></a>
 #### Manually Managing Hypervel's Default Global Middleware
 

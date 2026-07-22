@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Query\Grammars\SQLiteGrammar;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Fixtures\User;
+use Mockery as m;
 use ReflectionClass;
 
 class InteractsWithDatabaseTest extends TestCase
@@ -61,6 +66,31 @@ class InteractsWithDatabaseTest extends TestCase
 
         $this->assertSame('0', $this->getConnection('0')->getName());
         $this->assertSame('testing', $this->getConnection('')->getName());
+    }
+
+    public function testCastAsJsonUsesSpecifiedConnection(): void
+    {
+        $database = DB::getFacadeRoot();
+        $connection = m::mock(Connection::class);
+        $grammar = new SQLiteGrammar($connection);
+
+        $connection->shouldReceive('getQueryGrammar')->once()->andReturn($grammar);
+        $connection->shouldReceive('raw')->once()->andReturnUsing(
+            static fn (string $value): Expression => new Expression($value),
+        );
+        $connection->shouldReceive('getPdo->quote')->once()->andReturnUsing(
+            static fn (string $value): string => "'{$value}'",
+        );
+
+        try {
+            DB::shouldReceive('connection')->once()->with('secondary')->andReturn($connection);
+
+            $expression = $this->castAsJson(['foo' => 'bar'], 'secondary');
+
+            $this->assertSame('\'{"foo":"bar"}\'', $expression->getValue($grammar));
+        } finally {
+            DB::swap($database);
+        }
     }
 
     public function testAssertModelExists()

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Finder\Finder;
 
@@ -30,7 +32,7 @@ class ConfigPublishCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): ?int
+    public function handle(): int
     {
         $config = $this->getBaseConfigurationFiles();
 
@@ -63,13 +65,29 @@ class ConfigPublishCommand extends Command
      */
     protected function publish(string $name, string $file, string $destination): void
     {
-        if (file_exists($destination) && ! $this->option('force')) {
+        $files = $this->hypervel->make(Filesystem::class);
+
+        if ($files->exists($destination) && ! $this->option('force')) {
             $this->components->error("The '{$name}' configuration file already exists.");
 
             return;
         }
 
-        copy($file, $destination);
+        $files->ensureDirectoryExists(dirname($destination));
+
+        $mode = null;
+
+        if ($files->exists($destination)) {
+            $permissions = $files->chmod($destination);
+
+            if ($permissions === false) {
+                throw new RuntimeException("Unable to determine permissions for [{$destination}].");
+            }
+
+            $mode = octdec($permissions);
+        }
+
+        $files->replace($destination, $files->get($file), $mode);
 
         $this->components->info("Published '{$name}' configuration file.");
     }
@@ -86,11 +104,12 @@ class ConfigPublishCommand extends Command
         $shouldMergeConfiguration = $this->hypervel->shouldMergeFrameworkConfiguration();
 
         foreach (Finder::create()->files()->name('*.php')->in(__DIR__ . '/../../config') as $file) {
-            $name = basename($file->getRealPath(), '.php');
+            $path = $file->getPathname();
+            $name = basename($path, '.php');
 
             $config[$name] = ($shouldMergeConfiguration === true && file_exists($stubPath = (__DIR__ . '/../../config-stubs/' . $name . '.php')))
                 ? $stubPath
-                : $file->getRealPath();
+                : $path;
         }
 
         return (new Collection($config))->sortKeys()->all();

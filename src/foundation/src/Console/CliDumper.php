@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Concerns\ResolvesDumpSource;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -17,10 +18,7 @@ class CliDumper extends BaseCliDumper
 {
     use ResolvesDumpSource;
 
-    /**
-     * If the dumper is currently dumping.
-     */
-    protected bool $dumping = false;
+    protected const DUMPING_CONTEXT_KEY = '__foundation.cli_dumper.dumping';
 
     /**
      * Create a new CLI dumper instance.
@@ -60,22 +58,24 @@ class CliDumper extends BaseCliDumper
      */
     public function dumpWithSource(Data $data): void
     {
-        if ($this->dumping) {
+        if (CoroutineContext::has(self::DUMPING_CONTEXT_KEY)) {
             $this->dump($data);
 
             return;
         }
 
-        $this->dumping = true;
+        CoroutineContext::set(self::DUMPING_CONTEXT_KEY, true);
 
-        $output = (string) $this->dump($data, true);
-        $lines = explode("\n", $output);
+        try {
+            $output = (string) $this->dump($data, true);
+            $lines = explode("\n", $output);
 
-        $lines[array_key_last($lines) - 1] .= $this->getDumpSourceContent();
+            $lines[array_key_last($lines) - 1] .= $this->getDumpSourceContent();
 
-        $this->output->write(implode("\n", $lines));
-
-        $this->dumping = false;
+            $this->output->write(implode("\n", $lines));
+        } finally {
+            CoroutineContext::forget(self::DUMPING_CONTEXT_KEY);
+        }
     }
 
     /**

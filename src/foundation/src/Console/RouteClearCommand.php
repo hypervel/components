@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'route:clear')]
@@ -41,7 +42,11 @@ class RouteClearCommand extends Command
      */
     public function handle(): void
     {
-        $this->files->delete($this->hypervel->getCachedRoutesPath());
+        $path = $this->hypervel->getCachedRoutesPath();
+
+        if (! $this->files->delete($path) && $this->files->exists($path)) {
+            throw new RuntimeException("Unable to delete the route cache file [{$path}].");
+        }
 
         $this->components->info('Route cache cleared successfully.');
     }

@@ -14,6 +14,7 @@ use Hypervel\Testbench\Contracts\Attributes\BeforeAll;
 use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
 use Hypervel\Testbench\Contracts\Attributes\Resolvable;
 use Hypervel\Testbench\PHPUnit\AttributeParser;
+use Throwable;
 
 use function Hypervel\Testbench\hypervel_or_fail;
 
@@ -134,14 +135,30 @@ trait InteractsWithTestCase
      */
     protected function tearDownTheTestEnvironmentUsingTestCase(): void
     {
-        $app = hypervel_or_fail($this->app);
+        $exception = null;
 
-        $this->resolvePhpUnitAttributes()
-            ->flatten()
-            ->filter(static fn ($instance) => $instance instanceof AfterEach)
-            ->each(static fn ($instance) => $instance->afterEach($app));
+        try {
+            $app = hypervel_or_fail($this->app);
+            $callbacks = $this->resolvePhpUnitAttributes()
+                ->flatten()
+                ->filter(static fn ($instance) => $instance instanceof AfterEach);
+
+            foreach ($callbacks as $callback) {
+                try {
+                    $callback->afterEach($app);
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
 
         static::$testCaseMethodTestingFeatures = [];
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -160,12 +177,30 @@ trait InteractsWithTestCase
      */
     public static function tearDownAfterClassUsingTestCase(): void
     {
-        static::resolvePhpUnitAttributesForMethod(static::class)
-            ->flatten()
-            ->filter(static fn ($instance) => $instance instanceof AfterAll)
-            ->each(static fn ($instance) => $instance->afterAll());
+        $exception = null;
+
+        try {
+            $callbacks = static::resolvePhpUnitAttributesForMethod(static::class)
+                ->flatten()
+                ->filter(static fn ($instance) => $instance instanceof AfterAll);
+
+            foreach ($callbacks as $callback) {
+                try {
+                    $callback->afterAll();
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
 
         static::$testCaseTestingFeatures = [];
+        static::$testCaseMethodTestingFeatures = [];
         static::$cacheApplicationBootstrapFile = null;
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 }

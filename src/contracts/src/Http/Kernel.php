@@ -26,6 +26,13 @@ interface Kernel
     public function terminate(Request $request, Response $response): void;
 
     /**
+     * Add a new middleware to the beginning of the stack if it does not already exist.
+     *
+     * @return $this
+     */
+    public function prependMiddleware(string $middleware): static;
+
+    /**
      * Get the application's route middleware groups.
      *
      * @return array<string, array<int, mixed>>

@@ -206,9 +206,11 @@ return [
     | These configuration options determine the driver used to determine and
     | manage Hypervel's "maintenance mode" status. The "cache" driver will
     | allow maintenance mode to be controlled across multiple machines. The
-    | refresh interval controls how often workers re-check the driver.
+    | refresh interval controls how often workers re-check the driver. The
+    | "array" driver is intended for tests and isolated application processes;
+    | it cannot coordinate maintenance state across Swoole workers.
     |
-    | Supported drivers: "file", "cache"
+    | Supported drivers: "file", "cache", "array"
     |
     */
 

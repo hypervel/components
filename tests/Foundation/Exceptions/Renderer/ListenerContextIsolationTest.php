@@ -14,7 +14,7 @@ use function Hypervel\Coroutine\parallel;
 
 class ListenerContextIsolationTest extends TestCase
 {
-    public function testQueryCapStopsAtMaxQueries()
+    public function testQueryCapStopsAtMaxQueries(): void
     {
         $listener = new Listener;
 
@@ -28,7 +28,7 @@ class ListenerContextIsolationTest extends TestCase
             );
         }
 
-        $this->assertCount(101, $listener->queries());
+        $this->assertCount(100, $listener->queries());
     }
 
     public function testQueriesAreIsolatedBetweenCoroutines(): void

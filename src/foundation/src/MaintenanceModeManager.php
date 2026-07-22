@@ -17,6 +17,14 @@ class MaintenanceModeManager extends Manager
     }
 
     /**
+     * Create an instance of the array based maintenance driver.
+     */
+    protected function createArrayDriver(): ArrayMaintenanceMode
+    {
+        return new ArrayMaintenanceMode;
+    }
+
+    /**
      * Create an instance of the cache based maintenance driver.
      *
      * @throws \Hypervel\Contracts\Container\BindingResolutionException
@@ -37,6 +45,6 @@ class MaintenanceModeManager extends Manager
      */
     public function getDefaultDriver(): string
     {
-        return $this->config->string('app.maintenance.driver', 'file');
+        return $this->config->string('app.maintenance.driver');
     }
 }

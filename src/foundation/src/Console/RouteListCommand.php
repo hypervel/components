@@ -38,7 +38,7 @@ class RouteListCommand extends Command
      *
      * @var string[]
      */
-    protected array $headers = ['Domain', 'Method', 'URI', 'Name', 'Action', 'Middleware'];
+    protected array $headers = ['Domain', 'Method', 'URI', 'Name', 'Action', 'Middleware', 'Path'];
 
     /**
      * The terminal width resolver callback.
@@ -123,6 +123,7 @@ class RouteListCommand extends Command
             'name' => $route->getName(),
             'action' => ltrim($route->getActionName(), '\\'),
             'middleware' => $this->getMiddleware($route),
+            'path' => $this->getClosurePath($route),
             'vendor' => $this->isVendorRoute($route),
         ]);
     }
@@ -192,6 +193,29 @@ class RouteListCommand extends Command
     }
 
     /**
+     * Get the file path and line number for a closure-based route.
+     */
+    protected function getClosurePath(Route $route): ?string
+    {
+        if (! $route->action['uses'] instanceof Closure) {
+            return null;
+        }
+
+        $reflection = new ReflectionFunction($route->action['uses']);
+        $path = $reflection->getFileName();
+
+        if (! is_string($path)) {
+            return null;
+        }
+
+        return str_replace(
+            '\\',
+            '/',
+            ltrim(Str::after($path, base_path()), DIRECTORY_SEPARATOR)
+        ) . ':' . $reflection->getStartLine();
+    }
+
+    /**
      * Determine if the route has been defined outside of the application.
      */
     protected function isVendorRoute(Route $route): bool
@@ -213,7 +237,7 @@ class RouteListCommand extends Command
             return false;
         }
 
-        return str_starts_with($path, base_path('vendor'));
+        return is_string($path) && str_starts_with($path, base_path('vendor'));
     }
 
     /**
@@ -311,7 +335,7 @@ class RouteListCommand extends Command
         $routes = $routes->map(
             fn ($route) => array_merge($route, [
                 'action' => $this->formatActionForCli($route),
-                'method' => $route['method'] == 'GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS' ? 'ANY' : $route['method'],
+                'method' => $route['method'] === 'GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS' ? 'ANY' : $route['method'],
                 'uri' => $route['domain'] ? ($route['domain'] . '/' . ltrim($route['uri'], '/')) : $route['uri'],
             ]),
         );
@@ -378,7 +402,13 @@ class RouteListCommand extends Command
         ['action' => $action, 'name' => $name] = $route;
 
         if ($action === 'Closure' || $action === ViewController::class) {
-            return $name;
+            $path = $route['path'] ?? null;
+
+            if ($name && $path) {
+                return $name . '   ' . $path;
+            }
+
+            return $name ?? $path;
         }
 
         $name = $name ? "{$name}   " : null;
@@ -392,7 +422,11 @@ class RouteListCommand extends Command
 
         $actionClass = explode('@', $action)[0];
 
-        if (class_exists($actionClass) && str_starts_with((new ReflectionClass($actionClass))->getFilename(), base_path('vendor'))) {
+        $path = class_exists($actionClass)
+            ? (new ReflectionClass($actionClass))->getFilename()
+            : false;
+
+        if (is_string($path) && str_starts_with($path, base_path('vendor'))) {
             $actionCollection = new Collection(explode('\\', $action));
 
             return $name . $actionCollection->take(2)->implode('\\') . '   ' . $actionCollection->last();

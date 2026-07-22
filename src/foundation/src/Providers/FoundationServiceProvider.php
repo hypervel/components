@@ -325,7 +325,7 @@ class FoundationServiceProvider extends ServiceProvider
             MaintenanceModeContract::class,
             fn () => new WorkerCachedMaintenanceMode(
                 $this->app->make(MaintenanceModeManager::class)->driver(),
-                $this->app->make('config')->integer('app.maintenance.refresh_interval', 5)
+                $this->app->make('config')->integer('app.maintenance.refresh_interval')
             )
         );
     }
@@ -371,7 +371,7 @@ class FoundationServiceProvider extends ServiceProvider
         // Laravel's optional Whoops renderer is omitted in favor of this framework-aware renderer.
         $this->app->singleton(Renderer::class, function () {
             $errorRenderer = new HtmlErrorRenderer(
-                $this->config->boolean('app.debug', false),
+                $this->config->boolean('app.debug'),
             );
 
             return new Renderer(
@@ -395,7 +395,7 @@ class FoundationServiceProvider extends ServiceProvider
 
     protected function setDefaultTimezone(): void
     {
-        date_default_timezone_set($this->config->get('app.timezone', 'UTC'));
+        date_default_timezone_set($this->config->string('app.timezone'));
     }
 
     protected function setInternalEncoding(): void

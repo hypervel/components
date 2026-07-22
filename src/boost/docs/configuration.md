@@ -429,6 +429,14 @@ Workers cache maintenance mode state in memory for performance. When using the c
 
 When maintenance mode is enabled or disabled, Hypervel will send a `SIGUSR1` reload signal to the server process listed in your configured `server.settings.pid_file` so workers on the current server refresh their maintenance state immediately. The default PID file is `storage/framework/hypervel.pid`; the signal is only sent when that file exists.
 
+For isolated tests or single-process applications, the `array` driver keeps maintenance state in the current PHP process:
+
+```ini
+APP_MAINTENANCE_DRIVER=array
+```
+
+The `array` driver cannot coordinate maintenance mode across Swoole workers or between Artisan and the server process, so it should not be used for production multiworker applications.
+
 <a name="pre-rendering-the-maintenance-mode-view"></a>
 #### Pre-Rendering the Maintenance Mode View
 
@@ -439,6 +447,8 @@ php artisan down --render="errors::503"
 ```
 
 If you need a static maintenance page that can be served when Hypervel itself is unavailable, you should configure that response in your reverse proxy or load balancer.
+
+Requests that expect JSON ignore stored maintenance templates and redirects. They receive Hypervel's JSON maintenance response with the configured status and headers instead.
 
 <a name="redirecting-maintenance-mode-requests"></a>
 #### Redirecting Maintenance Mode Requests

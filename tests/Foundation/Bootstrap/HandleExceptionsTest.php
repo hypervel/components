@@ -411,6 +411,37 @@ class HandleExceptionsTest extends TestCase
         }
     }
 
+    public function testIgnoresDeprecationsWithoutAnApplication(): void
+    {
+        HandleExceptions::flushState($this);
+
+        $handleExceptions = new HandleExceptions;
+        $method = new ReflectionMethod($handleExceptions, 'shouldIgnoreDeprecationErrors');
+
+        $this->assertTrue($method->invoke($handleExceptions));
+
+        $handleExceptions->handleDeprecationError(
+            'Deprecated behavior',
+            __FILE__,
+            __LINE__,
+        );
+    }
+
+    public function testIgnoresDeprecationsUntilConfigurationIsBound(): void
+    {
+        $this->app = m::mock(Application::class);
+        $this->app->expects('hasBeenBootstrapped')->andReturnTrue();
+        $this->app->expects('runningUnitTests')->andReturnFalse();
+        $this->app->expects('bound')->with('config')->andReturnFalse();
+        $this->app->shouldNotReceive('make');
+
+        $this->handleExceptions()->handleDeprecationError(
+            'Deprecated behavior',
+            __FILE__,
+            __LINE__,
+        );
+    }
+
     public function testIgnoreDeprecationIfLoggerUnresolvable()
     {
         $this->app->bind(LogManager::class, fn () => throw new RuntimeException);

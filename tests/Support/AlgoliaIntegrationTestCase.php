@@ -17,9 +17,6 @@ use Hypervel\Testbench\TestCase;
  * - Explicit-fail: Credentials set but probe fails → exception propagates
  * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
  * - Auto-cleanup: Removes test indexes in teardown
- *
- * NOTE: This base class does NOT include RunTestsInCoroutine. Subclasses
- * should add the trait if they need coroutine context for their tests.
  */
 abstract class AlgoliaIntegrationTestCase extends TestCase
 {
@@ -50,26 +47,6 @@ abstract class AlgoliaIntegrationTestCase extends TestCase
         parent::setUp();
 
         $this->configureAlgolia();
-    }
-
-    /**
-     * Initialize the Algolia client and clean up stale test indexes.
-     *
-     * Subclasses using RunTestsInCoroutine should call this in setUpInCoroutine().
-     * Subclasses NOT using the trait should call this at the end of setUp().
-     *
-     * Uses the trait's opt-in skip logic — skips unless credentials are set.
-     */
-    protected function initializeAlgolia(): void
-    {
-        $this->setUpInteractsWithAlgolia();
-    }
-
-    protected function tearDown(): void
-    {
-        $this->tearDownInteractsWithAlgolia();
-
-        parent::tearDown();
     }
 
     /**

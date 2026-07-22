@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation;
 
 use Carbon\CarbonImmutable;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Foundation\ArrayMaintenanceMode;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -241,6 +242,23 @@ class WorkerCachedMaintenanceModeTest extends TestCase
         $this->assertSame(['status' => 503], $cached->data());
 
         WorkerCachedMaintenanceMode::flushCache();
+
+        $this->assertFalse($cached->active());
+        $this->assertSame([], $cached->data());
+    }
+
+    public function testArrayDriverChangesFlushTheSameProcessSnapshot(): void
+    {
+        $cached = new WorkerCachedMaintenanceMode(new ArrayMaintenanceMode);
+
+        $this->assertFalse($cached->active());
+
+        $cached->activate(['status' => 503]);
+
+        $this->assertTrue($cached->active());
+        $this->assertSame(['status' => 503], $cached->data());
+
+        $cached->deactivate();
 
         $this->assertFalse($cached->active());
         $this->assertSame([], $cached->data());

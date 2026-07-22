@@ -4,12 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\BroadcastingInstallCommand;
+use Hypervel\Process\Exceptions\ProcessFailedException;
 use Hypervel\Process\PendingProcess;
 use Hypervel\Support\Facades\Process;
 use Hypervel\Tests\Testing\Fixtures\CleanupActions;
+use JsonException;
+use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
+use ReflectionClass;
 use RuntimeException;
+use Symfony\Component\Console\Application as ConsoleApplication;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Symfony\Component\Console\Tester\CommandTester;
 
 class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
 {
@@ -117,7 +126,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         CleanupActions::run(...$actions);
     }
 
-    public function testCreatesChannelsRouteFile()
+    public function testCreatesChannelsRouteFile(): void
     {
         Process::fake();
 
@@ -135,7 +144,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString('declare(strict_types=1)', $contents);
     }
 
-    public function testSkipsChannelsRouteFileWithoutForce()
+    public function testSkipsChannelsRouteFileWithoutForce(): void
     {
         Process::fake();
 
@@ -151,7 +160,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame('<?php // existing', file_get_contents($channelsPath));
     }
 
-    public function testOverwritesChannelsRouteFileWithForce()
+    public function testOverwritesChannelsRouteFileWithForce(): void
     {
         Process::fake();
 
@@ -159,6 +168,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->createdFiles[] = $channelsPath;
 
         file_put_contents($channelsPath, '<?php // existing');
+        chmod($channelsPath, 0640);
 
         $this->artisan('install:broadcasting', ['--reverb' => true, '--without-reverb' => true, '--without-node' => true, '--force' => true])
             ->expectsOutputToContain("Published 'channels' route file.")
@@ -166,9 +176,10 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
 
         $contents = file_get_contents($channelsPath);
         $this->assertStringContainsString('Hypervel\Support\Facades\Broadcast', $contents);
+        $this->assertSame(0640, fileperms($channelsPath) & 0777);
     }
 
-    public function testInsertsChannelsLineInBootstrapFile()
+    public function testInsertsChannelsLineInBootstrapFile(): void
     {
         Process::fake();
 
@@ -187,7 +198,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         );
     }
 
-    public function testUncommentsChannelsLineWhenCommentedOut()
+    public function testUncommentsChannelsLineWhenCommentedOut(): void
     {
         Process::fake();
 
@@ -207,7 +218,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringNotContainsString('// channels:', $bootstrapContent);
     }
 
-    public function testFallsBackToWithRoutingInsertion()
+    public function testFallsBackToWithRoutingInsertion(): void
     {
         Process::fake();
 
@@ -227,7 +238,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString("channels: __DIR__ . '/../routes/channels.php',", $bootstrapContent);
     }
 
-    public function testWritesBroadcastConnectionEnv()
+    public function testWritesBroadcastConnectionEnv(): void
     {
         Process::fake();
 
@@ -240,7 +251,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString('BROADCAST_CONNECTION=reverb', $envContent);
     }
 
-    public function testCreatesEchoJsFromReverbStub()
+    public function testCreatesEchoJsFromReverbStub(): void
     {
         Process::fake();
 
@@ -257,7 +268,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString("broadcaster: 'reverb'", $contents);
     }
 
-    public function testCreatesEchoJsFromPusherStub()
+    public function testCreatesEchoJsFromPusherStub(): void
     {
         Process::fake();
 
@@ -280,7 +291,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString('broadcaster: "pusher"', $contents);
     }
 
-    public function testCreatesEchoJsFromAblyStub()
+    public function testCreatesEchoJsFromAblyStub(): void
     {
         Process::fake();
 
@@ -300,7 +311,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString('VITE_ABLY_PUBLIC_KEY', $contents);
     }
 
-    public function testAppendsEchoImportToAppJs()
+    public function testAppendsEchoImportToAppJs(): void
     {
         Process::fake();
 
@@ -314,7 +325,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString("import './echo'", $appJsContent);
     }
 
-    public function testDoesNotDuplicateEchoImport()
+    public function testDoesNotDuplicateEchoImport(): void
     {
         Process::fake();
 
@@ -335,7 +346,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame(1, substr_count($appJsContent, './echo'));
     }
 
-    public function testVueAppsUseStandardEchoConfiguration()
+    public function testVueAppsUseStandardEchoConfiguration(): void
     {
         Process::fake();
 
@@ -357,7 +368,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertFileExists($this->app->resourcePath('js/echo.js'));
     }
 
-    public function testInjectsEchoConfigIntoReactAppJsx()
+    public function testInjectsEchoConfigIntoReactAppJsx(): void
     {
         Process::fake();
 
@@ -387,7 +398,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertFileDoesNotExist($this->app->resourcePath('js/echo.js'));
     }
 
-    public function testInstallsReverbPackageAndRunsInstall()
+    public function testInstallsReverbPackageAndRunsInstall(): void
     {
         Process::fake();
 
@@ -413,7 +424,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         });
     }
 
-    public function testSkipsNodeDepsWithFlag()
+    public function testSkipsNodeDepsWithFlag(): void
     {
         Process::fake();
 
@@ -425,7 +436,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
             ->assertSuccessful();
     }
 
-    public function testWritesPusherEnvVariables()
+    public function testWritesPusherEnvVariables(): void
     {
         Process::fake();
 
@@ -447,7 +458,7 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertStringContainsString('PUSHER_APP_CLUSTER=eu', $envContent);
     }
 
-    public function testWritesAblyEnvVariables()
+    public function testWritesAblyEnvVariables(): void
     {
         Process::fake();
 
@@ -462,6 +473,336 @@ class BroadcastingInstallCommandTest extends \Hypervel\Testbench\TestCase
         // The colon in the key triggers quoting in Env::writeVariables.
         $this->assertStringContainsString('ABLY_KEY="abc123:public456"', $envContent);
         $this->assertStringContainsString('ABLY_PUBLIC_KEY=abc123', $envContent);
+    }
+
+    public function testConfigPublishFailureStopsInstallationBeforeWritingRoutes(): void
+    {
+        Process::fake();
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $this->createdFiles[] = $channelsPath;
+        $tester = $this->commandTester(new FailingConfigBroadcastingInstallCommand);
+
+        try {
+            $tester->execute(['--reverb' => true, '--without-reverb' => true, '--without-node' => true]);
+            $this->fail('Expected broadcasting configuration publication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to publish the broadcasting configuration file.', $exception->getMessage());
+        }
+
+        $this->assertFileDoesNotExist($channelsPath);
+        $this->assertSame([], TestableBroadcastingInstallCommand::$composerRequireCalls);
+        $this->assertStringNotContainsString("Published 'channels' route file.", $tester->getDisplay());
+    }
+
+    public function testChannelsSourceReadFailurePreservesExistingRouteAndReportsNoSuccess(): void
+    {
+        Process::fake();
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $this->createdFiles[] = $channelsPath;
+        file_put_contents($channelsPath, 'existing route');
+        $source = dirname((new ReflectionClass(BroadcastingInstallCommand::class))->getFileName())
+            . '/stubs/broadcasting-routes.stub';
+        $files = m::mock(Filesystem::class)->makePartial();
+        $readException = new FileNotFoundException("File does not exist at path [{$source}].");
+        $files->shouldReceive('get')->once()->with($source)->andThrow($readException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+
+        try {
+            $tester->execute([
+                '--reverb' => true,
+                '--without-reverb' => true,
+                '--without-node' => true,
+                '--force' => true,
+            ]);
+            $this->fail('Expected broadcasting route stub reading to fail.');
+        } catch (FileNotFoundException $exception) {
+            $this->assertSame($readException, $exception);
+        }
+
+        $this->assertSame('existing route', file_get_contents($channelsPath));
+        $this->assertStringNotContainsString("Published 'channels' route file.", $tester->getDisplay());
+    }
+
+    public function testChannelsReplacementFailurePreservesExistingRouteAndReportsNoSuccess(): void
+    {
+        Process::fake();
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $this->createdFiles[] = $channelsPath;
+        file_put_contents($channelsPath, 'existing route');
+        chmod($channelsPath, 0640);
+        $files = m::mock(Filesystem::class)->makePartial();
+        $publicationException = new RuntimeException('Unable to publish broadcasting route file.');
+        $files->shouldReceive('replace')->byDefault()->passthru();
+        $files->shouldReceive('replace')
+            ->once()
+            ->with($channelsPath, m::type('string'), 0640)
+            ->andThrow($publicationException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+
+        try {
+            $tester->execute([
+                '--reverb' => true,
+                '--without-reverb' => true,
+                '--without-node' => true,
+                '--force' => true,
+            ]);
+            $this->fail('Expected broadcasting route publication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($publicationException, $exception);
+        }
+
+        $this->assertSame('existing route', file_get_contents($channelsPath));
+        $this->assertSame(0640, fileperms($channelsPath) & 0777);
+        $this->assertStringNotContainsString("Published 'channels' route file.", $tester->getDisplay());
+    }
+
+    public function testBootstrapReadFailureStopsBeforeEnvironmentAndJavaScriptChanges(): void
+    {
+        Process::fake();
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $bootstrapPath = $this->app->bootstrapPath('app.php');
+        $appJsPath = $this->app->resourcePath('js/app.js');
+        $envPath = $this->app->basePath('.env');
+        $originalAppJs = file_get_contents($appJsPath);
+        $originalEnv = file_get_contents($envPath);
+        $this->createdFiles[] = $channelsPath;
+        $files = m::mock(Filesystem::class)->makePartial();
+        $readException = new FileNotFoundException("File does not exist at path [{$bootstrapPath}].");
+        $files->shouldReceive('get')->once()->with($bootstrapPath)->andThrow($readException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+
+        try {
+            $tester->execute(['--reverb' => true, '--without-reverb' => true, '--without-node' => true]);
+            $this->fail('Expected bootstrap file reading to fail.');
+        } catch (FileNotFoundException $exception) {
+            $this->assertSame($readException, $exception);
+        }
+
+        $this->assertFileExists($channelsPath);
+        $this->assertSame($originalAppJs, file_get_contents($appJsPath));
+        $this->assertSame($originalEnv, file_get_contents($envPath));
+    }
+
+    public function testBootstrapReplacementFailurePreservesTheExistingApplicationBootstrap(): void
+    {
+        Process::fake();
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $bootstrapPath = $this->app->bootstrapPath('app.php');
+        $appJsPath = $this->app->resourcePath('js/app.js');
+        $envPath = $this->app->basePath('.env');
+        $bootstrapContent = file_get_contents($bootstrapPath);
+        $bootstrapPermissions = fileperms($bootstrapPath) & 0777;
+        $appJsContent = file_get_contents($appJsPath);
+        $envContent = file_get_contents($envPath);
+        $this->createdFiles[] = $channelsPath;
+        $files = m::mock(Filesystem::class)->makePartial();
+        $publicationException = new RuntimeException('Unable to update the application bootstrap file.');
+        $files->shouldReceive('replace')->byDefault()->passthru();
+        $files->shouldReceive('replace')
+            ->once()
+            ->with($bootstrapPath, m::type('string'), $bootstrapPermissions)
+            ->andThrow($publicationException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+
+        try {
+            $tester->execute(['--reverb' => true, '--without-reverb' => true, '--without-node' => true]);
+            $this->fail('Expected application bootstrap publication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($publicationException, $exception);
+        }
+
+        $this->assertSame($bootstrapContent, file_get_contents($bootstrapPath));
+        $this->assertSame($bootstrapPermissions, fileperms($bootstrapPath) & 0777);
+        $this->assertFileExists($channelsPath);
+        $this->assertStringContainsString("Published 'channels' route file.", $tester->getDisplay());
+        $this->assertSame($appJsContent, file_get_contents($appJsPath));
+        $this->assertSame($envContent, file_get_contents($envPath));
+        $this->assertSame([], TestableBroadcastingInstallCommand::$composerRequireCalls);
+        Process::assertNothingRan();
+    }
+
+    public function testEchoStubReadFailureDoesNotCreateEchoScript(): void
+    {
+        Process::fake();
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $echoPath = $this->app->resourcePath('js/echo.js');
+        $source = dirname((new ReflectionClass(BroadcastingInstallCommand::class))->getFileName())
+            . '/stubs/echo-js-reverb.stub';
+        $this->createdFiles[] = $channelsPath;
+        $this->createdFiles[] = $echoPath;
+        $files = m::mock(Filesystem::class)->makePartial();
+        $readException = new FileNotFoundException("File does not exist at path [{$source}].");
+        $files->shouldReceive('get')->once()->with($source)->andThrow($readException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+
+        try {
+            $tester->execute(['--reverb' => true, '--without-reverb' => true, '--without-node' => true]);
+            $this->fail('Expected Echo stub reading to fail.');
+        } catch (FileNotFoundException $exception) {
+            $this->assertSame($readException, $exception);
+        }
+
+        $this->assertFileDoesNotExist($echoPath);
+    }
+
+    public function testAppScriptReplacementFailurePreservesExistingScript(): void
+    {
+        Process::fake();
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $echoPath = $this->app->resourcePath('js/echo.js');
+        $appJsPath = $this->app->resourcePath('js/app.js');
+        $this->createdFiles[] = $channelsPath;
+        $this->createdFiles[] = $echoPath;
+        file_put_contents($appJsPath, '// existing app script' . PHP_EOL);
+        chmod($appJsPath, 0640);
+        $files = m::mock(Filesystem::class)->makePartial();
+        $publicationException = new RuntimeException('Unable to update application script.');
+        $files->shouldReceive('replace')->byDefault()->passthru();
+        $files->shouldReceive('replace')
+            ->once()
+            ->with($appJsPath, m::type('string'), 0640)
+            ->andThrow($publicationException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+
+        try {
+            $tester->execute(['--reverb' => true, '--without-reverb' => true, '--without-node' => true]);
+            $this->fail('Expected application script publication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($publicationException, $exception);
+        }
+
+        $this->assertSame('// existing app script' . PHP_EOL, file_get_contents($appJsPath));
+        $this->assertSame(0640, fileperms($appJsPath) & 0777);
+    }
+
+    public function testMalformedPackageJsonFailsExplicitly(): void
+    {
+        Process::fake();
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $echoPath = $this->app->resourcePath('js/echo.js');
+        $packageJsonPath = $this->app->basePath('package.json');
+        $this->createdFiles[] = $channelsPath;
+        $this->createdFiles[] = $echoPath;
+        $this->createdFiles[] = $packageJsonPath;
+        file_put_contents($packageJsonPath, '{invalid json');
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+
+        try {
+            $tester->execute(['--reverb' => true, '--without-reverb' => true, '--without-node' => true]);
+            $this->fail('Expected malformed package JSON to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame("Unable to parse package file [{$packageJsonPath}].", $exception->getMessage());
+            $this->assertInstanceOf(JsonException::class, $exception->getPrevious());
+        }
+
+        $this->assertFileDoesNotExist($echoPath);
+    }
+
+    public function testFailedReverbInstallationDoesNotReportSuccessOrInstallNodeDependencies(): void
+    {
+        Process::fake(static fn () => Process::result(exitCode: 1));
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $echoPath = $this->app->resourcePath('js/echo.js');
+        $this->createdFiles[] = $channelsPath;
+        $this->createdFiles[] = $echoPath;
+        $tester = $this->commandTester(new TestableBroadcastingInstallCommand);
+        $tester->setInputs(['yes']);
+
+        try {
+            $tester->execute(['--reverb' => true, '--without-node' => true]);
+            $this->fail('Expected Reverb installation to fail.');
+        } catch (ProcessFailedException) {
+        }
+
+        $this->assertStringNotContainsString('Reverb installed successfully.', $tester->getDisplay());
+    }
+
+    #[DataProvider('packageManagerCommands')]
+    public function testNodePackageManagersUseSafeInstallFlags(
+        ?string $lockFile,
+        string $expectedInstallCommand,
+        bool $expectsIgnoreScripts,
+    ): void {
+        Process::fake();
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $echoPath = $this->app->resourcePath('js/echo.js');
+        $this->createdFiles[] = $channelsPath;
+        $this->createdFiles[] = $echoPath;
+
+        if ($lockFile !== null) {
+            $lockPath = $this->app->basePath($lockFile);
+            file_put_contents($lockPath, '');
+            $this->createdFiles[] = $lockPath;
+        }
+
+        $this->artisan('install:broadcasting', ['--reverb' => true, '--without-reverb' => true])
+            ->expectsConfirmation('Would you like to install and build the Node dependencies required for broadcasting?', 'yes')
+            ->assertSuccessful();
+
+        Process::assertRan(function (PendingProcess $process) use ($expectedInstallCommand, $expectsIgnoreScripts): bool {
+            $command = (string) $process->command;
+
+            return str_contains($command, $expectedInstallCommand)
+                && str_contains($command, '--ignore-scripts') === $expectsIgnoreScripts;
+        });
+    }
+
+    public static function packageManagerCommands(): iterable
+    {
+        yield 'pnpm' => [
+            'pnpm-lock.yaml',
+            'pnpm add --save-dev --ignore-scripts laravel-echo pusher-js',
+            true,
+        ];
+
+        yield 'yarn' => [
+            'yarn.lock',
+            'yarn add --dev --ignore-scripts laravel-echo pusher-js',
+            true,
+        ];
+
+        yield 'bun' => [
+            'bun.lock',
+            'bun add --dev laravel-echo pusher-js',
+            false,
+        ];
+
+        yield 'npm' => [
+            null,
+            'npm install --save-dev --ignore-scripts laravel-echo pusher-js',
+            true,
+        ];
+    }
+
+    public function testNodeFailurePrintsCompleteManualRecoveryCommands(): void
+    {
+        Process::fake(static fn () => Process::result(exitCode: 1));
+
+        $channelsPath = $this->app->basePath('routes/channels.php');
+        $echoPath = $this->app->resourcePath('js/echo.js');
+        $this->createdFiles[] = $channelsPath;
+        $this->createdFiles[] = $echoPath;
+
+        $this->artisan('install:broadcasting', ['--reverb' => true, '--without-reverb' => true])
+            ->expectsConfirmation('Would you like to install and build the Node dependencies required for broadcasting?', 'yes')
+            ->expectsOutputToContain('npm install --save-dev --ignore-scripts laravel-echo pusher-js && npm run build')
+            ->assertSuccessful();
     }
 
     /**
@@ -551,6 +892,18 @@ return Application::configure(basePath: dirname(__DIR__))
     })->create();
 PHP;
     }
+
+    /**
+     * Create a tester for a broadcasting installer command.
+     */
+    private function commandTester(BroadcastingInstallCommand $command): CommandTester
+    {
+        $command->setHypervel($this->app);
+        $application = new ConsoleApplication;
+        $application->addCommand($command);
+
+        return new CommandTester($command);
+    }
 }
 
 /**
@@ -562,10 +915,21 @@ class TestableBroadcastingInstallCommand extends BroadcastingInstallCommand
     /** @var list<array{composer: string, packages: array<int, string>}> */
     public static array $composerRequireCalls = [];
 
-    protected function requireComposerPackages(string $composer, array $packages): bool
+    public function call(SymfonyCommand|string $command, array $arguments = []): int
+    {
+        return self::SUCCESS;
+    }
+
+    protected function requireComposerPackages(string $composer, array $packages): void
     {
         static::$composerRequireCalls[] = ['composer' => $composer, 'packages' => $packages];
+    }
+}
 
-        return true;
+class FailingConfigBroadcastingInstallCommand extends TestableBroadcastingInstallCommand
+{
+    public function call(SymfonyCommand|string $command, array $arguments = []): int
+    {
+        return self::FAILURE;
     }
 }

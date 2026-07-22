@@ -414,17 +414,14 @@ class ProviderOrderingTest extends TestCase
 
         $config = m::mock(Repository::class);
         $config->shouldReceive('array')
-            ->with('app.providers', ServiceProvider::defaultProviders()->toArray())
-            ->andReturn($configProviders);
+            ->with('app.providers')
+            ->andReturnUsing(function () use ($configProviders, &$mergedProviders) {
+                return $mergedProviders ?? $configProviders;
+            });
         $config->shouldReceive('set')
             ->with('app.providers', m::type('array'))
             ->andReturnUsing(function (string $key, array $value) use (&$mergedProviders) {
                 $mergedProviders = $value;
-            });
-        $config->shouldReceive('array')
-            ->with('app.providers', [])
-            ->andReturnUsing(function () use (&$mergedProviders) {
-                return $mergedProviders ?? [];
             });
 
         // Use an Application subclass that returns our test discovered providers

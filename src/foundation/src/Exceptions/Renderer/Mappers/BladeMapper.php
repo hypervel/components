@@ -103,8 +103,12 @@ class BladeMapper
         $knownPaths = [];
         foreach ($lastCompiled as $lastCompiledPath) {
             $compiledPath = $this->bladeCompiler->getCompiledPath($lastCompiledPath);
+            $compiledPath = realpath($compiledPath);
+            $originalPath = realpath($lastCompiledPath);
 
-            $knownPaths[realpath($compiledPath)] = realpath($lastCompiledPath);
+            if (is_string($compiledPath) && is_string($originalPath)) {
+                $knownPaths[$compiledPath] = $originalPath;
+            }
         }
 
         return $knownPaths;
@@ -132,7 +136,13 @@ class BladeMapper
      */
     protected function detectLineNumber(string $filename, int $compiledLineNumber): int
     {
-        $map = $this->compileSourcemap((string) file_get_contents($filename));
+        $source = @file_get_contents($filename);
+
+        if ($source === false) {
+            return $compiledLineNumber;
+        }
+
+        $map = $this->compileSourcemap($source);
 
         return $this->findClosestLineNumberMapping($map, $compiledLineNumber);
     }

@@ -74,6 +74,10 @@ class HandleExceptions
             return;
         }
 
+        if (! static::$app->bound('config')) {
+            return;
+        }
+
         try {
             $logger = static::$app->make(LogManager::class);
         } catch (Exception) {
@@ -104,6 +108,7 @@ class HandleExceptions
     protected function shouldIgnoreDeprecationErrors(): bool
     {
         return ! class_exists(LogManager::class)
+            || static::$app === null
             || ! static::$app->hasBeenBootstrapped()
             || (static::$app->runningUnitTests() && ! Env::get('LOG_DEPRECATIONS_WHILE_TESTING'));
     }

@@ -74,6 +74,7 @@ final class HandleExceptions extends \Hypervel\Foundation\Bootstrap\HandleExcept
     protected function shouldIgnoreDeprecationErrors(): bool
     {
         return ! class_exists(LogManager::class)
+            || self::$app === null
             || ! self::$app->hasBeenBootstrapped()
             || ! (bool) Env::get('LOG_DEPRECATIONS_WHILE_TESTING', true);
     }

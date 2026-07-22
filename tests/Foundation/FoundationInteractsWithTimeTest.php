@@ -8,12 +8,13 @@ use DateTimeInterface;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
+use RuntimeException;
 
 class FoundationInteractsWithTimeTest extends TestCase
 {
     use InteractsWithTime;
 
-    public function testFreezeTimeReturnsFrozenTime()
+    public function testFreezeTimeReturnsFrozenTime(): void
     {
         $actual = $this->freezeTime();
 
@@ -22,9 +23,9 @@ class FoundationInteractsWithTimeTest extends TestCase
         $this->assertTrue(Carbon::getTestNow()->eq($actual));
     }
 
-    public function testFreezeTimeReturnsCallbackResult()
+    public function testFreezeTimeReturnsCallbackResult(): void
     {
-        $actual = $this->freezeTime(function () {
+        $actual = $this->freezeTime(function (): int {
             return 12345;
         });
 
@@ -32,9 +33,9 @@ class FoundationInteractsWithTimeTest extends TestCase
         $this->assertFalse(Carbon::hasTestNow());
     }
 
-    public function testFreezeTimeReturnsCallbackResultEvenWhenNull()
+    public function testFreezeTimeReturnsCallbackResultEvenWhenNull(): void
     {
-        $actual = $this->freezeTime(function () {
+        $actual = $this->freezeTime(function (): null {
             return null;
         });
 
@@ -42,7 +43,7 @@ class FoundationInteractsWithTimeTest extends TestCase
         $this->assertFalse(Carbon::hasTestNow());
     }
 
-    public function testFreezeSecondReturnsFrozenTime()
+    public function testFreezeSecondReturnsFrozenTime(): void
     {
         $actual = $this->freezeSecond();
 
@@ -52,9 +53,9 @@ class FoundationInteractsWithTimeTest extends TestCase
         $this->assertSame(0, $actual->milliseconds);
     }
 
-    public function testFreezeSecondReturnsCallbackResult()
+    public function testFreezeSecondReturnsCallbackResult(): void
     {
-        $actual = $this->freezeSecond(function () {
+        $actual = $this->freezeSecond(function (): int {
             return 12345;
         });
 
@@ -62,13 +63,29 @@ class FoundationInteractsWithTimeTest extends TestCase
         $this->assertFalse(Carbon::hasTestNow());
     }
 
-    public function testFreezeSecondReturnsCallbackResultEvenWhenNull()
+    public function testFreezeSecondReturnsCallbackResultEvenWhenNull(): void
     {
-        $actual = $this->freezeSecond(function () {
+        $actual = $this->freezeSecond(function (): null {
             return null;
         });
 
         $this->assertNull($actual);
+        $this->assertFalse(Carbon::hasTestNow());
+    }
+
+    public function testFreezeTimeRestoresRealTimeWhenTheCallbackThrows(): void
+    {
+        $exception = new RuntimeException('callback failed');
+
+        try {
+            $this->freezeTime(static function () use ($exception): never {
+                throw $exception;
+            });
+            $this->fail('Expected the callback to throw.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
         $this->assertFalse(Carbon::hasTestNow());
     }
 }

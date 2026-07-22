@@ -33,7 +33,7 @@ trait RunTestsInCoroutine
      */
     protected function invokeTestMethod(string $methodName, array $testArguments): mixed
     {
-        if (Coroutine::getCid() !== -1 || ! $this->runTestsInCoroutine) {
+        if (Coroutine::getCid() !== -1 || ! $this->runsTestsInCoroutine()) {
             return parent::invokeTestMethod($methodName, $testArguments);
         }
 
@@ -83,6 +83,14 @@ trait RunTestsInCoroutine
         }
 
         return $testResult;
+    }
+
+    /**
+     * Determine whether tests run in a coroutine.
+     */
+    protected function runsTestsInCoroutine(): bool
+    {
+        return $this->runTestsInCoroutine;
     }
 
     /**

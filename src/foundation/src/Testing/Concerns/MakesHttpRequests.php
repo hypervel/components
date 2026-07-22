@@ -160,7 +160,7 @@ trait MakesHttpRequests
      *
      * @param null|array|string $middleware
      */
-    protected function withoutMiddleware($middleware = null): static
+    public function withoutMiddleware($middleware = null): static
     {
         if (is_null($middleware)) {
             $this->app->instance('middleware.disable', true);
@@ -414,6 +414,29 @@ trait MakesHttpRequests
         $cookies = $this->prepareCookiesForRequest();
 
         return $this->call('HEAD', $uri, [], $cookies, [], $server);
+    }
+
+    /**
+     * Visit the given URI with a QUERY request.
+     */
+    public function query(Stringable|string $uri, array $data = [], array $headers = []): TestResponse
+    {
+        $server = $this->transformHeadersToServerVars($headers);
+        $cookies = $this->prepareCookiesForRequest();
+
+        return $this->call('QUERY', $uri, $data, $cookies, [], $server);
+    }
+
+    /**
+     * Visit the given URI with a QUERY request, expecting a JSON response.
+     */
+    public function queryJson(
+        Stringable|string $uri,
+        array $data = [],
+        array $headers = [],
+        int $options = 0,
+    ): TestResponse {
+        return $this->json('QUERY', $uri, $data, $headers, $options);
     }
 
     /**

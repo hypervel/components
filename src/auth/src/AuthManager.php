@@ -287,7 +287,7 @@ class AuthManager implements FactoryContract
      * exception static properties for the worker lifetime and affects every
      * subsequent unauthenticated or session-mismatch request.
      */
-    public function redirectGuestsTo(callable|string $redirect): static
+    public function redirectGuestsTo(callable|string|null $redirect): static
     {
         AuthenticationRedirects::redirectGuestsTo($redirect);
 

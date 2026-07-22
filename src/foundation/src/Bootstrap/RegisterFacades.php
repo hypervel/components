@@ -21,7 +21,7 @@ class RegisterFacades
         $packageAliases = $app->make(PackageManifest::class)->aliases();
 
         $configAliases = $app->make('config')
-            ->get('app.aliases', []);
+            ->array('app.aliases');
         $aliases = array_merge($packageAliases, $configAliases);
 
         // Hypervel intentionally supports only explicit facade aliases. Laravel's

@@ -15,6 +15,8 @@ use Hypervel\Foundation\Events\DiagnosingHealth;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
 use Hypervel\Foundation\Support\Providers\EventServiceProvider as AppEventServiceProvider;
 use Hypervel\Foundation\Support\Providers\RouteServiceProvider as AppRouteServiceProvider;
+use Hypervel\Http\Middleware\PrefersJsonResponses;
+use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Event;
@@ -180,24 +182,33 @@ class ApplicationBuilder
             }
 
             if (is_string($health)) {
-                Route::get($health, function () {
+                Route::get($health, function (Request $request) {
                     $exception = null;
 
                     try {
                         Event::dispatch(new DiagnosingHealth);
-                    } catch (Throwable $e) {
+                    } catch (Throwable $throwable) {
                         if (app()->hasDebugModeEnabled()) {
-                            throw $e;
+                            throw $throwable;
                         }
 
-                        report($e);
+                        report($throwable);
 
-                        $exception = $e->getMessage();
+                        $exception = $throwable;
+                    }
+
+                    $health = $exception === null ? 'up' : 'down';
+                    $status = $health === 'up' ? 200 : 500;
+
+                    if ($request->expectsJson()) {
+                        return response()->json([
+                            'status' => $health,
+                        ], $status);
                     }
 
                     return response(View::file(__DIR__ . '/../resources/health-up.blade.php', [
-                        'exception' => $exception,
-                    ]), status: $exception ? 500 : 200);
+                        'status' => $health,
+                    ]), status: $status);
                 });
             }
 
@@ -381,6 +392,22 @@ class ApplicationBuilder
                 }
             }
         });
+    }
+
+    /**
+     * Globally prefer JSON responses when the incoming "Accept" header is broad.
+     */
+    public function prefersJsonResponses(bool $prefer = true): static
+    {
+        if (! $prefer) {
+            return $this;
+        }
+
+        $this->app->booted(function (): void {
+            $this->app->make(HttpKernel::class)->prependMiddleware(PrefersJsonResponses::class);
+        });
+
+        return $this;
     }
 
     /**

@@ -12,6 +12,7 @@ use Hypervel\Support\Facades\Vite as ViteFacade;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\ParallelTesting;
+use JsonException;
 use ReflectionMethod;
 
 use function Hypervel\Coroutine\parallel;
@@ -417,10 +418,45 @@ class FoundationViteFontsTest extends TestCase
 
         file_put_contents(public_path('build/fonts-manifest.json'), 'not-valid-json{');
 
+        try {
+            app(Vite::class)->fonts();
+
+            self::fail('Expected the malformed font manifest to be rejected.');
+        } catch (ViteException $exception) {
+            $this->assertStringContainsString('not valid JSON', $exception->getMessage());
+            $this->assertInstanceOf(JsonException::class, $exception->getPrevious());
+        }
+
+        $this->makeFontsManifest([
+            'version' => 1,
+            'style' => ['inline' => ''],
+            'preloads' => [],
+            'families' => [],
+        ]);
+
+        $this->assertSame('', app(Vite::class)->fonts()->toHtml());
+    }
+
+    public function testNonArrayManifestThrowsException(): void
+    {
+        $buildPath = public_path('build');
+        mkdir($buildPath, 0755, true);
+        file_put_contents($buildPath . '/fonts-manifest.json', 'null');
+
         $this->expectException(ViteException::class);
-        $this->expectExceptionMessage('not valid JSON');
+        $this->expectExceptionMessage('The font manifest at [' . $buildPath . '/fonts-manifest.json] is invalid.');
 
         app(Vite::class)->fonts();
+    }
+
+    public function testUnreadableManifestThrowsException(): void
+    {
+        $this->withUnreadableFontStream(function (string $path): void {
+            $this->expectException(ViteException::class);
+            $this->expectExceptionMessage('Unable to read the font manifest');
+
+            (new ViteFonts)->manifest(true, 'build', 'fonts-manifest.json', $path . '/hot');
+        });
     }
 
     public function testUnsupportedManifestVersionThrowsException(): void
@@ -461,6 +497,22 @@ class FoundationViteFontsTest extends TestCase
         $this->expectExceptionMessage('Unable to locate font CSS file');
 
         app(Vite::class)->fonts();
+    }
+
+    public function testUnreadableCssFileThrowsException(): void
+    {
+        $this->withUnreadableFontStream(function (string $path): void {
+            app()->usePublicPath($path);
+
+            $this->expectException(ViteException::class);
+            $this->expectExceptionMessage('Unable to read font CSS file from manifest');
+
+            (new ViteFonts)->resolveStyleContent(
+                ['style' => ['file' => 'assets/fonts.css']],
+                null,
+                'build',
+            );
+        });
     }
 
     public function testUnknownRequestedAliasThrowsException(): void
@@ -1341,5 +1393,38 @@ class FoundationViteFontsTest extends TestCase
         if ($dir !== $this->tempDir && is_dir($dir) && count(glob("{$dir}/*")) === 0) {
             rmdir($dir);
         }
+    }
+
+    protected function withUnreadableFontStream(callable $callback): mixed
+    {
+        $scheme = 'hypervel-vite-font-unreadable';
+
+        $this->assertTrue(stream_wrapper_register($scheme, ViteFontUnreadableStreamWrapper::class));
+
+        try {
+            return $callback($scheme . '://file');
+        } finally {
+            stream_wrapper_unregister($scheme);
+        }
+    }
+}
+
+class ViteFontUnreadableStreamWrapper
+{
+    public mixed $context;
+
+    public function stream_open(string $path, string $mode, int $options, ?string &$openedPath): bool
+    {
+        return false;
+    }
+
+    public function url_stat(string $path, int $flags): array
+    {
+        return [
+            2 => 0100444,
+            7 => 1,
+            'mode' => 0100444,
+            'size' => 1,
+        ];
     }
 }

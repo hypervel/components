@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation\FoundationApplicationTest;
 
 use Hypervel\Config\Repository;
 use Hypervel\Events\Dispatcher as EventDispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Bootstrap\LoadConfiguration;
 use Hypervel\Foundation\Bootstrap\LoadEnvironmentVariables;
@@ -15,7 +16,9 @@ use Hypervel\Foundation\PackageManifest;
 use Hypervel\Log\LogManager;
 use Hypervel\Support\Facades\Log;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
+use JsonException;
 use Mockery as m;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
@@ -25,6 +28,19 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class FoundationApplicationTest extends TestCase
 {
+    protected ?string $namespaceApplicationPath = null;
+
+    protected function tearDown(): void
+    {
+        try {
+            if ($this->namespaceApplicationPath !== null) {
+                (new Filesystem)->deleteDirectory($this->namespaceApplicationPath);
+            }
+        } finally {
+            parent::tearDown();
+        }
+    }
+
     public function testSetLocaleSetsLocaleAndFiresLocaleChangedEvent()
     {
         $trans = m::mock(stdClass::class);
@@ -415,13 +431,104 @@ class FoundationApplicationTest extends TestCase
         $this->assertEquals(4, $counter);
     }
 
-    public function testGetNamespace()
+    public function testGetNamespaceFromStringMapping(): void
     {
-        $app1 = new Application(realpath(__DIR__ . '/Fixtures/project1'));
-        $app2 = new Application(realpath(__DIR__ . '/Fixtures/project2'));
+        $app = $this->makeNamespaceApplication(json_encode([
+            'autoload' => ['psr-4' => ['App\\' => 'app/']],
+        ], JSON_THROW_ON_ERROR));
 
-        $this->assertSame('App\One\\', $app1->getNamespace());
-        $this->assertSame('App\Two\\', $app2->getNamespace());
+        $this->assertSame('App\\', $app->getNamespace());
+    }
+
+    public function testGetNamespaceFromArrayMapping(): void
+    {
+        $app = $this->makeNamespaceApplication(json_encode([
+            'autoload' => ['psr-4' => ['App\\' => ['src/', 'app/']]],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->assertSame('App\\', $app->getNamespace());
+    }
+
+    public function testGetNamespaceRejectsMissingComposerFile(): void
+    {
+        $app = $this->makeNamespaceApplication(null);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to detect application namespace.');
+
+        $app->getNamespace();
+    }
+
+    public function testGetNamespaceRejectsUnreadableComposerPath(): void
+    {
+        $app = $this->makeNamespaceApplication('{}');
+        unlink($this->namespaceApplicationPath . '/composer.json');
+        mkdir($this->namespaceApplicationPath . '/composer.json');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to detect application namespace.');
+
+        $app->getNamespace();
+    }
+
+    public function testGetNamespaceWrapsMalformedComposerJson(): void
+    {
+        $app = $this->makeNamespaceApplication('{');
+
+        try {
+            $app->getNamespace();
+
+            self::fail('Expected malformed Composer JSON to be rejected.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Unable to detect application namespace.', $exception->getMessage());
+            $this->assertInstanceOf(JsonException::class, $exception->getPrevious());
+        }
+    }
+
+    public function testGetNamespaceRejectsNonArrayComposerJson(): void
+    {
+        $app = $this->makeNamespaceApplication('null');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to detect application namespace.');
+
+        $app->getNamespace();
+    }
+
+    public function testGetNamespaceRejectsInvalidPsrFourMap(): void
+    {
+        $app = $this->makeNamespaceApplication(json_encode([
+            'autoload' => ['psr-4' => 'app/'],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to detect application namespace.');
+
+        $app->getNamespace();
+    }
+
+    public function testGetNamespaceRejectsInvalidPsrFourPath(): void
+    {
+        $app = $this->makeNamespaceApplication(json_encode([
+            'autoload' => ['psr-4' => ['App\\' => [123]]],
+        ], JSON_THROW_ON_ERROR));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to detect application namespace.');
+
+        $app->getNamespace();
+    }
+
+    public function testGetNamespaceDoesNotMatchTwoMissingPaths(): void
+    {
+        $app = $this->makeNamespaceApplication(json_encode([
+            'autoload' => ['psr-4' => ['App\\' => 'missing/']],
+        ], JSON_THROW_ON_ERROR), createAppPath: false);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to detect application namespace.');
+
+        $app->getNamespace();
     }
 
     public function testCachePathsResolveToBootstrapCacheDirectory()
@@ -769,6 +876,25 @@ class FoundationApplicationTest extends TestCase
         $app = new Application;
 
         $this->assertSame($app, $app->addAbsoluteCachePathPrefix('s3:'));
+    }
+
+    private function makeNamespaceApplication(?string $composerContents, bool $createAppPath = true): Application
+    {
+        $this->namespaceApplicationPath = ParallelTesting::tempDir('FoundationApplicationNamespaceTest');
+
+        $files = new Filesystem;
+        $files->deleteDirectory($this->namespaceApplicationPath);
+        $files->makeDirectory($this->namespaceApplicationPath, 0755, true);
+
+        if ($createAppPath) {
+            $files->makeDirectory($this->namespaceApplicationPath . '/app', 0755, true);
+        }
+
+        if ($composerContents !== null) {
+            $files->put($this->namespaceApplicationPath . '/composer.json', $composerContents);
+        }
+
+        return new Application($this->namespaceApplicationPath);
     }
 }
 
