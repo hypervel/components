@@ -125,6 +125,21 @@ class Exceptions
     }
 
     /**
+     * Indicate that the given exception type should stop job retries.
+     *
+     * Boot-only. The exception types persist on the shared handler and affect
+     * every subsequently failed job in the worker.
+     */
+    public function dontRetry(array|string $class): static
+    {
+        foreach (Arr::wrap($class) as $exceptionClass) {
+            $this->handler->dontRetry($exceptionClass);
+        }
+
+        return $this;
+    }
+
+    /**
      * Register a callback to determine if an exception should not be reported.
      *
      * @param (Closure(Throwable): bool) $dontReportWhen
@@ -132,6 +147,23 @@ class Exceptions
     public function dontReportWhen(Closure $dontReportWhen): static
     {
         $this->handler->dontReportWhen($dontReportWhen);
+
+        return $this;
+    }
+
+    /**
+     * Register a callback to determine if an exception should stop job retries.
+     *
+     * Boot-only. The callback persists on the shared handler and is considered for
+     * every subsequently failed job in the worker.
+     *
+     * @template TException of Throwable
+     *
+     * @param Closure(TException): bool $dontRetryWhen
+     */
+    public function dontRetryWhen(Closure $dontRetryWhen): static
+    {
+        $this->handler->dontRetryWhen($dontRetryWhen);
 
         return $this;
     }

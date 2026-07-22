@@ -108,6 +108,20 @@ class Handler implements ExceptionHandlerContract
     protected array $dontReportCallbacks = [];
 
     /**
+     * A list of the exception types that should stop job retries.
+     *
+     * @var array<int, class-string<Throwable>>
+     */
+    protected array $dontRetry = [];
+
+    /**
+     * The callbacks that inspect exceptions to determine if they should stop job retries.
+     *
+     * @var array<int, Closure>
+     */
+    protected array $dontRetryCallbacks = [];
+
+    /**
      * The callbacks that should be used to throttle reportable exceptions.
      *
      * @var Closure[]
@@ -295,6 +309,70 @@ class Handler implements ExceptionHandlerContract
         $this->dontReport = array_values(array_unique(array_merge($this->dontReport, $exceptions)));
 
         return $this;
+    }
+
+    /**
+     * Indicate that jobs should stop retrying for the given exception types.
+     *
+     * Boot-only. The exception types persist on the shared handler and affect
+     * every subsequently failed job in the worker.
+     */
+    public function dontRetry(array|string $exceptions): static
+    {
+        $exceptions = Arr::wrap($exceptions);
+
+        $this->dontRetry = array_values(array_unique(array_merge($this->dontRetry, $exceptions)));
+
+        return $this;
+    }
+
+    /**
+     * Register a callback to determine if jobs should stop retrying for an exception.
+     *
+     * Boot-only. The callback persists on the shared handler and is considered for
+     * every subsequently failed job in the worker.
+     *
+     * @template TException of Throwable
+     *
+     * @param callable(TException): bool $dontRetryWhen
+     */
+    public function dontRetryWhen(callable $dontRetryWhen): static
+    {
+        if (! $dontRetryWhen instanceof Closure) {
+            $dontRetryWhen = Closure::fromCallable($dontRetryWhen);
+        }
+
+        $this->dontRetryCallbacks[] = $dontRetryWhen;
+
+        return $this;
+    }
+
+    /**
+     * Determine if jobs should stop retrying for the given exception.
+     */
+    public function shouldStopRetries(Throwable $e): bool
+    {
+        if (Arr::first(
+            $this->dontRetry,
+            static fn (string $type): bool => $e instanceof $type,
+        ) !== null) {
+            return true;
+        }
+
+        foreach ($this->dontRetryCallbacks as $dontRetryCallback) {
+            if (! array_any(
+                $this->firstClosureParameterTypes($dontRetryCallback),
+                static fn (string $type): bool => is_a($e, $type),
+            )) {
+                continue;
+            }
+
+            if ($dontRetryCallback($e) === true) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -762,9 +840,17 @@ class Handler implements ExceptionHandlerContract
      */
     protected function unauthenticated(Request $request, AuthenticationException $exception): Response|JsonResponse|RedirectResponse
     {
-        return $this->shouldReturnJson($request, $exception)
-            ? response()->json(['message' => $exception->getMessage()], 401)
-            : redirect()->guest($exception->redirectTo($request) ?? route('login'));
+        if ($this->shouldReturnJson($request, $exception)) {
+            return response()->json(['message' => $exception->getMessage()], 401);
+        }
+
+        $redirectTo = $exception->redirectTo($request);
+
+        if (! $redirectTo) {
+            return response()->noContent(401);
+        }
+
+        return redirect()->guest($redirectTo);
     }
 
     /**

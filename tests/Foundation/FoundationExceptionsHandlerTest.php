@@ -8,6 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Exception;
+use Hypervel\Auth\AuthenticationException;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\RateLimiter;
@@ -183,6 +184,49 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->handler->report(new RuntimeException('Exception message'));
     }
 
+    public function testHandlerStopsRetriesForConfiguredExceptionTypes(): void
+    {
+        $this->handler->dontRetry([
+            InvalidArgumentException::class,
+            OutOfRangeException::class,
+        ]);
+
+        $this->assertTrue($this->handler->shouldStopRetries(new InvalidArgumentException));
+        $this->assertTrue($this->handler->shouldStopRetries(new OutOfRangeException));
+        $this->assertFalse($this->handler->shouldStopRetries(new RuntimeException));
+    }
+
+    public function testHandlerStopsRetriesWhenConfiguredCallbackMatches(): void
+    {
+        $this->handler->dontRetryWhen(new StopRetriesForRuntimeExceptions);
+
+        $this->assertTrue($this->handler->shouldStopRetries(new RuntimeException));
+        $this->assertFalse($this->handler->shouldStopRetries(new InvalidArgumentException));
+    }
+
+    public function testHandlerOnlyInvokesRetryCallbackForItsDeclaredExceptionType(): void
+    {
+        $invocations = 0;
+
+        $this->handler->dontRetryWhen(function (RuntimeException $exception) use (&$invocations): bool {
+            ++$invocations;
+
+            return true;
+        });
+
+        $this->assertFalse($this->handler->shouldStopRetries(new InvalidArgumentException));
+        $this->assertSame(0, $invocations);
+        $this->assertTrue($this->handler->shouldStopRetries(new RuntimeException));
+        $this->assertSame(1, $invocations);
+    }
+
+    public function testHandlerInvokesThrowableTypedRetryCallbackForEveryException(): void
+    {
+        $this->handler->dontRetryWhen(static fn (Throwable $exception): bool => true);
+
+        $this->assertTrue($this->handler->shouldStopRetries(new InvalidArgumentException));
+    }
+
     public function testHandlerCallsReportMethodWithDependencies()
     {
         $reporter = m::mock(ReportingService::class);
@@ -254,6 +298,48 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertFalse($shouldReturnJson);
 
         $this->assertSame(6, Assert::getCount());
+    }
+
+    public function testUnauthenticatedJsonRequestReturnsJsonResponse(): void
+    {
+        $this->request->shouldReceive('expectsJson')->once()->andReturn(true);
+
+        $response = $this->handler->render($this->request, new AuthenticationException);
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertJsonStringEqualsJsonString(
+            '{"message":"Unauthenticated."}',
+            (string) $response->getContent(),
+        );
+    }
+
+    public function testUnauthenticatedRequestWithoutRedirectReturnsNoContent(): void
+    {
+        AuthenticationException::redirectUsing(static fn (): null => null);
+        $this->request->shouldReceive('expectsJson')->once()->andReturn(false);
+
+        $response = $this->handler->render($this->request, new AuthenticationException);
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('', $response->getContent());
+    }
+
+    public function testUnauthenticatedRequestWithRedirectReturnsGuestRedirect(): void
+    {
+        AuthenticationException::redirectUsing(static fn (): string => '/login');
+        $this->request->shouldReceive('expectsJson')->once()->andReturn(false);
+
+        $redirector = m::mock(Redirector::class);
+        $redirector->shouldReceive('guest')
+            ->once()
+            ->with('/login')
+            ->andReturn(new RedirectResponse('/login'));
+        $this->container->instance('redirect', $redirector);
+
+        $response = $this->handler->render($this->request, new AuthenticationException);
+
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame('/login', $response->headers->get('Location'));
     }
 
     public function testReturnsJsonWithStackTraceWhenAjaxRequestAndDebugTrue()
@@ -1180,6 +1266,14 @@ class CustomRenderer
     public function __invoke(CustomException $e, $request)
     {
         return response()->json(['response' => 'The CustomRenderer response']);
+    }
+}
+
+class StopRetriesForRuntimeExceptions
+{
+    public function __invoke(Throwable $exception): bool
+    {
+        return $exception::class === RuntimeException::class;
     }
 }
 

@@ -635,6 +635,12 @@ class Worker
                     $job,
                     $e
                 );
+
+                $this->markJobAsFailedIfItShouldntBeRetried(
+                    $connectionName,
+                    $job,
+                    $e
+                );
             }
 
             $this->raiseExceptionOccurredJobEvent(
@@ -726,6 +732,17 @@ class Worker
             /* @phpstan-ignore-next-line */
             $this->cache->forget('job-exceptions:' . $uuid);
 
+            $this->failJob($job, $e);
+        }
+    }
+
+    /**
+     * Mark the given job as failed if the exception handler determines it should not be retried.
+     */
+    protected function markJobAsFailedIfItShouldntBeRetried(string $connectionName, JobContract $job, Throwable $e): void
+    {
+        if (method_exists($this->exceptions, 'shouldStopRetries')
+            && $this->exceptions->shouldStopRetries($e)) {
             $this->failJob($job, $e);
         }
     }

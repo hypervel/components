@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Configuration;
 
 use Hypervel\Auth\AuthenticationException;
+use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Auth\Middleware\RedirectIfAuthenticated;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Foundation\Application;
@@ -252,6 +253,17 @@ class MiddlewareTest extends TestCase
         (new Middleware)->redirectGuestsTo('/login');
 
         $this->assertSame('/login', (new AuthenticationException)->redirectTo(Request::create('/')));
+    }
+
+    public function testRedirectGuestsToNullRegistersNullCallback(): void
+    {
+        (new Middleware)->redirectGuestsTo(null);
+
+        $callback = (new ReflectionClass(Authenticate::class))
+            ->getProperty('redirectToCallback')->getValue();
+
+        $this->assertNotNull($callback);
+        $this->assertNull($callback(null));
     }
 
     public function testRedirectUsersToConfiguresAuthenticationRedirects(): void

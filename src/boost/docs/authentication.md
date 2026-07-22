@@ -355,6 +355,9 @@ use Hypervel\Http\Request;
 
     // Using a closure...
     $middleware->redirectGuestsTo(fn (Request $request) => route('login'));
+
+    // Disable redirects for unauthenticated users...
+    $middleware->redirectGuestsTo(null);
 })
 ```
 
@@ -373,7 +376,7 @@ public function boot(): void
 }
 ```
 
-Redirect paths may be strings or request-aware callbacks. The callback registration is boot-time worker-lifetime state, but the callback result is computed for each request.
+Redirect paths may be strings or request-aware callbacks. Passing `null` through either high-level API disables the guest redirect. Non-JSON requests then receive an empty 401 response, while requests that expect JSON continue to receive a JSON 401 response. The callback registration is boot-time worker-lifetime state, but the callback result is computed for each request.
 
 Configure these redirects from `bootstrap/app.php` with the middleware configurator, or from a service provider / package with the `Auth` facade. Both high-level APIs configure the same global redirect callbacks, so an application should generally choose one style for each redirect. If both high-level APIs are called for the same redirect, the most recent registration wins.
 

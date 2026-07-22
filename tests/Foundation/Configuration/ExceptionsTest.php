@@ -11,7 +11,10 @@ use Hypervel\Foundation\Configuration\Exceptions;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Http\Request;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
+use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Throwable;
 
 class ExceptionsTest extends TestCase
 {
@@ -33,6 +36,31 @@ class ExceptionsTest extends TestCase
         $this->assertContains(ModelNotFoundException::class, $handler->getDontReport());
         $exceptions->stopIgnoring([ModelNotFoundException::class]);
         $this->assertNotContains(ModelNotFoundException::class, $handler->getDontReport());
+    }
+
+    public function testDontRetry(): void
+    {
+        $exceptions = new Exceptions($handler = new Handler(new Container));
+
+        $this->assertSame($exceptions, $exceptions->dontRetry([
+            InvalidArgumentException::class,
+            RuntimeException::class,
+        ]));
+        $this->assertTrue($handler->shouldStopRetries(new InvalidArgumentException));
+        $this->assertTrue($handler->shouldStopRetries(new RuntimeException));
+        $this->assertFalse($handler->shouldStopRetries(new Exception));
+    }
+
+    public function testDontRetryWhen(): void
+    {
+        $exceptions = new Exceptions($handler = new Handler(new Container));
+
+        $this->assertSame(
+            $exceptions,
+            $exceptions->dontRetryWhen(static fn (Throwable $exception): bool => $exception->getMessage() === 'stop'),
+        );
+        $this->assertTrue($handler->shouldStopRetries(new Exception('stop')));
+        $this->assertFalse($handler->shouldStopRetries(new Exception('continue')));
     }
 
     public function testShouldRenderJsonWhen()

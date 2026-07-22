@@ -12,6 +12,7 @@ use Throwable;
 /**
  * @method array<array-key, mixed> buildContextForException(Throwable $e)
  * @method bool isReporting(Throwable $e)
+ * @method bool shouldStopRetries(Throwable $e)
  */
 interface ExceptionHandler
 {
