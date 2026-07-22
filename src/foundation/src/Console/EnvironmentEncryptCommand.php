@@ -10,6 +10,7 @@ use Hypervel\Console\Command;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 use function Hypervel\Prompts\password;
@@ -40,7 +41,7 @@ class EnvironmentEncryptCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
         $cipher = $this->option('cipher') ?: 'AES-256-CBC';
 
@@ -77,7 +78,9 @@ class EnvironmentEncryptCommand extends Command
             $this->fail('Environment file not found.');
         }
 
-        if ($this->files->exists($encryptedFile) && ! $this->option('force')) {
+        $encryptedFileExists = $this->files->exists($encryptedFile);
+
+        if ($encryptedFileExists && ! $this->option('force')) {
             $this->fail('Encrypted environment file already exists.');
         }
 
@@ -90,13 +93,27 @@ class EnvironmentEncryptCommand extends Command
                 ? $this->encryptReadableFormat($contents, $encrypter)
                 : $encrypter->encrypt($contents);
 
-            $this->files->put($encryptedFile, $encrypted);
+            $mode = null;
+
+            if ($encryptedFileExists) {
+                $permissions = $this->files->chmod($encryptedFile);
+
+                if (! is_string($permissions)) {
+                    throw new RuntimeException("Unable to determine permissions for [{$encryptedFile}].");
+                }
+
+                $mode = octdec($permissions);
+            }
+
+            $this->files->replace($encryptedFile, $encrypted, $mode);
         } catch (Exception $e) {
             $this->fail($e->getMessage());
         }
 
-        if ($this->option('prune')) {
-            $this->files->delete($environmentFile);
+        if ($this->option('prune')
+            && ! $this->files->delete($environmentFile)
+            && $this->files->exists($environmentFile)) {
+            $this->fail("Unable to delete the environment file [{$environmentFile}].");
         }
 
         $this->components->info('Environment successfully encrypted.');
