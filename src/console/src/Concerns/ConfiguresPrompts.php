@@ -248,14 +248,6 @@ trait ConfiguresPrompts
     }
 
     /**
-     * Restore the prompts output.
-     */
-    protected function restorePrompts(): void
-    {
-        Prompt::setOutput($this->output);
-    }
-
-    /**
      * Number fallback.
      */
     private function numberFallback(NumberPrompt $prompt): int|string
