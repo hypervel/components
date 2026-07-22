@@ -12,9 +12,8 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
     /**
      * The cached maintenance mode snapshot.
      *
-     * Loaded once per worker lifetime from the underlying driver,
-     * then served from memory for all subsequent requests.
-     * Reset to null on worker restart (SIGUSR1) or explicit flush.
+     * Loaded on first access, then periodically refreshed from the underlying
+     * driver. Reset to null on worker restart (SIGUSR1) or explicit flush.
      *
      * @var null|array{active: bool, data: array}
      */
@@ -82,9 +81,9 @@ class WorkerCachedMaintenanceMode implements MaintenanceModeContract
     /**
      * Load the maintenance mode snapshot from the underlying driver.
      *
-     * Both active state and data payload are loaded atomically
-     * in a single call, eliminating any race between checking
-     * active() and reading data() on the backing store.
+     * The active state and payload are read separately from the driver, then
+     * retained together so subsequent calls within the refresh interval use
+     * the same per-worker snapshot.
      *
      * @return array{active: bool, data: array}
      */
