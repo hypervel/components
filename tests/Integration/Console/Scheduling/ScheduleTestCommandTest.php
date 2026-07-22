@@ -61,6 +61,24 @@ class ScheduleTestCommandTest extends TestCase
             ->expectsOutputToContain('Running [callback]');
     }
 
+    public function testRunDoesNotMutateBackgroundExecutionOnTheScheduledEvent(): void
+    {
+        $callbackRan = false;
+
+        $event = $this->schedule->command(BarCommandStub::class)
+            ->runInBackground()
+            ->onSuccess(function () use (&$callbackRan): void {
+                $callbackRan = true;
+            });
+
+        $this->artisan(ScheduleTestCommand::class, ['--name' => 'bar:command'])
+            ->assertSuccessful()
+            ->expectsOutputToContain('Running [php artisan bar:command] normally in background');
+
+        $this->assertTrue($event->runInBackground);
+        $this->assertTrue($callbackRan);
+    }
+
     public function testRunUsingChoices()
     {
         $this->schedule->command(BarCommandStub::class)->name('bar-command');
