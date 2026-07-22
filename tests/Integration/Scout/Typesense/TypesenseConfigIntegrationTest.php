@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Scout\Typesense;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Tests\Scout\Models\ConfigBasedTypesenseModel;
-use Throwable;
 
 /**
  * Integration tests for Typesense configuration options.
@@ -120,21 +119,6 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         $this->assertLessThanOrEqual(3, $results->count());
     }
 
-    protected function setUpInCoroutine(): void
-    {
-        parent::setUpInCoroutine();
-
-        // Clean up any existing collection for ConfigBasedTypesenseModel
-        $this->cleanupConfigBasedCollection();
-    }
-
-    protected function tearDownInCoroutine(): void
-    {
-        $this->cleanupConfigBasedCollection();
-
-        parent::tearDownInCoroutine();
-    }
-
     public function testImportActionConfigIsUsed(): void
     {
         $modelClass = ConfigBasedTypesenseModel::class;
@@ -176,15 +160,5 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         $results = ConfigBasedTypesenseModel::search('Updated')->get();
         $this->assertCount(1, $results);
         $this->assertSame('Updated Title', $results->first()->title);
-    }
-
-    private function cleanupConfigBasedCollection(): void
-    {
-        try {
-            $collectionName = $this->testPrefix . 'config_based_typesense_models';
-            $this->typesense->collections[$collectionName]->delete();
-        } catch (Throwable) {
-            // Collection doesn't exist, that's fine
-        }
     }
 }
