@@ -44,6 +44,8 @@ Key paths:
 
 ParaTest defaults to the machine CPU count when no process count is specified. Redis integration runs need `REDIS_TEST_DB_MIN` / `REDIS_TEST_DB_MAX` to cover the chosen worker count, or an explicit `--processes` / `-p` value that fits the configured range.
 
+`TEST_TOKEN` is runner-owned worker identity. Tests must use the assigned value unless they explicitly exercise token-dependent behavior; such tests must restore every environment source they mutate or run in an isolated subprocess.
+
 To run a single test class: `./vendor/bin/phpunit --no-progress path/to/TestClass.php`.
 
 ## Change Workflow

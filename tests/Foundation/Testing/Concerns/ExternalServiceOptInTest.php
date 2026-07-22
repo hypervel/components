@@ -131,7 +131,9 @@ class ExternalServiceOptInTest extends TestCase
     {
         $this->setHostEnvironmentValue('ALGOLIA_APP_ID', 'application-id');
         $this->setHostEnvironmentValue('ALGOLIA_SECRET', 'secret');
-        $this->setHostEnvironmentValue('TEST_TOKEN', '3');
+
+        $testToken = (string) env('TEST_TOKEN', '');
+        $expectedPrefix = $testToken === '' ? 'test_' : "test_{$testToken}_";
 
         $originalClient = Algolia::getHttpClient();
         $previousClient = m::mock(HttpClientInterface::class);
@@ -147,7 +149,7 @@ class ExternalServiceOptInTest extends TestCase
             $harness->useHttpClient($testClient);
             $harness->runSetUp();
 
-            $this->assertSame('test_3_', $harness->prefix());
+            $this->assertSame($expectedPrefix, $harness->prefix());
             $this->assertSame($testClient, Algolia::getHttpClient());
 
             $harness->runTearDown();
