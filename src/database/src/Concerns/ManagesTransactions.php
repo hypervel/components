@@ -7,6 +7,7 @@ namespace Hypervel\Database\Concerns;
 use Closure;
 use Hypervel\Database\DeadlockException;
 use LogicException;
+use PDO;
 use RuntimeException;
 use Throwable;
 
@@ -53,9 +54,9 @@ trait ManagesTransactions
             $levelBeingCommitted = $this->transactions;
 
             try {
-                if ($this->transactions == 1) {
+                if ($this->transactions === 1) {
                     $this->fireConnectionEvent('committing');
-                    $this->getPdo()->commit();
+                    $this->performCommit();
                 }
 
                 $this->transactions = max(0, $this->transactions - 1);
@@ -96,6 +97,8 @@ trait ManagesTransactions
         // let the developer handle it in another way. We will decrement too.
         if ($this->causedByConcurrencyError($e)
             && $this->transactions > 1) {
+            $this->invalidateSessionState($this->resolvePdo());
+
             --$this->transactions;
 
             $this->transactionsManager?->rollback(
@@ -149,7 +152,7 @@ trait ManagesTransactions
      */
     protected function createTransaction(): void
     {
-        if ($this->transactions == 0) {
+        if ($this->transactions === 0) {
             $this->reconnectIfMissingConnection();
 
             try {
@@ -169,7 +172,7 @@ trait ManagesTransactions
      */
     protected function createSavepoint(): void
     {
-        $this->getPdo()->exec(
+        $this->resolvePdo()->exec(
             $this->queryGrammar->compileSavepoint('trans' . ($this->transactions + 1))
         );
     }
@@ -197,9 +200,9 @@ trait ManagesTransactions
      */
     public function commit(): void
     {
-        if ($this->transactionLevel() == 1) {
+        if ($this->transactionLevel() === 1) {
             $this->fireConnectionEvent('committing');
-            $this->getPdo()->commit();
+            $this->performCommit();
         }
 
         [$levelBeingCommitted, $this->transactions] = [
@@ -214,6 +217,27 @@ trait ManagesTransactions
         );
 
         $this->fireConnectionEvent('committed');
+    }
+
+    /**
+     * Commit the active physical transaction.
+     */
+    protected function performCommit(): void
+    {
+        $pdo = $this->resolvePdo();
+
+        try {
+            $pdo->commit();
+        } catch (Throwable $exception) {
+            $this->invalidateSessionState($pdo);
+
+            if (! $this->causedByLostConnection($exception)
+                && ! $this->causedByConcurrencyError($exception)) {
+                $this->markSessionStateUnknown($pdo);
+            }
+
+            throw $exception;
+        }
     }
 
     /**
@@ -257,10 +281,18 @@ trait ManagesTransactions
         // Next, we will actually perform this rollback within this database and fire the
         // rollback event. We will also set the current transaction level to the given
         // level that was passed into this method so it will be right from here out.
+        $pdo = $this->resolvePdo();
+
         try {
-            $this->performRollBack($toLevel);
-        } catch (Throwable $e) {
-            $this->handleRollBackException($e);
+            $this->performRollBack($toLevel, $pdo);
+        } catch (Throwable $exception) {
+            if (! $this->causedByLostConnection($exception)) {
+                $this->markSessionStateUnknown($pdo);
+            }
+
+            $this->handleRollBackException($exception);
+        } finally {
+            $this->invalidateSessionState($pdo);
         }
 
         $this->transactions = $toLevel;
@@ -278,16 +310,14 @@ trait ManagesTransactions
      *
      * @throws Throwable
      */
-    protected function performRollBack(int $toLevel): void
+    protected function performRollBack(int $toLevel, PDO $pdo): void
     {
-        if ($toLevel == 0) {
-            $pdo = $this->getPdo();
-
+        if ($toLevel === 0) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
         } elseif ($this->queryGrammar->supportsSavepoints()) {
-            $this->getPdo()->exec(
+            $pdo->exec(
                 $this->queryGrammar->compileSavepointRollBack('trans' . ($toLevel + 1))
             );
         }
