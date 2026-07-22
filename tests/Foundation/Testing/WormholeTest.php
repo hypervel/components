@@ -8,11 +8,12 @@ use Carbon\CarbonImmutable;
 use Hypervel\Foundation\Testing\Wormhole;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Date;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
+use RuntimeException;
 
 class WormholeTest extends TestCase
 {
-    public function testCanTravelBackToPresent()
+    public function testCanTravelBackToPresent(): void
     {
         // Preserve the timelines we want to compare the reality with...
         $present = now();
@@ -28,7 +29,7 @@ class WormholeTest extends TestCase
         $this->assertEquals($present->format('Y-m-d'), Wormhole::back()->format('Y-m-d'));
     }
 
-    public function testCarbonImmutableCompatibility()
+    public function testCarbonImmutableCompatibility(): void
     {
         // Tell the Date Factory to use CarbonImmutable...
         Date::use(CarbonImmutable::class);
@@ -47,7 +48,7 @@ class WormholeTest extends TestCase
         $this->assertEquals($future->format('Y-m-d'), now()->format('Y-m-d'));
     }
 
-    public function testItCanTravelByMicroseconds()
+    public function testItCanTravelByMicroseconds(): void
     {
         Carbon::setTestNow(Carbon::parse('2000-01-01 00:00:00')->startOfSecond());
 
@@ -58,5 +59,29 @@ class WormholeTest extends TestCase
         $this->assertSame('2000-01-01 00:00:00.000006', Date::now()->format('Y-m-d H:i:s.u'));
 
         Carbon::setTestnow();
+    }
+
+    public function testCallbackResultIsReturnedAndRealTimeIsRestored(): void
+    {
+        $result = (new Wormhole(1))->day(static fn (): string => 'result');
+
+        $this->assertSame('result', $result);
+        $this->assertFalse(Carbon::hasTestNow());
+    }
+
+    public function testRealTimeIsRestoredWhenTheCallbackThrows(): void
+    {
+        $exception = new RuntimeException('callback failed');
+
+        try {
+            (new Wormhole(1))->day(static function () use ($exception): never {
+                throw $exception;
+            });
+            $this->fail('Expected the callback to throw.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertFalse(Carbon::hasTestNow());
     }
 }
