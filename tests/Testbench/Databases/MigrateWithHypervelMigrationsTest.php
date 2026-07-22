@@ -14,6 +14,7 @@ use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
 #[WithConfig('database.default', 'testing')]
+#[WithConfig('database.connections.testing.pool.testing_enabled', true)]
 class MigrateWithHypervelMigrationsTest extends TestCase
 {
     use LazilyRefreshDatabase;
@@ -36,5 +37,21 @@ class MigrateWithHypervelMigrationsTest extends TestCase
 
         $this->assertEquals('crynobone@gmail.com', $users->email);
         $this->assertTrue(Hash::check('456', $users->password));
+    }
+
+    #[Test]
+    public function itStartsTheFirstUserTransactionInsideTheLazyTestTransaction(): void
+    {
+        $connection = DB::connection();
+
+        $this->assertSame(0, $connection->transactionLevel());
+
+        $connection->beginTransaction();
+
+        $this->assertSame(2, $connection->transactionLevel());
+
+        $connection->rollBack();
+
+        $this->assertSame(1, $connection->transactionLevel());
     }
 }

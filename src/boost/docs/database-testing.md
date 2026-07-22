@@ -89,6 +89,8 @@ class ExampleTest extends TestCase
 }
 ```
 
+The trait monitors every connection returned by your test's `connectionsToTransact` method. The first query or transaction on any of these connections refreshes the database once and starts the test transactions.
+
 <a name="refresh-hooks"></a>
 ### Refresh Hooks
 
@@ -279,6 +281,12 @@ Assert that a table in the database contains no records:
 $this->assertDatabaseEmpty('users');
 ```
 
+You may also pass an iterable of tables or models to assert that each is empty:
+
+```php
+$this->assertDatabaseEmpty(['users', 'orders']);
+```
+
 <a name="assert-database-has"></a>
 #### assertDatabaseHas
 
@@ -287,6 +295,15 @@ Assert that a table in the database contains records matching the given key / va
 ```php
 $this->assertDatabaseHas('users', [
     'email' => 'sally@example.com',
+]);
+```
+
+To assert that several records exist, pass a list of key / value constraints:
+
+```php
+$this->assertDatabaseHas('users', [
+    ['email' => 'sally@example.com'],
+    ['email' => 'tim@example.com'],
 ]);
 ```
 
@@ -301,6 +318,19 @@ $this->assertDatabaseMissing('users', [
 ]);
 ```
 
+As with `assertDatabaseHas`, you may pass a list of key / value constraints to check several records.
+
+<a name="cast-as-json"></a>
+#### castAsJson
+
+When asserting JSON column values, the `castAsJson` method converts a value using the selected database connection's query grammar. Pass the connection name as the second argument when asserting against a non-default connection:
+
+```php
+$this->assertDatabaseHas('settings', [
+    'value' => $this->castAsJson(['dark_mode' => true], 'analytics'),
+], 'analytics');
+```
+
 <a name="assert-deleted"></a>
 #### assertSoftDeleted
 
@@ -310,6 +340,8 @@ The `assertSoftDeleted` method may be used to assert a given Eloquent model has 
 $this->assertSoftDeleted($user);
 ```
 
+You may pass an iterable of tables or models, or a list of key / value constraints, to assert that several records have been soft deleted.
+
 <a name="assert-not-deleted"></a>
 #### assertNotSoftDeleted
 
@@ -318,6 +350,8 @@ The `assertNotSoftDeleted` method may be used to assert a given Eloquent model h
 ```php
 $this->assertNotSoftDeleted($user);
 ```
+
+This method also accepts an iterable of tables or models, or a list of key / value constraints.
 
 <a name="assert-model-exists"></a>
 #### assertModelExists
