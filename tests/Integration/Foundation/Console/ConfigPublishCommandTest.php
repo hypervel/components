@@ -4,15 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Console\ConfigPublishCommand;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
+use Mockery as m;
 use ReflectionClass;
+use RuntimeException;
+use Symfony\Component\Console\Application as ConsoleApplication;
+use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Finder\Finder;
 
 class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
 {
     use InteractsWithPublishedFiles;
+
+    protected array $files = [];
 
     /**
      * The path to the framework's base configuration files.
@@ -46,7 +54,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         parent::tearDown();
     }
 
-    public function testItCanPublishSpecificConfigFile()
+    public function testItCanPublishSpecificConfigFile(): void
     {
         $this->preserveConfigFile('cache');
 
@@ -57,7 +65,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertFilenameExists('config/cache.php');
     }
 
-    public function testItPublishesAllConfigFilesWithAllFlag()
+    public function testItPublishesAllConfigFilesWithAllFlag(): void
     {
         $expectedConfigs = $this->getExpectedConfigNames();
 
@@ -73,7 +81,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         }
     }
 
-    public function testItDiscoversCoreFrameworkConfigs()
+    public function testItDiscoversCoreFrameworkConfigs(): void
     {
         $expectedConfigs = $this->getExpectedConfigNames();
 
@@ -83,7 +91,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         }
     }
 
-    public function testPublishedContentMatchesSource()
+    public function testPublishedContentMatchesSource(): void
     {
         $name = 'hashing';
         $this->preserveConfigFile($name);
@@ -97,7 +105,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame($sourceContent, $publishedContent);
     }
 
-    public function testItSkipsExistingConfigWithoutForce()
+    public function testItSkipsExistingConfigWithoutForce(): void
     {
         $name = 'app';
         $destination = $this->app->configPath("{$name}.php");
@@ -111,7 +119,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain("The '{$name}' configuration file already exists.");
     }
 
-    public function testItOverwritesExistingConfigWithForce()
+    public function testItOverwritesExistingConfigWithForce(): void
     {
         $name = 'app';
         $destination = $this->app->configPath("{$name}.php");
@@ -127,7 +135,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
             ->expectsOutputToContain("Published '{$name}' configuration file.");
     }
 
-    public function testItCanPublishConfigFilesWhenConfiguredWithDontMergeFrameworkConfiguration()
+    public function testItCanPublishConfigFilesWhenConfiguredWithDontMergeFrameworkConfiguration(): void
     {
         foreach ([
             'app', 'auth', 'broadcasting', 'cache', 'cors',
@@ -154,11 +162,81 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         $this->assertSame(config('app.providers'), ServiceProvider::defaultProviders()->toArray());
     }
 
-    public function testItFailsWithUnrecognizedConfigFile()
+    public function testItFailsWithUnrecognizedConfigFile(): void
     {
         $this->artisan('config:publish', ['name' => 'nonexistent-config-file'])
             ->expectsOutputToContain('Unrecognized configuration file.')
             ->assertExitCode(1);
+    }
+
+    public function testForcedPublicationPreservesExistingPermissions(): void
+    {
+        $name = 'hashing';
+        $destination = $this->app->configPath("{$name}.php");
+        $this->preserveConfigFile($name);
+        file_put_contents($destination, 'old contents');
+        chmod($destination, 0640);
+
+        $this->artisan('config:publish', ['name' => $name, '--force' => true])
+            ->assertSuccessful();
+
+        $this->assertSame(0640, fileperms($destination) & 0777);
+    }
+
+    public function testSourceReadFailurePreservesExistingDestinationAndReportsNoSuccess(): void
+    {
+        $name = 'hashing';
+        $source = dirname((new ReflectionClass(ConfigPublishCommand::class))->getFileName()) . "/../../config/{$name}.php";
+        $sourceContents = file_get_contents($source);
+        $destination = $this->app->configPath("{$name}.php");
+        $this->preserveConfigFile($name);
+        file_put_contents($destination, 'existing destination');
+
+        $files = m::mock(Filesystem::class)->makePartial();
+        $readException = new FileNotFoundException("File does not exist at path [{$source}].");
+        $files->shouldReceive('get')->once()->with($source)->andThrow($readException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester();
+
+        try {
+            $tester->execute(['name' => $name, '--force' => true]);
+            $this->fail('Expected configuration source reading to fail.');
+        } catch (FileNotFoundException $exception) {
+            $this->assertSame($readException, $exception);
+        }
+
+        $this->assertSame('existing destination', file_get_contents($destination));
+        $this->assertSame($sourceContents, file_get_contents($source));
+        $this->assertStringNotContainsString("Published '{$name}' configuration file.", $tester->getDisplay());
+    }
+
+    public function testReplacementFailurePreservesExistingDestinationAndReportsNoSuccess(): void
+    {
+        $name = 'hashing';
+        $destination = $this->app->configPath("{$name}.php");
+        $this->preserveConfigFile($name);
+        file_put_contents($destination, 'existing destination');
+        chmod($destination, 0640);
+
+        $files = m::mock(Filesystem::class)->makePartial();
+        $publicationException = new RuntimeException('Unable to publish configuration file.');
+        $files->shouldReceive('replace')
+            ->once()
+            ->with($destination, m::type('string'), 0640)
+            ->andThrow($publicationException);
+        $this->app->instance('files', $files);
+        $tester = $this->commandTester();
+
+        try {
+            $tester->execute(['name' => $name, '--force' => true]);
+            $this->fail('Expected configuration publication to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($publicationException, $exception);
+        }
+
+        $this->assertSame('existing destination', file_get_contents($destination));
+        $this->assertSame(0640, fileperms($destination) & 0777);
+        $this->assertStringNotContainsString("Published '{$name}' configuration file.", $tester->getDisplay());
     }
 
     /**
@@ -171,7 +249,7 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         $names = [];
 
         foreach (Finder::create()->files()->name('*.php')->in($this->baseConfigPath) as $file) {
-            $names[] = basename($file->getRealPath(), '.php');
+            $names[] = basename($file->getPathname(), '.php');
         }
 
         sort($names);
@@ -189,5 +267,18 @@ class ConfigPublishCommandTest extends \Hypervel\Testbench\TestCase
         $this->originalContents[$destination] = is_file($destination)
             ? file_get_contents($destination)
             : null;
+    }
+
+    /**
+     * Create a tester for the configuration publisher.
+     */
+    private function commandTester(): CommandTester
+    {
+        $command = new ConfigPublishCommand;
+        $command->setHypervel($this->app);
+        $application = new ConsoleApplication;
+        $application->addCommand($command);
+
+        return new CommandTester($command);
     }
 }

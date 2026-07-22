@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Console;
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Events\PublishingStubs;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'stub:publish')]
@@ -21,11 +22,11 @@ class StubPublishCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): void
     {
-        if (! is_dir($stubsPath = $this->hypervel->basePath('stubs'))) {
-            (new Filesystem)->makeDirectory($stubsPath);
-        }
+        $files = $this->hypervel->make(Filesystem::class);
+        $stubsPath = $this->hypervel->basePath('stubs');
+        $files->ensureDirectoryExists($stubsPath);
 
         $stubs = [
             __DIR__ . '/stubs/cast.inbound.stub' => 'cast.inbound.stub',
@@ -64,34 +65,47 @@ class StubPublishCommand extends Command
             __DIR__ . '/stubs/test.unit.stub' => 'test.unit.stub',
             __DIR__ . '/stubs/trait.stub' => 'trait.stub',
             __DIR__ . '/stubs/view-component.stub' => 'view-component.stub',
-            realpath(__DIR__ . '/../../../database/src/Console/Factories/stubs/factory.stub') => 'factory.stub',
-            realpath(__DIR__ . '/../../../database/src/Console/Seeds/stubs/seeder.stub') => 'seeder.stub',
-            realpath(__DIR__ . '/../../../database/src/Migrations/stubs/migration.create.stub') => 'migration.create.stub',
-            realpath(__DIR__ . '/../../../database/src/Migrations/stubs/migration.stub') => 'migration.stub',
-            realpath(__DIR__ . '/../../../database/src/Migrations/stubs/migration.update.stub') => 'migration.update.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.api.stub') => 'controller.api.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.invokable.stub') => 'controller.invokable.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.model.api.stub') => 'controller.model.api.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.model.stub') => 'controller.model.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.nested.api.stub') => 'controller.nested.api.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.nested.singleton.api.stub') => 'controller.nested.singleton.api.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.nested.singleton.stub') => 'controller.nested.singleton.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.nested.stub') => 'controller.nested.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.plain.stub') => 'controller.plain.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.singleton.api.stub') => 'controller.singleton.api.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.singleton.stub') => 'controller.singleton.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/controller.stub') => 'controller.stub',
-            realpath(__DIR__ . '/../../../routing/src/Console/stubs/middleware.stub') => 'middleware.stub',
+            __DIR__ . '/../../../database/src/Console/Factories/stubs/factory.stub' => 'factory.stub',
+            __DIR__ . '/../../../database/src/Console/Seeds/stubs/seeder.stub' => 'seeder.stub',
+            __DIR__ . '/../../../database/src/Migrations/stubs/migration.create.stub' => 'migration.create.stub',
+            __DIR__ . '/../../../database/src/Migrations/stubs/migration.stub' => 'migration.stub',
+            __DIR__ . '/../../../database/src/Migrations/stubs/migration.update.stub' => 'migration.update.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.api.stub' => 'controller.api.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.invokable.stub' => 'controller.invokable.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.model.api.stub' => 'controller.model.api.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.model.stub' => 'controller.model.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.nested.api.stub' => 'controller.nested.api.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.nested.singleton.api.stub' => 'controller.nested.singleton.api.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.nested.singleton.stub' => 'controller.nested.singleton.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.nested.stub' => 'controller.nested.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.plain.stub' => 'controller.plain.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.singleton.api.stub' => 'controller.singleton.api.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.singleton.stub' => 'controller.singleton.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/controller.stub' => 'controller.stub',
+            __DIR__ . '/../../../routing/src/Console/stubs/middleware.stub' => 'middleware.stub',
         ];
 
-        $this->hypervel['events']->dispatch($event = new PublishingStubs($stubs));
+        $this->hypervel->make('events')->dispatch($event = new PublishingStubs($stubs));
 
         foreach ($event->stubs as $from => $to) {
             $to = $stubsPath . DIRECTORY_SEPARATOR . ltrim($to, DIRECTORY_SEPARATOR);
+            $exists = $files->exists($to);
 
-            if ((! $this->option('existing') && (! file_exists($to) || $this->option('force')))
-                || ($this->option('existing') && file_exists($to))) {
-                file_put_contents($to, file_get_contents($from));
+            if ((! $this->option('existing') && (! $exists || $this->option('force')))
+                || ($this->option('existing') && $exists)) {
+                $mode = null;
+
+                if ($exists) {
+                    $permissions = $files->chmod($to);
+
+                    if ($permissions === false) {
+                        throw new RuntimeException("Unable to determine permissions for [{$to}].");
+                    }
+
+                    $mode = octdec($permissions);
+                }
+
+                $files->replace($to, $files->get($from), $mode);
             }
         }
 
