@@ -178,27 +178,47 @@ class Kernel implements KernelContract
      */
     public function terminate(InputInterface $input, int $status): void
     {
-        $this->events->dispatch(new Terminating);
+        $exception = null;
 
-        $this->app->terminate();
-
-        if ($this->commandStartedAt === null) {
-            return;
+        try {
+            $this->events->dispatch(new Terminating);
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
         }
 
-        $this->commandStartedAt->setTimezone(
-            $this->app['config']->get('app.timezone') ?? 'UTC'
-        );
+        try {
+            $this->app->terminate();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
 
-        foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
-            $end ??= Carbon::now();
+        if ($this->commandStartedAt !== null) {
+            try {
+                $this->commandStartedAt->setTimezone(
+                    $this->app->make('config')->string('app.timezone')
+                );
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
 
-            if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
-                $handler($this->commandStartedAt, $input, $status);
+            foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
+                try {
+                    $end ??= Carbon::now();
+
+                    if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
+                        $handler($this->commandStartedAt, $input, $status);
+                    }
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
             }
         }
 
         $this->commandStartedAt = null;
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
