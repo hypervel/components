@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Console;
 use DateTimeInterface;
 use Exception;
 use Hypervel\Console\Command;
+use Hypervel\Foundation\Console\Concerns\ReloadsWorkers;
 use Hypervel\Foundation\Events\MaintenanceModeEnabled;
 use Hypervel\Foundation\Exceptions\RegisterErrorViewPaths;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
@@ -18,6 +19,8 @@ use Throwable;
 #[AsCommand(name: 'down')]
 class DownCommand extends Command
 {
+    use ReloadsWorkers;
+
     /**
      * The console command signature.
      */
@@ -39,29 +42,53 @@ class DownCommand extends Command
      */
     public function handle(): int
     {
-        try {
-            if ($this->hypervel->maintenanceMode()->active() && ! $this->getSecret()) {
-                $this->components->info('Application is already down.');
+        $stateCommitted = false;
 
-                return 0;
-            }
+        try {
+            $wasAlreadyDown = $this->hypervel->maintenanceMode()->active();
 
             $downFilePayload = $this->getDownFilePayload();
 
             $this->hypervel->maintenanceMode()->activate($downFilePayload);
+            $stateCommitted = true;
 
-            $this->hypervel->make('events')->dispatch(new MaintenanceModeEnabled);
+            $exception = null;
 
-            $this->reloadWorkers();
+            try {
+                $this->hypervel->make('events')->dispatch(new MaintenanceModeEnabled);
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
 
-            $this->components->info('Application is now in maintenance mode.');
+            try {
+                $this->reloadWorkers();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            if ($exception !== null) {
+                throw $exception;
+            }
+
+            $this->components->info(
+                $wasAlreadyDown
+                ? 'Maintenance mode options updated.'
+                : 'Application is now in maintenance mode.'
+            );
 
             if ($downFilePayload['secret'] !== null) {
                 $this->components->info('You may bypass maintenance mode via [' . config('app.url') . "/{$downFilePayload['secret']}].");
             }
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
+            try {
+                report($e);
+            } catch (Throwable) {
+            }
+
             $this->components->error(sprintf(
-                'Failed to enter maintenance mode: %s.',
+                $stateCommitted
+                    ? 'The application is in maintenance mode, but a follow-up operation failed: %s.'
+                    : 'Failed to enter maintenance mode: %s.',
                 $e->getMessage(),
             ));
 
@@ -163,23 +190,5 @@ class DownCommand extends Command
             $this->option('with-secret') => Str::random(),
             default => null,
         };
-    }
-
-    /**
-     * Attempt a best-effort worker reload via SIGUSR1.
-     */
-    protected function reloadWorkers(): void
-    {
-        $pidFile = $this->hypervel->make('config')->string('server.settings.pid_file', '');
-
-        if (empty($pidFile) || ! is_file($pidFile)) {
-            return;
-        }
-
-        $pid = (int) file_get_contents($pidFile);
-
-        if ($pid > 0 && posix_kill($pid, 0)) {
-            posix_kill($pid, SIGUSR1);
-        }
     }
 }
