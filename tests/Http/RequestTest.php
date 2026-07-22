@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Hyperf\Collection\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
+use Hyperf\HttpMessage\Server\Request as Psr7ServerRequest;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\HttpMessage\Uri\Uri as HyperfUri;
 use Hyperf\HttpServer\Request as HyperfRequest;
@@ -27,6 +28,9 @@ use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 use Swow\Psr7\Message\ServerRequestPlusInterface;
 
+use function Hypervel\Coroutine\parallel;
+use function Hypervel\Coroutine\run;
+
 /**
  * @internal
  * @coversNothing
@@ -40,6 +44,7 @@ class RequestTest extends TestCase
         Context::destroy('http.request.parsedData');
         Context::destroy(HyperfRequest::class . '.properties.requestUri');
         Context::destroy(HyperfRequest::class . '.properties.pathInfo');
+        Context::destroy(Request::class . '.properties.languages');
     }
 
     public function testAllFiles()
@@ -345,6 +350,75 @@ class RequestTest extends TestCase
         $request = new Request();
 
         $this->assertTrue($request->isJson());
+    }
+
+    public function testGetLanguages()
+    {
+        Context::set(ServerRequestInterface::class, new Psr7ServerRequest(
+            'GET',
+            '/',
+            ['Accept-Language' => 'zh-hans-tw;q=0.8, fr-latn-fr, en-US;q=0.9, i-cherokee;q=0.7, INVALID;q=0.6']
+        ));
+
+        $this->assertSame(
+            ['fr_Latn_FR', 'en_US', 'zh_Hans_TW', 'cherokee', 'invalid'],
+            (new Request())->getLanguages()
+        );
+    }
+
+    public function testGetPreferredLanguage()
+    {
+        Context::set(ServerRequestInterface::class, new Psr7ServerRequest(
+            'GET',
+            '/',
+            ['Accept-Language' => 'zh-Hant-HK, fr-FR;q=0.8']
+        ));
+        $request = new Request();
+
+        $this->assertSame('zh_Hant_TW', $request->getPreferredLanguage([
+            'zh-Hans-CN',
+            'zh-Hant-TW',
+            'fr-fr',
+        ]));
+        $this->assertSame('zh_Hant_HK', $request->getPreferredLanguage());
+    }
+
+    public function testGetPreferredLanguageFallsBackToFirstAvailableLocale()
+    {
+        Context::set(ServerRequestInterface::class, new Psr7ServerRequest('GET', '/'));
+
+        $this->assertSame('en_US', (new Request())->getPreferredLanguage(['en-us', 'fr-FR']));
+    }
+
+    public function testLanguagesAreIsolatedByCoroutineContext()
+    {
+        $request = new Request();
+        $results = [];
+
+        run(function () use ($request, &$results) {
+            $results = parallel([
+                function () use ($request) {
+                    Context::set(ServerRequestInterface::class, new Psr7ServerRequest(
+                        'GET',
+                        '/',
+                        ['Accept-Language' => 'en-US']
+                    ));
+
+                    return $request->getLanguages();
+                },
+                function () use ($request) {
+                    Context::set(ServerRequestInterface::class, new Psr7ServerRequest(
+                        'GET',
+                        '/',
+                        ['Accept-Language' => 'fr-FR']
+                    ));
+
+                    return $request->getLanguages();
+                },
+            ]);
+        });
+
+        $this->assertSame([['en_US'], ['fr_FR']], $results);
     }
 
     public function testIsNotFilled()
