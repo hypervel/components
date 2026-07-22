@@ -205,6 +205,8 @@ class PooledConnection implements PoolConnectionInterface
             return false;
         }
 
+        // Known session configuration is memoized by physical PDO across clean
+        // releases. Pool maintenance must remain session-state-neutral.
         $pdos = $this->getOpenPdos();
 
         if ($pdos === []) {
@@ -260,7 +262,7 @@ class PooledConnection implements PoolConnectionInterface
             if ($this->connection instanceof Connection) {
                 $errorCount = $this->connection->getErrorCount();
 
-                // Reset all per-request state to prevent leaks between coroutines
+                // Reset wrapper state before another coroutine borrows it.
                 $this->connection->resetForPool();
 
                 // Check error count and mark as stale if too high
@@ -288,6 +290,11 @@ class PooledConnection implements PoolConnectionInterface
             // Mark as stale so it will be recreated
             $this->markInvalid();
         } finally {
+            if ($this->connection?->hasUnknownSessionState()) {
+                $this->logger->warning('Database session state is unknown, marking connection as stale.');
+                $this->markInvalid();
+            }
+
             $this->availableForReuse = true;
             $this->pool->release($this);
         }
@@ -441,12 +448,21 @@ class PooledConnection implements PoolConnectionInterface
             $connection->setPdo($sharedPdo);
             $connection->setReadPdo($sharedPdo);
         } else {
-            // Normal refresh path for other drivers
-            $fresh = $this->factory->make($this->config, $this->config['name'] ?? null);
+            try {
+                $fresh = $this->factory->make($this->config, $this->config['name'] ?? null);
+                $writePdo = $fresh->getPdo();
+                $readPdo = $fresh->getReadPdo();
 
-            $connection->disconnect();
-            $connection->setPdo($fresh->getPdo());
-            $connection->setReadPdo($fresh->getReadPdo());
+                // Keep the current generation intact until both replacement handles
+                // are ready so a failed refresh cannot leave a partial connection.
+                $connection->disconnect();
+                $connection->setPdo($writePdo);
+                $connection->setReadPdo($readPdo);
+            } catch (Throwable $exception) {
+                $this->markInvalid();
+
+                throw $exception;
+            }
 
             $this->logger->warning('Database connection refreshed.');
         }

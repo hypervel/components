@@ -122,6 +122,7 @@ The Working rules and the Avoid overengineering rules apply to all work in this 
 - **Always use `cp` to copy files and `mv` to move/rename** — never read → write new version → delete old version.
 - **Grep broadly — never assume a subdir** — when searching for any symbol, class, method, or pattern, grep across the whole `src/` (or `tests/`) tree, not a specific package subdir. Assumptions about where something lives produce false negatives.
 - **Read the source before describing behavior** — never state how code behaves from memory or Laravel assumptions. Hypervel's coroutine runtime breaks many Laravel assumptions; if you haven't read the relevant source, read it first.
+- **Match existing documentation style** — User-facing documentation must match the style and language of nearby Hypervel docs. Use simple, human-friendly prose in Laravel's documentation style, and avoid internal jargon, stiff wording, needless verbosity, and details that do not help readers use the feature correctly.
 - **Revert failed attempts immediately** — when a fix doesn't work, revert it before trying another approach. Don't leave experimental code in place.
 - **Use `composer require` for root dependencies** — the root `composer.json` has a lockfile, so dependency entries go through Composer, never hand-edits. Direct edits are fine for metadata sections no command can write (`autoload`, `replace`, `extra`, `scripts`) and for the sub-package `src/{package}/composer.json` files, which have no lockfile.
 

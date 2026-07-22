@@ -29,7 +29,9 @@ use PDO;
 use PDOStatement;
 use RuntimeException;
 use stdClass;
+use Throwable;
 use UnitEnum;
+use WeakMap;
 
 use function Hypervel\Support\enum_value;
 
@@ -192,6 +194,20 @@ class Connection implements ConnectionInterface
      * Used by connection pooling to detect and remove stale connections.
      */
     protected int $errorCount = 0;
+
+    /**
+     * The registered database session configurators.
+     *
+     * @var list<SessionConfigurator>
+     */
+    protected static array $sessionConfigurators = [];
+
+    /**
+     * The state known for each live physical database session.
+     *
+     * @var null|WeakMap<PDO, PhysicalSessionState>
+     */
+    protected static ?WeakMap $physicalSessionStates = null;
 
     /**
      * The connection resolvers.
@@ -915,23 +931,32 @@ class Connection implements ConnectionInterface
 
     /**
      * Disconnect from the underlying PDO connection.
-     *
-     * Any open transactions are rolled back before disconnecting to ensure
-     * the connection is returned to the pool in a clean state.
      */
     public function disconnect(): void
     {
-        // Roll back any open transactions before releasing the PDO.
-        // This prevents dirty state from leaking to the next pool user.
-        if ($this->transactions > 0) {
-            $this->transactions = 0;
+        $pdo = $this->getRawPdo();
 
-            if ($this->pdo?->inTransaction()) {
-                $this->pdo->rollBack();
+        try {
+            if ($this->transactions > 0) {
+                $this->transactions = 0;
+
+                if ($pdo instanceof PDO && $pdo->inTransaction()) {
+                    try {
+                        $pdo->rollBack();
+                    } finally {
+                        $this->invalidateSessionState($pdo);
+                    }
+                }
             }
-        }
+        } catch (Throwable $exception) {
+            if ($pdo instanceof PDO) {
+                $this->markSessionStateUnknown($pdo);
+            }
 
-        $this->setPdo(null)->setReadPdo(null);
+            throw $exception;
+        } finally {
+            $this->setPdo(null)->setReadPdo(null);
+        }
     }
 
     /**
@@ -965,10 +990,10 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Reset all per-request state for pool release.
+     * Reset all wrapper state for pool release.
      *
-     * Called when a connection is returned to the pool to ensure the next
-     * coroutine/request gets a clean connection without leaked state.
+     * Physical database session state is preserved and synchronized against
+     * the next coroutine's desired state when the PDO is handed out again.
      */
     public function resetForPool(): void
     {
@@ -1170,21 +1195,20 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Get the current PDO connection.
+     * Get the current synchronized PDO connection.
      */
     public function getPdo(): PDO
     {
         $this->latestPdoTypeRetrieved = 'write';
+        $pdo = $this->resolvePdo();
 
-        if ($this->pdo instanceof Closure) {
-            return $this->pdo = call_user_func($this->pdo);
-        }
-
-        return $this->pdo;
+        return static::$sessionConfigurators === []
+            ? $pdo
+            : $this->synchronizeSession($pdo, read: false);
     }
 
     /**
-     * Get the current PDO connection parameter without executing any reconnect logic.
+     * Get the current PDO parameter without resolving, reconnecting, or synchronizing session state.
      */
     public function getRawPdo(): PDO|Closure|null
     {
@@ -1192,7 +1216,7 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Get the current PDO connection used for reading.
+     * Get the current synchronized PDO connection used for reading.
      */
     public function getReadPdo(): PDO
     {
@@ -1206,20 +1230,208 @@ class Connection implements ConnectionInterface
         }
 
         $this->latestPdoTypeRetrieved = 'read';
+        $pdo = $this->resolveReadPdo();
 
-        if ($this->readPdo instanceof Closure) {
-            return $this->readPdo = call_user_func($this->readPdo);
-        }
-
-        return $this->readPdo ?: $this->getPdo();
+        return static::$sessionConfigurators === []
+            ? $pdo
+            : $this->synchronizeSession($pdo, read: true);
     }
 
     /**
-     * Get the current read PDO connection parameter without executing any reconnect logic.
+     * Get the current read PDO parameter without resolving, reconnecting, or synchronizing session state.
      */
     public function getRawReadPdo(): PDO|Closure|null
     {
         return $this->readPdo;
+    }
+
+    /**
+     * Resolve the current write PDO without synchronizing session state.
+     */
+    protected function resolvePdo(): PDO
+    {
+        if ($this->pdo instanceof Closure) {
+            return $this->pdo = call_user_func($this->pdo);
+        }
+
+        return $this->pdo;
+    }
+
+    /**
+     * Resolve the current read PDO without synchronizing session state.
+     */
+    protected function resolveReadPdo(): PDO
+    {
+        if ($this->readPdo instanceof Closure) {
+            return $this->readPdo = call_user_func($this->readPdo);
+        }
+
+        if ($this->readPdo instanceof PDO) {
+            return $this->readPdo;
+        }
+
+        $this->latestPdoTypeRetrieved = 'write';
+
+        return $this->resolvePdo();
+    }
+
+    /**
+     * Synchronize the desired state for a physical database session.
+     */
+    protected function synchronizeSession(PDO $pdo, bool $read): PDO
+    {
+        $sessionState = static::physicalSessionState($pdo);
+
+        if ($sessionState->configuring) {
+            $this->markSessionStateUnknown($pdo);
+
+            throw new RuntimeException('Reentrant database session configuration is not allowed.');
+        }
+
+        if ($sessionState->unknown) {
+            $sessionState->configuring = true;
+
+            try {
+                $pdo = $this->replaceUnknownSession($read);
+            } finally {
+                $sessionState->configuring = false;
+            }
+
+            $sessionState = static::physicalSessionState($pdo);
+
+            if ($sessionState->configuring) {
+                $this->markSessionStateUnknown($pdo);
+
+                throw new RuntimeException('Reentrant database session configuration is not allowed.');
+            }
+        }
+
+        $sessionState->configuring = true;
+
+        try {
+            foreach (static::$sessionConfigurators as $index => $configurator) {
+                $desiredState = $configurator->state($this);
+
+                if ($desiredState === null
+                    || ($sessionState->appliedStates[$index] ?? null) === $desiredState) {
+                    continue;
+                }
+
+                try {
+                    $configurator->apply($pdo, $desiredState, $this);
+
+                    if ($sessionState->unknown) {
+                        throw new RuntimeException('Database session state became unknown during configuration.');
+                    }
+                } catch (Throwable $exception) {
+                    $sessionState->appliedStates = [];
+                    $sessionState->unknown = true;
+
+                    throw $exception;
+                }
+
+                $sessionState->appliedStates[$index] = $desiredState;
+            }
+
+            if ($sessionState->unknown) {
+                throw new RuntimeException('Database session state became unknown during configuration.');
+            }
+        } finally {
+            $sessionState->configuring = false;
+        }
+
+        return $pdo;
+    }
+
+    /**
+     * Replace a physical session whose state can no longer be trusted.
+     */
+    protected function replaceUnknownSession(bool $read): PDO
+    {
+        if ($this->transactions > 0) {
+            throw new RuntimeException('Database session state is unknown within an active transaction.');
+        }
+
+        $this->reconnect();
+
+        $replacement = $read
+            ? $this->resolveReadPdo()
+            : $this->resolvePdo();
+
+        if (static::sessionStateIsUnknown($replacement)) {
+            throw new RuntimeException('Database session state remains unknown after reconnecting.');
+        }
+
+        return $replacement;
+    }
+
+    /**
+     * Get the state holder for a physical database session.
+     */
+    protected static function physicalSessionState(PDO $pdo): PhysicalSessionState
+    {
+        $states = static::$physicalSessionStates ??= new WeakMap;
+
+        return $states[$pdo] ??= new PhysicalSessionState;
+    }
+
+    /**
+     * Determine whether a physical database session has unknown state.
+     */
+    protected static function sessionStateIsUnknown(PDO $pdo): bool
+    {
+        return static::$physicalSessionStates !== null
+            && isset(static::$physicalSessionStates[$pdo])
+            && static::$physicalSessionStates[$pdo]->unknown;
+    }
+
+    /**
+     * Invalidate the states remembered for a physical database session.
+     */
+    protected function invalidateSessionState(PDO $pdo): void
+    {
+        if (static::$physicalSessionStates !== null
+            && isset(static::$physicalSessionStates[$pdo])) {
+            static::$physicalSessionStates[$pdo]->appliedStates = [];
+        }
+    }
+
+    /**
+     * Mark a physical database session's state as unknown.
+     */
+    protected function markSessionStateUnknown(PDO $pdo): void
+    {
+        if (static::$sessionConfigurators === []) {
+            return;
+        }
+
+        $sessionState = static::physicalSessionState($pdo);
+        $sessionState->appliedStates = [];
+        $sessionState->unknown = true;
+    }
+
+    /**
+     * Determine whether an open PDO has unknown session state.
+     *
+     * @internal
+     */
+    public function hasUnknownSessionState(): bool
+    {
+        if (static::$physicalSessionStates === null) {
+            return false;
+        }
+
+        $writePdo = $this->getRawPdo();
+
+        if ($writePdo instanceof PDO
+            && static::sessionStateIsUnknown($writePdo)) {
+            return true;
+        }
+
+        $readPdo = $this->getRawReadPdo();
+
+        return $readPdo instanceof PDO
+            && static::sessionStateIsUnknown($readPdo);
     }
 
     /**
@@ -1564,6 +1776,18 @@ class Connection implements ConnectionInterface
     }
 
     /**
+     * Register a database session configurator.
+     *
+     * Boot-only. The configurator persists in a static property for the worker
+     * lifetime and runs on every subsequent synchronized PDO hand-out across all
+     * coroutines.
+     */
+    public static function configureSessionUsing(SessionConfigurator $configurator): void
+    {
+        static::$sessionConfigurators[] = $configurator;
+    }
+
+    /**
      * Register a connection resolver.
      *
      * Boot-only. The resolver persists in a static property for the worker
@@ -1588,6 +1812,8 @@ class Connection implements ConnectionInterface
      */
     public static function flushState(): void
     {
+        static::$sessionConfigurators = [];
+        static::$physicalSessionStates = null;
         static::$resolvers = [];
         static::flushMacros();
     }

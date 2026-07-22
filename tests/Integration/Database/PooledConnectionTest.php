@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
+use Closure;
+use Exception;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Connection;
@@ -11,6 +13,7 @@ use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
+use Hypervel\Database\SessionConfigurator;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Pool\Events\ReleaseConnection;
@@ -19,6 +22,7 @@ use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 use PDO;
 use ReflectionProperty;
+use RuntimeException;
 
 /**
  * Tests for PooledConnection — the adapter that wraps a database Connection
@@ -379,6 +383,377 @@ class PooledConnectionTest extends DatabaseTestCase
         $newPooledConnection->release();
     }
 
+    public function testCleanReleasePreservesMatchingPhysicalSessionState(): void
+    {
+        $configurator = new PoolSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $firstPooledConnection = $pooledConnection;
+            $connection = $firstPooledConnection->getConnection();
+            $pdo = $connection->getPdo();
+            $applyCalls = $configurator->applyCalls;
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $nextConnection = $pooledConnection->getConnection();
+
+            $this->assertSame($firstPooledConnection, $pooledConnection);
+            $this->assertSame($connection, $nextConnection);
+            $this->assertSame($pdo, $nextConnection->getPdo());
+            $this->assertSame($applyCalls, $configurator->applyCalls);
+
+            $configurator->desiredState = 'changed';
+            $nextConnection->getPdo();
+
+            $this->assertSame($applyCalls + 1, $configurator->applyCalls);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+        }
+    }
+
+    public function testAbandonedTransactionRollbackInvalidatesPhysicalSessionState(): void
+    {
+        $configurator = new PoolSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $connection = $pooledConnection->getConnection();
+            $connection->beginTransaction();
+            $applyCalls = $configurator->applyCalls;
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $pooledConnection->getConnection()->getPdo();
+
+            $this->assertSame($applyCalls + 1, $configurator->applyCalls);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+        }
+    }
+
+    public function testUnknownSessionIsMarkedInvalidAtFinalReleaseBoundary(): void
+    {
+        $configurator = new PoolSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $configurator->desiredState = 'fail';
+            $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
+
+            try {
+                $pooledConnection->getConnection()->getPdo();
+                $this->fail('Expected configuration exception was not thrown.');
+            } catch (Exception $exception) {
+                $this->assertSame('Configuration failed.', $exception->getMessage());
+            }
+
+            $releasedConnection = $pooledConnection;
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            $this->assertTrue($this->isInvalid($releasedConnection));
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+        }
+    }
+
+    public function testUnknownReadSessionIsDetectedWithoutResolvingUnopenedPdos(): void
+    {
+        $configurator = new PoolSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $connection = $pooledConnection->getConnection();
+            $readPdo = new PDO('sqlite::memory:');
+            $connection->setReadPdo($readPdo);
+            $configurator->desiredState = 'fail';
+            $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
+
+            try {
+                $connection->getReadPdo();
+                $this->fail('Expected configuration exception was not thrown.');
+            } catch (Exception) {
+            }
+
+            $connection->setPdo(static fn () => throw new Exception('Write PDO must not be resolved.'));
+            $releasedConnection = $pooledConnection;
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            $this->assertTrue($this->isInvalid($releasedConnection));
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+        }
+    }
+
+    public function testUnknownStateCaughtByReleaseListenerIsStillMarkedInvalid(): void
+    {
+        $this->app->make('config')->set('database.connections.pool_test.pool.events', [
+            ReleaseConnection::class,
+        ]);
+        $configurator = new PoolSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $pool = new DbPool($this->app, 'pool_test');
+        $configurator->desiredState = 'fail';
+        $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
+        $this->app->make(Dispatcher::class)->listen(
+            ReleaseConnection::class,
+            static function (ReleaseConnection $event): void {
+                try {
+                    $event->connection->getConnection()->getPdo();
+                } catch (Exception) {
+                }
+            }
+        );
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $releasedConnection = $pooledConnection;
+            $pooledConnection->release();
+            $pooledConnection = null;
+
+            $this->assertTrue($this->isInvalid($releasedConnection));
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+        }
+    }
+
+    public function testInvalidNormalConnectionReconnectsAndConfiguresAFreshPdo(): void
+    {
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('PooledConnectionTest-session-reconnect');
+        $filesystem->ensureDirectoryExists($directory);
+        $databasePath = $directory . '/database.sqlite';
+        touch($databasePath);
+        $this->app->make('config')->set('database.connections.session_reconnect_test', [
+            'driver' => 'sqlite',
+            'database' => $databasePath,
+            'prefix' => '',
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ],
+        ]);
+        $configurator = new PoolSessionConfigurator('session_reconnect_test');
+        $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
+        Connection::configureSessionUsing($configurator);
+        $pool = new DbPool($this->app, 'session_reconnect_test');
+        $pooledConnection = null;
+
+        try {
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+
+            try {
+                $connection->getPdo();
+                $this->fail('Expected configuration exception was not thrown.');
+            } catch (Exception) {
+            }
+
+            $oldPdo = $connection->getRawPdo();
+            $firstPooledConnection = $pooledConnection;
+            $pooledConnection->release();
+            $pooledConnection = null;
+            $configurator->desiredState = 'recovered';
+            $configurator->applyCallback = null;
+
+            /** @var PooledConnection $nextPooledConnection */
+            $nextPooledConnection = $pool->get();
+            $pooledConnection = $nextPooledConnection;
+            $newPdo = $nextPooledConnection->getConnection()->getPdo();
+
+            $this->assertSame($firstPooledConnection, $nextPooledConnection);
+            $this->assertNotSame($oldPdo, $newPdo);
+            $this->assertSame(2, $configurator->applyCalls);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
+    public function testFailedRefreshPreservesTheCurrentGenerationAndMarksItInvalid(): void
+    {
+        $filesystem = new Filesystem;
+        $directory = ParallelTesting::tempDir('PooledConnectionTest-session-refresh-failure');
+        $filesystem->ensureDirectoryExists($directory);
+        $databasePath = $directory . '/database.sqlite';
+        touch($databasePath);
+        $this->app->make('config')->set('database.connections.session_refresh_failure_test', [
+            'driver' => 'sqlite',
+            'database' => $databasePath,
+            'prefix' => '',
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 1,
+                'heartbeat' => -1,
+            ],
+        ]);
+        $configurator = new PoolSessionConfigurator('session_refresh_failure_test');
+        Connection::configureSessionUsing($configurator);
+        $pool = new DbPool($this->app, 'session_refresh_failure_test');
+        $pooledConnection = null;
+
+        try {
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $connection = $pooledConnection->getConnection();
+            $oldPdo = $connection->getPdo();
+            $configurationException = new Exception('Replacement configuration failed.');
+            $configurator->desiredState = 'failed-refresh';
+            $configurator->applyCallback = static fn () => throw $configurationException;
+
+            try {
+                $connection->getPdo();
+                $this->fail('Expected existing-session configuration exception was not thrown.');
+            } catch (Exception $exception) {
+                $this->assertSame($configurationException, $exception);
+            }
+
+            try {
+                $connection->getPdo();
+                $this->fail('Expected replacement configuration exception was not thrown.');
+            } catch (Exception $exception) {
+                $this->assertSame($configurationException, $exception);
+            }
+
+            $this->assertSame($oldPdo, $connection->getRawPdo());
+            $this->assertNull($connection->getRawReadPdo());
+            $this->assertTrue($this->isInvalid($pooledConnection));
+
+            $firstPooledConnection = $pooledConnection;
+            $pooledConnection->release();
+            $pooledConnection = null;
+            $configurator->desiredState = 'recovered';
+            $configurator->applyCallback = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $newPdo = $pooledConnection->getConnection()->getPdo();
+
+            $this->assertSame($firstPooledConnection, $pooledConnection);
+            $this->assertNotSame($oldPdo, $newPdo);
+            $this->assertSame(4, $configurator->applyCalls);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+            $filesystem->deleteDirectory($directory);
+        }
+    }
+
+    public function testSharedInMemorySqliteUnknownRecoveryIsBoundedAndFailsClosed(): void
+    {
+        $configurator = new PoolSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $pool = new DbPool($this->app, 'pool_test');
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $connection = $pooledConnection->getConnection();
+            $sharedPdo = $connection->getPdo();
+            $configurator->desiredState = 'fail';
+            $configurator->applyCallback = static fn () => throw new Exception('Configuration failed.');
+
+            try {
+                $connection->getPdo();
+                $this->fail('Expected configuration exception was not thrown.');
+            } catch (Exception) {
+            }
+
+            $pooledConnection->release();
+            $pooledConnection = null;
+            $configurator->applyCallback = null;
+
+            /** @var PooledConnection $pooledConnection */
+            $pooledConnection = $pool->get();
+            $replacementConnection = $pooledConnection->getConnection();
+            $connectionEstablished = 0;
+            $this->app->make(Dispatcher::class)->listen(
+                ConnectionEstablished::class,
+                static function () use (&$connectionEstablished): void {
+                    ++$connectionEstablished;
+                }
+            );
+
+            try {
+                $replacementConnection->getPdo();
+                $this->fail('Expected unknown session exception was not thrown.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame('Database session state remains unknown after reconnecting.', $exception->getMessage());
+            }
+
+            $this->assertSame($sharedPdo, $replacementConnection->getRawPdo());
+            $this->assertSame(1, $connectionEstablished);
+            $this->assertSame(2, $configurator->applyCalls);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+        }
+    }
+
+    public function testHeartbeatDoesNotComputeOrInvalidateSessionState(): void
+    {
+        $configurator = new PoolSessionConfigurator;
+        Connection::configureSessionUsing($configurator);
+        $pool = new DbPool($this->app, 'pool_test');
+        $stateCallsAfterCreation = $configurator->stateCalls;
+        $applyCallsAfterCreation = $configurator->applyCalls;
+
+        /** @var PooledConnection $pooledConnection */
+        $pooledConnection = $pool->get();
+
+        try {
+            $pooledConnection->getConnection()->getPdo();
+            $stateCallsBeforePing = $configurator->stateCalls;
+            $applyCallsBeforePing = $configurator->applyCalls;
+
+            $this->assertGreaterThanOrEqual($stateCallsAfterCreation, $stateCallsBeforePing);
+            $this->assertSame($applyCallsAfterCreation, $applyCallsBeforePing);
+            $this->assertTrue($pooledConnection->ping(1.0));
+            $this->assertSame($stateCallsBeforePing, $configurator->stateCalls);
+            $this->assertSame($applyCallsBeforePing, $configurator->applyCalls);
+
+            $pooledConnection->getConnection()->getPdo();
+            $this->assertSame($stateCallsBeforePing + 1, $configurator->stateCalls);
+            $this->assertSame($applyCallsBeforePing, $configurator->applyCalls);
+        } finally {
+            $pooledConnection?->release();
+            $pool->close();
+        }
+    }
+
     public function testReleaseDispatchesReleaseEventWhenConfigured(): void
     {
         $this->app->make('config')->set('database.connections.pool_test.pool.events', [
@@ -731,5 +1106,44 @@ class PooledConnectionTest extends DatabaseTestCase
     private function ageActiveConnectionUse(PooledConnection $connection): void
     {
         (new ReflectionProperty(PooledConnection::class, 'lastUseTime'))->setValue($connection, hrtime(true) / 1e9 - 5.0);
+    }
+
+    private function isInvalid(PooledConnection $connection): bool
+    {
+        return (new ReflectionProperty(PooledConnection::class, 'invalid'))->getValue($connection);
+    }
+}
+
+class PoolSessionConfigurator implements SessionConfigurator
+{
+    public string $desiredState = 'state';
+
+    public int $stateCalls = 0;
+
+    public int $applyCalls = 0;
+
+    public ?Closure $applyCallback = null;
+
+    public function __construct(
+        private readonly string $connectionName = 'pool_test',
+    ) {
+    }
+
+    public function state(Connection $connection): ?string
+    {
+        ++$this->stateCalls;
+
+        return $connection->getName() === $this->connectionName
+            ? $this->desiredState
+            : null;
+    }
+
+    public function apply(PDO $pdo, string $state, Connection $connection): void
+    {
+        ++$this->applyCalls;
+
+        if ($this->applyCallback instanceof Closure) {
+            ($this->applyCallback)($pdo, $state, $connection);
+        }
     }
 }

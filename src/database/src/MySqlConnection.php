@@ -40,7 +40,8 @@ class MySqlConnection extends Connection
                 return true;
             }
 
-            $statement = $this->getPdo()->prepare($query);
+            $pdo = $this->getPdo();
+            $statement = $pdo->prepare($query);
 
             $this->bindValues($statement, $this->prepareBindings($bindings));
 
@@ -48,7 +49,7 @@ class MySqlConnection extends Connection
 
             $result = $statement->execute();
 
-            $this->lastInsertId = $this->getPdo()->lastInsertId($sequence);
+            $this->lastInsertId = $pdo->lastInsertId($sequence);
 
             return $result;
         });
