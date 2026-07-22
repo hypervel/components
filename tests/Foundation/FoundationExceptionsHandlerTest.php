@@ -249,6 +249,44 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertTrue($this->handler->shouldStopRetries(new InvalidArgumentException));
     }
 
+    public function testHandlerOnlyInvokesRetryCallbackWhenExceptionMatchesIntersectionType(): void
+    {
+        $invocations = 0;
+
+        $this->handler->dontRetryWhen(function (RuntimeException&RetryTerminalFailure $exception) use (&$invocations): bool {
+            ++$invocations;
+
+            return true;
+        });
+
+        $this->assertFalse($this->handler->shouldStopRetries(new InvalidArgumentException));
+        $this->assertSame(0, $invocations);
+        $this->assertTrue($this->handler->shouldStopRetries(new RetryTerminalRuntimeException));
+        $this->assertSame(1, $invocations);
+    }
+
+    public function testHandlerInvokesRetryCallbackWhenExceptionMatchesDnfType(): void
+    {
+        $this->handler->dontRetryWhen(
+            static fn ((RuntimeException&RetryTerminalFailure)|InvalidArgumentException $exception): bool => true
+        );
+
+        $this->assertTrue($this->handler->shouldStopRetries(new RetryTerminalRuntimeException));
+        $this->assertTrue($this->handler->shouldStopRetries(new InvalidArgumentException));
+        $this->assertFalse($this->handler->shouldStopRetries(new OutOfRangeException));
+    }
+
+    public function testHandlerInvokesRetryCallbackWhenExceptionMatchesAllIntersectionDnfType(): void
+    {
+        $this->handler->dontRetryWhen(
+            static fn ((RuntimeException&RetryTerminalFailure)|(InvalidArgumentException&RetrySecondaryTerminalFailure) $exception): bool => true
+        );
+
+        $this->assertTrue($this->handler->shouldStopRetries(new RetryTerminalRuntimeException));
+        $this->assertTrue($this->handler->shouldStopRetries(new RetryTerminalInvalidArgumentException));
+        $this->assertFalse($this->handler->shouldStopRetries(new OutOfRangeException));
+    }
+
     public function testHandlerCallsReportMethodWithDependencies()
     {
         $reporter = m::mock(ReportingService::class);
@@ -1297,6 +1335,22 @@ class StopRetriesForRuntimeExceptions
     {
         return $exception::class === RuntimeException::class;
     }
+}
+
+interface RetryTerminalFailure
+{
+}
+
+interface RetrySecondaryTerminalFailure
+{
+}
+
+class RetryTerminalRuntimeException extends RuntimeException implements RetryTerminalFailure
+{
+}
+
+class RetryTerminalInvalidArgumentException extends InvalidArgumentException implements RetrySecondaryTerminalFailure
+{
 }
 
 interface ReportingService

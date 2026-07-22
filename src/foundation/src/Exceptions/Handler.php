@@ -48,6 +48,9 @@ use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use ReflectionFunction;
+use ReflectionIntersectionType;
+use ReflectionType;
+use ReflectionUnionType;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -362,15 +365,39 @@ class Handler implements ExceptionHandlerContract
 
         foreach ($this->dontRetryCallbacks as $dontRetryCallback) {
             $parameters = (new ReflectionFunction($dontRetryCallback))->getParameters();
-            $types = $parameters === []
-                ? []
-                : Reflector::getParameterClassNames($parameters[0]);
 
-            if ($types !== [] && ! array_any(
-                $types,
-                static fn (string $type): bool => is_a($e, $type),
-            )) {
-                continue;
+            if ($parameters !== []) {
+                $parameter = $parameters[0];
+                $reflectionType = $parameter->getType();
+                $classNames = Reflector::getParameterClassNames($parameter);
+
+                // Intersections retain AND semantics; flattening them would turn DNF types into ordinary unions.
+                $intersections = match (true) {
+                    $reflectionType instanceof ReflectionIntersectionType => [$reflectionType],
+                    $reflectionType instanceof ReflectionUnionType => array_values(array_filter(
+                        $reflectionType->getTypes(),
+                        static fn (ReflectionType $member): bool => $member instanceof ReflectionIntersectionType,
+                    )),
+                    default => [],
+                };
+
+                $matchesClass = array_any(
+                    $classNames,
+                    static fn (string $className): bool => is_a($e, $className),
+                );
+                $matchesIntersection = array_any(
+                    $intersections,
+                    static fn (ReflectionIntersectionType $intersection): bool => array_all(
+                        $intersection->getTypes(),
+                        static fn (ReflectionType $member): bool => is_a($e, (string) $member),
+                    ),
+                );
+
+                if (($classNames !== [] || $intersections !== [])
+                    && ! $matchesClass
+                    && ! $matchesIntersection) {
+                    continue;
+                }
             }
 
             if ($dontRetryCallback($e) === true) {
