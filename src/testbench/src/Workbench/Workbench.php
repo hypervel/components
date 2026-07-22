@@ -134,22 +134,25 @@ class Workbench
 
                         try {
                             Event::dispatch(new DiagnosingHealth);
-                        } catch (Throwable $error) {
+                        } catch (Throwable $throwable) {
                             if (app()->hasDebugModeEnabled()) {
-                                throw $error;
+                                throw $throwable;
                             }
 
-                            report($error);
+                            report($throwable);
 
-                            $exception = $error->getMessage();
+                            $exception = $throwable;
                         }
+
+                        $health = $exception === null ? 'up' : 'down';
+                        $status = $health === 'up' ? 200 : 500;
 
                         return response(
                             View::file(
                                 dirname(__DIR__, 3) . '/foundation/src/resources/health-up.blade.php',
-                                ['exception' => $exception],
+                                ['status' => $health],
                             ),
-                            status: $exception ? 500 : 200,
+                            status: $status,
                         );
                     });
                 }

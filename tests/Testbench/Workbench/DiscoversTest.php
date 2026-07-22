@@ -6,13 +6,16 @@ namespace Hypervel\Tests\Testbench\Workbench;
 
 use Composer\InstalledVersions;
 use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Foundation\Events\DiagnosingHealth;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithViews;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Concerns\WithWorkbench;
 use Hypervel\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\Attributes\TestWith;
+use RuntimeException;
 
 use function Hypervel\Testbench\package_version_compare;
 
@@ -59,6 +62,21 @@ class DiscoversTest extends TestCase
             ->assertOk()
             ->assertSee('HTTP request received')
             ->assertSee('Response rendered in');
+    }
+
+    #[Test]
+    #[WithConfig('app.debug', false)]
+    public function itRendersHealthCheckFailureFromDiscoversWhenExceptionMessageIsEmpty(): void
+    {
+        Event::listen(DiagnosingHealth::class, static function (): never {
+            throw new RuntimeException('');
+        });
+
+        $this->get('/up')
+            ->assertStatus(500)
+            ->assertSee('status-down')
+            ->assertSee('experiencing problems')
+            ->assertDontSee('Application up');
     }
 
     #[Test]

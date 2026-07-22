@@ -239,6 +239,12 @@ When your application's `bootstrap/app.php` file enables the health route, it is
 
 When HTTP requests are made to this route, Hypervel will also dispatch a `Hypervel\Foundation\Events\DiagnosingHealth` event, allowing you to perform additional health checks relevant to your application. Within a [listener](/docs/{{version}}/events) for this event, you may check your application's database or cache status. If you detect a problem with your application, you may simply throw an exception from the listener.
 
+When the request expects JSON, the health route returns a JSON object containing a `status` value of `up` or `down`. The response uses the same 200 or 500 HTTP status code as the HTML response:
+
+```json
+{"status":"up"}
+```
+
 <a name="deploying-with-sonicstack"></a>
 ## Deploying With SonicStack
 

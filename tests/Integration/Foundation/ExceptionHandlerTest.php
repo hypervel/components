@@ -9,10 +9,12 @@ use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Debug\ShouldntReport;
+use Hypervel\Contracts\Http\Kernel as HttpKernel;
 use Hypervel\Contracts\Routing\ResponseFactory as ResponseFactoryContract;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Http\Client\RequestException;
 use Hypervel\Http\JsonResponse;
+use Hypervel\Http\Middleware\PrefersJsonResponses;
 use Hypervel\Http\Request;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Support\Facades\Config;
@@ -245,6 +247,31 @@ class ExceptionHandlerTest extends TestCase
             'msg' => 'Server Error',
             'success' => false,
         ]);
+    }
+
+    public function testItRendersAuthorizationExceptionsAsJsonUnderPrefersJsonForBroadAccept(): void
+    {
+        $this->app->make(HttpKernel::class)->prependMiddleware(PrefersJsonResponses::class);
+
+        Route::get('test-route', fn () => Response::deny('expected message', 321)->authorize());
+
+        $this->get('test-route', ['Accept' => '*/*'])
+            ->assertForbidden()
+            ->assertExactJson([
+                'message' => 'expected message',
+            ]);
+    }
+
+    public function testItStillRendersAuthorizationExceptionsAsHtmlForExplicitHtmlAcceptUnderPrefersJson(): void
+    {
+        $this->app->make(HttpKernel::class)->prependMiddleware(PrefersJsonResponses::class);
+
+        Route::get('test-route', fn () => Response::deny('expected message', 321)->authorize());
+
+        $this->get('test-route', ['Accept' => 'text/html'])
+            ->assertForbidden()
+            ->assertSeeText('expected message')
+            ->assertHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
     public function testItDoesNotLeakSensitiveInfoInHtmlWhenDebugIsFalse()
