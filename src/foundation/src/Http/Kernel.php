@@ -231,7 +231,7 @@ class Kernel implements KernelContract
             $requestStartedAt = CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
 
             if ($requestStartedAt !== null && $this->requestLifecycleDurationHandlers !== []) {
-                $requestStartedAt->setTimezone($this->app['config']->get('app.timezone') ?? 'UTC');
+                $requestStartedAt->setTimezone($this->app->make('config')->string('app.timezone'));
                 $end = null;
 
                 foreach ($this->requestLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {

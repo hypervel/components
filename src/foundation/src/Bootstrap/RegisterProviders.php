@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Bootstrap;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Support\ServiceProvider;
 
 class RegisterProviders
 {
@@ -53,7 +52,7 @@ class RegisterProviders
         $app->make('config')->set(
             'app.providers',
             array_merge(
-                $app->make('config')->array('app.providers', ServiceProvider::defaultProviders()->toArray()),
+                $app->make('config')->array('app.providers'),
                 static::$merge,
                 array_values($bootstrapProviders ?? []),
             ),

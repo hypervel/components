@@ -13,11 +13,11 @@ use Mockery as m;
 
 class RegisterFacadesTest extends TestCase
 {
-    public function testRegisterAliases()
+    public function testRegisterAliases(): void
     {
         $config = m::mock(Repository::class);
-        $config->shouldReceive('get')
-            ->with('app.aliases', [])
+        $config->shouldReceive('array')
+            ->with('app.aliases')
             ->once()
             ->andReturn([
                 'FooAlias' => 'FooClass',
