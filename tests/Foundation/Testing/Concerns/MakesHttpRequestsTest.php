@@ -8,6 +8,7 @@ use Hypervel\Contracts\Routing\Registrar;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
+use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Routing\Router;
 use Hypervel\Session\ArraySessionHandler;
@@ -18,6 +19,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\LoggedExceptionCollection;
 use Hypervel\Testing\TestResponse;
 use PHPUnit\Framework\AssertionFailedError;
+use ReflectionMethod;
 
 class MakesHttpRequestsTest extends TestCase
 {
@@ -114,6 +116,11 @@ class MakesHttpRequestsTest extends TestCase
 
         $this->withMiddleware();
         $this->assertFalse($this->app->has('middleware.disable'));
+    }
+
+    public function testWithoutMiddlewareIsPublic(): void
+    {
+        $this->assertTrue((new ReflectionMethod($this, 'withoutMiddleware'))->isPublic());
     }
 
     public function testWithoutAndWithMiddlewareWithParameter()
@@ -472,6 +479,50 @@ class MakesHttpRequestsTest extends TestCase
         $this->followingRedirects()->get('from');
 
         $this->assertEquals(['from', 'to'], $callOrder);
+    }
+
+    public function testQuerySendsRequestBodyUsingQueryMethod(): void
+    {
+        $router = $this->app->make(Registrar::class);
+
+        $router->match(['QUERY'], 'search', static function (Request $request): array {
+            return [
+                'method' => $request->method(),
+                'filter' => $request->input('filter'),
+                'post' => $request->post('filter'),
+                'query' => $request->query('filter'),
+            ];
+        });
+
+        $this->query('search', ['filter' => 'active'])
+            ->assertOk()
+            ->assertExactJson([
+                'method' => 'QUERY',
+                'filter' => 'active',
+                'post' => 'active',
+                'query' => null,
+            ]);
+    }
+
+    public function testQueryJsonSendsJsonRequestBodyUsingQueryMethod(): void
+    {
+        $router = $this->app->make(Registrar::class);
+
+        $router->match(['QUERY'], 'search', static function (Request $request): array {
+            return [
+                'method' => $request->method(),
+                'isJson' => $request->isJson(),
+                'filter' => $request->input('filter'),
+            ];
+        });
+
+        $this->queryJson('search', ['filter' => 'active'])
+            ->assertOk()
+            ->assertExactJson([
+                'method' => 'QUERY',
+                'isJson' => true,
+                'filter' => 'active',
+            ]);
     }
 
     public function testWithPrecognition()

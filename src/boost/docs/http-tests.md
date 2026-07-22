@@ -60,7 +60,15 @@ The `get` method makes a `GET` request into the application, while the `assertSt
 <a name="making-requests"></a>
 ## Making Requests
 
-To make a request to your application, you may invoke the `get`, `post`, `put`, `patch`, `delete`, `options`, or `head` methods within your test. These methods do not actually issue a "real" HTTP request to your application. Instead, the entire network request is simulated internally.
+To make a request to your application, you may invoke the `get`, `post`, `put`, `patch`, `delete`, `options`, `head`, or `query` methods within your test. These methods do not actually issue a "real" HTTP request to your application. Instead, the entire network request is simulated internally.
+
+The `query` method issues an HTTP `QUERY` request and sends its data as a form-encoded request body. It does not append the data to the URL query string. To send a JSON request body, use the `queryJson` method:
+
+```php
+$response = $this->query('/search', ['filter' => 'active']);
+
+$response = $this->queryJson('/search', ['filter' => 'active']);
+```
 
 Instead of returning an `Hypervel\Http\Response` instance, test request methods return an instance of `Hypervel\Testing\TestResponse`, which provides a [variety of helpful assertions](#available-assertions) that allow you to inspect your application's responses:
 
@@ -521,7 +529,7 @@ $this->assertDoesntThrow(fn () => (new ProcessOrder)->execute());
 <a name="testing-json-apis"></a>
 ## Testing JSON APIs
 
-Hypervel also provides several helpers for testing JSON APIs and their responses. For example, the `json`, `getJson`, `postJson`, `putJson`, `patchJson`, `deleteJson`, and `optionsJson` methods may be used to issue JSON requests with various HTTP verbs. You may also easily pass data and headers to these methods. To get started, let's write a test to make a `POST` request to `/api/user` and assert that the expected JSON data was returned:
+Hypervel also provides several helpers for testing JSON APIs and their responses. For example, the `json`, `getJson`, `postJson`, `putJson`, `patchJson`, `deleteJson`, `optionsJson`, and `queryJson` methods may be used to issue JSON requests with various HTTP verbs. You may also easily pass data and headers to these methods. To get started, let's write a test to make a `POST` request to `/api/user` and assert that the expected JSON data was returned:
 
 ```php tab=Pest
 <?php
