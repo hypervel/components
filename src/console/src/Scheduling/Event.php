@@ -28,6 +28,7 @@ use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\Support\Traits\Tappable;
 use LogicException;
 use Psr\Http\Client\ClientExceptionInterface;
+use RuntimeException;
 use Symfony\Component\Process\Process;
 use Throwable;
 
@@ -43,6 +44,16 @@ class Event
      * Context key prefix for the current run's exit code.
      */
     protected const EXIT_CODE_CONTEXT_KEY_PREFIX = '__console.scheduling_exit_code.';
+
+    /**
+     * Context key prefix for the current run's process.
+     */
+    protected const PROCESS_CONTEXT_KEY_PREFIX = '__console.scheduling_process.';
+
+    /**
+     * Context key prefix for the current run's overlap skip state.
+     */
+    protected const SKIPPED_BECAUSE_OVERLAPPING_CONTEXT_KEY_PREFIX = '__console.scheduling_skipped_because_overlapping.';
 
     /**
      * The command string.
@@ -101,6 +112,9 @@ class Event
 
     /**
      * Indicates whether the execution was skipped due to the mutex already being reserved.
+     *
+     * Compatibility snapshot of the most recently updated run. Use
+     * wasSkippedDueToOverlapping() while handling an active event run.
      */
     public bool $skippedBecauseOverlapping = false;
 
@@ -133,19 +147,54 @@ class Event
      */
     public function run(Container $container): mixed
     {
-        $this->skippedBecauseOverlapping = false;
+        CoroutineContext::set(
+            $this->skippedBecauseOverlappingContextKey(),
+            $this->skippedBecauseOverlapping = false
+        );
 
         if ($this->shouldSkipDueToOverlapping()) {
-            $this->skippedBecauseOverlapping = true;
+            CoroutineContext::set(
+                $this->skippedBecauseOverlappingContextKey(),
+                $this->skippedBecauseOverlapping = true
+            );
 
             return null;
         }
 
-        $exitCode = $this->start($container);
+        $exception = null;
+        $exitCode = null;
 
-        $this->writeOutput($container);
+        try {
+            $exitCode = $this->start($container);
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
 
-        $this->finish($container, $exitCode);
+        if ($exitCode === null) {
+            try {
+                $this->removeMutex();
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+
+            CoroutineContext::forget($this->processContextKey());
+        } else {
+            try {
+                $this->writeOutput($container);
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
+
+            try {
+                $this->finish($container, $exitCode);
+            } catch (Throwable $throwable) {
+                $exception ??= $throwable;
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
 
         return null;
     }
@@ -192,15 +241,9 @@ class Event
      */
     protected function start(Container $container): int
     {
-        try {
-            $this->callBeforeCallbacks($container);
+        $this->callBeforeCallbacks($container);
 
-            return $this->execute($container);
-        } catch (Throwable $exception) {
-            $this->removeMutex();
-
-            throw $exception;
-        }
+        return $this->execute($container);
     }
 
     /**
@@ -227,7 +270,7 @@ class Event
             $container->basePath()
         );
 
-        CoroutineContext::set("__console.scheduling_process.{$this->mutexName()}", $process);
+        CoroutineContext::set($this->processContextKey(), $process);
 
         return $process->run();
     }
@@ -237,7 +280,7 @@ class Event
      */
     protected function getProcessOutput(): ?string
     {
-        if (! $process = CoroutineContext::get("__console.scheduling_process.{$this->mutexName()}")) {
+        if (! $process = CoroutineContext::get($this->processContextKey())) {
             return null;
         }
 
@@ -249,12 +292,30 @@ class Event
      */
     public function finish(Container $container, int $exitCode): void
     {
-        $this->setExitCode((int) $exitCode);
+        $exception = null;
+
+        try {
+            $this->setExitCode($exitCode);
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        }
 
         try {
             $this->callAfterCallbacks($container);
-        } finally {
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        try {
             $this->removeMutex();
+        } catch (Throwable $throwable) {
+            $exception ??= $throwable;
+        }
+
+        CoroutineContext::forget($this->processContextKey());
+
+        if ($exception !== null) {
+            throw $exception;
         }
     }
 
@@ -264,7 +325,7 @@ class Event
     public function callBeforeCallbacks(Container $container): void
     {
         foreach ($this->beforeCallbacks as $callback) {
-            $container->call($callback);
+            $this->callEventCallback($container, $callback);
         }
     }
 
@@ -274,7 +335,7 @@ class Event
     public function callAfterCallbacks(Container $container): void
     {
         foreach ($this->afterCallbacks as $callback) {
-            $container->call($callback);
+            $this->callEventCallback($container, $callback);
         }
     }
 
@@ -347,13 +408,13 @@ class Event
         $this->lastChecked = Date::now();
 
         foreach ($this->filters as $callback) {
-            if (! $app->call($callback)) {
+            if (! $this->callEventCallback($app, $callback)) {
                 return false;
             }
         }
 
         foreach ($this->rejects as $callback) {
-            if ($app->call($callback)) {
+            if ($this->callEventCallback($app, $callback)) {
                 return false;
             }
         }
@@ -395,11 +456,15 @@ class Event
             return;
         }
 
-        $output = $this->getOutput($container);
+        $output = (string) $this->getOutput($container);
 
-        $this->shouldAppendOutput
+        $written = $this->shouldAppendOutput
             ? $filesystem->append($this->output, $output)
             : $filesystem->put($this->output, $output);
+
+        if ($written !== strlen($output)) {
+            throw new RuntimeException("Unable to write the scheduled event output to [{$this->output}].");
+        }
     }
 
     /**
@@ -433,8 +498,8 @@ class Event
 
         $addresses = Arr::wrap($addresses);
 
-        return $this->then(function (Mailer $mailer) use ($addresses, $onlyIfOutputExists) {
-            $this->emailOutput($mailer, $addresses, $onlyIfOutputExists);
+        return $this->then(function (Mailer $mailer, Filesystem $filesystem) use ($addresses, $onlyIfOutputExists) {
+            $this->emailOutput($mailer, $filesystem, $addresses, $onlyIfOutputExists);
         });
     }
 
@@ -461,8 +526,8 @@ class Event
 
         $addresses = Arr::wrap($addresses);
 
-        return $this->onFailure(function (Mailer $mailer) use ($addresses) {
-            $this->emailOutput($mailer, $addresses, false);
+        return $this->onFailure(function (Mailer $mailer, Filesystem $filesystem) use ($addresses) {
+            $this->emailOutput($mailer, $filesystem, $addresses, false);
         });
     }
 
@@ -480,9 +545,13 @@ class Event
     /**
      * E-mail the output of the event to the recipients.
      */
-    protected function emailOutput(Mailer $mailer, mixed $addresses, bool $onlyIfOutputExists = true): void
-    {
-        $text = is_file($this->output) ? file_get_contents($this->output) : '';
+    protected function emailOutput(
+        Mailer $mailer,
+        Filesystem $filesystem,
+        mixed $addresses,
+        bool $onlyIfOutputExists = true
+    ): void {
+        $text = $this->readOutput($filesystem);
 
         if ($onlyIfOutputExists && empty($text)) {
             return;
@@ -656,7 +725,7 @@ class Event
 
         return $this->then(function (Container $container) use ($callback) {
             if ($this->exitCode() === 0) {
-                $container->call($callback);
+                $this->callEventCallback($container, $callback);
             }
         });
     }
@@ -684,7 +753,7 @@ class Event
 
         return $this->then(function (Container $container) use ($callback) {
             if ($this->exitCode() !== 0) {
-                $container->call($callback);
+                $this->callEventCallback($container, $callback);
             }
         });
     }
@@ -705,12 +774,59 @@ class Event
     protected function withOutputCallback(Closure $callback, bool $onlyIfOutputExists = false): Closure
     {
         return function (Container $container) use ($callback, $onlyIfOutputExists) {
-            $output = $this->output && is_file($this->output) ? file_get_contents($this->output) : '';
+            $output = $this->readOutput($container->make(Filesystem::class));
 
             return $onlyIfOutputExists && empty($output)
                 ? null
-                : $container->call($callback, ['output' => new Stringable($output)]);
+                : $this->callEventCallback($container, $callback, ['output' => new Stringable($output)]);
         };
+    }
+
+    /**
+     * Read the captured event output.
+     */
+    protected function readOutput(Filesystem $filesystem): string
+    {
+        if (! $this->output || ! $filesystem->isFile($this->output)) {
+            return '';
+        }
+
+        return $filesystem->get($this->output);
+    }
+
+    /**
+     * Call the given event callback.
+     *
+     * @param array<string, mixed> $parameters
+     */
+    protected function callEventCallback(Container $container, callable $callback, array $parameters = []): mixed
+    {
+        $eventParameters = $callback instanceof Closure
+            ? $this->eventParametersForCallback($callback)
+            : [];
+
+        return $container->call($callback, array_merge(
+            $eventParameters,
+            $parameters
+        ));
+    }
+
+    /**
+     * Get the event parameters for the given callback.
+     *
+     * @return array<string, static>
+     */
+    protected function eventParametersForCallback(Closure $callback): array
+    {
+        $parameters = $this->closureParameterTypes($callback);
+
+        foreach ($parameters as $name => $type) {
+            if ($type !== null && is_a($this, $type)) {
+                return [$name => $this];
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -795,8 +911,11 @@ class Event
     protected function removeMutex(): void
     {
         if ($this->withoutOverlapping && $this->mutexAcquired) {
-            $this->mutex->forget($this);
-            $this->mutexAcquired = false;
+            try {
+                $this->mutex->forget($this);
+            } finally {
+                $this->mutexAcquired = false;
+            }
         }
     }
 
@@ -821,11 +940,38 @@ class Event
     }
 
     /**
+     * Determine if this event's most recent run in the current coroutine was skipped due to overlapping.
+     */
+    public function wasSkippedDueToOverlapping(): bool
+    {
+        return CoroutineContext::get(
+            $this->skippedBecauseOverlappingContextKey(),
+            $this->skippedBecauseOverlapping
+        );
+    }
+
+    /**
      * Get the context key for this event's current run.
      */
     protected function exitCodeContextKey(): string
     {
         return self::EXIT_CODE_CONTEXT_KEY_PREFIX . spl_object_id($this);
+    }
+
+    /**
+     * Get the context key for this event's current process.
+     */
+    protected function processContextKey(): string
+    {
+        return self::PROCESS_CONTEXT_KEY_PREFIX . spl_object_id($this);
+    }
+
+    /**
+     * Get the context key for this event's overlap skip state.
+     */
+    protected function skippedBecauseOverlappingContextKey(): string
+    {
+        return self::SKIPPED_BECAUSE_OVERLAPPING_CONTEXT_KEY_PREFIX . spl_object_id($this);
     }
 
     /**

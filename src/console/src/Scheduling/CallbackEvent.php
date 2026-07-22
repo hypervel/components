@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Scheduling;
 
 use DateTimeZone;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Support\Reflector;
 use InvalidArgumentException;
@@ -14,6 +15,11 @@ use Throwable;
 
 class CallbackEvent extends Event
 {
+    /**
+     * Context key prefix for the current callback invocation.
+     */
+    protected const CALLBACK_CONTEXT_KEY_PREFIX = '__console.scheduling_callback.';
+
     /**
      * The callback to call.
      *
@@ -25,16 +31,6 @@ class CallbackEvent extends Event
      * The parameters to pass to the method.
      */
     protected array $parameters;
-
-    /**
-     * The result of the callback's execution.
-     */
-    protected mixed $result = null;
-
-    /**
-     * The exception that was thrown when calling the callback, if any.
-     */
-    protected ?Throwable $exception = null;
 
     /**
      * Create a new event instance.
@@ -65,13 +61,35 @@ class CallbackEvent extends Event
      */
     public function run(Container $container): mixed
     {
-        parent::run($container);
+        CoroutineContext::set($this->callbackContextKey(), [
+            'result' => null,
+            'exception' => null,
+        ]);
 
-        if ($this->exception) {
-            throw $this->exception;
+        try {
+            $exception = null;
+
+            try {
+                parent::run($container);
+            } catch (Throwable $throwable) {
+                $exception = $throwable;
+            }
+
+            /** @var array{result: mixed, exception: ?Throwable} $state */
+            $state = CoroutineContext::get($this->callbackContextKey());
+
+            if ($state['exception'] !== null) {
+                throw $state['exception'];
+            }
+
+            if ($exception !== null) {
+                throw $exception;
+            }
+
+            return $state['result'];
+        } finally {
+            CoroutineContext::forget($this->callbackContextKey());
         }
-
-        return $this->result;
     }
 
     /**
@@ -98,13 +116,21 @@ class CallbackEvent extends Event
     protected function execute(Container $container): int
     {
         try {
-            $this->result = is_object($this->callback)
+            $result = is_object($this->callback)
                 ? $container->call([$this->callback, '__invoke'], $this->parameters)
                 : $container->call($this->callback, $this->parameters);
 
-            return $this->result === false ? 1 : 0;
+            CoroutineContext::set($this->callbackContextKey(), [
+                'result' => $result,
+                'exception' => null,
+            ]);
+
+            return $result === false ? 1 : 0;
         } catch (Throwable $e) {
-            $this->exception = $e;
+            CoroutineContext::set($this->callbackContextKey(), [
+                'result' => null,
+                'exception' => $e,
+            ]);
 
             return 1;
         }
@@ -172,5 +198,13 @@ class CallbackEvent extends Event
         if ($this->description) {
             parent::removeMutex();
         }
+    }
+
+    /**
+     * Get the context key for this callback event's current invocation.
+     */
+    protected function callbackContextKey(): string
+    {
+        return self::CALLBACK_CONTEXT_KEY_PREFIX . spl_object_id($this);
     }
 }
