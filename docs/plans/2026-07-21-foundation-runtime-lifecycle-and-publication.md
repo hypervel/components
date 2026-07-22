@@ -631,11 +631,19 @@ try {
 }
 ```
 
-Use a stored rendered template only for non-JSON requests:
+Use stored redirects and rendered templates only for non-JSON requests:
 
 ```php
+if (isset($data['redirect']) && ! $request->expectsJson()) {
+    // preserve the existing redirect behavior
+}
+
 if (isset($data['template']) && ! $request->expectsJson()) {
-    return response($data['template'], $data['status'] ?? 503);
+    return response(
+        $data['template'],
+        $data['status'] ?? 503,
+        $this->getHeaders($data)
+    );
 }
 ```
 
@@ -647,7 +655,7 @@ if (isset($data['template']) && ! $request->expectsJson()) {
 - delete false with a remaining file fails, while concurrent disappearance succeeds;
 - cache put/forget false fails;
 - worker cache still refreshes by interval and flushes after same-process activate/deactivate;
-- JSON maintenance requests never receive the stored HTML template.
+- JSON maintenance requests bypass stored redirects and HTML templates and receive the framework JSON maintenance response with the configured headers.
 
 ## 9. Add the array maintenance driver at its honest boundary
 
@@ -744,6 +752,8 @@ if ($exception !== null) {
 }
 ```
 
+Track whether the driver operation committed before entering this post-commit sequence. A driver failure retains the existing `Failed to enter/disable maintenance mode` message; a later event or reload failure must report that the application is already in maintenance mode or already live rather than misreporting the committed transition.
+
 Use the symmetric disabled event for `up`. `reloadWorkers()` performs a checked best-effort PID read:
 
 ```php
@@ -756,7 +766,7 @@ if ($contents === false) {
 
 Absent/unreadable PID state must not turn a successfully committed maintenance transition into failure. Port current Laravel's behavior that updates options when `down` is invoked while already active. At the command boundary catch `Throwable`; a best-effort report failure must never replace the original command failure.
 
-Do not attempt `/proc` incarnation validation, PID registries, rollback of committed maintenance state, retries, locks, or a signal state machine. The current PID file cannot prove process identity portably.
+Tests cover both driver failures before commit and event/reload failures after commit, including truthful state-focused output, failure exit codes, independent side-effect attempts, and the resulting maintenance state. Do not attempt `/proc` incarnation validation, PID registries, rollback of committed maintenance state, retries, locks, or a signal state machine. The current PID file cannot prove process identity portably.
 
 ## 11. Tighten Application and typed-config boundaries
 
@@ -1257,6 +1267,8 @@ npm install --save-dev --ignore-scripts ...
 
 Bun remains unchanged. Keep node install/build failure as a warning because the command deliberately prints complete manual recovery commands.
 
+Enable TTY for the node subprocess only on non-Windows systems where `PendingProcess::supportsTty()` confirms a usable terminal. Current Laravel enables TTY unconditionally on non-Windows systems, which aborts the installer in supported container and CI environments without a readable/writable `/dev/tty`; this corrects that upstream defect at the caller without weakening the Process contract.
+
 Malformed `package.json` must throw through checked read/JSON decode rather than act as “dependency absent”.
 
 ### Vendor publishing
@@ -1279,6 +1291,7 @@ Do not load arbitrary files into memory or add a bespoke atomic stream copier. T
 - source and existing destination survive failed small-file replacement;
 - malformed package JSON and failed directory enumeration fail explicitly;
 - npm/pnpm/yarn include `--ignore-scripts`, Bun does not;
+- node installation reaches the process boundary without a usable TTY and still uses TTY when the existing capability probe supports it;
 - node failure still prints manual commands;
 - vendor copy false emits no status/event success;
 - directory status tolerates missing real paths.
@@ -1394,7 +1407,9 @@ Do not add a rule object, registry beyond current arrays/callbacks, contract met
 ### Files
 
 - `src/foundation/src/Configuration/ApplicationBuilder.php`
+- `src/foundation/src/resources/health-up.blade.php`
 - new `src/http/src/Middleware/PrefersJsonResponses.php`
+- `src/testbench/src/Workbench/Workbench.php`
 - `tests/Foundation/FoundationApplicationBuilderTest.php`
 - new `tests/Http/Middleware/PrefersJsonResponsesTest.php`
 - `tests/Auth/RequirePasswordMiddlewareTest.php`
@@ -1403,6 +1418,7 @@ Do not add a rule object, registry beyond current arrays/callbacks, contract met
 - `tests/Integration/Foundation/ExceptionHandlerTest.php`
 - `tests/Integration/Foundation/Support/Providers/RouteServiceProviderHealthTest.php`
 - `tests/Testbench/Integrations/RouteServiceProviderHealthTest.php`
+- `tests/Testbench/Workbench/DiscoversTest.php`
 - `src/boost/docs/middleware.md`
 - `src/boost/docs/deployment.md`
 
@@ -1473,25 +1489,28 @@ Route::get($health, function (Request $request) {
         $exception = $throwable;
     }
 
-    $status = $exception === null ? 200 : 500;
+    $health = $exception === null ? 'up' : 'down';
+    $status = $health === 'up' ? 200 : 500;
 
     if ($request->expectsJson()) {
         return response()->json([
-            'status' => $exception === null ? 'up' : 'down',
+            'status' => $health,
         ], $status);
     }
 
     return response(View::file(__DIR__ . '/../resources/health-up.blade.php', [
-        'exception' => $exception?->getMessage(),
+        'status' => $health,
     ]), status: $status);
 });
 ```
 
-Retaining the throwable as the failure sentinel deliberately fixes a current upstream defect: an exception with an empty message must still produce a down/500 response. HTML presentation remains unchanged because the view still receives the nullable message.
+Retaining the throwable as the failure sentinel deliberately fixes a current upstream defect: an exception with an empty message must still produce a down/500 response. The shared Blade derives both its status marker and copy from a strict `$status === 'down'` check and does not receive or expose the exception message.
+
+Testbench's Workbench route is the second caller of the same Blade file. Migrate it to retain the `Throwable`, derive the same `$health` and HTTP `$status`, and pass only `['status' => $health]` to the view. It remains HTML-only; do not add request negotiation to that route.
 
 ### Tests/docs
 
-Port the full introduction surface proportionately: missing/empty/wildcard/specific Accept, original header behavior, idempotent prepend, RequirePassword and exception-handler integration, JSON health up/down, empty-message failure status, and HTML preservation. Document the builder call and deployment health JSON concisely; do not document internal middleware mechanics as architecture.
+Port the full introduction surface proportionately: missing/empty/wildcard/specific Accept, original header behavior, idempotent prepend, RequirePassword and exception-handler integration, JSON health up/down, empty-message failure status, and HTML preservation. The Foundation integration test owns the JSON and HTML contracts. The Workbench discovery test drives its distinct Blade caller through an empty-message diagnostic failure and asserts the 500 status, down markers, and absence of the healthy copy. Document the builder call and deployment health JSON concisely; do not document internal middleware mechanics as architecture.
 
 No responder abstraction, middleware registry, request-global state, or content-negotiation service.
 
@@ -1501,12 +1520,11 @@ No responder abstraction, middleware registry, request-global state, or content-
 
 - `src/foundation/src/Testing/Concerns/MakesHttpRequests.php`
 - `tests/Foundation/Testing/Concerns/MakesHttpRequestsTest.php`
-- `tests/Integration/Foundation/Testing/Concerns/MakeHttpRequestsTest.php`
 - `src/boost/docs/http-tests.md`
 
 ### Changes
 
-Port `query()` and `queryJson()` in current upstream order before `json()` with Hypervel's `Stringable|string`, `TestResponse`, and option types. They send the supplied data in the request query string while retaining ordinary/json headers respectively.
+Port `query()` and `queryJson()` in current upstream order before `json()` with Hypervel's `Stringable|string`, `TestResponse`, and option types. Their names refer to the HTTP `QUERY` method, not the URL query string: `query()` sends form data in the request body and `queryJson()` sends a JSON request body.
 
 ```php
 public function query(Stringable|string $uri, array $data = [], array $headers = []): TestResponse
@@ -1529,9 +1547,9 @@ public function queryJson(
 
 Change only `withoutMiddleware()` visibility from protected to public; keep implementation unchanged.
 
-Tests pin request body/query/header behavior and direct public calls. Docs list the new helpers beside existing request methods and retain the already documented public middleware bypass.
+Port current Laravel's two request-body tests into the existing Foundation test file. Retain the explicit `QUERY` method assertion and the distinction between `input()` / `post()` body data and an empty `query()` bag. That file already drives the complete Hypervel Testbench, coroutine waiter, request conversion, kernel, request context, and routing path; do not duplicate the same coverage in the integration file. Docs list the new helpers beside existing request methods, clarify the body-bearing HTTP method, and retain the already documented public middleware bypass.
 
-This is test-only. Do not add a generic method dispatcher or request builder.
+This is test-only. Do not add `QUERY` to `Router::$verbs`, a generic method dispatcher, request builder, or native server test without a verified server-boundary risk.
 
 ## 23. Port route-list source paths and fix reflection `false`
 
@@ -1770,7 +1788,7 @@ Update user-facing documentation only where a public API, supported call shape, 
 - `http-tests.md`: `query()`, `queryJson()`, public `withoutMiddleware()`;
 - `middleware.md`: `prefersJsonResponses()` in the existing global middleware configuration section;
 - `queues.md`: retry-stopping exception configuration;
-- `configuration.md`: JSON maintenance responses and the array driver's in-process/testing-only boundary.
+- `configuration.md`: JSON maintenance responses bypass stored redirects and templates, and the array driver's in-process/testing-only boundary.
 
 Do not change `vite.md`: its existing provider-boot guidance already describes the correct lifecycle for the shared Vite instance.
 
