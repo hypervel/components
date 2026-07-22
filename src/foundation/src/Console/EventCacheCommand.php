@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Foundation\Support\Providers\EventServiceProvider;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'event:cache')]
@@ -26,12 +27,22 @@ class EventCacheCommand extends Command
      */
     public function handle(): void
     {
-        $this->callSilent('event:clear');
+        $files = $this->hypervel->make('files');
+        $cachePath = $this->hypervel->getCachedEventsPath();
+        $contents = '<?php return ' . var_export($this->getEvents(), true) . ';';
+        $mode = null;
 
-        file_put_contents(
-            $this->hypervel->getCachedEventsPath(),
-            '<?php return ' . var_export($this->getEvents(), true) . ';'
-        );
+        if ($files->exists($cachePath)) {
+            $permissions = $files->chmod($cachePath);
+
+            if (! is_string($permissions)) {
+                throw new RuntimeException("Unable to determine permissions for [{$cachePath}].");
+            }
+
+            $mode = octdec($permissions);
+        }
+
+        $files->replace($cachePath, $contents, $mode);
 
         $this->components->info('Events cached successfully.');
     }

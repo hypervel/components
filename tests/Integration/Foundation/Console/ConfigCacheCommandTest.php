@@ -8,10 +8,13 @@ use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\Integration\Generators\TestCase;
 use LogicException;
+use Mockery as m;
+use RuntimeException;
+use Symfony\Component\Process\Exception\ProcessFailedException;
 
 class ConfigCacheCommandTest extends TestCase
 {
-    protected $files = [
+    protected array $files = [
         'bootstrap/cache/config.php',
         'config/testconfig.php',
     ];
@@ -31,7 +34,7 @@ class ConfigCacheCommandTest extends TestCase
         parent::setUp();
     }
 
-    public function testConfigurationCanBeCachedSuccessfully()
+    public function testConfigurationCanBeCachedSuccessfully(): void
     {
         $files = new Filesystem;
         $files->put(
@@ -59,7 +62,7 @@ class ConfigCacheCommandTest extends TestCase
         $this->assertFileExists($this->app->getCachedConfigPath());
     }
 
-    public function testConfigurationCacheFailsWithNonSerializableValue()
+    public function testConfigurationCacheFailsWithNonSerializableValue(): void
     {
         $files = new Filesystem;
         $files->put(
@@ -81,7 +84,7 @@ class ConfigCacheCommandTest extends TestCase
         $this->artisan('config:cache');
     }
 
-    public function testConfigurationCacheFailsWithNestedNonSerializableValue()
+    public function testConfigurationCacheFailsWithNestedNonSerializableValue(): void
     {
         $files = new Filesystem;
         $files->put(
@@ -107,9 +110,12 @@ class ConfigCacheCommandTest extends TestCase
         $this->artisan('config:cache');
     }
 
-    public function testConfigurationCacheIsDeletedWhenSerializationFails()
+    public function testExistingConfigurationCacheSurvivesSerializationFailure(): void
     {
         $files = new Filesystem;
+        $cachePath = $this->app->getCachedConfigPath();
+        $previousContents = "<?php return ['previous' => true];\n";
+        $files->put($cachePath, $previousContents);
         $files->put(
             $this->app->configPath('testconfig.php'),
             <<<'PHP'
@@ -127,13 +133,12 @@ class ConfigCacheCommandTest extends TestCase
             $this->artisan('config:cache');
             $this->fail('should have thrown an exception');
         } catch (LogicException) {
-            // Expected exception
         }
 
-        $this->assertFileDoesNotExist($this->app->getCachedConfigPath());
+        $this->assertSame($previousContents, $files->get($cachePath));
     }
 
-    public function testConfigCacheDoesNotOverwriteGlobalContainerInstance()
+    public function testConfigCacheDoesNotOverwriteGlobalContainerInstance(): void
     {
         $originalInstance = Container::getInstance();
 
@@ -143,7 +148,7 @@ class ConfigCacheCommandTest extends TestCase
         $this->assertSame($originalInstance, Container::getInstance());
     }
 
-    public function testConfigurationCacheRebuildsFromSourceWhenApplicationBootedWithExistingCachedConfig()
+    public function testConfigurationCacheRebuildsFromSourceWhenApplicationBootedWithExistingCachedConfig(): void
     {
         $files = new Filesystem;
 
@@ -206,5 +211,73 @@ class ConfigCacheCommandTest extends TestCase
                 unset($_SERVER['APP_CONFIG_CACHE']);
             }
         }
+    }
+
+    public function testExistingConfigurationCacheSurvivesChildBootstrapFailure(): void
+    {
+        $files = new Filesystem;
+        $cachePath = $this->app->getCachedConfigPath();
+        $previousContents = "<?php return ['previous' => true];\n";
+        $files->put($cachePath, $previousContents);
+        $files->put(
+            $this->app->configPath('testconfig.php'),
+            "<?php throw new RuntimeException('bootstrap failed');\n",
+        );
+
+        try {
+            $this->artisan('config:cache');
+            $this->fail('The subprocess should have failed.');
+        } catch (ProcessFailedException) {
+        }
+
+        $this->assertSame($previousContents, $files->get($cachePath));
+    }
+
+    public function testConfigurationCacheReplacementPreservesExistingMode(): void
+    {
+        $files = new Filesystem;
+        $cachePath = $this->app->getCachedConfigPath();
+        $files->put($cachePath, "<?php return ['previous' => true];\n");
+        chmod($cachePath, 0640);
+        $files->put(
+            $this->app->configPath('testconfig.php'),
+            "<?php return ['value' => 'fresh'];\n",
+        );
+
+        $this->artisan('config:cache')->assertSuccessful();
+
+        $this->assertSame(0640, fileperms($cachePath) & 0777);
+        $this->assertSame('fresh', (require $cachePath)['testconfig']['value']);
+    }
+
+    public function testExistingConfigurationCacheSurvivesPublicationFailure(): void
+    {
+        $files = new Filesystem;
+        $cachePath = $this->app->getCachedConfigPath();
+        $previousContents = "<?php return ['previous' => true];\n";
+        $files->put($cachePath, $previousContents);
+        chmod($cachePath, 0640);
+        $files->put(
+            $this->app->configPath('testconfig.php'),
+            "<?php return ['value' => 'fresh'];\n",
+        );
+
+        $publicationException = new RuntimeException('publication failed');
+        $mock = m::mock(Filesystem::class)->makePartial();
+        $mock->shouldReceive('replace')
+            ->once()
+            ->with($cachePath, m::type('string'), 0640)
+            ->andThrow($publicationException);
+        $this->app->instance(Filesystem::class, $mock);
+
+        try {
+            $this->artisan('config:cache');
+            $this->fail('Publication should have failed.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame($publicationException, $exception);
+        }
+
+        $this->assertSame($previousContents, $files->get($cachePath));
+        $this->assertSame(0640, fileperms($cachePath) & 0777);
     }
 }
