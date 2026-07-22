@@ -74,37 +74,39 @@ class DevCommand extends Command
 
         putenv('COLUMNS=' . max(Prompt::terminal()->cols() - $longestName - 4, 1));
 
-        $this->line('');
+        try {
+            $this->line('');
 
-        foreach ($devCommands as $devCommand) {
-            $this->line(
-                sprintf(
-                    '<fg=%s>[%s]</>%s%s',
-                    $devCommand['color'],
-                    $devCommand['name'],
-                    str_repeat(' ', ($longestName - strlen($devCommand['name'])) + 1),
-                    $devCommand['command'],
-                ),
-            );
+            foreach ($devCommands as $devCommand) {
+                $this->line(
+                    sprintf(
+                        '<fg=%s>[%s]</>%s%s',
+                        $devCommand['color'],
+                        $devCommand['name'],
+                        str_repeat(' ', ($longestName - strlen($devCommand['name'])) + 1),
+                        $devCommand['command'],
+                    ),
+                );
+            }
+
+            $this->line('');
+
+            $command = $packageManager->getExecCommand(sprintf(
+                'concurrently -c %s %s --names=%s --kill-others-on-fail',
+                escapeshellarg(implode(',', $colors)),
+                implode(' ', array_map(escapeshellarg(...), $commands)),
+                escapeshellarg(implode(',', $names)),
+            ));
+
+            if (extension_loaded('pcntl')) {
+                pcntl_exec('/usr/bin/env', ['sh', '-c', $command]);
+            }
+
+            passthru($command, $exitCode);
+
+            return $exitCode;
+        } finally {
+            $columns === false ? putenv('COLUMNS') : putenv("COLUMNS={$columns}");
         }
-
-        $this->line('');
-
-        $command = $packageManager->getExecCommand(sprintf(
-            'concurrently -c %s %s --names=%s --kill-others-on-fail',
-            escapeshellarg(implode(',', $colors)),
-            implode(' ', array_map(escapeshellarg(...), $commands)),
-            escapeshellarg(implode(',', $names)),
-        ));
-
-        if (extension_loaded('pcntl')) {
-            pcntl_exec('/usr/bin/env', ['sh', '-c', $command]);
-        }
-
-        passthru($command, $exitCode);
-
-        $columns === false ? putenv('COLUMNS') : putenv("COLUMNS={$columns}");
-
-        return $exitCode;
     }
 }
