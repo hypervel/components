@@ -18,7 +18,7 @@ class Listener
     /**
      * The maximum number of queries to store.
      */
-    protected const MAX_QUERIES = 101;
+    protected const MAX_QUERIES = 100;
 
     /**
      * Register the appropriate listeners on the given event dispatcher.
@@ -31,7 +31,7 @@ class Listener
     /**
      * Return the queries that have been executed.
      *
-     * @return array<int, array{connectionName: string, time: float, sql: string, bindings: array}>
+     * @return array<int, array{connectionName: string, time: ?float, sql: string, bindings: array}>
      */
     public function queries(): array
     {
@@ -43,17 +43,25 @@ class Listener
      */
     public function onQueryExecuted(QueryExecuted $event): void
     {
-        $queries = CoroutineContext::get(self::QUERIES_CONTEXT_KEY, []);
+        $queries = $this->queries();
 
-        if (count($queries) === self::MAX_QUERIES) {
+        if (count($queries) >= self::MAX_QUERIES) {
             return;
         }
+
+        $sql = strlen($event->sql) <= 2000
+            ? $event->sql
+            : mb_strcut($event->sql, 0, 2000);
+        $bindings = $event->connection->prepareBindings($event->bindings);
+        $placeholderCount = substr_count($sql, '?');
 
         $queries[] = [
             'connectionName' => $event->connectionName,
             'time' => $event->time,
-            'sql' => $event->sql,
-            'bindings' => $event->connection->prepareBindings($event->bindings),
+            'sql' => $sql,
+            'bindings' => count($bindings) <= $placeholderCount
+                ? $bindings
+                : array_slice($bindings, 0, $placeholderCount),
         ];
 
         CoroutineContext::set(self::QUERIES_CONTEXT_KEY, $queries);
