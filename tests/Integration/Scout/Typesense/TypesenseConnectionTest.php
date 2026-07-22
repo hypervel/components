@@ -11,11 +11,6 @@ use Hypervel\Tests\Support\TypesenseIntegrationTestCase;
  */
 class TypesenseConnectionTest extends TypesenseIntegrationTestCase
 {
-    protected function setUpInCoroutine(): void
-    {
-        $this->initializeTypesense();
-    }
-
     public function testCanConnectToTypesense(): void
     {
         $health = $this->typesense->health->retrieve();

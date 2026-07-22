@@ -8,7 +8,6 @@ use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTypesense;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Throwable;
 
 /**
  * Base test case for Typesense integration tests.
@@ -17,9 +16,6 @@ use Throwable;
  * - Opt-in skip: Skips unless TYPESENSE_HOST is set
  * - Parallel-safe: Uses TEST_TOKEN for unique collection prefixes
  * - Auto-cleanup: Removes test collections in teardown
- *
- * NOTE: This base class does NOT include RunTestsInCoroutine. Subclasses
- * should add the trait if they need coroutine context for their tests.
  */
 abstract class TypesenseIntegrationTestCase extends TestCase
 {
@@ -34,13 +30,6 @@ abstract class TypesenseIntegrationTestCase extends TestCase
      * Computed prefix (includes TEST_TOKEN if running in parallel).
      */
     protected string $testPrefix;
-
-    /**
-     * Track collections created during tests for cleanup.
-     *
-     * @var array<string>
-     */
-    protected array $createdCollections = [];
 
     protected function setUp(): void
     {
@@ -60,27 +49,6 @@ abstract class TypesenseIntegrationTestCase extends TestCase
     protected function defineEnvironment(ApplicationContract $app): void
     {
         $this->configureTypesense($app);
-    }
-
-    /**
-     * Initialize the Typesense client and clean up collections.
-     *
-     * Subclasses using RunTestsInCoroutine should call this in setUpInCoroutine().
-     * Subclasses NOT using the trait should call this at the end of setUp().
-     *
-     * Uses the trait's opt-in skip logic - skips unless TYPESENSE_HOST is set.
-     */
-    protected function initializeTypesense(): void
-    {
-        $this->setUpInteractsWithTypesense();
-    }
-
-    protected function tearDown(): void
-    {
-        $this->tearDownInteractsWithTypesense();
-        $this->createdCollections = [];
-
-        parent::tearDown();
     }
 
     /**
@@ -130,39 +98,5 @@ abstract class TypesenseIntegrationTestCase extends TestCase
     protected function prefixedCollectionName(string $name): string
     {
         return $this->testPrefix . $name;
-    }
-
-    /**
-     * Create a test collection and track it for cleanup.
-     *
-     * @param array<string, mixed> $schema
-     */
-    protected function createTestCollection(string $name, array $schema): void
-    {
-        $collectionName = $this->prefixedCollectionName($name);
-        $schema['name'] = $collectionName;
-
-        $this->typesense->collections->create($schema);
-        $this->createdCollections[] = $collectionName;
-    }
-
-    /**
-     * Clean up all test collections matching the test prefix.
-     */
-    protected function cleanupTestCollections(): void
-    {
-        try {
-            $collections = $this->typesense->collections->retrieve();
-
-            foreach ($collections as $collection) {
-                if (str_starts_with($collection['name'], $this->testPrefix)) {
-                    $this->typesense->collections[$collection['name']]->delete();
-                }
-            }
-        } catch (Throwable) {
-            // Ignore errors during cleanup
-        }
-
-        $this->createdCollections = [];
     }
 }

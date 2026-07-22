@@ -27,13 +27,7 @@ abstract class TypesenseScoutIntegrationTestCase extends TypesenseIntegrationTes
 
     protected function setUpInCoroutine(): void
     {
-        $this->initializeTypesense();
         $this->engine = $this->app->make(EngineManager::class)->engine('typesense');
-    }
-
-    protected function tearDownInCoroutine(): void
-    {
-        $this->cleanupTestCollections();
     }
 
     protected function migrateFreshUsing(): array

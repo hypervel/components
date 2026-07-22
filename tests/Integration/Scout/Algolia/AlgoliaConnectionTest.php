@@ -11,11 +11,6 @@ use Hypervel\Tests\Support\AlgoliaIntegrationTestCase;
  */
 class AlgoliaConnectionTest extends AlgoliaIntegrationTestCase
 {
-    protected function setUpInCoroutine(): void
-    {
-        $this->initializeAlgolia();
-    }
-
     public function testCanConnectToAlgolia(): void
     {
         $response = $this->algolia->listIndices();

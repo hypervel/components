@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Testing\Concerns;
 use Algolia\AlgoliaSearch\Algolia;
 use Algolia\AlgoliaSearch\Api\SearchClient as AlgoliaSearchClient;
 use Algolia\AlgoliaSearch\Http\GuzzleHttpClient;
+use Algolia\AlgoliaSearch\Http\HttpClientInterface;
 use GuzzleHttp\Client as GuzzleClient;
 use Throwable;
 
@@ -44,6 +45,11 @@ trait InteractsWithAlgolia
     protected ?AlgoliaSearchClient $algolia = null;
 
     /**
+     * The HTTP client installed before this test.
+     */
+    protected ?HttpClientInterface $previousAlgoliaHttpClient = null;
+
+    /**
      * Set up Algolia for testing (auto-called by setUpTraits).
      *
      * Algolia integration tests are opt-in via ALGOLIA_APP_ID and
@@ -61,12 +67,26 @@ trait InteractsWithAlgolia
             );
         }
 
+        if ($this->algoliaTestPrefix === '') {
+            $this->computeAlgoliaTestPrefix();
+        }
+
         // Credentials are explicit. Any failure from here on is a real
         // misconfiguration — let it propagate so the test fails loudly.
-        Algolia::setHttpClient(new GuzzleHttpClient(new GuzzleClient));
-        $this->algolia = AlgoliaSearchClient::create($appId, $secret);
-        $this->algolia->listIndices();
-        $this->cleanupAlgoliaIndices();
+        $this->previousAlgoliaHttpClient = Algolia::getHttpClient();
+
+        try {
+            Algolia::setHttpClient($this->createAlgoliaHttpClient());
+            $this->algolia = AlgoliaSearchClient::create($appId, $secret);
+            $this->algolia->listIndices();
+            $this->cleanupAlgoliaIndices();
+        } catch (Throwable $throwable) {
+            Algolia::setHttpClient($this->previousAlgoliaHttpClient);
+            $this->previousAlgoliaHttpClient = null;
+            $this->algolia = null;
+
+            throw $throwable;
+        }
     }
 
     /**
@@ -74,17 +94,26 @@ trait InteractsWithAlgolia
      */
     protected function tearDownInteractsWithAlgolia(): void
     {
-        if ($this->algolia === null) {
-            return;
-        }
-
         try {
-            $this->cleanupAlgoliaIndices();
-        } catch (Throwable) {
-            // Ignore cleanup errors
-        }
+            if ($this->algolia !== null) {
+                $this->cleanupAlgoliaIndices();
+            }
+        } finally {
+            $this->algolia = null;
 
-        $this->algolia = null;
+            if ($this->previousAlgoliaHttpClient !== null) {
+                Algolia::setHttpClient($this->previousAlgoliaHttpClient);
+                $this->previousAlgoliaHttpClient = null;
+            }
+        }
+    }
+
+    /**
+     * Create the Algolia HTTP client.
+     */
+    protected function createAlgoliaHttpClient(): HttpClientInterface
+    {
+        return new GuzzleHttpClient(new GuzzleClient);
     }
 
     /**
