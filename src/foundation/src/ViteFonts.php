@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation;
 
+use JsonException;
+
 class ViteFonts
 {
     /**
@@ -44,15 +46,22 @@ class ViteFonts
             return null;
         }
 
-        $contents = file_get_contents($path);
+        $contents = @file_get_contents($path);
 
-        $manifest = json_decode($contents, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new ViteException("The font manifest at [{$path}] is not valid JSON.");
+        if ($contents === false) {
+            throw new ViteException("Unable to read the font manifest at [{$path}].");
         }
 
-        /** @var array<string, mixed> $manifest */
+        try {
+            $manifest = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new ViteException("The font manifest at [{$path}] is not valid JSON.", previous: $exception);
+        }
+
+        if (! is_array($manifest)) {
+            throw new ViteException("The font manifest at [{$path}] is invalid.");
+        }
+
         return static::$manifests[$path] = $manifest;
     }
 
@@ -153,7 +162,13 @@ class ViteFonts
             throw new ViteException("Unable to locate font CSS file from manifest: {$path}.");
         }
 
-        return file_get_contents($path);
+        $contents = @file_get_contents($path);
+
+        if ($contents === false) {
+            throw new ViteException("Unable to read font CSS file from manifest: {$path}.");
+        }
+
+        return $contents;
     }
 
     /**
