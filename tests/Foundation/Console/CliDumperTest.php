@@ -5,20 +5,24 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Console;
 
 use Hypervel\Config\Repository;
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Tests\TestCase;
 use ReflectionClass;
+use RuntimeException;
 use stdClass;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 
+use function Hypervel\Coroutine\parallel;
+
 class CliDumperTest extends TestCase
 {
-    protected $config;
+    protected Repository $config;
 
-    protected $container;
+    protected Application $container;
 
     protected function setUp(): void
     {
@@ -46,7 +50,7 @@ class CliDumperTest extends TestCase
         ], $config));
     }
 
-    public function testString()
+    public function testString(): void
     {
         $output = $this->dump('string');
 
@@ -55,7 +59,7 @@ class CliDumperTest extends TestCase
         $this->assertSame($expected, $output);
     }
 
-    public function testInteger()
+    public function testInteger(): void
     {
         $output = $this->dump(1);
 
@@ -64,7 +68,7 @@ class CliDumperTest extends TestCase
         $this->assertSame($expected, $output);
     }
 
-    public function testFloat()
+    public function testFloat(): void
     {
         $output = $this->dump(1.1);
 
@@ -73,7 +77,7 @@ class CliDumperTest extends TestCase
         $this->assertSame($expected, $output);
     }
 
-    public function testArray()
+    public function testArray(): void
     {
         $output = $this->dump(['string', 1, 1.1, ['string', 1, 1.1]]);
 
@@ -97,7 +101,7 @@ class CliDumperTest extends TestCase
         );
     }
 
-    public function testBoolean()
+    public function testBoolean(): void
     {
         $output = $this->dump(true);
 
@@ -106,7 +110,7 @@ class CliDumperTest extends TestCase
         $this->assertSame($expected, $output);
     }
 
-    public function testObject()
+    public function testObject(): void
     {
         $user = new stdClass;
         $user->name = 'Guus';
@@ -128,7 +132,7 @@ class CliDumperTest extends TestCase
         );
     }
 
-    public function testNull()
+    public function testNull(): void
     {
         $output = $this->dump(null);
 
@@ -137,7 +141,7 @@ class CliDumperTest extends TestCase
         $this->assertSame($expected, $output);
     }
 
-    public function testWhenIsFileViewIsNotViewCompiled()
+    public function testWhenIsFileViewIsNotViewCompiled(): void
     {
         $file = '/my-work-directory/routes/console.php';
 
@@ -155,7 +159,7 @@ class CliDumperTest extends TestCase
         $this->assertFalse($isCompiledViewFile);
     }
 
-    public function testWhenIsFileViewIsViewCompiled()
+    public function testWhenIsFileViewIsViewCompiled(): void
     {
         $file = '/my-work-directory/storage/framework/views/6687c33c38b71a8560.php';
 
@@ -173,7 +177,7 @@ class CliDumperTest extends TestCase
         $this->assertTrue($isCompiledViewFile);
     }
 
-    public function testGetOriginalViewCompiledFile()
+    public function testGetOriginalViewCompiledFile(): void
     {
         $compiled = __DIR__ . '/../Fixtures/fake-compiled-view.php';
         $original = '/my-work-directory/resources/views/welcome.blade.php';
@@ -191,7 +195,7 @@ class CliDumperTest extends TestCase
         $this->assertSame($original, $method->invoke($dumper, $compiled));
     }
 
-    public function testWhenGetOriginalViewCompiledFileFails()
+    public function testWhenGetOriginalViewCompiledFileFails(): void
     {
         $compiled = __DIR__ . '/../Fixtures/fake-compiled-view-without-source-map.php';
         $original = $compiled;
@@ -209,7 +213,7 @@ class CliDumperTest extends TestCase
         $this->assertSame($original, $method->invoke($dumper, $compiled));
     }
 
-    public function testUnresolvableSource()
+    public function testUnresolvableSource(): void
     {
         CliDumper::resolveDumpSourceUsing(fn () => null);
 
@@ -220,7 +224,7 @@ class CliDumperTest extends TestCase
         $this->assertSame($expected, $output);
     }
 
-    public function testUnresolvableLine()
+    public function testUnresolvableLine(): void
     {
         CliDumper::resolveDumpSourceUsing(function () {
             return [
@@ -237,7 +241,72 @@ class CliDumperTest extends TestCase
         $this->assertSame($expected, $output);
     }
 
-    protected function dump($value)
+    public function testFailedCompiledViewReadsReturnTheCompiledPath(): void
+    {
+        $compiled = '/my-work-directory/storage/framework/views/missing.php';
+        $dumper = new CliDumper(
+            new BufferedOutput,
+            '/my-work-directory',
+            '/my-work-directory/storage/framework/views',
+        );
+
+        $method = (new ReflectionClass($dumper))->getMethod('getOriginalFileForCompiledView');
+
+        $this->assertSame($compiled, $method->invoke($dumper, $compiled));
+    }
+
+    public function testDumpingGuardIsClearedWhenSourceResolutionThrows(): void
+    {
+        $exception = new RuntimeException('source resolution failed');
+        CliDumperFixture::resolveDumpSourceUsing(static function () use ($exception): never {
+            throw $exception;
+        });
+
+        $dumper = new CliDumperFixture(
+            new BufferedOutput,
+            '/my-work-directory',
+            '/my-work-directory/storage/framework/views',
+        );
+
+        try {
+            $dumper->dumpWithSource((new VarCloner)->cloneVar('value'));
+            $this->fail('Expected source resolution to fail.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+
+        $this->assertFalse(CoroutineContext::has(CliDumperFixture::dumpingContextKey()));
+    }
+
+    public function testConcurrentDumpsEachIncludeTheirSource(): void
+    {
+        CliDumperFixture::resolveDumpSourceUsing(static function (): array {
+            usleep(10_000);
+
+            return [
+                '/my-work-directory/app/routes/console.php',
+                'app/routes/console.php',
+                18,
+            ];
+        });
+
+        $output = new BufferedOutput;
+        $dumper = new CliDumperFixture(
+            $output,
+            '/my-work-directory',
+            '/my-work-directory/storage/framework/views',
+        );
+        $cloner = new VarCloner;
+
+        parallel([
+            fn () => $dumper->dumpWithSource($cloner->cloneVar('first')),
+            fn () => $dumper->dumpWithSource($cloner->cloneVar('second')),
+        ]);
+
+        $this->assertSame(2, substr_count($output->fetch(), '// app/routes/console.php:18'));
+    }
+
+    protected function dump(mixed $value): string
     {
         $compiledViewPath = $this->config->get('view.config.view_path');
 
@@ -249,5 +318,13 @@ class CliDumperTest extends TestCase
         $dumper->dumpWithSource($cloner->cloneVar($value));
 
         return $output->fetch();
+    }
+}
+
+class CliDumperFixture extends CliDumper
+{
+    public static function dumpingContextKey(): string
+    {
+        return self::DUMPING_CONTEXT_KEY;
     }
 }

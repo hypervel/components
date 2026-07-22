@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
+use Hypervel\Context\CoroutineContext;
 use Hypervel\Foundation\Concerns\ResolvesDumpSource;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
 use Symfony\Component\VarDumper\Cloner\Data;
@@ -29,10 +30,7 @@ class HtmlDumper extends BaseHtmlDumper
      */
     public const NON_EXPANDED_SEPARATOR = "\n</pre><script>";
 
-    /**
-     * If the dumper is currently dumping.
-     */
-    protected bool $dumping = false;
+    protected const DUMPING_CONTEXT_KEY = '__foundation.html_dumper.dumping';
 
     /**
      * Create a new HTML dumper instance.
@@ -67,33 +65,35 @@ class HtmlDumper extends BaseHtmlDumper
      */
     public function dumpWithSource(Data $data): void
     {
-        if ($this->dumping) {
+        if (CoroutineContext::has(self::DUMPING_CONTEXT_KEY)) {
             $this->dump($data);
 
             return;
         }
 
-        $this->dumping = true;
+        CoroutineContext::set(self::DUMPING_CONTEXT_KEY, true);
 
-        $output = (string) $this->dump($data, true);
+        try {
+            $output = (string) $this->dump($data, true);
 
-        $output = match (true) {
-            str_contains($output, static::EXPANDED_SEPARATOR) => str_replace(
-                static::EXPANDED_SEPARATOR,
-                static::EXPANDED_SEPARATOR . $this->getDumpSourceContent(),
-                $output,
-            ),
-            str_contains($output, static::NON_EXPANDED_SEPARATOR) => str_replace(
-                static::NON_EXPANDED_SEPARATOR,
-                $this->getDumpSourceContent() . static::NON_EXPANDED_SEPARATOR,
-                $output,
-            ),
-            default => $output,
-        };
+            $output = match (true) {
+                str_contains($output, static::EXPANDED_SEPARATOR) => str_replace(
+                    static::EXPANDED_SEPARATOR,
+                    static::EXPANDED_SEPARATOR . $this->getDumpSourceContent(),
+                    $output,
+                ),
+                str_contains($output, static::NON_EXPANDED_SEPARATOR) => str_replace(
+                    static::NON_EXPANDED_SEPARATOR,
+                    $this->getDumpSourceContent() . static::NON_EXPANDED_SEPARATOR,
+                    $output,
+                ),
+                default => $output,
+            };
 
-        fwrite($this->outputStream, $output);
-
-        $this->dumping = false;
+            fwrite($this->outputStream, $output);
+        } finally {
+            CoroutineContext::forget(self::DUMPING_CONTEXT_KEY);
+        }
     }
 
     /**
