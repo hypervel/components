@@ -26,6 +26,8 @@ class Filesystem
 
     /**
      * Determine if a file or directory exists.
+     *
+     * @phpstan-impure
      */
     public function exists(string $path): bool
     {
@@ -305,6 +307,8 @@ class Filesystem
      * Delete the file at a given path.
      *
      * @param array|string $paths
+     *
+     * @phpstan-impure
      */
     public function delete($paths): bool
     {
@@ -314,13 +318,13 @@ class Filesystem
 
         foreach ($paths as $path) {
             try {
-                if (@unlink($path)) {
-                    clearstatcache(false, $path);
-                } else {
+                if (! @unlink($path)) {
                     $success = false;
                 }
             } catch (ErrorException) {
                 $success = false;
+            } finally {
+                clearstatcache(false, $path);
             }
         }
 
