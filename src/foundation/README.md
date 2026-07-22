@@ -3,7 +3,11 @@ Foundation for Hypervel
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/foundation)
 
+Ported from: https://github.com/laravel/framework
+
 ## Differences From Laravel
+
+Hypervel's HTTP kernel contract includes `prependMiddleware()` and `getMiddlewareGroups()` because middleware configuration resolves the kernel through that contract. Custom HTTP kernels must implement both methods.
 
 Laravel's deprecated `Middleware::validateCsrfTokens()` alias is intentionally not ported. Configure request-forgery protection with `preventRequestForgery()`.
 
