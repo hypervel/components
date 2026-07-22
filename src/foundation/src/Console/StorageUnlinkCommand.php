@@ -28,11 +28,7 @@ class StorageUnlinkCommand extends Command
             }
 
             if (! $files->delete($link)) {
-                // Filesystem clears this at runtime; repeat it so static analysis
-                // re-evaluates the native postcondition below.
-                clearstatcache(false, $link);
-
-                if (is_link($link)) {
+                if (is_link($link)) { // @phpstan-ignore if.alwaysTrue (delete may have changed the link state)
                     throw new RuntimeException("Unable to delete the link [{$link}].");
                 }
             }

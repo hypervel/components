@@ -33,11 +33,7 @@ class StorageLinkCommand extends Command
             }
 
             if (is_link($link) && ! $files->delete($link)) {
-                // Filesystem clears this at runtime; repeat it so static analysis
-                // re-evaluates the native postcondition below.
-                clearstatcache(false, $link);
-
-                if (file_exists($link) || is_link($link)) {
+                if (file_exists($link) || is_link($link)) { // @phpstan-ignore booleanOr.rightAlwaysTrue (delete may have changed the link state)
                     throw new RuntimeException("Unable to delete the existing link [{$link}].");
                 }
             }
