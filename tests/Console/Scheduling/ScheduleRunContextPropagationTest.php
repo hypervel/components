@@ -35,6 +35,7 @@ class ScheduleRunContextPropagationTest extends TestCase
         parent::setUp();
 
         $this->dispatcher = m::mock(Dispatcher::class);
+        $this->dispatcher->shouldReceive('hasListeners')->andReturnTrue();
         $this->dispatcher->shouldReceive('dispatch');
 
         $this->handler = m::mock(ExceptionHandler::class);
