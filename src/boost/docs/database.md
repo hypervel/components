@@ -180,9 +180,9 @@ When you need a direct connection for migrations or schema operations, configure
 <a name="configuring-database-session-state"></a>
 ### Configuring Database Session State
 
-Pooled database connections keep their physical database sessions alive across requests and jobs. If an application or package relies on context-sensitive session settings, it may register a session configurator to keep those settings synchronized with the exact physical read or write PDO before Hypervel hands it out.
+Database connections may stay open and be reused across requests and jobs. If your application uses a database session setting that can change between requests or jobs, you may use a session configurator to keep it up to date.
 
-Session configurators implement the `SessionConfigurator` contract. The following example maintains PostgreSQL's `application_name` setting:
+Session configurators implement the `SessionConfigurator` contract. The following example keeps PostgreSQL's `application_name` setting up to date:
 
 ```php
 <?php
@@ -220,7 +220,7 @@ final class ApplicationNameConfigurator implements SessionConfigurator
 }
 ```
 
-Register the worker-safe configurator in a service provider's `boot` method:
+You should register the configurator in the `boot` method of a service provider:
 
 ```php
 use App\Database\ApplicationNameConfigurator;
@@ -231,20 +231,27 @@ Connection::configureSessionUsing(
 );
 ```
 
-Registration is boot-only, ordered, and appending. Registered instances remain in worker-static state and are used across every coroutine for the worker lifetime. A configurator must therefore be safe to share: it may read request or job context lazily from coroutine-local state, but it must not capture that context in its constructor or a static property.
+Registered configurators remain active for the lifetime of the worker and may be shared by several coroutines, so you should register them only during application boot. If a setting depends on the current request or job, read that context inside the `state` method. Do not store request or job data on the configurator itself. If you register more than one configurator, Hypervel runs them in registration order.
 
-The `state` method returns an opaque string that completely identifies the desired state owned by that configurator. Hypervel calls it on every synchronized PDO hand-out, so it must be a fast, pure computation with no database or network work. Precompute the canonical string when creating an immutable context frame rather than encoding or hashing it for every query. An empty string is a real state. Return `null` only when the configurator never applies to that connection; this applicability decision must be stable for the connection. In particular, a security-sensitive configurator must represent a missing context with an explicit fail-closed state rather than `null`.
+The `state` method returns a string that represents the settings the configurator wants to apply. The string should change whenever any setting managed by the configurator changes. Hypervel uses this string to determine whether the database connection needs to be updated. This method is called whenever Hypervel retrieves a PDO, so it should be fast and must not query the database or another service. If building the string takes work, compute it once when the request or job context is set instead of rebuilding it on every call.
 
-The `apply` method receives the exact physical PDO and must use it directly to establish all session settings represented by the state string. Calling connection query methods or `getPdo` from `apply` is reentrant and fails closed. Dynamic values should be bound as parameters. Settings must apply to the physical session rather than only to the current transaction; for PostgreSQL, use session-level `SET` or `set_config(..., false)`, not `SET LOCAL` or `set_config(..., true)`.
+An empty string is a valid state. Return `null` only when the configurator will never manage that database connection. Do not return `null` to represent missing request or job context when that context is required for security. Instead, return a real state that prevents the connection from receiving unintended access.
 
-Hypervel remembers applied state separately for each physical read and write PDO. Matching state performs no configuration SQL. A clean internal pool release and a successful commit preserve a truthful memo, while rollback invalidates it because PostgreSQL may revert session settings established within the rolled-back transaction. A changed, newly connected, reconnected, or invalidated session is configured before the next application operation. A session left partially configured or with an ambiguous outcome is not returned as healthy.
+The `apply` method receives the PDO that needs to be configured. Use this PDO directly and bind any dynamic values as parameters. Do not call `getPdo`, `getReadPdo`, or run queries through the database connection from `apply`. Hypervel detects this and throws an exception.
 
-The public `getPdo` and `getReadPdo` methods synchronize session state before returning. The unresolved `getRawPdo` and `getRawReadPdo` parameters, framework transaction-control paths after `BEGIN`, and a PDO handle retained after an earlier hand-out are intentionally unsynchronized escape hatches. Application code must not mutate a setting owned by a configurator through raw SQL or a retained PDO and then expect Hypervel's memo to detect the change.
+The `apply` method must apply all the settings represented by the state string to the database session. When using PostgreSQL, use session-level `SET` or `set_config(..., false)`. Do not use `SET LOCAL` or `set_config(..., true)`, since those settings last only for the current transaction.
 
-Configurator SQL runs directly through PDO. It does not produce its own prepared-statement event, query event, query-log entry, or query-duration callback; when configuration is needed for an application operation, its time is included in that operation's elapsed time. With no registered configurators, hand-out adds only an empty-list branch and allocates no session state. With a matching state, it performs an in-process physical-PDO lookup, calls `state`, and compares the returned string without issuing SQL.
+Hypervel tracks the applied state separately for read and write connections. It applies the settings when a connection is first used, when the state changes, after a reconnect, and after a rollback that may have undone a setting. Returning a connection to the pool or committing a transaction does not cause unchanged settings to be applied again. If configuration fails, Hypervel will not run the application query, and a pooled connection will not be returned as healthy.
+
+When the state has not changed, Hypervel runs no configuration SQL. The `state` method is still called, so it should remain quick. If you do not register a configurator, Hypervel stores no session state and runs no configuration SQL.
+
+The `getPdo` and `getReadPdo` methods configure the PDO before returning it. The `getRawPdo` and `getRawReadPdo` methods do not. Hypervel also cannot detect changes made through a PDO that your application kept from an earlier call. Do not manually change a setting that is owned by a configurator through one of these paths.
+
+> [!NOTE]
+> SQL executed by `apply` uses PDO directly and does not appear in Hypervel's query log or trigger query events. When a query triggers configuration, the setup time is included in that query's duration.
 
 > [!WARNING]
-> Session configuration that must persist across statements requires a direct database connection or a proxy in session-pooling mode. Transaction- and statement-pooling modes may route consecutive statements to different server sessions and are therefore incompatible with such configurators. Hypervel cannot reliably detect a proxy's pooling mode and does not attempt to repair an incompatible deployment automatically.
+> If a setting must persist across queries and your application connects through a database proxy or connection pooler, use a mode that keeps the same database session. For example, PgBouncer must use session pooling. Transaction and statement pooling may send consecutive queries to different database sessions, so the setting may be missing from the next query. Hypervel cannot detect the pooler's mode for you. Direct database connections are not affected.
 
 <a name="running-queries"></a>
 ## Running SQL Queries
@@ -404,13 +411,13 @@ $users = DB::connection('sqlite')->select(/* ... */);
 
 Hypervel applications should define database connections in the configuration file before the worker boots. Runtime connection configuration is not supported because database pools are worker-level resources and configuration mutation would affect concurrent coroutines in the same worker.
 
-You may access the underlying PDO instance of a connection using the `getPdo` method. This is a synchronized hand-out: registered database session configurators run before the PDO is returned.
+You may access the underlying PDO instance of a connection using the `getPdo` method. Hypervel applies any registered session configuration before returning the PDO.
 
 ```php
 $pdo = DB::connection()->getPdo();
 ```
 
-Low-level framework extensions may call `getRawPdo` when they intentionally need the unresolved, unsynchronized connection parameter. Its return value may be a PDO, a lazy connection closure, or `null`; normal application database work should use `getPdo` or Hypervel's query APIs instead.
+If you are building a low-level framework extension, you may use `getRawPdo` to access the connection parameter without resolving or configuring it. This value may be a PDO, a lazy connection closure, or `null`. Applications should use `getPdo` or Hypervel's query APIs instead.
 
 <a name="listening-for-query-events"></a>
 ### Listening for Query Events
