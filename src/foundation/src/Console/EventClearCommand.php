@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'event:clear')]
@@ -35,7 +36,11 @@ class EventClearCommand extends Command
      */
     public function handle(): void
     {
-        $this->files->delete($this->hypervel->getCachedEventsPath());
+        $path = $this->hypervel->getCachedEventsPath();
+
+        if (! $this->files->delete($path) && $this->files->exists($path)) {
+            throw new RuntimeException("Unable to delete the event cache file [{$path}].");
+        }
 
         $this->components->info('Cached events cleared successfully.');
     }

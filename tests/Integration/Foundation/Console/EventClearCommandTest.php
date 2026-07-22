@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Foundation\Console;
 
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Testbench\TestCase;
+use Mockery as m;
+use RuntimeException;
 
 class EventClearCommandTest extends TestCase
 {
@@ -15,7 +18,7 @@ class EventClearCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function testEventsClearCommandDeletesCacheFile()
+    public function testEventsClearCommandDeletesCacheFile(): void
     {
         $cachePath = $this->app->getCachedEventsPath();
         $cacheDir = dirname($cachePath);
@@ -33,21 +36,47 @@ class EventClearCommandTest extends TestCase
         $this->assertFileDoesNotExist($cachePath);
     }
 
-    public function testEventsClearCommandOutputsSuccessMessage()
+    public function testEventsClearCommandOutputsSuccessMessage(): void
     {
         $this->artisan('event:clear')
             ->expectsOutputToContain('Cached events cleared successfully.')
             ->assertSuccessful();
     }
 
-    public function testEventsClearCommandSucceedsWhenNoCacheExists()
+    public function testEventsClearCommandSucceedsWhenNoCacheExists(): void
     {
         $cachePath = $this->app->getCachedEventsPath();
 
-        // Ensure no cache file exists
         @unlink($cachePath);
 
         $this->artisan('event:clear')
+            ->assertSuccessful();
+    }
+
+    public function testEventsClearCommandFailsWhenCacheFileRemains(): void
+    {
+        $path = $this->app->getCachedEventsPath();
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('delete')->once()->with($path)->andReturnFalse();
+        $files->shouldReceive('exists')->once()->with($path)->andReturnTrue();
+        $this->app->instance(Filesystem::class, $files);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Unable to delete the event cache file [{$path}].");
+
+        $this->artisan('event:clear');
+    }
+
+    public function testEventsClearCommandSucceedsWhenCacheDisappearsConcurrently(): void
+    {
+        $path = $this->app->getCachedEventsPath();
+        $files = m::mock(Filesystem::class);
+        $files->shouldReceive('delete')->once()->with($path)->andReturnFalse();
+        $files->shouldReceive('exists')->once()->with($path)->andReturnFalse();
+        $this->app->instance(Filesystem::class, $files);
+
+        $this->artisan('event:clear')
+            ->expectsOutputToContain('Cached events cleared successfully.')
             ->assertSuccessful();
     }
 }
