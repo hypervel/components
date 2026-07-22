@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
 use DateTimeZone;
+use Hypervel\Bus\UniqueJobPayloadContext;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
@@ -23,6 +24,7 @@ use Hypervel\Support\ProcessUtils;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
+use Throwable;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -259,14 +261,25 @@ class Schedule
             throw new RuntimeException('Cache driver not available. Scheduling unique jobs not supported.');
         }
 
-        $cache = Container::getInstance()->make(Cache::class);
-        if (! (new UniqueLock($cache))->acquire($job)) {
+        $job = $job->onConnection($connection)->onQueue($queue);
+
+        $lock = new UniqueLock(Container::getInstance()->make(Cache::class));
+
+        if (! $lock->acquire($job)) {
             return;
         }
 
-        $this->getDispatcher()->dispatch(
-            $job->onConnection($connection)->onQueue($queue)
-        );
+        UniqueJobPayloadContext::register($job);
+
+        try {
+            $this->getDispatcher()->dispatch($job);
+        } catch (Throwable $exception) {
+            if (UniqueJobPayloadContext::consume($job) !== null) {
+                $lock->release($job);
+            }
+
+            throw $exception;
+        }
     }
 
     /**
@@ -410,6 +423,20 @@ class Schedule
     public function events(): array
     {
         return $this->events;
+    }
+
+    /**
+     * Get all of the events on the schedule which run on any of the provided environments.
+     *
+     * @param list<string> $environments
+     * @return list<Event>
+     */
+    public function eventsForEnvironments(array $environments): array
+    {
+        return array_values(array_filter(
+            $this->events,
+            static fn (Event $event): bool => array_any($environments, $event->runsInEnvironment(...))
+        ));
     }
 
     /**
