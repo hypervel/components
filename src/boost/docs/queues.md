@@ -1702,7 +1702,7 @@ use Hypervel\Foundation\Configuration\Exceptions;
 })
 ```
 
-If you need more control over when retries should stop, you may provide a closure to the `dontRetryWhen` method. Hypervel invokes the closure when the job exception matches its declared exception type. Type-hint `Throwable` to inspect every exception. When the closure returns `true`, the job will be marked as failed and will not be retried:
+If you need more control over when retries should stop, you may provide a closure to the `dontRetryWhen` method. Hypervel invokes a closure with a declared exception type only when the job exception matches that type. A closure without a declared type is evaluated for every exception; type-hint `Throwable` to make this behavior explicit. When the closure returns `true`, the job will be marked as failed and will not be retried:
 
 ```php
 use App\Exceptions\PodcastProcessingException;

@@ -227,6 +227,28 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertTrue($this->handler->shouldStopRetries(new InvalidArgumentException));
     }
 
+    public function testHandlerInvokesUntypedRetryCallbackForEveryException(): void
+    {
+        $exception = new InvalidArgumentException;
+        $received = null;
+
+        $this->handler->dontRetryWhen(function ($receivedException) use (&$received): bool {
+            $received = $receivedException;
+
+            return true;
+        });
+
+        $this->assertTrue($this->handler->shouldStopRetries($exception));
+        $this->assertSame($exception, $received);
+    }
+
+    public function testHandlerInvokesRetryCallbackWithoutParametersForEveryException(): void
+    {
+        $this->handler->dontRetryWhen(static fn (): bool => true);
+
+        $this->assertTrue($this->handler->shouldStopRetries(new InvalidArgumentException));
+    }
+
     public function testHandlerCallsReportMethodWithDependencies()
     {
         $reporter = m::mock(ReportingService::class);

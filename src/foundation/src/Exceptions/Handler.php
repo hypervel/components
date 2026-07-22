@@ -47,6 +47,7 @@ use Hypervel\Validation\ValidationException;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
+use ReflectionFunction;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -360,8 +361,13 @@ class Handler implements ExceptionHandlerContract
         }
 
         foreach ($this->dontRetryCallbacks as $dontRetryCallback) {
-            if (! array_any(
-                $this->firstClosureParameterTypes($dontRetryCallback),
+            $parameters = (new ReflectionFunction($dontRetryCallback))->getParameters();
+            $types = $parameters === []
+                ? []
+                : Reflector::getParameterClassNames($parameters[0]);
+
+            if ($types !== [] && ! array_any(
+                $types,
                 static fn (string $type): bool => is_a($e, $type),
             )) {
                 continue;
