@@ -15,7 +15,7 @@ use Hypervel\Foundation\Events\MaintenanceModeDisabled;
 use Hypervel\Foundation\Events\MaintenanceModeEnabled;
 use Hypervel\Foundation\Http\MaintenanceModeBypassCookie;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
@@ -243,7 +243,7 @@ class MaintenanceModeTest extends TestCase
         $response->assertStatus(503);
     }
 
-    public function testCanCreateBypassCookies()
+    public function testCanCreateBypassCookies(): void
     {
         $cookie = MaintenanceModeBypassCookie::create('test-key');
 
@@ -253,7 +253,7 @@ class MaintenanceModeTest extends TestCase
         $this->assertTrue(MaintenanceModeBypassCookie::isValid($cookie->getValue(), 'test-key'));
         $this->assertFalse(MaintenanceModeBypassCookie::isValid($cookie->getValue(), 'wrong-key'));
 
-        Carbon::setTestNow(now()->addMonths(6));
+        CarbonImmutable::setTestNow(now()->addMonths(6));
         $this->assertFalse(MaintenanceModeBypassCookie::isValid($cookie->getValue(), 'test-key'));
     }
 
@@ -376,18 +376,18 @@ class MaintenanceModeTest extends TestCase
     }
 
     #[DataProvider('retryAfterDatetimeProvider')]
-    public function testMaintenanceModeRetryCanAcceptDatetime(string $datetime)
+    public function testMaintenanceModeRetryCanAcceptDatetime(string $datetime): void
     {
-        Carbon::setTestNow('2023-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2023-01-01 00:00:00');
 
         $this->artisan(DownCommand::class, ['--retry' => $datetime]);
 
         $data = json_decode(file_get_contents(storage_path('framework/down')), true);
 
-        $expectedDate = Carbon::parse($datetime)->format(DateTimeInterface::RFC7231);
+        $expectedDate = CarbonImmutable::parse($datetime)->format(DateTimeInterface::RFC7231);
         $this->assertSame($expectedDate, $data['retry']);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public static function retryAfterDatetimeProvider(): array
@@ -399,9 +399,9 @@ class MaintenanceModeTest extends TestCase
         ];
     }
 
-    public function testMaintenanceModeRetryWithHttpDateHeader()
+    public function testMaintenanceModeRetryWithHttpDateHeader(): void
     {
-        $retryDate = Carbon::now()->addWeek();
+        $retryDate = CarbonImmutable::now()->addWeek();
         $expectedHeader = $retryDate->format(DateTimeInterface::RFC7231);
 
         file_put_contents(storage_path('framework/down'), json_encode([
@@ -416,7 +416,7 @@ class MaintenanceModeTest extends TestCase
         $response->assertHeader('Retry-After', $expectedHeader);
     }
 
-    public function testMaintenanceModeRetryWithInvalidDatetimeReturnsNull()
+    public function testMaintenanceModeRetryWithInvalidDatetimeReturnsNull(): void
     {
         $this->artisan(DownCommand::class, ['--retry' => 'not-a-valid-date']);
 
@@ -425,7 +425,7 @@ class MaintenanceModeTest extends TestCase
         $this->assertNull($data['retry']);
     }
 
-    public function testMaintenanceModeRetryWithAtTimestampNotation()
+    public function testMaintenanceModeRetryWithAtTimestampNotation(): void
     {
         $futureTimestamp = time() + 3600;
 
@@ -433,7 +433,7 @@ class MaintenanceModeTest extends TestCase
 
         $data = json_decode(file_get_contents(storage_path('framework/down')), true);
 
-        $expectedDate = Carbon::createFromTimestamp($futureTimestamp)->format(DateTimeInterface::RFC7231);
+        $expectedDate = CarbonImmutable::createFromTimestamp($futureTimestamp)->format(DateTimeInterface::RFC7231);
         $this->assertSame($expectedDate, $data['retry']);
     }
 
