@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Attributes;
 
-use Carbon\CarbonInterface;
-use DateTimeImmutable;
-use DateTimeInterface;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\Attributes\WithImmutableDates;
 use Hypervel\Testbench\TestCase;
@@ -20,8 +19,16 @@ class WithImmutableDatesTest extends TestCase
     {
         $date = Date::parse('2023-01-01');
 
-        $this->assertInstanceOf(CarbonInterface::class, $date);
-        $this->assertInstanceOf(DateTimeInterface::class, $date);
-        $this->assertInstanceOf(DateTimeImmutable::class, $date);
+        $this->assertSame(CarbonImmutable::class, $date::class);
+    }
+
+    public function testItForcesImmutableDatesAfterAMutableApplicationOptOut(): void
+    {
+        Date::use(Carbon::class);
+
+        $attribute = new WithImmutableDates;
+        $attribute->beforeEach($this->app);
+
+        $this->assertSame(CarbonImmutable::class, Date::now()::class);
     }
 }

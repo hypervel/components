@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Carbon\CarbonImmutable;
 use Hypervel\Database\Migrations\Migration;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Hash;
 use Hypervel\Support\Facades\Schema;

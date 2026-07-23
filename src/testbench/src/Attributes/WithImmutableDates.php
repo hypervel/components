@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Attributes;
 
 use Attribute;
-use Carbon\CarbonImmutable;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\Contracts\Attributes\AfterEach;
 use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
