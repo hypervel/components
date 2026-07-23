@@ -8,20 +8,20 @@ class Security
 {
     public const VERSION = '13';
 
-    public const PATTEN = '#^[+/0-9A-Za-z]{21}[AQgw]==$#';
+    public const PATTERN = '#^[+/0-9A-Za-z]{21}[AQgw]==$#';
 
     public const KEY = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
     public const SEC_WEBSOCKET_KEY = 'sec-websocket-key';
 
-    public const SEC_WEBSOCKET_PROTOCOL = 'sec-webSocket-protocol';
+    public const SEC_WEBSOCKET_PROTOCOL = 'sec-websocket-protocol';
 
     /**
      * Determine if the given key is an invalid WebSocket security key.
      */
     public function isInvalidSecurityKey(string $key): bool
     {
-        return preg_match(self::PATTEN, $key) === 0 || strlen(base64_decode($key)) !== 16;
+        return preg_match(self::PATTERN, $key) === 0 || strlen(base64_decode($key)) !== 16;
     }
 
     /**
