@@ -633,7 +633,7 @@ Each integration group has its own workflow file in `.github/workflows/`:
 
 | Workflow | Runs | Directory |
 |----------|------|-----------|
-| `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/Guzzle` |
+| `engine.yml` | HTTP test servers | `tests/Integration/Engine`, `tests/Integration/HttpServer` |
 | `databases.yml` | MySQL, MariaDB, PostgreSQL, SQLite | `tests/Integration/Database` |
 | `redis.yml` | Redis, Valkey | `tests/Integration/Cache/Redis`, `tests/Redis/Integration` |
 | `scout.yml` | Meilisearch, Typesense | `tests/Integration/Scout/*` |
