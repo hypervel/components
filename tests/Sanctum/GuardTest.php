@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Auth\Authenticatable as AuthenticatableTrait;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
+use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Sanctum\TransientToken;
@@ -19,6 +22,7 @@ use Hypervel\Tests\Sanctum\Fixtures\TestUser;
 use Hypervel\Tests\Sanctum\Fixtures\User as SanctumTestUser;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use RuntimeException;
 
 class GuardTest extends TestCase
 {
@@ -415,24 +419,14 @@ class GuardTest extends TestCase
             ]);
     }
 
-    public function testAuthenticationWithTokenFailsIfExpired(): void
+    public function testAuthenticationWithTokenFailsIfConfiguredExpirationHasPassed(): void
     {
-        $user = TestUser::create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => password_hash('password', PASSWORD_DEFAULT),
-        ]);
-
-        // Instead of relying on sanctum.expiration config, use expires_at
-        $token = $user->tokens()->create([
-            'name' => 'Test',
-            'token' => hash('sha256', 'test'),
-            'abilities' => ['*'],
-            'expires_at' => now()->subMinute(), // Already expired
-        ]);
+        $this->app->make('config')->set('sanctum.expiration', 60);
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+        $token->forceFill(['created_at' => now()->subMinutes(61)])->save();
 
         $response = $this->withHeaders([
-            'Authorization' => 'Bearer ' . $token->id . '|test',
+            'Authorization' => 'Bearer ' . $plainToken,
         ])->getJson('/test/user');
 
         $response->assertOk()
@@ -440,6 +434,8 @@ class GuardTest extends TestCase
                 'authenticated' => false,
                 'user_id' => null,
             ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
     }
 
     public function testAuthenticationWithTokenFailsIfExpiresAtHasPassed(): void
@@ -466,6 +462,98 @@ class GuardTest extends TestCase
                 'authenticated' => false,
                 'user_id' => null,
             ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testAuthenticationWithBadTokenHashDoesNotUpdateLastUsedAt(): void
+    {
+        [$user, $token] = $this->createUserWithToken();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $token->id . '|wrong',
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testProviderMismatchDoesNotUpdateLastUsedAt(): void
+    {
+        $this->createSanctumTestUsersTable();
+
+        $user = SanctumTestUser::create([
+            'name' => 'Other User',
+            'email' => 'other@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+        $token = $user->tokens()->create([
+            'name' => 'Other Token',
+            'token' => hash('sha256', 'provider-mismatch'),
+            'abilities' => ['*'],
+        ]);
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $token->id . '|provider-mismatch',
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testMissingTokenableDoesNotUpdateLastUsedAt(): void
+    {
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+        $user->delete();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testTokenableWithoutApiTokensDoesNotUpdateLastUsedAt(): void
+    {
+        $this->app->make('config')->set('auth.providers.users.model', TokenlessUser::class);
+        $this->app->make('auth')->forgetGuards();
+
+        $user = TokenlessUser::create([
+            'name' => 'Tokenless User',
+            'email' => 'tokenless@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+        $token = PersonalAccessToken::forceCreate([
+            'tokenable_type' => TokenlessUser::class,
+            'tokenable_id' => $user->getKey(),
+            'name' => 'Tokenless Token',
+            'token' => hash('sha256', 'tokenless'),
+            'abilities' => ['*'],
+        ]);
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $token->id . '|tokenless',
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
     }
 
     public function testAuthenticationWithTokenSucceedsIfExpiresAtNotPassed(): void
@@ -497,12 +585,85 @@ class GuardTest extends TestCase
         $this->assertNotNull($data['last_used_at']);
     }
 
+    public function testSuccessfulAuthenticationTracksLastUsedAtByDefault(): void
+    {
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+            ]);
+
+        $this->assertNotNull($token->fresh()->last_used_at);
+    }
+
+    public function testCancelledLastUsedAtUpdateDoesNotFailAuthentication(): void
+    {
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        PersonalAccessToken::updating(static fn (): false => false);
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/last-used-at')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'last_used_at' => null,
+            ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testSuccessfulAuthenticationDoesNotTrackLastUsedAtWhenDisabled(): void
+    {
+        $this->app->make('config')->set('sanctum.last_used_at', false);
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+            ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testSuccessfulAuthenticationWritesLastUsedAtOnEachRequestWhenCachingIsDisabled(): void
+    {
+        $this->freezeTime();
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')->assertOk();
+
+        $firstLastUsedAt = $token->fresh()->last_used_at;
+
+        $this->travel(1)->second();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')->assertOk();
+
+        $this->assertTrue($token->fresh()->last_used_at->isAfter($firstLastUsedAt));
+    }
+
     public function testTokenAuthenticationDispatchesEvent(): void
     {
         $tokenAuthenticatedFired = false;
+        $lastUsedAtDuringEvent = true;
 
-        $this->app->make(Dispatcher::class)->listen(TokenAuthenticated::class, function () use (&$tokenAuthenticatedFired) {
+        $this->app->make(Dispatcher::class)->listen(TokenAuthenticated::class, function (TokenAuthenticated $event) use (&$tokenAuthenticatedFired, &$lastUsedAtDuringEvent) {
             $tokenAuthenticatedFired = true;
+            $lastUsedAtDuringEvent = $event->token->last_used_at;
         });
 
         [$user, $token, $plainToken] = $this->createUserWithToken();
@@ -518,6 +679,52 @@ class GuardTest extends TestCase
             ]);
 
         $this->assertTrue($tokenAuthenticatedFired, 'TokenAuthenticated event was not fired');
+        $this->assertNull($lastUsedAtDuringEvent);
+        $this->assertNotNull($token->fresh()->last_used_at);
+    }
+
+    public function testThrowingTokenAuthenticatedListenerDoesNotUpdateLastUsedAt(): void
+    {
+        $this->app->make(Dispatcher::class)->listen(
+            TokenAuthenticated::class,
+            static function (): never {
+                throw new RuntimeException('Listener failed.');
+            }
+        );
+
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->withHeaders([
+                'Authorization' => 'Bearer ' . $plainToken,
+            ])->getJson('/test/user');
+            $this->fail('Expected listener exception was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Listener failed.', $exception->getMessage());
+        }
+
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testCustomTokenModelCanOverrideLastUsedAtUpdate(): void
+    {
+        Sanctum::usePersonalAccessTokenModel(CustomTrackingPersonalAccessToken::class);
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user')
+            ->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+            ]);
+
+        $token = $token->fresh();
+
+        $this->assertSame('Tracked by custom model', $token->name);
+        $this->assertNull($token->last_used_at);
     }
 
     #[DataProvider('invalidTokenDataProvider')]
@@ -567,6 +774,8 @@ class GuardTest extends TestCase
                 'authenticated' => false,
                 'user_id' => null,
             ]);
+
+        $this->assertNull($token->fresh()->last_used_at);
     }
 
     public function testAuthenticationWithCustomTokenHeader(): void
@@ -650,6 +859,14 @@ class GuardTest extends TestCase
     }
 }
 
+class CustomTrackingPersonalAccessToken extends PersonalAccessToken
+{
+    public function updateLastUsedAt(): void
+    {
+        $this->forceFill(['name' => 'Tracked by custom model'])->save();
+    }
+}
+
 class NullUserStatefulGuard implements StatefulGuard
 {
     public function attempt(array $credentials = [], bool $remember = false): bool
@@ -719,4 +936,13 @@ class NullUserStatefulGuard implements StatefulGuard
     {
         return $this;
     }
+}
+
+class TokenlessUser extends Model implements Authenticatable
+{
+    use AuthenticatableTrait;
+
+    protected ?string $table = 'users';
+
+    protected array $fillable = ['name', 'email', 'password'];
 }

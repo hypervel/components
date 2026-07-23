@@ -35,6 +35,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Last Used Timestamp
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, Sanctum records the time a personal access token last
+    | completed authentication successfully.
+    |
+    */
+
+    'last_used_at' => env('SANCTUM_LAST_USED_AT', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Token Prefix
     |--------------------------------------------------------------------------
     |

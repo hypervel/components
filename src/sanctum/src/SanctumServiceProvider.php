@@ -65,6 +65,7 @@ class SanctumServiceProvider extends ServiceProvider
                     sessionGuards: $sessionGuards,
                     events: $app->bound('events') ? $app->make('events') : null,
                     expiration: $app->make('config')->get('sanctum.expiration'),
+                    trackLastUsedAt: $app->make('config')->boolean('sanctum.last_used_at'),
                 );
             });
         });

@@ -157,6 +157,126 @@ class PersonalAccessTokenCacheTest extends TestCase
         $this->assertSame(0, $this->countQueriesForTable('personal_access_tokens'));
     }
 
+    public function testFindingValidTokenDoesNotUpdateLastUsedAt(): void
+    {
+        $token = $this->createToken();
+
+        $foundToken = PersonalAccessToken::findToken($token->id . '|secret');
+
+        $this->assertNotNull($foundToken);
+        $this->assertNull($foundToken->last_used_at);
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testFindingTokenWithBadHashDoesNotUpdateLastUsedAt(): void
+    {
+        $token = $this->createToken();
+
+        $this->assertNull(PersonalAccessToken::findToken($token->id . '|wrong-secret'));
+        $this->assertNull($token->fresh()->last_used_at);
+    }
+
+    public function testLastUsedAtIsWrittenEveryTimeWhenCachingIsDisabled(): void
+    {
+        $this->app->make('config')->set('sanctum.cache.enabled', false);
+        $this->freezeTime();
+
+        $token = $this->createToken();
+        $token->updateLastUsedAt();
+        $firstLastUsedAt = $token->fresh()->last_used_at;
+
+        $this->travel(1)->second();
+        $token->updateLastUsedAt();
+
+        $this->assertTrue($token->fresh()->last_used_at->isAfter($firstLastUsedAt));
+    }
+
+    public function testCachedLastUsedAtUpdateIsSkippedWithinIntervalWithoutTouchingConnection(): void
+    {
+        $this->freezeTime();
+
+        $token = $this->createToken();
+        $lastUsedAt = now()->subSeconds(30);
+        $token->forceFill(['last_used_at' => $lastUsedAt])->save();
+        $token = $token->fresh();
+        $lastUsedAt = $token->last_used_at;
+
+        $connection = $token->getConnection();
+        $connection->setRecordModificationState(false);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $token->updateLastUsedAt();
+
+        $this->assertEmpty(DB::getQueryLog());
+        $this->assertFalse($connection->hasModifiedRecords());
+        $this->assertTrue($token->last_used_at->equalTo($lastUsedAt));
+    }
+
+    public function testCachedLastUsedAtUpdateRunsAfterIntervalAndRefreshesCache(): void
+    {
+        $now = $this->freezeTime();
+
+        $token = $this->createToken();
+        $token->forceFill(['last_used_at' => $now->subSeconds(301)])->save();
+        $token = $token->fresh();
+
+        $connection = $token->getConnection();
+        $connection->setRecordModificationState(false);
+
+        $token->updateLastUsedAt();
+
+        $this->assertFalse($connection->hasModifiedRecords());
+        $this->assertSame(
+            $now->format('Y-m-d H:i:s'),
+            $token->fresh()->last_used_at->format('Y-m-d H:i:s'),
+        );
+
+        $cachedToken = $this->cacheRepository()->get("sanctum:{$token->id}");
+        $this->assertInstanceOf(PersonalAccessToken::class, $cachedToken);
+        $this->assertSame(
+            $now->format('Y-m-d H:i:s'),
+            $cachedToken->last_used_at->format('Y-m-d H:i:s'),
+        );
+    }
+
+    public function testSuccessfulLastUsedAtUpdatePreservesModifiedConnectionState(): void
+    {
+        $token = $this->createToken();
+        $connection = $token->getConnection();
+        $connection->setRecordModificationState(true);
+
+        $token->updateLastUsedAt();
+
+        $this->assertTrue($connection->hasModifiedRecords());
+    }
+
+    public function testCancelledLastUsedAtUpdateRestoresAttributeWithoutRefreshingCache(): void
+    {
+        $this->freezeTime();
+
+        $token = $this->createToken();
+        $lastUsedAt = now()->subHour();
+        $token->forceFill(['last_used_at' => $lastUsedAt])->save();
+        $token = $token->fresh();
+        $lastUsedAt = $token->last_used_at;
+
+        $this->cacheRepository()->put("sanctum:{$token->id}", $token, 300);
+
+        PersonalAccessToken::updating(function (PersonalAccessToken $token): false {
+            $token->getConnection()->recordsHaveBeenModified();
+
+            return false;
+        });
+
+        $token->updateLastUsedAt();
+
+        $this->assertTrue($token->last_used_at->equalTo($lastUsedAt));
+        $this->assertTrue($token->fresh()->last_used_at->equalTo($lastUsedAt));
+        $this->assertTrue($token->getConnection()->hasModifiedRecords());
+        $this->assertNull($this->cacheRepository()->getRaw("sanctum:{$token->id}"));
+    }
+
     public function testMissingTokenableCachesNullResult(): void
     {
         $token = $this->createToken();
