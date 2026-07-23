@@ -101,6 +101,8 @@ The temporary output directory is necessary because `protoc` includes the comple
 
 Generated message classes use the `google/protobuf` package. Installing the optional `ext-protobuf` extension improves serialization performance.
 
+Hypervel initializes registered server request classes and concrete response return types that can be constructed without arguments before workers start. If another generated message may be used for the first time by concurrent coroutines—such as a server response behind an iterable or union return type, or a client request or response—construct one instance in a service provider's `boot` method. This registers Protocol Buffers' process-global descriptor metadata before concurrent work begins.
+
 The official `grpc_php_plugin` may also generate client classes. These classes may be adapted to Hypervel as described in [Generated-Style Clients](#generated-style-clients).
 
 <a name="installing-server"></a>
@@ -272,7 +274,7 @@ $expired = $call->deadlineExceeded();
 $previousAttempts = $call->previousAttempts();
 ```
 
-The `deadline` method returns a `CarbonImmutable` instance or `null` when the client did not set a deadline. The `timeRemaining` method returns the remaining number of seconds, while `deadlineExceeded` determines whether the deadline has passed.
+The `deadline` method returns a `Hypervel\Support\CarbonImmutable` instance or `null` when the client did not set a deadline. The `timeRemaining` method returns the remaining number of seconds, while `deadlineExceeded` determines whether the deadline has passed.
 
 The `previousAttempts` method returns the number of completed retry attempts reported by the client. This can be useful for logging or idempotency handling.
 

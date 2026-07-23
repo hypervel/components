@@ -427,7 +427,7 @@ $versions = $request->array('versions');
 <a name="retrieving-date-input-values"></a>
 #### Retrieving Date Input Values
 
-For convenience, input values containing dates / times may be retrieved as Carbon instances using the `date` method. If the request does not contain an input value with the given name, `null` will be returned:
+For convenience, input values containing dates / times may be retrieved as `CarbonInterface` instances using the `date` method. Request dates use Hypervel's configured date factory and are exact `Hypervel\Support\CarbonImmutable` instances by default. If the request does not contain an input value with the given name, `null` will be returned:
 
 ```php
 $birthday = $request->date('birthday');

@@ -850,7 +850,7 @@ Hypervel includes a `Hypervel\Queue\Middleware\ThrottlesExceptions` middleware t
 For example, let's imagine a queued job that interacts with a third-party API that begins throwing exceptions. To throttle exceptions, you can return the `ThrottlesExceptions` middleware from your job's `middleware` method. Typically, this middleware should be paired with a job that implements [time based attempts](#time-based-attempts):
 
 ```php
-use DateTime;
+use DateTimeInterface;
 use Hypervel\Queue\Middleware\ThrottlesExceptions;
 
 /**
@@ -866,7 +866,7 @@ public function middleware(): array
 /**
  * Determine the time at which the job should timeout.
  */
-public function retryUntil(): DateTime
+public function retryUntil(): DateTimeInterface
 {
     return now()->plus(minutes: 30);
 }
@@ -1628,15 +1628,15 @@ public function tries(): int
 <a name="time-based-attempts"></a>
 #### Time Based Attempts
 
-As an alternative to defining how many times a job may be attempted before it fails, you may define a time at which the job should no longer be attempted. This allows a job to be attempted any number of times within a given time frame. To define the time at which a job should no longer be attempted, add a `retryUntil` method to your job class. This method should return a `DateTime` instance:
+As an alternative to defining how many times a job may be attempted before it fails, you may define a time at which the job should no longer be attempted. This allows a job to be attempted any number of times within a given time frame. To define the time at which the job should no longer be attempted, add a `retryUntil` method to your job class. This method should return a `DateTimeInterface` instance:
 
 ```php
-use DateTime;
+use DateTimeInterface;
 
 /**
  * Determine the time at which the job should timeout.
  */
-public function retryUntil(): DateTime
+public function retryUntil(): DateTimeInterface
 {
     return now()->plus(minutes: 10);
 }

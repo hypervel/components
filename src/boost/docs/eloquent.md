@@ -1188,7 +1188,7 @@ class Flight extends Model
 ```
 
 > [!NOTE]
-> The `SoftDeletes` trait will automatically cast the `deleted_at` attribute to a `DateTime` / `Carbon` instance for you.
+> The `SoftDeletes` trait will automatically cast the `deleted_at` attribute to a `Hypervel\Support\CarbonImmutable` instance for you by default.
 
 You should also add the `deleted_at` column to your database table. The Hypervel [schema builder](/docs/{{version}}/migrations) contains a helper method to create this column:
 
