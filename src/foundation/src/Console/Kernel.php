@@ -21,7 +21,7 @@ use Hypervel\Foundation\Bootstrap\BootProviders;
 use Hypervel\Foundation\Bus\PendingDispatch;
 use Hypervel\Foundation\Events\Terminating;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Env;
 use Hypervel\Support\InteractsWithTime;
@@ -85,7 +85,7 @@ class Kernel implements KernelContract
     /**
      * When the currently handled command started.
      */
-    protected ?Carbon $commandStartedAt = null;
+    protected ?CarbonImmutable $commandStartedAt = null;
 
     /**
      * The console application bootstrappers.
@@ -153,7 +153,7 @@ class Kernel implements KernelContract
      */
     public function handle(InputInterface $input, ?OutputInterface $output = null): int
     {
-        $this->commandStartedAt = Carbon::now();
+        $this->commandStartedAt = CarbonImmutable::now();
         $output ??= new ConsoleOutput;
 
         try {
@@ -194,7 +194,7 @@ class Kernel implements KernelContract
 
         if ($this->commandStartedAt !== null) {
             try {
-                $this->commandStartedAt->setTimezone(
+                $this->commandStartedAt = $this->commandStartedAt->setTimezone(
                     $this->app->make('config')->string('app.timezone')
                 );
             } catch (Throwable $throwable) {
@@ -203,7 +203,7 @@ class Kernel implements KernelContract
 
             foreach ($this->commandLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
                 try {
-                    $end ??= Carbon::now();
+                    $end ??= CarbonImmutable::now();
 
                     if ($this->commandStartedAt->diffInMilliseconds($end) > $threshold) {
                         $handler($this->commandStartedAt, $input, $status);
@@ -243,7 +243,7 @@ class Kernel implements KernelContract
     /**
      * When the command being handled started.
      */
-    public function commandStartedAt(): ?Carbon
+    public function commandStartedAt(): ?CarbonImmutable
     {
         return $this->commandStartedAt;
     }
