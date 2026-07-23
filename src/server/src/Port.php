@@ -17,7 +17,7 @@ class Port
 
     protected int $port = 8000;
 
-    protected int $sockType = 0;
+    protected int $sockType = SWOOLE_SOCK_TCP;
 
     protected array $callbacks = [];
 
@@ -172,7 +172,7 @@ class Port
      */
     private static function filter(array $config): array
     {
-        if ((int) $config['type'] === ServerInterface::SERVER_BASE) {
+        if ((int) ($config['type'] ?? ServerInterface::SERVER_HTTP) === ServerInterface::SERVER_BASE) {
             $default = [
                 'open_http2_protocol' => false,
                 'open_http_protocol' => false,

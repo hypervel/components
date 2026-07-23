@@ -10,7 +10,16 @@ use Hypervel\Tests\TestCase;
 
 class PortTest extends TestCase
 {
-    public function testSetting()
+    public function testUsesHttpAndTcpDefaults(): void
+    {
+        $port = Port::build([]);
+
+        $this->assertSame(Server::SERVER_HTTP, $port->getType());
+        $this->assertSame(SWOOLE_SOCK_TCP, $port->getSockType());
+        $this->assertSame([], $port->getSettings());
+    }
+
+    public function testSetting(): void
     {
         $port = Port::build([
             'name' => 'http',

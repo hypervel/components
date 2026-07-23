@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Server;
 
+use Closure;
 use Hypervel\Server\Exceptions\InvalidArgumentException;
 use Hypervel\Server\Port;
 use Hypervel\Server\Server;
@@ -15,6 +16,44 @@ use Swoole\Constant;
 
 class ServerConfigTest extends TestCase
 {
+    public function testUsesProcessModeWithoutPublishingADeadServerClassType(): void
+    {
+        $config = new ServerConfig([
+            'servers' => [
+                ['name' => 'http'],
+            ],
+        ]);
+
+        $this->assertSame(SWOOLE_PROCESS, $config->getMode());
+        $this->assertArrayNotHasKey('type', $config->toArray());
+    }
+
+    #[DataProvider('invalidDynamicConfigurationCalls')]
+    public function testInvalidDynamicConfigurationCallsUseThePackageException(Closure $call): void
+    {
+        $config = new ServerConfig([
+            'servers' => [
+                ['name' => 'http'],
+            ],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $call($config);
+    }
+
+    public static function invalidDynamicConfigurationCalls(): array
+    {
+        return [
+            'property get' => [static fn (ServerConfig $config): mixed => $config->unknown],
+            'property set' => [static function (ServerConfig $config): void {
+                $config->unknown = true;
+            }],
+            'dynamic setter' => [static fn (ServerConfig $config): mixed => $config->setType(Server::class)],
+            'unknown method' => [static fn (ServerConfig $config): mixed => $config->unknown()],
+        ];
+    }
+
     public function testAssociativeServerKeysBecomeNames(): void
     {
         $config = new ServerConfig([
