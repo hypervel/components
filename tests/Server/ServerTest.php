@@ -10,8 +10,11 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Server\Event;
+use Hypervel\Server\Exceptions\InvalidArgumentException as ServerInvalidArgumentException;
+use Hypervel\Server\Exceptions\ServerException;
 use Hypervel\Server\Port;
 use Hypervel\Server\Server;
+use Hypervel\Server\ServerConfig;
 use Hypervel\Server\ServerInterface;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
@@ -21,6 +24,7 @@ use RuntimeException;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
+use Swoole\Server as SwooleServer;
 use Swoole\Server\Port as SwoolePort;
 
 class ServerTest extends TestCase
@@ -148,6 +152,97 @@ class ServerTest extends TestCase
         $this->assertSame($workerCallback, $registered[Event::ON_WORKER_START]);
     }
 
+    public function testServerEventRegistrationFailureStopsConfiguration(): void
+    {
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->expects('on')->with(Event::ON_WORKER_START, m::type('callable'))->andReturnFalse();
+
+        $this->expectException(ServerException::class);
+        $this->expectExceptionMessage('Failed to register event [workerStart] on server [test].');
+
+        $this->server(m::mock(Container::class))->registerEvents($nativeServer, [
+            Event::ON_WORKER_START => static function (): void {
+            },
+        ]);
+    }
+
+    public function testPortEventRegistrationFailureStopsConfiguration(): void
+    {
+        $nativePort = m::mock(SwoolePort::class);
+        $nativePort->expects('on')->with(Event::ON_REQUEST, m::type('callable'))->andReturnFalse();
+
+        $this->expectException(ServerException::class);
+        $this->expectExceptionMessage('Failed to register event [request] on server [test].');
+
+        $this->server(m::mock(Container::class))->registerEvents($nativePort, [
+            Event::ON_REQUEST => static function (SwooleRequest $request, SwooleResponse $response): void {
+            },
+        ]);
+    }
+
+    public function testMainServerSettingsFailureStopsConfiguration(): void
+    {
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->expects('set')->with([])->andReturnFalse();
+        $server = $this->server(m::mock(Container::class));
+        $server->createWith($nativeServer);
+
+        $this->expectException(ServerException::class);
+        $this->expectExceptionMessage('Failed to configure server [http].');
+
+        $server->init(new ServerConfig([
+            'servers' => [
+                ['name' => 'http'],
+            ],
+        ]));
+    }
+
+    public function testListenerCreationFailureStopsConfiguration(): void
+    {
+        $mainPort = m::mock(SwoolePort::class);
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->ports = [$mainPort];
+        $nativeServer->expects('set')->with([])->andReturnTrue();
+        $nativeServer->expects('addlistener')->with('127.0.0.1', 8001, SWOOLE_SOCK_TCP)->andReturnFalse();
+        $server = $this->server(m::mock(Container::class));
+        $server->createWith($nativeServer);
+
+        $this->expectException(ServerException::class);
+        $this->expectExceptionMessage('Failed to listen on server port [127.0.0.1:8001].');
+
+        $server->init(new ServerConfig([
+            'servers' => [
+                ['name' => 'http'],
+                ['name' => 'grpc', 'host' => '127.0.0.1', 'port' => 8001],
+            ],
+        ]));
+    }
+
+    public function testUnsupportedServerTypeUsesThePackageInvalidArgumentException(): void
+    {
+        $this->expectException(ServerInvalidArgumentException::class);
+        $this->expectExceptionMessage('Server type is invalid.');
+
+        $this->server(m::mock(Container::class))->init(new ServerConfig([
+            'servers' => [
+                ['name' => 'invalid', 'type' => 999],
+            ],
+        ]));
+    }
+
+    public function testStartFailureIsReported(): void
+    {
+        $nativeServer = m::mock(SwooleServer::class);
+        $nativeServer->expects('start')->andReturnFalse();
+        $server = $this->server(m::mock(Container::class));
+        $server->useNativeServer($nativeServer);
+
+        $this->expectException(ServerException::class);
+        $this->expectExceptionMessage('Failed to start the Swoole server.');
+
+        $server->start();
+    }
+
     public function testServerTypesArePrioritizedWithoutReorderingEqualTypes(): void
     {
         $server = new ServerTestServer(
@@ -206,22 +301,37 @@ class ServerTest extends TestCase
 
     private function server(Container $container): ServerTestServer
     {
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->allows('dispatch')->andReturnNull();
+
         return new ServerTestServer(
             $container,
             m::mock(LoggerInterface::class),
-            m::mock(Dispatcher::class),
+            $dispatcher,
         );
     }
 }
 
 class ServerTestServer extends Server
 {
+    private ?SwooleServer $serverToCreate = null;
+
+    public function createWith(SwooleServer $server): void
+    {
+        $this->serverToCreate = $server;
+    }
+
+    public function useNativeServer(SwooleServer $server): void
+    {
+        $this->server = $server;
+    }
+
     public function guardedResponseCallback(callable $callback): Closure
     {
         return $this->guardResponseCallback($callback);
     }
 
-    public function registerEvents(SwoolePort $server, array $events): void
+    public function registerEvents(SwoolePort|SwooleServer $server, array $events): void
     {
         $this->registerSwooleEvents($server, $events, 'test');
     }
@@ -233,5 +343,15 @@ class ServerTestServer extends Server
     public function sortedServers(array $servers): array
     {
         return $this->sortServers($servers);
+    }
+
+    protected function makeServer(int $type, string $host, int $port, int $mode, int $sockType): SwooleServer
+    {
+        return $this->serverToCreate ?? parent::makeServer($type, $host, $port, $mode, $sockType);
+    }
+
+    protected function defaultCallbacks(): array
+    {
+        return [];
     }
 }

@@ -12,7 +12,8 @@ use Hypervel\Contracts\Server\BootstrapsForServer;
 use Hypervel\Core\Bootstrap;
 use Hypervel\Core\Events\BeforeMainServerStart;
 use Hypervel\Core\Events\BeforeServerStart;
-use Hypervel\Server\Exceptions\RuntimeException;
+use Hypervel\Server\Exceptions\InvalidArgumentException;
+use Hypervel\Server\Exceptions\ServerException;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
@@ -51,7 +52,9 @@ class Server implements ServerInterface
      */
     public function start(): void
     {
-        $this->server->start();
+        if ($this->server->start() === false) {
+            throw new ServerException('Failed to start the Swoole server.');
+        }
     }
 
     /**
@@ -81,7 +84,9 @@ class Server implements ServerInterface
                 $this->server = $this->makeServer($type, $host, $port, $config->getMode(), $sockType);
                 $callbacks = array_replace($this->defaultCallbacks(), $config->getCallbacks(), $callbacks);
                 $this->registerSwooleEvents($this->server, $callbacks, $name);
-                $this->server->set(array_replace($config->getSettings(), $server->getSettings()));
+                if ($this->server->set(array_replace($config->getSettings(), $server->getSettings())) === false) {
+                    throw new ServerException("Failed to configure server [{$name}].");
+                }
                 ServerManager::add($name, [$type, current($this->server->ports)]);
 
                 // Trigger BeforeMainServerStart event, this event only triggers once before main server start.
@@ -89,8 +94,8 @@ class Server implements ServerInterface
             } else {
                 /** @var bool|SwoolePort $slaveServer */
                 $slaveServer = $this->server->addlistener($host, $port, $sockType);
-                if (! $slaveServer) {
-                    throw new \RuntimeException("Failed to listen server port [{$host}:{$port}]");
+                if ($slaveServer === false) {
+                    throw new ServerException("Failed to listen on server port [{$host}:{$port}].");
                 }
                 $server->getSettings() && $slaveServer->set(array_replace($config->getSettings(), $server->getSettings()));
                 $this->registerSwooleEvents($slaveServer, $callbacks, $name);
@@ -155,7 +160,7 @@ class Server implements ServerInterface
                 return new SwooleServer($host, $port, $mode, $sockType);
         }
 
-        throw new RuntimeException('Server type is invalid.');
+        throw new InvalidArgumentException('Server type is invalid.');
     }
 
     /**
@@ -192,7 +197,9 @@ class Server implements ServerInterface
                 $callback = $this->guardResponseCallback($callback);
             }
 
-            $server->on($event, $callback);
+            if ($server->on($event, $callback) === false) {
+                throw new ServerException("Failed to register event [{$event}] on server [{$serverName}].");
+            }
         }
     }
 
