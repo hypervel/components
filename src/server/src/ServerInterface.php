@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Server;
 
-use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
-use Psr\Log\LoggerInterface;
 use Swoole\Server as SwooleServer;
 
 interface ServerInterface
@@ -16,11 +13,6 @@ interface ServerInterface
     public const SERVER_WEBSOCKET = 2;
 
     public const SERVER_BASE = 3;
-
-    /**
-     * Create a new server instance.
-     */
-    public function __construct(Container $container, LoggerInterface $logger, Dispatcher $dispatcher);
 
     /**
      * Initialize the server with the given configuration.
