@@ -258,7 +258,7 @@ abstract class BaseClient
             MessageSerializer::serialize($argument),
             $compression,
         );
-        $metadata = $this->defaultMetadata->merge($metadata);
+        $metadata = $this->prepareMetadata($metadata);
         [$state] = $this->startInitialAttempt(
             $serviceMethod->path(),
             $body,
@@ -302,7 +302,7 @@ abstract class BaseClient
         $serviceMethod = ServiceMethod::parse($method);
         [$timeout, $compression] = $this->normalizeCallOptions($options, false);
         $deadline = Deadline::fromTimeout($timeout);
-        $metadata = $this->defaultMetadata->merge($metadata);
+        $metadata = $this->prepareMetadata($metadata);
         [$state, $connection] = $this->startInitialAttempt(
             $serviceMethod->path(),
             '',
@@ -346,7 +346,7 @@ abstract class BaseClient
             MessageSerializer::serialize($argument),
             $compression,
         );
-        $metadata = $this->defaultMetadata->merge($metadata);
+        $metadata = $this->prepareMetadata($metadata);
         [$state] = $this->startInitialAttempt(
             $serviceMethod->path(),
             $body,
@@ -390,7 +390,7 @@ abstract class BaseClient
         $serviceMethod = ServiceMethod::parse($method);
         [$timeout, $compression] = $this->normalizeCallOptions($options, false);
         $deadline = Deadline::fromTimeout($timeout);
-        $metadata = $this->defaultMetadata->merge($metadata);
+        $metadata = $this->prepareMetadata($metadata);
         [$state, $connection] = $this->startInitialAttempt(
             $serviceMethod->path(),
             '',
@@ -410,6 +410,16 @@ abstract class BaseClient
             $this->requestEncoder,
             $compression,
         );
+    }
+
+    /**
+     * Prepare metadata for a new RPC.
+     *
+     * @param array<string, list<string>|string>|Metadata $metadata
+     */
+    protected function prepareMetadata(array|Metadata $metadata): Metadata
+    {
+        return $this->defaultMetadata->merge($metadata);
     }
 
     /**

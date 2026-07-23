@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Grpc;
 
+use Closure;
 use Google\Protobuf\Internal\Message;
 use Google\Protobuf\StringValue;
 use Hypervel\Container\Container;
@@ -148,6 +149,157 @@ class BaseClientTest extends TestCase
         $this->assertNotSame('', $engineClient->sentRequests[1]->getBody());
         $this->assertSame('', $engineClient->sentRequests[2]->getBody());
         $this->assertSame('', $engineClient->sentRequests[3]->getBody());
+    }
+
+    public function testMetadataPreparationRunsOnceForEveryCallShape(): void
+    {
+        $engineClient = new ClientCallClient;
+        $client = $this->client(
+            new ClientCallClientFactory($engineClient),
+            ['metadata' => ['x-shared' => 'default']],
+        );
+        $client->prepareMetadataUsing = static function (
+            array|Metadata $metadata,
+            Metadata $prepared,
+        ): Metadata {
+            return $prepared->with('x-prepared', 'yes');
+        };
+        $argument = new StringValue;
+        $deserialize = [StringValue::class, 'decode'];
+        $metadata = ['x-shared' => 'call'];
+
+        $client->unary('/testing.Service/Unary', $argument, $deserialize, $metadata);
+        $client->serverStream('/testing.Service/ServerStream', $argument, $deserialize, $metadata);
+        $client->clientStream('/testing.Service/ClientStream', $deserialize, $metadata);
+        $client->bidi('/testing.Service/BidiStream', $deserialize, $metadata);
+
+        $this->assertSame(4, $client->prepareMetadataCalls);
+
+        foreach ($engineClient->sentRequests as $request) {
+            $this->assertSame('default,call', $request->getHeaders()['x-shared']);
+            $this->assertSame('yes', $request->getHeaders()['x-prepared']);
+        }
+    }
+
+    public function testMetadataPreparationCanInspectInputAndReturnReplacement(): void
+    {
+        $engineClient = new ClientCallClient;
+        $client = $this->client(
+            new ClientCallClientFactory($engineClient),
+            ['metadata' => ['x-default' => 'default']],
+        );
+        $inspectedMetadata = null;
+        $client->prepareMetadataUsing = static function (
+            array|Metadata $metadata,
+            Metadata $prepared,
+        ) use (&$inspectedMetadata): Metadata {
+            $inspectedMetadata = $metadata;
+
+            return Metadata::make(['x-replacement' => 'replacement']);
+        };
+
+        $client->unary(
+            '/testing.Service/Unary',
+            new StringValue,
+            [StringValue::class, 'decode'],
+            ['x-call' => 'call'],
+        );
+
+        $headers = $engineClient->sentRequests[0]->getHeaders();
+
+        $this->assertSame(['x-call' => 'call'], $inspectedMetadata);
+        $this->assertSame('replacement', $headers['x-replacement']);
+        $this->assertArrayNotHasKey('x-default', $headers);
+        $this->assertArrayNotHasKey('x-call', $headers);
+        $this->assertSame(1, $client->prepareMetadataCalls);
+    }
+
+    public function testUnaryRetryReusesPreparedMetadataSnapshot(): void
+    {
+        $engineClient = new ClientCallClient;
+        $client = $this->client(new ClientCallClientFactory($engineClient), [
+            'retry' => new RetryPolicy(maxAttempts: 2),
+        ]);
+        $client->ambientMetadata = 'first';
+        $call = $client->unary(
+            '/testing.Service/Unary',
+            new StringValue,
+            [StringValue::class, 'decode'],
+        );
+        $client->ambientMetadata = 'second';
+
+        $results = parallel([
+            'wait' => static fn (): Message => $call->wait(),
+            'responses' => function () use ($engineClient): null {
+                $engineClient->respond($this->trailersOnly(
+                    1,
+                    StatusCode::Unavailable,
+                    ['grpc-retry-pushback-ms' => '0'],
+                ));
+
+                while (count($engineClient->sentRequests) < 2) {
+                    usleep(100);
+                }
+
+                $this->respondSuccessfully($engineClient, 3, 'retried');
+
+                return null;
+            },
+        ]);
+
+        $this->assertSame('retried', $results['wait']->getValue());
+        $this->assertSame(1, $client->prepareMetadataCalls);
+        $this->assertSame(
+            ['first', 'first'],
+            array_map(
+                static fn ($request): string => $request->getHeaders()['x-ambient'],
+                $engineClient->sentRequests,
+            ),
+        );
+    }
+
+    public function testServerStreamingRetryReusesPreparedMetadataSnapshot(): void
+    {
+        $engineClient = new ClientCallClient;
+        $client = $this->client(new ClientCallClientFactory($engineClient), [
+            'retry' => new RetryPolicy(maxAttempts: 2),
+        ]);
+        $client->ambientMetadata = 'first';
+        $call = $client->serverStream(
+            '/testing.Service/ServerStream',
+            new StringValue,
+            [StringValue::class, 'decode'],
+        );
+        $client->ambientMetadata = 'second';
+
+        $results = parallel([
+            'read' => static fn (): ?Message => $call->read(),
+            'responses' => function () use ($engineClient): null {
+                $engineClient->respond($this->trailersOnly(
+                    1,
+                    StatusCode::Unavailable,
+                    ['grpc-retry-pushback-ms' => '0'],
+                ));
+
+                while (count($engineClient->sentRequests) < 2) {
+                    usleep(100);
+                }
+
+                $this->respondSuccessfully($engineClient, 3, 'retried');
+
+                return null;
+            },
+        ]);
+
+        $this->assertSame('retried', $results['read']?->getValue());
+        $this->assertSame(1, $client->prepareMetadataCalls);
+        $this->assertSame(
+            ['first', 'first'],
+            array_map(
+                static fn ($request): string => $request->getHeaders()['x-ambient'],
+                $engineClient->sentRequests,
+            ),
+        );
     }
 
     public function testTranslatesTlsOptionsBeforeTheLazyEngineConnection(): void
@@ -734,6 +886,13 @@ class BaseClientTest extends TestCase
 
 class TestingBaseClient extends BaseClient
 {
+    public int $prepareMetadataCalls = 0;
+
+    public ?string $ambientMetadata = null;
+
+    /** @var null|Closure(array<string, list<string>|string>|Metadata, Metadata): Metadata */
+    public ?Closure $prepareMetadataUsing = null;
+
     /**
      * Start a unary fixture call.
      *
@@ -798,6 +957,25 @@ class TestingBaseClient extends BaseClient
         array $options = [],
     ): BidiStreamingCall {
         return $this->_bidiRequest($method, $deserialize, $metadata, $options);
+    }
+
+    /**
+     * Prepare metadata for a fixture RPC.
+     *
+     * @param array<string, list<string>|string>|Metadata $metadata
+     */
+    protected function prepareMetadata(array|Metadata $metadata): Metadata
+    {
+        ++$this->prepareMetadataCalls;
+        $prepared = parent::prepareMetadata($metadata);
+
+        if ($this->prepareMetadataUsing !== null) {
+            return ($this->prepareMetadataUsing)($metadata, $prepared);
+        }
+
+        return $this->ambientMetadata === null
+            ? $prepared
+            : $prepared->with('x-ambient', $this->ambientMetadata);
     }
 }
 

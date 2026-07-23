@@ -567,6 +567,28 @@ class GreeterClient extends BaseClient
 
 The `[Reply::class, 'decode']` pair follows the official generated-client convention. Hypervel will create the response message and deserialize the received bytes into it.
 
+To add metadata to every call made by a client, override the `prepareMetadata` method:
+
+```php
+use Hypervel\Grpc\Metadata;
+use Hypervel\Support\Facades\Context;
+
+/**
+ * Prepare metadata for a new RPC.
+ *
+ * @param array<string, list<string>|string>|Metadata $metadata
+ */
+protected function prepareMetadata(array|Metadata $metadata): Metadata
+{
+    return parent::prepareMetadata($metadata)->with(
+        'x-account-id',
+        (string) Context::get('account_id'),
+    );
+}
+```
+
+The method runs once when an RPC is created. If the call is retried, Hypervel reuses the prepared metadata instead of running the method again.
+
 The RPC method bodies produced by the official `grpc_php_plugin` may also be used with Hypervel. Change the parent from `Grpc\BaseStub` to `Hypervel\Grpc\Client\BaseClient`, then remove the generated constructor so the client inherits Hypervel's target-and-options constructor. You should also replace any `Grpc\UnaryCall`, `Grpc\ServerStreamingCall`, `Grpc\ClientStreamingCall`, or `Grpc\BidiStreamingCall` annotations and types with their `Hypervel\Grpc\Client` equivalents. The generated `_simpleRequest`, `_serverStreamRequest`, `_clientStreamRequest`, and `_bidiRequest` calls already use the argument order expected by Hypervel.
 
 > [!NOTE]
