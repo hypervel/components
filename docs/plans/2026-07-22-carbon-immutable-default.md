@@ -19,6 +19,7 @@ Date::use(Carbon::class);
 
 Complete the change across the whole components repository:
 
+- require Carbon `^3.13.1` in the monorepo and every split package that depends on it;
 - add the immutable Hypervel class without duplicating Hypervel's Carbon additions;
 - ensure mutable/immutable conversions stay inside the Hypervel class pair;
 - tighten the date-factory handlers to the contracts the framework already advertises;
@@ -67,6 +68,7 @@ Every mutation-risk file was read in context. The complete direct-construction l
 | Finding | Evidence | Decision |
 |---|---|---|
 | Factory and direct construction are independent surfaces | `DateFactory::DEFAULT_CLASS_NAME` affects `Date` and helpers, but not `Hypervel\Support\Carbon::now()` | Flip the factory and separately migrate every direct site |
+| The declared Carbon floor must match the audited dependency | The local development install uses 3.13.1, while the root and split-package manifests still allowed 3.8.4 and the repository has no lowest-dependency test suite | Require `^3.13.1` everywhere rather than claiming support for an untested older patch |
 | Hypervel needs its own immutable class | The mutable subclass adds Conditionable, Dumpable, `createFromId`, `plus`, and `minus`; base immutable lacks them | Add `Hypervel\Support\CarbonImmutable` and share only those additions through one trait |
 | Carbon conversions lose Hypervel behavior today | Carbon 3.13.1's `Mutability` trait casts to `Carbon\Carbon` / `Carbon\CarbonImmutable`; runtime probes confirm the subclass is dropped | Override both directions on the Hypervel pair |
 | Carbon's immutable magic modifier metadata erases subclasses in static analysis | The base immutable class hardcodes `CarbonImmutable` for seven aliases used across exact Hypervel-class boundaries, although runtime probes confirm every operation preserves the subclass | Override those seven inherited magic annotations with `static` on the Hypervel immutable owner; leave unlisted parent metadata visible so future exact-boundary gaps fail visibly |
@@ -85,9 +87,9 @@ Every mutation-risk file was read in context. The complete direct-construction l
 
 ## Backing research
 
-### Installed Carbon behavior
+### Required Carbon behavior
 
-The repository installs Carbon `3.13.1` (`2937ad3d1d2c506fd2bc97d571438a95641f44e2`). The load-bearing installed APIs are:
+The repository requires Carbon `^3.13.1`. The audited development install is `3.13.1` (`2937ad3d1d2c506fd2bc97d571438a95641f44e2`). The load-bearing APIs are:
 
 ```php
 // Carbon\Traits\Cast
@@ -1071,6 +1073,7 @@ php -f src/facade-documenter/facade.php -- --lint Hypervel\\Support\\Facades\\Da
 
 Repeat broad searches over all of `src/`, `tests/`, active docs, stubs, dogfood, and types. Completion requires:
 
+- every root and split-package Carbon constraint requires `^3.13.1`;
 - no default-output metadata claiming `Hypervel\Support\Carbon`;
 - no factory-produced value assigned to a concrete mutable-only property, parameter, or return;
 - no concrete `?DateTime` return in the four corrected methods;

@@ -30,7 +30,7 @@
     },
     "require": {
         "php": "^8.4",
-        "nesbot/carbon": "^3.8.4",
+        "nesbot/carbon": "^3.13.1",
         "hypervel/collections": "^0.4",
         "hypervel/context": "^0.4",
         "hypervel/database": "^0.4",
