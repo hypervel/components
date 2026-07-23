@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Support;
 use ArrayObject;
 use DateTime;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\ItemNotFoundException;
 use Hypervel\Support\MultipleItemsFoundException;
@@ -1155,7 +1155,7 @@ class SupportArrTest extends TestCase
     public function testPluckWithCarbonKeys(): void
     {
         $array = [
-            ['start' => new Carbon('2017-07-25 00:00:00'), 'end' => new Carbon('2017-07-30 00:00:00')],
+            ['start' => new CarbonImmutable('2017-07-25 00:00:00'), 'end' => new CarbonImmutable('2017-07-30 00:00:00')],
         ];
         $array = Arr::pluck($array, 'end', 'start');
         $this->assertEquals(['2017-07-25 00:00:00' => '2017-07-30 00:00:00'], $array);
