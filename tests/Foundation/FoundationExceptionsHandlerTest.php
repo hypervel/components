@@ -33,7 +33,7 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Redirector;
 use Hypervel\Routing\ResponseFactory;
 use Hypervel\Session\Store;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Lottery;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
@@ -1119,7 +1119,7 @@ class FoundationExceptionsHandlerTest extends TestCase
                 return parent::attempt(...func_get_args());
             }
         });
-        Carbon::setTestNow(Carbon::now()->startOfDay());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfDay());
 
         for ($i = 0; $i < 100; ++$i) {
             $handler->report(new Exception('Something in the app went wrong.'));
@@ -1129,7 +1129,7 @@ class FoundationExceptionsHandlerTest extends TestCase
         $this->assertCount(7, $reported);
         $this->assertSame('Something in the app went wrong.', $reported[0]->getMessage());
 
-        Carbon::setTestNow(Carbon::now()->addMinute());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
 
         for ($i = 0; $i < 100; ++$i) {
             $handler->report(new Exception('Something in the app went wrong.'));
@@ -1165,18 +1165,18 @@ class FoundationExceptionsHandlerTest extends TestCase
             }
         });
 
-        Carbon::setTestNow('2000-01-01 00:00:00.000');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00.000');
         $handler->report(new Exception('Something in the app went wrong 1.'));
-        Carbon::setTestNow('2000-01-01 00:00:59.999');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:59.999');
         $handler->report(new Exception('Something in the app went wrong 1.'));
 
         $this->assertSame(2, $limiter->attempted);
         $this->assertCount(1, $reported);
         $this->assertSame('Something in the app went wrong 1.', $reported[0]->getMessage());
 
-        Carbon::setTestNow('2000-01-01 00:01:00.000');
+        CarbonImmutable::setTestNow('2000-01-01 00:01:00.000');
         $handler->report(new Exception('Something in the app went wrong 2.'));
-        Carbon::setTestNow('2000-01-01 00:01:59.999');
+        CarbonImmutable::setTestNow('2000-01-01 00:01:59.999');
         $handler->report(new Exception('Something in the app went wrong 2.'));
 
         $this->assertSame(4, $limiter->attempted);

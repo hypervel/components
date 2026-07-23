@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\NestedSet;
 
 use BadMethodCallException;
-use Carbon\Carbon;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\QueryException;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\NestedSet\Eloquent\Collection;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
@@ -377,7 +377,7 @@ class NodeTest extends TestCase
 
     public function testNodeIsSoftDeleted(): void
     {
-        Carbon::setTestNow('2025-07-03 12:00:00');
+        CarbonImmutable::setTestNow('2025-07-03 12:00:00');
 
         $root = Category::root();
 
@@ -387,7 +387,7 @@ class NodeTest extends TestCase
         $this->assertTreeNotBroken();
         $this->assertNull($this->findCategory('galaxy'));
 
-        Carbon::setTestNow('2025-07-03 12:00:01');
+        CarbonImmutable::setTestNow('2025-07-03 12:00:01');
 
         $node = $this->findCategory('mobile');
         $node->delete();
