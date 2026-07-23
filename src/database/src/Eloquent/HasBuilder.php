@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Database\Query\Builder as QueryBuilder;
+use UnitEnum;
 
 /**
  * @template TBuilder of Builder
@@ -74,10 +75,9 @@ trait HasBuilder
     /**
      * Get a new query instance without a given scope.
      *
-     * @param Scope|string $scope
      * @return TBuilder
      */
-    public function newQueryWithoutScope($scope): Builder
+    public function newQueryWithoutScope(Scope|string $scope): Builder
     {
         return parent::newQueryWithoutScope($scope);
     }
@@ -87,7 +87,7 @@ trait HasBuilder
      *
      * @return TBuilder
      */
-    public function newQueryForRestoration(array|int $ids): Builder
+    public function newQueryForRestoration(array|int|string $ids): Builder
     {
         return parent::newQueryForRestoration($ids);
     }
@@ -97,7 +97,7 @@ trait HasBuilder
      *
      * @return TBuilder
      */
-    public static function on(?string $connection = null): Builder
+    public static function on(UnitEnum|string|null $connection = null): Builder
     {
         return parent::on($connection);
     }
