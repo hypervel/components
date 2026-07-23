@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Http;
 
 use ArrayObject;
-use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Hypervel\Foundation\Http\Casts\AsDataObjectArray;
 use Hypervel\Foundation\Http\Casts\AsDataObjectCollection;
@@ -13,8 +12,11 @@ use Hypervel\Foundation\Http\Casts\AsEnumArrayObject;
 use Hypervel\Foundation\Http\Casts\AsEnumCollection;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
 use Hypervel\Foundation\Http\FormRequest;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\DataObject;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Rule;
 
@@ -209,7 +211,7 @@ class CustomCastingTest extends TestCase
     /**
      * Test primitive type casting - datetime.
      */
-    public function testPrimitiveDatetimeCasting()
+    public function testPrimitiveDatetimeCasting(): void
     {
         $request = DatetimeCastingRequest::create('/', 'POST', [
             'created_at' => 1705315800, // 2024-01-15 10:50:00 UTC
@@ -221,24 +223,63 @@ class CustomCastingTest extends TestCase
         // Test datetime casting
         $createdAt = $request->casted('created_at', false);
         $this->assertInstanceOf(CarbonInterface::class, $createdAt);
+        $this->assertSame(CarbonImmutable::class, $createdAt::class);
         $this->assertSame('2024-01-15 10:50:00', $createdAt->format('Y-m-d H:i:s'));
 
         // Test date casting (time should be 00:00:00)
         $publishedDate = $request->casted('published_date', false);
         $this->assertInstanceOf(CarbonInterface::class, $publishedDate);
+        $this->assertSame(CarbonImmutable::class, $publishedDate::class);
         $this->assertSame('2024-01-15 00:00:00', $publishedDate->format('Y-m-d H:i:s'));
 
         // Test timestamp casting (returns int timestamp)
-        /** @var Carbon $updatedTimestamp */
         $updatedTimestamp = $request->casted('updated_timestamp', false);
         $this->assertIsInt($updatedTimestamp);
         $this->assertSame(1705315800, $updatedTimestamp);
     }
 
+    public function testPrimitiveDatetimeCastingUsesConfiguredMutableClass(): void
+    {
+        Date::use(Carbon::class);
+
+        $request = DatetimeCastingRequest::create('/', 'POST', [
+            'created_at' => 1705315800,
+            'published_date' => '2024-01-15',
+            'updated_timestamp' => '2024-01-15 10:50:00',
+        ]);
+        $request->setContainer($this->app);
+
+        $this->assertSame(Carbon::class, $request->casted('created_at', false)::class);
+        $this->assertSame(Carbon::class, $request->casted('published_date', false)::class);
+    }
+
+    public function testDatetimeCastingSupportsFormatModifiersAndTrailingData(): void
+    {
+        $request = DatetimeCastingRequest::create('/', 'POST', [
+            'created_at' => '2017-05-11 Y',
+        ]);
+        $request->useDateFormat('!Y-d-m \Y');
+
+        $createdAt = $request->casted('created_at', false);
+
+        $this->assertSame(CarbonImmutable::class, $createdAt::class);
+        $this->assertSame('2017-11-05 00:00:00.000000', $createdAt->format('Y-m-d H:i:s.u'));
+
+        $request = DatetimeCastingRequest::create('/', 'POST', [
+            'created_at' => '2020-09-11 trailing data',
+        ]);
+        $request->useDateFormat('!Y-m-d+');
+
+        $createdAt = $request->casted('created_at', false);
+
+        $this->assertSame(CarbonImmutable::class, $createdAt::class);
+        $this->assertSame('2020-09-11 00:00:00.000000', $createdAt->format('Y-m-d H:i:s.u'));
+    }
+
     /**
      * Test datetime casting preserves app timezone for Unix timestamps.
      */
-    public function testDatetimeCastingPreservesAppTimezone()
+    public function testDatetimeCastingPreservesAppTimezone(): void
     {
         $originalTimezone = date_default_timezone_get();
         date_default_timezone_set('America/New_York');
@@ -435,6 +476,11 @@ class DatetimeCastingRequest extends FormRequest
         'published_date' => 'date',
         'updated_timestamp' => 'timestamp',
     ];
+
+    public function useDateFormat(string $format): void
+    {
+        $this->dateFormat = $format;
+    }
 
     public function rules(): array
     {
