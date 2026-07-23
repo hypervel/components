@@ -11,6 +11,7 @@ use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -63,6 +64,17 @@ class NotificationSendQueuedNotificationTest extends TestCase
 
         $this->assertEquals(23, $job->maxExceptions);
     }
+
+    public function testNotificationAcceptsImmutableRetryUntilMethod(): void
+    {
+        $retryUntil = CarbonImmutable::parse('2026-07-23 12:34:56');
+        $notification = new TestNotificationWithRetryUntil($retryUntil);
+
+        $this->assertSame(
+            $retryUntil,
+            (new SendQueuedNotifications('notifiable', $notification))->retryUntil()
+        );
+    }
 }
 
 class NotifiableUser extends Model
@@ -76,4 +88,17 @@ class NotifiableUser extends Model
 
 class TestNotification extends Notification
 {
+}
+
+class TestNotificationWithRetryUntil extends Notification
+{
+    public function __construct(
+        private CarbonImmutable $retryUntil
+    ) {
+    }
+
+    public function retryUntil(): CarbonImmutable
+    {
+        return $this->retryUntil;
+    }
 }

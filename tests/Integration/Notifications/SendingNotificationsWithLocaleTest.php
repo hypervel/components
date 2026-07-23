@@ -14,7 +14,7 @@ use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Notification as NotificationFacade;
 use Hypervel\Support\Facades\Schema;
@@ -54,7 +54,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
         });
     }
 
-    public function testMailIsSentWithDefaultLocale()
+    public function testMailIsSentWithDefaultLocale(): void
     {
         $user = NotifiableLocalizedUser::forceCreate([
             'email' => 'taylor@laravel.com',
@@ -69,7 +69,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
         );
     }
 
-    public function testMailIsSentWithFacadeSelectedLocale()
+    public function testMailIsSentWithFacadeSelectedLocale(): void
     {
         $user = NotifiableLocalizedUser::forceCreate([
             'email' => 'taylor@laravel.com',
@@ -84,7 +84,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
         );
     }
 
-    public function testMailIsSentWithNotificationSelectedLocale()
+    public function testMailIsSentWithNotificationSelectedLocale(): void
     {
         $users = [
             NotifiableLocalizedUser::forceCreate([
@@ -110,7 +110,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
         );
     }
 
-    public function testMailableIsSentWithSelectedLocale()
+    public function testMailableIsSentWithSelectedLocale(): void
     {
         $user = NotifiableLocalizedUser::forceCreate([
             'email' => 'taylor@laravel.com',
@@ -125,12 +125,12 @@ class SendingNotificationsWithLocaleTest extends TestCase
         );
     }
 
-    public function testMailIsSentWithLocaleUpdatedListenersCalled()
+    public function testMailIsSentWithLocaleUpdatedListenersCalled(): void
     {
-        Carbon::setTestNow('2018-07-25');
+        CarbonImmutable::setTestNow('2018-07-25');
 
         Event::listen(LocaleUpdated::class, function ($event) {
-            Carbon::setLocale($event->locale);
+            CarbonImmutable::setLocale($event->locale);
         });
 
         $user = NotifiableLocalizedUser::forceCreate([
@@ -152,12 +152,12 @@ class SendingNotificationsWithLocaleTest extends TestCase
 
         $this->assertTrue($this->app->isLocale('en'));
 
-        $this->assertSame('en', Carbon::getLocale());
+        $this->assertSame('en', CarbonImmutable::getLocale());
 
-        Carbon::setTestNow(null);
+        CarbonImmutable::setTestNow(null);
     }
 
-    public function testLocaleIsSentWithNotifiablePreferredLocale()
+    public function testLocaleIsSentWithNotifiablePreferredLocale(): void
     {
         $recipient = new NotifiableEmailLocalePreferredUser([
             'email' => 'test@mail.com',
@@ -172,7 +172,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
         );
     }
 
-    public function testLocaleIsSentWithNotifiablePreferredLocaleForMultipleRecipients()
+    public function testLocaleIsSentWithNotifiablePreferredLocaleForMultipleRecipients(): void
     {
         $recipients = [
             new NotifiableEmailLocalePreferredUser([
@@ -207,7 +207,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
         );
     }
 
-    public function testLocaleIsSentWithNotificationSelectedLocaleOverridingNotifiablePreferredLocale()
+    public function testLocaleIsSentWithNotificationSelectedLocaleOverridingNotifiablePreferredLocale(): void
     {
         $recipient = new NotifiableEmailLocalePreferredUser([
             'email' => 'test@mail.com',
@@ -224,7 +224,7 @@ class SendingNotificationsWithLocaleTest extends TestCase
         );
     }
 
-    public function testLocaleIsSentWithFacadeSelectedLocaleOverridingNotifiablePreferredLocale()
+    public function testLocaleIsSentWithFacadeSelectedLocaleOverridingNotifiablePreferredLocale(): void
     {
         $recipient = new NotifiableEmailLocalePreferredUser([
             'email' => 'test@mail.com',
@@ -269,16 +269,16 @@ class NotifiableEmailLocalePreferredUser extends Model implements HasLocalePrefe
 
 class GreetingMailNotification extends Notification
 {
-    public function via($notifiable)
+    public function via(mixed $notifiable): array
     {
         return [MailChannel::class];
     }
 
-    public function toMail($notifiable)
+    public function toMail(mixed $notifiable): MailMessage
     {
         return (new MailMessage)
             ->greeting(__('hi'))
-            ->line(Carbon::tomorrow()->diffForHumans());
+            ->line(CarbonImmutable::tomorrow()->diffForHumans());
     }
 }
 

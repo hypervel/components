@@ -1,1 +1,1 @@
-{{__('nom')}} {{ Hypervel\Support\Carbon::tomorrow()->diffForHumans() }}
+{{__('nom')}} {{ Hypervel\Support\CarbonImmutable::tomorrow()->diffForHumans() }}
