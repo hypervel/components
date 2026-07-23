@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `http-server`
-- **Ledger entries required for the active work:** `Harden filesystem I/O, streaming, and response teardown` (`http-02`, `filesystem-07`, `foundation-04`).
-- **Pending revalidation carried into the active work:** Revalidate `http-02`, `filesystem-07`, and `foundation-04` during the full HTTP Server audit.
+- **Active package or work unit:** `websocket-server`
+- **Ledger entries required for the active work:** `Make coroutine creation and copied context failure-safe` (`websocket-server-01`) and `Unify HTTP response emission and harden native server boundaries` (`http-server-06`).
+- **Pending revalidation carried into the active work:** Retain the missing-source context-copy no-op from `websocket-server-01` and revalidate request-aware prepared response emission during the full WebSocket Server audit.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1041,9 +1041,9 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `filesystem-02` | `filesystem` | `di` and `filesystem` (revalidation complete) | `Correct AOP proxy generation and publication`; finding `filesystem-02` |
 | `filesystem-03` | `filesystem` | `encryption`, `support`, and `filesystem` (revalidation complete) | `Harden encryption rotation, key publication, and global lifecycle state`; finding `filesystem-03` |
 | `filesystem-04` | `filesystem` | `cache`; later full `cache` audit | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-04` |
-| `http-02` | `http` | `filesystem` and `foundation` (revalidation complete); later full `http-server` and `http` audits | `Harden filesystem I/O, streaming, and response teardown`; finding `http-02` |
-| `filesystem-07` | `filesystem`, `foundation`, `http-server` | `filesystem` and `foundation` (revalidation complete); later full `http-server` and `http` audits | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-07` |
-| `foundation-04` | `foundation` | `filesystem` and `foundation` (revalidation complete); later full `http-server` audit | `Harden filesystem I/O, streaming, and response teardown`; finding `foundation-04` |
+| `http-02` | `http` | `filesystem`, `foundation`, and `http-server` (revalidation complete); later full `http` audit | `Harden filesystem I/O, streaming, and response teardown`; finding `http-02` |
+| `filesystem-07` | `filesystem`, `foundation`, `http-server` | `filesystem`, `foundation`, and `http-server` (revalidation complete); later full `http` audit | `Harden filesystem I/O, streaming, and response teardown`; finding `filesystem-07` |
+| `foundation-04` | `foundation` | `filesystem`, `foundation`, and `http-server` (revalidation complete) | `Harden filesystem I/O, streaming, and response teardown`; finding `foundation-04` |
 | `events-01` | `foundation` | `events` and `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-01` |
 | `events-03` | `events`, `queue` | later full `queue` audit | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-03` |
 | `events-04` | `events`, `foundation` | `foundation` (revalidation complete) | `Correct event dispatch, queued-consumer isolation, and queue interoperability`; finding `events-04` |
@@ -1065,6 +1065,11 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `core-01` | `core`, `foundation` | `foundation` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-01` |
 | `core-05` | `core`, `foundation` | `foundation` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-05` |
 | `core-06` | `core`, `server` | `server` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-06` |
+| `http-server-03` | `http-server`, `filesystem`, `http`, `foundation` | `context`, `contracts`, `engine`, and `testing` (revalidation complete); later full `http` and `testing` audits | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-03` |
+| `http-server-05` | `testing` | `http-server` (revalidation complete); later full `testing` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-05` |
+| `http-server-06` | `http-server` | `grpc` and `reverb` (revalidation complete), `websocket-server`; later full `grpc`, `reverb`, and `websocket-server` audits | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-06` |
+| `http-server-07` | `http-server` | `grpc` (revalidation complete); later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-07` |
+| `http-server-08` | `http-server`, `foundation` | `grpc` (revalidation complete); later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-08` |
 | `foundation-06` | `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `foundation-06` |
 | `console-02` | `console` | `foundation` and `console` (revalidation complete) | `Complete Foundation runtime lifecycles and safe publication`; finding `console-02` |
 | `queue-14` | `foundation`, `queue` | `foundation` (revalidation complete); later full `queue` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `queue-14` |
@@ -1135,7 +1140,7 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `foundation`
 - [x] `console`
 - [x] `server`
-- [ ] `http-server`
+- [x] `http-server`
 - [ ] `websocket-server`
 - [ ] `watcher`
 
