@@ -4,15 +4,26 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Carbon\Carbon as BaseCarbon;
+use Carbon\CarbonImmutable as BaseCarbonImmutable;
+use Carbon\CarbonInterface;
 use DateTime;
+use DateTimeImmutable;
+use DateTimeInterface;
+use DateTimeZone;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\DataObject;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use LogicException;
 use OutOfBoundsException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 use RuntimeException;
 use stdClass;
+use TypeError;
 
 class DataObjectTest extends TestCase
 {
@@ -328,6 +339,216 @@ class DataObjectTest extends TestCase
         $this->assertSame(TestGenderEnum::Male, $user->gender);
     }
 
+    #[DataProvider('dateInputProvider')]
+    public function testAutoResolveHydratesEveryDeclaredDateTarget(
+        mixed $input,
+        DateTimeImmutable $expected
+    ): void {
+        $object = DateTargetDataObject::make(array_fill_keys([
+            'date_time_interface',
+            'carbon_interface',
+            'date_time',
+            'date_time_immutable',
+            'carbon',
+            'carbon_immutable',
+            'base_carbon',
+            'base_carbon_immutable',
+        ], $input), true);
+
+        $expectedClasses = [
+            'dateTimeInterface' => CarbonImmutable::class,
+            'carbonInterface' => CarbonImmutable::class,
+            'dateTime' => DateTime::class,
+            'dateTimeImmutable' => DateTimeImmutable::class,
+            'carbon' => Carbon::class,
+            'carbonImmutable' => CarbonImmutable::class,
+            'baseCarbon' => BaseCarbon::class,
+            'baseCarbonImmutable' => BaseCarbonImmutable::class,
+        ];
+
+        foreach ($expectedClasses as $property => $expectedClass) {
+            $date = $object->{$property};
+
+            $this->assertSame($expectedClass, $date::class);
+            $this->assertSame(
+                $expected->format('Y-m-d H:i:s.u e'),
+                $date->format('Y-m-d H:i:s.u e')
+            );
+
+            if ($input instanceof CarbonInterface && $date instanceof CarbonInterface) {
+                $this->assertSame($input->locale(), $date->locale());
+            }
+        }
+    }
+
+    public static function dateInputProvider(): array
+    {
+        $defaultTimezone = new DateTimeZone(date_default_timezone_get());
+        $auckland = new DateTimeZone('Pacific/Auckland');
+        $instant = new DateTimeImmutable('2026-07-22 12:34:56.123456', $auckland);
+        $epoch = (new DateTimeImmutable('@0'))->setTimezone($defaultTimezone);
+
+        return [
+            'database format' => [
+                '2026-07-22 12:34:56',
+                new DateTimeImmutable('2026-07-22 12:34:56', $defaultTimezone),
+            ],
+            'standard date' => [
+                '2026-07-22',
+                new DateTimeImmutable('2026-07-22 00:00:00', $defaultTimezone),
+            ],
+            'integer epoch' => [0, $epoch],
+            'string epoch' => ['0', $epoch],
+            'native mutable' => [DateTime::createFromInterface($instant), $instant],
+            'native immutable' => [$instant, $instant],
+            'base mutable Carbon' => [BaseCarbon::instance($instant)->locale('fr'), $instant],
+            'base immutable Carbon' => [BaseCarbonImmutable::instance($instant)->locale('fr'), $instant],
+            'Hypervel mutable Carbon' => [Carbon::instance($instant)->locale('fr'), $instant],
+            'Hypervel immutable Carbon' => [CarbonImmutable::instance($instant)->locale('fr'), $instant],
+        ];
+    }
+
+    public function testAutoResolveSupportsFormatModifiersAndTrailingData(): void
+    {
+        $keys = [
+            'date_time_interface',
+            'carbon_interface',
+            'date_time',
+            'date_time_immutable',
+            'carbon',
+            'carbon_immutable',
+            'base_carbon',
+            'base_carbon_immutable',
+        ];
+
+        $this->setDataObjectStaticProperty('dateFormat', '!Y-d-m \Y');
+        $object = DateTargetDataObject::make(array_fill_keys($keys, '2017-05-11 Y'), true);
+
+        $this->assertSame(CarbonImmutable::class, $object->carbonInterface::class);
+        $this->assertSame('2017-11-05 00:00:00.000000', $object->carbonInterface->format('Y-m-d H:i:s.u'));
+
+        $this->setDataObjectStaticProperty('dateFormat', '!Y-m-d+');
+        $object = DateTargetDataObject::make(array_fill_keys($keys, '2020-09-11 trailing data'), true);
+
+        $this->assertSame(CarbonImmutable::class, $object->carbonInterface::class);
+        $this->assertSame('2020-09-11 00:00:00.000000', $object->carbonInterface->format('Y-m-d H:i:s.u'));
+    }
+
+    public function testInterfaceDateTargetsFollowConfiguredFactoryWithoutChangingConcreteTargets(): void
+    {
+        Date::use(Carbon::class);
+
+        $object = DateTargetDataObject::make(array_fill_keys([
+            'date_time_interface',
+            'carbon_interface',
+            'date_time',
+            'date_time_immutable',
+            'carbon',
+            'carbon_immutable',
+            'base_carbon',
+            'base_carbon_immutable',
+        ], '2026-07-22 12:34:56'), true);
+
+        $this->assertSame(Carbon::class, $object->dateTimeInterface::class);
+        $this->assertSame(Carbon::class, $object->carbonInterface::class);
+        $this->assertSame(DateTime::class, $object->dateTime::class);
+        $this->assertSame(DateTimeImmutable::class, $object->dateTimeImmutable::class);
+        $this->assertSame(Carbon::class, $object->carbon::class);
+        $this->assertSame(CarbonImmutable::class, $object->carbonImmutable::class);
+        $this->assertSame(BaseCarbon::class, $object->baseCarbon::class);
+        $this->assertSame(BaseCarbonImmutable::class, $object->baseCarbonImmutable::class);
+    }
+
+    public function testConcreteDateTargetsRemainExactWithConfiguredCarbonSubclasses(): void
+    {
+        foreach ([
+            DataObjectMutableCarbonSubclass::class,
+            DataObjectImmutableCarbonSubclass::class,
+        ] as $dateClass) {
+            Date::use($dateClass);
+
+            $object = DateTargetDataObject::make(array_fill_keys([
+                'date_time_interface',
+                'carbon_interface',
+                'date_time',
+                'date_time_immutable',
+                'carbon',
+                'carbon_immutable',
+                'base_carbon',
+                'base_carbon_immutable',
+            ], '2026-07-22 12:34:56'), true);
+
+            $this->assertSame($dateClass, $object->dateTimeInterface::class);
+            $this->assertSame($dateClass, $object->carbonInterface::class);
+            $this->assertSame(Carbon::class, $object->carbon::class);
+            $this->assertSame(CarbonImmutable::class, $object->carbonImmutable::class);
+            $this->assertSame(BaseCarbon::class, $object->baseCarbon::class);
+            $this->assertSame(BaseCarbonImmutable::class, $object->baseCarbonImmutable::class);
+        }
+    }
+
+    public function testExplicitNullForRequiredDateReachesConstructorAsNull(): void
+    {
+        $data = array_fill_keys([
+            'date_time_interface',
+            'carbon_interface',
+            'date_time',
+            'date_time_immutable',
+            'carbon',
+            'carbon_immutable',
+            'base_carbon',
+            'base_carbon_immutable',
+        ], '2026-07-22 12:34:56');
+        $data['date_time_interface'] = null;
+
+        try {
+            DateTargetDataObject::make($data, true);
+
+            $this->fail('Expected the required date constructor argument to reject null.');
+        } catch (TypeError $exception) {
+            $this->assertStringContainsString('$dateTimeInterface', $exception->getMessage());
+            $this->assertStringContainsString('null given', $exception->getMessage());
+        }
+    }
+
+    public function testEveryDeclaredDateTargetSerializesThroughDateTimeInterface(): void
+    {
+        $input = new DateTimeImmutable(
+            '2026-07-22 12:34:56',
+            new DateTimeZone('Pacific/Auckland')
+        );
+        $object = DateTargetDataObject::make(array_fill_keys([
+            'date_time_interface',
+            'carbon_interface',
+            'date_time',
+            'date_time_immutable',
+            'carbon',
+            'carbon_immutable',
+            'base_carbon',
+            'base_carbon_immutable',
+        ], $input), true);
+        $array = $object->toArray();
+
+        foreach ($array as $value) {
+            $this->assertSame('2026-07-22T12:34:56+12:00', $value);
+        }
+
+        $this->assertSame($array, json_decode(json_encode($object), true));
+    }
+
+    public function testCustomNonDateSerializerRemainsAvailableWithDateSerialization(): void
+    {
+        $object = CustomSerializerDataObject::make([
+            'date' => CarbonImmutable::parse('2026-07-22 12:34:56', 'UTC'),
+            'value' => new ResolverValue('custom'),
+        ]);
+
+        $this->assertSame([
+            'date' => '2026-07-22T12:34:56+00:00',
+            'value' => 'serialized:custom',
+        ], $object->toArray());
+    }
+
     /**
      * Test autoResolve with deep nesting.
      */
@@ -595,6 +816,29 @@ class TestCompanyDataObject extends DataObject
     }
 }
 
+class DateTargetDataObject extends DataObject
+{
+    public function __construct(
+        public DateTimeInterface $dateTimeInterface,
+        public CarbonInterface $carbonInterface,
+        public DateTime $dateTime,
+        public DateTimeImmutable $dateTimeImmutable,
+        public Carbon $carbon,
+        public CarbonImmutable $carbonImmutable,
+        public BaseCarbon $baseCarbon,
+        public BaseCarbonImmutable $baseCarbonImmutable,
+    ) {
+    }
+}
+
+class DataObjectMutableCarbonSubclass extends Carbon
+{
+}
+
+class DataObjectImmutableCarbonSubclass extends CarbonImmutable
+{
+}
+
 enum TestGenderEnum: string
 {
     case Male = 'male';
@@ -706,6 +950,22 @@ class ResolverValue
 {
     public function __construct(public string $value)
     {
+    }
+}
+
+class CustomSerializerDataObject extends DataObject
+{
+    public function __construct(
+        public CarbonInterface $date,
+        public ResolverValue $value,
+    ) {
+    }
+
+    protected static function getSerializers(): array
+    {
+        return parent::getSerializers() + [
+            ResolverValue::class => static fn (ResolverValue $value): string => 'serialized:' . $value->value,
+        ];
     }
 }
 
