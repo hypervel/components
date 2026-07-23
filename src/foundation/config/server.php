@@ -63,6 +63,7 @@ return [
         'enable_static_handler' => (bool) env('SERVER_STATIC_FILE_HANDLER', true),
         Constant::OPTION_ENABLE_COROUTINE => true,
         Constant::OPTION_TASK_ENABLE_COROUTINE => false,
+        Constant::OPTION_TASK_WORKER_NUM => 0,
         Constant::OPTION_WORKER_NUM => env('SERVER_WORKERS', swoole_cpu_num()),
         Constant::OPTION_PID_FILE => storage_path('framework/hypervel.pid'),
         Constant::OPTION_OPEN_TCP_NODELAY => true,
