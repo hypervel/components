@@ -30,7 +30,7 @@ use Hypervel\Queue\Events\WorkerPausing;
 use Hypervel\Queue\Events\WorkerResuming;
 use Hypervel\Queue\Events\WorkerStarting;
 use Hypervel\Queue\Events\WorkerStopping;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Throwable;
@@ -681,7 +681,7 @@ class Worker
 
         $retryUntil = $job->retryUntil();
 
-        if ($retryUntil && Carbon::now()->getTimestamp() <= $retryUntil) {
+        if ($retryUntil && CarbonImmutable::now()->getTimestamp() <= $retryUntil) {
             return;
         }
 
@@ -701,7 +701,7 @@ class Worker
     {
         $maxTries = ! is_null($job->maxTries()) ? $job->maxTries() : $maxTries;
 
-        if ($job->retryUntil() && $job->retryUntil() <= Carbon::now()->getTimestamp()) {
+        if ($job->retryUntil() && $job->retryUntil() <= CarbonImmutable::now()->getTimestamp()) {
             $this->failJob($job, $e);
         }
 
@@ -724,7 +724,7 @@ class Worker
         /* @phpstan-ignore-next-line */
         if (! $this->cache->get('job-exceptions:' . $uuid)) {
             /* @phpstan-ignore-next-line */
-            $this->cache->put('job-exceptions:' . $uuid, 0, Carbon::now()->addDay());
+            $this->cache->put('job-exceptions:' . $uuid, 0, CarbonImmutable::now()->addDay());
         }
 
         /* @phpstan-ignore-next-line */

@@ -12,7 +12,7 @@ use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Queue\Worker;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\Facades\Exceptions;
 use Hypervel\Support\Facades\Queue;
@@ -135,10 +135,10 @@ class WorkCommandTest extends QueueTestCase
         }
     }
 
-    public function testRunTimestampOutputWithDefaultAppTimezone()
+    public function testRunTimestampOutputWithDefaultAppTimezone(): void
     {
         // queue.output_timezone not set at all
-        $this->travelTo(Carbon::create(2023, 1, 18, 10, 10, 11));
+        $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [
@@ -148,11 +148,11 @@ class WorkCommandTest extends QueueTestCase
             ->assertExitCode(0);
     }
 
-    public function testRunTimestampOutputWithDifferentLogTimezone()
+    public function testRunTimestampOutputWithDifferentLogTimezone(): void
     {
         $this->app['config']->set('queue.output_timezone', 'Europe/Helsinki');
 
-        $this->travelTo(Carbon::create(2023, 1, 18, 10, 10, 11));
+        $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [
@@ -162,11 +162,11 @@ class WorkCommandTest extends QueueTestCase
             ->assertExitCode(0);
     }
 
-    public function testRunTimestampOutputWithSameAppDefaultAndQueueLogDefault()
+    public function testRunTimestampOutputWithSameAppDefaultAndQueueLogDefault(): void
     {
         $this->app['config']->set('queue.output_timezone', 'UTC');
 
-        $this->travelTo(Carbon::create(2023, 1, 18, 10, 10, 11));
+        $this->travelTo(CarbonImmutable::create(2023, 1, 18, 10, 10, 11));
         Queue::push(new FirstJob);
 
         $this->artisan('queue:work', [

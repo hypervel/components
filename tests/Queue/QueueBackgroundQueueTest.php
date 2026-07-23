@@ -16,7 +16,7 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\BackgroundQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -256,7 +256,7 @@ class QueueBackgroundQueueTest extends TestCase
 
     public function testLaterWithDateInterval()
     {
-        Carbon::setTestNow('2024-01-01 12:00:00');
+        CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
@@ -278,12 +278,12 @@ class QueueBackgroundQueueTest extends TestCase
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.later.test'][0]);
         $this->assertEquals(['baz' => 'qux'], $_SERVER['__background.later.test'][1]);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
-    public function testLaterWithDateTime()
+    public function testLaterWithDateTime(): void
     {
-        Carbon::setTestNow('2024-01-01 12:00:00');
+        CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
@@ -300,12 +300,12 @@ class QueueBackgroundQueueTest extends TestCase
 
         unset($_SERVER['__background.later.test']);
 
-        run(fn () => $background->later(Carbon::parse('2024-01-01 12:00:15'), BackgroundQueueLaterTestHandler::class, ['test' => 'data']));
+        run(fn () => $background->later(CarbonImmutable::parse('2024-01-01 12:00:15'), BackgroundQueueLaterTestHandler::class, ['test' => 'data']));
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__background.later.test'][0]);
         $this->assertEquals(['test' => 'data'], $_SERVER['__background.later.test'][1]);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testLaterAddsTransactionCallbackForAfterCommitJobs()
@@ -433,9 +433,9 @@ class QueueBackgroundQueueTest extends TestCase
         run(fn () => $background->later(-5, BackgroundQueueLaterTestHandler::class));
     }
 
-    public function testLaterClampsPastDateTimeInterface()
+    public function testLaterClampsPastDateTimeInterface(): void
     {
-        Carbon::setTestNow('2024-01-01 12:00:00');
+        CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
@@ -444,9 +444,9 @@ class QueueBackgroundQueueTest extends TestCase
         $background->setConnectionName('background');
         $background->setContainer($this->getContainer());
 
-        run(fn () => $background->later(Carbon::parse('2024-01-01 11:59:50'), BackgroundQueueLaterTestHandler::class));
+        run(fn () => $background->later(CarbonImmutable::parse('2024-01-01 11:59:50'), BackgroundQueueLaterTestHandler::class));
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testLaterFailedJobGetsHandledWhenAnExceptionIsThrown()

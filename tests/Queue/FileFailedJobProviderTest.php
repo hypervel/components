@@ -5,24 +5,42 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Queue\Failed\FileFailedJobProvider;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Testing\ParallelTesting;
+use Hypervel\Tests\TestCase;
 
 class FileFailedJobProviderTest extends TestCase
 {
-    protected $path;
+    protected string $tempDirectory;
 
-    protected $provider;
+    protected string $path;
+
+    protected FileFailedJobProvider $provider;
+
+    protected Filesystem $filesystem;
 
     protected function setUp(): void
     {
-        $this->path = @tempnam('tmp', 'file_failed_job_provider_test');
+        parent::setUp();
+
+        $this->filesystem = new Filesystem;
+        $this->tempDirectory = ParallelTesting::tempDir('FileFailedJobProviderTest');
+        mkdir($this->tempDirectory, 0777, true);
+        $this->path = $this->tempDirectory . '/failed-jobs.json';
         $this->provider = new FileFailedJobProvider($this->path);
     }
 
-    public function testCanLogFailedJobs()
+    protected function tearDown(): void
+    {
+        $this->filesystem->deleteDirectory($this->tempDirectory);
+
+        parent::tearDown();
+    }
+
+    public function testCanLogFailedJobs(): void
     {
         [$uuid, $exception] = $this->logFailedJob();
 
@@ -41,10 +59,10 @@ class FileFailedJobProviderTest extends TestCase
         ], $failedJobs);
     }
 
-    public function testCanRetrieveAllFailedJobs()
+    public function testCanRetrieveAllFailedJobs(): void
     {
         try {
-            Carbon::setTestNow(now());
+            CarbonImmutable::setTestNow(now());
 
             [$uuidOne, $exceptionOne] = $this->logFailedJob();
             [$uuidTwo, $exceptionTwo] = $this->logFailedJob();
@@ -72,11 +90,11 @@ class FileFailedJobProviderTest extends TestCase
                 ],
             ], $failedJobs);
         } finally {
-            Carbon::setTestNow();
+            CarbonImmutable::setTestNow();
         }
     }
 
-    public function testCanFindFailedJobs()
+    public function testCanFindFailedJobs(): void
     {
         [$uuid, $exception] = $this->logFailedJob();
 
@@ -93,7 +111,7 @@ class FileFailedJobProviderTest extends TestCase
         ], $failedJob);
     }
 
-    public function testNullIsReturnedIfJobNotFound()
+    public function testNullIsReturnedIfJobNotFound(): void
     {
         $uuid = Str::uuid();
 
@@ -102,7 +120,7 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertNull($failedJob);
     }
 
-    public function testCanForgetFailedJobs()
+    public function testCanForgetFailedJobs(): void
     {
         [$uuid] = $this->logFailedJob();
 
@@ -113,7 +131,7 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertNull($failedJob);
     }
 
-    public function testCanFlushFailedJobs()
+    public function testCanFlushFailedJobs(): void
     {
         $this->logFailedJob();
         $this->logFailedJob();
@@ -125,7 +143,7 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertEmpty($failedJobs);
     }
 
-    public function testCanPruneFailedJobs()
+    public function testCanPruneFailedJobs(): void
     {
         $this->logFailedJob();
         $this->logFailedJob();
@@ -142,7 +160,7 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertCount(2, $failedJobs);
     }
 
-    public function testCanPruneFailedJobsWithRelativeHours()
+    public function testCanPruneFailedJobsWithRelativeHours(): void
     {
         $this->logFailedJob();
         $this->logFailedJob();
@@ -159,14 +177,14 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertCount(2, $failedJobs);
     }
 
-    public function testEmptyFailedJobsByDefault()
+    public function testEmptyFailedJobsByDefault(): void
     {
         $failedJobs = $this->provider->all();
 
         $this->assertEmpty($failedJobs);
     }
 
-    public function testJobsCanBeCounted()
+    public function testJobsCanBeCounted(): void
     {
         $this->assertSame(0, $this->provider->count());
 
@@ -178,7 +196,7 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertSame(3, $this->provider->count());
     }
 
-    public function testJobsCanBeCountedByConnection()
+    public function testJobsCanBeCountedByConnection(): void
     {
         $this->logFailedJob('connection-1', 'default');
         $this->logFailedJob('connection-2', 'default');
@@ -190,7 +208,7 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertSame(1, $this->provider->count('connection-2'));
     }
 
-    public function testJobsCanBeCountedByQueue()
+    public function testJobsCanBeCountedByQueue(): void
     {
         $this->logFailedJob('database', 'queue-1');
         $this->logFailedJob('database', 'queue-2');
@@ -202,7 +220,7 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertSame(1, $this->provider->count(queue: 'queue-2'));
     }
 
-    public function testJobsCanBeCountedByQueueAndConnection()
+    public function testJobsCanBeCountedByQueueAndConnection(): void
     {
         $this->logFailedJob('connection-1', 'queue-99');
         $this->logFailedJob('connection-1', 'queue-99');
@@ -216,7 +234,8 @@ class FileFailedJobProviderTest extends TestCase
         $this->assertSame(2, $this->provider->count('connection-2', 'queue-1'));
     }
 
-    public function logFailedJob($connection = 'connection', $queue = 'queue')
+    /** @return array{string, Exception} */
+    public function logFailedJob(string $connection = 'connection', string $queue = 'queue'): array
     {
         $uuid = Str::uuid();
 

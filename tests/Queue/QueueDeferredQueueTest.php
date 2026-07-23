@@ -16,7 +16,7 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\DeferredQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -177,7 +177,7 @@ class QueueDeferredQueueTest extends TestCase
 
     public function testLaterWithDateInterval()
     {
-        Carbon::setTestNow('2024-01-01 12:00:00');
+        CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
@@ -199,12 +199,12 @@ class QueueDeferredQueueTest extends TestCase
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__deferred.later.test'][0]);
         $this->assertEquals(['baz' => 'qux'], $_SERVER['__deferred.later.test'][1]);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
-    public function testLaterWithDateTime()
+    public function testLaterWithDateTime(): void
     {
-        Carbon::setTestNow('2024-01-01 12:00:00');
+        CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')
@@ -221,12 +221,12 @@ class QueueDeferredQueueTest extends TestCase
 
         unset($_SERVER['__deferred.later.test']);
 
-        run(fn () => $deferred->later(Carbon::parse('2024-01-01 12:00:15'), DeferredQueueLaterTestHandler::class, ['test' => 'data']));
+        run(fn () => $deferred->later(CarbonImmutable::parse('2024-01-01 12:00:15'), DeferredQueueLaterTestHandler::class, ['test' => 'data']));
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__deferred.later.test'][0]);
         $this->assertEquals(['test' => 'data'], $_SERVER['__deferred.later.test'][1]);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testLaterAddsTransactionCallbackForAfterCommitJobs()
@@ -354,9 +354,9 @@ class QueueDeferredQueueTest extends TestCase
         run(fn () => $deferred->later(-5, DeferredQueueLaterTestHandler::class));
     }
 
-    public function testLaterClampsPastDateTimeInterface()
+    public function testLaterClampsPastDateTimeInterface(): void
     {
-        Carbon::setTestNow('2024-01-01 12:00:00');
+        CarbonImmutable::setTestNow('2024-01-01 12:00:00');
 
         $timer = m::mock(Timer::class);
         $timer->shouldReceive('after')->once()->with(0.0, m::type('Closure'))->andReturn(1);
@@ -365,9 +365,9 @@ class QueueDeferredQueueTest extends TestCase
         $deferred->setConnectionName('deferred');
         $deferred->setContainer($this->getContainer());
 
-        run(fn () => $deferred->later(Carbon::parse('2024-01-01 11:59:50'), DeferredQueueLaterTestHandler::class));
+        run(fn () => $deferred->later(CarbonImmutable::parse('2024-01-01 11:59:50'), DeferredQueueLaterTestHandler::class));
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testLaterFailedJobGetsHandledWhenAnExceptionIsThrown()

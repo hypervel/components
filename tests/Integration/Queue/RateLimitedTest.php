@@ -16,13 +16,13 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\RateLimited;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
 class RateLimitedTest extends TestCase
 {
-    public function testUnlimitedJobsAreExecuted()
+    public function testUnlimitedJobsAreExecuted(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -34,7 +34,7 @@ class RateLimitedTest extends TestCase
         $this->assertJobRanSuccessfully(RateLimitedTestJob::class);
     }
 
-    public function testUnlimitedJobsAreExecutedUsingBackedEnum()
+    public function testUnlimitedJobsAreExecutedUsingBackedEnum(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -46,7 +46,7 @@ class RateLimitedTest extends TestCase
         $this->assertJobRanSuccessfully(RateLimitedTestJobUsingBackedEnum::class);
     }
 
-    public function testUnlimitedJobsAreExecutedUsingUnitEnum()
+    public function testUnlimitedJobsAreExecutedUsingUnitEnum(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -58,7 +58,7 @@ class RateLimitedTest extends TestCase
         $this->assertJobRanSuccessfully(RateLimitedTestJobUsingUnitEnum::class);
     }
 
-    public function testRateLimitedJobsAreNotExecutedOnLimitReached2()
+    public function testRateLimitedJobsAreNotExecutedOnLimitReached2(): void
     {
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('get')->andReturn(0, 1, null);
@@ -97,7 +97,7 @@ class RateLimitedTest extends TestCase
         $this->assertFalse(RateLimitedTestJob::$handled);
     }
 
-    public function testRateLimitedJobsAreNotExecutedOnLimitReached()
+    public function testRateLimitedJobsAreNotExecutedOnLimitReached(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -109,7 +109,7 @@ class RateLimitedTest extends TestCase
         $this->assertJobWasReleased(RateLimitedTestJob::class);
     }
 
-    public function testRateLimitedJobsCanBeSkippedOnLimitReached()
+    public function testRateLimitedJobsCanBeSkippedOnLimitReached(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -121,7 +121,7 @@ class RateLimitedTest extends TestCase
         $this->assertJobWasSkipped(RateLimitedDontReleaseTestJob::class);
     }
 
-    public function testJobsCanHaveConditionalRateLimits()
+    public function testJobsCanHaveConditionalRateLimits(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -140,7 +140,7 @@ class RateLimitedTest extends TestCase
         $this->assertJobWasReleased(NonAdminTestJob::class);
     }
 
-    public function testRateLimitedJobsCanBeSkippedOnLimitReachedAndReleasedAfter()
+    public function testRateLimitedJobsCanBeSkippedOnLimitReachedAndReleasedAfter(): void
     {
         $rateLimiter = $this->app->make(RateLimiter::class);
 
@@ -152,7 +152,7 @@ class RateLimitedTest extends TestCase
         $this->assertJobWasReleasedAfter(RateLimitedReleaseAfterTestJob::class, 60);
     }
 
-    public function testMiddlewareSerialization()
+    public function testMiddlewareSerialization(): void
     {
         $rateLimited = new RateLimited('limiterName');
         $rateLimited->shouldRelease = false;
@@ -244,7 +244,7 @@ class RateLimitedTest extends TestCase
         $this->assertFalse($class::$handled);
     }
 
-    public function testItCanLimitPerMinute()
+    public function testItCanLimitPerMinute(): void
     {
         Container::getInstance()->instance(RateLimiter::class, $limiter = new RateLimiter(new Repository(new ArrayStore)));
         $limiter->for('test', fn () => Limit::perMinute(3));
@@ -260,34 +260,34 @@ class RateLimitedTest extends TestCase
 
         $middleware = new RateLimited('test');
 
-        Carbon::setTestNow('2000-00-00 00:00:00.000');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:00.000');
 
         for ($i = 0; $i < 3; ++$i) {
             $result = $middleware->handle($job = $jobFactory(), $next);
             $this->assertSame($job, $result);
             $this->assertFalse($job->released);
 
-            Carbon::setTestNow(now()->addSeconds(1));
+            CarbonImmutable::setTestNow(now()->addSeconds(1));
         }
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertNull($result);
         $this->assertTrue($job->released);
 
-        Carbon::setTestNow('2000-00-00 00:00:59.999');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:59.999');
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertNull($result);
         $this->assertTrue($job->released);
 
-        Carbon::setTestNow('2000-00-00 00:01:00.000');
+        CarbonImmutable::setTestNow('2000-00-00 00:01:00.000');
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertSame($job, $result);
         $this->assertFalse($job->released);
     }
 
-    public function testItCanLimitPerSecond()
+    public function testItCanLimitPerSecond(): void
     {
         Container::getInstance()->instance(RateLimiter::class, $limiter = new RateLimiter(new Repository(new ArrayStore)));
         $limiter->for('test', fn () => Limit::perSecond(3));
@@ -303,27 +303,27 @@ class RateLimitedTest extends TestCase
 
         $middleware = new RateLimited('test');
 
-        Carbon::setTestNow('2000-00-00 00:00:00.000');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:00.000');
 
         for ($i = 0; $i < 3; ++$i) {
             $result = $middleware->handle($job = $jobFactory(), $next);
             $this->assertSame($job, $result);
             $this->assertFalse($job->released);
 
-            Carbon::setTestNow(now()->addMilliseconds(100));
+            CarbonImmutable::setTestNow(now()->addMilliseconds(100));
         }
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertNull($result);
         $this->assertTrue($job->released);
 
-        Carbon::setTestNow('2000-00-00 00:00:00.999');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:00.999');
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertNull($result);
         $this->assertTrue($job->released);
 
-        Carbon::setTestNow('2000-00-00 00:00:01.000');
+        CarbonImmutable::setTestNow('2000-00-00 00:00:01.000');
 
         $result = $middleware->handle($job = $jobFactory(), $next);
         $this->assertSame($job, $result);
