@@ -91,6 +91,7 @@ use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Composer;
 use Hypervel\Support\Defer\DeferredCallback;
 use Hypervel\Support\Defer\DeferredCallbackCollection;
@@ -230,7 +231,10 @@ class FoundationServiceProvider extends ServiceProvider
      */
     protected function registerClock(): void
     {
-        $this->app->singleton(ClockInterface::class, fn () => new FactoryImmutable);
+        $this->app->singleton(
+            ClockInterface::class,
+            fn () => new FactoryImmutable(className: CarbonImmutable::class)
+        );
     }
 
     /**
