@@ -43,6 +43,11 @@ abstract class Broadcaster implements BroadcasterContract
     protected static array $channelOptions = [];
 
     /**
+     * The callback used to format outgoing channel values.
+     */
+    protected static ?Closure $channelFormatter = null;
+
+    /**
      * The binding registrar instance.
      */
     protected ?BindingRegistrar $bindingRegistrar = null;
@@ -95,6 +100,17 @@ abstract class Broadcaster implements BroadcasterContract
         static::$channelOptions[$channel] = $options;
 
         return $this;
+    }
+
+    /**
+     * Register the outgoing channel formatter.
+     *
+     * Boot-only. The callback persists in shared static state for the worker
+     * lifetime and applies to every broadcaster across all coroutines.
+     */
+    public static function formatChannelsUsing(?Closure $callback): void
+    {
+        static::$channelFormatter = $callback;
     }
 
     /**
@@ -248,9 +264,14 @@ abstract class Broadcaster implements BroadcasterContract
      */
     protected function formatChannels(array $channels): array
     {
-        return array_map(function ($channel) {
-            return (string) $channel;
-        }, $channels);
+        if (static::$channelFormatter !== null) {
+            $channels = (static::$channelFormatter)($channels);
+        }
+
+        return array_map(
+            static fn (mixed $channel): string => (string) $channel,
+            $channels,
+        );
     }
 
     /**
@@ -337,11 +358,12 @@ abstract class Broadcaster implements BroadcasterContract
     }
 
     /**
-     * Flush the registered channels.
+     * Flush all static state.
      */
-    public static function flushChannels(): void
+    public static function flushState(): void
     {
         static::$channels = [];
         static::$channelOptions = [];
+        static::$channelFormatter = null;
     }
 }

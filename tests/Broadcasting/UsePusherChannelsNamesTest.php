@@ -7,14 +7,17 @@ namespace Hypervel\Tests\Broadcasting;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\UsePusherChannelConventions;
 use Hypervel\Http\Request;
+use Hypervel\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 
 class UsePusherChannelsNamesTest extends TestCase
 {
     #[DataProvider('channelsProvider')]
-    public function testChannelNameNormalization($requestChannelName, $normalizedName, $guarded)
-    {
+    public function testChannelNameNormalization(
+        string $requestChannelName,
+        string $normalizedName,
+        bool $guarded,
+    ): void {
         $broadcaster = new FakeBroadcasterUsingPusherChannelsNames;
 
         $this->assertSame(
@@ -23,7 +26,7 @@ class UsePusherChannelsNamesTest extends TestCase
         );
     }
 
-    public function testChannelNameNormalizationSpecialCase()
+    public function testChannelNameNormalizationSpecialCase(): void
     {
         $broadcaster = new FakeBroadcasterUsingPusherChannelsNames;
 
@@ -33,21 +36,18 @@ class UsePusherChannelsNamesTest extends TestCase
         );
     }
 
-    public function testChannelNamePatternMatching()
+    public function testChannelNamePatternMatching(): void
     {
         $broadcaster = new FakeBroadcasterUsingPusherChannelsNames;
 
-        $this->assertEquals(
-            0,
-            $broadcaster->testChannelNameMatchesPattern(
-                'TestChannel',
-                'Test.{id}'
-            )
-        );
+        $this->assertFalse($broadcaster->testChannelNameMatchesPattern(
+            'TestChannel',
+            'Test.{id}'
+        ));
     }
 
     #[DataProvider('channelsProvider')]
-    public function testIsGuardedChannel($requestChannelName, $_, $guarded)
+    public function testIsGuardedChannel(string $requestChannelName, string $_, bool $guarded): void
     {
         $broadcaster = new FakeBroadcasterUsingPusherChannelsNames;
 
@@ -57,7 +57,7 @@ class UsePusherChannelsNamesTest extends TestCase
         );
     }
 
-    public static function channelsProvider()
+    public static function channelsProvider(): array
     {
         $prefixesInfos = [
             ['prefix' => 'private-', 'guarded' => true],

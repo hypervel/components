@@ -154,9 +154,7 @@ class AblyBroadcaster extends Broadcaster
      */
     protected function formatChannels(array $channels): array
     {
-        return array_map(function ($channel) {
-            $channel = (string) $channel;
-
+        return array_map(function (string $channel): string {
             if (Str::startsWith($channel, ['private-', 'presence-'])) {
                 return str_starts_with($channel, 'private-')
                     ? Str::replaceFirst('private-', 'private:', $channel)
@@ -164,7 +162,7 @@ class AblyBroadcaster extends Broadcaster
             }
 
             return 'public:' . $channel;
-        }, $channels);
+        }, parent::formatChannels($channels));
     }
 
     /**

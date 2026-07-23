@@ -13,6 +13,7 @@
 - [Concept Overview](#concept-overview)
     - [Using an Example Application](#using-example-application)
 - [Defining Broadcast Events](#defining-broadcast-events)
+    - [Formatting Outgoing Channels](#formatting-outgoing-channels)
     - [Broadcast Name](#broadcast-name)
     - [Broadcast Data](#broadcast-data)
     - [Broadcast Queue](#broadcast-queue)
@@ -683,6 +684,24 @@ class ServerCreated implements ShouldBroadcast
 ```
 
 After implementing the `ShouldBroadcast` interface, you only need to [fire the event](/docs/{{version}}/events) as you normally would. Once the event has been fired, a [queued job](/docs/{{version}}/queues) will automatically broadcast the event using your specified broadcast driver.
+
+<a name="formatting-outgoing-channels"></a>
+### Formatting Outgoing Channels
+
+You may register a callback that formats every outgoing channel. This is useful when a package or application needs to apply the same naming rule to all broadcasts:
+
+```php
+use Hypervel\Broadcasting\Broadcasters\Broadcaster;
+
+Broadcaster::formatChannelsUsing(function (array $channels): array {
+    return array_map(
+        fn ($channel) => $channel.'.application',
+        $channels,
+    );
+});
+```
+
+Register the callback in a service provider's `boot` method. The callback receives the channel objects before the broadcast driver formats them and applies to every broadcaster in the worker. You may pass `null` to `formatChannelsUsing` when a test needs to remove the callback.
 
 <a name="broadcast-name"></a>
 ### Broadcast Name

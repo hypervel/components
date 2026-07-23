@@ -12,9 +12,9 @@ use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Request;
 use Hypervel\Routing\RouteBinding;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class BroadcasterTest extends TestCase
@@ -324,6 +324,78 @@ class BroadcasterTest extends TestCase
         ));
     }
 
+    public function testFormatsChannelsWithoutFormatter(): void
+    {
+        $this->assertSame(
+            ['orders', 'private-users'],
+            $this->broadcaster->formatOutgoingChannels(['orders', 'private-users']),
+        );
+    }
+
+    public function testFormatterReceivesRawChannelsBeforeStringification(): void
+    {
+        $channel = new StringableBroadcastChannel('orders');
+        $receivedChannels = null;
+
+        Broadcaster::formatChannelsUsing(function (array $channels) use (&$receivedChannels): array {
+            $receivedChannels = $channels;
+
+            return $channels;
+        });
+
+        $this->assertSame(['orders'], $this->broadcaster->formatOutgoingChannels([$channel]));
+        $this->assertSame([$channel], $receivedChannels);
+        $this->assertSame(1, $channel->stringConversions);
+    }
+
+    public function testPassingNullRemovesChannelFormatter(): void
+    {
+        Broadcaster::formatChannelsUsing(
+            fn (array $channels): array => array_map(
+                static fn (mixed $channel): string => 'formatted.' . $channel,
+                $channels,
+            ),
+        );
+
+        $this->assertSame(
+            ['formatted.orders'],
+            $this->broadcaster->formatOutgoingChannels(['orders']),
+        );
+
+        Broadcaster::formatChannelsUsing(null);
+
+        $this->assertSame(['orders'], $this->broadcaster->formatOutgoingChannels(['orders']));
+    }
+
+    public function testFlushStateClearsChannelsOptionsAndFormatter(): void
+    {
+        $this->broadcaster->channel('orders', static fn (): bool => true, ['guards' => ['web']]);
+        Broadcaster::formatChannelsUsing(
+            static fn (array $channels): array => ['formatted.' . $channels[0]],
+        );
+
+        Broadcaster::flushState();
+
+        $this->assertSame([], $this->broadcaster->getChannels()->all());
+        $this->assertSame([], $this->broadcaster->retrieveChannelOptions('orders'));
+        $this->assertSame(['orders'], $this->broadcaster->formatOutgoingChannels(['orders']));
+    }
+
+    public function testChannelFormatterIsSharedAcrossBroadcasterInstances(): void
+    {
+        $broadcasterA = new FakeBroadcaster(m::mock(Container::class));
+        $broadcasterB = new FakeBroadcaster(m::mock(Container::class));
+
+        $broadcasterA::formatChannelsUsing(
+            static fn (array $channels): array => ['formatted.' . $channels[0]],
+        );
+
+        $this->assertSame(
+            ['formatted.orders'],
+            $broadcasterB->formatOutgoingChannels(['orders']),
+        );
+    }
+
     #[DataProvider('channelNameMatchPatternProvider')]
     public function testChannelNameMatchPattern($channel, $pattern, $shouldMatch)
     {
@@ -407,6 +479,27 @@ class FakeBroadcaster extends Broadcaster
     public function channelNameMatchesPattern(string $channel, string $pattern): bool
     {
         return parent::channelNameMatchesPattern($channel, $pattern);
+    }
+
+    public function formatOutgoingChannels(array $channels): array
+    {
+        return parent::formatChannels($channels);
+    }
+}
+
+class StringableBroadcastChannel
+{
+    public int $stringConversions = 0;
+
+    public function __construct(protected string $name)
+    {
+    }
+
+    public function __toString(): string
+    {
+        ++$this->stringConversions;
+
+        return $this->name;
     }
 }
 

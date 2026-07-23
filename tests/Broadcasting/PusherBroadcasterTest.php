@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
+use Hypervel\Broadcasting\Broadcasters\Broadcaster;
 use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Routing\BindingRegistrar;
 use Hypervel\Http\Request;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Pusher\Pusher;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -29,11 +30,6 @@ class PusherBroadcasterTest extends TestCase
         $this->container->shouldReceive('bound')->with(BindingRegistrar::class)->andReturnFalse()->byDefault();
         $this->pusher = m::mock(Pusher::class);
         $this->broadcaster = m::mock(PusherBroadcaster::class, [$this->container, $this->pusher])->makePartial();
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
     }
 
     public function testAuthCallValidAuthenticationResponseWithPrivateChannelWhenCallbackReturnTrue()
@@ -174,6 +170,22 @@ class PusherBroadcasterTest extends TestCase
         );
 
         $this->assertSame($authenticateUser, $response);
+    }
+
+    public function testBroadcastUsesFormattedChannelNames(): void
+    {
+        Broadcaster::formatChannelsUsing(
+            static fn (array $channels): array => array_map(
+                static fn (mixed $channel): string => 'application.' . $channel,
+                $channels,
+            ),
+        );
+
+        $this->pusher->shouldReceive('trigger')
+            ->once()
+            ->with(['application.orders'], 'OrderCreated', ['id' => 1], []);
+
+        $this->broadcaster->broadcast(['orders'], 'OrderCreated', ['id' => 1]);
     }
 
     public function testDecodePusherResponseWithJsonpCallback()
