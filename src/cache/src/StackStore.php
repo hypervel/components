@@ -10,7 +10,7 @@ use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\Lock;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 
 class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
@@ -319,7 +319,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
             return $store->forever($key, $record);
         }
 
-        $currentTimestamp = Carbon::now()->getTimestamp();
+        $currentTimestamp = CarbonImmutable::now()->getTimestamp();
         $value = $record['value'];
         $expiration = $record['expiration'] ?? $currentTimestamp + $record['ttl'];
         $ttl = $record['ttl'] ?? $record['expiration'] - $currentTimestamp;
@@ -355,7 +355,7 @@ class StackStore extends TaggableStore implements CanFlushLocks, LockProvider
             return $store->tags($tags)->put($key, $record, $proxyTtl);
         }
 
-        $currentTimestamp = Carbon::now()->getTimestamp();
+        $currentTimestamp = CarbonImmutable::now()->getTimestamp();
         $value = $record['value'];
         $expiration = $record['expiration'] ?? $currentTimestamp + $record['ttl'];
         $ttl = $record['ttl'] ?? $record['expiration'] - $currentTimestamp;

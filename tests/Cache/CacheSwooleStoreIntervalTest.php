@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Carbon\Carbon;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Cache\SwooleTableState;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testing\ParallelTesting;
 use Hypervel\Tests\TestCase;
 use Laravel\SerializableClosure\SerializableClosure;
@@ -114,7 +114,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testIntervalReregistrationPreservesLastRefreshTimestamp(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -129,7 +129,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $metadataKey = $this->metadataKey($store, 'foo');
         $lastRefreshedAt = $this->metadata($state, $metadataKey)['lastRefreshedAt'];
 
-        Carbon::setTestNow('2000-01-01 00:00:01');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01');
 
         $store->interval('foo', fn () => 999, 5);
 
@@ -143,7 +143,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testIntervalReregistrationPreservesFreshRefreshClaim(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -171,7 +171,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testIntervalReregistrationUpdatesResolverAndRefreshIntervalForFutureRefreshes(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -180,13 +180,13 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $store->refreshIntervalCaches();
         $this->assertSame('first', $store->get('foo'));
 
-        Carbon::setTestNow('2000-01-01 00:00:01');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01');
 
         $store->interval('foo', fn () => 'second', 2);
         $store->refreshIntervalCaches();
         $this->assertSame('first', $store->get('foo'));
 
-        Carbon::setTestNow('2000-01-01 00:00:02');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:02');
 
         $store->refreshIntervalCaches();
 
@@ -279,29 +279,29 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testRefreshOnlyRunsWhenIntervalIsDue(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $workerStore = $this->createStore($state);
         $refresherStore = $this->createStore($state);
 
-        $workerStore->interval('foo', fn () => Carbon::now()->getTimestamp(), 5);
+        $workerStore->interval('foo', fn () => CarbonImmutable::now()->getTimestamp(), 5);
 
         $refresherStore->refreshIntervalCaches();
-        $this->assertSame(Carbon::now()->getTimestamp(), $refresherStore->get('foo'));
+        $this->assertSame(CarbonImmutable::now()->getTimestamp(), $refresherStore->get('foo'));
 
-        Carbon::setTestNow('2000-01-01 00:00:04');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:04');
         $refresherStore->refreshIntervalCaches();
-        $this->assertSame(Carbon::parse('2000-01-01 00:00:00')->getTimestamp(), $refresherStore->get('foo'));
+        $this->assertSame(CarbonImmutable::parse('2000-01-01 00:00:00')->getTimestamp(), $refresherStore->get('foo'));
 
-        Carbon::setTestNow('2000-01-01 00:00:06');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:06');
         $refresherStore->refreshIntervalCaches();
-        $this->assertSame(Carbon::now()->getTimestamp(), $refresherStore->get('foo'));
+        $this->assertSame(CarbonImmutable::now()->getTimestamp(), $refresherStore->get('foo'));
     }
 
     public function testSuccessfulRefreshUpdatesMetadata(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00.123456');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00.123456');
 
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -318,12 +318,12 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testSlowSuccessfulRefreshUsesCommitTimestampForCadence(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state);
         $store->interval('foo', function () {
-            Carbon::setTestNow('2000-01-01 00:00:03.123456');
+            CarbonImmutable::setTestNow('2000-01-01 00:00:03.123456');
 
             return 'bar';
         }, 5);
@@ -333,7 +333,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $store->refreshIntervalCaches();
 
         $this->assertSame(
-            Carbon::parse('2000-01-01 00:00:03.123456')->getPreciseTimestamp(6) / 1000000,
+            CarbonImmutable::parse('2000-01-01 00:00:03.123456')->getPreciseTimestamp(6) / 1000000,
             $this->metadata($state, $metadataKey)['lastRefreshedAt']
         );
         $this->assertSame('bar', $store->get('foo'));
@@ -341,7 +341,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testFreshRefreshClaimPreventsOverlappingRefresh(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -364,7 +364,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testStaleRefreshClaimCanBeReclaimed(): void
     {
-        Carbon::setTestNow('2000-01-01 00:05:01');
+        CarbonImmutable::setTestNow('2000-01-01 00:05:01');
 
         $state = $this->createState();
         $workerStore = $this->createStore($state);
@@ -393,7 +393,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testStaleRefresherCannotOverwriteNewerCommittedValue(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $workerStore = $this->createStore($state);
@@ -404,7 +404,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
             ++IntervalReentryProbe::$attempts;
 
             if (IntervalReentryProbe::$attempts === 1) {
-                Carbon::setTestNow('2000-01-01 00:05:01');
+                CarbonImmutable::setTestNow('2000-01-01 00:05:01');
                 IntervalReentryProbe::$refresherStore->refreshIntervalCaches();
 
                 return 'A';
@@ -423,14 +423,14 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $this->assertSame('B', $workerStore->get('foo'));
         $this->assertNull($metadata['refreshingAt']);
         $this->assertSame(
-            Carbon::parse('2000-01-01 00:05:01')->getPreciseTimestamp(6) / 1000000,
+            CarbonImmutable::parse('2000-01-01 00:05:01')->getPreciseTimestamp(6) / 1000000,
             $metadata['lastRefreshedAt']
         );
     }
 
     public function testLostClaimBeforeCommitDoesNotWriteResolverResult(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -470,7 +470,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testSameInstanceFallbackDuringFreshClaimReturnsNullWithoutRunningResolver(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -491,7 +491,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testFlushPreservesMetadataAndIndexRowsForRefresh(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $workerStore = $this->createStore($state);
@@ -506,7 +506,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $this->assertNotFalse($state->table()->get($this->metadataKey($workerStore, 'foo')));
         $this->assertNotFalse($state->table()->get($this->indexKey($workerStore, $this->metadataKey($workerStore, 'foo'))));
 
-        Carbon::setTestNow('2000-01-01 00:00:05');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:05');
 
         $refresherStore->refreshIntervalCaches();
 
@@ -530,7 +530,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testIndexRowsAreTouchedDuringRefreshDiscovery(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState();
         $store = $this->createStore($state);
@@ -539,7 +539,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
         $indexKey = $this->indexKey($store, $this->metadataKey($store, 'foo'));
         $before = $state->table()->get($indexKey)['expiration'];
 
-        Carbon::setTestNow('2000-01-01 00:00:10');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:10');
 
         $store->refreshIntervalCaches();
 
@@ -548,7 +548,7 @@ class CacheSwooleStoreIntervalTest extends TestCase
 
     public function testStaleCleanupAndEvictionSkipIntervalControlRows(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
 
         $state = $this->createState(rows: 8);
         $store = $this->createStore(
@@ -811,7 +811,7 @@ PHP);
 
     private function currentTimestamp(): float
     {
-        return Carbon::now()->getPreciseTimestamp(6) / 1000000;
+        return CarbonImmutable::now()->getPreciseTimestamp(6) / 1000000;
     }
 }
 

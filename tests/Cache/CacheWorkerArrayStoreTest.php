@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\WorkerArrayStore;
 use Hypervel\Engine\Channel;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use stdClass;
 
@@ -24,21 +24,21 @@ class CacheWorkerArrayStoreTest extends TestCase
 
     public function testItemsCanExpire(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00.500');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00.500');
 
         $store = new WorkerArrayStore;
         $store->put('hello', 'world', 1);
 
-        Carbon::setTestNow('2000-01-01 00:00:01.499');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01.499');
         $this->assertSame('world', $store->get('hello'));
 
-        Carbon::setTestNow('2000-01-01 00:00:01.500');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01.500');
         $this->assertNull($store->get('hello'));
     }
 
     public function testSerializedValuesCanBeRetrievedRaw(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new WorkerArrayStore(true);
         $object = new stdClass;
@@ -65,19 +65,19 @@ class CacheWorkerArrayStoreTest extends TestCase
     {
         $store = new WorkerArrayStore;
 
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $store->put('key', 'value', 30);
         $store->touch('key', 60);
 
-        Carbon::setTestNow($now->addSeconds(45));
+        CarbonImmutable::setTestNow($now->addSeconds(45));
 
         $this->assertSame('value', $store->get('key'));
     }
 
     public function testLocksCanBeRestoredRefreshedAndMeasured(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new WorkerArrayStore;
         $lock = $store->lock('foo', 10);
@@ -88,7 +88,7 @@ class CacheWorkerArrayStoreTest extends TestCase
         $this->assertTrue($restoredLock->isOwnedByCurrentProcess());
         $this->assertSame(10.0, $restoredLock->getRemainingLifetime());
 
-        Carbon::setTestNow(Carbon::now()->addSeconds(5));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(5));
 
         $this->assertTrue($restoredLock->refresh(30));
         $this->assertSame(30.0, $restoredLock->getRemainingLifetime());
