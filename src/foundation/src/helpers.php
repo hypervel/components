@@ -591,7 +591,7 @@ if (! function_exists('method_field')) {
 
 if (! function_exists('now')) {
     /**
-     * Create a new Carbon instance for the current time.
+     * Create a new configured Carbon instance for the current time.
      */
     function now(\UnitEnum|\DateTimeZone|string|null $tz = null): CarbonInterface
     {
@@ -909,7 +909,7 @@ if (! function_exists('to_route')) {
 
 if (! function_exists('today')) {
     /**
-     * Create a new Carbon instance for the current date.
+     * Create a new configured Carbon instance for the current date.
      */
     function today(\UnitEnum|\DateTimeZone|string|null $tz = null): CarbonInterface
     {

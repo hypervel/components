@@ -60,9 +60,7 @@ function swoole_hook_flags(): int
 // Time functions...
 
 /**
- * Create a new Carbon instance for the current time.
- *
- * @return \Hypervel\Support\Carbon
+ * Create a new configured Carbon instance for the current time.
  */
 function now(DateTimeZone|UnitEnum|string|null $tz = null): CarbonInterface
 {
