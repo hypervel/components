@@ -7,6 +7,7 @@ namespace Hypervel\WebSocketServer;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
 use Hypervel\Contracts\Log\StdoutLoggerInterface;
@@ -31,6 +32,7 @@ use Hypervel\WebSocketServer\Events\ConnectionOpened;
 use Hypervel\WebSocketServer\Events\MessageReceived;
 use Hypervel\WebSocketServer\Exceptions\Handler\WebSocketExceptionHandler;
 use Hypervel\WebSocketServer\Exceptions\WebSocketHandshakeException;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request;
 use Swoole\Http\Response as SwooleResponse;
 use Swoole\Server as SwooleServer;
@@ -41,8 +43,6 @@ use Throwable;
 
 class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterface, OnMessageInterface
 {
-    protected ?KernelContract $kernel = null;
-
     protected HandshakeHandler $handshakeHandler;
 
     protected ?EventDispatcherContract $event = null;
@@ -74,13 +74,13 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
     {
         $this->serverName = $serverName;
 
-        $this->kernel = $this->container->make(KernelContract::class);
-        $this->kernel->bootstrap();
+        $kernel = $this->container->make(KernelContract::class);
+        $kernel->bootstrap();
 
         // Compile routes and pre-warm all static caches. WS handshake
         // routes through the Router, so this benefits WS performance too.
         // Idempotent if HTTP server already ran.
-        $this->container->make('router')->compileAndWarm();
+        $this->getRouter()->compileAndWarm();
 
         $this->handshakeHandler = new HandshakeHandler($this->container);
     }
@@ -94,58 +94,80 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
      */
     public function onHandshake(Request $request, SwooleResponse $response): void
     {
-        $httpResponse = null;
+        $committed = false;
+        $fd = null;
+        $httpRequest = null;
+        $handshake = null;
 
         try {
-            CoordinatorManager::until(Constants::WORKER_START)->yield();
-            $fd = $this->getFd($response);
-            CoroutineContext::set(WebSocketContext::FD, $fd);
+            try {
+                CoordinatorManager::until(Constants::WORKER_START)->yield();
+                $fd = $this->getFd($response);
+                CoroutineContext::set(WebSocketContext::FD, $fd);
 
-            // Create HttpFoundation request and seed contexts.
-            // RequestContext is needed for request() helper and container resolution.
-            $httpRequest = RequestBridge::createFromSwoole($request);
-            RequestContext::set($httpRequest);
+                // Create HttpFoundation request and seed contexts.
+                // RequestContext is needed for request() helper and container resolution.
+                $httpRequest = RequestBridge::createFromSwoole($request);
+                RequestContext::set($httpRequest);
 
-            $this->logger->debug(sprintf('WebSocket: fd[%d] start a handshake request.', $fd));
+                $this->logger->debug(sprintf('WebSocket: fd[%d] start a handshake request.', $fd));
 
-            // Validate sec-websocket-key before routing
-            $key = $httpRequest->headers->get(Security::SEC_WEBSOCKET_KEY);
-            $security = $this->container->make(Security::class);
-            if (! $key || $security->isInvalidSecurityKey($key)) {
-                throw new WebSocketHandshakeException('sec-websocket-key is invalid!');
+                // Validate sec-websocket-key before routing
+                $key = $httpRequest->headers->get(Security::SEC_WEBSOCKET_KEY);
+                $security = $this->container->make(Security::class);
+                if (! $key || $security->isInvalidSecurityKey($key)) {
+                    throw new WebSocketHandshakeException('sec-websocket-key is invalid!');
+                }
+
+                // Route matching + middleware via Router.
+                // dispatchToCallback() performs the full Router context lifecycle
+                // (findRoute, context setup, RouteMatched event, middleware pipeline)
+                // but calls our handshake handler instead of the route's controller.
+                $httpResponse = $this->getRouter()->dispatchToCallback(
+                    $httpRequest,
+                    fn (HttpRequest $req) => $this->handshakeHandler->handleHandshake($req)
+                );
+
+                if ($httpResponse->getStatusCode() === Response::HTTP_SWITCHING_PROTOCOLS) {
+                    /** @var class-string $class */
+                    $class = $httpRequest->route()->getControllerClass();
+                    $instance = $this->container->make($class);
+                    $server = $this->getServer();
+                    $handshake = [$fd, $class, $instance, $server];
+                }
+            } catch (CanceledException $exception) {
+                throw $exception;
+            } catch (Throwable $throwable) {
+                $httpResponse = $this->container->make(SafeCaller::class)->call(
+                    fn () => $this->handleException($throwable),
+                    static fn () => new Response(
+                        Response::$statusTexts[Response::HTTP_INTERNAL_SERVER_ERROR],
+                        Response::HTTP_INTERNAL_SERVER_ERROR
+                    )
+                );
             }
 
-            // Route matching + middleware via Router.
-            // dispatchToCallback() performs the full Router context lifecycle
-            // (findRoute, context setup, RouteMatched event, middleware pipeline)
-            // but calls our handshake handler instead of the route's controller.
-            $httpResponse = $this->getRouter()->dispatchToCallback(
-                $httpRequest,
-                fn (HttpRequest $req) => $this->handshakeHandler->handleHandshake($req)
-            );
+            ResponseBridge::send($httpResponse, $response, request: $httpRequest);
 
-            // If middleware rejected (non-101 response), don't register the fd
-            if ($httpResponse->getStatusCode() !== 101) {
+            if ($handshake === null) {
                 return;
             }
 
-            // Get handler class from the matched route
-            $class = $httpRequest->route()->getControllerClass();
+            [$fd, $class, $instance, $server] = $handshake;
 
+            if (! $server->isEstablished($fd)) {
+                return;
+            }
+
+            // No yield may occur between the native liveness check and
+            // publication, or onClose could miss the committed connection.
+            $this->deferOnOpen($request, $instance, $server, $fd);
             FdCollector::set($fd, $class);
-            $server = $this->getServer();
-            $this->deferOnOpen($request, $class, $server, $fd);
-        } catch (Throwable $throwable) {
-            $httpResponse = $this->container->make(SafeCaller::class)->call(
-                fn () => $this->handleException($throwable),
-                static fn () => new Response('Bad Request', 400)
-            );
-
-            isset($fd) && FdCollector::del($fd);
-            isset($fd) && WebSocketContext::release($fd);
+            $committed = true;
         } finally {
-            if ($httpResponse instanceof Response) {
-                ResponseBridge::send($httpResponse, $response, request: $httpRequest ?? null);
+            if ($fd !== null && ! $committed) {
+                FdCollector::del($fd);
+                WebSocketContext::release($fd);
             }
         }
     }
@@ -157,27 +179,54 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
     {
         $fd = $frame->fd;
         CoroutineContext::set(WebSocketContext::FD, $fd);
-        $fdObj = FdCollector::get($fd);
-        if (! $fdObj) {
-            $this->logger->warning(sprintf('WebSocket: fd[%d] does not exist.', $fd));
+
+        try {
+            $class = FdCollector::get($fd);
+            if ($class === null) {
+                $this->logger->warning(sprintf('WebSocket: fd[%d] does not exist.', $fd));
+
+                return;
+            }
+
+            $instance = $this->container->make($class);
+        } catch (CanceledException) {
+            // Swoole 6.2 disables SW_RECOVER_CANCELED_EXCEPTION, so cancellation
+            // escaping an unguarded callback coroutine terminates the worker.
+            return;
+        } catch (Throwable $throwable) {
+            $this->reportCallbackFailure($throwable);
+
             return;
         }
-
-        $instance = $this->container->make($fdObj->class);
 
         if (! $instance instanceof OnMessageInterface) {
-            $this->logger->warning($instance::class . ' is not instanceof ' . OnMessageInterface::class);
+            try {
+                $this->logger->warning($instance::class . ' is not instanceof ' . OnMessageInterface::class);
+            } catch (CanceledException) {
+                return;
+            } catch (Throwable $throwable) {
+                $this->reportCallbackFailure($throwable);
+            }
+
             return;
         }
 
-        if ($this->event?->hasListeners(MessageReceived::class)) {
-            $this->event->dispatch(new MessageReceived($fd, $frame, $this->serverName));
+        try {
+            if ($this->event?->hasListeners(MessageReceived::class)) {
+                $this->event->dispatch(new MessageReceived($fd, $frame, $this->serverName));
+            }
+        } catch (CanceledException) {
+            return;
+        } catch (Throwable $throwable) {
+            $this->reportCallbackFailure($throwable);
         }
 
         try {
             $instance->onMessage($server, $frame);
-        } catch (Throwable $exception) {
-            $this->logger->error((string) $exception);
+        } catch (CanceledException) {
+            return;
+        } catch (Throwable $throwable) {
+            $this->reportCallbackFailure($throwable);
         }
     }
 
@@ -186,31 +235,53 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
      */
     public function onClose(SwooleServer $server, int $fd, int $reactorId): void
     {
-        $fdObj = FdCollector::get($fd);
-        if (! $fdObj) {
-            return;
-        }
-
-        $this->logger->debug(sprintf('WebSocket: fd[%d] closed.', $fd));
-
         CoroutineContext::set(WebSocketContext::FD, $fd);
-        Coroutine::defer(function () use ($fd) {
-            // Move those functions to defer, because onClose may throw exceptions
+
+        try {
+            $class = FdCollector::get($fd);
+            if ($class === null) {
+                return;
+            }
+
+            try {
+                $this->logger->debug(sprintf('WebSocket: fd[%d] closed.', $fd));
+            } catch (CanceledException) {
+                return;
+            } catch (Throwable $throwable) {
+                $this->reportCallbackFailure($throwable);
+            }
+
+            try {
+                $instance = $this->container->make($class);
+            } catch (CanceledException) {
+                return;
+            } catch (Throwable $throwable) {
+                $this->reportCallbackFailure($throwable);
+                $instance = null;
+            }
+
+            if ($instance instanceof OnCloseInterface) {
+                try {
+                    $instance->onClose($server, $fd, $reactorId);
+                } catch (CanceledException) {
+                    return;
+                } catch (Throwable $throwable) {
+                    $this->reportCallbackFailure($throwable);
+                }
+            }
+
+            try {
+                if ($this->event?->hasListeners(ConnectionClosed::class)) {
+                    $this->event->dispatch(new ConnectionClosed($fd, $reactorId, $this->serverName));
+                }
+            } catch (CanceledException) {
+                return;
+            } catch (Throwable $throwable) {
+                $this->reportCallbackFailure($throwable);
+            }
+        } finally {
             FdCollector::del($fd);
             WebSocketContext::release($fd);
-        });
-
-        $instance = $this->container->make($fdObj->class);
-        if ($instance instanceof OnCloseInterface) {
-            try {
-                $instance->onClose($server, $fd, $reactorId);
-            } catch (Throwable $exception) {
-                $this->logger->error((string) $exception);
-            }
-        }
-
-        if ($this->event?->hasListeners(ConnectionClosed::class)) {
-            $this->event->dispatch(new ConnectionClosed($fd, $reactorId, $this->serverName));
         }
     }
 
@@ -290,21 +361,53 @@ class Server implements BootstrapsForServer, OnHandshakeInterface, OnCloseInterf
     /**
      * Defer the onOpen callback after handshake completes.
      */
-    protected function deferOnOpen(Request $request, string $class, WebSocketServer $server, int $fd): void
+    protected function deferOnOpen(Request $request, object $instance, WebSocketServer $server, int $fd): void
     {
-        $instance = $this->container->make($class);
         Coroutine::defer(function () use ($request, $instance, $server, $fd) {
-            if ($this->event?->hasListeners(ConnectionOpened::class)) {
-                $this->event->dispatch(new ConnectionOpened($fd, $request, $this->serverName));
+            try {
+                if ($this->event?->hasListeners(ConnectionOpened::class)) {
+                    $this->event->dispatch(new ConnectionOpened($fd, $request, $this->serverName));
+                }
+            } catch (CanceledException) {
+                return;
+            } catch (Throwable $throwable) {
+                $this->reportCallbackFailure($throwable);
             }
 
             if ($instance instanceof OnOpenInterface) {
                 try {
                     $instance->onOpen($server, $request);
-                } catch (Throwable $exception) {
-                    $this->logger->error((string) $exception);
+                } catch (CanceledException) {
+                    return;
+                } catch (Throwable $throwable) {
+                    $this->reportCallbackFailure($throwable);
                 }
             }
         });
+    }
+
+    /**
+     * Report a WebSocket callback failure without escaping the native boundary.
+     */
+    protected function reportCallbackFailure(Throwable $throwable): void
+    {
+        try {
+            $this->container->make(ExceptionHandlerContract::class)->report($throwable);
+
+            return;
+        } catch (Throwable) {
+        }
+
+        try {
+            $this->logger->error((string) $throwable);
+
+            return;
+        } catch (Throwable) {
+        }
+
+        try {
+            error_log((string) $throwable);
+        } catch (Throwable) {
+        }
     }
 }
