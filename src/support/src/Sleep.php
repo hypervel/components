@@ -8,6 +8,7 @@ use Carbon\CarbonInterval;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
@@ -87,10 +88,10 @@ class Sleep
     public static function until(DateTimeInterface|float|int|string $timestamp): static
     {
         if (is_numeric($timestamp)) {
-            $timestamp = Carbon::createFromTimestamp($timestamp, date_default_timezone_get());
+            $timestamp = Date::createFromTimestamp($timestamp, date_default_timezone_get());
         }
 
-        return new static(Carbon::now()->diff($timestamp));
+        return new static(Date::now()->diff($timestamp));
     }
 
     /**
@@ -261,7 +262,7 @@ class Sleep
             static::$sequence[] = $this->duration;
 
             if (static::$syncWithCarbon) {
-                Carbon::setTestNow(Carbon::now()->add($this->duration));
+                Carbon::setTestNow(Date::now()->add($this->duration));
             }
 
             foreach (static::$fakeSleepCallbacks as $callback) {
