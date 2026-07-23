@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Session;
 
 use Hypervel\Session\ArraySessionHandler;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Tests\TestCase;
 use SessionHandlerInterface;
 
 class ArraySessionHandlerTest extends TestCase
 {
-    public function testIsSessionHandlerInterface()
+    public function testIsSessionHandlerInterface(): void
     {
         $this->assertInstanceOf(
             SessionHandlerInterface::class,
@@ -19,21 +20,21 @@ class ArraySessionHandlerTest extends TestCase
         );
     }
 
-    public function testInitializeSession()
+    public function testInitializeSession(): void
     {
         $handler = new ArraySessionHandler(10);
 
         $this->assertTrue($handler->open('', ''));
     }
 
-    public function testCloseSession()
+    public function testCloseSession(): void
     {
         $handler = new ArraySessionHandler(10);
 
         $this->assertTrue($handler->close());
     }
 
-    public function testReadDataFromSession()
+    public function testReadDataFromSession(): void
     {
         $handler = new ArraySessionHandler(10);
 
@@ -42,38 +43,38 @@ class ArraySessionHandlerTest extends TestCase
         $this->assertSame('bar', $handler->read('foo'));
     }
 
-    public function testReadDataFromAlmostExpiredSession()
+    public function testReadDataFromAlmostExpiredSession(): void
     {
         $handler = new ArraySessionHandler(10);
 
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(Date::now());
         $handler->write('foo', 'bar');
 
-        Carbon::setTestNow(Carbon::now()->addMinutes(10));
+        CarbonImmutable::setTestNow(Date::now()->addMinutes(10));
 
         $this->assertSame('bar', $handler->read('foo'));
     }
 
-    public function testReadDataFromExpiredSession()
+    public function testReadDataFromExpiredSession(): void
     {
         $handler = new ArraySessionHandler(10);
 
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(Date::now());
         $handler->write('foo', 'bar');
 
-        Carbon::setTestNow(Carbon::now()->addMinutes(10)->addSecond());
+        CarbonImmutable::setTestNow(Date::now()->addMinutes(10)->addSecond());
 
         $this->assertSame('', $handler->read('foo'));
     }
 
-    public function testReadDataFromNonExistingSession()
+    public function testReadDataFromNonExistingSession(): void
     {
         $handler = new ArraySessionHandler(10);
 
         $this->assertSame('', $handler->read('foo'));
     }
 
-    public function testWriteSessionData()
+    public function testWriteSessionData(): void
     {
         $handler = new ArraySessionHandler(10);
 
@@ -84,7 +85,7 @@ class ArraySessionHandlerTest extends TestCase
         $this->assertSame('baz', $handler->read('foo'));
     }
 
-    public function testDestroySession()
+    public function testDestroySession(): void
     {
         $handler = new ArraySessionHandler(10);
 
@@ -96,22 +97,22 @@ class ArraySessionHandlerTest extends TestCase
         $this->assertSame('', $handler->read('foo'));
     }
 
-    public function testCleanOldSession()
+    public function testCleanOldSession(): void
     {
         $handler = new ArraySessionHandler(10);
 
         $this->assertSame(0, $handler->gc(300));
 
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(Date::now());
         $handler->write('foo', 'bar');
         $this->assertSame(0, $handler->gc(300));
         $this->assertSame('bar', $handler->read('foo'));
 
-        Carbon::setTestNow(Carbon::now()->addSecond());
+        CarbonImmutable::setTestNow(Date::now()->addSecond());
 
         $handler->write('baz', 'qux');
 
-        Carbon::setTestNow(Carbon::now()->addMinutes(5));
+        CarbonImmutable::setTestNow(Date::now()->addMinutes(5));
 
         $this->assertSame(1, $handler->gc(300));
         $this->assertSame('', $handler->read('foo'));
