@@ -24,19 +24,46 @@ use function Hypervel\Testbench\package_path;
 
 class ServeCommandTest extends TestCase
 {
+    private const WORKING_PATH_ENV = 'TESTBENCH_WORKING_PATH';
+
+    /** @var array{process: false|string, environment_exists: bool, environment: mixed, server_exists: bool, server: mixed} */
+    private array $workingPathState;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->workingPathState = [
+            'process' => getenv(self::WORKING_PATH_ENV),
+            'environment_exists' => array_key_exists(self::WORKING_PATH_ENV, $_ENV),
+            'environment' => $_ENV[self::WORKING_PATH_ENV] ?? null,
+            'server_exists' => array_key_exists(self::WORKING_PATH_ENV, $_SERVER),
+            'server' => $_SERVER[self::WORKING_PATH_ENV] ?? null,
+        ];
+    }
+
     protected function tearDown(): void
     {
-        putenv('APP_RUNNING_IN_CONSOLE');
-        putenv('TESTBENCH_WORKING_PATH');
+        try {
+            $processValue = $this->workingPathState['process'];
+            putenv($processValue === false
+                ? self::WORKING_PATH_ENV
+                : self::WORKING_PATH_ENV . "={$processValue}");
 
-        unset(
-            $_ENV['APP_RUNNING_IN_CONSOLE'],
-            $_SERVER['APP_RUNNING_IN_CONSOLE'],
-            $_ENV['TESTBENCH_WORKING_PATH'],
-            $_SERVER['TESTBENCH_WORKING_PATH'],
-        );
+            if ($this->workingPathState['environment_exists']) {
+                $_ENV[self::WORKING_PATH_ENV] = $this->workingPathState['environment'];
+            } else {
+                unset($_ENV[self::WORKING_PATH_ENV]);
+            }
 
-        parent::tearDown();
+            if ($this->workingPathState['server_exists']) {
+                $_SERVER[self::WORKING_PATH_ENV] = $this->workingPathState['server'];
+            } else {
+                unset($_SERVER[self::WORKING_PATH_ENV]);
+            }
+        } finally {
+            parent::tearDown();
+        }
     }
 
     #[Test]
@@ -49,7 +76,7 @@ class ServeCommandTest extends TestCase
         $serverFactory->shouldReceive('start')->once();
 
         $config = m::mock(Repository::class);
-        $config->shouldReceive('array')->once()->with('server', [])->andReturn(['http' => ['port' => 8000]]);
+        $config->shouldReceive('array')->once()->with('server')->andReturn(['http' => ['port' => 8000]]);
 
         $logger = m::mock(StdoutLoggerInterface::class);
 
