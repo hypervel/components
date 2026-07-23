@@ -21,6 +21,7 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Http\Request;
 use Hypervel\Queue\CallQueuedHandler;
+use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobPopped;
 use Hypervel\Queue\Events\JobPopping;
@@ -80,6 +81,72 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobPopped::class))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessing::class))->once();
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
+    }
+
+    public function testProcessingAndAttemptedEventsSurroundSuccessfulJobExecution(): void
+    {
+        $order = [];
+        $attemptedEvent = null;
+        $this->events->shouldReceive('dispatch')->andReturnUsing(
+            function (object $event) use (&$order, &$attemptedEvent): void {
+                if ($event instanceof JobProcessing) {
+                    $order[] = 'processing';
+                }
+
+                if ($event instanceof JobAttempted) {
+                    $order[] = 'attempted';
+                    $attemptedEvent = $event;
+                }
+            }
+        );
+
+        $job = new WorkerFakeJob(function () use (&$order): void {
+            $order[] = 'fire';
+        });
+
+        $this->getWorker()->process('default', $job, new WorkerOptions);
+
+        $this->assertSame(['processing', 'fire', 'attempted'], $order);
+        $this->assertSame($job, $attemptedEvent->job);
+        $this->assertNull($attemptedEvent->exception);
+        $this->assertTrue($attemptedEvent->successful());
+    }
+
+    public function testAttemptedEventRunsAfterThrownJobExecution(): void
+    {
+        $order = [];
+        $attemptedEvent = null;
+        $exception = new RuntimeException('Job failed.');
+        $this->events->shouldReceive('dispatch')->andReturnUsing(
+            function (object $event) use (&$order, &$attemptedEvent): void {
+                if ($event instanceof JobProcessing) {
+                    $order[] = 'processing';
+                }
+
+                if ($event instanceof JobAttempted) {
+                    $order[] = 'attempted';
+                    $attemptedEvent = $event;
+                }
+            }
+        );
+
+        $job = new WorkerFakeJob(function () use (&$order, $exception): never {
+            $order[] = 'fire';
+
+            throw $exception;
+        });
+
+        try {
+            $this->getWorker()->process('default', $job, new WorkerOptions);
+            $this->fail('Expected job exception was not thrown.');
+        } catch (RuntimeException $thrown) {
+            $this->assertSame($exception, $thrown);
+        }
+
+        $this->assertSame(['processing', 'fire', 'attempted'], $order);
+        $this->assertSame($job, $attemptedEvent->job);
+        $this->assertSame($exception, $attemptedEvent->exception);
+        $this->assertFalse($attemptedEvent->successful());
     }
 
     public function testWorkerOptionsCoroutineContextIsScopedToJob()

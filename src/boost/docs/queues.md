@@ -1,6 +1,7 @@
 # Queues
 
 - [Introduction](#introduction)
+    - [At-Least-Once Delivery](#at-least-once-delivery)
     - [Connections vs. Queues](#connections-vs-queues)
     - [Connection Pools](#connection-pools)
     - [Driver Notes and Prerequisites](#driver-prerequisites)
@@ -78,6 +79,13 @@ Hypervel's queue configuration options are stored in your application's `config/
 
 > [!NOTE]
 > Hypervel Horizon is a beautiful dashboard and configuration system for your Redis powered queues. Check out the full [Horizon documentation](/docs/{{version}}/horizon) for more information.
+
+<a name="at-least-once-delivery"></a>
+### At-Least-Once Delivery
+
+A queue worker may finish a job's application work and then stop before deleting the job from the queue. When this happens, the queue may deliver the same job again. Timeout and visibility settings reduce unwanted overlap, but they cannot guarantee that a job runs exactly once.
+
+For this reason, queued jobs should be idempotent. Depending on the work being performed, you may use unique database constraints, idempotency keys, state checks, or a database transaction for changes that can be committed together.
 
 <a name="connections-vs-queues"></a>
 ### Connections vs. Queues
@@ -656,6 +664,8 @@ In the example above, we defined an hourly rate limit; however, you may easily d
 ```php
 return Limit::perMinute(50)->by($job->user->id);
 ```
+
+Named queue rate limiters use the same [key scope resolver](/docs/{{version}}/routing#scoping-named-rate-limits) as named route rate limiters.
 
 Once you have defined your rate limit, you may attach the rate limiter to your job using the `Hypervel\Queue\Middleware\RateLimited` middleware. Each time the job exceeds the rate limit, this middleware will release the job back to the queue with an appropriate delay based on the rate limit duration:
 
@@ -1317,6 +1327,9 @@ Bus::chain([
 > [!WARNING]
 > Deleting jobs using the `$this->delete()` method within the job will not prevent chained jobs from being processed. The chain will only stop executing if a job in the chain fails.
 
+> [!WARNING]
+> Hypervel dispatches the next job in a chain before deleting the current job from the queue. This avoids losing the rest of the chain if the worker stops between those operations, but the next job may be dispatched more than once. The current job and its downstream effects should be idempotent.
+
 <a name="chain-connection-queue"></a>
 #### Chain Connection and Queue
 
@@ -1780,7 +1793,7 @@ class ProcessPodcast implements ShouldQueue
 <a name="sqs-fifo-and-fair-queues"></a>
 ### SQS FIFO and Fair Queues
 
-Hypervel supports [Amazon SQS FIFO (First-In-First-Out)](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fifo-queues.html) and [fair](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fair-queues.html) queues. FIFO queues allow you to process jobs in the exact order they were sent while ensuring exactly-once processing through message deduplication.
+Hypervel supports [Amazon SQS FIFO (First-In-First-Out)](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fifo-queues.html) and [fair](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fair-queues.html) queues. FIFO queues preserve message order within a group and use deduplication IDs to prevent duplicate sends.
 
 FIFO queues require a message group ID to determine which jobs can be processed in parallel. Jobs with the same group ID are processed sequentially, while messages with different group IDs can be processed concurrently.
 
@@ -1791,7 +1804,7 @@ ProcessOrder::dispatch($order)
     ->onGroup("customer-{$order->customer_id}");
 ```
 
-SQS FIFO queues support message deduplication to ensure exactly-once processing. Implement a `deduplicationId` method in your job class to provide a custom deduplication ID:
+SQS FIFO queues support message deduplication. Implement a `deduplicationId` method in your job class to provide a custom deduplication ID:
 
 ```php
 <?php
@@ -2701,7 +2714,7 @@ The `queue:work` Artisan command exposes a `--timeout` option. By default, the `
 php artisan queue:work --timeout=60
 ```
 
-The `retry_after` configuration option and the `--timeout` CLI option are different, but work together to ensure that jobs are not lost and that jobs are only successfully processed once.
+The `retry_after` configuration option and the `--timeout` CLI option are different, but work together to reduce overlapping attempts and make stalled jobs available for another worker.
 
 Hypervel monitors running jobs using a coroutine timer. The `--monitor-interval` option controls how often the worker checks for timed out jobs:
 

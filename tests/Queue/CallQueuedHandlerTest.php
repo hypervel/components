@@ -283,6 +283,36 @@ class CallQueuedHandlerTest extends TestCase
         $this->assertNull($handler->getRunningCommand());
     }
 
+    public function testNextChainJobIsDispatchedBeforeCurrentJobIsDeleted(): void
+    {
+        CallQueuedHandlerTestChainJob::$order = [];
+
+        try {
+            $dispatcher = m::mock(BusDispatcher::class);
+            $dispatcher->shouldReceive('getCommandHandler')->andReturn(null);
+            $dispatcher->shouldReceive('dispatchNow')->once()->andReturnUsing(function (): void {
+                CallQueuedHandlerTestChainJob::$order[] = 'handle';
+            });
+
+            $job = m::mock(Job::class);
+            $job->shouldReceive('isReleased')->andReturn(false);
+            $job->shouldReceive('hasFailed')->andReturn(false);
+            $job->shouldReceive('isDeletedOrReleased')->andReturn(false);
+            $job->shouldReceive('delete')->once()->andReturnUsing(function (): void {
+                CallQueuedHandlerTestChainJob::$order[] = 'delete';
+            });
+
+            (new CallQueuedHandler(
+                $dispatcher,
+                m::mock(ContainerContract::class),
+            ))->call($job, ['command' => serialize(new CallQueuedHandlerTestChainJob)]);
+
+            $this->assertSame(['handle', 'chain', 'delete'], CallQueuedHandlerTestChainJob::$order);
+        } finally {
+            CallQueuedHandlerTestChainJob::$order = [];
+        }
+    }
+
     public function testConcurrentMappedHandlersReceiveTheirOwnJobInstance(): void
     {
         $container = new Container;
@@ -382,6 +412,17 @@ class CallQueuedHandlerTestRegularJob implements ShouldQueue
 
 class CallQueuedHandlerTestMappedCommand
 {
+}
+
+class CallQueuedHandlerTestChainJob
+{
+    /** @var list<string> */
+    public static array $order = [];
+
+    public function dispatchNextJobInChain(): void
+    {
+        self::$order[] = 'chain';
+    }
 }
 
 class CallQueuedHandlerTestMappedHandler

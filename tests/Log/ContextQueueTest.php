@@ -92,6 +92,49 @@ class ContextQueueTest extends TestCase
         $this->assertNull(UniqueJobPayloadContext::consume($job));
     }
 
+    public function testLaterPayloadHookCanComposeWithContextAndLiveJobMetadata(): void
+    {
+        Repository::getInstance()
+            ->add('trace_id', 'original')
+            ->add('request_id', 'request-123')
+            ->addHidden('persistent', 'hidden-value');
+
+        $job = new ContextQueueUniqueJob('composed-payload');
+        UniqueJobPayloadContext::register($job);
+
+        $observedCommandName = null;
+        $observedCommand = null;
+
+        Queue::createPayloadUsing(function (
+            string $connection,
+            ?string $queue,
+            array $payload,
+        ) use (&$observedCommandName, &$observedCommand): array {
+            $observedCommandName = $payload['data']['commandName'];
+            $observedCommand = $payload['data']['command'];
+            $context = $payload['illuminate:log:context'];
+            $context['data']['trace_id'] = serialize('updated');
+
+            return ['illuminate:log:context' => $context];
+        });
+
+        $payload = $this->createSyncQueue()->testCreatePayload($job, null);
+        $context = $payload['illuminate:log:context'];
+
+        $this->assertSame($job, $observedCommandName);
+        $this->assertSame($job, $observedCommand);
+        $this->assertSame('updated', unserialize($context['data']['trace_id']));
+        $this->assertSame('request-123', unserialize($context['data']['request_id']));
+        $this->assertSame('hidden-value', unserialize($context['hidden']['persistent']));
+        $this->assertSame('unique', unserialize($context['hidden']['laravel_unique_job_cache_store']));
+        $this->assertSame(
+            'laravel_unique_job:' . ContextQueueUniqueJob::class . ':composed-payload',
+            unserialize($context['hidden']['laravel_unique_job_key']),
+        );
+        $this->assertSame(ContextQueueUniqueJob::class, $payload['data']['commandName']);
+        $this->assertInstanceOf(ContextQueueUniqueJob::class, unserialize($payload['data']['command']));
+    }
+
     public function testUniqueJobMetadataScopeIsRestoredWhenAPayloadHookThrows(): void
     {
         $context = Repository::getInstance()->addHidden('persistent', 'value');
