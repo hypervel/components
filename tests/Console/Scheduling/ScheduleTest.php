@@ -17,7 +17,7 @@ use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Foundation\Application;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
@@ -112,15 +112,15 @@ class ScheduleTest extends TestCase
         $app->shouldReceive('environment')->andReturn('production');
 
         try {
-            Carbon::setTestNow(Carbon::parse('2026-05-29 13:00:00'));
+            CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-29 13:00:00'));
 
             $schedule = new Schedule;
             $schedule->command('reports:generate')->dailyAt('13:00');
 
-            self::assertCount(0, $schedule->dueEventsAt($app, Carbon::parse('2026-05-29 12:59:59')));
-            self::assertCount(1, $schedule->dueEventsAt($app, Carbon::parse('2026-05-29 13:00:00')));
+            self::assertCount(0, $schedule->dueEventsAt($app, CarbonImmutable::parse('2026-05-29 12:59:59')));
+            self::assertCount(1, $schedule->dueEventsAt($app, CarbonImmutable::parse('2026-05-29 13:00:00')));
         } finally {
-            Carbon::setTestNow();
+            CarbonImmutable::setTestNow();
         }
     }
 

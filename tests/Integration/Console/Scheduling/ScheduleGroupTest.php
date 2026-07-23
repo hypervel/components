@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Console\Scheduling\ScheduleGroupTest;
 
+use Carbon\CarbonInterface;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule as ScheduleClass;
 use Hypervel\Contracts\Queue\ShouldQueue;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Schedule;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -162,9 +163,9 @@ class ScheduleGroupTest extends TestCase
     }
 
     #[DataProvider('scheduleTestCases')]
-    public function testGroupedScheduleExecution($time, $expected, $description)
+    public function testGroupedScheduleExecution(CarbonInterface $time, array $expected, string $description): void
     {
-        Carbon::setTestNow($time);
+        CarbonImmutable::setTestNow($time);
         $app = app();
 
         Schedule::days([1, 2, 3, 4, 5, 6])->group(function () {
@@ -188,11 +189,11 @@ class ScheduleGroupTest extends TestCase
         }
     }
 
-    public static function scheduleTestCases()
+    public static function scheduleTestCases(): array
     {
         return [
             [
-                Carbon::create(2024, 1, 1, 7, 30),
+                CarbonImmutable::create(2024, 1, 1, 7, 30),
                 [
                     'Task 1' => true,
                     'Task 2' => true,
@@ -201,7 +202,7 @@ class ScheduleGroupTest extends TestCase
                 'Tasks at 07:30',
             ],
             [
-                Carbon::create(2024, 1, 1, 8, 5),
+                CarbonImmutable::create(2024, 1, 1, 8, 5),
                 [
                     'Task 1' => false,
                     'Task 2' => false,

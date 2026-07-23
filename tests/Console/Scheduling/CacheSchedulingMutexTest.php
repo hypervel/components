@@ -11,7 +11,7 @@ use Hypervel\Console\Scheduling\Event;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -21,7 +21,7 @@ class CacheSchedulingMutexTest extends TestCase
 
     protected ?Event $event = null;
 
-    protected ?Carbon $time = null;
+    protected ?CarbonImmutable $time = null;
 
     protected ?CacheFactory $cacheFactory = null;
 
@@ -36,7 +36,7 @@ class CacheSchedulingMutexTest extends TestCase
         $this->cacheFactory->shouldReceive('store')->andReturn($this->cacheRepository);
         $this->cacheMutex = new CacheSchedulingMutex($this->cacheFactory);
         $this->event = new Event(new CacheEventMutex($this->cacheFactory), 'command');
-        $this->time = Carbon::now();
+        $this->time = CarbonImmutable::now();
     }
 
     public function testMutexReceivesCorrectCreate()

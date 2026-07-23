@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Console\Scheduling\ScheduleListCommandTest;
 use Hypervel\Console\Command;
 use Hypervel\Console\Commands\ScheduleListCommand;
 use Hypervel\Console\Scheduling\Schedule;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Support\ProcessUtils;
 use Hypervel\Testbench\TestCase;
@@ -20,7 +20,7 @@ class ScheduleListCommandTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow('2023-01-01');
+        CarbonImmutable::setTestNow('2023-01-01');
         ScheduleListCommand::resolveTerminalWidthUsing(fn () => 80);
 
         $this->schedule = $this->app->make(Schedule::class);

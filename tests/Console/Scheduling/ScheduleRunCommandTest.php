@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
+use Carbon\CarbonInterface;
 use Hypervel\Console\Commands\ScheduleRunCommand;
 use Hypervel\Console\Events\ScheduledBackgroundTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskFailed;
@@ -20,9 +21,13 @@ use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Engine\Channel;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
@@ -140,7 +145,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertSame($exception, $this->dispatched[1]->exception);
     }
 
-    public function testSkippedNonRepeatableTaskIsOnlyEvaluatedOncePerMinute()
+    public function testSkippedNonRepeatableTaskIsOnlyEvaluatedOncePerMinute(): void
     {
         $eventMutex = m::mock(EventMutex::class);
 
@@ -150,10 +155,10 @@ class ScheduleRunCommandTest extends TestCase
         $callbackEvent->when(false);
 
         $command = $this->makeCommand();
-        $startedAt = Carbon::parse('2026-05-28 12:34:00');
+        $startedAt = CarbonImmutable::parse('2026-05-28 12:34:00');
 
         $this->invokeRunEvents($command, [$callbackEvent], $startedAt);
-        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->copy()->addSeconds(30));
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->addSeconds(30));
 
         $this->assertCount(1, $this->dispatched);
         $this->assertInstanceOf(ScheduledTaskSkipped::class, $this->dispatched[0]);
@@ -233,7 +238,7 @@ class ScheduleRunCommandTest extends TestCase
         $this->assertInstanceOf(ScheduledTaskFinished::class, $this->dispatched[1]);
     }
 
-    public function testPausedNonRepeatableTaskIsOnlyEvaluatedOncePerMinute()
+    public function testPausedNonRepeatableTaskIsOnlyEvaluatedOncePerMinute(): void
     {
         $eventMutex = m::mock(EventMutex::class);
 
@@ -248,17 +253,17 @@ class ScheduleRunCommandTest extends TestCase
             ->andReturnTrue();
 
         $command = $this->makeCommand($cache);
-        $startedAt = Carbon::parse('2026-05-28 12:34:00');
+        $startedAt = CarbonImmutable::parse('2026-05-28 12:34:00');
 
         $this->invokeRunEvents($command, [$callbackEvent], $startedAt);
-        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->copy()->addSeconds(30));
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->addSeconds(30));
 
         $this->assertCount(1, $this->dispatched);
         $this->assertInstanceOf(ScheduledTaskSkipped::class, $this->dispatched[0]);
         $this->assertSame($callbackEvent, $this->dispatched[0]->task);
     }
 
-    public function testNonRepeatableEventOnlyRunsOncePerMinute()
+    public function testNonRepeatableEventOnlyRunsOncePerMinute(): void
     {
         $runCount = 0;
 
@@ -272,16 +277,16 @@ class ScheduleRunCommandTest extends TestCase
         });
 
         $command = $this->makeCommand();
-        $startedAt = Carbon::parse('2026-05-28 12:34:00');
+        $startedAt = CarbonImmutable::parse('2026-05-28 12:34:00');
 
         $this->invokeRunEvents($command, [$callbackEvent], $startedAt);
         $this->assertSame(1, $runCount);
         $this->assertNotNull($callbackEvent->lastChecked);
 
-        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->copy()->addSeconds(30));
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->addSeconds(30));
         $this->assertSame(1, $runCount);
 
-        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->copy()->addMinute());
+        $this->invokeRunEvents($command, [$callbackEvent], $startedAt->addMinute());
         $this->assertSame(2, $runCount);
     }
 
@@ -310,6 +315,58 @@ class ScheduleRunCommandTest extends TestCase
         // less than 10 seconds have passed. Event should be skipped.
         $this->invokeRunEvents($command, [$callbackEvent]);
         $this->assertSame(1, $runCount);
+    }
+
+    #[DataProvider('dateClassProvider')]
+    public function testRepeatEventsPreservesOriginalStartForSingleServerMutex(string $dateClass): void
+    {
+        Date::use($dateClass);
+        Date::setTestNow('2026-05-28 12:34:00');
+        Sleep::fake();
+
+        $startedAt = Date::now()->startOfMinute();
+        $expectedStartedAt = $startedAt->format('Y-m-d H:i:s');
+        $eventMutex = m::mock(EventMutex::class);
+        $callbackEvent = new CallbackEvent($eventMutex, function () use ($startedAt): int {
+            Date::setTestNow($startedAt->copy()->addMinute());
+
+            return 0;
+        });
+        $callbackEvent->name('single-server-repeat')->onOneServer();
+        $callbackEvent->repeatSeconds = 1;
+        $callbackEvent->lastChecked = $startedAt->copy()->subSecond();
+
+        $schedule = m::mock(Schedule::class);
+        $schedule->shouldReceive('serverShouldRun')
+            ->once()
+            ->withArgs(function (Event $event, CarbonInterface $time) use ($callbackEvent, $expectedStartedAt): bool {
+                $this->assertSame($callbackEvent, $event);
+                $this->assertSame($expectedStartedAt, $time->format('Y-m-d H:i:s'));
+
+                return true;
+            })
+            ->andReturnTrue();
+
+        $command = $this->makeCommand();
+        (new ReflectionProperty($command, 'schedule'))->setValue($command, $schedule);
+        (new ReflectionProperty($command, 'startedAt'))->setValue($command, $startedAt);
+
+        $this->invokeRepeatEvents($command, [$callbackEvent]);
+
+        $this->assertSame($dateClass, $startedAt::class);
+        $this->assertSame($expectedStartedAt, $startedAt->format('Y-m-d H:i:s'));
+        Sleep::assertSleptTimes(1);
+    }
+
+    /**
+     * Provide mutable and immutable Date factory classes.
+     */
+    public static function dateClassProvider(): array
+    {
+        return [
+            'immutable default' => [CarbonImmutable::class],
+            'mutable opt-out' => [Carbon::class],
+        ];
     }
 
     public function testConcurrentFinishesUseRunLocalExitCodeForSuccessAndFailureCallbacks()
@@ -449,10 +506,19 @@ class ScheduleRunCommandTest extends TestCase
     /**
      * Invoke the protected runEvents method.
      */
-    protected function invokeRunEvents(ScheduleRunCommand $command, array $events, ?Carbon $startedAt = null): void
+    protected function invokeRunEvents(ScheduleRunCommand $command, array $events, ?CarbonInterface $startedAt = null): void
     {
         $method = new ReflectionMethod($command, 'runEvents');
-        $method->invoke($command, new Collection($events), $startedAt ?? Carbon::now());
+        $method->invoke($command, new Collection($events), $startedAt ?? Date::now());
+    }
+
+    /**
+     * Invoke the protected repeatEvents method.
+     */
+    protected function invokeRepeatEvents(ScheduleRunCommand $command, array $events): void
+    {
+        $method = new ReflectionMethod($command, 'repeatEvents');
+        $method->invoke($command, new Collection($events));
     }
 
     /**

@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Console\Scheduling\ScheduleTestCommandTest;
 use Hypervel\Console\Command;
 use Hypervel\Console\Commands\ScheduleTestCommand;
 use Hypervel\Console\Scheduling\Schedule;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 
@@ -19,7 +19,7 @@ class ScheduleTestCommandTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow(now()->startOfYear());
+        CarbonImmutable::setTestNow(now()->startOfYear());
 
         $this->schedule = $this->app->make(Schedule::class);
 
