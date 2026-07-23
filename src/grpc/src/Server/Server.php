@@ -103,7 +103,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
             }
 
             $emissionStarted = true;
-            ResponseBridge::send($response, $swooleResponse);
+            ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null);
         } catch (CanceledException $exception) {
             throw $exception;
         } catch (Throwable $throwable) {
@@ -121,7 +121,7 @@ class Server implements OnRequestInterface, BootstrapsForServer
             try {
                 $response = $this->responses->error($this->exceptions->map($throwable));
                 $emissionStarted = true;
-                ResponseBridge::send($response, $swooleResponse);
+                ResponseBridge::send($response, $swooleResponse, protocol: 'HTTP/2', request: $request ?? null);
             } catch (CanceledException $exception) {
                 throw $exception;
             } catch (Throwable $emissionFailure) {

@@ -6,7 +6,6 @@ namespace Hypervel\Http;
 
 use Http\Discovery\ClassDiscovery;
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Http\Discovery\GuzzlePsr18Strategy;
 use Hypervel\Support\ServiceProvider;
 
@@ -65,17 +64,11 @@ class HttpServiceProvider extends ServiceProvider
 
     /**
      * Register the response factory.
-     *
-     * Uses bind() (not singleton) so every resolution call goes through
-     * ResponseContext, which is coroutine-local. This ensures any DI
-     * resolution of Hypervel\Http\Response returns the coroutine-local
-     * response stored by the HTTP server adapter's ResponseContext::set().
-     *
-     * Falls back to a bare Response when no response exists in context
-     * (console commands, early bootstrap, test setup before HTTP dispatch).
      */
     protected function registerResponseFactory(): void
     {
-        $this->app->bind(Response::class, fn () => ResponseContext::getOrNull() ?? new Response);
+        // Response is mutable, so it must bypass the container's unbound
+        // concrete auto-singleton and remain fresh for every resolution.
+        $this->app->bind(Response::class, static fn (): Response => new Response);
     }
 }

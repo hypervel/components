@@ -7,16 +7,13 @@ namespace Hypervel\Tests\Context;
 use ArrayObject;
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Coroutine as EngineCoroutine;
 use Hypervel\Engine\Exceptions\CoroutineDestroyedException;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Swoole\Event;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 use function Hypervel\Coroutine\run;
 
@@ -290,17 +287,5 @@ class ContextTest extends TestCase
         $this->assertNotSame($request, RequestContext::get());
         $this->assertSame($req, RequestContext::get());
         $this->assertSame($req, CoroutineContext::get(Request::class));
-    }
-
-    public function testResponseContext(): void
-    {
-        $response = m::mock(Response::class);
-        ResponseContext::set($response);
-        $this->assertSame($response, ResponseContext::get());
-
-        CoroutineContext::set(SymfonyResponse::class, $res = m::mock(Response::class));
-        $this->assertNotSame($response, ResponseContext::get());
-        $this->assertSame($res, ResponseContext::get());
-        $this->assertSame($res, CoroutineContext::get(SymfonyResponse::class));
     }
 }

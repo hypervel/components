@@ -6,19 +6,16 @@ namespace Hypervel\Tests\Context;
 
 use Hypervel\Context\CoroutineContext;
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\Tests\Context\Fixtures\ThrowingReplicableContext;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
 use stdClass;
 
-use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\parallel;
 
 class ContextCoroutineTest extends TestCase
@@ -145,23 +142,6 @@ class ContextCoroutineTest extends TestCase
                 $this->assertSame($id, CoroutineContext::get('id'));
             },
         ]);
-    }
-
-    public function testResponseContextWithCoroutineId()
-    {
-        $response = m::mock(Response::class);
-        $chan = new Channel(1);
-        $close = new Channel(1);
-        go(function () use ($chan, $response, $close) {
-            ResponseContext::set($response);
-            $this->assertSame($response, ResponseContext::get());
-            $chan->push(Coroutine::id());
-            $close->pop(1);
-        });
-
-        $id = $chan->pop(5);
-        $this->assertSame($response, ResponseContext::get($id));
-        $close->push(true);
     }
 
     public function testRequestContextWithCoroutineId()

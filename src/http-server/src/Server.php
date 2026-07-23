@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\HttpServer;
 
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher as EventDispatcherContract;
 use Hypervel\Contracts\Http\Kernel as KernelContract;
@@ -14,11 +13,10 @@ use Hypervel\Contracts\Server\OnRequestInterface;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Engine\Http\WritableConnection;
-use Hypervel\Http\Response;
 use Hypervel\HttpServer\Events\RequestHandled;
 use Hypervel\HttpServer\Events\RequestReceived;
 use Hypervel\HttpServer\Events\RequestTerminated;
+use Swoole\Coroutine\CanceledException;
 use Swoole\Http\Request as SwooleRequest;
 use Swoole\Http\Response as SwooleResponse;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -71,6 +69,9 @@ class Server implements OnRequestInterface, BootstrapsForServer
      */
     public function onRequest(SwooleRequest $swooleRequest, SwooleResponse $swooleResponse): void
     {
+        $response = null;
+        $exception = null;
+
         try {
             CoordinatorManager::until(Constants::WORKER_START)->yield();
 
@@ -86,87 +87,80 @@ class Server implements OnRequestInterface, BootstrapsForServer
             $request = RequestBridge::createFromSwoole($swooleRequest);
             RequestContext::set($request);
 
-            // Create a response with the Swoole connection and store in coroutine context.
-            // This is needed for the direct streaming path: Response::stream() accesses the
-            // WritableConnection to write chunks directly to the Swoole socket. Controllers
-            // reach it via ResponseContext::get()->getConnection()->getSocket().
-            $response = new Response;
-            $response->setConnection(new WritableConnection($swooleResponse));
-            if ($rawMethod === 'HEAD') {
-                $response->withoutBody();
-            }
-            ResponseContext::set($response);
-
             if ($this->event?->hasListeners(RequestReceived::class)) {
                 $this->event->dispatch(new RequestReceived(
                     request: $request,
-                    response: $response,
+                    response: null,
                     server: $this->serverName
                 ));
             }
 
             // Dispatch through the Kernel (global middleware → Router → response)
             $response = $this->kernel->handle($request);
+        } catch (CanceledException $throwable) {
+            $exception = $throwable;
         } catch (Throwable $throwable) {
-            $contextResponse = ResponseContext::getOrNull();
-            $response = $contextResponse?->isStreamed()
-                ? $contextResponse
-                : new SymfonyResponse('Internal Server Error', 500);
+            $exception = $throwable;
+            $response = new SymfonyResponse('Internal Server Error', 500);
         } finally {
-            $finalizationException = null;
+            if (isset($request)) {
+                try {
+                    if ($this->event?->hasListeners(RequestHandled::class)) {
+                        $this->event->dispatch(new RequestHandled(
+                            request: $request,
+                            response: $response,
+                            exception: $exception,
+                            server: $this->serverName
+                        ));
+                    }
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
+
+            // Send HttpFoundation response back through Swoole
+            if ($response !== null) {
+                try {
+                    $protocol = $swooleRequest->server['server_protocol'] ?? 'HTTP/1.1';
+
+                    ResponseBridge::send(
+                        $response,
+                        $swooleResponse,
+                        withBody: ! isset($rawMethod) || $rawMethod !== 'HEAD',
+                        protocol: is_string($protocol) ? $protocol : 'HTTP/1.1',
+                        request: $request ?? null,
+                    );
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
+
+            // Terminable middleware
+            if (isset($request) && $response !== null) {
+                try {
+                    $this->kernel->terminate($request, $response);
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
 
             if (isset($request)) {
                 try {
                     if ($this->event?->hasListeners(RequestTerminated::class)) {
                         Coroutine::defer(fn () => $this->event->dispatch(new RequestTerminated(
                             request: $request,
-                            response: $response ?? null,
-                            exception: $throwable ?? null,
+                            response: $response,
+                            exception: $exception,
                             server: $this->serverName
                         )));
                     }
-                } catch (Throwable $exception) {
-                    $finalizationException = $exception;
-                }
-
-                try {
-                    if ($this->event?->hasListeners(RequestHandled::class)) {
-                        $this->event->dispatch(new RequestHandled(
-                            request: $request,
-                            response: $response ?? null,
-                            exception: $throwable ?? null,
-                            server: $this->serverName
-                        ));
-                    }
-                } catch (Throwable $exception) {
-                    $finalizationException ??= $exception;
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
                 }
             }
 
-            // Send HttpFoundation response back through Swoole
-            if (isset($response)) {
-                try {
-                    ResponseBridge::send(
-                        $response,
-                        $swooleResponse,
-                        withBody: ! isset($rawMethod) || $rawMethod !== 'HEAD'
-                    );
-                } catch (Throwable $exception) {
-                    $finalizationException ??= $exception;
-                }
-            }
-
-            // Terminable middleware
-            if (isset($request, $response)) {
-                try {
-                    $this->kernel->terminate($request, $response);
-                } catch (Throwable $exception) {
-                    $finalizationException ??= $exception;
-                }
-            }
-
-            if ($finalizationException !== null) {
-                throw $finalizationException;
+            if ($exception !== null) {
+                throw $exception;
             }
         }
     }
