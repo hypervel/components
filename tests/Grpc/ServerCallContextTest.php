@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Grpc;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Grpc\Metadata;
 use Hypervel\Grpc\Protocol\Deadline;
 use Hypervel\Grpc\Server\CallContextStore;
 use Hypervel\Grpc\Server\ServerCallContext;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use LogicException;
 

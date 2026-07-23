@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Carbon\CarbonImmutable;
 use Closure;
 use Countable;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Symfony\Component\Process\Process;
 

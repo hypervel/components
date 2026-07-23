@@ -6,7 +6,7 @@ namespace Hypervel\Http\Middleware;
 
 use Closure;
 use Hypervel\Http\Request;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -65,9 +65,9 @@ class SetCacheHeaders
 
         if (isset($options['last_modified'])) {
             if (is_numeric($options['last_modified'])) {
-                $options['last_modified'] = Carbon::createFromTimestamp($options['last_modified'], date_default_timezone_get());
+                $options['last_modified'] = CarbonImmutable::createFromTimestamp($options['last_modified'], date_default_timezone_get());
             } else {
-                $options['last_modified'] = Carbon::parse($options['last_modified']);
+                $options['last_modified'] = CarbonImmutable::parse($options['last_modified']);
             }
         }
 

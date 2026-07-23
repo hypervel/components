@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database;
 
 use BadMethodCallException;
-use Carbon\Carbon;
 use Closure;
 use DateTime;
 use Hypervel\Contracts\Database\Query\ConditionExpression;
@@ -27,6 +26,7 @@ use Hypervel\Pagination\AbstractPaginator as Paginator;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\Database\Fixtures\Enums\Bar;
 use Hypervel\Tests\TestCase;
@@ -637,9 +637,9 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testWherePast()
     {
-        Carbon::setTestNow('2022-04-20 23:45:06.123456');
+        CarbonImmutable::setTestNow('2022-04-20 23:45:06.123456');
 
-        $testDate = Carbon::create('2022-04-20 23:45:06.123456');
+        $testDate = CarbonImmutable::create('2022-04-20 23:45:06.123456');
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('posts')->wherePast('published_at');
@@ -654,9 +654,9 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testWherePastUsesArray()
     {
-        Carbon::setTestNow('2022-04-20 12:34:56.123456');
+        CarbonImmutable::setTestNow('2022-04-20 12:34:56.123456');
 
-        $testDate = Carbon::create('2022-04-20 12:34:56.123456');
+        $testDate = CarbonImmutable::create('2022-04-20 12:34:56.123456');
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('posts')->wherePast(['published_at', 'held_at']);
@@ -671,7 +671,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testWhereTodayMySQL()
     {
-        Carbon::setTestNow('2022-04-20 12:34:56.123456');
+        CarbonImmutable::setTestNow('2022-04-20 12:34:56.123456');
 
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('posts')->whereToday('published_at');
@@ -686,7 +686,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testPassingArrayToWhereTodayMySQL()
     {
-        Carbon::setTestNow('2022-04-20 12:34:56.123456');
+        CarbonImmutable::setTestNow('2022-04-20 12:34:56.123456');
 
         $builder = $this->getMySqlBuilder();
         $builder->select('*')->from('posts')->whereToday(['published_at', 'held_at']);
@@ -701,9 +701,9 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testWhereFuture()
     {
-        Carbon::setTestNow('2022-04-22 21:01:23.123456');
+        CarbonImmutable::setTestNow('2022-04-22 21:01:23.123456');
 
-        $testDate = Carbon::create('2022-04-22 21:01:23.123456');
+        $testDate = CarbonImmutable::create('2022-04-22 21:01:23.123456');
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('posts')->whereFuture('published_at');
@@ -718,9 +718,9 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testPassingArrayToWhereFuture()
     {
-        Carbon::setTestNow('2022-04-22 01:23:45.123456');
+        CarbonImmutable::setTestNow('2022-04-22 01:23:45.123456');
 
-        $testDate = Carbon::create('2022-04-22 01:23:45.123456');
+        $testDate = CarbonImmutable::create('2022-04-22 01:23:45.123456');
 
         $builder = $this->getBuilder();
         $builder->select('*')->from('posts')->whereFuture(['published_at', 'held_at']);

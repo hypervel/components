@@ -6,7 +6,7 @@ namespace Hypervel\Console\Scheduling;
 
 use Closure;
 use DateTimeZone;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use UnitEnum;
 
@@ -47,9 +47,9 @@ trait ManagesFrequencies
     {
         return function () use ($startTime, $endTime) {
             [$now, $startTime, $endTime] = [
-                Carbon::now($this->timezone),
-                Carbon::parse($startTime, $this->timezone),
-                Carbon::parse($endTime, $this->timezone),
+                CarbonImmutable::now($this->timezone),
+                CarbonImmutable::parse($startTime, $this->timezone),
+                CarbonImmutable::parse($endTime, $this->timezone),
             ];
 
             if ($endTime->lessThan($startTime)) {

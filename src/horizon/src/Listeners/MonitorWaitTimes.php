@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Listeners;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Events\LongWaitDetected;
 use Hypervel\Horizon\WaitTimeCalculator;
+use Hypervel\Support\CarbonImmutable;
 
 class MonitorWaitTimes
 {

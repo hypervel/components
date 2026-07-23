@@ -1969,14 +1969,16 @@ return (string) Str::ulid();
 // 01gd6r360bp37zj17nxb55yv40
 ```
 
-If you would like to retrieve a `Hypervel\Support\Carbon` date instance representing the date and time that a given ULID was created, you may use the `createFromId` method provided by Hypervel's Carbon integration:
+If you would like to retrieve a `Hypervel\Support\CarbonImmutable` date instance representing the date and time that a given ULID was created, you may use the `createFromId` method provided by Hypervel's Carbon integration:
 
 ```php
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 
-$date = Carbon::createFromId((string) Str::ulid());
+$date = CarbonImmutable::createFromId((string) Str::ulid());
 ```
+
+The explicit mutable `Hypervel\Support\Carbon` class provides the same `createFromId` method when mutable behavior is required.
 
 During testing, it may be useful to "fake" the value that is returned by the `Str::ulid` method. To accomplish this, you may use the `createUlidsUsing` method:
 
@@ -3913,7 +3915,7 @@ $boolean = Str::of('yes')->toBoolean();
 <a name="method-fluent-str-to-date"></a>
 #### `toDate` {.collection-method}
 
-The `toDate` method returns the underlying string value as a date instance:
+The `toDate` method returns the underlying string value as an instance of the configured `CarbonInterface`. By default, this is an exact `Hypervel\Support\CarbonImmutable` instance:
 
 ```php
 use Hypervel\Support\Str;

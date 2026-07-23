@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Jwt;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Jwt\ClaimFactory;
 use Hypervel\Jwt\Contracts\JwtSubject;
 use Hypervel\Jwt\Exceptions\JwtException;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use ReflectionProperty;
 use SensitiveParameter;

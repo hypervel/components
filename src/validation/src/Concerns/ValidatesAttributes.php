@@ -263,7 +263,7 @@ trait ValidatesAttributes
     /**
      * Get a DateTime instance from a string.
      */
-    protected function getDateTimeWithOptionalFormat(string $format, string $value): ?DateTime
+    protected function getDateTimeWithOptionalFormat(string $format, string $value): ?DateTimeInterface
     {
         if ($date = DateTime::createFromFormat('!' . $format, $value)) {
             return $date;
@@ -275,7 +275,7 @@ trait ValidatesAttributes
     /**
      * Get a DateTime instance from a string with no format.
      */
-    protected function getDateTime(DateTimeInterface|string $value): ?DateTime
+    protected function getDateTime(DateTimeInterface|string $value): ?DateTimeInterface
     {
         try {
             return @Date::parse($value) ?: null; // @phpstan-ignore ternary.alwaysTrue (Date::parse() PHPDoc claims non-null but can fail at runtime)

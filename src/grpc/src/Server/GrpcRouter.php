@@ -90,9 +90,9 @@ class GrpcRouter extends Router
             }
 
             [$requestParameter, $requestClass] = $requestParameters[0];
-            $reflection = new ReflectionClass($requestClass);
+            $requestReflection = new ReflectionClass($requestClass);
 
-            if ($requestClass === Message::class || ! $reflection->isInstantiable()) {
+            if ($requestClass === Message::class || ! $requestReflection->isInstantiable()) {
                 throw new InvalidArgumentException(
                     "The gRPC route action [{$action}] request parameter [\${$requestParameter->getName()}] must name a concrete protobuf message class."
                 );
@@ -102,6 +102,23 @@ class GrpcRouter extends Router
 
             if (! is_array($grpc)) {
                 throw new InvalidArgumentException("The gRPC route action [{$action}] is missing its protocol marker.");
+            }
+
+            // Generated descriptor registration is process-global and not coroutine-safe.
+            // Construct known messages before workers fork and requests can run concurrently.
+            $requestReflection->newInstance();
+
+            $responseType = $requestParameter->getDeclaringFunction()->getReturnType();
+
+            if ($responseType instanceof ReflectionNamedType
+                && ($responseClass = $this->parameterClassName($requestParameter, $responseType)) !== null
+                && is_subclass_of($responseClass, Message::class)) {
+                $responseReflection = new ReflectionClass($responseClass);
+
+                if ($responseReflection->isInstantiable()
+                    && ($responseReflection->getConstructor()?->getNumberOfRequiredParameters() ?? 0) === 0) {
+                    $responseReflection->newInstance();
+                }
             }
 
             $route->setAction([

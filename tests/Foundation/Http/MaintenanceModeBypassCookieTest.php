@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Http;
 
 use Hypervel\Foundation\Http\MaintenanceModeBypassCookie;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Symfony\Component\HttpFoundation\Cookie;
 
@@ -43,7 +43,7 @@ class MaintenanceModeBypassCookieTest extends TestCase
     {
         $cookie = MaintenanceModeBypassCookie::create('test-key');
 
-        Carbon::setTestNow(now()->addMonths(6));
+        CarbonImmutable::setTestNow(now()->addMonths(6));
 
         $this->assertFalse(MaintenanceModeBypassCookie::isValid($cookie->getValue(), 'test-key'));
     }
@@ -73,12 +73,12 @@ class MaintenanceModeBypassCookieTest extends TestCase
 
     public function testCookieExpiresIn12Hours()
     {
-        Carbon::setTestNow('2026-01-15 10:00:00');
+        CarbonImmutable::setTestNow('2026-01-15 10:00:00');
 
         $cookie = MaintenanceModeBypassCookie::create('test-key');
 
         $this->assertSame(
-            Carbon::parse('2026-01-15 22:00:00')->getTimestamp(),
+            CarbonImmutable::parse('2026-01-15 22:00:00')->getTimestamp(),
             $cookie->getExpiresTime()
         );
     }

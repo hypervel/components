@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Carbon\Carbon;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\RedisStore;
@@ -12,6 +11,7 @@ use Hypervel\Cache\Repository;
 use Hypervel\Cache\StackStore;
 use Hypervel\Cache\StackStoreProxy;
 use Hypervel\Cache\SwooleStore;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -31,7 +31,7 @@ class CacheStackStoreTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow('2000-01-01 12:34:56.123456');
+        CarbonImmutable::setTestNow('2000-01-01 12:34:56.123456');
     }
 
     public function testRetrieveItemFromStoreStacked()
@@ -41,7 +41,7 @@ class CacheStackStoreTest extends TestCase
         $key = 'foo';
         $value = 'bar';
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
         $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(null);
@@ -66,10 +66,10 @@ class CacheStackStoreTest extends TestCase
         $key = 'foo';
         $value = 'bar';
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
-        Carbon::setTestNow(Carbon::now()->addSeconds(50));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(50));
 
         $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(null);
         $this->redis->shouldReceive('get')->once()->with($key)->andReturn($record);
@@ -85,7 +85,7 @@ class CacheStackStoreTest extends TestCase
         $key = 'foo';
         $value = 'bar';
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
         $this->swoole->shouldReceive('get')->once()->with($key)->andReturn($record);
@@ -137,7 +137,7 @@ class CacheStackStoreTest extends TestCase
         $key = 'foo';
         $value = 'bar';
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
         $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
@@ -153,7 +153,7 @@ class CacheStackStoreTest extends TestCase
         $key = 'foo';
         $value = 'bar';
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
         $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(false);
@@ -168,7 +168,7 @@ class CacheStackStoreTest extends TestCase
         $key = 'foo';
         $value = 'bar';
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
         $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
@@ -193,7 +193,7 @@ class CacheStackStoreTest extends TestCase
         $this->createStores();
 
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
 
         $this->swoole->shouldReceive('put')->once()->with('foo', ['value' => 'bar', 'expiration' => $expiration], $ttl)->andReturn(true);
         $this->redis->shouldReceive('put')->once()->with('foo', ['value' => 'bar', 'expiration' => $expiration], $ttl)->andReturn(true);
@@ -215,7 +215,7 @@ class CacheStackStoreTest extends TestCase
         $this->createStores();
 
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
 
         $this->swoole->shouldReceive('put')->once()->with('first', ['value' => 'one', 'expiration' => $expiration], $ttl)->andReturn(true);
         $this->redis->shouldReceive('put')->once()->with('first', ['value' => 'one', 'expiration' => $expiration], $ttl)->andReturn(true);
@@ -255,7 +255,7 @@ class CacheStackStoreTest extends TestCase
 
         $key = 'foo';
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
 
         $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(['value' => 1, 'expiration' => $expiration]);
         $this->swoole->shouldReceive('put')->once()->with($key, ['value' => 2, 'expiration' => $expiration], $ttl)->andReturn(true);
@@ -288,7 +288,7 @@ class CacheStackStoreTest extends TestCase
 
         $key = 'foo';
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
 
         $this->swoole->shouldReceive('get')->once()->with($key)->andReturn(['value' => 2, 'expiration' => $expiration]);
         $this->swoole->shouldReceive('put')->once()->with($key, ['value' => 1, 'expiration' => $expiration], $ttl)->andReturn(true);
@@ -381,7 +381,7 @@ class CacheStackStoreTest extends TestCase
         $key = 'foo';
         $value = 'bar';
         $ttl = 100;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
         $array->shouldReceive('get')->once()->with($key)->andReturn($record);
@@ -442,7 +442,7 @@ class CacheStackStoreTest extends TestCase
         $value = 'bar';
         $ttl = 100;
         $maxTTL = 3;
-        $expiration = Carbon::now()->getTimestamp() + $ttl;
+        $expiration = CarbonImmutable::now()->getTimestamp() + $ttl;
         $record = compact('value', 'expiration');
 
         $store = new StackStore([
@@ -481,7 +481,7 @@ class CacheStackStoreTest extends TestCase
 
     public function testTouchPropagatesThroughAllLayers()
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
         $this->createStores();
 
         $key = 'foo';
@@ -507,7 +507,7 @@ class CacheStackStoreTest extends TestCase
 
     public function testTouchProxyCapsMaxTTL()
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         /** @var MockInterface|SwooleStore $swoole */
         $swoole = m::mock(SwooleStore::class);

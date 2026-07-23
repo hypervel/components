@@ -14,7 +14,7 @@ use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Sleep;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -55,9 +55,9 @@ class SubMinuteSchedulingTest extends TestCase
         $this->schedule = $this->app->make(Schedule::class);
     }
 
-    public function testItDoesntWaitForSubMinuteEventsWhenNothingIsScheduled()
+    public function testItDoesntWaitForSubMinuteEventsWhenNothingIsScheduled(): void
     {
-        Carbon::setTestNow(now()->startOfMinute());
+        CarbonImmutable::setTestNow(now()->startOfMinute());
         Sleep::fake();
 
         $this->artisan('schedule:run', ['--once' => true])
@@ -66,13 +66,13 @@ class SubMinuteSchedulingTest extends TestCase
         Sleep::assertNeverSlept();
     }
 
-    public function testItDoesntWaitForSubMinuteEventsWhenNoneAreScheduled()
+    public function testItDoesntWaitForSubMinuteEventsWhenNoneAreScheduled(): void
     {
         $this->schedule
             ->call(fn () => true)
             ->everyMinute();
 
-        Carbon::setTestNow(now()->startOfMinute());
+        CarbonImmutable::setTestNow(now()->startOfMinute());
         Sleep::fake();
 
         $this->artisan('schedule:run', ['--once' => true])
@@ -82,16 +82,16 @@ class SubMinuteSchedulingTest extends TestCase
     }
 
     #[DataProvider('frequencyProvider')]
-    public function testItRunsSubMinuteCallbacks(string $frequency, int $expectedRuns)
+    public function testItRunsSubMinuteCallbacks(string $frequency, int $expectedRuns): void
     {
         $runs = 0;
         $this->schedule->call(function () use (&$runs) {
             ++$runs;
         })->{$frequency}();
 
-        Carbon::setTestNow(now()->startOfMinute());
+        CarbonImmutable::setTestNow(now()->startOfMinute());
         Sleep::fake();
-        Sleep::whenFakingSleep(fn ($duration) => Carbon::setTestNow(now()->add($duration)));
+        Sleep::whenFakingSleep(fn ($duration) => CarbonImmutable::setTestNow(now()->add($duration)));
 
         $this->artisan('schedule:run', ['--once' => true])
             ->expectsOutputToContain('Running [Callback]');
@@ -113,7 +113,7 @@ class SubMinuteSchedulingTest extends TestCase
         ];
     }
 
-    public function testItRunsMultipleSubMinuteCallbacks()
+    public function testItRunsMultipleSubMinuteCallbacks(): void
     {
         $everySecondRuns = 0;
         $this->schedule->call(function () use (&$everySecondRuns) {
@@ -125,9 +125,9 @@ class SubMinuteSchedulingTest extends TestCase
             ++$everyThirtySecondsRuns;
         })->everyThirtySeconds();
 
-        Carbon::setTestNow(now()->startOfMinute());
+        CarbonImmutable::setTestNow(now()->startOfMinute());
         Sleep::fake();
-        Sleep::whenFakingSleep(fn ($duration) => Carbon::setTestNow(now()->add($duration)));
+        Sleep::whenFakingSleep(fn ($duration) => CarbonImmutable::setTestNow(now()->add($duration)));
 
         $this->artisan('schedule:run', ['--once' => true])
             ->expectsOutputToContain('Running [Callback]');
@@ -137,18 +137,18 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals(2, $everyThirtySecondsRuns);
     }
 
-    public function testSubMinuteSchedulingCanBeInterrupted()
+    public function testSubMinuteSchedulingCanBeInterrupted(): void
     {
         $runs = 0;
         $this->schedule->call(function () use (&$runs) {
             ++$runs;
         })->everySecond();
 
-        Carbon::setTestNow(now()->startOfMinute());
+        CarbonImmutable::setTestNow(now()->startOfMinute());
         $startedAt = now();
         Sleep::fake();
         Sleep::whenFakingSleep(function ($duration) use ($startedAt) {
-            Carbon::setTestNow(now()->add($duration));
+            CarbonImmutable::setTestNow(now()->add($duration));
 
             if ($startedAt->diffInSeconds() >= 30) {
                 $this->artisan('schedule:interrupt')
@@ -164,7 +164,7 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals(30, $startedAt->diffInSeconds(now()));
     }
 
-    public function testSubMinuteEventsStopForTheRestOfTheMinuteOnceMaintenanceModeIsEnabled()
+    public function testSubMinuteEventsStopForTheRestOfTheMinuteOnceMaintenanceModeIsEnabled(): void
     {
         $runs = 0;
         $this->schedule->call(function () use (&$runs) {
@@ -173,11 +173,11 @@ class SubMinuteSchedulingTest extends TestCase
 
         config(['app.maintenance.driver' => 'cache']);
         config(['app.maintenance.store' => 'array']);
-        Carbon::setTestNow(now()->startOfMinute());
+        CarbonImmutable::setTestNow(now()->startOfMinute());
         $startedAt = now();
         Sleep::fake();
         Sleep::whenFakingSleep(function ($duration) use ($startedAt) {
-            Carbon::setTestNow(now()->add($duration));
+            CarbonImmutable::setTestNow(now()->add($duration));
 
             if ($startedAt->diffInSeconds() >= 30 && ! $this->app->isDownForMaintenance()) {
                 $this->artisan('down');
@@ -195,7 +195,7 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals(30, $runs);
     }
 
-    public function testSubMinuteEventsCanBeRunInMaintenanceMode()
+    public function testSubMinuteEventsCanBeRunInMaintenanceMode(): void
     {
         $runs = 0;
         $this->schedule->call(function () use (&$runs) {
@@ -204,11 +204,11 @@ class SubMinuteSchedulingTest extends TestCase
 
         config(['app.maintenance.driver' => 'cache']);
         config(['app.maintenance.store' => 'array']);
-        Carbon::setTestNow(now()->startOfMinute());
+        CarbonImmutable::setTestNow(now()->startOfMinute());
         $startedAt = now();
         Sleep::fake();
         Sleep::whenFakingSleep(function ($duration) use ($startedAt) {
-            Carbon::setTestNow(now()->add($duration));
+            CarbonImmutable::setTestNow(now()->add($duration));
 
             if (now()->diffInSeconds($startedAt) >= 30 && ! $this->app->isDownForMaintenance()) {
                 $this->artisan('down');
@@ -222,19 +222,19 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals(60, $runs);
     }
 
-    public function testSubMinuteEventsCanBeRunWhenScheduleIsPaused()
+    public function testSubMinuteEventsCanBeRunWhenScheduleIsPaused(): void
     {
         $runs = 0;
         $this->schedule->call(function () use (&$runs) {
             ++$runs;
         })->everySecond()->evenWhenPaused();
 
-        Carbon::setTestNow(now()->startOfMinute());
+        CarbonImmutable::setTestNow(now()->startOfMinute());
         $startedAt = now();
         $cache = $this->app->make(CacheRepository::class);
         Sleep::fake();
         Sleep::whenFakingSleep(function ($duration) use ($startedAt, $cache) {
-            Carbon::setTestNow(now()->add($duration));
+            CarbonImmutable::setTestNow(now()->add($duration));
 
             if ($startedAt->diffInSeconds() >= 30 && ! $cache->get('hypervel:schedule:paused', false)) {
                 $this->artisan('schedule:pause')
@@ -249,19 +249,19 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals(60, $runs);
     }
 
-    public function testSubMinuteEventsStopForTheRestOfTheMinuteOnceScheduleIsPaused()
+    public function testSubMinuteEventsStopForTheRestOfTheMinuteOnceScheduleIsPaused(): void
     {
         $runs = 0;
         $this->schedule->call(function () use (&$runs) {
             ++$runs;
         })->everySecond();
 
-        Carbon::setTestNow(now()->startOfMinute());
+        CarbonImmutable::setTestNow(now()->startOfMinute());
         $startedAt = now();
         $cache = $this->app->make(CacheRepository::class);
         Sleep::fake();
         Sleep::whenFakingSleep(function ($duration) use ($startedAt, $cache) {
-            Carbon::setTestNow(now()->add($duration));
+            CarbonImmutable::setTestNow(now()->add($duration));
 
             if ($startedAt->diffInSeconds() >= 30 && ! $cache->get('hypervel:schedule:paused', false)) {
                 $this->artisan('schedule:pause')
@@ -276,16 +276,16 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals(30, $runs);
     }
 
-    public function testSubMinuteSchedulingRespectsFilters()
+    public function testSubMinuteSchedulingRespectsFilters(): void
     {
         $runs = 0;
         $this->schedule->call(function () use (&$runs) {
             ++$runs;
         })->everySecond()->when(fn () => now()->second % 2 === 0);
 
-        Carbon::setTestNow(now()->startOfMinute());
+        CarbonImmutable::setTestNow(now()->startOfMinute());
         Sleep::fake();
-        Sleep::whenFakingSleep(fn ($duration) => Carbon::setTestNow(now()->add($duration)));
+        Sleep::whenFakingSleep(fn ($duration) => CarbonImmutable::setTestNow(now()->add($duration)));
 
         $this->artisan('schedule:run', ['--once' => true])
             ->expectsOutputToContain('Running [Callback]');
@@ -294,7 +294,7 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals(30, $runs);
     }
 
-    public function testSubMinuteSchedulingCanRunOnOneServer()
+    public function testSubMinuteSchedulingCanRunOnOneServer(): void
     {
         $runs = 0;
         $this->schedule->call(function () use (&$runs) {
@@ -302,9 +302,9 @@ class SubMinuteSchedulingTest extends TestCase
         })->everySecond()->name('test')->onOneServer();
 
         $startedAt = now()->startOfMinute();
-        Carbon::setTestNow($startedAt);
+        CarbonImmutable::setTestNow($startedAt);
         Sleep::fake();
-        Sleep::whenFakingSleep(fn ($duration) => Carbon::setTestNow(now()->add($duration)));
+        Sleep::whenFakingSleep(fn ($duration) => CarbonImmutable::setTestNow(now()->add($duration)));
 
         $this->app->instance(Schedule::class, clone $this->schedule);
         $this->artisan('schedule:run', ['--once' => true])
@@ -314,7 +314,7 @@ class SubMinuteSchedulingTest extends TestCase
         $this->assertEquals(60, $runs);
 
         // Fake a second server running at the same minute.
-        Carbon::setTestNow($startedAt);
+        CarbonImmutable::setTestNow($startedAt);
 
         $this->app->instance(Schedule::class, clone $this->schedule);
         $this->artisan('schedule:run', ['--once' => true])

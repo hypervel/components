@@ -7,14 +7,14 @@ namespace Hypervel\Tests\Integration\Session;
 use Hypervel\Context\RequestContext;
 use Hypervel\Http\Request;
 use Hypervel\Session\DatabaseSessionHandler;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 #[WithMigration('session')]
 class DatabaseSessionHandlerTest extends DatabaseTestCase
 {
-    public function testBasicReadWriteFunctionality()
+    public function testBasicReadWriteFunctionality(): void
     {
         RequestContext::set(Request::create('/', 'GET', server: [
             'REMOTE_ADDR' => '127.0.0.1',
@@ -56,7 +56,7 @@ class DatabaseSessionHandlerTest extends DatabaseTestCase
         $this->assertEquals(2, $connection->table('sessions')->count());
 
         // read expired:
-        Carbon::setTestNow(Carbon::now()->addMinutes(2));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinutes(2));
         $this->assertEquals('', $handler->read('valid_session_id_2425'));
 
         // rewriting an expired session-id, makes it live:
@@ -64,24 +64,24 @@ class DatabaseSessionHandlerTest extends DatabaseTestCase
         $this->assertEquals(['come' => 'alive'], json_decode($handler->read('valid_session_id_2425'), true));
     }
 
-    public function testGarbageCollector()
+    public function testGarbageCollector(): void
     {
         $resolver = $this->app->make('db');
         $connection = $this->app['db']->connection();
 
         $handler = new DatabaseSessionHandler($resolver, null, 'sessions', 1, $this->app);
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
         $handler->write('simple_id_1', 'abcd');
         $this->assertEquals(0, $handler->gc(1));
 
-        Carbon::setTestNow(Carbon::now()->addSeconds(2));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
 
         $handler = new DatabaseSessionHandler($resolver, null, 'sessions', 1, $this->app);
         $handler->write('simple_id_2', 'abcd');
         $this->assertEquals(1, $handler->gc(2));
         $this->assertEquals(1, $connection->table('sessions')->count());
 
-        Carbon::setTestNow(Carbon::now()->addSeconds(2));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
 
         $this->assertEquals(1, $handler->gc(1));
         $this->assertEquals(0, $connection->table('sessions')->count());

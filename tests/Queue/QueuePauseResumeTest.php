@@ -14,7 +14,7 @@ use Hypervel\Queue\Console\Concerns\ParsesQueue;
 use Hypervel\Queue\Events\QueuePaused;
 use Hypervel\Queue\Events\QueueResumed;
 use Hypervel\Queue\QueueManager;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 
 class QueuePauseResumeTest extends TestCase
@@ -66,25 +66,25 @@ class QueuePauseResumeTest extends TestCase
         $this->assertTrue($this->manager->isPaused('redis', 'default'));
     }
 
-    public function testPauseQueueWithTTL()
+    public function testPauseQueueWithTTL(): void
     {
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
         $this->manager->pauseFor('redis', 'default', 30);
 
         $this->assertTrue($this->manager->isPaused('redis', 'default'));
 
-        Carbon::setTestNow(Carbon::now()->addMinute());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addMinute());
         $this->assertFalse($this->manager->isPaused('redis', 'default'));
     }
 
-    public function testPauseQueueIndefinitely()
+    public function testPauseQueueIndefinitely(): void
     {
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
         $this->manager->pause('redis', 'default');
 
         $this->assertTrue($this->manager->isPaused('redis', 'default'));
 
-        Carbon::setTestNow(Carbon::now()->addYear());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addYear());
         $this->assertTrue($this->manager->isPaused('redis', 'default'));
     }
 

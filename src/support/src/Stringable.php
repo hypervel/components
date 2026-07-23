@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use ArrayAccess;
+use Carbon\CarbonInterface;
 use Closure;
 use Countable;
 use Hypervel\Support\Facades\Date;
@@ -1161,7 +1162,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @throws \Carbon\Exceptions\InvalidFormatException
      */
-    public function toDate(?string $format = null, ?string $tz = null): mixed
+    public function toDate(?string $format = null, ?string $tz = null): ?CarbonInterface
     {
         if (is_null($format)) {
             return Date::parse($this->value, $tz);

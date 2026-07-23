@@ -9,7 +9,7 @@ use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
@@ -47,26 +47,26 @@ class EloquentEagerLoadingLimitTest extends DatabaseTestCase
         User::create();
         User::create();
 
-        Post::create(['user_id' => 1, 'created_at' => new Carbon('2024-01-01 00:00:01')]);
-        Post::create(['user_id' => 1, 'created_at' => new Carbon('2024-01-01 00:00:02')]);
-        Post::create(['user_id' => 1, 'created_at' => new Carbon('2024-01-01 00:00:03')]);
-        Post::create(['user_id' => 2, 'created_at' => new Carbon('2024-01-01 00:00:04')]);
-        Post::create(['user_id' => 2, 'created_at' => new Carbon('2024-01-01 00:00:05')]);
-        Post::create(['user_id' => 2, 'created_at' => new Carbon('2024-01-01 00:00:06')]);
+        Post::create(['user_id' => 1, 'created_at' => new CarbonImmutable('2024-01-01 00:00:01')]);
+        Post::create(['user_id' => 1, 'created_at' => new CarbonImmutable('2024-01-01 00:00:02')]);
+        Post::create(['user_id' => 1, 'created_at' => new CarbonImmutable('2024-01-01 00:00:03')]);
+        Post::create(['user_id' => 2, 'created_at' => new CarbonImmutable('2024-01-01 00:00:04')]);
+        Post::create(['user_id' => 2, 'created_at' => new CarbonImmutable('2024-01-01 00:00:05')]);
+        Post::create(['user_id' => 2, 'created_at' => new CarbonImmutable('2024-01-01 00:00:06')]);
 
-        Comment::create(['post_id' => 1, 'created_at' => new Carbon('2024-01-01 00:00:01')]);
-        Comment::create(['post_id' => 2, 'created_at' => new Carbon('2024-01-01 00:00:02')]);
-        Comment::create(['post_id' => 3, 'created_at' => new Carbon('2024-01-01 00:00:03')]);
-        Comment::create(['post_id' => 4, 'created_at' => new Carbon('2024-01-01 00:00:04')]);
-        Comment::create(['post_id' => 5, 'created_at' => new Carbon('2024-01-01 00:00:05')]);
-        Comment::create(['post_id' => 6, 'created_at' => new Carbon('2024-01-01 00:00:06')]);
+        Comment::create(['post_id' => 1, 'created_at' => new CarbonImmutable('2024-01-01 00:00:01')]);
+        Comment::create(['post_id' => 2, 'created_at' => new CarbonImmutable('2024-01-01 00:00:02')]);
+        Comment::create(['post_id' => 3, 'created_at' => new CarbonImmutable('2024-01-01 00:00:03')]);
+        Comment::create(['post_id' => 4, 'created_at' => new CarbonImmutable('2024-01-01 00:00:04')]);
+        Comment::create(['post_id' => 5, 'created_at' => new CarbonImmutable('2024-01-01 00:00:05')]);
+        Comment::create(['post_id' => 6, 'created_at' => new CarbonImmutable('2024-01-01 00:00:06')]);
 
-        Role::create(['created_at' => new Carbon('2024-01-01 00:00:01')]);
-        Role::create(['created_at' => new Carbon('2024-01-01 00:00:02')]);
-        Role::create(['created_at' => new Carbon('2024-01-01 00:00:03')]);
-        Role::create(['created_at' => new Carbon('2024-01-01 00:00:04')]);
-        Role::create(['created_at' => new Carbon('2024-01-01 00:00:05')]);
-        Role::create(['created_at' => new Carbon('2024-01-01 00:00:06')]);
+        Role::create(['created_at' => new CarbonImmutable('2024-01-01 00:00:01')]);
+        Role::create(['created_at' => new CarbonImmutable('2024-01-01 00:00:02')]);
+        Role::create(['created_at' => new CarbonImmutable('2024-01-01 00:00:03')]);
+        Role::create(['created_at' => new CarbonImmutable('2024-01-01 00:00:04')]);
+        Role::create(['created_at' => new CarbonImmutable('2024-01-01 00:00:05')]);
+        Role::create(['created_at' => new CarbonImmutable('2024-01-01 00:00:06')]);
 
         DB::table('role_user')->insert([
             ['role_id' => 1, 'user_id' => 1],

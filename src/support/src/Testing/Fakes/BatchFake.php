@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Testing\Fakes;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\UpdatedBatchJobCounts;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Throwable;

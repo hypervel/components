@@ -13,7 +13,7 @@ use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionFunction;
@@ -255,13 +255,13 @@ class ScheduleListCommand extends Command
     /**
      * Get the next due date for an event.
      */
-    private function getNextDueDateForEvent(Event $event, DateTimeZone $timezone): Carbon
+    private function getNextDueDateForEvent(Event $event, DateTimeZone $timezone): CarbonImmutable
     {
         $expressionTimezone = $this->getExpressionTimezone($event);
 
-        $nextDueDate = Carbon::instance(
+        $nextDueDate = CarbonImmutable::instance(
             (new CronExpression($event->expression))
-                ->getNextRunDate(Carbon::now()->setTimezone($expressionTimezone))
+                ->getNextRunDate(CarbonImmutable::now()->setTimezone($expressionTimezone))
                 ->setTimezone($timezone)
         );
 
@@ -269,15 +269,15 @@ class ScheduleListCommand extends Command
             return $nextDueDate;
         }
 
-        $previousDueDate = Carbon::instance(
+        $previousDueDate = CarbonImmutable::instance(
             (new CronExpression($event->expression))
-                ->getPreviousRunDate(Carbon::now()->setTimezone($expressionTimezone), allowCurrentDate: true)
+                ->getPreviousRunDate(CarbonImmutable::now()->setTimezone($expressionTimezone), allowCurrentDate: true)
                 ->setTimezone($timezone)
         );
 
-        $now = Carbon::now()->setTimezone($expressionTimezone);
+        $now = CarbonImmutable::now()->setTimezone($expressionTimezone);
 
-        if (! $now->copy()->startOfMinute()->eq($previousDueDate)) {
+        if (! $now->startOfMinute()->eq($previousDueDate)) {
             return $nextDueDate;
         }
 

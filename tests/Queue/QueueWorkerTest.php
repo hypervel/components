@@ -38,7 +38,7 @@ use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Queue\WorkerStopReason;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -448,7 +448,7 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
     }
 
-    public function testJobIsNotReleasedIfItHasExpired()
+    public function testJobIsNotReleasedIfItHasExpired(): void
     {
         $e = new RuntimeException;
 
@@ -463,8 +463,8 @@ class QueueWorkerTest extends TestCase
 
         $job->attempts = 0;
 
-        Carbon::setTestNow(
-            Carbon::now()->addSeconds(1)
+        CarbonImmutable::setTestNow(
+            CarbonImmutable::now()->addSeconds(1)
         );
 
         $worker = $this->getWorker('default', ['queue' => [$job]]);
@@ -497,18 +497,18 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldNotHaveReceived('dispatch', [m::type(JobProcessed::class)]);
     }
 
-    public function testJobIsFailedIfItHasAlreadyExpired()
+    public function testJobIsFailedIfItHasAlreadyExpired(): void
     {
         $job = new WorkerFakeJob(function ($job) {
             ++$job->attempts;
         });
 
-        $job->retryUntil = Carbon::now()->addSeconds(2)->getTimestamp();
+        $job->retryUntil = CarbonImmutable::now()->addSeconds(2)->getTimestamp();
 
         $job->attempts = 1;
 
-        Carbon::setTestNow(
-            Carbon::now()->addSeconds(3)
+        CarbonImmutable::setTestNow(
+            CarbonImmutable::now()->addSeconds(3)
         );
 
         $worker = $this->getWorker('default', ['queue' => [$job]]);

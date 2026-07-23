@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Foundation\Configuration;
 use Hypervel\Console\Commands\ScheduleListCommand;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 
 class WithScheduleTest extends TestCase
@@ -16,7 +16,7 @@ class WithScheduleTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow('2023-01-01');
+        CarbonImmutable::setTestNow('2023-01-01');
         ScheduleListCommand::resolveTerminalWidthUsing(fn () => 80);
     }
 

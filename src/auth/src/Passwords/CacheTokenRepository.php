@@ -7,7 +7,7 @@ namespace Hypervel\Auth\Passwords;
 use Hypervel\Cache\Repository;
 use Hypervel\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use SensitiveParameter;
 
@@ -41,7 +41,7 @@ class CacheTokenRepository implements TokenRepositoryInterface
 
         $this->cache->put(
             $this->cacheKey($user),
-            [$this->hasher->make($token), Carbon::now()->format($this->format)],
+            [$this->hasher->make($token), CarbonImmutable::now()->format($this->format)],
             $this->expires,
         );
 
@@ -65,7 +65,7 @@ class CacheTokenRepository implements TokenRepositoryInterface
      */
     protected function tokenExpired(string $createdAt): bool
     {
-        return Carbon::createFromFormat($this->format, $createdAt)->addSeconds($this->expires)->isPast();
+        return CarbonImmutable::createFromFormat($this->format, $createdAt)->addSeconds($this->expires)->isPast();
     }
 
     /**
@@ -87,7 +87,7 @@ class CacheTokenRepository implements TokenRepositoryInterface
             return false;
         }
 
-        return Carbon::createFromFormat($this->format, $createdAt)->addSeconds(
+        return CarbonImmutable::createFromFormat($this->format, $createdAt)->addSeconds(
             $this->throttle
         )->isFuture();
     }

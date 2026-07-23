@@ -20,7 +20,7 @@ use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -2555,7 +2555,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testUpdate()
     {
-        Carbon::setTestNow($now = '2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn('');
@@ -2621,7 +2621,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testUpdateWithAlias()
     {
-        Carbon::setTestNow($now = '2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn('');
@@ -2639,7 +2639,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testUpdateWithAliasWithQualifiedTimestampValue()
     {
-        Carbon::setTestNow($now = '2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('getTablePrefix')->andReturn('');
@@ -2654,12 +2654,12 @@ class DatabaseEloquentBuilderTest extends TestCase
         $result = $builder->from('table as alias')->update(['foo' => 'bar', 'alias.updated_at' => null]);
         $this->assertEquals(1, $result);
 
-        Carbon::setTestNow(null);
+        CarbonImmutable::setTestNow(null);
     }
 
     public function testUpsert()
     {
-        Carbon::setTestNow($now = '2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
         $query = m::mock(BaseBuilder::class);
         $query->shouldReceive('from')->with('foo_table')->andReturnSelf();
@@ -2682,7 +2682,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testTouch()
     {
-        Carbon::setTestNow($now = '2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
         $query = m::mock(BaseBuilder::class);
         $query->shouldReceive('from')->with('foo_table')->andReturnSelf();
@@ -2701,7 +2701,7 @@ class DatabaseEloquentBuilderTest extends TestCase
 
     public function testTouchWithCustomColumn()
     {
-        Carbon::setTestNow($now = '2017-10-10 10:10:10');
+        CarbonImmutable::setTestNow($now = '2017-10-10 10:10:10');
 
         $query = m::mock(BaseBuilder::class);
         $query->shouldReceive('from')->with('foo_table')->andReturnSelf();
@@ -2984,8 +2984,7 @@ class PluckDatesStub extends Model
 
     protected function asDateTime(mixed $value): \Carbon\CarbonInterface
     {
-        // Return a mock Carbon that stringifies to 'date_' prefix for test assertion
-        return Carbon::parse('date_' . $value);
+        return CarbonImmutable::parse('date_' . $value);
     }
 }
 

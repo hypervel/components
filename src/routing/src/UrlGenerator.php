@@ -14,7 +14,7 @@ use Hypervel\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
@@ -417,7 +417,7 @@ class UrlGenerator implements UrlGeneratorContract
     {
         $expires = $request->query('expires');
 
-        return ! ($expires && Carbon::now()->getTimestamp() > $expires);
+        return ! ($expires && CarbonImmutable::now()->getTimestamp() > $expires);
     }
 
     /**

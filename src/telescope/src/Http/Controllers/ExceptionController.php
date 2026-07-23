@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Http\Controllers;
 
 use Hypervel\Http\Request;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\EntryUpdate;
@@ -39,7 +39,7 @@ class ExceptionController extends EntryController
 
         if ($request->input('resolved_at') === 'now') {
             $update = new EntryUpdate($entry->id, $entry->type, [
-                'resolved_at' => Carbon::now()->toDateTimeString(),
+                'resolved_at' => CarbonImmutable::now()->toDateTimeString(),
             ]);
 
             $storage->update(collect([$update]));

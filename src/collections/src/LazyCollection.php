@@ -1830,8 +1830,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      */
     protected function now(): int
     {
-        return class_exists(Carbon::class)
-            ? Carbon::now()->getTimestamp()
+        return class_exists(CarbonImmutable::class)
+            ? CarbonImmutable::now()->getTimestamp()
             : time();
     }
 
@@ -1840,8 +1840,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      */
     protected function preciseNow(): float
     {
-        return class_exists(Carbon::class)
-            ? Carbon::now()->getPreciseTimestamp()
+        return class_exists(CarbonImmutable::class)
+            ? CarbonImmutable::now()->getPreciseTimestamp()
             : microtime(true) * 1_000_000;
     }
 

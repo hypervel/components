@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Session;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Session\FileSessionHandler;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -37,15 +37,15 @@ class FileSessionHandlerTest extends TestCase
         $this->assertTrue($this->sessionHandler->close());
     }
 
-    public function testReadReturnsDataWhenFileExistsAndIsValid()
+    public function testReadReturnsDataWhenFileExistsAndIsValid(): void
     {
         $sessionId = 'session_id';
         $path = '/path/to/sessions/' . $sessionId;
-        Carbon::setTestNow(Carbon::parse('2025-02-02 01:30:00'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2025-02-02 01:30:00'));
 
         $this->files->shouldReceive('isFile')->with($path)->andReturn(true);
 
-        $minutesAgo30 = Carbon::parse('2025-02-02 01:00:00')->getTimestamp();
+        $minutesAgo30 = CarbonImmutable::parse('2025-02-02 01:00:00')->getTimestamp();
         $this->files->shouldReceive('lastModified')->with($path)->andReturn($minutesAgo30);
         $this->files->shouldReceive('sharedGet')->with($path)->once()->andReturn('session_data');
 
@@ -54,15 +54,15 @@ class FileSessionHandlerTest extends TestCase
         $this->assertSame('session_data', $result);
     }
 
-    public function testReadReturnsEmptyWhenFileExistsButExpired()
+    public function testReadReturnsEmptyWhenFileExistsButExpired(): void
     {
         $sessionId = 'session_id';
         $path = '/path/to/sessions/' . $sessionId;
-        Carbon::setTestNow(Carbon::parse('2025-02-02 01:30:01'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2025-02-02 01:30:01'));
 
         $this->files->shouldReceive('isFile')->with($path)->andReturn(true);
 
-        $minutesAgo30 = Carbon::parse('2025-02-02 01:00:00')->getTimestamp();
+        $minutesAgo30 = CarbonImmutable::parse('2025-02-02 01:00:00')->getTimestamp();
         $this->files->shouldReceive('lastModified')->with($path)->andReturn($minutesAgo30);
         $this->files->shouldReceive('sharedGet')->never();
 
@@ -87,10 +87,10 @@ class FileSessionHandlerTest extends TestCase
     {
         $sessionId = 'vanished_session_id';
         $path = '/path/to/sessions/' . $sessionId;
-        Carbon::setTestNow(Carbon::parse('2025-02-02 01:30:00'));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2025-02-02 01:30:00'));
 
         $this->files->shouldReceive('isFile')->with($path)->andReturnTrue();
-        $this->files->shouldReceive('lastModified')->with($path)->andReturn(Carbon::now()->getTimestamp());
+        $this->files->shouldReceive('lastModified')->with($path)->andReturn(CarbonImmutable::now()->getTimestamp());
         $this->files->shouldReceive('sharedGet')->with($path)->once()->andThrow(
             new FileNotFoundException("Unable to read file at path {$path}.")
         );

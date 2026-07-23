@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\DatabaseEloquentModelTest;
 
+use Carbon\CarbonInterface;
 use DateTime;
 use DateTimeImmutable;
 use DateTimeInterface;
@@ -52,7 +53,7 @@ use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Events\Dispatcher as EventDispatcher;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Fluent;
@@ -937,7 +938,7 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertTrue($model->save());
     }
 
-    public function testTimestampsAreReturnedAsObjects()
+    public function testTimestampsAreReturnedAsObjects(): void
     {
         $model = new class extends DateModelStub {
             public function getDateFormat(): string
@@ -950,11 +951,11 @@ class DatabaseEloquentModelTest extends TestCase
             'updated_at' => '2012-12-05',
         ]);
 
-        $this->assertInstanceOf(Carbon::class, $model->created_at);
-        $this->assertInstanceOf(Carbon::class, $model->updated_at);
+        $this->assertSame(CarbonImmutable::class, $model->created_at::class);
+        $this->assertSame(CarbonImmutable::class, $model->updated_at::class);
     }
 
-    public function testTimestampsAreReturnedAsObjectsFromPlainDatesAndTimestamps()
+    public function testTimestampsAreReturnedAsObjectsFromPlainDatesAndTimestamps(): void
     {
         $model = new class extends DateModelStub {
             public function getDateFormat(): string
@@ -967,15 +968,15 @@ class DatabaseEloquentModelTest extends TestCase
             'updated_at' => $this->currentTime(),
         ]);
 
-        $this->assertInstanceOf(Carbon::class, $model->created_at);
-        $this->assertInstanceOf(Carbon::class, $model->updated_at);
+        $this->assertSame(CarbonImmutable::class, $model->created_at::class);
+        $this->assertSame(CarbonImmutable::class, $model->updated_at::class);
     }
 
-    public function testTimestampsAreReturnedAsObjectsOnCreate()
+    public function testTimestampsAreReturnedAsObjectsOnCreate(): void
     {
         $timestamps = [
-            'created_at' => Carbon::now(),
-            'updated_at' => Carbon::now(),
+            'created_at' => CarbonImmutable::now(),
+            'updated_at' => CarbonImmutable::now(),
         ];
         $model = new DateModelStub;
         Model::setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
@@ -983,15 +984,15 @@ class DatabaseEloquentModelTest extends TestCase
         $mockConnection->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
         $grammar->shouldReceive('getDateFormat')->andReturn('Y-m-d H:i:s');
         $instance = $model->newInstance($timestamps);
-        $this->assertInstanceOf(Carbon::class, $instance->updated_at);
-        $this->assertInstanceOf(Carbon::class, $instance->created_at);
+        $this->assertSame(CarbonImmutable::class, $instance->updated_at::class);
+        $this->assertSame(CarbonImmutable::class, $instance->created_at::class);
     }
 
     public function testDateTimeAttributesReturnNullIfSetToNull()
     {
         $timestamps = [
-            'created_at' => Carbon::now(),
-            'updated_at' => Carbon::now(),
+            'created_at' => CarbonImmutable::now(),
+            'updated_at' => CarbonImmutable::now(),
         ];
         $model = new DateModelStub;
         Model::setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
@@ -1004,30 +1005,30 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertNull($instance->created_at);
     }
 
-    public function testTimestampsAreCreatedFromStringsAndIntegers()
+    public function testTimestampsAreCreatedFromStringsAndIntegers(): void
     {
         $model = new DateModelStub;
         $model->created_at = '2013-05-22 00:00:00';
-        $this->assertInstanceOf(Carbon::class, $model->created_at);
+        $this->assertSame(CarbonImmutable::class, $model->created_at::class);
 
         $model = new DateModelStub;
         $model->created_at = $this->currentTime();
-        $this->assertInstanceOf(Carbon::class, $model->created_at);
+        $this->assertSame(CarbonImmutable::class, $model->created_at::class);
 
         $model = new DateModelStub;
         $model->created_at = 0;
-        $this->assertInstanceOf(Carbon::class, $model->created_at);
+        $this->assertSame(CarbonImmutable::class, $model->created_at::class);
 
         $model = new DateModelStub;
         $model->created_at = '2012-01-01';
-        $this->assertInstanceOf(Carbon::class, $model->created_at);
+        $this->assertSame(CarbonImmutable::class, $model->created_at::class);
     }
 
-    public function testFromDateTime()
+    public function testFromDateTime(): void
     {
         $model = new ModelStub;
 
-        $value = Carbon::parse('2015-04-17 22:59:01');
+        $value = CarbonImmutable::parse('2015-04-17 22:59:01');
         $this->assertSame('2015-04-17 22:59:01', $model->fromDateTime($value));
 
         $value = new DateTime('2015-04-17 22:59:01');
@@ -1055,7 +1056,7 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertNull($model->fromDateTime(null));
     }
 
-    public function testFromDateTimeMilliseconds()
+    public function testFromDateTimeMilliseconds(): void
     {
         $model = new class extends DateModelStub {
             public function getDateFormat(): string
@@ -1067,7 +1068,7 @@ class DatabaseEloquentModelTest extends TestCase
             'created_at' => '2012-12-04 22:59.32130',
         ]);
 
-        $this->assertInstanceOf(Carbon::class, $model->created_at);
+        $this->assertSame(CarbonImmutable::class, $model->created_at::class);
         $this->assertSame('22:30:59.321000', $model->created_at->format('H:i:s.u'));
     }
 
@@ -2679,7 +2680,7 @@ class DatabaseEloquentModelTest extends TestCase
         $model->touchOwners();
     }
 
-    public function testModelAttributesAreCastedWhenPresentInCastsPropertyOrCastsMethod()
+    public function testModelAttributesAreCastedWhenPresentInCastsPropertyOrCastsMethod(): void
     {
         $model = new CastingStub;
         $model->setDateFormat('Y-m-d H:i:s');
@@ -2717,8 +2718,8 @@ class DatabaseEloquentModelTest extends TestCase
         $this->assertSame('{"foo":"bar"}', $model->jsonAttributeValue());
         $this->assertEquals(['こんにちは' => '世界'], $model->jsonAttributeWithUnicode);
         $this->assertSame('{"こんにちは":"世界"}', $model->jsonAttributeWithUnicodeValue());
-        $this->assertInstanceOf(Carbon::class, $model->dateAttribute);
-        $this->assertInstanceOf(Carbon::class, $model->datetimeAttribute);
+        $this->assertSame(CarbonImmutable::class, $model->dateAttribute::class);
+        $this->assertSame(CarbonImmutable::class, $model->datetimeAttribute::class);
         $this->assertInstanceOf(BaseCollection::class, $model->collectionAttribute);
         $this->assertInstanceOf(CustomCollection::class, $model->asCustomCollectionAttribute);
         $this->assertSame('1969-07-20', $model->dateAttribute->toDateString());
@@ -3329,7 +3330,7 @@ class DatabaseEloquentModelTest extends TestCase
             'published',
             'category' => 'Laravel',
             'framework' => ['Laravel', '5.3'],
-            'date' => Carbon::now(),
+            'date' => CarbonImmutable::now(),
         ];
 
         $this->assertInstanceOf(Builder::class, $model->scopes($scopes));
@@ -4186,7 +4187,7 @@ class ModelStub extends Model
         $this->scopesCalled['framework'] = [$framework, $version];
     }
 
-    public function scopeDate(Builder $builder, Carbon $date)
+    public function scopeDate(Builder $builder, CarbonInterface $date)
     {
         $this->scopesCalled['date'] = $date;
     }

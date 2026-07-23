@@ -7,8 +7,9 @@ namespace Hypervel\Tests\Queue;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Queue\BeanstalkdQueue;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
@@ -18,7 +19,6 @@ use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Job;
 use Pheanstalk\Values\TubeList;
 use Pheanstalk\Values\TubeName;
-use PHPUnit\Framework\TestCase;
 
 class QueueBeanstalkdQueueTest extends TestCase
 {
@@ -41,10 +41,10 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->assertSame('0', $this->queue->getQueue('0'));
     }
 
-    public function testPushProperlyPushesJobOntoBeanstalkd()
+    public function testPushProperlyPushesJobOntoBeanstalkd(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
 
         $uuid = Str::uuid();
 
@@ -62,10 +62,10 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->container->shouldHaveReceived('bound')->with('events')->times(4);
     }
 
-    public function testDelayedPushProperlyPushesJobOntoBeanstalkd()
+    public function testDelayedPushProperlyPushesJobOntoBeanstalkd(): void
     {
-        $now = Carbon::now();
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::now();
+        CarbonImmutable::setTestNow($now);
 
         $uuid = Str::uuid();
 

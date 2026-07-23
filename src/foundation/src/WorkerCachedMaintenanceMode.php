@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
+use Hypervel\Support\CarbonImmutable;
 
 class WorkerCachedMaintenanceMode implements MaintenanceModeContract
 {

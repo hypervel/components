@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Contracts\Cache\Repository as Cache;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Attributes\ReadsQueueAttributes;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 
 class DebounceLock

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use DateTime;
+use DateTimeInterface;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Mail\Factory as MailFactory;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
@@ -93,7 +93,7 @@ class SendQueuedMailable
     /**
      * Determine the time at which the job should timeout.
      */
-    public function retryUntil(): ?DateTime
+    public function retryUntil(): ?DateTimeInterface
     {
         if (! method_exists($this->mailable, 'retryUntil') && ! isset($this->mailable->retryUntil)) {
             return null;

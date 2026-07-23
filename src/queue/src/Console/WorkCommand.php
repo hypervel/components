@@ -17,7 +17,7 @@ use Hypervel\Queue\Events\JobReleasedAfterException;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -294,17 +294,17 @@ class WorkCommand extends Command
     /**
      * Get the current date / time.
      */
-    protected function now(): Carbon
+    protected function now(): CarbonImmutable
     {
         $queueTimezone = $this->config->get('queue.output_timezone');
 
         if ($queueTimezone
             && $queueTimezone !== $this->config->get('app.timezone')
         ) {
-            return Carbon::now()->setTimezone($queueTimezone);
+            return CarbonImmutable::now()->setTimezone($queueTimezone);
         }
 
-        return Carbon::now();
+        return CarbonImmutable::now();
     }
 
     /**

@@ -23,6 +23,9 @@ class ClientCoroutineIsolationTest extends TestCase
 {
     public function testClientsCallsMetadataDeadlinesAndResponsesRemainIsolatedAcrossCoroutines(): void
     {
+        // Protobuf's generated descriptor registration is not coroutine-safe on first use.
+        new TestRequest;
+
         $clients = [];
         $engines = [];
         $tasks = [];

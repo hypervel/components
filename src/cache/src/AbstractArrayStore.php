@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\CanFlushLocks;
 use Hypervel\Contracts\Cache\LockProvider;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use RuntimeException;
 
@@ -226,14 +226,14 @@ abstract class AbstractArrayStore extends TaggableStore implements CanFlushLocks
     /**
      * Get the lock record for the given name.
      *
-     * @return null|array{owner: ?string, expiresAt: ?Carbon}
+     * @return null|array{owner: ?string, expiresAt: ?CarbonImmutable}
      */
     abstract public function getLockRecord(string $name): ?array;
 
     /**
      * Store the lock record for the given name.
      *
-     * @param array{owner: ?string, expiresAt: ?Carbon} $record
+     * @param array{owner: ?string, expiresAt: ?CarbonImmutable} $record
      */
     abstract public function putLockRecord(string $name, array $record): void;
 

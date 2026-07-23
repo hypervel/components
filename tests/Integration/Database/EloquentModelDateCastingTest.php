@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\EloquentModelDateCastingTest;
 
-use Carbon\Carbon;
-use Carbon\CarbonImmutable;
+use Carbon\Carbon as BaseCarbon;
+use Carbon\CarbonImmutable as BaseCarbonImmutable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
@@ -33,7 +34,7 @@ class EloquentModelDateCastingTest extends DatabaseTestCase
         });
     }
 
-    public function testDatesAreCustomCastable()
+    public function testDatesAreCustomCastable(): void
     {
         $user = TestModel1::create([
             'date_field' => '2019-10-01',
@@ -42,8 +43,8 @@ class EloquentModelDateCastingTest extends DatabaseTestCase
 
         $this->assertSame('2019-10', $user->toArray()['date_field']);
         $this->assertSame('2019-10 10:15', $user->toArray()['datetime_field']);
-        $this->assertInstanceOf(Carbon::class, $user->date_field);
-        $this->assertInstanceOf(Carbon::class, $user->datetime_field);
+        $this->assertSame(CarbonImmutable::class, $user->date_field::class);
+        $this->assertSame(CarbonImmutable::class, $user->datetime_field::class);
     }
 
     public function testDatesFormattedAttributeBindings()
@@ -85,7 +86,7 @@ class EloquentModelDateCastingTest extends DatabaseTestCase
         $this->assertSame(json_encode($expected), $user->toJson());
     }
 
-    public function testCustomDateCastsAreComparedAsDatesForCarbonInstances()
+    public function testCustomDateCastsAreComparedAsDatesForCarbonInstances(): void
     {
         $user = TestModel1::create([
             'date_field' => '2019-10-01',
@@ -94,10 +95,10 @@ class EloquentModelDateCastingTest extends DatabaseTestCase
             'immutable_datetime_field' => '2019-10-01 10:15:20',
         ]);
 
-        $user->date_field = new Carbon('2019-10-01');
-        $user->datetime_field = new Carbon('2019-10-01 10:15:20');
-        $user->immutable_date_field = new CarbonImmutable('2019-10-01');
-        $user->immutable_datetime_field = new CarbonImmutable('2019-10-01 10:15:20');
+        $user->date_field = new BaseCarbon('2019-10-01');
+        $user->datetime_field = new BaseCarbon('2019-10-01 10:15:20');
+        $user->immutable_date_field = new BaseCarbonImmutable('2019-10-01');
+        $user->immutable_datetime_field = new BaseCarbonImmutable('2019-10-01 10:15:20');
 
         $this->assertArrayNotHasKey('date_field', $user->getDirty());
         $this->assertArrayNotHasKey('datetime_field', $user->getDirty());

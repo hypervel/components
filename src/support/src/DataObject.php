@@ -7,9 +7,13 @@ namespace Hypervel\Support;
 use ArrayAccess;
 use BackedEnum;
 use Carbon\Carbon as BaseCarbon;
+use Carbon\CarbonImmutable as BaseCarbonImmutable;
 use Carbon\CarbonInterface;
+use Carbon\Exceptions\InvalidFormatException;
 use DateTime;
+use DateTimeImmutable;
 use DateTimeInterface;
+use Hypervel\Support\Facades\Date;
 use JsonSerializable;
 use LogicException;
 use OutOfBoundsException;
@@ -114,13 +118,23 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
      */
     protected static function getCustomizedDependencies(): array
     {
-        return [
-            DateTimeInterface::class => $asDateTime = fn ($value) => $value ? static::asDateTime($value) : null,
-            CarbonInterface::class => $asDateTime,
-            DateTime::class => $asDateTime,
-            Carbon::class => $asDateTime,
-            BaseCarbon::class => $asDateTime,
+        $dependencies = [];
+        $dateTargets = [
+            DateTimeInterface::class,
+            CarbonInterface::class,
+            DateTime::class,
+            DateTimeImmutable::class,
+            Carbon::class,
+            CarbonImmutable::class,
+            BaseCarbon::class,
+            BaseCarbonImmutable::class,
         ];
+
+        foreach ($dateTargets as $target) {
+            $dependencies[$target] = static fn (mixed $value): ?DateTimeInterface => $value === [] ? null : static::asDateTime($value, $target);
+        }
+
+        return $dependencies;
     }
 
     /**
@@ -131,58 +145,48 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     protected static function getSerializers(): array
     {
         return [
-            DateTimeInterface::class => $asIsoString = fn ($value) => $value->format('c'),
-            DateTime::class => $asIsoString,
-            CarbonInterface::class => $asIsoString,
-            Carbon::class => $asIsoString,
-            BaseCarbon::class => $asIsoString,
+            DateTimeInterface::class => static fn (DateTimeInterface $value): string => $value->format('c'),
         ];
     }
 
     /**
-     * Return a timestamp as DateTime object.
+     * Convert a value to the declared date target.
+     *
+     * @param BaseCarbon::class|BaseCarbonImmutable::class|Carbon::class|CarbonImmutable::class|CarbonInterface::class|DateTime::class|DateTimeImmutable::class|DateTimeInterface::class $target
      */
-    protected static function asDateTime(mixed $value): CarbonInterface
+    protected static function asDateTime(mixed $value, string $target): DateTimeInterface
     {
-        // If this value is already a Carbon instance, we shall just return it as is.
-        // This prevents us having to re-instantiate a Carbon instance when we know
-        // it already is one, which wouldn't be fulfilled by the DateTime check.
-        if ($value instanceof CarbonInterface) {
-            return Carbon::instance($value);
-        }
-
-        // If the value is already a DateTime instance, we will just skip the rest of
-        // these checks since they will be a waste of time, and hinder performance
-        // when checking the field. We will just return the DateTime right away.
         if ($value instanceof DateTimeInterface) {
-            return Carbon::parse(
-                $value->format('Y-m-d H:i:s.u'),
-                $value->getTimezone()
+            $date = Date::instance($value);
+        } elseif (is_numeric($value)) {
+            $date = Date::createFromTimestamp(
+                $value,
+                date_default_timezone_get()
             );
+        } elseif (static::isStandardDateFormat($value)) {
+            $date = Date::parse($value)->startOfDay();
+        } else {
+            try {
+                $date = Date::createFromFormat(static::$dateFormat, $value);
+                // @phpstan-ignore catch.neverThrown (the Date facade's magic dispatch hides Carbon's @throws from analysis)
+            } catch (InvalidFormatException) {
+                $date = null;
+            }
+
+            $date ??= Date::parse($value);
         }
 
-        // If this value is an integer, we will assume it is a UNIX timestamp's value
-        // and format a Carbon object from this timestamp. This allows flexibility
-        // when defining your date fields as they might be UNIX timestamps here.
-        if (is_numeric($value)) {
-            return Carbon::createFromTimestamp($value, date_default_timezone_get());
-        }
-
-        // If the value is in simply year, month, day format, we will instantiate the
-        // Carbon instances from that format. Again, this provides for simple date
-        // fields on the database, while still supporting Carbonized conversion.
-        if (static::isStandardDateFormat($value)) {
-            return Carbon::instance(Carbon::createFromFormat('Y-m-d', $value)->startOfDay());
-        }
-
-        // Finally, we will just assume this date is in the format used by default on
-        // the database connection and use that format to create the Carbon object
-        // that is returned back out to the developers after we convert it here.
-        if (Carbon::hasFormat($value, static::$dateFormat)) {
-            return Carbon::createFromFormat(static::$dateFormat, $value);
-        }
-
-        return Carbon::parse($value);
+        return match ($target) {
+            DateTimeInterface::class, CarbonInterface::class => $date,
+            DateTime::class => DateTime::createFromInterface($date),
+            DateTimeImmutable::class => DateTimeImmutable::createFromInterface($date),
+            // instance() clones same-mutability subclasses, so cross the mutability
+            // boundary first to honor the exact target while retaining Carbon settings.
+            Carbon::class => Carbon::instance($date->toImmutable()),
+            CarbonImmutable::class => CarbonImmutable::instance($date->toMutable()),
+            BaseCarbon::class => BaseCarbon::instance($date->toImmutable()),
+            BaseCarbonImmutable::class => BaseCarbonImmutable::instance($date->toMutable()),
+        };
     }
 
     /**
@@ -581,7 +585,15 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             // recursively convert nested objects to arrays
             if ($value instanceof self) {
                 $value = $value->toArray();
-            } elseif (is_object($value) && $serializer = $serializers[get_class($value)] ?? null) {
+            } elseif (
+                $value instanceof DateTimeInterface
+                && $serializer = $serializers[DateTimeInterface::class] ?? null
+            ) {
+                $value = $serializer($value);
+            } elseif (
+                is_object($value)
+                && $serializer = $serializers[$value::class] ?? null
+            ) {
                 $value = $serializer($value);
             } elseif (is_object($value) && method_exists($value, 'toArray')) {
                 $value = $value->toArray();

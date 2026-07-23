@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Cache;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Foundation\Testing\LazilyRefreshDatabase;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -18,9 +18,9 @@ class RepositoryTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function testStaleWhileRevalidate()
+    public function testStaleWhileRevalidate(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
         $cache = Cache::driver('array');
         $count = 0;
 
@@ -43,7 +43,7 @@ class RepositoryTest extends TestCase
         $this->assertSame(1, $cache->get('foo'));
         $this->assertSame(946684800, $cache->get('hypervel:cache:flexible:created:foo'));
 
-        Carbon::setTestNow(now()->addSeconds(11));
+        CarbonImmutable::setTestNow(now()->addSeconds(11));
 
         // Cache is now "stale". The stored value should be used and a deferred
         // callback should be registered to refresh the cache.
@@ -83,7 +83,7 @@ class RepositoryTest extends TestCase
         $this->assertSame(946684811, $cache->get('hypervel:cache:flexible:created:foo'));
 
         // Let's now progress time beyond the stale TTL...
-        Carbon::setTestNow(now()->addSeconds(21));
+        CarbonImmutable::setTestNow(now()->addSeconds(21));
 
         // Now the values should have left the cache. We should refresh.
         $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
@@ -97,7 +97,7 @@ class RepositoryTest extends TestCase
         // Now lets see what happens when another request, job, or command is
         // also trying to refresh the same key at the same time. Will push past
         // the "fresh" TTL and register a deferred callback.
-        Carbon::setTestNow(now()->addSeconds(11));
+        CarbonImmutable::setTestNow(now()->addSeconds(11));
         $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
             return ++$count;
         });
@@ -130,7 +130,7 @@ class RepositoryTest extends TestCase
         // The last thing is to check that we don't refresh the cache in the
         // deferred callback if another thread has already done the work for us.
         // We will make the cache stale...
-        Carbon::setTestNow(now()->addSeconds(11));
+        CarbonImmutable::setTestNow(now()->addSeconds(11));
         $value = $cache->flexible('foo', [10, 20], function () use (&$count) {
             return ++$count;
         });
@@ -157,7 +157,7 @@ class RepositoryTest extends TestCase
         $this->assertSame(946684863, $cache->get('hypervel:cache:flexible:created:foo'));
     }
 
-    public function testItHandlesStrayTtlKeyAfterMainKeyIsForgotten()
+    public function testItHandlesStrayTtlKeyAfterMainKeyIsForgotten(): void
     {
         $cache = Cache::driver('array');
         $count = 0;
@@ -182,7 +182,7 @@ class RepositoryTest extends TestCase
         $this->assertSame(2, $count);
     }
 
-    public function testItImplicitlyClearsTtlKeysFromDatabaseCache()
+    public function testItImplicitlyClearsTtlKeysFromDatabaseCache(): void
     {
         $this->freezeTime();
         $cache = Cache::driver('database');
@@ -211,7 +211,7 @@ class RepositoryTest extends TestCase
         $this->assertTrue($cache->missing('hypervel:cache:flexible:created:count'));
     }
 
-    public function testItImplicitlyClearsTtlKeysFromFileDriver()
+    public function testItImplicitlyClearsTtlKeysFromFileDriver(): void
     {
         $this->freezeTime();
         $cache = Cache::driver('file');
@@ -241,7 +241,7 @@ class RepositoryTest extends TestCase
         $this->assertTrue($cache->missing('hypervel:cache:flexible:created:count'));
     }
 
-    public function testItCanAlwaysDefer()
+    public function testItCanAlwaysDefer(): void
     {
         $this->freezeTime();
         $cache = Cache::driver('array');
@@ -255,7 +255,7 @@ class RepositoryTest extends TestCase
         // First call to flexible() should not defer
         $this->assertCount(0, defer());
 
-        Carbon::setTestNow(now()->addSeconds(11));
+        CarbonImmutable::setTestNow(now()->addSeconds(11));
 
         // Second callback should defer with always now true
         $cache->flexible('foo', [10, 20], function () use (&$count) {
@@ -266,7 +266,7 @@ class RepositoryTest extends TestCase
         $this->assertTrue(defer()->first()->always);
     }
 
-    public function testItRoundsDateTimeValuesToAccountForTimePassedDuringScriptExecution()
+    public function testItRoundsDateTimeValuesToAccountForTimePassedDuringScriptExecution(): void
     {
         // do not freeze time as this test depends on time progressing duration execution.
         $cache = Cache::driver('array');
@@ -283,7 +283,7 @@ class RepositoryTest extends TestCase
         $this->assertSame(1, $events[0]->seconds);
     }
 
-    public function testFakedCacheEventsAreStillRecordedWithoutRealListeners()
+    public function testFakedCacheEventsAreStillRecordedWithoutRealListeners(): void
     {
         Event::fake([KeyWritten::class]);
 
@@ -296,7 +296,7 @@ class RepositoryTest extends TestCase
         });
     }
 
-    public function testWorksWithEnumKey()
+    public function testWorksWithEnumKey(): void
     {
         $cache = Cache::driver('array');
 
@@ -345,7 +345,7 @@ class RepositoryTest extends TestCase
         $this->assertSame(['foo' => 'default', 'qux' => 'default'], $cache->getMultiple([TestCacheKey::Foo, TestCacheKey::Qux], 'default'));
     }
 
-    public function testRememberNullableRoundTripsThroughDefaultStore()
+    public function testRememberNullableRoundTripsThroughDefaultStore(): void
     {
         $cache = Cache::driver('array');
 
@@ -364,7 +364,7 @@ class RepositoryTest extends TestCase
         $this->assertSame(1, $count);
     }
 
-    public function testHasReturnsFalseForCachedNullSentinelViaRealStore()
+    public function testHasReturnsFalseForCachedNullSentinelViaRealStore(): void
     {
         $cache = Cache::driver('array');
 
@@ -375,7 +375,7 @@ class RepositoryTest extends TestCase
         $this->assertTrue($cache->missing('k'));
     }
 
-    public function testPutOverwritesCachedNullSentinelEndToEnd()
+    public function testPutOverwritesCachedNullSentinelEndToEnd(): void
     {
         $cache = Cache::driver('array');
 
@@ -386,7 +386,7 @@ class RepositoryTest extends TestCase
         $this->assertTrue($cache->has('k'));
     }
 
-    public function testTtlExpiryOnSentinelStoredKeyReRunsCallback()
+    public function testTtlExpiryOnSentinelStoredKeyReRunsCallback(): void
     {
         $this->freezeTime();
         $cache = Cache::driver('array');
@@ -405,9 +405,9 @@ class RepositoryTest extends TestCase
         $this->assertTrue($invoked);
     }
 
-    public function testFlexibleNullableStaleHitUnwrapsAndTriggersRefresh()
+    public function testFlexibleNullableStaleHitUnwrapsAndTriggersRefresh(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00');
         $cache = Cache::driver('array');
 
         $count = 0;
@@ -423,7 +423,7 @@ class RepositoryTest extends TestCase
 
         // Advance past the fresh TTL. Next call returns the stale sentinel (unwrapped)
         // and registers a deferred refresh.
-        Carbon::setTestNow(now()->addSeconds(11));
+        CarbonImmutable::setTestNow(now()->addSeconds(11));
         $value = $cache->flexibleNullable('foo', [10, 20], function () use (&$count) {
             ++$count;
             return null;

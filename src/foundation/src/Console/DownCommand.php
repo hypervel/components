@@ -11,7 +11,7 @@ use Hypervel\Foundation\Console\Concerns\ReloadsWorkers;
 use Hypervel\Foundation\Events\MaintenanceModeEnabled;
 use Hypervel\Foundation\Exceptions\RegisterErrorViewPaths;
 use Hypervel\Foundation\Http\Middleware\PreventRequestsDuringMaintenance;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Throwable;
@@ -169,7 +169,7 @@ class DownCommand extends Command
 
         if (is_string($retry) && ! empty($retry)) {
             try {
-                $date = Carbon::parse($retry);
+                $date = CarbonImmutable::parse($retry);
 
                 return $date->format(DateTimeInterface::RFC7231);
             } catch (Exception) {

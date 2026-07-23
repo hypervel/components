@@ -9,7 +9,7 @@ use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Database\Eloquent\Relations\MorphOne;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
@@ -59,13 +59,13 @@ class EloquentMorphManyTest extends DatabaseTestCase
     {
         $post = Post::create(['title' => 'Your favorite book by C.S. Lewis']);
 
-        Carbon::setTestNow('1990-02-02 12:00:00');
+        CarbonImmutable::setTestNow('1990-02-02 12:00:00');
         $oldestComment = tap((new Comment(['name' => 'The Allegory Of Love']))->commentable()->associate($post))->save();
 
-        Carbon::setTestNow('2000-07-02 09:00:00');
+        CarbonImmutable::setTestNow('2000-07-02 09:00:00');
         tap((new Comment(['name' => 'The Screwtape Letters']))->commentable()->associate($post))->save();
 
-        Carbon::setTestNow('2022-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2022-01-01 00:00:00');
         $latestComment = tap((new Comment(['name' => 'The Silver Chair']))->commentable()->associate($post))->save();
 
         $this->assertInstanceOf(MorphOne::class, $post->comments()->one());

@@ -20,7 +20,7 @@ use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Log\Context\Repository as ContextRepository;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
@@ -220,8 +220,9 @@ class ScheduleRunCommand extends Command
     protected function repeatEvents(Collection $events): void
     {
         $hasEnteredMaintenanceMode = false;
+        $endOfMinute = $this->startedAt->copy()->endOfMinute();
 
-        while (Date::now()->lte($this->startedAt->endOfMinute())) {
+        while (Date::now()->lte($endOfMinute)) {
             $paused = $this->isPaused();
 
             foreach ($events as $event) {
@@ -231,6 +232,10 @@ class ScheduleRunCommand extends Command
 
                 if (! $event->shouldRepeatNow()) {
                     continue;
+                }
+
+                if (Date::now()->gt($endOfMinute)) {
+                    return;
                 }
 
                 $hasEnteredMaintenanceMode = $hasEnteredMaintenanceMode || $this->hypervel->isDownForMaintenance();
@@ -363,7 +368,7 @@ class ScheduleRunCommand extends Command
 
         $description = sprintf(
             '<fg=gray>%s</> Running [%s]%s',
-            Carbon::now()->format('Y-m-d H:i:s'),
+            CarbonImmutable::now()->format('Y-m-d H:i:s'),
             $command,
             $event->runInBackground ? ' in background (coroutine)' : '',
         );
@@ -428,7 +433,7 @@ class ScheduleRunCommand extends Command
 
         $finishDescription = sprintf(
             '<fg=gray>%s</> %s [%s] <fg=gray>%sms</>',
-            Carbon::now()->format('Y-m-d H:i:s'),
+            CarbonImmutable::now()->format('Y-m-d H:i:s'),
             $status,
             $command,
             round(microtime(true) - $start, 2),

@@ -15,7 +15,7 @@ use Hypervel\Console\ManuallyFailedException;
 use Hypervel\Console\OutputStyle;
 use Hypervel\Console\SignalRegistry;
 use Hypervel\Console\View\Components\Factory;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\ClassInvoker;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Console\Commands\DefaultSwooleFlagsCommand;
@@ -343,7 +343,7 @@ class CommandTest extends TestCase
 
         $this->assertInstanceOf(CommandInput::class, $commandInput);
         $this->assertSame(CommandInputType::Foo, $commandInput->enum('type', CommandInputType::class));
-        $this->assertInstanceOf(Carbon::class, $commandInput->date('when'));
+        $this->assertInstanceOf(CarbonImmutable::class, $commandInput->date('when'));
         $this->assertSame('2026-06-26', $commandInput->date('when')->format('Y-m-d'));
         $this->assertSame(5, $commandInput->integer('limit'));
         $this->assertSame('admin', $commandInput->all()['role']);

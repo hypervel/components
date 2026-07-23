@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Queue\SkipIfBatchCancelledTest;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
@@ -12,12 +11,13 @@ use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\SkipIfBatchCancelled;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
 class SkipIfBatchCancelledTest extends TestCase
 {
-    public function testJobsAreSkippedOnceBatchIsCancelled()
+    public function testJobsAreSkippedOnceBatchIsCancelled(): void
     {
         [$beforeCancelled] = (new SkipCancelledBatchableTestJob)->withFakeBatch();
         [$afterCancelled] = (new SkipCancelledBatchableTestJob)->withFakeBatch(

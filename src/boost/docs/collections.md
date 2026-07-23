@@ -4606,11 +4606,11 @@ To illustrate the usage of this method, imagine an application that submits invo
 
 ```php
 use App\Models\Invoice;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 
 Invoice::pending()->cursor()
     ->takeUntilTimeout(
-        Carbon::createFromTimestamp(HYPERVEL_START)->add(14, 'minutes')
+        CarbonImmutable::createFromTimestamp(HYPERVEL_START)->add(14, 'minutes')
     )
     ->each(fn (Invoice $invoice) => $invoice->submit());
 ```

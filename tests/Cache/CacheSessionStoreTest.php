@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Cache;
 use Hypervel\Cache\SessionStore;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use stdClass;
 
@@ -25,13 +25,13 @@ class CacheSessionStoreTest extends TestCase
     {
         $store = new SessionStore(self::getSession());
 
-        Carbon::setTestNow('2000-01-01 00:00:00.500'); // 500 milliseconds past
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00.500'); // 500 milliseconds past
         $store->put('hello', 'world', 1);
 
-        Carbon::setTestNow('2000-01-01 00:00:01.499'); // progress 0.999 seconds
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01.499'); // progress 0.999 seconds
         $this->assertSame('world', $store->get('hello'));
 
-        Carbon::setTestNow('2000-01-01 00:00:01.500'); // progress 0.001 seconds. 1 second since putting into cache.
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01.500'); // progress 0.001 seconds. 1 second since putting into cache.
         $this->assertNull($store->get('hello'));
     }
 
@@ -55,12 +55,12 @@ class CacheSessionStoreTest extends TestCase
 
     public function testItemsCanExpire()
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new SessionStore(self::getSession());
 
         $store->put('foo', 'bar', 10);
-        Carbon::setTestNow(Carbon::now()->addSeconds(10)->addSecond());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(10)->addSecond());
         $result = $store->get('foo');
 
         $this->assertNull($result);
@@ -68,21 +68,21 @@ class CacheSessionStoreTest extends TestCase
 
     public function testTouchExtendsTtl()
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new SessionStore(self::getSession());
         $store->put('foo', 'bar', 10);
 
         // Move time forward and touch to extend TTL
-        Carbon::setTestNow(Carbon::now()->addSeconds(5));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(5));
         $this->assertTrue($store->touch('foo', 60));
 
         // Value should still exist past the original expiry
-        Carbon::setTestNow(Carbon::now()->addSeconds(10));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(10));
         $this->assertSame('bar', $store->get('foo'));
 
         // Value should expire after the new TTL
-        Carbon::setTestNow(Carbon::now()->addSeconds(50));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(50));
         $this->assertNull($store->get('foo'));
     }
 
@@ -143,18 +143,18 @@ class CacheSessionStoreTest extends TestCase
         $this->assertEquals(1, $store->get('foo'));
 
         // Will be there forever
-        Carbon::setTestNow(Carbon::now()->addYears(10));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addYears(10));
         $this->assertEquals(1, $store->get('foo'));
     }
 
     public function testExpiredKeysAreIncrementedLikeNonExistingKeys()
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new SessionStore(self::getSession());
 
         $store->put('foo', 999, 10);
-        Carbon::setTestNow(Carbon::now()->addSeconds(10)->addSecond());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(10)->addSecond());
         $result = $store->increment('foo');
 
         $this->assertEquals(1, $result);
@@ -222,13 +222,13 @@ class CacheSessionStoreTest extends TestCase
 
     public function testCanGetAll()
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new SessionStore(self::getSession());
         $store->put('foo', 'bar', 10);
 
         $this->assertEquals([
-            'foo' => ['value' => 'bar', 'expiresAt' => Carbon::now()->addSeconds(10)->getPreciseTimestamp(3) / 1000],
+            'foo' => ['value' => 'bar', 'expiresAt' => CarbonImmutable::now()->addSeconds(10)->getPreciseTimestamp(3) / 1000],
         ], $store->all());
     }
 

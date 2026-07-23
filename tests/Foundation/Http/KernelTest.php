@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
-use Carbon\Carbon;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Events\Dispatcher;
@@ -14,6 +13,7 @@ use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Routing\Router;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;
@@ -364,7 +364,40 @@ class KernelTest extends TestCase
         $this->assertNull($kernel->requestStartedAt());
     }
 
-    public function testRequestStartedAtIsIsolatedBetweenConcurrentCoroutines()
+    public function testDurationHandlerReceivesConvertedImmutableStartTimeFromContext(): void
+    {
+        $app = new Application;
+        $events = new Dispatcher($app);
+        $app->instance('events', $events);
+        $app->instance('config', new Repository(['app' => ['timezone' => 'America/New_York']]));
+        $app->bootstrapWith([]);
+
+        $router = m::mock(Router::class);
+        $router->shouldReceive('dispatch')->once()->andReturn(new Response);
+
+        $kernel = new Kernel($app, $router);
+        $request = Request::create('/');
+        $captured = null;
+        CarbonImmutable::setTestNow('2026-07-23 12:34:56 UTC');
+
+        $kernel->whenRequestLifecycleIsLongerThan(-1, function (CarbonImmutable $startedAt) use ($kernel, &$captured): void {
+            $captured = $startedAt;
+
+            $this->assertSame(CarbonImmutable::class, $startedAt::class);
+            $this->assertSame('America/New_York', $startedAt->timezoneName);
+            $this->assertSame($startedAt, $kernel->requestStartedAt());
+        });
+
+        $response = $kernel->handle($request);
+        $original = $kernel->requestStartedAt();
+        $kernel->terminate($request, $response);
+
+        $this->assertNotSame($original, $captured);
+        $this->assertSame($original?->getTimestamp(), $captured?->getTimestamp());
+        $this->assertNull($kernel->requestStartedAt());
+    }
+
+    public function testRequestStartedAtIsIsolatedBetweenConcurrentCoroutines(): void
     {
         $app = new Application;
         $events = new Dispatcher($app);
@@ -378,7 +411,7 @@ class KernelTest extends TestCase
         $kernel = new Kernel($app, $router);
 
         $captured = [];
-        $kernel->whenRequestLifecycleIsLongerThan(0, function (Carbon $startedAt, Request $request) use (&$captured) {
+        $kernel->whenRequestLifecycleIsLongerThan(0, function (CarbonImmutable $startedAt, Request $request) use (&$captured): void {
             $captured[$request->headers->get('X-Coroutine')] = $startedAt;
         });
 

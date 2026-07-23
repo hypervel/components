@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Database\DatabaseEloquentBelongsToManySyncTouchesParent
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\Pivot as EloquentPivot;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
@@ -81,12 +81,12 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
     {
         $this->seedData();
 
-        Carbon::setTestNow('2021-07-19 10:13:14');
+        CarbonImmutable::setTestNow('2021-07-19 10:13:14');
         $article = Article::create(['id' => 1, 'title' => 'uuid title']);
         $article->users()->sync([1, 2, 3]);
         $this->assertSame('2021-07-19 10:13:14', $article->updated_at->format('Y-m-d H:i:s'));
 
-        Carbon::setTestNow('2021-07-20 19:13:14');
+        CarbonImmutable::setTestNow('2021-07-20 19:13:14');
         $result = $article->users()->sync([1, 2]);
         $this->assertCount(1, collect($result['detached']));
         $this->assertSame('3', (string) collect($result['detached'])->first());

@@ -8,7 +8,7 @@ use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Bus\PrunableBatchRepository;
 use Hypervel\Console\Command;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Symfony\Component\Console\Attribute\AsCommand;
 
 #[AsCommand(name: 'queue:prune-batches')]
@@ -37,7 +37,7 @@ class PruneBatchesCommand extends Command
         $count = 0;
 
         if ($repository instanceof PrunableBatchRepository) {
-            $count = $repository->prune(Carbon::now()->subHours((int) $this->option('hours')));
+            $count = $repository->prune(CarbonImmutable::now()->subHours((int) $this->option('hours')));
         }
 
         $this->info("{$count} entries deleted.");
@@ -46,7 +46,7 @@ class PruneBatchesCommand extends Command
             $count = 0;
 
             if ($repository instanceof DatabaseBatchRepository) {
-                $count = $repository->pruneUnfinished(Carbon::now()->subHours((int) $this->option('unfinished')));
+                $count = $repository->pruneUnfinished(CarbonImmutable::now()->subHours((int) $this->option('unfinished')));
             }
 
             $this->info("{$count} unfinished entries deleted.");
@@ -56,7 +56,7 @@ class PruneBatchesCommand extends Command
             $count = 0;
 
             if ($repository instanceof DatabaseBatchRepository) {
-                $count = $repository->pruneCancelled(Carbon::now()->subHours((int) $this->option('cancelled')));
+                $count = $repository->pruneCancelled(CarbonImmutable::now()->subHours((int) $this->option('cancelled')));
             }
 
             $this->info("{$count} cancelled entries deleted.");

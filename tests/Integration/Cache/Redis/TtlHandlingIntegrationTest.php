@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
-use Carbon\Carbon;
 use DateInterval;
 use Hypervel\Cache\NullSentinel;
 use Hypervel\Cache\TagMode;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
 
 /**
@@ -69,7 +69,7 @@ class TtlHandlingIntegrationTest extends RedisCacheIntegrationTestCase
     {
         $this->setTagMode(TagMode::All);
 
-        $expires = Carbon::now()->addSeconds(60);
+        $expires = CarbonImmutable::now()->addSeconds(60);
         Cache::tags(['datetime_ttl'])->put('datetime_key', 'datetime_value', $expires);
 
         $this->assertSame('datetime_value', Cache::tags(['datetime_ttl'])->get('datetime_key'));
@@ -86,7 +86,7 @@ class TtlHandlingIntegrationTest extends RedisCacheIntegrationTestCase
     {
         $this->setTagMode(TagMode::Any);
 
-        $expires = Carbon::now()->addSeconds(60);
+        $expires = CarbonImmutable::now()->addSeconds(60);
         Cache::tags(['datetime_ttl'])->put('datetime_key', 'datetime_value', $expires);
 
         $this->assertSame('datetime_value', Cache::get('datetime_key'));

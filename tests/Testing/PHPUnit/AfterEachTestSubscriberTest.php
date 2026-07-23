@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testing\PHPUnit;
 
+use Carbon\CarbonInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Database\Eloquent\Factories\Factory as EloquentFactory;
 use Hypervel\Encryption\Commands\KeyGenerateCommand;
@@ -19,6 +20,8 @@ use Hypervel\Http\Resources\JsonApi\JsonApiResource;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Process\InvokedProcess;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 use Hypervel\Testing\PHPUnit\AfterEachTestCleanup;
 use Hypervel\Testing\PHPUnit\AfterEachTestSubscriber;
@@ -87,6 +90,48 @@ class AfterEachTestSubscriberTest extends TestCase
                 $class::flushMacros();
             }
         }
+    }
+
+    public function testFrameworkCleanupFlushesSharedCarbonStateThroughOneOwner(): void
+    {
+        $immutable = CarbonImmutable::parse('2026-01-02 03:04:05', 'UTC');
+        $mutable = Carbon::instance($immutable);
+
+        CarbonImmutable::macro('carbonCleanupProbe', static fn (): string => 'macro');
+        CarbonImmutable::setToStringFormat('Y');
+        CarbonImmutable::serializeUsing(static fn (CarbonInterface $date): string => 'serialized');
+        CarbonImmutable::setTestNow($immutable);
+        CarbonImmutable::useStrictMode(false);
+
+        $this->assertTrue(Carbon::hasMacro('carbonCleanupProbe'));
+        $this->assertSame('2026', (string) $mutable);
+        $this->assertSame('"serialized"', json_encode($mutable));
+        $this->assertSame($immutable->toDateTimeString(), Carbon::now()->toDateTimeString());
+        $this->assertFalse(Carbon::isStrictModeEnabled());
+        $this->assertFalse(CarbonImmutable::isStrictModeEnabled());
+
+        $subscriber = new class extends AfterEachTestSubscriber {
+            public function flushFrameworkStateForTest(): void
+            {
+                $this->flushFrameworkState();
+            }
+        };
+
+        $subscriber->flushFrameworkStateForTest();
+
+        $immutable = CarbonImmutable::parse('2026-01-02 03:04:05', 'UTC');
+        $mutable = Carbon::instance($immutable);
+
+        $this->assertFalse(Carbon::hasMacro('carbonCleanupProbe'));
+        $this->assertFalse(CarbonImmutable::hasMacro('carbonCleanupProbe'));
+        $this->assertSame('2026-01-02 03:04:05', (string) $immutable);
+        $this->assertSame('2026-01-02 03:04:05', (string) $mutable);
+        $this->assertSame('"2026-01-02T03:04:05.000000Z"', json_encode($immutable));
+        $this->assertSame('"2026-01-02T03:04:05.000000Z"', json_encode($mutable));
+        $this->assertFalse(Carbon::hasTestNow());
+        $this->assertFalse(CarbonImmutable::hasTestNow());
+        $this->assertTrue(Carbon::isStrictModeEnabled());
+        $this->assertTrue(CarbonImmutable::isStrictModeEnabled());
     }
 
     public function testFrameworkCleanupFlushesInheritedRequestStaticState(): void

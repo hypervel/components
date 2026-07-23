@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 
@@ -33,7 +33,7 @@ class EloquentModelTest extends DatabaseTestCase
         ]);
 
         $user->fill([
-            'nullable_date' => $now = Carbon::now(),
+            'nullable_date' => $now = CarbonImmutable::now(),
         ]);
         $this->assertTrue($user->isDirty('nullable_date'));
 

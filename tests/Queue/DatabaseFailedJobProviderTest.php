@@ -8,7 +8,7 @@ use Exception;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
@@ -84,34 +84,34 @@ class DatabaseFailedJobProviderTest extends TestCase
         $this->assertSame(0, $this->failedJobsTable()->count());
     }
 
-    public function testCanPruneFailedJobs()
+    public function testCanPruneFailedJobs(): void
     {
-        Carbon::setTestNow(Carbon::createFromDate(2024, 4, 28));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromDate(2024, 4, 28));
 
-        $this->createFailedJobsRecord(['failed_at' => Carbon::createFromDate(2024, 4, 24)]);
-        $this->createFailedJobsRecord(['failed_at' => Carbon::createFromDate(2024, 4, 26)]);
+        $this->createFailedJobsRecord(['failed_at' => CarbonImmutable::createFromDate(2024, 4, 24)]);
+        $this->createFailedJobsRecord(['failed_at' => CarbonImmutable::createFromDate(2024, 4, 26)]);
 
-        $this->provider->prune(Carbon::createFromDate(2024, 4, 23));
+        $this->provider->prune(CarbonImmutable::createFromDate(2024, 4, 23));
         $this->assertSame(2, $this->failedJobsTable()->count());
 
-        $this->provider->prune(Carbon::createFromDate(2024, 4, 25));
+        $this->provider->prune(CarbonImmutable::createFromDate(2024, 4, 25));
         $this->assertSame(1, $this->failedJobsTable()->count());
 
-        $this->provider->prune(Carbon::createFromDate(2024, 4, 30));
+        $this->provider->prune(CarbonImmutable::createFromDate(2024, 4, 30));
         $this->assertSame(0, $this->failedJobsTable()->count());
     }
 
-    public function testCanPruneFailedJobsWithRelativeHoursAndMinutes()
+    public function testCanPruneFailedJobsWithRelativeHoursAndMinutes(): void
     {
-        Carbon::setTestNow(Carbon::create(2025, 8, 24, 12, 0, 0));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2025, 8, 24, 12, 0, 0));
 
-        $this->createFailedJobsRecord(['failed_at' => Carbon::create(2025, 8, 24, 11, 45, 0)]);
-        $this->createFailedJobsRecord(['failed_at' => Carbon::create(2025, 8, 24, 13, 0, 0)]);
+        $this->createFailedJobsRecord(['failed_at' => CarbonImmutable::create(2025, 8, 24, 11, 45, 0)]);
+        $this->createFailedJobsRecord(['failed_at' => CarbonImmutable::create(2025, 8, 24, 13, 0, 0)]);
 
-        $this->provider->prune(Carbon::create(2025, 8, 24, 11, 45, 0));
+        $this->provider->prune(CarbonImmutable::create(2025, 8, 24, 11, 45, 0));
         $this->assertSame(2, $this->failedJobsTable()->count());
 
-        $this->provider->prune(Carbon::create(2025, 8, 24, 14, 0, 0));
+        $this->provider->prune(CarbonImmutable::create(2025, 8, 24, 14, 0, 0));
         $this->assertSame(0, $this->failedJobsTable()->count());
     }
 

@@ -66,6 +66,10 @@ Hypervel caches more aggressively than Laravel: any class resolved via `make()` 
 
 - Supported drivers exclude Memcached, DynamoDB, MongoDB.
 
+## Dates
+
+- Hypervel's `Date` facade, `now()` / `today()` helpers, and ordinary Eloquent date casts return `Hypervel\Support\CarbonImmutable` by default. Assign date-modifier results (`$date = $date->addDay()`) when retaining the changed value. Applications that deliberately need Laravel's mutable default may configure `Date::use(Hypervel\Support\Carbon::class)` during boot.
+
 ## Event Dispatch
 
 - **`hasListeners()` guards skip event construction when no listeners exist.** Framework code checks `hasListeners()` before constructing event objects. If nothing is listening, the event is never created or dispatched. This is a Hypervel-specific performance optimization — Laravel always constructs and dispatches events regardless of listeners.

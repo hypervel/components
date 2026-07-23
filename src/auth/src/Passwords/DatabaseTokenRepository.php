@@ -8,7 +8,7 @@ use Hypervel\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Query\Builder;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use SensitiveParameter;
 
@@ -62,7 +62,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface
      */
     protected function getPayload(string $email, #[SensitiveParameter] string $token): array
     {
-        return ['email' => $email, 'token' => $this->hasher->make($token), 'created_at' => new Carbon];
+        return ['email' => $email, 'token' => $this->hasher->make($token), 'created_at' => new CarbonImmutable];
     }
 
     /**
@@ -85,7 +85,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface
      */
     protected function tokenExpired(string $createdAt): bool
     {
-        return Carbon::parse($createdAt)->addSeconds($this->expires)->isPast();
+        return CarbonImmutable::parse($createdAt)->addSeconds($this->expires)->isPast();
     }
 
     /**
@@ -110,7 +110,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface
             return false;
         }
 
-        return Carbon::parse($createdAt)->addSeconds(
+        return CarbonImmutable::parse($createdAt)->addSeconds(
             $this->throttle
         )->isFuture();
     }
@@ -128,7 +128,7 @@ class DatabaseTokenRepository implements TokenRepositoryInterface
      */
     public function deleteExpired(): void
     {
-        $expiredAt = Carbon::now()->subSeconds($this->expires);
+        $expiredAt = CarbonImmutable::now()->subSeconds($this->expires);
 
         $this->getTable()->where('created_at', '<', $expiredAt)->delete();
     }

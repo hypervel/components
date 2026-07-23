@@ -517,7 +517,7 @@ class CourierLiveApiTest extends TestCase
 }
 ```
 
-The `#[WithImmutableDates]` attribute configures Hypervel's date factory to use immutable dates for the duration of a test:
+Hypervel uses immutable dates by default. The `#[WithImmutableDates]` attribute explicitly restores that default for the duration of a test, which is useful when the tested application or package bootstrap deliberately configures mutable dates:
 
 ```php
 use Hypervel\Testbench\Attributes\WithImmutableDates;

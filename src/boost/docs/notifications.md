@@ -193,7 +193,7 @@ Alternatively, you may define a `withDelay` method on the notification class its
 /**
  * Determine the notification's delivery delay.
  *
- * @return array<string, \Hypervel\Support\Carbon>
+ * @return array<string, \Carbon\CarbonInterface>
  */
 public function withDelay(object $notifiable): array
 {
@@ -320,7 +320,7 @@ class InvoicePaid extends Notification implements ShouldQueue, ShouldBeEncrypted
 In addition to defining these attributes directly on your notification class, you may also define `backoff` and `retryUntil` methods to specify the backoff strategy and retry timeout for the queued notification job:
 
 ```php
-use DateTime;
+use DateTimeInterface;
 
 /**
  * Calculate the number of seconds to wait before retrying the notification.
@@ -333,7 +333,7 @@ public function backoff(): int
 /**
  * Determine the time at which the notification should timeout.
  */
-public function retryUntil(): DateTime
+public function retryUntil(): DateTimeInterface
 {
     return now()->plus(minutes: 5);
 }
@@ -1023,7 +1023,7 @@ public function toArray(object $notifiable): array
 When a notification is stored in your application's database, the `type` column will be set to the notification's class name by default, and the `read_at` column will be `null`. However, you can customize this behavior by defining the `databaseType` and `initialDatabaseReadAtValue` methods in your notification class:
 
 ```php
-use Hypervel\Support\Carbon;
+use Carbon\CarbonInterface;
 
 /**
  * Get the notification's database type.
@@ -1036,7 +1036,7 @@ public function databaseType(object $notifiable): string
 /**
  * Get the initial value for the "read_at" column.
  */
-public function initialDatabaseReadAtValue(): ?Carbon
+public function initialDatabaseReadAtValue(): ?CarbonInterface
 {
     return null;
 }
