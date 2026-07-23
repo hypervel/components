@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Jwt;
 
-use Carbon\Carbon;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Jwt\ClaimFactory;
@@ -17,6 +16,8 @@ use Hypervel\Jwt\Providers\Lcobucci;
 use Hypervel\Jwt\Validations\ExpiredClaim;
 use Hypervel\Jwt\Validations\NotBeforeClaim;
 use Hypervel\Jwt\Validations\RequiredClaims;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Jwt\Fixtures\ValidationStub;
 use Hypervel\Tests\TestCase;
@@ -579,9 +580,9 @@ class JwtManagerTest extends TestCase
 
     private function setTestNow(): void
     {
-        Carbon::setTestNow('2000-01-01T00:00:00.000000Z');
+        CarbonImmutable::setTestNow('2000-01-01T00:00:00.000000Z');
 
-        $this->testNowTimestamp = Carbon::now()->timestamp;
+        $this->testNowTimestamp = Date::now()->timestamp;
     }
 
     private function mockContainer(): void

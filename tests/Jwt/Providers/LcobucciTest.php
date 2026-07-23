@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Jwt\Providers;
 
-use Carbon\Carbon;
 use Hypervel\Jwt\Exceptions\JwtException;
 use Hypervel\Jwt\Exceptions\SecretMissingException;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
 use Hypervel\Jwt\Providers\Lcobucci;
 use Hypervel\Jwt\Providers\Provider;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Tests\TestCase;
 
 class LcobucciTest extends TestCase
@@ -20,9 +21,9 @@ class LcobucciTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow('2000-01-01T00:00:00.000000Z');
+        CarbonImmutable::setTestNow('2000-01-01T00:00:00.000000Z');
 
-        $this->testNowTimestamp = Carbon::now()->timestamp;
+        $this->testNowTimestamp = Date::now()->timestamp;
     }
 
     public function testEncodeClaimsUsingASymmetricKey(): void

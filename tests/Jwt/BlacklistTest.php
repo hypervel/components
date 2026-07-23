@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Jwt;
 
-use Carbon\Carbon;
 use Hypervel\Jwt\Blacklist;
 use Hypervel\Jwt\Contracts\StorageContract;
 use Hypervel\Jwt\Exceptions\TokenInvalidException;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
@@ -26,9 +27,9 @@ class BlacklistTest extends TestCase
 
     protected function setUp(): void
     {
-        Carbon::setTestNow('2000-01-01T00:00:00.000000Z');
+        CarbonImmutable::setTestNow('2000-01-01T00:00:00.000000Z');
 
-        $this->testNowTimestamp = Carbon::now()->timestamp;
+        $this->testNowTimestamp = Date::now()->timestamp;
         $this->storage = m::mock(StorageContract::class);
         $this->blacklist = new Blacklist($this->storage);
     }
@@ -125,9 +126,9 @@ class BlacklistTest extends TestCase
 
     public function testBlacklistTtlRoundsFractionalMinutesUp(): void
     {
-        Carbon::setTestNow('2000-01-01T00:00:00.500000Z');
+        CarbonImmutable::setTestNow('2000-01-01T00:00:00.500000Z');
 
-        $nowTimestamp = Carbon::now()->timestamp;
+        $nowTimestamp = Date::now()->timestamp;
         $payload = [
             'sub' => 1,
             'iss' => 'http://example.com',
