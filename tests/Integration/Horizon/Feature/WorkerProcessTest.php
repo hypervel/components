@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
-use Carbon\CarbonImmutable;
 use Closure;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Events\UnableToLaunchProcess;
@@ -14,6 +13,7 @@ use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorProcess;
 use Hypervel\Horizon\WorkerProcess;
 use Hypervel\Queue\Worker as QueueWorker;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;

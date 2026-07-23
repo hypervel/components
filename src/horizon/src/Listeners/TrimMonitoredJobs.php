@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Listeners;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Events\MasterSupervisorLooped;
+use Hypervel\Support\CarbonImmutable;
 
 class TrimMonitoredJobs
 {
