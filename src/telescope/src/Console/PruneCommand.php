@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Telescope\Contracts\PrunableRepository;
 use Symfony\Component\Console\Attribute\AsCommand;
 
@@ -27,6 +27,6 @@ class PruneCommand extends Command
      */
     public function handle(PrunableRepository $repository)
     {
-        $this->info($repository->prune(Carbon::now()->subHours((int) $this->option('hours')), $this->option('keep-exceptions')) . ' entries pruned.');
+        $this->info($repository->prune(CarbonImmutable::now()->subHours((int) $this->option('hours')), $this->option('keep-exceptions')) . ' entries pruned.');
     }
 }
