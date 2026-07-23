@@ -1,11 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 use PhpCsFixer\Config;
 use PhpCsFixer\Runner\Parallel\ParallelConfig;
 
 $maxProcesses = function_exists('swoole_cpu_num') ? swoole_cpu_num() : 4;
 
-return (new Config())
+return (new Config)
     ->setParallelConfig(new ParallelConfig($maxProcesses))
     ->setRiskyAllowed(true)
     ->setRules([
@@ -47,8 +49,7 @@ return (new Config())
             'sort_algorithm' => 'alpha',
         ],
         'single_line_comment_style' => [
-            'comment_types' => [
-            ],
+            'comment_types' => [],
         ],
         'yoda_style' => [
             'always_move_variable' => false,
@@ -75,11 +76,14 @@ return (new Config())
         'not_operator_with_space' => false,
         'ordered_class_elements' => [
             'order' => [
-                'use_trait'
+                'use_trait',
             ],
         ],
         'phpdoc_to_comment' => [
             'ignored_tags' => ['var'],
+        ],
+        'return_assignment' => [
+            'skip_named_var_tags' => true,
         ],
         'php_unit_method_casing' => [
             'case' => 'camel_case',
