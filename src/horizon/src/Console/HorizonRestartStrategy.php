@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Console;
 
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Horizon\PhpBinary;
+use Hypervel\Support\DotenvManager;
 use Hypervel\Watcher\RestartStrategy;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -15,6 +17,7 @@ class HorizonRestartStrategy implements RestartStrategy
     protected ?Process $horizonProcess = null;
 
     public function __construct(
+        protected ApplicationContract $application,
         protected OutputInterface $output,
         protected ?string $environment = null,
     ) {
@@ -36,6 +39,9 @@ class HorizonRestartStrategy implements RestartStrategy
      */
     public function start(): void
     {
+        $environmentFile = $this->application->environmentFilePath();
+        DotenvManager::reload([dirname($environmentFile)], basename($environmentFile));
+
         $this->horizonProcess = $this->createProcess();
         $this->horizonProcess->start(function (string $type, string $line) {
             $this->output->write($line);
