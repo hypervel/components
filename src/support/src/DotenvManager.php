@@ -57,23 +57,22 @@ class DotenvManager
      *
      * Deletes previously loaded env vars from putenv, resets the Env
      * repository's ImmutableWriter so it treats all keys as writable,
-     * then re-reads the env file.
+     * then safely re-reads the env file. A missing file publishes an empty
+     * environment instead of retaining values from the previous load.
      *
      * Boot-only. Reloading mutates process-global environment values observed
      * by every concurrent and subsequent request in the worker.
      */
     public static function reload(array $paths, ?string $name = null): void
     {
-        if (static::$cachedValues === null) {
-            static::load($paths, $name);
-
-            return;
+        if (static::$cachedValues !== null) {
+            Env::deleteMany(array_keys(static::$cachedValues));
         }
 
-        Env::deleteMany(array_keys(static::$cachedValues));
         Env::flushRepository();
 
-        static::$cachedValues = static::createDotenv($paths, $name)->load();
+        static::$cachedValues = null;
+        static::safeLoad($paths, $name);
     }
 
     /**

@@ -4,36 +4,39 @@ declare(strict_types=1);
 
 namespace Hypervel\Watcher\Driver;
 
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Watcher\Option;
-use Hypervel\Watcher\WatchPath;
 use InvalidArgumentException;
 
 class FindDriver extends AbstractDriver
 {
-    protected bool $isSupportFloatMinutes = true;
+    protected bool $supportsFractionalMinutes;
 
     protected int $startTime = 0;
 
     protected array $fileModifyTimes = [];
 
-    public function __construct(protected Option $option)
-    {
+    public function __construct(
+        Option $option,
+        protected StdoutLoggerInterface $logger,
+    ) {
         parent::__construct($option);
 
-        if ($this->isDarwin()) {
-            $ret = $this->exec('which gfind');
-            if (empty($ret['output'])) {
-                throw new InvalidArgumentException('gfind not exists. You can `brew install findutils` to install it.');
-            }
-        } else {
-            $ret = $this->exec('which find');
-            if (empty($ret['output'])) {
-                throw new InvalidArgumentException('find not exists.');
-            }
-            $ret = $this->exec('find --help');
-            $this->isSupportFloatMinutes = ! str_contains($ret['output'], 'BusyBox');
+        $bin = $this->getBin();
+        $result = $this->exec('which ' . $bin);
+
+        if (empty($result['output'])) {
+            throw new InvalidArgumentException(
+                $this->isDarwin()
+                    ? 'gfind not exists. You can `brew install findutils` to install it.'
+                    : 'find not exists.',
+            );
         }
+
+        $result = $this->exec($bin . ' --version');
+        $this->supportsFractionalMinutes = $result['code'] === 0
+            && str_contains($result['output'], 'GNU');
     }
 
     /**
@@ -59,28 +62,31 @@ class FindDriver extends AbstractDriver
     protected function getScanIntervalMinutes(): string
     {
         $minutes = $this->option->getScanIntervalSeconds() / 60;
-        if ($this->isSupportFloatMinutes) {
+        if ($this->supportsFractionalMinutes) {
             return sprintf('-%.2f', $minutes);
         }
+
         return sprintf('-%d', ceil($minutes));
     }
 
     /**
      * Find changed files in the given targets using the `find` command.
+     *
+     * @return array{array<string, int>, list<string>, int}
      */
     protected function find(array $fileModifyTimes, array $targets, string $minutes): array
     {
         $changedFiles = [];
         $dest = $this->shellArguments($targets);
         $ret = $this->exec($this->getBin() . ' ' . $dest . ' -mmin ' . $minutes . ' -type f -print');
-        if ($ret['code'] === 0 && strlen($ret['output'])) {
+        if (strlen($ret['output'])) {
             $stdout = trim($ret['output']);
 
             $lineArr = explode(PHP_EOL, $stdout);
             foreach ($lineArr as $line) {
                 $pathName = $line;
-                $modifyTime = filemtime($pathName);
-                if ($modifyTime <= $this->startTime) {
+                $modifyTime = @filemtime($pathName);
+                if ($modifyTime === false || $modifyTime < $this->startTime) {
                     continue;
                 }
 
@@ -92,7 +98,7 @@ class FindDriver extends AbstractDriver
             }
         }
 
-        return [$fileModifyTimes, $changedFiles];
+        return [$fileModifyTimes, $changedFiles, $ret['code']];
     }
 
     /**
@@ -109,17 +115,20 @@ class FindDriver extends AbstractDriver
     protected function scan(array $fileModifyTimes, string $minutes): array
     {
         $changedFiles = [];
-        $basePath = base_path();
         $directoryPaths = $this->option->getDirectoryPaths();
+        $failureCode = null;
 
         // Scan all directories in a single find call.
-        $dirs = array_map(
-            fn (WatchPath $p) => base_path($p->path),
-            $directoryPaths,
-        );
+        $dirs = $this->existingTargets($this->resolveTargets($directoryPaths));
 
         if ($dirs !== []) {
-            [$fileModifyTimes, $found] = $this->find($fileModifyTimes, $dirs, $minutes);
+            $basePath = base_path();
+            [$fileModifyTimes, $found, $directoryExitCode] = $this->find($fileModifyTimes, $dirs, $minutes);
+
+            if ($directoryExitCode !== 0) {
+                $failureCode = $directoryExitCode;
+            }
+
             foreach ($found as $file) {
                 $relativePath = substr($file, strlen($basePath) + 1);
                 foreach ($directoryPaths as $watchPath) {
@@ -132,14 +141,22 @@ class FindDriver extends AbstractDriver
         }
 
         // Check individual watched files.
-        $files = array_map(
-            fn (WatchPath $p) => base_path($p->path),
-            $this->option->getFilePaths(),
-        );
+        $files = $this->existingTargets($this->resolveTargets($this->option->getFilePaths()));
 
         if ($files !== []) {
-            [$fileModifyTimes, $changed] = $this->find($fileModifyTimes, $files, $minutes);
+            [$fileModifyTimes, $changed, $fileExitCode] = $this->find($fileModifyTimes, $files, $minutes);
+
+            if ($fileExitCode !== 0) {
+                $failureCode ??= $fileExitCode;
+            }
+
             $changedFiles = array_merge($changedFiles, $changed);
+        }
+
+        if ($failureCode !== null) {
+            $this->logger->warning(
+                "One or more find commands exited with code {$failureCode} while scanning watched paths.",
+            );
         }
 
         return [$fileModifyTimes, $changedFiles];

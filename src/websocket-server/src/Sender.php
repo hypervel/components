@@ -6,27 +6,24 @@ namespace Hypervel\WebSocketServer;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Engine\WebSocket\FrameInterface;
-use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Engine\WebSocket\Response as WsResponse;
 use Hypervel\WebSocketServer\Exceptions\InvalidMethodException;
-use Psr\Log\LoggerInterface;
 use Swoole\Server;
+use Swoole\WebSocket\Frame;
+use Swoole\WebSocket\Server as WebSocketServer;
 
 use function Hypervel\Engine\swoole_get_flags_from_frame;
 
 /**
- * @method bool push(int $fd, $data, int $opcode = null, $finish = null)
- * @method bool disconnect(int $fd, int $code = null, string $reason = null)
+ * @method bool push(int $fd, Frame|string $data, int $opcode = 1, int $flags = 1)
+ * @method bool disconnect(int $fd, int $code = 1000, string $reason = '')
  */
 class Sender
 {
-    protected LoggerInterface $logger;
-
-    protected ?int $workerId = null;
+    protected ?WebSocketServer $server = null;
 
     public function __construct(protected Container $container)
     {
-        $this->logger = $container->make(StdoutLoggerInterface::class);
     }
 
     /**
@@ -35,11 +32,17 @@ class Sender
     public function __call(string $name, array $arguments): bool
     {
         [$fd, $method] = $this->getFdAndMethodFromProxyMethod($name, $arguments);
+        $result = $this->proxy($fd, $method, $arguments);
 
-        if (! $this->proxy($fd, $method, $arguments)) {
-            $this->sendPipeMessage($name, $arguments);
+        if ($result !== null) {
+            return $result;
         }
-        return true;
+
+        if ($this->getServer()->mode !== SWOOLE_BASE) {
+            return false;
+        }
+
+        return $this->sendPipeMessage($name, $arguments);
     }
 
     /**
@@ -51,37 +54,23 @@ class Sender
             return (new WsResponse($this->getServer()))->init($fd)->push($frame);
         }
 
-        $this->sendPipeMessage('push', [$fd, (string) $frame->getPayloadData(), $frame->getOpcode(), swoole_get_flags_from_frame($frame)]);
-        return false;
+        if ($this->getServer()->mode !== SWOOLE_BASE) {
+            return false;
+        }
+
+        return $this->sendPipeMessage('push', [$fd, (string) $frame->getPayloadData(), $frame->getOpcode(), swoole_get_flags_from_frame($frame)]);
     }
 
     /**
      * Proxy a method call to the Swoole server for a specific file descriptor.
      */
-    public function proxy(int $fd, string $method, array $arguments): bool
+    public function proxy(int $fd, string $method, array $arguments): ?bool
     {
-        $result = $this->check($fd);
-        if ($result) {
-            /** @var \Swoole\WebSocket\Server $server */
-            $server = $this->getServer();
-            $result = $server->{$method}(...$arguments);
-            $this->logger->debug(
-                sprintf(
-                    "[WebSocket] Worker.{$this->workerId} send to #{$fd}.Send %s",
-                    $result ? 'success' : 'failed'
-                )
-            );
+        if (! $this->check($fd)) {
+            return null;
         }
 
-        return $result;
-    }
-
-    /**
-     * Set the current worker ID.
-     */
-    public function setWorkerId(int $workerId): void
-    {
-        $this->workerId = $workerId;
+        return $this->getServer()->{$method}(...$arguments);
     }
 
     /**
@@ -115,29 +104,37 @@ class Sender
     /**
      * Get the Swoole server instance.
      */
-    protected function getServer(): Server
+    protected function getServer(): WebSocketServer
     {
-        return $this->container->make(Server::class);
+        if ($this->server === null) {
+            /** @var WebSocketServer $server */
+            $server = $this->container->make(Server::class);
+            $this->server = $server;
+        }
+
+        return $this->server;
     }
 
     /**
      * Send a pipe message to all other workers.
      */
-    protected function sendPipeMessage(string $name, array $arguments): void
+    protected function sendPipeMessage(string $name, array $arguments): bool
     {
-        if ($this->workerId === null) {
-            $this->logger->warning('[WebSocket] Cannot send pipe message: workerId not set.');
-
-            return;
-        }
-
         $server = $this->getServer();
-        $workerCount = $server->setting['worker_num'] - 1;
-        for ($workerId = 0; $workerId <= $workerCount; ++$workerId) {
-            if ($workerId !== $this->workerId) {
-                $server->sendMessage(new SenderPipeMessage($name, $arguments), $workerId);
-                $this->logger->debug("[WebSocket] Let Worker.{$workerId} try to {$name}.");
+        $workerCount = (int) ($server->setting['worker_num'] ?? 1);
+        $recipientCount = 0;
+        $accepted = true;
+
+        for ($workerId = 0; $workerId < $workerCount; ++$workerId) {
+            if ($workerId !== $server->worker_id) {
+                ++$recipientCount;
+
+                if (! $server->sendMessage(new SenderPipeMessage($name, $arguments), $workerId)) {
+                    $accepted = false;
+                }
             }
         }
+
+        return $recipientCount > 0 && $accepted;
     }
 }

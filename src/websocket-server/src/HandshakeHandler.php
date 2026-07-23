@@ -6,7 +6,7 @@ namespace Hypervel\WebSocketServer;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Http\Request;
-use Hypervel\WebSocketServer\Exceptions\WebSocketHandshakeException;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 
 class HandshakeHandler
@@ -30,19 +30,13 @@ class HandshakeHandler
         $controller = $route->getControllerClass();
 
         if (! $controller || ! class_exists($controller)) {
-            throw new WebSocketHandshakeException('WebSocket handler not found.');
+            throw new RuntimeException('WebSocket handler not found.');
         }
 
         $security = $this->container->make(Security::class);
 
         $key = $request->headers->get(Security::SEC_WEBSOCKET_KEY);
 
-        $headers = $security->handshakeHeaders($key);
-
-        if ($wsProtocol = $request->headers->get(Security::SEC_WEBSOCKET_PROTOCOL)) {
-            $headers[Security::SEC_WEBSOCKET_PROTOCOL] = $wsProtocol;
-        }
-
-        return new Response('', 101, $headers);
+        return new Response('', 101, $security->handshakeHeaders($key));
     }
 }

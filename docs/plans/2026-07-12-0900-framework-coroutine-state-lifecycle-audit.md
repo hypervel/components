@@ -990,9 +990,9 @@ An exceptionally large shared work unit may receive its own linked detail plan w
 
 This compact index routes the completed-work history that must be consulted with the full plan after compaction. Detailed history remains in the [companion ledger](2026-07-12-0915-framework-coroutine-state-lifecycle-audit-ledger.md).
 
-- **Active package or work unit:** `websocket-server`
-- **Ledger entries required for the active work:** `Make coroutine creation and copied context failure-safe` (`websocket-server-01`) and `Unify HTTP response emission and harden native server boundaries` (`http-server-06`).
-- **Pending revalidation carried into the active work:** Retain the missing-source context-copy no-op from `websocket-server-01` and revalidate request-aware prepared response emission during the full WebSocket Server audit.
+- **Active package or work unit:** `database`
+- **Ledger entries required for the active work:** `Release cleared coordinator timers deterministically`; `Bound pool resources and connection progress deterministically`; `Normalize framework enum identifiers at string boundaries`; `Complete Foundation runtime lifecycles and safe publication`; `Complete Console command, scheduling, and generator lifecycles`.
+- **Pending revalidation carried into the active work:** None.
 
 Update these three lines when a package starts, completes, or gains a cross-package dependency. Name exact work-unit headings or shared finding IDs from the companion ledger; never use “see recent entries” or require a full-ledger reread.
 
@@ -1024,7 +1024,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `coroutine-05` | `coroutine`, `filesystem` | `filesystem` (revalidation complete) | `Make coroutine creation and copied context failure-safe`; finding `coroutine-05` |
 | `coroutine-06` | `context`, `coroutine` | `concurrency` and `foundation` (revalidation complete) | `Make coroutine creation and copied context failure-safe`; finding `coroutine-06` |
 | `foundation-02` | `foundation` | `coroutine` and `foundation` (revalidation complete) | `Make coroutine creation and copied context failure-safe`; finding `foundation-02` |
-| `websocket-server-01` | `websocket-server` | later full `websocket-server` audit | `Make coroutine creation and copied context failure-safe`; finding `websocket-server-01` |
+| `websocket-server-01` | `websocket-server` | `websocket-server` (revalidation complete) | `Make coroutine creation and copied context failure-safe`; finding `websocket-server-01` |
 | `concurrency-01` | `concurrency`, `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-01` |
 | `concurrency-02` | `concurrency`, `testbench` | later full `testbench` audit | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-02` |
 | `concurrency-03` | `concurrency`, `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Make process concurrency transport lossless and reconstruct failures safely`; finding `concurrency-03` |
@@ -1067,7 +1067,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `core-06` | `core`, `server` | `server` (revalidation complete) | `Harden Core lifecycle callbacks and stdout logging`; finding `core-06` |
 | `http-server-03` | `http-server`, `filesystem`, `http`, `foundation` | `context`, `contracts`, `engine`, and `testing` (revalidation complete); later full `http` and `testing` audits | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-03` |
 | `http-server-05` | `testing` | `http-server` (revalidation complete); later full `testing` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-05` |
-| `http-server-06` | `http-server` | `grpc` and `reverb` (revalidation complete), `websocket-server`; later full `grpc`, `reverb`, and `websocket-server` audits | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-06` |
+| `http-server-06` | `http-server` | `grpc`, `reverb`, and `websocket-server` (revalidation complete); later full `grpc` and `reverb` audits | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-06` |
 | `http-server-07` | `http-server` | `grpc` (revalidation complete); later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-07` |
 | `http-server-08` | `http-server`, `foundation` | `grpc` (revalidation complete); later full `grpc` audit | `Unify HTTP response emission and harden native server boundaries`; finding `http-server-08` |
 | `foundation-06` | `foundation`, `testbench` | `foundation` (revalidation complete); later full `testbench` audit | `Complete Foundation runtime lifecycles and safe publication`; finding `foundation-06` |
@@ -1078,6 +1078,7 @@ Add one row only for a shared finding or changed lower-level assumption that ano
 | `database-03` | `database` | `foundation` (revalidation complete); later full `database` and `testbench` audits | `Complete Foundation runtime lifecycles and safe publication`; finding `database-03` |
 | `database-04` | `database` | `console` (revalidation complete); later full `database` audit | `Complete Console command, scheduling, and generator lifecycles`; finding `database-04` |
 | `reverb-04` | `reverb` | later full `reverb` audit | `Complete Console command, scheduling, and generator lifecycles`; finding `reverb-04` |
+| `watcher-10` | `support` | `watcher`, `foundation`, and `horizon` (revalidation complete) | `Make Watcher drivers and managed processes lifecycle-safe`; finding `watcher-10` |
 
 ## Package checklist
 
@@ -1141,8 +1142,8 @@ The order is lower-level first where practical. Hypervel has cross-cutting depen
 - [x] `console`
 - [x] `server`
 - [x] `http-server`
-- [ ] `websocket-server`
-- [ ] `watcher`
+- [x] `websocket-server`
+- [x] `watcher`
 
 ### Persistence, transport, and background execution
 

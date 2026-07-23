@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Dotenv\Exception\InvalidFileException;
 use Dotenv\Repository\Adapter\AdapterInterface;
 use Hypervel\Support\DotenvManager;
 use Hypervel\Support\Env;
@@ -34,7 +35,7 @@ class DotenvManagerTest extends TestCase
         parent::tearDown();
     }
 
-    public function testLoad()
+    public function testLoad(): void
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv']);
 
@@ -42,7 +43,7 @@ class DotenvManagerTest extends TestCase
         $this->assertTrue(env('OLD_FLAG'));
     }
 
-    public function testLoadIsIdempotent()
+    public function testLoadIsIdempotent(): void
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv']);
         DotenvManager::load([__DIR__ . '/envs/newEnv']);
@@ -52,7 +53,7 @@ class DotenvManagerTest extends TestCase
         $this->assertTrue(env('OLD_FLAG'));
     }
 
-    public function testReload()
+    public function testReload(): void
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv']);
         $this->assertSame('1.0', env('TEST_VERSION'));
@@ -64,7 +65,7 @@ class DotenvManagerTest extends TestCase
         $this->assertTrue(env('NEW_FLAG'));
     }
 
-    public function testReloadDeletesRemovedKeys()
+    public function testReloadDeletesRemovedKeys(): void
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv']);
         $this->assertTrue(env('OLD_FLAG'));
@@ -75,16 +76,15 @@ class DotenvManagerTest extends TestCase
         $this->assertNull(env('OLD_FLAG'));
     }
 
-    public function testReloadWithoutPriorLoadCallsLoad()
+    public function testReloadWithoutPriorLoadSafelyLoads(): void
     {
-        // reload() on a fresh state (no prior load) falls through to load().
         DotenvManager::reload([__DIR__ . '/envs/oldEnv']);
 
         $this->assertSame('1.0', env('TEST_VERSION'));
         $this->assertTrue(env('OLD_FLAG'));
     }
 
-    public function testReloadUsesEnvRepository()
+    public function testReloadUsesEnvRepository(): void
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv']);
         DotenvManager::reload([__DIR__ . '/envs/newEnv']);
@@ -95,7 +95,7 @@ class DotenvManagerTest extends TestCase
         $this->assertTrue(Env::get('NEW_FLAG'));
     }
 
-    public function testFlushStateClearsLoadedValues()
+    public function testFlushStateClearsLoadedValues(): void
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv']);
         $this->assertSame('1.0', env('TEST_VERSION'));
@@ -106,7 +106,7 @@ class DotenvManagerTest extends TestCase
         $this->assertNull(env('TEST_VERSION'));
     }
 
-    public function testReloadClearsCustomAdapterValues()
+    public function testReloadClearsCustomAdapterValues(): void
     {
         // Register a custom adapter that writes to a shared store.
         $adapter = DotenvManagerTestAdapter::makeWithStore();
@@ -128,7 +128,7 @@ class DotenvManagerTest extends TestCase
         $this->assertArrayNotHasKey('OLD_FLAG', $store);
     }
 
-    public function testEnvDefaultValue()
+    public function testEnvDefaultValue(): void
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv']);
 
@@ -136,14 +136,14 @@ class DotenvManagerTest extends TestCase
         $this->assertNull(env('NONEXISTENT_KEY'));
     }
 
-    public function testLoadWithNameParameter()
+    public function testLoadWithNameParameter(): void
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv'], '.env.testing');
 
         $this->assertSame('named_value', env('NAMED_KEY'));
     }
 
-    public function testReloadWithNameParameter()
+    public function testReloadWithNameParameter(): void
     {
         DotenvManager::load([__DIR__ . '/envs/oldEnv']);
         $this->assertSame('1.0', env('TEST_VERSION'));
@@ -153,7 +153,7 @@ class DotenvManagerTest extends TestCase
         $this->assertNull(env('TEST_VERSION'));
     }
 
-    public function testSafeLoadWithValidFile()
+    public function testSafeLoadWithValidFile(): void
     {
         DotenvManager::safeLoad([__DIR__ . '/envs/oldEnv']);
 
@@ -161,7 +161,7 @@ class DotenvManagerTest extends TestCase
         $this->assertTrue(env('OLD_FLAG'));
     }
 
-    public function testSafeLoadWithMissingFileDoesNotThrow()
+    public function testSafeLoadWithMissingFileDoesNotThrow(): void
     {
         DotenvManager::safeLoad([__DIR__ . '/envs/nonexistent']);
 
@@ -169,7 +169,7 @@ class DotenvManagerTest extends TestCase
         $this->assertNull(env('TEST_VERSION'));
     }
 
-    public function testSafeLoadIsIdempotent()
+    public function testSafeLoadIsIdempotent(): void
     {
         DotenvManager::safeLoad([__DIR__ . '/envs/oldEnv']);
         DotenvManager::safeLoad([__DIR__ . '/envs/newEnv']);
@@ -179,14 +179,14 @@ class DotenvManagerTest extends TestCase
         $this->assertTrue(env('OLD_FLAG'));
     }
 
-    public function testSafeLoadWithNameParameter()
+    public function testSafeLoadWithNameParameter(): void
     {
         DotenvManager::safeLoad([__DIR__ . '/envs/oldEnv'], '.env.testing');
 
         $this->assertSame('named_value', env('NAMED_KEY'));
     }
 
-    public function testSafeLoadPopulatesCachedValuesForReload()
+    public function testSafeLoadPopulatesCachedValuesForReload(): void
     {
         DotenvManager::safeLoad([__DIR__ . '/envs/oldEnv']);
         $this->assertSame('1.0', env('TEST_VERSION'));
@@ -197,6 +197,31 @@ class DotenvManagerTest extends TestCase
         $this->assertSame('2.0', env('TEST_VERSION'));
         $this->assertNull(env('OLD_FLAG'));
         $this->assertTrue(env('NEW_FLAG'));
+    }
+
+    public function testReloadTreatsAMissingFileAsAnEmptyEnvironment(): void
+    {
+        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+        $this->assertSame('1.0', env('TEST_VERSION'));
+        $this->assertTrue(env('OLD_FLAG'));
+
+        DotenvManager::reload([__DIR__ . '/envs/nonexistent']);
+
+        $this->assertNull(env('TEST_VERSION'));
+        $this->assertNull(env('OLD_FLAG'));
+    }
+
+    public function testMalformedReloadClearsThePreviousEnvironmentBeforeFailing(): void
+    {
+        DotenvManager::load([__DIR__ . '/envs/oldEnv']);
+
+        try {
+            DotenvManager::reload([__DIR__ . '/envs/malformed']);
+            $this->fail('Expected the malformed environment file to fail.');
+        } catch (InvalidFileException) {
+            $this->assertNull(env('TEST_VERSION'));
+            $this->assertNull(env('OLD_FLAG'));
+        }
     }
 }
 

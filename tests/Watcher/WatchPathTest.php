@@ -10,7 +10,7 @@ use Hypervel\Watcher\WatchPathType;
 
 class WatchPathTest extends TestCase
 {
-    public function testDirectoryWatchPath()
+    public function testDirectoryWatchPath(): void
     {
         $path = new WatchPath('app', WatchPathType::Directory);
 
@@ -19,7 +19,7 @@ class WatchPathTest extends TestCase
         $this->assertNull($path->pattern);
     }
 
-    public function testFileWatchPath()
+    public function testFileWatchPath(): void
     {
         $path = new WatchPath('.env', WatchPathType::File);
 
@@ -28,7 +28,7 @@ class WatchPathTest extends TestCase
         $this->assertNull($path->pattern);
     }
 
-    public function testDirectoryWithGlobPattern()
+    public function testDirectoryWithGlobPattern(): void
     {
         $path = new WatchPath('config', WatchPathType::Directory, 'config/**/*.php');
 
@@ -37,7 +37,7 @@ class WatchPathTest extends TestCase
         $this->assertSame('config/**/*.php', $path->pattern);
     }
 
-    public function testMatchesBareDirectory()
+    public function testMatchesBareDirectory(): void
     {
         $path = new WatchPath('app', WatchPathType::Directory);
 
@@ -47,7 +47,7 @@ class WatchPathTest extends TestCase
         $this->assertFalse($path->matches('app'));
     }
 
-    public function testMatchesGlobPattern()
+    public function testMatchesGlobPattern(): void
     {
         $path = new WatchPath('config', WatchPathType::Directory, 'config/**/*.php');
 
@@ -57,7 +57,7 @@ class WatchPathTest extends TestCase
         $this->assertFalse($path->matches('other/app.php'));
     }
 
-    public function testMatchesMiddleWildcard()
+    public function testMatchesMiddleWildcard(): void
     {
         $path = new WatchPath('app', WatchPathType::Directory, 'app/*/Actions/*.php');
 
@@ -67,7 +67,7 @@ class WatchPathTest extends TestCase
         $this->assertFalse($path->matches('app/Http/Sub/Actions/Create.php'));
     }
 
-    public function testMatchesQuestionMarkPattern()
+    public function testMatchesQuestionMarkPattern(): void
     {
         $path = new WatchPath('routes', WatchPathType::Directory, 'routes/?.php');
 
@@ -76,7 +76,7 @@ class WatchPathTest extends TestCase
         $this->assertFalse($path->matches('routes/web.php'));
     }
 
-    public function testMatchesBracePattern()
+    public function testMatchesBracePattern(): void
     {
         $path = new WatchPath('config', WatchPathType::Directory, 'config/{app,queue}.php');
 
@@ -85,7 +85,7 @@ class WatchPathTest extends TestCase
         $this->assertFalse($path->matches('config/cache.php'));
     }
 
-    public function testMatchesBracketPattern()
+    public function testMatchesBracketPattern(): void
     {
         $path = new WatchPath('lang', WatchPathType::Directory, 'lang/[a-z][a-z].php');
 
@@ -94,12 +94,35 @@ class WatchPathTest extends TestCase
         $this->assertFalse($path->matches('lang/eng.php'));
     }
 
-    public function testMatchesFile()
+    public function testMatchesFile(): void
     {
         $path = new WatchPath('.env', WatchPathType::File);
 
         $this->assertTrue($path->matches('.env'));
         $this->assertFalse($path->matches('.env.local'));
         $this->assertFalse($path->matches('app/.env'));
+    }
+
+    public function testMatchesDirectoryWithTrailingSlash(): void
+    {
+        $path = new WatchPath('app/', WatchPathType::Directory);
+
+        $this->assertTrue($path->matches('app/Foo.php'));
+        $this->assertTrue($path->matches('app/Sub/Bar.php'));
+        $this->assertFalse($path->matches('application/Foo.php'));
+    }
+
+    public function testMatchesRootDirectory(): void
+    {
+        $this->assertTrue((new WatchPath('.', WatchPathType::Directory))->matches('artisan'));
+        $this->assertTrue((new WatchPath('/', WatchPathType::Directory))->matches('app/Foo.php'));
+    }
+
+    public function testMatchesRootLevelGlob(): void
+    {
+        $path = new WatchPath('.', WatchPathType::Directory, '*.php');
+
+        $this->assertTrue($path->matches('artisan.php'));
+        $this->assertFalse($path->matches('app/Foo.php'));
     }
 }

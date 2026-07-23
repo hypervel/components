@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Watcher;
 
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Filesystem\FileNotFoundException;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Engine\Channel;
-use Hypervel\Filesystem\Filesystem;
-use Hypervel\Watcher\Events\BeforeServerRestart;
+use Hypervel\Engine\Exceptions\CoroutineCreateException;
+use Hypervel\Support\DotenvManager;
 use InvalidArgumentException;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -18,11 +16,13 @@ use Throwable;
 
 class ServerRestartStrategy implements RestartStrategy
 {
-    protected Channel $channel;
+    protected ?int $processId = null;
 
-    protected Filesystem $filesystem;
+    protected bool $lifecycleRunning = false;
 
-    protected string $pidFile;
+    protected bool $restartRequested = false;
+
+    protected bool $stopping = false;
 
     protected string $bin;
 
@@ -35,17 +35,12 @@ class ServerRestartStrategy implements RestartStrategy
     ) {
         $config = $container->make('config');
 
-        $pidFile = $config->string('server.settings.pid_file', '');
-        if (empty($pidFile)) {
-            throw new FileNotFoundException('The config of pid_file is not found.');
-        }
-
-        if ($config->boolean('server.settings.daemonize', false)) {
+        if ($config->boolean('server.settings.daemonize')) {
             throw new InvalidArgumentException('Please set `server.settings.daemonize` to false');
         }
 
-        $bin = $config->string('watcher.bin', PHP_BINARY);
-        $command = $config->array('watcher.command', ['artisan', 'serve']);
+        $bin = $config->string('watcher.bin');
+        $command = $config->array('watcher.command');
 
         if ($bin === '') {
             throw new InvalidArgumentException('The watcher.bin configuration value must be a non-empty executable path.');
@@ -59,12 +54,8 @@ class ServerRestartStrategy implements RestartStrategy
         }
 
         /** @var non-empty-list<non-empty-string> $command */
-        $this->pidFile = $pidFile;
         $this->bin = $bin;
         $this->command = $command;
-        $this->filesystem = new Filesystem;
-        $this->channel = new Channel(1);
-        $this->channel->push(true);
     }
 
     /**
@@ -72,6 +63,12 @@ class ServerRestartStrategy implements RestartStrategy
      */
     public function start(): void
     {
+        if ($this->lifecycleRunning) {
+            return;
+        }
+
+        $this->stopping = false;
+        $this->restartRequested = false;
         $this->launchServer();
     }
 
@@ -80,8 +77,18 @@ class ServerRestartStrategy implements RestartStrategy
      */
     public function restart(): void
     {
-        $this->stop();
-        $this->launchServer();
+        if ($this->stopping) {
+            return;
+        }
+
+        if (! $this->lifecycleRunning) {
+            $this->start();
+
+            return;
+        }
+
+        $this->restartRequested = true;
+        $this->terminateServer();
     }
 
     /**
@@ -89,69 +96,130 @@ class ServerRestartStrategy implements RestartStrategy
      */
     public function stop(): void
     {
-        try {
-            $pidContents = trim($this->filesystem->get($this->pidFile));
-        } catch (FileNotFoundException) {
-            return;
-        }
+        $this->stopping = true;
+        $this->restartRequested = false;
+        $this->terminateServer();
+    }
 
-        if ($pidContents === '' || ! ctype_digit($pidContents)) {
-            return;
-        }
-
-        $pid = (int) $pidContents;
-
-        if ($pid <= 0) {
-            return;
-        }
-
+    /**
+     * Terminate the currently published server process.
+     */
+    protected function terminateServer(): void
+    {
         try {
             $this->output->writeln('Stop server...');
-            /** @var Dispatcher $events */
-            $events = $this->container->make('events');
-
-            if ($events->hasListeners(BeforeServerRestart::class)) {
-                $events->dispatch(new BeforeServerRestart($pid));
-            }
-
-            if ($this->signalProcess($pid, 0)) {
-                $this->signalProcess($pid, SIGTERM);
-            }
         } catch (Throwable) {
-            $this->output->writeln('<error>Stop server failed.</error>');
+        }
+
+        // No yielding work may occur after this read: the PID belongs to the
+        // exact unreaped child retained by the owner coroutine.
+        $pid = $this->processId;
+
+        if ($pid === null) {
+            return;
+        }
+
+        try {
+            $this->signalProcess($pid, SIGTERM);
+        } catch (Throwable) {
+            try {
+                $this->output->writeln('<error>Stop server failed.</error>');
+            } catch (Throwable) {
+            }
         }
     }
 
     /**
-     * Launch the server process in a coroutine with channel-based coordination.
+     * Launch the server lifecycle in its owner coroutine.
      */
     protected function launchServer(): void
     {
-        Coroutine::create(function (): void {
-            $this->channel->pop();
+        $this->lifecycleRunning = true;
 
-            try {
-                $this->output->writeln('Start server ...');
+        try {
+            Coroutine::create(function (): void {
+                try {
+                    while (! $this->stopping) {
+                        $this->runServer();
 
-                $descriptorSpec = [
-                    0 => STDIN,
-                    1 => STDOUT,
-                    2 => STDERR,
-                ];
-                $pipes = [];
+                        if (! $this->restartRequested) {
+                            break;
+                        }
 
-                $process = $this->openProcess($descriptorSpec, $pipes);
-
-                if (! is_resource($process)) {
-                    throw new RuntimeException('Unable to launch the watched server process.');
+                        $this->restartRequested = false;
+                    }
+                } finally {
+                    $this->processId = null;
+                    $this->restartRequested = false;
+                    $this->lifecycleRunning = false;
                 }
+            });
+        } catch (CoroutineCreateException $exception) {
+            $this->lifecycleRunning = false;
 
-                $this->closeProcess($process);
-                $this->output->writeln('Server exited.');
-            } finally {
-                $this->channel->push(1);
+            throw $exception;
+        }
+    }
+
+    /**
+     * Run one watched server process to completion.
+     */
+    protected function runServer(): void
+    {
+        $process = null;
+        $exception = null;
+
+        try {
+            $this->reloadEnvironment();
+            $this->output->writeln('Start server ...');
+
+            $descriptorSpec = [
+                0 => STDIN,
+                1 => STDOUT,
+                2 => STDERR,
+            ];
+            $pipes = [];
+
+            $process = $this->openProcess($descriptorSpec, $pipes);
+
+            if (! is_resource($process)) {
+                throw new RuntimeException('Unable to launch the watched server process.');
             }
-        });
+
+            $status = $this->processStatus($process);
+            $pid = $status['pid'] ?? null;
+
+            if (! is_int($pid) || $pid <= 0) {
+                throw new RuntimeException('Unable to determine the watched server process ID.');
+            }
+
+            $this->processId = $pid;
+
+            if ($this->stopping || $this->restartRequested) {
+                $this->terminateServer();
+            }
+
+            $this->closeProcess($process);
+            $this->processId = null;
+            $process = null;
+            $this->output->writeln('Server exited.');
+        } catch (Throwable $throwable) {
+            $exception = $throwable;
+        } finally {
+            $this->processId = null;
+
+            if (is_resource($process)) {
+                try {
+                    $this->closeProcess($process);
+                } catch (Throwable $throwable) {
+                    $exception ??= $throwable;
+                }
+            }
+        }
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 
     /**
@@ -194,10 +262,33 @@ class ServerRestartStrategy implements RestartStrategy
     }
 
     /**
+     * Read the watched server process status.
+     *
+     * @param resource $process
+     * @return array<string, bool|int|string>
+     */
+    protected function processStatus(mixed $process): array
+    {
+        return proc_get_status($process);
+    }
+
+    /**
      * Send a signal to a server process.
      */
     protected function signalProcess(int $pid, int $signal): bool
     {
         return posix_kill($pid, $signal);
+    }
+
+    /**
+     * Reload the application environment before spawning a server.
+     */
+    protected function reloadEnvironment(): void
+    {
+        $environmentFile = $this->container
+            ->make(ApplicationContract::class)
+            ->environmentFilePath();
+
+        DotenvManager::reload([dirname($environmentFile)], basename($environmentFile));
     }
 }

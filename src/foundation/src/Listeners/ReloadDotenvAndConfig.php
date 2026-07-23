@@ -37,10 +37,6 @@ class ReloadDotenvAndConfig
 
     protected function reloadDotenv(): void
     {
-        if (! file_exists($this->container->environmentFilePath())) {
-            return;
-        }
-
         DotenvManager::reload(
             [$this->container->environmentPath()],
             $this->container->environmentFile(),

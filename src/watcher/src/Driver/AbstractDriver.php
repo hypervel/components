@@ -6,6 +6,7 @@ namespace Hypervel\Watcher\Driver;
 
 use Hypervel\Engine\Channel;
 use Hypervel\Watcher\Option;
+use Hypervel\Watcher\WatchPath;
 use RuntimeException;
 use Swoole\Coroutine\System;
 
@@ -71,7 +72,38 @@ abstract class AbstractDriver implements DriverInterface
     }
 
     /**
-     * Execute a shell command, using Swoole's coroutine-aware exec when available.
+     * Resolve configured watch paths to absolute targets.
+     *
+     * @param list<WatchPath> $watchPaths
+     * @return list<string>
+     */
+    protected function resolveTargets(array $watchPaths): array
+    {
+        return array_map(
+            static function (WatchPath $watchPath): string {
+                $path = rtrim($watchPath->path, '/');
+
+                return $path === '' || $path === '.'
+                    ? base_path()
+                    : base_path($path);
+            },
+            $watchPaths,
+        );
+    }
+
+    /**
+     * Filter targets that currently exist.
+     *
+     * @param list<string> $targets
+     * @return list<string>
+     */
+    protected function existingTargets(array $targets): array
+    {
+        return array_values(array_filter($targets, file_exists(...)));
+    }
+
+    /**
+     * Execute a shell command using Swoole's coroutine-aware exec.
      *
      * Every interpolated argument must be escaped before it reaches this boundary.
      *
@@ -79,16 +111,13 @@ abstract class AbstractDriver implements DriverInterface
      */
     protected function exec(string $command): array
     {
-        if (class_exists(System::class)) {
-            return System::exec($command);
+        $result = System::exec($command);
+
+        if ($result === false) {
+            throw new RuntimeException("Unable to execute watcher command [{$command}].");
         }
 
-        if (function_exists('exec')) {
-            \exec($command, $output, $code);
-            return ['code' => $code, 'output' => implode(PHP_EOL, $output)];
-        }
-
-        throw new RuntimeException('No available function to run command.');
+        return $result;
     }
 
     /**

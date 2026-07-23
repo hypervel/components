@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Watcher\Driver;
 
+use Hypervel\Contracts\Log\StdoutLoggerInterface;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
 use Hypervel\Tests\TestCase;
+use Hypervel\Tests\Watcher\Fixtures\ContainerStub;
 use Hypervel\Tests\Watcher\Fixtures\FindNewerDriverStub;
 use Hypervel\Watcher\Driver\FindNewerDriver;
 use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
 use InvalidArgumentException;
+use Mockery as m;
 use RuntimeException;
 
 class FindNewerDriverTest extends TestCase
@@ -32,7 +35,7 @@ class FindNewerDriverTest extends TestCase
         $channel = new Channel(10);
 
         try {
-            $driver = new FindNewerDriverStub($option);
+            $driver = new FindNewerDriverStub($option, ContainerStub::getLogger());
             $finished = new WaitGroup(1);
             Coroutine::create(function () use ($channel, $driver, $finished): void {
                 try {
@@ -68,7 +71,7 @@ class FindNewerDriverTest extends TestCase
             scanInterval: 1,
         );
 
-        $driver = new class($option) extends FindNewerDriver {
+        $driver = new class($option, ContainerStub::getLogger()) extends FindNewerDriver {
             protected function exec(string $command): array
             {
                 return ['code' => 0, 'output' => '/usr/bin/find'];
@@ -104,7 +107,7 @@ class FindNewerDriverTest extends TestCase
 
         // Stub that returns multiple files on first tick, then empty.
         // This prevents the timer from continuously filling the channel.
-        $driver = new class($option) extends FindNewerDriver {
+        $driver = new class($option, ContainerStub::getLogger()) extends FindNewerDriver {
             private int $scanCallCount = 0;
 
             protected function exec(string $command): array
@@ -115,12 +118,12 @@ class FindNewerDriverTest extends TestCase
             protected function scan(): array
             {
                 if (++$this->scanCallCount === 1) {
-                    return ['/tmp/a.php', '/tmp/b.php', '/tmp/c.php'];
+                    return [['/tmp/a.php', '/tmp/b.php', '/tmp/c.php'], null];
                 }
 
                 $this->stop();
 
-                return [];
+                return [[], null];
             }
         };
 
@@ -146,9 +149,50 @@ class FindNewerDriverTest extends TestCase
         }
     }
 
+    public function testFailedScanReportsFilesWithoutAdvancingTheReference(): void
+    {
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->shouldReceive('warning')
+            ->once()
+            ->with('One or more find commands exited with code 1 while scanning watched paths.');
+
+        $driver = new class($this->option(), $logger) extends FindNewerDriver {
+            protected function exec(string $command): array
+            {
+                return ['code' => 0, 'output' => '/usr/bin/find'];
+            }
+
+            protected function watchAtInterval(float $seconds, callable $scan): void
+            {
+                $scan();
+            }
+
+            protected function scan(): array
+            {
+                return [['/tmp/changed.php'], 1];
+            }
+
+            public function referenceRoleForTest(): int
+            {
+                return $this->count;
+            }
+        };
+        $channel = new Channel(1);
+
+        try {
+            $driver->watch($channel);
+
+            $this->assertSame('/tmp/changed.php', $channel->pop(0.1));
+            $this->assertSame(0, $driver->referenceRoleForTest());
+        } finally {
+            $driver->stop();
+            $channel->close();
+        }
+    }
+
     public function testFindEscapesTargetsAndTheReferencePath(): void
     {
-        $driver = new class($this->option()) extends FindNewerDriver {
+        $driver = new class($this->option(), ContainerStub::getLogger()) extends FindNewerDriver {
             public string $capturedCommand = '';
 
             protected function exec(string $command): array
@@ -178,11 +222,37 @@ class FindNewerDriverTest extends TestCase
             $driver->findForTest($targets);
 
             $reference = escapeshellarg($driver->scanReferenceForTest());
-            $expected = implode('&', array_map(
-                fn (string $target): string => 'find ' . escapeshellarg($target) . " -newer {$reference} -type f",
-                $targets,
-            ));
+            $expected = 'find ' . implode(' ', array_map(escapeshellarg(...), $targets))
+                . " -newer {$reference} -type f -print";
             $this->assertSame($expected, $driver->capturedCommand);
+        } finally {
+            $driver->stop();
+        }
+    }
+
+    public function testFindProcessesOutputWhenTheCommandFails(): void
+    {
+        $driver = new class($this->option(), ContainerStub::getLogger()) extends FindNewerDriver {
+            protected function exec(string $command): array
+            {
+                if ($command === 'which find') {
+                    return ['code' => 0, 'output' => '/usr/bin/find'];
+                }
+
+                return ['code' => 1, 'output' => "/tmp/a.php\n/tmp/b.php\n"];
+            }
+
+            public function findForTest(): array
+            {
+                return $this->find(['/tmp']);
+            }
+        };
+
+        try {
+            [$changedFiles, $exitCode] = $driver->findForTest();
+
+            $this->assertSame(['/tmp/a.php', '/tmp/b.php'], $changedFiles);
+            $this->assertSame(1, $exitCode);
         } finally {
             $driver->stop();
         }
@@ -190,7 +260,7 @@ class FindNewerDriverTest extends TestCase
 
     public function testReferenceFileUpdateCreatesAndBumpsTheFile(): void
     {
-        $driver = new class($this->option()) extends FindNewerDriver {
+        $driver = new class($this->option(), ContainerStub::getLogger()) extends FindNewerDriver {
             protected function exec(string $command): array
             {
                 return ['code' => 0, 'output' => '/usr/bin/find'];
@@ -224,7 +294,7 @@ class FindNewerDriverTest extends TestCase
 
     public function testReferenceFileUpdateThrowsWhenTouchFails(): void
     {
-        $driver = new class($this->option()) extends FindNewerDriver {
+        $driver = new class($this->option(), ContainerStub::getLogger()) extends FindNewerDriver {
             protected function exec(string $command): array
             {
                 return ['code' => 0, 'output' => '/usr/bin/find'];
@@ -314,7 +384,7 @@ class FindNewerDriverTest extends TestCase
 
             public function __construct(Option $option, private Channel $completed)
             {
-                parent::__construct($option);
+                parent::__construct($option, ContainerStub::getLogger());
             }
 
             protected function exec(string $command): array
@@ -345,14 +415,14 @@ class FindNewerDriverTest extends TestCase
                     // This change happens after the active scan has passed its path.
                     $this->lateChangeAt = ++$this->clock;
 
-                    return ['/tmp/another-change.php'];
+                    return [['/tmp/another-change.php'], null];
                 }
 
                 $this->lateChangeEligible = $this->lateChangeAt > $this->cutoffs[$reference];
                 $this->stop();
                 $this->completed->push(true);
 
-                return $this->lateChangeEligible ? ['/tmp/late-change.php'] : [];
+                return [$this->lateChangeEligible ? ['/tmp/late-change.php'] : [], null];
             }
         };
         $output = new Channel(2);
@@ -385,7 +455,7 @@ class FindNewerDriverTest extends TestCase
 
             public function __construct(Option $option, private Channel $completed)
             {
-                parent::__construct($option);
+                parent::__construct($option, ContainerStub::getLogger());
             }
 
             protected function exec(string $command): array
@@ -407,7 +477,7 @@ class FindNewerDriverTest extends TestCase
                     $this->completed->push(true);
                 }
 
-                return [];
+                return [[], null];
             }
         };
         $output = new Channel(1);
@@ -444,7 +514,7 @@ class FindNewerDriverTest extends TestCase
                 private Channel $resume,
                 private Channel $removed,
             ) {
-                parent::__construct($option);
+                parent::__construct($option, ContainerStub::getLogger());
             }
 
             protected function exec(string $command): array
@@ -463,7 +533,7 @@ class FindNewerDriverTest extends TestCase
             {
                 $this->scanCalled = true;
 
-                return [];
+                return [[], null];
             }
 
             protected function removeReferenceFiles(): void
@@ -526,7 +596,7 @@ class FindNewerDriverTest extends TestCase
                 private Channel $resume,
                 private Channel $removed,
             ) {
-                parent::__construct($option);
+                parent::__construct($option, ContainerStub::getLogger());
             }
 
             protected function exec(string $command): array
@@ -539,7 +609,7 @@ class FindNewerDriverTest extends TestCase
                 $this->entered->push(true);
                 $this->resume->pop();
 
-                return ['/tmp/changed.php'];
+                return [['/tmp/changed.php'], null];
             }
 
             protected function updateReferenceFile(string $path): void
@@ -627,7 +697,7 @@ class FindNewerDriverTest extends TestCase
                 {
                     $this->createdFiles = &$createdFiles;
 
-                    parent::__construct($option);
+                    parent::__construct($option, ContainerStub::getLogger());
                 }
 
                 protected function exec(string $command): array
@@ -670,7 +740,7 @@ class FindNewerDriverTest extends TestCase
      */
     private function referenceFileDriver(): FindNewerDriver
     {
-        return new class($this->option()) extends FindNewerDriver {
+        return new class($this->option(), ContainerStub::getLogger()) extends FindNewerDriver {
             protected function exec(string $command): array
             {
                 return ['code' => 0, 'output' => '/usr/bin/find'];

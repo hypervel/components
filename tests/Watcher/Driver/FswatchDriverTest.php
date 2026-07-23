@@ -295,6 +295,31 @@ class FswatchDriverTest extends TestCase
         $this->assertSame($expected, $driver->commandForTest());
     }
 
+    public function testTargetsNormalizeRootAndTrailingSlashes(): void
+    {
+        $watchPaths = [
+            new WatchPath('.', WatchPathType::Directory),
+            new WatchPath('/', WatchPathType::Directory),
+            new WatchPath('app/', WatchPathType::Directory),
+        ];
+        $driver = new class(new Option(driver: FswatchDriver::class, watchPaths: $watchPaths)) extends FswatchDriver {
+            protected function exec(string $command): array
+            {
+                return ['code' => 0, 'output' => '/usr/bin/fswatch'];
+            }
+
+            public function targetsForTest(array $watchPaths): array
+            {
+                return $this->resolveTargets($watchPaths);
+            }
+        };
+
+        $this->assertSame(
+            [base_path(), base_path(), base_path('app')],
+            $driver->targetsForTest($watchPaths),
+        );
+    }
+
     public function testWatchDeliversEachBatchInOrderWithoutDetachedChildren(): void
     {
         $option = new Option(

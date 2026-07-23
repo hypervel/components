@@ -16,10 +16,11 @@ use Hypervel\Watcher\Option;
 use Hypervel\Watcher\WatchPath;
 use Hypervel\Watcher\WatchPathType;
 use Mockery as m;
+use Symfony\Component\Finder\Exception\DirectoryNotFoundException;
 
 class ScanFileDriverTest extends TestCase
 {
-    public function testWatch()
+    public function testWatch(): void
     {
         $option = new Option(
             driver: ScanFileDriver::class,
@@ -51,7 +52,7 @@ class ScanFileDriverTest extends TestCase
         }
     }
 
-    public function testAddAndModifyInSameCycleReportsBothCorrectly()
+    public function testAddAndModifyInSameCycleReportsBothCorrectly(): void
     {
         $option = new Option(
             driver: ScanFileDriver::class,
@@ -62,7 +63,6 @@ class ScanFileDriverTest extends TestCase
         );
 
         $logger = ContainerStub::getLogger();
-        $logger->shouldReceive('warning')->andReturn(null);
 
         // Anonymous stub that returns different file hash maps on successive calls.
         // Tick 1: {A, C} — establishes baseline.
@@ -121,7 +121,6 @@ class ScanFileDriverTest extends TestCase
         );
 
         $logger = ContainerStub::getLogger();
-        $logger->shouldReceive('warning')->andReturn(null);
 
         $driver = new class($option, $logger) extends ScanFileDriver {
             public function process(Channel $channel, array $fileHashes): void
@@ -171,5 +170,70 @@ class ScanFileDriverTest extends TestCase
         $this->assertNull($driver->hashPath('/tmp/unreadable.php'));
 
         $driver->stop();
+    }
+
+    public function testAddedModifiedAndDeletedFilesAreReportedIndependently(): void
+    {
+        $driver = new class(new Option(driver: ScanFileDriver::class), ContainerStub::getLogger()) extends ScanFileDriver {
+            public function process(Channel $channel, array $fileHashes): void
+            {
+                $this->processFileHashes($channel, $fileHashes);
+            }
+        };
+        $channel = new Channel(3);
+
+        try {
+            $driver->process($channel, [
+                '/tmp/unchanged.php' => 'same',
+                '/tmp/modified.php' => 'old',
+                '/tmp/deleted.php' => 'deleted',
+            ]);
+            $driver->process($channel, [
+                '/tmp/unchanged.php' => 'same',
+                '/tmp/modified.php' => 'new',
+                '/tmp/added.php' => 'added',
+            ]);
+
+            $this->assertSame('/tmp/added.php', $channel->pop(0.1));
+            $this->assertSame('/tmp/deleted.php', $channel->pop(0.1));
+            $this->assertSame('/tmp/modified.php', $channel->pop(0.1));
+        } finally {
+            $driver->stop();
+            $channel->close();
+        }
+    }
+
+    public function testMissingDirectoryDoesNotPreventLaterRootsFromBeingScanned(): void
+    {
+        $filesystem = m::mock(Filesystem::class);
+        $filesystem->shouldReceive('allFiles')
+            ->once()
+            ->with('/tmp/missing')
+            ->andThrow(new DirectoryNotFoundException('/tmp/missing'));
+        $filesystem->shouldReceive('allFiles')
+            ->once()
+            ->with('/tmp/present')
+            ->andReturn([]);
+
+        $option = new Option(
+            driver: ScanFileDriver::class,
+            watchPaths: [
+                new WatchPath('missing', WatchPathType::Directory),
+                new WatchPath('present', WatchPathType::Directory),
+            ],
+        );
+        $driver = new class($option, ContainerStub::getLogger(), $filesystem) extends ScanFileDriver {
+            protected function resolveTargets(array $watchPaths): array
+            {
+                return ['/tmp/missing', '/tmp/present'];
+            }
+
+            public function fileHashesForTest(): array
+            {
+                return $this->getWatchFileHashes();
+            }
+        };
+
+        $this->assertSame([], $driver->fileHashesForTest());
     }
 }
