@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Eloquent\Factories;
 
 use BadMethodCallException;
-use Carbon\Carbon;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Hypervel\Database\Eloquent\Collection;
@@ -17,6 +16,7 @@ use Hypervel\Database\Eloquent\Factories\Sequence;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Database\Fixtures\Models\Money\Price;
 use ReflectionClass;
@@ -610,29 +610,29 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     public function testDynamicTrashedStateForSoftdeletesModels()
     {
-        $now = Carbon::create(2020, 6, 7, 8, 9);
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::create(2020, 6, 7, 8, 9);
+        CarbonImmutable::setTestNow($now);
         $post = FactoryTestPostFactory::new()->trashed()->create();
 
         $this->assertTrue($post->deleted_at->equalTo($now->subDay()));
 
-        $deleted_at = Carbon::create(2020, 1, 2, 3, 4, 5);
+        $deleted_at = CarbonImmutable::create(2020, 1, 2, 3, 4, 5);
         $post = FactoryTestPostFactory::new()->trashed($deleted_at)->create();
 
         $this->assertTrue($deleted_at->equalTo($post->deleted_at));
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testDynamicTrashedStateRespectsExistingState()
     {
-        $now = Carbon::create(2020, 6, 7, 8, 9);
-        Carbon::setTestNow($now);
+        $now = CarbonImmutable::create(2020, 6, 7, 8, 9);
+        CarbonImmutable::setTestNow($now);
         $comment = FactoryTestCommentFactory::new()->trashed()->create();
 
         $this->assertTrue($comment->deleted_at->equalTo($now->subWeek()));
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testDynamicTrashedStateThrowsExceptionWhenNotASoftdeletesModel()
@@ -945,7 +945,7 @@ class FactoryTestCommentFactory extends Factory
     public function trashed()
     {
         return $this->state([
-            'deleted_at' => Carbon::now()->subWeek(),
+            'deleted_at' => CarbonImmutable::now()->subWeek(),
         ]);
     }
 }

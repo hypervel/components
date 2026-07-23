@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Concerns;
 
-use Carbon\Carbon;
 use Hypervel\Support\Arr;
+use Hypervel\Support\CarbonImmutable;
 
 trait BuildsWhereDateClauses
 {
@@ -97,7 +97,7 @@ trait BuildsWhereDateClauses
     protected function wherePastOrFuture(array|string $columns, string $operator, string $boolean): static
     {
         $type = 'Basic';
-        $value = Carbon::now();
+        $value = CarbonImmutable::now();
 
         foreach (Arr::wrap($columns) as $column) {
             $this->wheres[] = compact('type', 'column', 'boolean', 'operator', 'value');
@@ -215,7 +215,7 @@ trait BuildsWhereDateClauses
      */
     protected function whereTodayBeforeOrAfter(array|string $columns, string $operator, string $boolean): static
     {
-        $value = Carbon::today()->format('Y-m-d');
+        $value = CarbonImmutable::today()->format('Y-m-d');
 
         foreach (Arr::wrap($columns) as $column) {
             $this->addDateBasedWhere('Date', $column, $operator, $value, $boolean);
