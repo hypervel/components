@@ -718,6 +718,17 @@ class DatabaseConnectionTest extends TestCase
         $this->assertNotSame($writePdo, $actualReadPdo);
     }
 
+    public function testRecordModificationStateCanBeReplacedFluently(): void
+    {
+        $connection = $this->getMockConnection();
+
+        $this->assertSame($connection, $connection->setRecordModificationState(true));
+        $this->assertTrue($connection->hasModifiedRecords());
+
+        $this->assertSame($connection, $connection->setRecordModificationState(false));
+        $this->assertFalse($connection->hasModifiedRecords());
+    }
+
     public function testResetForPoolClearsStickyReadRoutingState(): void
     {
         [$connection, $writePdo, $readPdo] = $this->getReadWriteConnection(sticky: true);
