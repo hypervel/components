@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Carbon\CarbonImmutable;
 use Closure;
 use DateTimeInterface;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Expression;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use RuntimeException;
 use Throwable;

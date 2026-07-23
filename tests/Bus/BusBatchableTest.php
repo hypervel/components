@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Container\Container;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Testing\Fakes\BatchFake;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -36,7 +36,7 @@ class BusBatchableTest extends TestCase
         Container::setInstance(null);
     }
 
-    public function testWithFakeBatchSetsAndReturnsFake()
+    public function testWithFakeBatchSetsAndReturnsFake(): void
     {
         $job = new class {
             use Batchable;
@@ -50,6 +50,7 @@ class BusBatchableTest extends TestCase
         $this->assertSame('test-batch-id', $job->batch()->id);
         $this->assertSame('test-batch-name', $job->batch()->name);
         $this->assertSame(3, $job->batch()->totalJobs);
+        $this->assertSame(CarbonImmutable::class, $job->batch()->createdAt::class);
     }
 
     public function testZeroBatchIdMayBeRetrievedAndFaked(): void

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Testing\Fakes;
 
-use Carbon\CarbonImmutable;
 use Closure;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\BatchRepository;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\UpdatedBatchJobCounts;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 
 class BatchRepositoryFake implements BatchRepository

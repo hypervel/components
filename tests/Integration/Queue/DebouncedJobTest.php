@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Queue\DebouncedJobTest;
 
-use Carbon\CarbonImmutable;
 use Exception;
 use Hypervel\Bus\DebounceLock;
 use Hypervel\Bus\Queueable;
@@ -18,6 +17,7 @@ use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Queue\Attributes\DebounceFor;
 use Hypervel\Queue\Events\JobDebounced;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache as CacheFacade;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;

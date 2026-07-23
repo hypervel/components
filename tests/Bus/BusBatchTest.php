@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\BatchFactory;
@@ -24,6 +23,7 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
@@ -109,7 +109,7 @@ class BusBatchTest extends TestCase
         $this->assertSame([], $repository->get(50, '0'));
     }
 
-    public function testJobsCanBeAddedToTheBatch()
+    public function testJobsCanBeAddedToTheBatch(): void
     {
         $queue = m::mock(Factory::class);
 
@@ -143,7 +143,7 @@ class BusBatchTest extends TestCase
         $this->assertEquals(3, $batch->totalJobs);
         $this->assertEquals(3, $batch->pendingJobs);
         $this->assertIsString($job->batchId);
-        $this->assertInstanceOf(CarbonImmutable::class, $batch->createdAt);
+        $this->assertSame(CarbonImmutable::class, $batch->createdAt::class);
     }
 
     public function testJobsCanBeAddedToPendingBatch()
@@ -566,7 +566,7 @@ class BusBatchTest extends TestCase
         $this->assertSame(0, $_SERVER['__catch.count']);
     }
 
-    public function testBatchStateCanBeInspected()
+    public function testBatchStateCanBeInspected(): void
     {
         $queue = m::mock(Factory::class);
 
@@ -606,7 +606,7 @@ class BusBatchTest extends TestCase
         $this->assertIsString(json_encode($batch));
     }
 
-    public function testChainCanBeAddedToBatch()
+    public function testChainCanBeAddedToBatch(): void
     {
         $queue = m::mock(Factory::class);
 
@@ -639,7 +639,7 @@ class BusBatchTest extends TestCase
         $this->assertIsString($chainHeadJob->batchId);
         $this->assertIsString($secondJob->batchId);
         $this->assertIsString($thirdJob->batchId);
-        $this->assertInstanceOf(CarbonImmutable::class, $batch->createdAt);
+        $this->assertSame(CarbonImmutable::class, $batch->createdAt::class);
     }
 
     public function testChainedJobsPreserveTheirRoutesWhenTheBatchHasNone(): void
