@@ -6,8 +6,6 @@ namespace Hypervel\Watcher;
 
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Watcher\Console\WatchCommand;
-use Hypervel\Watcher\Events\BeforeServerRestart;
-use Hypervel\Watcher\Listeners\ReloadDotenvListener;
 
 class WatcherServiceProvider extends ServiceProvider
 {
@@ -33,8 +31,5 @@ class WatcherServiceProvider extends ServiceProvider
                 __DIR__ . '/../config/watcher.php' => $this->app->configPath('watcher.php'),
             ], 'watcher-config');
         }
-
-        $this->app->make('events')
-            ->listen(BeforeServerRestart::class, ReloadDotenvListener::class);
     }
 }
