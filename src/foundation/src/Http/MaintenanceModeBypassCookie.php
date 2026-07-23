@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Symfony\Component\HttpFoundation\Cookie;
 
 class MaintenanceModeBypassCookie
@@ -14,7 +14,7 @@ class MaintenanceModeBypassCookie
      */
     public static function create(string $key): Cookie
     {
-        $expiresAt = Carbon::now()->addHours(12);
+        $expiresAt = CarbonImmutable::now()->addHours(12);
 
         return new Cookie('hypervel_maintenance', base64_encode(json_encode([
             'expires_at' => $expiresAt->getTimestamp(),
@@ -33,6 +33,6 @@ class MaintenanceModeBypassCookie
             && is_numeric($payload['expires_at'] ?? null)
             && isset($payload['mac'])
             && hash_equals(hash_hmac('sha256', (string) $payload['expires_at'], $key), $payload['mac'])
-            && (int) $payload['expires_at'] >= Carbon::now()->getTimestamp();
+            && (int) $payload['expires_at'] >= CarbonImmutable::now()->getTimestamp();
     }
 }

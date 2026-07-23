@@ -173,7 +173,7 @@
         "league/flysystem-read-only": "^3.25.1",
         "league/uri": "^7.5.1",
         "monolog/monolog": "^3.1",
-        "nesbot/carbon": "^3.8.4",
+        "nesbot/carbon": "^3.13.1",
         "nikic/php-parser": "^5.7",
         "nunomaduro/termwind": "^2.0",
         "nyholm/psr7": "^1.0",

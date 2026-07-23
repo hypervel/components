@@ -24,7 +24,7 @@ class EntryResult implements JsonSerializable
      * @param string $type the entry's type
      * @param null|string $familyHash the entry's family hash
      * @param array $content the entry's content
-     * @param \Carbon\Carbon|\Carbon\CarbonInterface $createdAt the datetime that the entry was recorded
+     * @param CarbonInterface $createdAt the datetime that the entry was recorded
      * @param array $tags the tags assigned to the entry
      */
     public function __construct(

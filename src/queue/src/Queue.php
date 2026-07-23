@@ -26,7 +26,7 @@ use Hypervel\Queue\Attributes\Timeout;
 use Hypervel\Queue\Attributes\Tries;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Context;
 use Hypervel\Support\InteractsWithTime;
@@ -162,7 +162,7 @@ abstract class Queue
                 'command' => $job,
                 'batchId' => $job->batchId ?? null,
             ],
-            'createdAt' => Carbon::now()->getTimestamp(),
+            'createdAt' => CarbonImmutable::now()->getTimestamp(),
         ];
 
         $uniqueJobMetadata = UniqueJobPayloadContext::consume($job);
@@ -279,7 +279,7 @@ abstract class Queue
             'backoff' => null,
             'timeout' => null,
             'data' => $data,
-            'createdAt' => Carbon::now()->getTimestamp(),
+            'createdAt' => CarbonImmutable::now()->getTimestamp(),
         ]);
     }
 

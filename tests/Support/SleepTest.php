@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Support;
 use Carbon\CarbonInterval;
 use Exception;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
 use Hypervel\Tests\TestCase;
@@ -595,7 +596,7 @@ class SleepTest extends TestCase
         $this->assertSame('2000-01-01 00:00:00', Date::now()->toDateTimeString());
     }
 
-    public function testItCanSyncCarbon()
+    public function testItCanSyncCarbon(): void
     {
         Carbon::setTestNow('2000-01-01 00:00:00');
         Sleep::fake();
@@ -607,7 +608,26 @@ class SleepTest extends TestCase
         Sleep::assertSequence([
             Sleep::for(303)->seconds(),
         ]);
-        $this->assertSame('2000-01-01 00:05:03', Date::now()->toDateTimeString());
+        $now = Date::now();
+
+        $this->assertSame(CarbonImmutable::class, $now::class);
+        $this->assertSame('2000-01-01 00:05:03', $now->toDateTimeString());
+    }
+
+    public function testItCanSyncCarbonUsingTheMutableDateFactoryOptOut(): void
+    {
+        Date::use(Carbon::class);
+        Carbon::setTestNow('2000-01-01 00:00:00');
+        Sleep::fake();
+        Sleep::syncWithCarbon();
+
+        Sleep::for(5)->minutes()
+            ->and(3)->seconds();
+
+        $now = Date::now();
+
+        $this->assertSame(Carbon::class, $now::class);
+        $this->assertSame('2000-01-01 00:05:03', $now->toDateTimeString());
     }
 
     #[TestWith([
@@ -618,7 +638,7 @@ class SleepTest extends TestCase
         'syncWithCarbon' => false,
         'datetime' => '2000-01-01 00:00:00',
     ])]
-    public function testFakeCanSetSyncWithCarbon(bool $syncWithCarbon, string $datetime)
+    public function testFakeCanSetSyncWithCarbon(bool $syncWithCarbon, string $datetime): void
     {
         Carbon::setTestNow('2000-01-01 00:00:00');
         Sleep::fake(syncWithCarbon: $syncWithCarbon);

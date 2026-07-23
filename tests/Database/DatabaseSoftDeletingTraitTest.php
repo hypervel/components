@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\DatabaseSoftDeletingTraitTest;
 
 use Hypervel\Database\Eloquent\SoftDeletes;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
 
 class DatabaseSoftDeletingTraitTest extends TestCase
 {
-    public function testDeleteSetsSoftDeletedColumn()
+    public function testDeleteSetsSoftDeletedColumn(): void
     {
         $model = m::mock(Stub::class);
         $model->makePartial();
@@ -29,7 +29,7 @@ class DatabaseSoftDeletingTraitTest extends TestCase
         $model->shouldReceive('usesTimestamps')->once()->andReturn(true);
         $model->delete();
 
-        $this->assertInstanceOf(Carbon::class, $model->deleted_at);
+        $this->assertSame(CarbonImmutable::class, $model->deleted_at::class);
     }
 
     public function testRestore()
@@ -96,9 +96,9 @@ class Stub
     {
     }
 
-    public function freshTimestamp()
+    public function freshTimestamp(): CarbonImmutable
     {
-        return Carbon::now();
+        return CarbonImmutable::now();
     }
 
     public function fromDateTime()

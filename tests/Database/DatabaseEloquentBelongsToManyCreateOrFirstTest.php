@@ -12,7 +12,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\UniqueConstraintViolationException;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
@@ -23,7 +23,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow('2023-01-01 00:00:00');
+        CarbonImmutable::setTestNow('2023-01-01 00:00:00');
     }
 
     public function testCreateOrFirstMethodCreatesNewRelated(): void

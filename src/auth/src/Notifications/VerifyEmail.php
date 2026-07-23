@@ -7,7 +7,7 @@ namespace Hypervel\Auth\Notifications;
 use Closure;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Config;
 use Hypervel\Support\Facades\Lang;
 use Hypervel\Support\Facades\URL;
@@ -73,7 +73,7 @@ class VerifyEmail extends Notification
 
         return URL::temporarySignedRoute(
             'verification.verify',
-            Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
+            CarbonImmutable::now()->addMinutes(Config::get('auth.verification.expire', 60)),
             [
                 'id' => $notifiable->getKey(),
                 'hash' => sha1($notifiable->getEmailForVerification()),

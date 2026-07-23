@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Stopwatch;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Integration\Horizon\IntegrationTestCase;
 use Mockery as m;

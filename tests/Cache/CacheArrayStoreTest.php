@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Contracts\Cache\RefreshableLock;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use stdClass;
@@ -25,13 +25,13 @@ class CacheArrayStoreTest extends TestCase
     {
         $store = new ArrayStore;
 
-        Carbon::setTestNow('2000-01-01 00:00:00.500'); // 500 milliseconds past
+        CarbonImmutable::setTestNow('2000-01-01 00:00:00.500'); // 500 milliseconds past
         $store->put('hello', 'world', 1);
 
-        Carbon::setTestNow('2000-01-01 00:00:01.499'); // progress 0.999 seconds
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01.499'); // progress 0.999 seconds
         $this->assertSame('world', $store->get('hello'));
 
-        Carbon::setTestNow('2000-01-01 00:00:01.500'); // progress 0.001 seconds. 1 second since putting into cache.
+        CarbonImmutable::setTestNow('2000-01-01 00:00:01.500'); // progress 0.001 seconds. 1 second since putting into cache.
         $this->assertNull($store->get('hello'));
     }
 
@@ -55,12 +55,12 @@ class CacheArrayStoreTest extends TestCase
 
     public function testItemsCanExpire(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new ArrayStore;
 
         $store->put('foo', 'bar', 10);
-        Carbon::setTestNow(Carbon::now()->addSeconds(10)->addSecond());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(10)->addSecond());
         $result = $store->get('foo');
 
         $this->assertNull($result);
@@ -70,12 +70,12 @@ class CacheArrayStoreTest extends TestCase
     {
         $store = new ArrayStore;
 
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $store->put('key', 'value', 30);
         $store->touch('key', 60);
 
-        Carbon::setTestNow($now->addSeconds(45));
+        CarbonImmutable::setTestNow($now->addSeconds(45));
 
         $this->assertSame('value', $store->get('key'));
     }
@@ -134,18 +134,18 @@ class CacheArrayStoreTest extends TestCase
         $this->assertEquals(1, $store->get('foo'));
 
         // Will be there forever
-        Carbon::setTestNow(Carbon::now()->addYears(10));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addYears(10));
         $this->assertEquals(1, $store->get('foo'));
     }
 
     public function testExpiredKeysAreIncrementedLikeNonExistingKeys(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new ArrayStore;
 
         $store->put('foo', 999, 10);
-        Carbon::setTestNow(Carbon::now()->addSeconds(10)->addSecond());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(10)->addSecond());
         $result = $store->increment('foo');
 
         $this->assertEquals(1, $result);
@@ -216,19 +216,19 @@ class CacheArrayStoreTest extends TestCase
 
     public function testCanAcquireLockAgainAfterExpiry(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
-        Carbon::setTestNow(Carbon::now()->addSeconds(10));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(10));
 
         $this->assertTrue($lock->acquire());
     }
 
     public function testExpiredLockIsNotLockedOrOwned(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
@@ -237,7 +237,7 @@ class CacheArrayStoreTest extends TestCase
         $this->assertTrue($lock->isLocked());
         $this->assertTrue($lock->isOwnedByCurrentProcess());
 
-        Carbon::setTestNow($now->copy()->addSeconds(10));
+        CarbonImmutable::setTestNow($now->addSeconds(10));
 
         $this->assertFalse($lock->isLocked());
         $this->assertFalse($lock->isOwnedByCurrentProcess());
@@ -246,12 +246,12 @@ class CacheArrayStoreTest extends TestCase
 
     public function testLockExpirationLowerBoundary(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
-        Carbon::setTestNow(Carbon::now()->addSeconds(10)->subMicrosecond());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(10)->subMicrosecond());
 
         $this->assertFalse($lock->acquire());
     }
@@ -261,7 +261,7 @@ class CacheArrayStoreTest extends TestCase
         $store = new ArrayStore;
         $lock = $store->lock('foo');
         $lock->acquire();
-        Carbon::setTestNow(Carbon::now()->addYears(100));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addYears(100));
 
         $this->assertFalse($lock->acquire());
     }
@@ -288,13 +288,13 @@ class CacheArrayStoreTest extends TestCase
 
     public function testExpiredLockCannotBeReleasedByOldOwner(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
-        Carbon::setTestNow($now->copy()->addSeconds(10));
+        CarbonImmutable::setTestNow($now->addSeconds(10));
 
         $this->assertFalse($lock->release());
     }
@@ -385,13 +385,13 @@ class CacheArrayStoreTest extends TestCase
 
     public function testCanGetAll(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new ArrayStore(false);
         $store->put('foo', 'bar', 10);
 
         $this->assertEquals([
-            'foo' => ['value' => 'bar', 'expiresAt' => Carbon::now()->addSeconds(10)->getPreciseTimestamp(3) / 1000],
+            'foo' => ['value' => 'bar', 'expiresAt' => CarbonImmutable::now()->addSeconds(10)->getPreciseTimestamp(3) / 1000],
         ], $store->all());
     }
 
@@ -409,7 +409,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testAllOnlyReturnsCurrentStoreContextData(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $first = new ArrayStore;
         $second = new ArrayStore;
@@ -429,27 +429,27 @@ class CacheArrayStoreTest extends TestCase
 
     public function testCanGetAllWhenSerialized(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new ArrayStore(true);
         $store->put('foo', 'bar', 10);
         $this->assertEquals([
-            'foo' => ['value' => 'bar', 'expiresAt' => $expiresAt = (Carbon::now()->addSeconds(10)->getPreciseTimestamp(3) / 1000)],
+            'foo' => ['value' => 'bar', 'expiresAt' => $expiresAt = (CarbonImmutable::now()->addSeconds(10)->getPreciseTimestamp(3) / 1000)],
         ], $store->all());
 
         // Now let's put a serializable value in there
         $store->forget('foo');
-        $store->put('foo', Carbon::now(), 10);
+        $store->put('foo', CarbonImmutable::now(), 10);
 
         $this->assertEquals([
             'foo' => [
-                'value' => Carbon::now(),
+                'value' => CarbonImmutable::now(),
                 'expiresAt' => $expiresAt,
             ],
         ], $store->all());
 
         $this->assertEquals(
-            serialize(Carbon::now()),
+            serialize(CarbonImmutable::now()),
             $store->all(false)['foo']['value']
         );
     }
@@ -464,27 +464,27 @@ class CacheArrayStoreTest extends TestCase
 
     public function testRefreshExtendsLockExpiration(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
-        Carbon::setTestNow(Carbon::now()->addSeconds(5));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(5));
 
         $this->assertTrue($lock->refresh());
 
         // Lock should now expire 10 seconds from now, not 5
-        Carbon::setTestNow(Carbon::now()->addSeconds(9));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(9));
         $this->assertFalse($store->lock('foo', 10)->acquire());
 
-        Carbon::setTestNow(Carbon::now()->addSeconds(2));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
         $this->assertTrue($store->lock('foo', 10)->acquire());
     }
 
     public function testRefreshWithCustomTtl(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
@@ -493,10 +493,10 @@ class CacheArrayStoreTest extends TestCase
         $this->assertTrue($lock->refresh(30));
 
         // Lock should now expire 30 seconds from now
-        Carbon::setTestNow(Carbon::now()->addSeconds(29));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(29));
         $this->assertFalse($store->lock('foo', 10)->acquire());
 
-        Carbon::setTestNow(Carbon::now()->addSeconds(2));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(2));
         $this->assertTrue($store->lock('foo', 10)->acquire());
     }
 
@@ -520,13 +520,13 @@ class CacheArrayStoreTest extends TestCase
 
     public function testRefreshReturnsFalseWhenExpired(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
-        Carbon::setTestNow($now->copy()->addSeconds(10));
+        CarbonImmutable::setTestNow($now->addSeconds(10));
 
         $this->assertFalse($lock->refresh());
     }
@@ -591,7 +591,7 @@ class CacheArrayStoreTest extends TestCase
 
     public function testGetRemainingLifetimeReturnsSeconds(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
@@ -599,7 +599,7 @@ class CacheArrayStoreTest extends TestCase
 
         $this->assertSame(10.0, $lock->getRemainingLifetime());
 
-        Carbon::setTestNow(Carbon::now()->addSeconds(3));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(3));
         $this->assertSame(7.0, $lock->getRemainingLifetime());
     }
 
@@ -622,13 +622,13 @@ class CacheArrayStoreTest extends TestCase
 
     public function testGetRemainingLifetimeReturnsNullWhenExpired(): void
     {
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $store = new ArrayStore;
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
-        Carbon::setTestNow(Carbon::now()->addSeconds(15));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(15));
         $this->assertNull($lock->getRemainingLifetime());
     }
 }

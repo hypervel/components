@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
-use Carbon\CarbonImmutable;
 use Exception;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Horizon\AutoScaler;
@@ -21,6 +20,7 @@ use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
 use Hypervel\Horizon\WorkerCommandString;
 use Hypervel\Horizon\WorkerProcess;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;

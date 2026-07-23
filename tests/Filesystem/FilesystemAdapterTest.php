@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Filesystem;
 
-use Carbon\Carbon;
 use DateTimeInterface;
 use GuzzleHttp\Psr7\Stream;
 use Hypervel\Container\Container;
@@ -18,6 +17,7 @@ use Hypervel\Filesystem\LocalFilesystemAdapter as HypervelLocalFilesystemAdapter
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Testing\FakeWritableConnection;
 use Hypervel\Testing\ParallelTesting;
@@ -743,12 +743,12 @@ class FilesystemAdapterTest extends TestCase
     {
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        $filesystemAdapter->buildTemporaryUrlsUsing(function ($path, Carbon $expiration, $options) {
+        $filesystemAdapter->buildTemporaryUrlsUsing(function ($path, DateTimeInterface $expiration, $options) {
             return $path . $expiration->toString() . implode('', $options);
         });
 
         $path = 'foo';
-        $expiration = Carbon::create(2021, 18, 12, 13);
+        $expiration = CarbonImmutable::create(2021, 18, 12, 13);
         $options = ['bar' => 'baz'];
 
         $this->assertSame(
@@ -760,7 +760,7 @@ class FilesystemAdapterTest extends TestCase
     public function testTemporaryUrlCallbacksSupportStaticFirstClassAndBoundClosures(): void
     {
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
-        $expiration = Carbon::create(2021, 12, 18, 13);
+        $expiration = CarbonImmutable::create(2021, 12, 18, 13);
         $handler = new FilesystemTemporaryUrlCallbackHandler;
 
         $filesystemAdapter->buildTemporaryUrlsUsing(static fn (): string => 'static');
@@ -808,7 +808,7 @@ class FilesystemAdapterTest extends TestCase
     {
         $filesystemAdapter = (new HypervelLocalFilesystemAdapter($this->filesystem, $this->adapter))
             ->diskName('local');
-        $expiration = Carbon::create(2021, 12, 18, 13);
+        $expiration = CarbonImmutable::create(2021, 12, 18, 13);
         $filesystemAdapter->buildTemporaryUrlsUsing(static fn (): string => 'local-static');
         $filesystemAdapter->buildTemporaryUploadUrlsUsing(
             static fn (): array => ['kind' => 'local-static'],
@@ -1062,7 +1062,7 @@ class FilesystemAdapterTest extends TestCase
     public function testProvidesTemporaryUrls()
     {
         $localAdapter = new class($this->tempDir) extends LocalFilesystemAdapter {
-            public function getTemporaryUrl($path, Carbon $expiration, $options): string
+            public function getTemporaryUrl($path, DateTimeInterface $expiration, $options): string
             {
                 return $path . $expiration->toString() . implode('', $options);
             }
@@ -1076,7 +1076,7 @@ class FilesystemAdapterTest extends TestCase
     {
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        $filesystemAdapter->buildTemporaryUrlsUsing(function ($path, Carbon $expiration, $options) {
+        $filesystemAdapter->buildTemporaryUrlsUsing(function ($path, DateTimeInterface $expiration, $options) {
             return $path . $expiration->toString() . implode('', $options);
         });
 
@@ -1151,7 +1151,7 @@ class FilesystemAdapterTest extends TestCase
     {
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        $filesystemAdapter->buildTemporaryUploadUrlsUsing(function ($path, Carbon $expiration, $options) {
+        $filesystemAdapter->buildTemporaryUploadUrlsUsing(function ($path, DateTimeInterface $expiration, $options) {
             return [
                 'url' => $path . $expiration->toString() . implode('', $options),
                 'headers' => ['X-Custom' => 'header'],
@@ -1159,7 +1159,7 @@ class FilesystemAdapterTest extends TestCase
         });
 
         $path = 'foo';
-        $expiration = Carbon::create(2021, 18, 12, 13);
+        $expiration = CarbonImmutable::create(2021, 18, 12, 13);
         $options = ['bar' => 'baz'];
 
         $result = $filesystemAdapter->temporaryUploadUrl($path, $expiration, $options);
@@ -1188,7 +1188,7 @@ class FilesystemAdapterTest extends TestCase
     {
         $filesystemAdapter = new FilesystemAdapter($this->filesystem, $this->adapter);
 
-        $filesystemAdapter->buildTemporaryUploadUrlsUsing(function ($path, Carbon $expiration, $options) {
+        $filesystemAdapter->buildTemporaryUploadUrlsUsing(function ($path, DateTimeInterface $expiration, $options) {
             return [
                 'url' => $path . $expiration->toString() . implode('', $options),
                 'headers' => [],

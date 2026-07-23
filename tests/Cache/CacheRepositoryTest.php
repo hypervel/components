@@ -31,7 +31,7 @@ use Hypervel\Contracts\Cache\LockTimeoutException;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -43,7 +43,7 @@ class CacheRepositoryTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow(Carbon::parse($this->getTestDate()));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse($this->getTestDate()));
     }
 
     public function testGetReturnsValueFromCache()
@@ -126,17 +126,17 @@ class CacheRepositoryTest extends TestCase
         /*
          * Use Carbon object...
          */
-        Carbon::setTestNow(Carbon::now());
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
 
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->times(2)->andReturn(null);
         $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 602);
         $repo->getStore()->shouldReceive('put')->once()->with('baz', 'qux', 598);
-        $result = $repo->remember('foo', Carbon::now()->addMinutes(10)->addSeconds(2), function () {
+        $result = $repo->remember('foo', CarbonImmutable::now()->addMinutes(10)->addSeconds(2), function () {
             return 'bar';
         });
         $this->assertSame('bar', $result);
-        $result = $repo->remember('baz', Carbon::now()->addMinutes(10)->subSeconds(2), function () {
+        $result = $repo->remember('baz', CarbonImmutable::now()->addMinutes(10)->subSeconds(2), function () {
             return 'qux';
         });
         $this->assertSame('qux', $result);
@@ -284,7 +284,7 @@ class CacheRepositoryTest extends TestCase
     public function testFlexibleNullableReturnsNullOnFreshSentinelHit()
     {
         $repo = $this->getRepository();
-        $now = Carbon::now()->getTimestamp();
+        $now = CarbonImmutable::now()->getTimestamp();
 
         $repo->getStore()
             ->shouldReceive('many')
@@ -303,7 +303,7 @@ class CacheRepositoryTest extends TestCase
     public function testFlexibleNullableReturnsValueOnFreshValueHit()
     {
         $repo = $this->getRepository();
-        $now = Carbon::now()->getTimestamp();
+        $now = CarbonImmutable::now()->getTimestamp();
 
         $repo->getStore()
             ->shouldReceive('many')
@@ -439,7 +439,7 @@ class CacheRepositoryTest extends TestCase
 
         $repo->rememberNullable('k', 60, fn () => null);
 
-        Carbon::setTestNow(Carbon::now()->addSeconds(61));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addSeconds(61));
 
         $invoked = false;
         $result = $repo->rememberNullable('k', 60, function () use (&$invoked) {
@@ -524,9 +524,9 @@ class CacheRepositoryTest extends TestCase
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('put')->never();
         $repo->getStore()->shouldReceive('forget')->twice()->andReturn(true);
-        $result = $repo->put('foo', 'bar', Carbon::now()->subMinutes(10));
+        $result = $repo->put('foo', 'bar', CarbonImmutable::now()->subMinutes(10));
         $this->assertTrue($result);
-        $result = $repo->put('foo', 'bar', Carbon::now());
+        $result = $repo->put('foo', 'bar', CarbonImmutable::now());
         $this->assertTrue($result);
     }
 
@@ -575,14 +575,14 @@ class CacheRepositoryTest extends TestCase
         $withAddStore = m::mock(RedisStore::class);
         $withAddStore->shouldReceive('add')->once()->with('k', 'v', 61)->andReturn(true);
         $repository = new Repository($withAddStore);
-        $this->assertTrue($repository->add('k', 'v', Carbon::now()->addSeconds(61)));
+        $this->assertTrue($repository->add('k', 'v', CarbonImmutable::now()->addSeconds(61)));
 
         $noAddStore = m::mock(ArrayStore::class);
         $this->assertFalse(method_exists(ArrayStore::class, 'add'), 'This store should not have add method on it.');
         $noAddStore->shouldReceive('get')->once()->with('k')->andReturn(null);
         $noAddStore->shouldReceive('put')->once()->with('k', 'v', 62)->andReturn(true);
         $repository = new Repository($noAddStore);
-        $this->assertTrue($repository->add('k', 'v', Carbon::now()->addSeconds(62)));
+        $this->assertTrue($repository->add('k', 'v', CarbonImmutable::now()->addSeconds(62)));
     }
 
     public function testAddWithNullTTLRemembersItemForever()
@@ -597,9 +597,9 @@ class CacheRepositoryTest extends TestCase
     {
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('add', 'get', 'put')->never();
-        $result = $repo->add('foo', 'bar', Carbon::now()->subMinutes(10));
+        $result = $repo->add('foo', 'bar', CarbonImmutable::now()->subMinutes(10));
         $this->assertFalse($result);
-        $result = $repo->add('foo', 'bar', Carbon::now());
+        $result = $repo->add('foo', 'bar', CarbonImmutable::now());
         $this->assertFalse($result);
         $result = $repo->add('foo', 'bar', -1);
         $this->assertFalse($result);
@@ -608,7 +608,7 @@ class CacheRepositoryTest extends TestCase
     #[DataProvider('dataProviderTestGetSeconds')]
     public function testGetSeconds($duration)
     {
-        Carbon::setTestNow(Carbon::parse($this->getTestDate()));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse($this->getTestDate()));
 
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('put')->once()->with($key = 'foo', $value = 'bar', 300);
@@ -619,10 +619,10 @@ class CacheRepositoryTest extends TestCase
 
     public static function dataProviderTestGetSeconds()
     {
-        Carbon::setTestNow(Carbon::parse(self::getTestDate()));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse(self::getTestDate()));
 
         return [
-            [Carbon::parse(self::getTestDate())->addMinutes(5)],
+            [CarbonImmutable::parse(self::getTestDate())->addMinutes(5)],
             [(new DateTime(self::getTestDate()))->modify('+5 minutes')],
             [(new DateTimeImmutable(self::getTestDate()))->modify('+5 minutes')],
             [new DateInterval('PT5M')],
@@ -632,11 +632,11 @@ class CacheRepositoryTest extends TestCase
 
     public function testGetSecondsCeilsSubSecondTtl()
     {
-        Carbon::setTestNow(Carbon::parse($this->getTestDate()));
+        CarbonImmutable::setTestNow(CarbonImmutable::parse($this->getTestDate()));
 
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('put')->once()->with('foo', 'bar', 1);
-        $repo->put('foo', 'bar', Carbon::parse($this->getTestDate())->addMilliseconds(400));
+        $repo->put('foo', 'bar', CarbonImmutable::parse($this->getTestDate())->addMilliseconds(400));
 
         $this->assertTrue(true);
     }
@@ -916,7 +916,7 @@ class CacheRepositoryTest extends TestCase
 
     public function testTouchWithDatetimeTtlCorrectlyProxiesToStore()
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $repo = $this->getRepository();
         $repo->getStore()->shouldReceive('get')->with('key')->andReturn('bar');

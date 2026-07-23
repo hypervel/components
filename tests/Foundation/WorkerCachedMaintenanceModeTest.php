@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
 use Hypervel\Foundation\ArrayMaintenanceMode;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

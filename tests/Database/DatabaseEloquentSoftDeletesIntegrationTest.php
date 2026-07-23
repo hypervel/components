@@ -13,7 +13,7 @@ use Hypervel\Database\Eloquent\SoftDeletingScope;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\Paginator;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -185,11 +185,11 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
         $this->assertCount(2, User::withTrashed(true)->get());
     }
 
-    public function testDeleteSetsDeletedColumn()
+    public function testDeleteSetsDeletedColumn(): void
     {
         $this->createUsers();
 
-        $this->assertInstanceOf(Carbon::class, User::withTrashed()->find(1)->deleted_at);
+        $this->assertSame(CarbonImmutable::class, User::withTrashed()->find(1)->deleted_at::class);
         $this->assertNull(User::find(2)->deleted_at);
     }
 
@@ -397,9 +397,9 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
     /**
      * @throws Exception
      */
-    public function testUpdateModelAfterSoftDeleting()
+    public function testUpdateModelAfterSoftDeleting(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
         $this->createUsers();
 
         /** @var User $userModel */

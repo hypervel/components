@@ -2882,7 +2882,7 @@ The `method_field` function generates an HTML `hidden` input field containing th
 <a name="method-now"></a>
 #### `now()` {.collection-method}
 
-The `now` function creates a new `Hypervel\Support\Carbon` instance for the current time:
+The `now` function creates a new `Hypervel\Support\CarbonImmutable` instance for the current time:
 
 ```php
 $now = now();
@@ -3267,7 +3267,7 @@ throw_unless(
 <a name="method-today"></a>
 #### `today()` {.collection-method}
 
-The `today` function creates a new `Hypervel\Support\Carbon` instance for the current date:
+The `today` function creates a new `Hypervel\Support\CarbonImmutable` instance for the current date:
 
 ```php
 $today = today();
@@ -3431,21 +3431,21 @@ Sometimes, you may want to benchmark the execution of a callback while still obt
 <a name="dates"></a>
 ### Dates and Time
 
-Hypervel includes [Carbon](https://carbon.nesbot.com/guide/getting-started/introduction.html), a powerful date and time manipulation library. To create a new `Carbon` instance, you may invoke the `now` function. This function is globally available within your Hypervel application:
+Hypervel includes [Carbon](https://carbon.nesbot.com/guide/getting-started/introduction.html), a powerful date and time manipulation library. Hypervel uses immutable Carbon instances by default. To create a new `CarbonImmutable` instance, you may invoke the `now` function. This function is globally available within your Hypervel application:
 
 ```php
 $now = now();
 ```
 
-Or, you may create a new `Carbon` instance using the `Hypervel\Support\Carbon` class:
+Or, you may create a new instance using the `Hypervel\Support\CarbonImmutable` class:
 
 ```php
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 
-$now = Carbon::now();
+$now = CarbonImmutable::now();
 ```
 
-Hypervel also augments `Carbon` instances with `plus` and `minus` methods, allowing easy manipulation of the instance's date and time:
+Hypervel also augments its mutable and immutable Carbon classes with `plus` and `minus` methods, allowing easy manipulation of the instance's date and time:
 
 ```php
 return now()->plus(minutes: 5);
@@ -3455,6 +3455,22 @@ return now()->plus(weeks: 4);
 return now()->minus(minutes: 5);
 return now()->minus(hours: 8);
 return now()->minus(weeks: 4);
+```
+
+Since the default date is immutable, assign the result of a modifier when you want to retain the changed value:
+
+```php
+$expiresAt = now();
+$expiresAt = $expiresAt->addMinutes(5);
+```
+
+Applications that deliberately require mutable dates may configure the date factory during boot:
+
+```php
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
+
+Date::use(Carbon::class);
 ```
 
 For a thorough discussion of Carbon and its features, please consult the [official Carbon documentation](https://carbon.nesbot.com/guide/getting-started/introduction.html).

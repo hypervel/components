@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use DateTimeInterface;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
+use Hypervel\Support\Facades\Date;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
@@ -19,7 +20,17 @@ class FoundationInteractsWithTimeTest extends TestCase
         $actual = $this->freezeTime();
 
         $this->assertTrue(Carbon::hasTestNow());
-        $this->assertInstanceOf(DateTimeInterface::class, $actual);
+        $this->assertSame(CarbonImmutable::class, $actual::class);
+        $this->assertTrue(Carbon::getTestNow()->eq($actual));
+    }
+
+    public function testFreezeTimeHonorsTheMutableDateFactoryOptOut(): void
+    {
+        Date::use(Carbon::class);
+
+        $actual = $this->freezeTime();
+
+        $this->assertSame(Carbon::class, $actual::class);
         $this->assertTrue(Carbon::getTestNow()->eq($actual));
     }
 
@@ -48,7 +59,18 @@ class FoundationInteractsWithTimeTest extends TestCase
         $actual = $this->freezeSecond();
 
         $this->assertTrue(Carbon::hasTestNow());
-        $this->assertInstanceOf(DateTimeInterface::class, $actual);
+        $this->assertSame(CarbonImmutable::class, $actual::class);
+        $this->assertTrue(Carbon::getTestNow()->eq($actual));
+        $this->assertSame(0, $actual->milliseconds);
+    }
+
+    public function testFreezeSecondHonorsTheMutableDateFactoryOptOut(): void
+    {
+        Date::use(Carbon::class);
+
+        $actual = $this->freezeSecond();
+
+        $this->assertSame(Carbon::class, $actual::class);
         $this->assertTrue(Carbon::getTestNow()->eq($actual));
         $this->assertSame(0, $actual->milliseconds);
     }

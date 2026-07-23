@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Traits;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Permission\PermissionRegistrar;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Permission\Fixtures\Models\Admin;
 use Hypervel\Tests\Permission\Fixtures\Models\Permission;
@@ -160,6 +160,7 @@ class HasPermissionsWithCustomModelsTest extends HasPermissionsTest
         $permission1 = Permission::create(['name' => 'edit-news', 'guard_name' => 'admin']);
         $permission2 = Permission::create(['name' => 'edit-blog', 'guard_name' => 'admin']);
 
+        $this->assertSame(CarbonImmutable::class, $permission1->updated_at::class);
         $this->assertSame('2021-07-19 10:13:14', $permission1->updated_at->format('Y-m-d H:i:s'));
 
         CarbonImmutable::setTestNow('2021-07-20 19:13:14');

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Console\Scheduling;
 
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\EventMutex;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -124,7 +124,7 @@ class FrequencyTest extends TestCase
 
     public function testLastDayOfMonth()
     {
-        Carbon::setTestNow('2020-10-10 10:10:10');
+        CarbonImmutable::setTestNow('2020-10-10 10:10:10');
 
         $this->assertSame('0 0 31 * *', $this->event->lastDayOfMonth()->getExpression());
     }

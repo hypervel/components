@@ -25,7 +25,7 @@
     "require": {
         "php": "^8.4",
         "lcobucci/jwt": "^5.0",
-        "nesbot/carbon": "^3.8.4",
+        "nesbot/carbon": "^3.13.1",
         "psr/simple-cache": "^3.0",
         "hypervel/auth": "^0.4",
         "hypervel/cache": "^0.4",

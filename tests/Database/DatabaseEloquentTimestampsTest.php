@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
@@ -70,7 +70,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
      */
     public function testUserWithCreatedAtAndUpdatedAt()
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $user = UserWithCreatedAndUpdated::create([
             'email' => 'test@test.com',
@@ -82,7 +82,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
 
     public function testUserWithCreatedAt()
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $user = UserWithCreated::create([
             'email' => 'test@test.com',
@@ -93,7 +93,7 @@ class DatabaseEloquentTimestampsTest extends TestCase
 
     public function testUserWithUpdatedAt()
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         $user = UserWithUpdated::create([
             'email' => 'test@test.com',
@@ -104,9 +104,9 @@ class DatabaseEloquentTimestampsTest extends TestCase
 
     public function testWithoutTimestamp()
     {
-        Carbon::setTestNow($now = Carbon::now()->setYear(1995)->startOfYear());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->setYear(1995)->startOfYear());
         $user = UserWithCreatedAndUpdated::create(['email' => 'foo@example.com']);
-        Carbon::setTestNow(Carbon::now()->addHour());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
 
         $this->assertTrue($user->usesTimestamps());
 
@@ -130,9 +130,9 @@ class DatabaseEloquentTimestampsTest extends TestCase
 
     public function testWithoutTimestampWhenAlreadyIgnoringTimestamps()
     {
-        Carbon::setTestNow($now = Carbon::now()->setYear(1995)->startOfYear());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now()->setYear(1995)->startOfYear());
         $user = UserWithCreatedAndUpdated::create(['email' => 'foo@example.com']);
-        Carbon::setTestNow(Carbon::now()->addHour());
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->addHour());
 
         $user->timestamps = false;
 

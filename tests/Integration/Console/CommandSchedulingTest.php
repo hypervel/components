@@ -14,7 +14,7 @@ use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Console\Scheduling\SchedulingMutex;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Cache\Factory;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use UnitEnum;
@@ -25,7 +25,7 @@ class CommandSchedulingTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow(now()->startOfYear());
+        CarbonImmutable::setTestNow(now()->startOfYear());
 
         CommandSchedulingTestCommand::$log = [];
 

@@ -29,7 +29,7 @@ use Hypervel\Http\Client\Response;
 use Hypervel\Http\Client\ResponseSequence;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Sleep;
@@ -3754,15 +3754,15 @@ class HttpClientTest extends TestCase
         $this->assertTrue($onStatsFunctionCalled);
     }
 
-    public function testItCanAddGlobalMiddleware()
+    public function testItCanAddGlobalMiddleware(): void
     {
-        Carbon::setTestNow(now()->startOfDay());
+        CarbonImmutable::setTestNow(now()->startOfDay());
         $requests = [];
         $responses = [];
         $this->factory->fake(function ($r) use (&$requests) {
             $requests[] = $r;
 
-            Carbon::setTestNow(now()->addSeconds(6 * count($requests)));
+            CarbonImmutable::setTestNow(now()->addSeconds(6 * count($requests)));
 
             return $this->factory::response('expected content');
         });

@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
@@ -394,7 +394,7 @@ class TestEloquentModelWithAttributeCast extends Model
     {
         return new Attribute(
             function ($value) {
-                return Carbon::parse($value);
+                return CarbonImmutable::parse($value);
             },
             function ($value) {
                 return $value->format('Y-m-d');

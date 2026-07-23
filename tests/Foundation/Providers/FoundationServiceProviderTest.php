@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Providers;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Contracts\Foundation\MaintenanceMode as MaintenanceModeContract;
@@ -14,6 +13,7 @@ use Hypervel\Foundation\MaintenanceModeManager;
 use Hypervel\Foundation\WorkerCachedMaintenanceMode;
 use Hypervel\Http\Request;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
 use Psr\Clock\ClockInterface;
@@ -82,15 +82,15 @@ class FoundationServiceProviderTest extends TestCase
 
     public function testClockReturnsCarbonImmutable(): void
     {
-        $this->assertInstanceOf(
+        $this->assertSame(
             CarbonImmutable::class,
-            $this->app->make(ClockInterface::class)->now()
+            $this->app->make(ClockInterface::class)->now()::class
         );
     }
 
     public function testClockHonorsCarbonTestTime(): void
     {
-        Carbon::setTestNow($expected = Carbon::parse('2026-07-03 12:34:56', 'UTC'));
+        Carbon::setTestNow($expected = CarbonImmutable::parse('2026-07-03 12:34:56', 'UTC'));
 
         $this->assertSame(
             $expected->format('Y-m-d H:i:s.u P'),
@@ -100,10 +100,11 @@ class FoundationServiceProviderTest extends TestCase
 
     public function testClockAgreesWithDateFacadeAndNowHelper(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-07-03 12:34:56', 'UTC'));
+        Carbon::setTestNow(CarbonImmutable::parse('2026-07-03 12:34:56', 'UTC'));
 
         $clockNow = $this->app->make(ClockInterface::class)->now();
 
+        $this->assertSame(CarbonImmutable::class, $clockNow::class);
         $this->assertSame(now()->format('Y-m-d H:i:s.u P'), $clockNow->format('Y-m-d H:i:s.u P'));
         $this->assertSame(Date::now()->format('Y-m-d H:i:s.u P'), $clockNow->format('Y-m-d H:i:s.u P'));
     }
@@ -112,9 +113,9 @@ class FoundationServiceProviderTest extends TestCase
     {
         Date::useClass(Carbon::class);
 
-        $this->assertInstanceOf(
+        $this->assertSame(
             CarbonImmutable::class,
-            $this->app->make(ClockInterface::class)->now()
+            $this->app->make(ClockInterface::class)->now()::class
         );
     }
 

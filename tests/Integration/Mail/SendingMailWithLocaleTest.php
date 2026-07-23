@@ -8,7 +8,7 @@ use Hypervel\Contracts\Translation\HasLocalePreference;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\Mail\Mailable;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Mail;
 use Hypervel\Testbench\TestCase;
@@ -41,7 +41,7 @@ class SendingMailWithLocaleTest extends TestCase
         ]);
     }
 
-    public function testMailIsSentWithDefaultLocale()
+    public function testMailIsSentWithDefaultLocale(): void
     {
         Mail::to('test@mail.com')->send(new SendingLocaleTestMail);
 
@@ -51,7 +51,7 @@ class SendingMailWithLocaleTest extends TestCase
         );
     }
 
-    public function testMailIsSentWithSelectedLocale()
+    public function testMailIsSentWithSelectedLocale(): void
     {
         Mail::to('test@mail.com')->locale('ar')->send(new SendingLocaleTestMail);
 
@@ -61,7 +61,7 @@ class SendingMailWithLocaleTest extends TestCase
         );
     }
 
-    public function testMailIsSentWithLocaleFromMailable()
+    public function testMailIsSentWithLocaleFromMailable(): void
     {
         $mailable = new SendingLocaleTestMail;
         $mailable->locale('ar');
@@ -74,12 +74,12 @@ class SendingMailWithLocaleTest extends TestCase
         );
     }
 
-    public function testMailIsSentWithLocaleUpdatedListenersCalled()
+    public function testMailIsSentWithLocaleUpdatedListenersCalled(): void
     {
-        Carbon::setTestNow('2018-04-01');
+        CarbonImmutable::setTestNow('2018-04-01');
 
         Event::listen(LocaleUpdated::class, function ($event) {
-            Carbon::setLocale($event->locale);
+            CarbonImmutable::setLocale($event->locale);
         });
 
         Mail::to('test@mail.com')->locale('es')->send(new SendingLocaleTimestampTestMail);
@@ -89,12 +89,12 @@ class SendingMailWithLocaleTest extends TestCase
             $this->app->make('mailer')->getSymfonyTransport()->messages()[0]->toString()
         );
 
-        $this->assertSame('en', Carbon::getLocale());
+        $this->assertSame('en', CarbonImmutable::getLocale());
 
-        Carbon::setTestNow(null);
+        CarbonImmutable::setTestNow(null);
     }
 
-    public function testLocaleIsSentWithModelPreferredLocale()
+    public function testLocaleIsSentWithModelPreferredLocale(): void
     {
         $recipient = new SendingLocaleTestEmailLocaleUser([
             'email' => 'test@mail.com',
@@ -114,7 +114,7 @@ class SendingMailWithLocaleTest extends TestCase
         $this->assertSame($recipient->email_locale, $mailable->locale);
     }
 
-    public function testLocaleIsSentWithSelectedLocaleOverridingModelPreferredLocale()
+    public function testLocaleIsSentWithSelectedLocaleOverridingModelPreferredLocale(): void
     {
         $recipient = new SendingLocaleTestEmailLocaleUser([
             'email' => 'test@mail.com',
@@ -129,7 +129,7 @@ class SendingMailWithLocaleTest extends TestCase
         );
     }
 
-    public function testLocaleIsSentWithModelPreferredLocaleWillIgnorePreferredLocaleOfTheCcRecipient()
+    public function testLocaleIsSentWithModelPreferredLocaleWillIgnorePreferredLocaleOfTheCcRecipient(): void
     {
         $toRecipient = new SendingLocaleTestEmailLocaleUser([
             'email' => 'test@mail.com',
@@ -149,7 +149,7 @@ class SendingMailWithLocaleTest extends TestCase
         );
     }
 
-    public function testLocaleIsNotSentWithModelPreferredLocaleWhenThereAreMultipleRecipients()
+    public function testLocaleIsNotSentWithModelPreferredLocaleWhenThereAreMultipleRecipients(): void
     {
         $recipients = [
             new SendingLocaleTestEmailLocaleUser([
@@ -170,7 +170,7 @@ class SendingMailWithLocaleTest extends TestCase
         );
     }
 
-    public function testLocaleIsSetBackToDefaultAfterMailSent()
+    public function testLocaleIsSetBackToDefaultAfterMailSent(): void
     {
         Mail::to('test@mail.com')->locale('ar')->send(new SendingLocaleTestMail);
         Mail::to('test@mail.com')->send(new SendingLocaleTestMail);

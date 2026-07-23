@@ -597,7 +597,7 @@ return $user->uuid;
 <a name="date-casting"></a>
 ### Date Casting
 
-By default, Eloquent will cast the `created_at` and `updated_at` columns to instances of [Carbon](https://github.com/briannesbitt/Carbon), which extends the PHP `DateTime` class and provides an assortment of helpful methods. You may cast additional date attributes by defining additional date casts within your model's `casts` method. Typically, dates should be cast using the `datetime` or `immutable_datetime` cast types.
+By default, Eloquent will cast the `created_at` and `updated_at` columns to `Hypervel\Support\CarbonImmutable` instances. Carbon provides an assortment of helpful date and time methods while immutable instances ensure modifiers return new values instead of changing the original. You may cast additional date attributes by defining `date` or `datetime` casts within your model's `casts` method. These casts use Hypervel's configured date factory and are immutable by default. The `immutable_date` and `immutable_datetime` casts always return `CarbonImmutable`, even when an application explicitly configures the date factory to create mutable dates.
 
 When defining a `date` or `datetime` cast, you may also specify the date's format. This format will be used when the [model is serialized to an array or JSON](/docs/{{version}}/eloquent-serialization):
 
@@ -615,7 +615,7 @@ protected function casts(): array
 }
 ```
 
-When a column is cast as a date, you may set the corresponding model attribute value to a UNIX timestamp, date string (`Y-m-d`), date-time string, or a `DateTime` / `Carbon` instance. The date's value will be correctly converted and stored in your database.
+When a column is cast as a date, you may set the corresponding model attribute value to a UNIX timestamp, date string (`Y-m-d`), date-time string, or any `DateTimeInterface` instance, including mutable or immutable Carbon instances. The date's value will be correctly converted and stored in your database.
 
 You may customize the default serialization format for all of your model's dates by defining a `serializeDate` method on your model. This method does not affect how your dates are formatted for storage in the database:
 

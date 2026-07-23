@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Carbon\CarbonImmutable;
 use Closure;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Horizon\Events\UnableToLaunchProcess;
 use Hypervel\Horizon\Events\WorkerProcessRestarting;
+use Hypervel\Support\CarbonImmutable;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ExceptionInterface;
 use Symfony\Component\Process\Process;

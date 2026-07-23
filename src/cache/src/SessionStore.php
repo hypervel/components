@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Session\Session;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 
 class SessionStore implements Store
@@ -60,7 +60,7 @@ class SessionStore implements Store
      */
     protected function isExpired(int|float $expiresAt): bool
     {
-        return $expiresAt > 0 && (Carbon::now()->getPreciseTimestamp(3) / 1000) >= $expiresAt;
+        return $expiresAt > 0 && (CarbonImmutable::now()->getPreciseTimestamp(3) / 1000) >= $expiresAt;
     }
 
     /**
@@ -81,7 +81,7 @@ class SessionStore implements Store
      */
     protected function toTimestamp(int $seconds): float
     {
-        return $seconds > 0 ? (Carbon::now()->getPreciseTimestamp(3) / 1000) + $seconds : 0.0;
+        return $seconds > 0 ? (CarbonImmutable::now()->getPreciseTimestamp(3) / 1000) + $seconds : 0.0;
     }
 
     /**

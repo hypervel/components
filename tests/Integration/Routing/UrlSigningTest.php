@@ -8,7 +8,7 @@ use Hypervel\Contracts\Routing\UrlRoutable;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Exceptions\InvalidSignatureException;
 use Hypervel\Routing\Middleware\ValidateSignature;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\Facades\URL;
 use Hypervel\Tests\Integration\Routing\RoutingTestCase;
@@ -76,17 +76,17 @@ class UrlSigningTest extends RoutingTestCase
         });
     }
 
-    public function testTemporarySignedUrls()
+    public function testTemporarySignedUrls(): void
     {
         Route::get('/foo/{id}', function (Request $request, $id) {
             return $request->hasValidSignature() ? 'valid' : 'invalid';
         })->name('foo');
 
-        Carbon::setTestNow(Carbon::create(2018, 1, 1));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2018, 1, 1));
         $this->assertIsString($url = URL::temporarySignedRoute('foo', now()->addMinutes(5), ['id' => 1]));
         $this->assertSame('valid', $this->get($url)->original);
 
-        Carbon::setTestNow(Carbon::create(2018, 1, 1)->addMinutes(10));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2018, 1, 1)->addMinutes(10));
         $this->assertSame('invalid', $this->get($url)->original);
     }
 
@@ -233,26 +233,26 @@ class UrlSigningTest extends RoutingTestCase
         $this->assertSame('valid', $this->get($url . '&pre=fix&fix=suff')->original);
     }
 
-    public function testSignedMiddleware()
+    public function testSignedMiddleware(): void
     {
         Route::get('/foo/{id}', function (Request $request, $id) {
             return $request->hasValidSignature() ? 'valid' : 'invalid';
         })->name('foo')->middleware(ValidateSignature::class);
 
-        Carbon::setTestNow(Carbon::create(2018, 1, 1));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2018, 1, 1));
         $this->assertIsString($url = URL::temporarySignedRoute('foo', now()->addMinutes(5), ['id' => 1]));
         $this->assertSame('valid', $this->get($url)->original);
     }
 
-    public function testSignedMiddlewareWithInvalidUrl()
+    public function testSignedMiddlewareWithInvalidUrl(): void
     {
         Route::get('/foo/{id}', function (Request $request, $id) {
             return $request->hasValidSignature() ? 'valid' : 'invalid';
         })->name('foo')->middleware(ValidateSignature::class);
 
-        Carbon::setTestNow(Carbon::create(2018, 1, 1));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2018, 1, 1));
         $this->assertIsString($url = URL::temporarySignedRoute('foo', now()->addMinutes(5), ['id' => 1]));
-        Carbon::setTestNow(Carbon::create(2018, 1, 1)->addMinutes(10));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2018, 1, 1)->addMinutes(10));
 
         $response = $this->get($url);
         $response->assertStatus(403);

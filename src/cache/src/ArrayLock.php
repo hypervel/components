@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hypervel\Contracts\Cache\RefreshableLock;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 
 class ArrayLock extends Lock implements RefreshableLock
@@ -31,7 +31,7 @@ class ArrayLock extends Lock implements RefreshableLock
     public function acquire(): bool
     {
         $record = $this->store->getLockRecord($this->name);
-        $expiration = $record['expiresAt'] ?? Carbon::now()->addSecond();
+        $expiration = $record['expiresAt'] ?? CarbonImmutable::now()->addSecond();
 
         if ($record !== null && $expiration->isFuture()) {
             return false;
@@ -40,7 +40,7 @@ class ArrayLock extends Lock implements RefreshableLock
         // WorkerArrayStore shares this check/write path across coroutines; keep it non-yielding.
         $this->store->putLockRecord($this->name, [
             'owner' => $this->owner,
-            'expiresAt' => $this->seconds === 0 ? null : Carbon::now()->addSeconds($this->seconds),
+            'expiresAt' => $this->seconds === 0 ? null : CarbonImmutable::now()->addSeconds($this->seconds),
         ]);
 
         return true;
@@ -111,7 +111,7 @@ class ArrayLock extends Lock implements RefreshableLock
             return false;
         }
 
-        $record['expiresAt'] = Carbon::now()->addSeconds($seconds);
+        $record['expiresAt'] = CarbonImmutable::now()->addSeconds($seconds);
         $this->store->putLockRecord($this->name, $record);
 
         return true;
@@ -138,6 +138,6 @@ class ArrayLock extends Lock implements RefreshableLock
             return null;
         }
 
-        return (float) Carbon::now()->diffInSeconds($expiresAt);
+        return (float) CarbonImmutable::now()->diffInSeconds($expiresAt);
     }
 }

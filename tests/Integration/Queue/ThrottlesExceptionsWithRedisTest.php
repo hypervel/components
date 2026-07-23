@@ -13,7 +13,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Queue\CallQueuedHandler;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Middleware\ThrottlesExceptionsWithRedis;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -29,24 +29,24 @@ class ThrottlesExceptionsWithRedisTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow(now());
+        CarbonImmutable::setTestNow(now());
     }
 
-    public function testCircuitIsOpenedForJobErrors()
+    public function testCircuitIsOpenedForJobErrors(): void
     {
         $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key = Str::random());
         $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key);
         $this->assertJobWasReleasedWithDelay(CircuitBreakerWithRedisTestJob::class, $key);
     }
 
-    public function testCircuitStaysClosedForSuccessfulJobs()
+    public function testCircuitStaysClosedForSuccessfulJobs(): void
     {
         $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key = Str::random());
         $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key);
         $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key);
     }
 
-    public function testCircuitResetsAfterSuccess()
+    public function testCircuitResetsAfterSuccess(): void
     {
         $this->assertJobWasReleasedImmediately(CircuitBreakerWithRedisTestJob::class, $key = Str::random());
         $this->assertJobRanSuccessfully(CircuitBreakerWithRedisSuccessfulJob::class, $key);
@@ -114,7 +114,7 @@ class ThrottlesExceptionsWithRedisTest extends TestCase
         $this->assertTrue($class::$handled);
     }
 
-    public function testReportingExceptions()
+    public function testReportingExceptions(): void
     {
         $this->spy(ExceptionHandler::class)
             ->shouldReceive('report')

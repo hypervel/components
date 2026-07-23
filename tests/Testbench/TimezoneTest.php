@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
-use Carbon\Carbon;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 use Override;
 use PHPUnit\Framework\Attributes\Test;
@@ -21,6 +21,6 @@ class TimezoneTest extends TestCase
     #[Test]
     public function itCanOverrideTimezone(): void
     {
-        $this->assertSame('Asia/Kuala_Lumpur', Carbon::now()->timezoneName);
+        $this->assertSame('Asia/Kuala_Lumpur', CarbonImmutable::now()->timezoneName);
     }
 }

@@ -194,7 +194,7 @@ public function test_values_are_stored_in_cache(): void
 <a name="interacting-with-time"></a>
 ## Interacting With Time
 
-When testing, you may occasionally need to modify the time returned by helpers such as `now` or `Hypervel\Support\Carbon::now()`. Thankfully, Hypervel's base feature test class includes helpers that allow you to manipulate the current time:
+When testing, you may occasionally need to modify the time returned by helpers such as `now` or `Hypervel\Support\CarbonImmutable::now()`. Thankfully, Hypervel's base feature test class includes helpers that allow you to manipulate the current time:
 
 ```php tab=Pest
 test('time can be manipulated', function () {
@@ -256,15 +256,15 @@ $this->travelTo(now()->minus(days: 10), function () {
 The `freezeTime` method may be used to freeze the current time. Similarly, the `freezeSecond` method will freeze the current time but at the start of the current second:
 
 ```php
-use Hypervel\Support\Carbon;
+use Carbon\CarbonInterface;
 
 // Freeze time and resume normal time after executing closure...
-$this->freezeTime(function (Carbon $time) {
+$this->freezeTime(function (CarbonInterface $time) {
     // ...
 });
 
 // Freeze time at the current second and resume normal time after executing closure...
-$this->freezeSecond(function (Carbon $time) {
+$this->freezeSecond(function (CarbonInterface $time) {
     // ...
 })
 ```

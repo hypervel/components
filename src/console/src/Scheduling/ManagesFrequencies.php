@@ -6,7 +6,7 @@ namespace Hypervel\Console\Scheduling;
 
 use Closure;
 use DateTimeZone;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use UnitEnum;
 
@@ -46,9 +46,9 @@ trait ManagesFrequencies
     private function inTimeInterval(string $startTime, string $endTime): Closure
     {
         [$now, $startTime, $endTime] = [
-            Carbon::now($this->timezone),
-            Carbon::parse($startTime, $this->timezone),
-            Carbon::parse($endTime, $this->timezone),
+            CarbonImmutable::now($this->timezone),
+            CarbonImmutable::parse($startTime, $this->timezone),
+            CarbonImmutable::parse($endTime, $this->timezone),
         ];
 
         if ($endTime->lessThan($startTime)) {
@@ -464,7 +464,7 @@ trait ManagesFrequencies
     {
         $this->dailyAt($time);
 
-        return $this->spliceIntoPosition(3, Carbon::now()->endOfMonth()->day);
+        return $this->spliceIntoPosition(3, CarbonImmutable::now()->endOfMonth()->day);
     }
 
     /**

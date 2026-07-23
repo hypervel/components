@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Queue\JobChainingTest;
 
+use Carbon\CarbonInterface;
 use Exception;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\PendingBatch;
@@ -13,7 +14,6 @@ use Hypervel\Foundation\Bus\Dispatchable;
 use Hypervel\Foundation\Bus\PendingChain;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Queue\InteractsWithQueue;
-use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -941,7 +941,7 @@ class JobChainAddingExistingJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    public static ?Carbon $ranAt = null;
+    public static ?CarbonInterface $ranAt = null;
 
     public function handle()
     {
@@ -955,7 +955,7 @@ class JobChainAddingAddedJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    public static ?Carbon $ranAt = null;
+    public static ?CarbonInterface $ranAt = null;
 
     public function handle()
     {

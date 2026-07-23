@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Carbon\CarbonImmutable;
 use Closure;
 use Hypervel\Bus\Events\BatchCanceled;
 use Hypervel\Bus\Events\BatchFinished;
@@ -15,6 +14,7 @@ use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Support\Arr;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use JsonSerializable;

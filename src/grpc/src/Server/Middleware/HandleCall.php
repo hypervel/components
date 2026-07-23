@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Grpc\Server\Middleware;
 
-use Carbon\CarbonImmutable;
 use Closure;
 use Google\Protobuf\Internal\Message;
 use Hypervel\Coordinator\Timer;
@@ -24,6 +23,7 @@ use Hypervel\Grpc\Server\ServerCallContext;
 use Hypervel\Grpc\StatusCode;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Route;
+use Hypervel\Support\CarbonImmutable;
 use InvalidArgumentException;
 use LogicException;
 use Swoole\Coroutine\CanceledException;

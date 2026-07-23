@@ -14,7 +14,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use PDO;
@@ -278,7 +278,7 @@ class DatabaseQueue extends Queue implements QueueContract, ClearableQueue
      */
     protected function isReservedButExpired(Builder $query): void
     {
-        $expiration = Carbon::now()->subSeconds($this->retryAfter)->getTimestamp();
+        $expiration = CarbonImmutable::now()->subSeconds($this->retryAfter)->getTimestamp();
 
         $query->orWhere(function ($query) use ($expiration) {
             $query->where('reserved_at', '<=', $expiration);

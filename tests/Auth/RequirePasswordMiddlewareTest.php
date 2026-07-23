@@ -14,7 +14,7 @@ use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Middleware\PrefersJsonResponses;
 use Hypervel\Http\RedirectResponse;
 use Hypervel\Http\Request;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Symfony\Component\HttpFoundation\Response;
@@ -36,7 +36,7 @@ class RequirePasswordMiddlewareTest extends TestCase
 
     public function testPassesThroughWhenPasswordConfirmationIsFresh(): void
     {
-        Carbon::setTestNow(Carbon::createFromTimestamp(1000));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
@@ -53,12 +53,12 @@ class RequirePasswordMiddlewareTest extends TestCase
 
         $this->assertSame($expectedResponse, $result);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testReturnsJson423WhenStaleAndRequestExpectsJson(): void
     {
-        Carbon::setTestNow(Carbon::createFromTimestamp(20000));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(20000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
@@ -83,12 +83,12 @@ class RequirePasswordMiddlewareTest extends TestCase
 
         $this->assertSame($jsonResponse, $result);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testPreferredJsonResponsesTurnWildcardRequestsIntoJsonResponses(): void
     {
-        Carbon::setTestNow(Carbon::createFromTimestamp(20000));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(20000));
 
         try {
             $session = m::mock(Session::class);
@@ -121,13 +121,13 @@ class RequirePasswordMiddlewareTest extends TestCase
 
             $this->assertSame($jsonResponse, $response);
         } finally {
-            Carbon::setTestNow();
+            CarbonImmutable::setTestNow();
         }
     }
 
     public function testPreferredJsonResponsesPreserveExplicitHtmlRedirects(): void
     {
-        Carbon::setTestNow(Carbon::createFromTimestamp(20000));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(20000));
 
         try {
             $session = m::mock(Session::class);
@@ -164,13 +164,13 @@ class RequirePasswordMiddlewareTest extends TestCase
 
             $this->assertSame($redirectResponse, $response);
         } finally {
-            Carbon::setTestNow();
+            CarbonImmutable::setTestNow();
         }
     }
 
     public function testRedirectsWhenStaleAndRequestDoesNotExpectJson(): void
     {
-        Carbon::setTestNow(Carbon::createFromTimestamp(20000));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(20000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
@@ -198,12 +198,12 @@ class RequirePasswordMiddlewareTest extends TestCase
 
         $this->assertSame($redirectResponse, $result);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testCustomRouteIsUsed(): void
     {
-        Carbon::setTestNow(Carbon::createFromTimestamp(20000));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(20000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
@@ -235,12 +235,12 @@ class RequirePasswordMiddlewareTest extends TestCase
 
         $this->assertSame($redirectResponse, $result);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testCustomTimeoutIsHonored(): void
     {
-        Carbon::setTestNow(Carbon::createFromTimestamp(1000));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
@@ -276,12 +276,12 @@ class RequirePasswordMiddlewareTest extends TestCase
         );
         $this->assertSame($jsonResponse, $result);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testConfirmationIsScopedToCurrentGuard(): void
     {
-        Carbon::setTestNow(Carbon::createFromTimestamp(20000));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(20000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
@@ -303,12 +303,12 @@ class RequirePasswordMiddlewareTest extends TestCase
 
         $this->assertSame($jsonResponse, $result);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testPerGuardTimeoutIsHonored(): void
     {
-        Carbon::setTestNow(Carbon::createFromTimestamp(1000));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
@@ -345,12 +345,12 @@ class RequirePasswordMiddlewareTest extends TestCase
         $result = $middleware->handle($request, fn () => $expectedResponse);
         $this->assertSame($expectedResponse, $result);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     public function testRouteParameterOverridesPerGuardTimeout(): void
     {
-        Carbon::setTestNow(Carbon::createFromTimestamp(1000));
+        CarbonImmutable::setTestNow(CarbonImmutable::createFromTimestamp(1000));
 
         $session = m::mock(Session::class);
         $session->shouldReceive('get')
@@ -382,7 +382,7 @@ class RequirePasswordMiddlewareTest extends TestCase
 
         $this->assertSame($jsonResponse, $result);
 
-        Carbon::setTestNow();
+        CarbonImmutable::setTestNow();
     }
 
     private function middleware(

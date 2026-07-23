@@ -1068,7 +1068,7 @@ This method will automatically take care of pushing a job onto the queue so the 
 <a name="delayed-message-queueing"></a>
 #### Delayed Message Queueing
 
-If you wish to delay the delivery of a queued email message, you may use the `later` method. As its first argument, the `later` method accepts a `DateTime` instance indicating when the message should be sent:
+If you wish to delay the delivery of a queued email message, you may use the `later` method. As its first argument, the `later` method accepts a `DateTimeInterface` instance indicating when the message should be sent:
 
 ```php
 Mail::to($request->user())

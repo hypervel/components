@@ -4,306 +4,96 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Eloquent\Concerns;
 
-use Carbon\Carbon;
-use Carbon\CarbonImmutable;
-use Carbon\CarbonInterface;
+use Carbon\Carbon as BaseCarbon;
+use Carbon\CarbonImmutable as BaseCarbonImmutable;
 use DateTime;
 use DateTimeImmutable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
-use Hypervel\Support\DateFactory;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Testbench\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
-/**
- * Tests that Date::use() configuration is respected throughout the framework.
- *
- * When Date::use(CarbonImmutable::class) is called, all date-related operations
- * should return CarbonImmutable instances instead of mutable Carbon instances.
- */
 class DateFactoryTest extends TestCase
 {
-    // ==========================================
-    // Date Facade Tests
-    // ==========================================
-
-    public function testDateFacadeReturnsDefaultCarbonByDefault(): void
-    {
-        $date = Date::now();
-
-        $this->assertInstanceOf(Carbon::class, $date);
-        $this->assertNotInstanceOf(CarbonImmutable::class, $date);
-    }
-
-    public function testDateFacadeReturnsCarbonImmutableWhenConfigured(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $date = Date::now();
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-    }
-
-    public function testDateFacadeParseReturnsCarbonImmutableWhenConfigured(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $date = Date::parse('2024-01-15 10:30:00');
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-    }
-
-    public function testDateFacadeCreateFromTimestampReturnsCarbonImmutableWhenConfigured(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $date = Date::createFromTimestamp(1705312200);
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-    }
-
-    public function testDateFacadeCreateFromFormatReturnsCarbonImmutableWhenConfigured(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $date = Date::createFromFormat('Y-m-d', '2024-01-15');
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-    }
-
-    public function testDateFacadeInstanceReturnsCarbonImmutableWhenConfigured(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $carbon = Carbon::now();
-        $date = Date::instance($carbon);
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-    }
-
-    public function testDateFacadeUseDefaultResetsToMutableCarbon(): void
-    {
-        Date::use(CarbonImmutable::class);
-        $this->assertInstanceOf(CarbonImmutable::class, Date::now());
-
-        DateFactory::useDefault();
-
-        $this->assertInstanceOf(Carbon::class, Date::now());
-        $this->assertNotInstanceOf(CarbonImmutable::class, Date::now());
-    }
-
-    // ==========================================
-    // Model freshTimestamp() Tests
-    // ==========================================
-
-    public function testModelFreshTimestampReturnsDefaultCarbonByDefault(): void
+    #[DataProvider('dateInputProvider')]
+    public function testDatetimeCastUsesImmutableDefault(mixed $input, string $expected): void
     {
         $model = new DateFactoryTestModel;
-
-        $timestamp = $model->freshTimestamp();
-
-        $this->assertInstanceOf(CarbonInterface::class, $timestamp);
-        $this->assertInstanceOf(Carbon::class, $timestamp);
-        $this->assertNotInstanceOf(CarbonImmutable::class, $timestamp);
-    }
-
-    public function testModelFreshTimestampReturnsCarbonImmutableWhenConfigured(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $model = new DateFactoryTestModel;
-        $timestamp = $model->freshTimestamp();
-
-        $this->assertInstanceOf(CarbonImmutable::class, $timestamp);
-    }
-
-    // ==========================================
-    // Model asDateTime() Tests
-    // ==========================================
-
-    public function testAsDateTimeReturnsCarbonImmutableFromCarbonInstance(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $model = new DateFactoryTestModel;
-        $model->setRawAttributes(['published_at' => Carbon::parse('2024-01-15 10:30:00')]);
+        $model->setRawAttributes(['published_at' => $input]);
 
         $date = $model->published_at;
 
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-        $this->assertSame('2024-01-15 10:30:00', $date->format('Y-m-d H:i:s'));
+        $this->assertSame(CarbonImmutable::class, $date::class);
+        $this->assertSame($expected, $date->format('Y-m-d H:i:s'));
     }
 
-    public function testAsDateTimeReturnsCarbonImmutableFromDateTimeInterface(): void
+    public static function dateInputProvider(): array
     {
-        Date::use(CarbonImmutable::class);
-
-        $model = new DateFactoryTestModel;
-        $model->setRawAttributes(['published_at' => new DateTime('2024-01-15 10:30:00')]);
-
-        $date = $model->published_at;
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-        $this->assertSame('2024-01-15 10:30:00', $date->format('Y-m-d H:i:s'));
+        return [
+            'base mutable Carbon' => [BaseCarbon::parse('2024-01-15 10:30:00'), '2024-01-15 10:30:00'],
+            'base immutable Carbon' => [BaseCarbonImmutable::parse('2024-01-15 10:30:00'), '2024-01-15 10:30:00'],
+            'native mutable' => [new DateTime('2024-01-15 10:30:00'), '2024-01-15 10:30:00'],
+            'native immutable' => [new DateTimeImmutable('2024-01-15 10:30:00'), '2024-01-15 10:30:00'],
+            'timestamp' => [1705314600, '2024-01-15 10:30:00'],
+            'database format' => ['2024-01-15 10:30:00', '2024-01-15 10:30:00'],
+            'parse fallback' => ['January 15, 2024 10:30:00', '2024-01-15 10:30:00'],
+        ];
     }
 
-    public function testAsDateTimeReturnsCarbonImmutableFromDateTimeImmutable(): void
+    public function testDateAndDatetimeCastsRespectMutableOptOut(): void
     {
-        Date::use(CarbonImmutable::class);
-
-        $model = new DateFactoryTestModel;
-        $model->setRawAttributes(['published_at' => new DateTimeImmutable('2024-01-15 10:30:00')]);
-
-        $date = $model->published_at;
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-        $this->assertSame('2024-01-15 10:30:00', $date->format('Y-m-d H:i:s'));
-    }
-
-    public function testAsDateTimeReturnsCarbonImmutableFromTimestamp(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $model = new DateFactoryTestModel;
-        // 1705312200 = 2024-01-15 10:30:00 UTC
-        $model->setRawAttributes(['published_at' => 1705312200]);
-
-        $date = $model->published_at;
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-    }
-
-    public function testAsDateTimeReturnsCarbonImmutableFromStandardDateFormat(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $model = new DateFactoryTestModel;
-        $model->setRawAttributes(['published_at' => '2024-01-15']);
-
-        $date = $model->published_at;
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-        $this->assertSame('2024-01-15', $date->format('Y-m-d'));
-        // Standard date format should start at beginning of day
-        $this->assertSame('00:00:00', $date->format('H:i:s'));
-    }
-
-    public function testAsDateTimeReturnsCarbonImmutableFromString(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $model = new DateFactoryTestModel;
-        $model->setRawAttributes(['published_at' => '2024-01-15 10:30:00']);
-
-        $date = $model->published_at;
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-        $this->assertSame('2024-01-15 10:30:00', $date->format('Y-m-d H:i:s'));
-    }
-
-    // ==========================================
-    // Model Date Cast Tests
-    // ==========================================
-
-    public function testDateCastReturnsCarbonImmutableWhenConfigured(): void
-    {
-        Date::use(CarbonImmutable::class);
+        Date::use(Carbon::class);
 
         $model = new DateFactoryDateCastModel;
-        $model->setRawAttributes(['event_date' => '2024-01-15']);
+        $model->setRawAttributes([
+            'event_date' => '2024-01-15',
+            'event_datetime' => '2024-01-15 10:30:00',
+        ]);
 
-        $date = $model->event_date;
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-        // Date cast should return start of day
-        $this->assertSame('00:00:00', $date->format('H:i:s'));
+        $this->assertSame(Carbon::class, $model->event_date::class);
+        $this->assertSame(Carbon::class, $model->event_datetime::class);
+        $this->assertSame('00:00:00', $model->event_date->format('H:i:s'));
     }
 
-    public function testDatetimeCastReturnsCarbonImmutableWhenConfigured(): void
+    public function testImmutableCastsRemainHypervelImmutableDuringMutableOptOut(): void
     {
-        Date::use(CarbonImmutable::class);
+        Date::use(Carbon::class);
 
         $model = new DateFactoryDateCastModel;
-        $model->setRawAttributes(['event_datetime' => '2024-01-15 10:30:00']);
+        $model->setRawAttributes([
+            'immutable_event_date' => '2024-01-15',
+            'immutable_event_datetime' => '2024-01-15 10:30:00',
+        ]);
 
-        $date = $model->event_datetime;
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-        $this->assertSame('2024-01-15 10:30:00', $date->format('Y-m-d H:i:s'));
+        $this->assertSame(CarbonImmutable::class, $model->immutable_event_date::class);
+        $this->assertSame(CarbonImmutable::class, $model->immutable_event_datetime::class);
     }
 
-    // ==========================================
-    // Pivot Model Tests
-    // ==========================================
-
-    public function testPivotFreshTimestampReturnsCarbonImmutableWhenConfigured(): void
+    public function testFreshTimestampsUseConfiguredFactory(): void
     {
-        Date::use(CarbonImmutable::class);
+        $model = new DateFactoryTestModel;
 
-        $pivot = new DateFactoryTestPivot;
-        $timestamp = $pivot->freshTimestamp();
+        $this->assertSame(CarbonImmutable::class, $model->freshTimestamp()::class);
+        $this->assertSame(CarbonImmutable::class, (new DateFactoryTestPivot)->freshTimestamp()::class);
+        $this->assertSame(CarbonImmutable::class, (new DateFactoryTestMorphPivot)->freshTimestamp()::class);
 
-        $this->assertInstanceOf(CarbonImmutable::class, $timestamp);
+        Date::use(Carbon::class);
+
+        $this->assertSame(Carbon::class, $model->freshTimestamp()::class);
     }
-
-    public function testMorphPivotFreshTimestampReturnsCarbonImmutableWhenConfigured(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $pivot = new DateFactoryTestMorphPivot;
-        $timestamp = $pivot->freshTimestamp();
-
-        $this->assertInstanceOf(CarbonImmutable::class, $timestamp);
-    }
-
-    // ==========================================
-    // Edge Cases
-    // ==========================================
 
     public function testAsDateTimeWithNullReturnsNull(): void
     {
-        Date::use(CarbonImmutable::class);
-
         $model = new DateFactoryTestModel;
         $model->setRawAttributes(['published_at' => null]);
 
-        // The $dates array functionality will still return null for null values
         $this->assertNull($model->published_at);
     }
-
-    public function testAsDateTimeHandlesCarbonImmutableInstanceDirectly(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $model = new DateFactoryTestModel;
-        $immutable = CarbonImmutable::parse('2024-01-15 10:30:00');
-        $model->setRawAttributes(['published_at' => $immutable]);
-
-        $date = $model->published_at;
-
-        $this->assertInstanceOf(CarbonImmutable::class, $date);
-        $this->assertSame('2024-01-15 10:30:00', $date->format('Y-m-d H:i:s'));
-    }
-
-    public function testMultipleDateFieldsAllReturnCarbonImmutable(): void
-    {
-        Date::use(CarbonImmutable::class);
-
-        $model = new DateFactoryMultipleDatesModel;
-        $model->setRawAttributes([
-            'created_at' => '2024-01-15 08:00:00',
-            'updated_at' => '2024-01-15 09:00:00',
-            'published_at' => '2024-01-15 10:00:00',
-        ]);
-
-        $this->assertInstanceOf(CarbonImmutable::class, $model->created_at);
-        $this->assertInstanceOf(CarbonImmutable::class, $model->updated_at);
-        $this->assertInstanceOf(CarbonImmutable::class, $model->published_at);
-    }
 }
-
-// Test Model Classes
 
 class DateFactoryTestModel extends Model
 {
@@ -319,14 +109,9 @@ class DateFactoryDateCastModel extends Model
     protected array $casts = [
         'event_date' => 'date',
         'event_datetime' => 'datetime',
+        'immutable_event_date' => 'immutable_date',
+        'immutable_event_datetime' => 'immutable_datetime',
     ];
-}
-
-class DateFactoryMultipleDatesModel extends Model
-{
-    protected ?string $table = 'test_models';
-
-    protected array $casts = ['published_at' => 'datetime'];
 }
 
 class DateFactoryTestPivot extends Pivot

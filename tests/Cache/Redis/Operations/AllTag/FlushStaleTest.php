@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
-use Carbon\Carbon;
 use Hypervel\Cache\Redis\Operations\AllTag\FlushStale;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
 
@@ -111,8 +111,8 @@ class FlushStaleTest extends RedisCacheTestCase
     public function testFlushStaleEntriesUsesCurrentTimestampAsUpperBound(): void
     {
         // Set a specific time so we can verify the timestamp
-        Carbon::setTestNow('2025-06-15 12:30:45');
-        $expectedTimestamp = (string) Carbon::now()->getTimestamp();
+        CarbonImmutable::setTestNow('2025-06-15 12:30:45');
+        $expectedTimestamp = (string) CarbonImmutable::now()->getTimestamp();
 
         $connection = $this->mockConnection();
 

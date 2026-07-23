@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentIrregularPluralTest extends TestCase
@@ -82,7 +82,7 @@ class DatabaseEloquentIrregularPluralTest extends TestCase
 
     public function testItTouchesTheParentWithAnIrregularPlural()
     {
-        Carbon::setTestNow('2018-05-01 12:13:14');
+        CarbonImmutable::setTestNow('2018-05-01 12:13:14');
 
         IrregularPluralHuman::create(['email' => 'taylorotwell@gmail.com']);
 
@@ -94,7 +94,7 @@ class DatabaseEloquentIrregularPluralTest extends TestCase
 
         $tokenIds = IrregularPluralToken::pluck('id');
 
-        Carbon::setTestNow('2018-05-01 15:16:17');
+        CarbonImmutable::setTestNow('2018-05-01 15:16:17');
 
         $human->irregularPluralTokens()->sync($tokenIds);
 

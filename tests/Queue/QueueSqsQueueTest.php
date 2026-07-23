@@ -13,7 +13,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\QueueRoutes;
 use Hypervel\Queue\SqsQueue;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJob;
 use Hypervel\Tests\Queue\Fixtures\FakeSqsJobWithDeduplication;
@@ -162,9 +162,9 @@ class QueueSqsQueueTest extends TestCase
         $this->assertNull($result);
     }
 
-    public function testDelayedPushWithDateTimeProperlyPushesJobOntoSqs()
+    public function testDelayedPushWithDateTimeProperlyPushesJobOntoSqs(): void
     {
-        $now = Carbon::now();
+        $now = CarbonImmutable::now();
         $queue = $this->getMockBuilder(SqsQueue::class)->onlyMethods(['createPayload', 'secondsUntil', 'getQueue'])->setConstructorArgs([$this->sqs, $this->queueName, $this->account])->getMock();
         $queue->setContainer($container = m::spy(ContainerContract::class));
         $queue->expects($this->once())->method('createPayload')->with($this->mockedJob, $this->queueName, $this->mockedData)->willReturn($this->mockedPayload);

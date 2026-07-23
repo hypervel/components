@@ -1,5 +1,9 @@
 # Array Cache Request-Local Store and Worker-Array Store
 
+## Historical status
+
+This plan predates Hypervel's immutable date default. Its Carbon examples are preserved as implementation history; current cache expiry records use `Hypervel\Support\CarbonImmutable`. See [Make CarbonImmutable the Framework Default](2026-07-22-carbon-immutable-default.md) for the current date architecture.
+
 ## Goal
 
 Make Hypervel's `array` cache store behave like Laravel developers expect in a long-lived Swoole worker: data written to the `array` store must be isolated to the current request, job, scheduled task, or other unit of work.

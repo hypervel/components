@@ -35,7 +35,7 @@ use Hypervel\Contracts\Cache\RawReadable;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -623,13 +623,13 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
             $this->putMany([
                 $key => $stored,
-                $markerKey => Carbon::now()->getTimestamp(),
+                $markerKey => CarbonImmutable::now()->getTimestamp(),
             ], $ttl[1]);
 
             return NullSentinel::unwrap($stored);
         }
 
-        if (($created + $this->getSeconds($ttl[0])) > Carbon::now()->getTimestamp()) {
+        if (($created + $this->getSeconds($ttl[0])) > CarbonImmutable::now()->getTimestamp()) {
             return NullSentinel::unwrap($value);
         }
 
@@ -647,7 +647,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
                 $this->putMany([
                     $key => value($callback),
-                    $markerKey => Carbon::now()->getTimestamp(),
+                    $markerKey => CarbonImmutable::now()->getTimestamp(),
                 ], $ttl[1]);
             });
         };
@@ -1033,7 +1033,7 @@ class Repository implements ArrayAccess, CacheContract, RawReadable
 
         if ($duration instanceof DateTimeInterface) {
             $duration = (int) ceil(
-                Carbon::now()->diffInMilliseconds($duration, false) / 1000
+                CarbonImmutable::now()->diffInMilliseconds($duration, false) / 1000
             );
         }
 

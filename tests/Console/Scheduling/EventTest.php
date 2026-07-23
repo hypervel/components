@@ -14,7 +14,7 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Application;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -371,7 +371,7 @@ class EventTest extends TestCase
         $app = m::mock(ApplicationContract::class);
         $app->shouldReceive('isDownForMaintenance')->andReturn(false);
         $app->shouldReceive('environment')->andReturn('production');
-        Carbon::setTestNow(Carbon::create(2015, 1, 1, 0, 0, 0));
+        CarbonImmutable::setTestNow(CarbonImmutable::create(2015, 1, 1, 0, 0, 0));
 
         $event = new Event(m::mock(EventMutex::class), 'php foo');
         $this->assertSame('* * * * 4', $event->thursdays()->getExpression());
@@ -389,15 +389,15 @@ class EventTest extends TestCase
         $app->shouldReceive('environment')->andReturn('production');
 
         try {
-            Carbon::setTestNow(Carbon::parse('2026-05-29 13:00:00'));
+            CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-05-29 13:00:00'));
 
             $event = new Event(m::mock(EventMutex::class), 'php foo');
             $event->dailyAt('13:00');
 
-            $this->assertFalse($event->isDueAt($app, Carbon::parse('2026-05-29 12:59:59')));
-            $this->assertTrue($event->isDueAt($app, Carbon::parse('2026-05-29 13:00:00')));
+            $this->assertFalse($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 12:59:59')));
+            $this->assertTrue($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 13:00:00')));
         } finally {
-            Carbon::setTestNow();
+            CarbonImmutable::setTestNow();
         }
     }
 
@@ -410,8 +410,8 @@ class EventTest extends TestCase
         $event = new Event(m::mock(EventMutex::class), 'php foo');
         $event->dailyAt('09:00')->timezone('America/New_York');
 
-        $this->assertTrue($event->isDueAt($app, Carbon::parse('2026-05-29 13:00:00', 'UTC')));
-        $this->assertFalse($event->isDueAt($app, Carbon::parse('2026-05-29 12:59:59', 'UTC')));
+        $this->assertTrue($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 13:00:00', 'UTC')));
+        $this->assertFalse($event->isDueAt($app, CarbonImmutable::parse('2026-05-29 12:59:59', 'UTC')));
     }
 
     public function testTimeBetweenChecks()
@@ -421,7 +421,7 @@ class EventTest extends TestCase
         $app->shouldReceive('environment')->andReturn('production');
         $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
 
-        Carbon::setTestNow(Carbon::now()->startOfDay()->addHours(9));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfDay()->addHours(9));
 
         $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
         $this->assertTrue($event->between('8:00', '10:00')->filtersPass($app));
@@ -449,7 +449,7 @@ class EventTest extends TestCase
         $app->shouldReceive('environment')->andReturn('production');
         $app->shouldReceive('call')->andReturnUsing(fn (callable $callback) => $callback());
 
-        Carbon::setTestNow(Carbon::now()->startOfDay()->addHours(9));
+        CarbonImmutable::setTestNow(CarbonImmutable::now()->startOfDay()->addHours(9));
 
         $event = new Event(m::mock(EventMutex::class), 'php foo', 'UTC');
         $this->assertFalse($event->unlessBetween('8:00', '10:00')->filtersPass($app));

@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Integration\Database;
 use Hypervel\Cache\DatabaseStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Database\SQLiteConnection;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\Attributes\WithMigration;
@@ -361,7 +361,7 @@ class DatabaseCacheStoreTest extends DatabaseTestCase
                 [
                     'key' => $this->withCachePrefix($key),
                     'value' => serialize($value),
-                    'expiration' => Carbon::now()->addSeconds($ttl)->getTimestamp(),
+                    'expiration' => CarbonImmutable::now()->addSeconds($ttl)->getTimestamp(),
                 ]
             );
     }
@@ -373,7 +373,7 @@ class DatabaseCacheStoreTest extends DatabaseTestCase
                 [
                     'key' => $this->withCachePrefix($key),
                     'owner' => $owner,
-                    'expiration' => Carbon::now()->addSeconds($ttl)->getTimestamp(),
+                    'expiration' => CarbonImmutable::now()->addSeconds($ttl)->getTimestamp(),
                 ]
             );
     }

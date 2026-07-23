@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use ArrayIterator;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Stringable;
@@ -314,7 +314,7 @@ class SupportFluentTest extends TestCase
         $this->assertEquals(['users' => [1, 2, 3], 'roles' => [4, 5, 6], 'foo' => ['bar', 'baz'], 'email' => 'test@example.com'], $fluent->collect()->all());
     }
 
-    public function testDateMethod()
+    public function testDateMethod(): void
     {
         $fluent = new Fluent([
             'as_null' => null,
@@ -328,12 +328,15 @@ class SupportFluentTest extends TestCase
             'as_time' => '16:30:25',
         ]);
 
-        $current = Carbon::create(2020, 1, 1, 16, 30, 25);
+        $current = CarbonImmutable::create(2020, 1, 1, 16, 30, 25);
 
         $this->assertNull($fluent->date('as_null'));
         $this->assertNull($fluent->date('doesnt_exists'));
 
-        $this->assertEquals($current, $fluent->date('as_datetime'));
+        $dateTime = $fluent->date('as_datetime');
+
+        $this->assertSame(CarbonImmutable::class, $dateTime::class);
+        $this->assertEquals($current, $dateTime);
         $this->assertEquals($current->format('Y-m-d H:i:s P'), $fluent->date('as_format', 'U')->format('Y-m-d H:i:s P'));
         $this->assertEquals($current, $fluent->date('as_timezone', null, 'America/Santiago'));
 

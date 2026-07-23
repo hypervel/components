@@ -15,8 +15,7 @@ use Hypervel\Http\Request;
 use Hypervel\Routing\Route;
 use Hypervel\Session\SessionManager;
 use Hypervel\Session\Store;
-use Hypervel\Support\Carbon;
-use Hypervel\Support\Facades\Date;
+use Hypervel\Support\CarbonImmutable;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -279,9 +278,9 @@ class StartSession
     {
         $expiresOnClose = $this->manager->getSessionConfig()['expire_on_close'];
 
-        return $expiresOnClose ? 0 : Date::instance(
-            Carbon::now()->addSeconds($this->getSessionLifetimeInSeconds())
-        );
+        return $expiresOnClose
+            ? 0
+            : CarbonImmutable::now()->addSeconds($this->getSessionLifetimeInSeconds());
     }
 
     /**

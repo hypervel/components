@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Carbon\Carbon;
 use Exception;
 use Hypervel\Cache\DatabaseLock;
 use Hypervel\Contracts\Cache\RefreshableLock;
@@ -12,6 +11,7 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -163,7 +163,7 @@ class CacheDatabaseLockTest extends TestCase
 
     public function testLockWithDefaultTimeout(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         [$lock, $table] = $this->getLock(seconds: 0);
 
@@ -186,7 +186,7 @@ class CacheDatabaseLockTest extends TestCase
 
     public function testRefreshExtendsLockExpiration(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
@@ -204,7 +204,7 @@ class CacheDatabaseLockTest extends TestCase
 
     public function testRefreshWithCustomTtl(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         [$lock, $table] = $this->getLock();
         $owner = $lock->owner();
@@ -235,7 +235,7 @@ class CacheDatabaseLockTest extends TestCase
 
     public function testRefreshOnDefaultTimeoutLockReappliesDefaultTimeout(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         [$lock, $table] = $this->getLock(seconds: 0);
         $owner = $lock->owner();
@@ -286,7 +286,7 @@ class CacheDatabaseLockTest extends TestCase
 
     public function testGetRemainingLifetimeReturnsSeconds(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         [$lock, $table] = $this->getLock();
 
@@ -312,7 +312,7 @@ class CacheDatabaseLockTest extends TestCase
 
     public function testGetRemainingLifetimeReturnsNullWhenExpired(): void
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         [$lock, $table] = $this->getLock();
 

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Horizon\Feature;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Events\JobReserved;
 use Hypervel\Horizon\Events\JobsMigrated;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;

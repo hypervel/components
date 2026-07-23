@@ -18,7 +18,7 @@ use Hypervel\Foundation\Http\Events\RequestHandled;
 use Hypervel\Http\Request;
 use Hypervel\Routing\Pipeline;
 use Hypervel\Routing\Router;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\InteractsWithTime;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
@@ -128,7 +128,7 @@ class Kernel implements KernelContract
      */
     public function handle(Request $request): Response
     {
-        CoroutineContext::set(self::REQUEST_STARTED_AT_CONTEXT_KEY, Carbon::now());
+        CoroutineContext::set(self::REQUEST_STARTED_AT_CONTEXT_KEY, CarbonImmutable::now());
 
         try {
             $request->enableHttpMethodParameterOverride();
@@ -231,12 +231,15 @@ class Kernel implements KernelContract
             $requestStartedAt = CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
 
             if ($requestStartedAt !== null && $this->requestLifecycleDurationHandlers !== []) {
-                $requestStartedAt->setTimezone($this->app->make('config')->string('app.timezone'));
+                $requestStartedAt = $requestStartedAt->setTimezone(
+                    $this->app->make('config')->string('app.timezone')
+                );
+                CoroutineContext::set(self::REQUEST_STARTED_AT_CONTEXT_KEY, $requestStartedAt);
                 $end = null;
 
                 foreach ($this->requestLifecycleDurationHandlers as ['threshold' => $threshold, 'handler' => $handler]) {
                     try {
-                        $end ??= Carbon::now();
+                        $end ??= CarbonImmutable::now();
 
                         if ($requestStartedAt->diffInMilliseconds($end) > $threshold) {
                             $handler($requestStartedAt, $request, $response);
@@ -324,7 +327,7 @@ class Kernel implements KernelContract
     /**
      * Get when the kernel started handling the current request.
      */
-    public function requestStartedAt(): ?Carbon
+    public function requestStartedAt(): ?CarbonImmutable
     {
         return CoroutineContext::get(self::REQUEST_STARTED_AT_CONTEXT_KEY);
     }

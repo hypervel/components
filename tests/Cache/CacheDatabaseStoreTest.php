@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Carbon\Carbon;
 use Hypervel\Cache\DatabaseStore;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\SQLiteConnection;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -28,7 +28,7 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testNullIsReturnedAndItemDeletedWhenItemIsExpired()
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         [$store, $table] = $this->getStore();
 
@@ -109,7 +109,7 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testExpiredItemsAreRemovedOnRetrieval()
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         [$store, $table] = $this->getStore();
 
@@ -426,7 +426,7 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testPruneExpiredRemovesExpiredEntries()
     {
-        Carbon::setTestNow($now = Carbon::now());
+        CarbonImmutable::setTestNow($now = CarbonImmutable::now());
 
         [$store, $table] = $this->getStore();
         $table->shouldReceive('where')->once()->with('expiration', '<=', $now->getTimestamp())->andReturn($table);

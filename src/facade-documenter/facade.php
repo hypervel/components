@@ -88,27 +88,32 @@ collect($argv)
 
         // Prepare the @method docblocks...
 
-        $methods = $resolvedMethods->map(function ($method) {
+        $globalClassImports = resolveClassImports($facade)
+            ->filter(fn ($fqcn) => ! str_contains(ltrim($fqcn, '\\'), '\\'));
+
+        $methods = $resolvedMethods->map(function ($method) use ($globalClassImports) {
             if (is_string($method)) {
                 // AST-parsed @method tags can already emit "static foo(...)" when the
                 // source docblock declared @method static …; prefixing again would
                 // produce invalid "@method static static …".
                 if (Str::startsWith($method, 'static ')) {
-                    return " * @method {$method}";
+                    $method = " * @method {$method}";
+                } else {
+                    $method = " * @method static {$method}";
                 }
+            } else {
+                $parameters = $method['parameters']->map(function ($parameter) {
+                    $rest = $parameter['variadic'] ? '...' : '';
 
-                return " * @method static {$method}";
+                    $default = $parameter['optional'] ? ' = ' . resolveDefaultValue($parameter) : '';
+
+                    return "{$parameter['type']} {$rest}{$parameter['name']}{$default}";
+                });
+
+                $method = " * @method static {$method['returns']} {$method['name']}({$parameters->join(', ')})";
             }
 
-            $parameters = $method['parameters']->map(function ($parameter) {
-                $rest = $parameter['variadic'] ? '...' : '';
-
-                $default = $parameter['optional'] ? ' = ' . resolveDefaultValue($parameter) : '';
-
-                return "{$parameter['type']} {$rest}{$parameter['name']}{$default}";
-            });
-
-            return " * @method static {$method['returns']} {$method['name']}({$parameters->join(', ')})";
+            return shortenImportedGlobalTypes($method, $globalClassImports);
         });
 
         // Fix: ensure we keep the references to the Carbon library on the Date Facade...
@@ -238,35 +243,26 @@ function resolveDocSees($class)
  */
 function resolveDocMethods($class)
 {
-    try {
-        $dummyReflectionMethod = new ReflectionMethodDecorator(
-            new ReflectionMethod($class->getName(), '__construct'),
-            $class->getName()
-        );
+    $context = new ReflectionClassDocblockContext($class);
 
-        return collect(parseDocblock($class->getDocComment())->getTags())
-            ->filter(fn ($tag) => $tag->value instanceof MethodTagValueNode)
-            ->map(function ($tag) use ($dummyReflectionMethod) {
-                /** @var MethodTagValueNode $method */
-                $method = $tag->value;
+    return collect(parseDocblock($class->getDocComment())->getTags())
+        ->filter(fn ($tag) => $tag->value instanceof MethodTagValueNode)
+        ->map(function ($tag) use ($context) {
+            /** @var MethodTagValueNode $method */
+            $method = $tag->value;
 
-                $method->parameters = collect($method->parameters)->map(function ($parameter) use ($dummyReflectionMethod) {
-                    $parameter->type = new IdentifierTypeNode($parameter->type ? resolveDocblockTypes($dummyReflectionMethod, $parameter->type) : 'mixed');
+            $method->parameters = collect($method->parameters)->map(function ($parameter) use ($context) {
+                $parameter->type = new IdentifierTypeNode($parameter->type ? resolveDocblockTypes($context, $parameter->type) : 'mixed');
 
-                    return $parameter;
-                })->toArray();
+                return $parameter;
+            })->toArray();
 
-                $method->returnType = $method->returnType
-                    ? new IdentifierTypeNode(resolveDocblockTypes($dummyReflectionMethod, $method->returnType))
-                    : new IdentifierTypeNode('void');
+            $method->returnType = $method->returnType
+                ? new IdentifierTypeNode(resolveDocblockTypes($context, $method->returnType))
+                : new IdentifierTypeNode('void');
 
-                return (string) $method;
-            });
-    } catch (Throwable) {
-        return resolveDocTags($class->getDocComment() ?: '', '@method ')
-            ->map(fn ($tag) => Str::squish($tag))
-            ->map(fn ($tag) => Str::before($tag, ')') . ')');
-    }
+            return (string) $method;
+        });
 }
 
 /**
@@ -335,7 +331,7 @@ function parseDocblock($docblock)
 /**
  * Resolve the types from the docblock.
  *
- * @param \ReflectionMethodDecorator $method
+ * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
  * @param \PHPStan\PhpDocParser\Ast\Type\TypeNode $typeNode
  * @param mixed $depth
  * @return null|string
@@ -554,7 +550,7 @@ function resolveDocblockTypes($method, $typeNode, $depth = 1)
 /**
  * Handle unknown identifier types.
  *
- * @param \ReflectionMethodDecorator $method
+ * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
  * @param \PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode $typeNode
  * @return string
  */
@@ -583,7 +579,7 @@ function handleUnknownIdentifierType($method, $typeNode)
  * when the constant or class cannot be resolved.
  *
  * @param \PHPStan\PhpDocParser\Ast\ConstExpr\ConstFetchNode $node
- * @param \ReflectionMethodDecorator $method
+ * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
  * @return string
  */
 function resolveConstFetchType($node, $method)
@@ -623,7 +619,7 @@ function resolveConstFetchType($node, $method)
  * Resolve key-of<...> / value-of<...> when the inner type is a ConstFetchNode.
  *
  * @param \PHPStan\PhpDocParser\Ast\ConstExpr\ConstFetchNode $node
- * @param \ReflectionMethodDecorator $method
+ * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
  * @param bool $keyType true to resolve the key type, false to resolve the value type
  * @return string
  */
@@ -667,7 +663,7 @@ function resolveKeyOrValueOf($node, $method, $keyType)
  * null when the class cannot be found.
  *
  * @param string $className
- * @param \ReflectionMethodDecorator $method
+ * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
  * @return null|string
  */
 function resolveClassConstantClass($className, $method)
@@ -1108,7 +1104,7 @@ function resolveParameters($method)
  * the trait's own file (not the declaring class's file) holds the relevant
  * `use` statements.
  *
- * @param \ReflectionMethodDecorator $method
+ * @param \ReflectionClassDocblockContext|\ReflectionMethodDecorator $method
  * @return \ReflectionClass
  */
 function resolveImportSource($method)
@@ -1137,6 +1133,26 @@ function resolveClassImports($class)
 }
 
 /**
+ * Shorten global method types already imported by the facade.
+ *
+ * PHP-CS-Fixer's global_namespace_import rule manages this exact set, so
+ * matching its representation keeps generated metadata stable after formatting.
+ *
+ * @param string $method
+ * @param \Hypervel\Support\Collection<string, class-string> $imports
+ * @return string
+ */
+function shortenImportedGlobalTypes($method, $imports)
+{
+    return $imports->reduce(
+        fn ($method, $fqcn, $alias) => Str::of($method)
+            ->replaceMatches('/(?<![A-Za-z0-9_])' . preg_quote($fqcn, '/') . '(?![A-Za-z0-9_\\\])/', $alias)
+            ->toString(),
+        $method
+    );
+}
+
+/**
  * Resolve the default value for the parameter.
  *
  * @param array $parameter
@@ -1161,6 +1177,56 @@ function resolveDefaultValue($parameter)
         ->replace('"', "'")
         ->replace('\/', '/')
         ->toString();
+}
+
+class ReflectionClassDocblockContext
+{
+    /**
+     * Create a class docblock context.
+     */
+    public function __construct(private ReflectionClass $class)
+    {
+    }
+
+    /**
+     * Return the class that declares the docblock.
+     */
+    public function getDeclaringClass(): ReflectionClass
+    {
+        return $this->class;
+    }
+
+    /**
+     * Return the class docblock.
+     */
+    public function getDocComment(): false|string
+    {
+        return $this->class->getDocComment();
+    }
+
+    /**
+     * Return the source filename.
+     */
+    public function getFileName(): false|string
+    {
+        return $this->class->getFileName();
+    }
+
+    /**
+     * Return the diagnostic context name.
+     */
+    public function getName(): string
+    {
+        return $this->class->getName();
+    }
+
+    /**
+     * Return the source class.
+     */
+    public function sourceClass(): ReflectionClass
+    {
+        return $this->class;
+    }
 }
 
 /**

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Jobs;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Contracts\Queue\Factory as Queue;
 use Hypervel\Horizon\Contracts\JobRepository;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Str;
 
 class RetryFailedJob

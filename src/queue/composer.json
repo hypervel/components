@@ -25,7 +25,7 @@
     "require": {
         "php": "^8.4",
         "laravel/serializable-closure": "^2.0.10",
-        "nesbot/carbon": "^3.8.4",
+        "nesbot/carbon": "^3.13.1",
         "symfony/console": "^8.1",
         "symfony/process": "^8.1",
         "hypervel/bus": "^0.4",

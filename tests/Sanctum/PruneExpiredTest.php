@@ -10,7 +10,7 @@ use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\SanctumServiceProvider;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 
 class PruneExpiredTest extends TestCase
@@ -55,7 +55,7 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test_1',
             'token' => hash('sha256', 'test_1'),
-            'created_at' => Carbon::now()->subMinutes(181),
+            'created_at' => CarbonImmutable::now()->subMinutes(181),
         ]);
 
         PersonalAccessToken::forceCreate([
@@ -63,7 +63,7 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test_2',
             'token' => hash('sha256', 'test_2'),
-            'created_at' => Carbon::now()->subMinutes(179),
+            'created_at' => CarbonImmutable::now()->subMinutes(179),
         ]);
 
         PersonalAccessToken::forceCreate([
@@ -71,7 +71,7 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test_3',
             'token' => hash('sha256', 'test_3'),
-            'created_at' => Carbon::now()->subMinutes(121),
+            'created_at' => CarbonImmutable::now()->subMinutes(121),
         ]);
 
         $this->artisan('sanctum:prune-expired --hours=2')
@@ -92,7 +92,7 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test',
             'token' => hash('sha256', 'test'),
-            'created_at' => Carbon::now()->subMinutes(70),
+            'created_at' => CarbonImmutable::now()->subMinutes(70),
         ]);
 
         $this->artisan('sanctum:prune-expired --hours=2')
@@ -111,7 +111,7 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test_1',
             'token' => hash('sha256', 'test_1'),
-            'expires_at' => Carbon::now()->subMinutes(121),
+            'expires_at' => CarbonImmutable::now()->subMinutes(121),
         ]);
 
         PersonalAccessToken::forceCreate([
@@ -119,7 +119,7 @@ class PruneExpiredTest extends TestCase
             'tokenable_id' => 1,
             'name' => 'Test_2',
             'token' => hash('sha256', 'test_2'),
-            'expires_at' => Carbon::now()->subMinutes(119),
+            'expires_at' => CarbonImmutable::now()->subMinutes(119),
         ]);
 
         PersonalAccessToken::forceCreate([

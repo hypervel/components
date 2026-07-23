@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Database;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Testbench\TestCase;
 
 class DatabaseSoftDeletingTest extends TestCase
@@ -19,12 +19,12 @@ class DatabaseSoftDeletingTest extends TestCase
         $this->assertSame('datetime', $model->getCasts()['deleted_at']);
     }
 
-    public function testDeletedAtIsCastToCarbonInstance()
+    public function testDeletedAtIsCastToCarbonImmutableByDefault(): void
     {
-        $expected = Carbon::createFromFormat('Y-m-d H:i:s', '2018-12-29 13:59:39');
+        $expected = CarbonImmutable::createFromFormat('Y-m-d H:i:s', '2018-12-29 13:59:39');
         $model = new SoftDeletingModel(['deleted_at' => $expected->format('Y-m-d H:i:s')]);
 
-        $this->assertInstanceOf(Carbon::class, $model->deleted_at);
+        $this->assertSame(CarbonImmutable::class, $model->deleted_at::class);
         $this->assertTrue($expected->eq($model->deleted_at));
     }
 

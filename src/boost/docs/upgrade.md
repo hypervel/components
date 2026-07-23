@@ -3,6 +3,7 @@
 - [Upgrading To 0.4 From 0.3](#upgrade-04)
 - [Recommended Upgrade Path](#recommended-upgrade-path)
 - [What Changed](#what-changed)
+- [Immutable Dates](#immutable-dates)
 - [Migration References](#migration-references)
 
 <a name="upgrade-04"></a>
@@ -36,6 +37,28 @@ The biggest areas to review are:
 - Testing uses Hypervel's new PHPUnit 13-based testing stack, including coroutine-aware feature tests and the new Testbench package.
 
 </div>
+
+<a name="immutable-dates"></a>
+## Immutable Dates
+
+Hypervel's date factory, `now()` and `today()` helpers, ordinary Eloquent date casts, and request date casts now return `Hypervel\Support\CarbonImmutable` by default. Review concrete `Hypervel\Support\Carbon` type declarations that receive factory-created values and change configurable boundaries to `Carbon\CarbonInterface`, or use `CarbonImmutable` when the value must always be immutable.
+
+Immutable date modifiers return a new instance. Assign the result whenever the changed value must be retained:
+
+```php
+$expiresAt = $expiresAt->addMinutes(5);
+```
+
+Applications that deliberately require mutable dates may opt out during application boot:
+
+```php
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
+
+Date::use(Carbon::class);
+```
+
+Custom date classes configured through `Date::use()` or `Date::useClass()` must implement `Carbon\CarbonInterface`. Callable date handlers may transform the generated value into another mutable or immutable Carbon implementation, but must also return a `CarbonInterface` because typed helpers and other factory-routed APIs enforce that contract.
 
 <a name="migration-references"></a>
 ## Migration References

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Carbon\CarbonImmutable;
 use Closure;
 use Exception;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
@@ -15,6 +14,7 @@ use Hypervel\Horizon\Contracts\Restartable;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Contracts\Terminable;
 use Hypervel\Horizon\Events\SupervisorLooped;
+use Hypervel\Support\CarbonImmutable;
 use Hypervel\Support\Collection;
 use Throwable;
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hypervel\Support\Carbon;
+use Hypervel\Support\CarbonImmutable;
 
 class WorkerArrayStore extends AbstractArrayStore
 {
@@ -18,7 +18,7 @@ class WorkerArrayStore extends AbstractArrayStore
     /**
      * The array of locks.
      *
-     * @var array<string, array{owner: ?string, expiresAt: ?Carbon}>
+     * @var array<string, array{owner: ?string, expiresAt: ?CarbonImmutable}>
      */
     protected array $locks = [];
 
@@ -77,7 +77,7 @@ class WorkerArrayStore extends AbstractArrayStore
     /**
      * Get the lock record for the given name.
      *
-     * @return null|array{owner: ?string, expiresAt: ?Carbon}
+     * @return null|array{owner: ?string, expiresAt: ?CarbonImmutable}
      */
     public function getLockRecord(string $name): ?array
     {
@@ -87,7 +87,7 @@ class WorkerArrayStore extends AbstractArrayStore
     /**
      * Store the lock record for the given name.
      *
-     * @param array{owner: ?string, expiresAt: ?Carbon} $record
+     * @param array{owner: ?string, expiresAt: ?CarbonImmutable} $record
      */
     public function putLockRecord(string $name, array $record): void
     {
