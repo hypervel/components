@@ -60,7 +60,8 @@ class RouteUrlGenerator
      */
     public function to(Route $route, mixed $parameters = [], bool $absolute = false): string
     {
-        $parameters = $this->formatParameters($route, $parameters);
+        $defaultParameters = $this->url->getDefaultParameters();
+        $parameters = $this->formatParameters($route, $parameters, $defaultParameters);
 
         $domain = $this->getRouteDomain($route, $parameters);
 
@@ -68,8 +69,8 @@ class RouteUrlGenerator
         // has been constructed, we'll make sure we don't have any missing parameters or we
         // will need to throw the exception to let the developers know one was not given.
         $uri = $this->addQueryString($this->url->format(
-            $root = $this->replaceRootParameters($route, $domain, $parameters),
-            $this->replaceRouteParameters($route->uri(), $parameters),
+            $root = $this->replaceRootParameters($route, $domain, $parameters, $defaultParameters),
+            $this->replaceRouteParameters($route->uri(), $parameters, $defaultParameters),
             $route
         ), $parameters);
 
@@ -164,10 +165,9 @@ class RouteUrlGenerator
     /**
      * Format the array of route parameters.
      */
-    protected function formatParameters(Route $route, mixed $parameters): array
+    protected function formatParameters(Route $route, mixed $parameters, array $defaultParameters): array
     {
         $parameters = Arr::wrap($parameters);
-        $defaultParameters = $this->url->getDefaultParameters();
 
         $namedParameters = [];
         $namedQueryParameters = [];
@@ -296,8 +296,12 @@ class RouteUrlGenerator
     /**
      * Replace the parameters on the root path.
      */
-    protected function replaceRootParameters(Route $route, ?string $domain, array &$parameters): string
-    {
+    protected function replaceRootParameters(
+        Route $route,
+        ?string $domain,
+        array &$parameters,
+        array $defaultParameters,
+    ): string {
         $scheme = $this->getRouteScheme($route);
 
         $root = $this->url->formatRoot($scheme, $domain);
@@ -309,7 +313,7 @@ class RouteUrlGenerator
             $root = $this->replacePortInRoot($root, $route);
         }
 
-        return $this->replaceRouteParameters($root, $parameters);
+        return $this->replaceRouteParameters($root, $parameters, $defaultParameters);
     }
 
     /**
@@ -335,9 +339,12 @@ class RouteUrlGenerator
     /**
      * Replace all of the wildcard parameters for a route path.
      */
-    protected function replaceRouteParameters(string $path, array &$parameters): string
-    {
-        $path = $this->replaceNamedParameters($path, $parameters);
+    protected function replaceRouteParameters(
+        string $path,
+        array &$parameters,
+        array $defaultParameters,
+    ): string {
+        $path = $this->replaceNamedParameters($path, $parameters, $defaultParameters);
 
         $path = preg_replace_callback('/\{.*?\}/', function ($match) use (&$parameters) {
             // Reset only the numeric keys...
@@ -354,10 +361,11 @@ class RouteUrlGenerator
     /**
      * Replace all of the named parameters in the path.
      */
-    protected function replaceNamedParameters(string $path, array &$parameters): string
-    {
-        $defaultParameters = $this->url->getDefaultParameters();
-
+    protected function replaceNamedParameters(
+        string $path,
+        array &$parameters,
+        array $defaultParameters,
+    ): string {
         return preg_replace_callback('/\{(.*?)(\?)?\}/', function ($m) use (&$parameters, $defaultParameters) {
             if (isset($parameters[$m[1]]) && $parameters[$m[1]] !== '') {
                 return Arr::pull($parameters, $m[1]);
