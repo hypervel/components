@@ -24,6 +24,7 @@ use League\Flysystem\PathTraversalDetected;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use TypeError;
 
 use function Hypervel\Coroutine\parallel;
@@ -78,6 +79,7 @@ class ScopedFilesystemProxyTest extends TestCase
     {
         $request = Request::create('/file.txt');
         $response = new Response('response');
+        $streamedResponse = new StreamedResponse;
         $expiration = new DateTimeImmutable('+1 hour');
 
         return [
@@ -97,9 +99,9 @@ class ScopedFilesystemProxyTest extends TestCase
             'get' => ['get', ['file.txt'], ['tenant/file.txt'], 'contents', 'contents'],
             'json' => ['json', ['file.json', JSON_THROW_ON_ERROR], ['tenant/file.json', JSON_THROW_ON_ERROR], ['ok' => true], ['ok' => true]],
             'json scalar' => ['json', ['value.json'], ['tenant/value.json', 0], 'value', 'value'],
-            'response' => ['response', ['file.txt', 'name.txt', ['X-Test' => 'yes'], 'attachment'], ['tenant/file.txt', 'name.txt', ['X-Test' => 'yes'], 'attachment'], $response, $response],
+            'response' => ['response', ['file.txt', 'name.txt', ['X-Test' => 'yes'], 'attachment'], ['tenant/file.txt', 'name.txt', ['X-Test' => 'yes'], 'attachment'], $streamedResponse, $streamedResponse],
             'serve' => ['serve', [$request, 'file.txt', 'name.txt', ['X-Test' => 'yes']], [$request, 'tenant/file.txt', 'name.txt', ['X-Test' => 'yes']], $response, $response],
-            'download' => ['download', ['file.txt', 'name.txt', ['X-Test' => 'yes']], ['tenant/file.txt', 'name.txt', ['X-Test' => 'yes']], $response, $response],
+            'download' => ['download', ['file.txt', 'name.txt', ['X-Test' => 'yes']], ['tenant/file.txt', 'name.txt', ['X-Test' => 'yes']], $streamedResponse, $streamedResponse],
             'put boolean' => ['put', ['file.txt', 'contents', ['visibility' => 'private']], ['tenant/file.txt', 'contents', ['visibility' => 'private']], true, true],
             'put stored path' => ['put', ['file.txt', 'contents'], ['tenant/file.txt', 'contents', []], 'tenant/stored.txt', 'stored.txt'],
             'getVisibility' => ['getVisibility', ['file.txt'], ['tenant/file.txt'], 'private', 'private'],

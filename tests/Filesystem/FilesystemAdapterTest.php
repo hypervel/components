@@ -9,17 +9,16 @@ use DateTimeInterface;
 use GuzzleHttp\Psr7\Stream;
 use Hypervel\Container\Container;
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\LocalFilesystemAdapter as HypervelLocalFilesystemAdapter;
+use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Testing\FakeWritableConnection;
 use Hypervel\Testing\ParallelTesting;
 use InvalidArgumentException;
 use League\Flysystem\Filesystem;
@@ -70,21 +69,21 @@ class FilesystemAdapterTest extends TestCase
 
     public function testResponse()
     {
-        $writable = $this->mockResponse();
+        $this->setRequestContext();
 
         $this->filesystem->write('file.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $response = $files->response('file.txt');
 
-        $this->assertInstanceOf(Response::class, $response);
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
         $this->assertSame('text/plain', $response->headers->get('Content-Type'));
         $this->assertSame('inline; filename=file.txt', $response->headers->get('Content-Disposition'));
-        $this->assertSame('Hello World', $writable->written);
+        $this->assertSame('Hello World', $this->streamedContent($response));
     }
 
     public function testMimeTypeIsNotCalledAlreadyProvidedToResponse()
     {
-        $this->mockResponse();
+        $this->setRequestContext();
 
         $this->filesystem->write('file.txt', 'Hello World');
 
@@ -98,7 +97,7 @@ class FilesystemAdapterTest extends TestCase
 
     public function testSizeIsNotCalledAlreadyProvidedToResponse()
     {
-        $this->mockResponse();
+        $this->setRequestContext();
 
         $this->filesystem->write('file.txt', 'Hello World');
 
@@ -112,7 +111,7 @@ class FilesystemAdapterTest extends TestCase
 
     public function testIntegerHeaderValuesAreNormalizedToString()
     {
-        $this->mockResponse();
+        $this->setRequestContext();
 
         $this->filesystem->write('file.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
@@ -125,7 +124,7 @@ class FilesystemAdapterTest extends TestCase
 
     public function testProvidedContentDispositionBypassesGeneratedDisposition(): void
     {
-        $this->mockResponse();
+        $this->setRequestContext();
 
         $this->filesystem->write('file.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
@@ -140,79 +139,73 @@ class FilesystemAdapterTest extends TestCase
     {
         $request = Request::create('/file.txt', 'GET', server: ['HTTP_RANGE' => 'bytes=3-5']);
         RequestContext::set($request);
-        $writable = new FakeWritableConnection;
-        $response = new Response;
-        $response->setConnection($writable);
-        ResponseContext::set($response);
         $this->filesystem->write('file.txt', '0123456789');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
 
         $result = $files->response('file.txt');
 
+        $this->assertInstanceOf(IterableStreamedResponse::class, $result);
         $this->assertSame(206, $result->getStatusCode());
         $this->assertSame('bytes 3-5/10', $result->headers->get('Content-Range'));
-        $this->assertSame('345', $writable->written);
+        $this->assertSame('345', $this->streamedContent($result));
     }
 
     public function testServeUsesTheSuppliedRequestForRangeHandling(): void
     {
         RequestContext::set(Request::create('/file.txt', 'GET'));
         $request = Request::create('/file.txt', 'GET', server: ['HTTP_RANGE' => 'bytes=6-8']);
-        $writable = new FakeWritableConnection;
-        $response = new Response;
-        $response->setConnection($writable);
-        ResponseContext::set($response);
         $this->filesystem->write('file.txt', '0123456789');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
 
         $result = $files->serve($request, 'file.txt');
 
+        $this->assertInstanceOf(IterableStreamedResponse::class, $result);
         $this->assertSame(206, $result->getStatusCode());
         $this->assertSame('bytes 6-8/10', $result->headers->get('Content-Range'));
-        $this->assertSame('678', $writable->written);
+        $this->assertSame('678', $this->streamedContent($result));
     }
 
     public function testDownload()
     {
-        $this->mockResponse();
+        $this->setRequestContext();
 
         $this->filesystem->write('file.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $response = $files->download('file.txt', 'hello.txt');
-        $this->assertInstanceOf(Response::class, $response);
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
         $this->assertSame('attachment; filename=hello.txt', $response->headers->get('Content-Disposition'));
     }
 
     public function testDownloadNonAsciiFilename()
     {
-        $this->mockResponse();
+        $this->setRequestContext();
 
         $this->filesystem->write('file.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $response = $files->download('file.txt', 'привет.txt');
-        $this->assertInstanceOf(Response::class, $response);
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
         $this->assertSame("attachment; filename=privet.txt; filename*=utf-8''%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82.txt", $response->headers->get('Content-Disposition'));
     }
 
     public function testDownloadNonAsciiEmptyFilename()
     {
-        $this->mockResponse();
+        $this->setRequestContext();
 
         $this->filesystem->write('привет.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $response = $files->download('привет.txt');
-        $this->assertInstanceOf(Response::class, $response);
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
         $this->assertSame('attachment; filename=privet.txt; filename*=utf-8\'\'%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82.txt', $response->headers->get('Content-Disposition'));
     }
 
     public function testDownloadPercentInFilename()
     {
-        $this->mockResponse();
+        $this->setRequestContext();
 
         $this->filesystem->write('Hello%World.txt', 'Hello World');
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
         $response = $files->download('Hello%World.txt', 'Hello%World.txt');
-        $this->assertInstanceOf(Response::class, $response);
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
         $this->assertSame('attachment; filename=HelloWorld.txt; filename*=utf-8\'\'Hello%25World.txt', $response->headers->get('Content-Disposition'));
     }
 
@@ -843,7 +836,7 @@ class FilesystemAdapterTest extends TestCase
         $this->assertFalse($filesystemAdapter->providesTemporaryUrls());
         $this->assertFalse($filesystemAdapter->providesTemporaryUploadUrls());
 
-        $this->mockResponse();
+        $this->setRequestContext();
         $this->filesystem->write('file.txt', 'contents');
         $filesystemAdapter->serve(Request::create('/file.txt'), 'file.txt');
         $this->assertFalse($serveCalled);
@@ -1229,60 +1222,40 @@ class FilesystemAdapterTest extends TestCase
         $content = str_repeat('x', 256 * 1024); // 256 KiB = 4 chunks
         $this->filesystem->write('large.txt', $content);
 
-        $writable = new FailAfterFirstWriteConnection;
         RequestContext::set(Request::create('/test', 'GET'));
-        $response = new Response;
-        $response->setConnection($writable);
-        ResponseContext::set($response);
-
         $files = new FilesystemAdapter($this->filesystem, $this->adapter);
-        $files->response('large.txt');
+        $response = $files->response('large.txt');
+        $writeCount = 0;
 
-        // First write succeeds, second write fails and breaks the loop.
-        // Without the fix, all 4 chunks would be attempted.
-        $this->assertSame(2, $writable->writeCount);
+        $this->assertInstanceOf(IterableStreamedResponse::class, $response);
+        $this->assertTrue($response->streamTo(
+            static function (string $chunk) use (&$writeCount): bool {
+                ++$writeCount;
+
+                return $writeCount < 2;
+            }
+        ));
+        $this->assertSame(2, $writeCount);
     }
 
-    protected function mockResponse(): FakeWritableConnection
+    protected function setRequestContext(): void
     {
-        $request = Request::create('/test', 'GET');
-        RequestContext::set($request);
-
-        $writable = new FakeWritableConnection;
-        $response = new Response;
-        $response->setConnection($writable);
-        ResponseContext::set($response);
-
-        return $writable;
-    }
-}
-
-class FailAfterFirstWriteConnection implements \Hypervel\Contracts\Engine\Http\Writable
-{
-    public int $writeCount = 0;
-
-    private readonly \Hypervel\Testing\FakeSwooleSocket $socket;
-
-    public function __construct()
-    {
-        $this->socket = new \Hypervel\Testing\FakeSwooleSocket;
+        RequestContext::set(Request::create('/test', 'GET'));
     }
 
-    public function getSocket(): mixed
+    private function streamedContent(IterableStreamedResponse $response): string
     {
-        return $this->socket;
-    }
+        $content = '';
 
-    public function write(string $data): bool
-    {
-        ++$this->writeCount;
+        $this->assertTrue($response->streamTo(
+            static function (string $chunk) use (&$content): bool {
+                $content .= $chunk;
 
-        return $this->writeCount <= 1;
-    }
+                return true;
+            }
+        ));
 
-    public function end(): ?bool
-    {
-        return true;
+        return $content;
     }
 }
 

@@ -6,14 +6,14 @@ namespace Hypervel\Filesystem;
 
 use Closure;
 use DateTimeImmutable;
+use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
-use Hypervel\Http\StreamOutput;
 use Hypervel\ObjectPool\PoolErrorReporter;
 use Hypervel\Support\Str;
 use League\Flysystem\UnableToReadFile;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\HeaderUtils;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
@@ -30,7 +30,6 @@ class FileResponseBuilder
      */
     public function build(
         Request $request,
-        Response $response,
         string $path,
         ?string $name,
         array $headers,
@@ -38,7 +37,7 @@ class FileResponseBuilder
         Closure $mimeType,
         Closure $size,
         Closure $streamResolver,
-    ): Response {
+    ): IterableStreamedResponse {
         $headers['Content-Type'] ??= $mimeType() ?: 'application/octet-stream';
 
         if (! array_key_exists('Content-Disposition', $headers)) {
@@ -53,6 +52,8 @@ class FileResponseBuilder
         $headers['Accept-Ranges'] = in_array($request->getMethod(), ['GET', 'HEAD', 'OPTIONS', 'TRACE'], true)
             ? 'bytes'
             : 'none';
+
+        $response = new IterableStreamedResponse([]);
 
         foreach ($headers as $key => $value) {
             $response->headers->set(
@@ -71,29 +72,15 @@ class FileResponseBuilder
             $response->setStatusCode(206);
         }
 
-        return $response->stream(function (StreamOutput $output) use (
+        $response->headers->add($rangeHeaders);
+
+        return $response->setChunks($this->stream(
             $streamResolver,
             $path,
             $start,
             $end,
             $remaining,
-        ): void {
-            $stream = $streamResolver($start, $end);
-
-            if (! is_resource($stream)) {
-                throw UnableToReadFile::fromLocation($path, 'The stream resolver did not return an open resource.');
-            }
-
-            try {
-                $this->stream($stream, $output, $path, $remaining);
-            } catch (Throwable $primaryException) {
-                $this->closeStream($stream, $primaryException);
-
-                throw $primaryException;
-            }
-
-            $this->closeStream($stream);
-        }, $rangeHeaders);
+        ));
     }
 
     /**
@@ -196,43 +183,63 @@ class FileResponseBuilder
     }
 
     /**
-     * Stream bytes until EOF, client disconnect, or the range is complete.
+     * Stream bytes until EOF or the range is complete.
      *
-     * @param resource $stream
+     * @param Closure(?int, ?int): mixed $streamResolver
+     * @return iterable<string>
      */
-    private function stream(mixed $stream, StreamOutput $output, string $path, ?int $remaining): void
-    {
-        while ($remaining === null || $remaining > 0) {
-            if (feof($stream)) {
+    private function stream(
+        Closure $streamResolver,
+        string $path,
+        ?int $start,
+        ?int $end,
+        ?int $remaining,
+    ): iterable {
+        $stream = $streamResolver($start, $end);
+
+        if (! is_resource($stream)) {
+            throw UnableToReadFile::fromLocation($path, 'The stream resolver did not return an open resource.');
+        }
+
+        $primaryException = null;
+
+        try {
+            while ($remaining === null || $remaining > 0) {
+                if (feof($stream)) {
+                    if ($remaining !== null) {
+                        throw UnableToReadFile::fromLocation($path, 'The stream ended before the requested range was complete.');
+                    }
+
+                    return;
+                }
+
+                $length = $remaining === null ? self::CHUNK_SIZE : min(self::CHUNK_SIZE, $remaining);
+                $content = fread($stream, $length);
+
+                if ($content === false) {
+                    throw UnableToReadFile::fromLocation($path, 'Unable to read from the stream.');
+                }
+
+                if ($content === '') {
+                    if (! feof($stream)) {
+                        throw UnableToReadFile::fromLocation($path, 'The stream returned no data before reaching end of file.');
+                    }
+
+                    continue;
+                }
+
+                yield $content;
+
                 if ($remaining !== null) {
-                    throw UnableToReadFile::fromLocation($path, 'The stream ended before the requested range was complete.');
+                    $remaining -= strlen($content);
                 }
-
-                return;
             }
+        } catch (Throwable $throwable) {
+            $primaryException = $throwable;
 
-            $length = $remaining === null ? self::CHUNK_SIZE : min(self::CHUNK_SIZE, $remaining);
-            $content = fread($stream, $length);
-
-            if ($content === false) {
-                throw UnableToReadFile::fromLocation($path, 'Unable to read from the stream.');
-            }
-
-            if ($content === '') {
-                if (! feof($stream)) {
-                    throw UnableToReadFile::fromLocation($path, 'The stream returned no data before reaching end of file.');
-                }
-
-                continue;
-            }
-
-            if (! $output->write($content)) {
-                return;
-            }
-
-            if ($remaining !== null) {
-                $remaining -= strlen($content);
-            }
+            throw $throwable;
+        } finally {
+            $this->closeStream($stream, $primaryException);
         }
     }
 

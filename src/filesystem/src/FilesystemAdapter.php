@@ -13,7 +13,6 @@ use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Http\File;
 use Hypervel\Http\Request;
-use Hypervel\Http\Response;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
@@ -45,6 +44,8 @@ use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
 use ReflectionFunction;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 /**
@@ -279,15 +280,13 @@ class FilesystemAdapter implements CloudFilesystemContract
 
     /**
      * Create a streamed response for a given file.
-     *
-     * This method is a Hypervel-specific replacement of Laravel's implementation.
-     * It uses Swoole's Response/StreamOutput for chunked streaming and supports
-     * HTTP range requests (206 Partial Content). Content-Length is intentionally
-     * not set as a default header — Swoole's streaming model handles it, and
-     * range requests may alter the actual content length sent.
      */
-    public function response(string $path, ?string $name = null, array $headers = [], string $disposition = 'inline'): Response
-    {
+    public function response(
+        string $path,
+        ?string $name = null,
+        array $headers = [],
+        string $disposition = 'inline',
+    ): StreamedResponse {
         return $this->buildFileResponse(
             Container::getInstance()->make(Request::class),
             $path,
@@ -310,7 +309,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Create a streamed download response for a given file.
      */
-    public function download(string $path, ?string $name = null, array $headers = []): Response
+    public function download(string $path, ?string $name = null, array $headers = []): StreamedResponse
     {
         return $this->response($path, $name, $headers, 'attachment');
     }
@@ -324,12 +323,11 @@ class FilesystemAdapter implements CloudFilesystemContract
         ?string $name,
         array $headers,
         string $disposition,
-    ): Response {
+    ): StreamedResponse {
         $container = Container::getInstance();
 
         return $container->make(FileResponseBuilder::class)->build(
             $request,
-            $container->make(Response::class),
             $path,
             $name,
             $headers,

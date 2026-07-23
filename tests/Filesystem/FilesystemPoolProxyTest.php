@@ -7,17 +7,16 @@ namespace Hypervel\Tests\Filesystem;
 use BadMethodCallException;
 use Closure;
 use Hypervel\Context\RequestContext;
-use Hypervel\Context\ResponseContext;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemPoolProxy;
+use Hypervel\Http\IterableStreamedResponse;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\ObjectPool\PoolDefinition;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolOptions;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Testing\FakeWritableConnection;
 use Hypervel\Testing\ParallelTesting;
 use League\Flysystem\Filesystem;
 use League\Flysystem\Local\LocalFilesystemAdapter;
@@ -243,10 +242,6 @@ class FilesystemPoolProxyTest extends TestCase
         $this->driver->write('file.txt', '0123456789');
         $request = Request::create('/file.txt', 'GET', server: ['HTTP_RANGE' => 'bytes=2-4']);
         RequestContext::set($request);
-        $writable = new FakeWritableConnection;
-        $response = new Response;
-        $response->setConnection($writable);
-        ResponseContext::set($response);
         $releaseCalls = 0;
         $proxy = $this->proxy(
             fn (): FilesystemAdapter => $this->filesystem(),
@@ -257,8 +252,21 @@ class FilesystemPoolProxyTest extends TestCase
 
         $result = $proxy->response('file.txt');
 
+        $this->assertInstanceOf(IterableStreamedResponse::class, $result);
         $this->assertSame(206, $result->getStatusCode());
-        $this->assertSame('234', $writable->written);
+        $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
+        $this->assertSame(2, $releaseCalls);
+
+        $content = '';
+        $this->assertTrue($result->streamTo(
+            static function (string $chunk) use (&$content): bool {
+                $content .= $chunk;
+
+                return true;
+            }
+        ));
+
+        $this->assertSame('234', $content);
         $this->assertSame(0, $this->pools->get('filesystem:driver')->getBorrowedObjectNumber());
         $this->assertSame(3, $releaseCalls);
     }
