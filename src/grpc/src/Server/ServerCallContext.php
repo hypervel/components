@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Grpc\Server;
 
-use Carbon\CarbonImmutable;
 use Hypervel\Grpc\Metadata;
 use Hypervel\Grpc\Protocol\Deadline;
+use Hypervel\Support\CarbonImmutable;
 
 readonly class ServerCallContext
 {

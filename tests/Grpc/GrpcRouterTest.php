@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Grpc\GrpcRouterTest;
 use Google\Protobuf\Any;
 use Google\Protobuf\GPBEmpty;
 use Google\Protobuf\Internal\Message;
+use GPBMetadata\Google\Protobuf\GPBEmpty as GPBEmptyMetadata;
 use Hypervel\Container\Container;
 use Hypervel\Events\Dispatcher;
 use Hypervel\Grpc\Exceptions\RpcException;
@@ -24,9 +25,13 @@ use Hypervel\Pipeline\Pipeline as BasePipeline;
 use Hypervel\Routing\CompiledRouteCollection;
 use Hypervel\Routing\Route;
 use Hypervel\Routing\Router;
+use Hypervel\Tests\Grpc\Fixtures\Metadata\TestService;
+use Hypervel\Tests\Grpc\Fixtures\TestRequest;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use RuntimeException;
 
 class GrpcRouterTest extends TestCase
@@ -73,6 +78,25 @@ class GrpcRouterTest extends TestCase
             $this->assertSame('request', $route->getAction('_grpc.request_parameter'));
             $this->assertSame(GPBEmpty::class, $route->getAction('_grpc.request_class'));
         }
+    }
+
+    #[PreserveGlobalState(false)]
+    #[RunInSeparateProcess]
+    public function testWarmsProtobufMessageDescriptorsBeforeWorkerFork(): void
+    {
+        $this->assertFalse(TestService::$is_initialized);
+        $this->assertFalse(GPBEmptyMetadata::$is_initialized);
+        [$router, $registrar] = $this->router();
+        $route = $registrar->unary(
+            'testing.Router/Warm',
+            static fn (TestRequest $request): GPBEmpty => new GPBEmpty,
+        );
+
+        $router->compileAndWarm();
+
+        $this->assertTrue(TestService::$is_initialized);
+        $this->assertTrue(GPBEmptyMetadata::$is_initialized);
+        $this->assertSame(TestRequest::class, $route->getAction('_grpc.request_class'));
     }
 
     public function testRejectsInvalidProtobufAndCallContextParameters(): void
