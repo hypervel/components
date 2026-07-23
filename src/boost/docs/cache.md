@@ -151,6 +151,8 @@ The table itself is configured in the `swoole_tables` section of your `config/ca
 ],
 ```
 
+When a Swoole store is used in a cache stack, `bytes` must be large enough for the serialized stack record, including its value and expiration data. Hypervel throws an exception when a record is too large instead of silently skipping the Swoole layer.
+
 <a name="building-cache-stacks"></a>
 ### Building Cache Stacks
 
@@ -171,6 +173,8 @@ Hypervel provides a multi-tier caching architecture. The `stack` driver allows y
 This configuration aggregates two other cache stores: `swoole` and `redis`. When caching data, both stores are written sequentially. The `ttl` option may be used to override the time to live for a specific layer.
 
 When retrieving data, if there is a cache hit in the `swoole` layer, the data will be returned immediately and the Redis cache will not be queried. If there is a cache miss in the `swoole` layer, the stack driver will check the Redis layer. If Redis contains the value, the value will be returned and backfilled into the Swoole layer for future requests.
+
+If a later layer rejects a write or throws an exception, Hypervel removes the value from the earlier layers that were already written. A failed backfill does not hide a valid value from a lower layer. However, exceptions raised while backfilling are still thrown so configuration and service failures remain visible.
 
 Locks and lock-backed helpers, such as `Cache::lock`, `Cache::funnel`, and `Cache::withoutOverlapping`, are delegated to the bottom layer of the stack. Use a lock-capable bottom store, such as Redis, when a stack is your default cache store.
 

@@ -16,6 +16,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
+use RuntimeException;
 
 class CacheStackStoreTest extends TestCase
 {
@@ -49,6 +50,64 @@ class CacheStackStoreTest extends TestCase
         $this->swoole->shouldReceive('put')->once()->with($key, $record, $ttl)->andReturn(true);
 
         $this->assertSame($value, $this->store->get($key));
+    }
+
+    public function testReadReturnsLowerValueWhenUpperRepairFails(): void
+    {
+        $this->createStores();
+
+        $record = ['value' => 'bar'];
+
+        $this->swoole->shouldReceive('get')->once()->with('foo')->andReturnNull();
+        $this->redis->shouldReceive('get')->once()->with('foo')->andReturn($record);
+        $this->swoole->shouldReceive('forever')->once()->with('foo', $record)->andReturnFalse();
+
+        $this->assertSame('bar', $this->store->get('foo'));
+    }
+
+    public function testMalformedLowerRecordRemainsAMiss(): void
+    {
+        $this->createStores();
+
+        $this->swoole->shouldReceive('get')->once()->with('foo')->andReturnNull();
+        $this->redis->shouldReceive('get')->once()->with('foo')->andReturn(['expiration' => 123]);
+
+        $this->assertNull($this->store->get('foo'));
+    }
+
+    public function testReadRepairExceptionPropagates(): void
+    {
+        $this->createStores();
+
+        $exception = new RuntimeException('repair failed');
+        $record = ['value' => 'bar'];
+
+        $this->swoole->shouldReceive('get')->once()->with('foo')->andReturnNull();
+        $this->redis->shouldReceive('get')->once()->with('foo')->andReturn($record);
+        $this->swoole->shouldReceive('forever')->once()->with('foo', $record)->andThrow($exception);
+
+        try {
+            $this->store->get('foo');
+            $this->fail('Expected the read repair exception to be thrown.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+    }
+
+    public function testThreeLayerReadContinuesRepairAfterInnerFailure(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $middle = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $record = ['value' => 'bar'];
+
+        $top->shouldReceive('get')->once()->with('foo')->andReturnNull();
+        $middle->shouldReceive('get')->once()->with('foo')->andReturnNull();
+        $bottom->shouldReceive('get')->once()->with('foo')->andReturn($record);
+        $middle->shouldReceive('forever')->once()->with('foo', $record)->andReturnFalse();
+        $top->shouldReceive('forever')->once()->with('foo', $record)->andReturnTrue();
+
+        $this->assertSame('bar', (new StackStore([$top, $middle, $bottom]))->get('foo'));
     }
 
     public function testConstructorRequiresAtLeastOneStore(): void
@@ -178,6 +237,44 @@ class CacheStackStoreTest extends TestCase
         $this->assertFalse($this->store->put($key, $value, $ttl));
     }
 
+    public function testPutCompensatesEarlierLayerWhenLowerLayerThrows(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $middle = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $exception = new RuntimeException('write failed');
+
+        $top->shouldReceive('put')->once()->andReturnTrue();
+        $middle->shouldReceive('put')->once()->andThrow($exception);
+        $bottom->shouldNotReceive('put');
+        $top->shouldReceive('forget')->once()->with('foo')->andReturnTrue();
+
+        try {
+            (new StackStore([$top, $middle, $bottom]))->put('foo', 'bar', 60);
+            $this->fail('Expected the lower-layer exception to be thrown.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+    }
+
+    public function testPutDoesNotCompensateLayerWhoseWriteThrows(): void
+    {
+        $top = m::mock(ArrayStore::class);
+        $bottom = m::mock(ArrayStore::class);
+        $exception = new RuntimeException('write failed');
+
+        $top->shouldReceive('put')->once()->andThrow($exception);
+        $top->shouldNotReceive('forget');
+        $bottom->shouldNotReceive('put');
+
+        try {
+            (new StackStore([$top, $bottom]))->put('foo', 'bar', 60);
+            $this->fail('Expected the current-layer exception to be thrown.');
+        } catch (RuntimeException $throwable) {
+            $this->assertSame($exception, $throwable);
+        }
+    }
+
     public function testMany()
     {
         $this->createStores();
@@ -262,6 +359,25 @@ class CacheStackStoreTest extends TestCase
         $this->redis->shouldReceive('put')->once()->with($key, ['value' => 2, 'expiration' => $expiration], $ttl)->andReturn(true);
 
         $this->assertSame(2, $this->store->increment($key));
+    }
+
+    public function testIncrementDoesNotTreatFailedRepairAsMissingAndPreservesLowerValue(): void
+    {
+        $this->createStores();
+
+        $record = ['value' => 5];
+        $incrementedRecord = ['value' => 6];
+
+        $this->swoole->shouldReceive('get')->twice()->with('counter')->andReturnNull();
+        $this->redis->shouldReceive('get')->twice()->with('counter')->andReturn($record);
+        $this->swoole->shouldReceive('forever')->twice()->with('counter', $record)->andReturnFalse();
+
+        $this->swoole->shouldReceive('forever')->once()->with('counter', $incrementedRecord)->andReturnTrue();
+        $this->redis->shouldReceive('forever')->once()->with('counter', $incrementedRecord)->andReturnFalse();
+        $this->swoole->shouldReceive('forget')->once()->with('counter')->andReturnTrue();
+
+        $this->assertFalse($this->store->increment('counter'));
+        $this->assertSame(5, $this->store->get('counter'));
     }
 
     public function testDecrement()
