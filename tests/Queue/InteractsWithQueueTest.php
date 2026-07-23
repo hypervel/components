@@ -7,17 +7,16 @@ namespace Hypervel\Tests\Queue;
 use Exception;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 
 class InteractsWithQueueTest extends TestCase
 {
-    public function testCreatesAnExceptionFromString()
+    public function testCreatesAnExceptionFromString(): void
     {
         $queueJob = m::mock(Job::class);
-        $queueJob->shouldReceive('fail')->withArgs(function ($e) {
-            $this->assertInstanceOf(Exception::class, $e);
-            $this->assertEquals('Whoops!', $e->getMessage());
+        $queueJob->shouldReceive('fail')->withArgs(function (Exception $exception): bool {
+            $this->assertSame('Whoops!', $exception->getMessage());
 
             return true;
         });

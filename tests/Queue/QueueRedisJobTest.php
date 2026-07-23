@@ -7,13 +7,13 @@ namespace Hypervel\Tests\Queue;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use stdClass;
 
 class QueueRedisJobTest extends TestCase
 {
-    public function testFireProperlyCallsTheJobHandler()
+    public function testFireProperlyCallsTheJobHandler(): void
     {
         $job = $this->getJob();
         $job->getContainer()->shouldReceive('make')->once()->with('foo')->andReturn($handler = m::mock(stdClass::class));
@@ -22,7 +22,7 @@ class QueueRedisJobTest extends TestCase
         $job->fire();
     }
 
-    public function testDeleteRemovesTheJobFromRedis()
+    public function testDeleteRemovesTheJobFromRedis(): void
     {
         $job = $this->getJob();
         $job->getRedisQueue()->shouldReceive('deleteReserved')->once()
@@ -31,7 +31,7 @@ class QueueRedisJobTest extends TestCase
         $job->delete();
     }
 
-    public function testReleaseProperlyReleasesJobOntoRedis()
+    public function testReleaseProperlyReleasesJobOntoRedis(): void
     {
         $job = $this->getJob();
         $job->getRedisQueue()->shouldReceive('deleteAndRelease')->once()
@@ -40,15 +40,18 @@ class QueueRedisJobTest extends TestCase
         $job->release(1);
     }
 
-    protected function getJob()
+    /**
+     * Create a Redis job fixture.
+     */
+    protected function getJob(): RedisJob
     {
         return new RedisJob(
             m::mock(Container::class),
             m::mock(RedisQueue::class),
-            json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 1]),
-            json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 2]),
+            json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 1], JSON_THROW_ON_ERROR),
+            json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 2], JSON_THROW_ON_ERROR),
             'connection-name',
-            'default'
+            'default',
         );
     }
 }
